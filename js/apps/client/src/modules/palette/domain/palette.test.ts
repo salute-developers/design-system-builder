@@ -220,7 +220,13 @@ describe('операции палитры', () => {
 
     it('замена источника только в группе и проверка ступеней', () => {
         const state = scenarioState();
-        const next = paletteOperations.replaceSource(state, 'g-neutral', ref('general.green'), ref('general.coolGray'), ctx(state)).state;
+        const next = paletteOperations.replaceSource(
+            state,
+            'g-neutral',
+            ref('general.green'),
+            ref('general.coolGray'),
+            ctx(state),
+        ).state;
         const palette = build(next).palette;
         expect(resolvePaletteStep(palette, '[general.green.500]', 'text.default.primary')!.hex).toBe(
             golden.template['general.coolGray']['500'],
@@ -232,18 +238,38 @@ describe('операции палитры', () => {
         const withStep50 = [{ tokenId: 't2', mode: 'dark', platform: 'ios', value: '[general.green.50]' }];
         const model = build(scenarioState(), withStep50);
         expect(() =>
-            paletteOperations.replaceSource(scenarioState(), 'g-neutral', ref('general.green'), ref('additional.h190'), {
-                ...model,
-                newId: () => 'x',
-            }),
+            paletteOperations.replaceSource(
+                scenarioState(),
+                'g-neutral',
+                ref('general.green'),
+                ref('additional.h190'),
+                {
+                    ...model,
+                    newId: () => 'x',
+                },
+            ),
         ).toThrow(expect.objectContaining({ code: 'PALETTE_STEP_MISSING', details: { steps: [50] } }));
     });
 
     it('перестройка: превью без изменений и применение', () => {
         const state = scenarioState();
-        const preview = paletteOperations.rebuildPreview(state, 'g-accent', ref('general.green'), 500, '#7B2FF7', ctx(state));
+        const preview = paletteOperations.rebuildPreview(
+            state,
+            'g-accent',
+            ref('general.green'),
+            500,
+            '#7B2FF7',
+            ctx(state),
+        );
         expect(preview).toEqual(golden.rebuild[1].expected);
-        const next = paletteOperations.rebuild(state, 'g-accent', ref('general.green'), 500, '#7b2ff7', ctx(state)).state;
+        const next = paletteOperations.rebuild(
+            state,
+            'g-accent',
+            ref('general.green'),
+            500,
+            '#7b2ff7',
+            ctx(state),
+        ).state;
         const ramp = build(next).palette.groups.find((group) => group.id === 'g-accent')!.ramps[0];
         expect(ramp).toMatchObject({ origin: 'rebuild', anchor: { step: 500, value: '#7B2FF7' }, modified: true });
         expect(() =>
@@ -253,11 +279,28 @@ describe('операции палитры', () => {
 
     it('правка ступени, в том числе опорной', () => {
         const state = scenarioState();
-        const rebuilt = paletteOperations.rebuild(state, 'g-accent', ref('general.green'), 500, '#1F8A70', ctx(state)).state;
-        const next = paletteOperations.updateStep(rebuilt, 'g-accent', ref('general.green'), 500, '#e8114d', ctx(rebuilt)).state;
+        const rebuilt = paletteOperations.rebuild(
+            state,
+            'g-accent',
+            ref('general.green'),
+            500,
+            '#1F8A70',
+            ctx(state),
+        ).state;
+        const next = paletteOperations.updateStep(
+            rebuilt,
+            'g-accent',
+            ref('general.green'),
+            500,
+            '#e8114d',
+            ctx(rebuilt),
+        ).state;
         const ramp = build(next).palette.groups.find((group) => group.id === 'g-accent')!.ramps[0];
-        expect(ramp.anchor).toEqual({ step: 500, value: '#E8114D' });
-        expect(ramp.displayName).toBe('Coral');
+        expect(ramp.anchor).toEqual({ step: 500, value: '#1F8A70' });
+        expect(ramp.steps.find((item) => item.step === 500)?.value).toBe('#E8114D');
+        expect(ramp.displayName).toBe(
+            build(rebuilt).palette.groups.find((group) => group.id === 'g-accent')!.ramps[0].displayName,
+        );
         expect(() =>
             paletteOperations.updateStep(state, 'g-accent', ref('general.green'), 50, '#FFFFFF', ctx(state)),
         ).toThrow(expect.objectContaining({ status: 404 }));
@@ -271,10 +314,20 @@ describe('операции палитры', () => {
             modified: true,
         });
         const templateValue = golden.template['additional.h130']['300'];
-        next = paletteOperations.updateStep(state, 'g-avatars', ref('additional.h130'), 300, templateValue.toLowerCase(), ctx(state)).state;
+        next = paletteOperations.updateStep(
+            state,
+            'g-avatars',
+            ref('additional.h130'),
+            300,
+            templateValue.toLowerCase(),
+            ctx(state),
+        ).state;
         expect(next.ramps.find((ramp) => ramp.groupId === 'g-avatars')!.steps).toEqual({});
         expect(avatars()).toMatchObject({ modified: false, slot: ref('additional.h130') });
-        expect(avatars().steps.find((step) => step.step === 300)).toMatchObject({ value: templateValue, overridden: false });
+        expect(avatars().steps.find((step) => step.step === 300)).toMatchObject({
+            value: templateValue,
+            overridden: false,
+        });
     });
 
     it('переименование группы', () => {
@@ -289,9 +342,13 @@ describe('операции палитры', () => {
             expect.objectContaining({ code: 'PALETTE_GROUP_EXISTS' }),
         );
         expect(paletteOperations.renameGroup(state, 'g-avatars', 'avatars').value.label).toBe('avatars');
-        expect(() => paletteOperations.renameGroup(state, 'g-avatars', ' ')).toThrow(expect.objectContaining({ status: 400 }));
+        expect(() => paletteOperations.renameGroup(state, 'g-avatars', ' ')).toThrow(
+            expect.objectContaining({ status: 400 }),
+        );
         expect(paletteOperations.nextGroupLabel(state.groups)).toBe('Новая группа');
-        expect(paletteOperations.nextGroupLabel([{ label: 'Новая группа' }, { label: 'новая группа 2' }])).toBe('Новая группа 3');
+        expect(paletteOperations.nextGroupLabel([{ label: 'Новая группа' }, { label: 'новая группа 2' }])).toBe(
+            'Новая группа 3',
+        );
     });
 
     it('удаление растяжки: без стратегии, с заменой и с отвязкой', () => {
@@ -307,14 +364,26 @@ describe('операции палитры', () => {
             ctx(state),
         );
         expect(replaced.value.reassigned).toBe(2);
-        expect(replaced.value.rewrite).toEqual({ tokenIds: ['t1'], from: ref('general.green'), to: ref('additional.h130') });
-        expect(paletteOperations.rewriteTokenValue('[general.green.400][0.5]', replaced.value.rewrite!, () => undefined)).toBe(
-            '[additional.h130.400][0.5]',
+        expect(replaced.value.rewrite).toEqual({
+            tokenIds: ['t1'],
+            from: ref('general.green'),
+            to: ref('additional.h130'),
+        });
+        expect(
+            paletteOperations.rewriteTokenValue('[general.green.400][0.5]', replaced.value.rewrite!, () => undefined),
+        ).toBe('[additional.h130.400][0.5]');
+        const detached = paletteOperations.removeRamp(
+            state,
+            'g-accent',
+            ref('general.green'),
+            { strategy: 'detach' },
+            ctx(state),
         );
-        const detached = paletteOperations.removeRamp(state, 'g-accent', ref('general.green'), { strategy: 'detach' }, ctx(state));
         expect(
             paletteOperations.rewriteTokenValue('[general.green.400][0.5]', detached.value.rewrite!, () => '#08A5C4'),
         ).toBe('#08A5C480');
-        expect(paletteOperations.rewriteTokenValue('[general.gray.400]', detached.value.rewrite!, () => '#000000')).toBeUndefined();
+        expect(
+            paletteOperations.rewriteTokenValue('[general.gray.400]', detached.value.rewrite!, () => '#000000'),
+        ).toBeUndefined();
     });
 });

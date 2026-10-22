@@ -9,13 +9,13 @@
 # - Running database migrations
 # - Seeding initial data (seed-prod.ts)
 # - Bootstrapping the user's project in projects-service (via gateway)
-#   and binding the 'base' design system to it
+#   (legacy Drizzle mode also seeds and binds the 'base' design system)
 # - Comprehensive health checks for all services
 #
 # Usage: ./setup-docker.sh [--seed-only]
-#   --seed-only  only seed the database and bind design system 'base' to the user's project;
-#                the stack must be running and the schema must already exist (DS_SCHEMA_MIGRATION_OWNER=flyway
-#                flow: ds-service creates the schema, then this step fills it)
+#   --seed-only  bootstrap the local project after the schema exists.
+#                In Flyway mode this uses the projects-service HTTP API without creating a design system
+#                and never runs the legacy Drizzle seed against the ds-service schema.
 #
 # Project bootstrap env (all optional):
 #   DSBUILDER_GATEWAY_URL       gateway of backend-kt stack, default http://localhost:8080
@@ -25,8 +25,8 @@
 #   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   Keycloak realm/client, default dsbuilder / dsbuilder-api
 #   DSBUILDER_SKIP_PROJECT=1    skip the project bootstrap step entirely
 #   DS_SCHEMA_MIGRATION_OWNER   drizzle (default) or flyway. flyway: ds-service owns the shared schema, so the
-#                               Drizzle runner, the seed and the project binding are skipped here and run later
-#                               with --seed-only, after ds-service has created the schema
+#                               Drizzle runner, seed and project binding are skipped; only the project bootstrap
+#                               runs later with --seed-only, after ds-service has created the schema
 #   DSBUILDER_RESET_VOLUMES     1 (default) recreates the Docker volumes of this stack, 0 keeps the data
 # =============================================================================
 
@@ -214,6 +214,10 @@ for project in json.load(sys.stdin):
 # Seeds the database and binds design system 'base' to the user's project.
 # Seeding is skipped when the database already holds 'base', so repeated runs do not duplicate data.
 seed_and_bind() {
+    if [ "$SCHEMA_MIGRATION_OWNER" = "flyway" ]; then
+        bootstrap_ds_service
+        return
+    fi
     local seeded
     seeded="$(run_psql -c "SELECT count(*) FROM design_systems WHERE name = 'base';" 2>/dev/null || echo 0)"
     if [ "$seeded" != "0" ]; then
@@ -248,6 +252,20 @@ seed_and_bind() {
         echo_warning "Project bootstrap skipped: design system 'base' stays without project_id (visible to every project)"
     fi
 
+}
+
+# Creates only the local project through the current service API. Users create design systems in the editor.
+bootstrap_ds_service() {
+    local project_id
+    if [ "$SKIP_PROJECT" = "1" ]; then
+        echo_info "Local project bootstrap skipped (DSBUILDER_SKIP_PROJECT=1)"
+        return
+    fi
+    project_id="$(bootstrap_user_project)" || {
+        echo_error "Could not bootstrap the local project"
+        exit 1
+    }
+    echo_success "Local project $project_id is ready; create design systems in the editor"
 }
 
 echo_header "🐳 Design System Builder - Docker Setup (Development)"
@@ -347,7 +365,7 @@ fi
 
 # --- Seeding and project binding ---
 if [ "$SCHEMA_MIGRATION_OWNER" = "flyway" ]; then
-    echo_info "Seed and project binding are deferred: ds-service creates the schema first (run ./setup-docker.sh --seed-only afterwards)"
+    echo_info "Deferring API bootstrap until ds-service has created the schema"
 else
     seed_and_bind
 fi

@@ -94,6 +94,16 @@ const server = createServer(async (req, res) => {
         return;
     }
     if (!realStackMode && path.startsWith('/api/')) {
+        if (req.method === 'GET' && [
+            '/api/projects/project-1/members',
+            '/api/projects/project-1/ds/design-system-versions/by-design-system/ds-1',
+            '/api/projects/project-1/ds/design-system-components',
+            '/api/projects/project-1/ds/components',
+            '/api/projects/project-1/ds/appearances',
+            '/api/projects/project-1/ds/design-systems/ds-1/changes',
+        ].includes(path)) return send(res, []);
+        if (req.method === 'POST' && path === '/api/projects/project-1/ds/component-config/export')
+            return send(res, { components: [] });
         if (path === '/api/projects') return send(res, [project]);
         if (path === '/api/projects/project-1') return send(res, project);
         if (path.endsWith('/design-systems/ds-1/tenants')) return send(res, [theme]);
@@ -102,6 +112,8 @@ const server = createServer(async (req, res) => {
         if (path.endsWith('/tenants/theme-1/token-values')) return send(res, tokenValues);
         if (path.endsWith('/tenants/theme-1')) return send(res, theme);
         if (path.includes('/legacy/design-systems/Existing%20Design%20System/component-configs')) return send(res, []);
+        res.statusCode = 404;
+        return send(res, { error: `Unhandled fixture: ${req.method} ${path}` });
     }
 
     const requested = join(dist, path === '/' ? 'index.html' : path);
@@ -146,7 +158,7 @@ const server = createServer(async (req, res) => {
                         const rail = document.querySelector('[data-testid="editor-rail"]');
                         const railLogo = rail?.querySelector('.builder-rail-logo');
                         const railButton = rail?.querySelector('[data-testid="editor-nav-colors"]');
-                        const railIcon = railButton?.querySelector('svg');
+                        const railIcon = railButton?.querySelector('img');
                         const sectionContent = content?.firstElementChild;
                         checks.workspacePresent = !isEditor || Boolean(menu && content);
                         checks.railPresent = !isEditor || Boolean(rail && railLogo && railButton && railIcon);

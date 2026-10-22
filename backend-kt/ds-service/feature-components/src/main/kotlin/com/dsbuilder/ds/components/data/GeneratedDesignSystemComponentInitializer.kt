@@ -16,14 +16,16 @@ import java.util.UUID
 /** Заполняет новую дизайн-систему компонентными конфигурациями из ресурса ds-service. */
 class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializer {
     override suspend fun initialize(designSystemId: UUID) {
-        if (DesignSystemComponentsTable.selectAll().where {
-                DesignSystemComponentsTable.designSystemId eq designSystemId
+        if (StableDesignSystemComponentsTable.selectAll().where {
+                StableDesignSystemComponentsTable.designSystemId eq designSystemId
             }.limit(1).any()
         ) {
             return
         }
         val context = validate(designSystemId) ?: return
-        seeds.components.forEach { seed -> insertComponent(designSystemId, seed, context) }
+        val writer = ComponentSeedBatchWriter(designSystemId)
+        seeds.components.forEach { seed -> insertComponent(designSystemId, seed, context, writer) }
+        writer.flush()
         insertDependencies(context)
     }
 
@@ -45,9 +47,7 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
                 PropertyKey(componentId, row[PropertiesTable.name]) to row[PropertiesTable.id]
             }
         }.toMap()
-        val tokens = ComponentTokensTable.selectAll().where {
-            ComponentTokensTable.designSystemId eq designSystemId
-        }.associate { it[ComponentTokensTable.name] to it[ComponentTokensTable.id] }
+        val tokens = componentSeedTokens(designSystemId)
         val states = ComponentStatesTable.selectAll().where { ComponentStatesTable.componentId.isNull() }
             .associate { it[ComponentStatesTable.name] to it[ComponentStatesTable.id] }
         val params = PropertyPlatformParamsTable.selectAll().associate { row ->
@@ -218,12 +218,22 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
         }
     }
 
-    private fun insertComponent(designSystemId: UUID, seed: ComponentSeed, context: SeedContext) {
+    private fun insertComponent(
+        designSystemId: UUID,
+        seed: ComponentSeed,
+        context: SeedContext,
+        writer: ComponentSeedBatchWriter,
+    ) {
         val componentId = context.components.getValue(seed.name)
-        DesignSystemComponentsTable.insertReturning {
-            it[DesignSystemComponentsTable.designSystemId] = designSystemId
-            it[DesignSystemComponentsTable.componentId] = componentId
-        }.single()
+        val linkId = writer.stable(
+            StableDesignSystemComponentsTable,
+            StableDesignSystemComponentsTable.id,
+            StableDesignSystemComponentsTable.createdAt,
+        ) {
+            it[StableDesignSystemComponentsTable.designSystemId] = designSystemId
+            it[StableDesignSystemComponentsTable.componentId] = componentId
+        }
+        writer.revision(DesignSystemComponentRevisionsTable, DesignSystemComponentRevisionsTable.entityId, linkId)
 
         val variations = seed.variations.associate { variation ->
             val existing = VariationsTable.selectAll().where {
@@ -258,18 +268,20 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
 
         val styles = seed.variations.flatMap { variation ->
             variation.styles.map { style ->
-                val id = ComponentStylesTable.insertReturning {
-                    it[ComponentStylesTable.designSystemId] = designSystemId
+                val id = writer.stable(StableStylesTable, StableStylesTable.id, StableStylesTable.createdAt) {
+                    it[StableStylesTable.designSystemId] = designSystemId
                     it[variationId] = variations.getValue(variation.name)
-                    it[name] = style.name
-                    it[description] = style.description.orEmpty()
-                }.single()[ComponentStylesTable.id]
+                }
+                writer.revision(StyleRevisionsTable, StyleRevisionsTable.entityId, id) { statement ->
+                    statement[name] = style.name
+                    statement[description] = style.description.orEmpty()
+                }
                 StyleKey(variation.name, style.name) to id
             }
         }.toMap()
 
         seed.appearances.forEach { appearance ->
-            insertAppearance(designSystemId, seed, appearance, componentId, variations, styles, context)
+            insertAppearance(designSystemId, seed, appearance, componentId, variations, styles, context, writer)
         }
     }
 
@@ -282,108 +294,215 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
         variations: Map<String, UUID>,
         styles: Map<StyleKey, UUID>,
         context: SeedContext,
+        writer: ComponentSeedBatchWriter,
     ) {
-        val appearanceId = ComponentAppearancesTable.insertReturning {
-            it[ComponentAppearancesTable.designSystemId] = designSystemId
-            it[ComponentAppearancesTable.componentId] = componentId
-            it[name] = appearance.name
-        }.single()[ComponentAppearancesTable.id]
+        val appearanceId = writer.stable(
+            StableAppearancesTable,
+            StableAppearancesTable.id,
+            StableAppearancesTable.createdAt,
+        ) {
+            it[StableAppearancesTable.designSystemId] = designSystemId
+            it[StableAppearancesTable.componentId] = componentId
+        }
+        writer.revision(AppearanceRevisionsTable, AppearanceRevisionsTable.entityId, appearanceId) { statement ->
+            statement[name] = appearance.name
+            statement[rootVariationId] = null
+            statement[colorSchemeVariationId] = null
+        }
         val declared = appearance.variations ?: seed.variations.map(VariationSeed::name)
         declared.forEachIndexed { position, axis ->
-            val rowId = AppearanceVariationsTable.insertReturning {
-                it[AppearanceVariationsTable.appearanceId] = appearanceId
+            val rowId = writer.stable(
+                StableAppearanceVariationsTable,
+                StableAppearanceVariationsTable.id,
+                StableAppearanceVariationsTable.createdAt,
+            ) {
+                it[StableAppearanceVariationsTable.appearanceId] = appearanceId
                 it[variationId] = variations.getValue(axis)
-                it[AppearanceVariationsTable.position] = position
-                it[defaultStyleId] = appearance.defaults[axis]?.let { styles.getValue(StyleKey(axis, it)) }
-                it[isColorScheme] = false
-                it[declaredType] = null
-            }.single()[AppearanceVariationsTable.id]
+                it[StableAppearanceVariationsTable.designSystemId] = designSystemId
+            }
+            writer.revision(
+                AppearanceVariationRevisionsTable,
+                AppearanceVariationRevisionsTable.entityId,
+                rowId,
+            ) { statement ->
+                statement[AppearanceVariationRevisionsTable.position] = position
+                statement[defaultStyleId] = appearance.defaults[axis]?.let { styles.getValue(StyleKey(axis, it)) }
+                statement[declaredType] = null
+            }
             seed.variations.first { it.name == axis }.styles.forEachIndexed { stylePosition, style ->
-                AppearanceVariationValuesTable.insertReturning {
+                val valueId = writer.stable(
+                    StableAppearanceVariationValuesTable,
+                    StableAppearanceVariationValuesTable.id,
+                    StableAppearanceVariationValuesTable.createdAt,
+                ) {
                     it[appearanceVariationId] = rowId
-                    it[styleId] = styles.getValue(StyleKey(axis, style.name))
-                    it[AppearanceVariationValuesTable.position] = stylePosition
-                    it[authoredId] = null
-                }.single()
+                    it[StableAppearanceVariationValuesTable.designSystemId] = designSystemId
+                }
+                writer.revision(
+                    AppearanceVariationValueRevisionsTable,
+                    AppearanceVariationValueRevisionsTable.entityId,
+                    valueId,
+                ) { statement ->
+                    statement[styleId] = styles.getValue(StyleKey(axis, style.name))
+                    statement[AppearanceVariationValueRevisionsTable.position] = stylePosition
+                    statement[authoredId] = null
+                }
             }
         }
 
         appearance.values.forEach { (axis, byStyle) ->
             byStyle.forEach { (style, values) ->
                 values.forEach { value ->
-                    val valueId = VariationPropertyValuesTable.insertReturning {
+                    val valueId = writer.stable(
+                        StableVariationPropertyValuesTable,
+                        StableVariationPropertyValuesTable.id,
+                        StableVariationPropertyValuesTable.createdAt,
+                    ) {
                         it[propertyId] = context.property(seed.name, value.prop)
                         it[styleId] = styles.getValue(StyleKey(axis, style))
-                        it[VariationPropertyValuesTable.appearanceId] = appearanceId
+                        it[StableVariationPropertyValuesTable.appearanceId] = appearanceId
+                        it[StableVariationPropertyValuesTable.designSystemId] = designSystemId
+                    }
+                    writer.revision(
+                        VariationPropertyValueRevisionsTable,
+                        VariationPropertyValueRevisionsTable.entityId,
+                        valueId,
+                    ) { statement ->
                         val token = value.token?.let(context.tokens::getValue)
-                        it[tokenId] = token
-                        it[VariationPropertyValuesTable.value] = value.value.takeIf { token == null }
-                        it[alpha] = null
-                        it[adjustment] = null
-                        it[VariationPropertyValuesTable.position] = 0
-                        it[stateSetId] = context.stateSet(value.stateNames())
-                    }.single()[VariationPropertyValuesTable.id]
-                    insertVariationAdjustments(valueId, seed.name, value, context)
+                        statement[tokenId] = token
+                        statement[VariationPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
+                        statement[alpha] = null
+                        statement[adjustment] = null
+                        statement[position] = 0
+                        statement[stateSetId] = context.stateSet(value.stateNames())
+                    }
+                    insertVariationAdjustments(valueId, designSystemId, seed.name, value, context, writer)
                 }
             }
         }
         appearance.invariants.forEach { value ->
-            val valueId = InvariantPropertyValuesTable.insertReturning {
+            val valueId = writer.stable(
+                StableInvariantPropertyValuesTable,
+                StableInvariantPropertyValuesTable.id,
+                StableInvariantPropertyValuesTable.createdAt,
+            ) {
                 it[propertyId] = context.property(seed.name, value.prop)
-                it[InvariantPropertyValuesTable.designSystemId] = designSystemId
-                it[InvariantPropertyValuesTable.componentId] = componentId
-                it[InvariantPropertyValuesTable.appearanceId] = appearanceId
+                it[StableInvariantPropertyValuesTable.designSystemId] = designSystemId
+                it[StableInvariantPropertyValuesTable.componentId] = componentId
+                it[StableInvariantPropertyValuesTable.appearanceId] = appearanceId
+            }
+            writer.revision(
+                InvariantPropertyValueRevisionsTable,
+                InvariantPropertyValueRevisionsTable.entityId,
+                valueId,
+            ) { statement ->
                 val token = value.token?.let(context.tokens::getValue)
-                it[tokenId] = token
-                it[InvariantPropertyValuesTable.value] = value.value.takeIf { token == null }
-                it[alpha] = null
-                it[adjustment] = null
-                it[InvariantPropertyValuesTable.position] = 0
-                it[stateSetId] = context.stateSet(value.stateNames())
-            }.single()[InvariantPropertyValuesTable.id]
-            insertInvariantAdjustments(valueId, seed.name, value, context)
+                statement[tokenId] = token
+                statement[InvariantPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
+                statement[alpha] = null
+                statement[adjustment] = null
+                statement[position] = 0
+                statement[stateSetId] = context.stateSet(value.stateNames())
+            }
+            insertInvariantAdjustments(valueId, designSystemId, seed.name, value, context, writer)
         }
         appearance.combinations.forEach { combination ->
             val members = combination.styles.map { (axis, style) -> styles.getValue(StyleKey(axis, style)) }
-            val rowId = StyleCombinationsTable.insertReturning {
+            val rowId = writer.stable(
+                StableStyleCombinationsTable,
+                StableStyleCombinationsTable.id,
+                StableStyleCombinationsTable.createdAt,
+            ) {
                 it[propertyId] = context.property(seed.name, combination.prop)
-                it[StyleCombinationsTable.appearanceId] = appearanceId
-                it[combinationKey] = members.sorted().joinToString(",")
-                it[StyleCombinationsTable.value] = combination.value ?: combination.token.orEmpty()
-                it[tokenId] = combination.token?.let(context.tokens::getValue)
-                it[alpha] = null
-                it[adjustment] = null
-                it[StyleCombinationsTable.position] = 0
-                it[stateSetId] = EMPTY_STATE_SET_ID
-            }.single()[StyleCombinationsTable.id]
+                it[StableStyleCombinationsTable.appearanceId] = appearanceId
+                it[StableStyleCombinationsTable.designSystemId] = designSystemId
+            }
+            writer.revision(
+                StyleCombinationRevisionsTable,
+                StyleCombinationRevisionsTable.entityId,
+                rowId,
+            ) { statement ->
+                statement[combinationKey] = members.sorted().joinToString(",")
+                statement[StyleCombinationRevisionsTable.value] = combination.value ?: combination.token.orEmpty()
+                statement[tokenId] = combination.token?.let(context.tokens::getValue)
+                statement[alpha] = null
+                statement[adjustment] = null
+                statement[position] = 0
+                statement[stateSetId] = EMPTY_STATE_SET_ID
+            }
             members.forEach { styleId ->
-                StyleCombinationMembersTable.insertReturning {
+                val memberId = writer.stable(
+                    StableStyleCombinationMembersTable,
+                    StableStyleCombinationMembersTable.id,
+                    StableStyleCombinationMembersTable.createdAt,
+                ) {
                     it[combinationId] = rowId
-                    it[StyleCombinationMembersTable.styleId] = styleId
-                }.single()
+                    it[StableStyleCombinationMembersTable.designSystemId] = designSystemId
+                }
+                writer.revision(
+                    StyleCombinationMemberRevisionsTable,
+                    StyleCombinationMemberRevisionsTable.entityId,
+                    memberId,
+                ) { statement -> statement[StyleCombinationMemberRevisionsTable.styleId] = styleId }
             }
         }
     }
 
-    private fun insertVariationAdjustments(id: UUID, component: String, value: ValueSeed, context: SeedContext) {
+    private fun insertVariationAdjustments(
+        id: UUID,
+        designSystemId: UUID,
+        component: String,
+        value: ValueSeed,
+        context: SeedContext,
+        writer: ComponentSeedBatchWriter,
+    ) {
         value.adjust.forEach { adjustment ->
-            VariationPlatformParamAdjustmentsTable.insertReturning {
+            val adjustmentId = writer.stable(
+                StableVariationPlatformParamAdjustmentsTable,
+                StableVariationPlatformParamAdjustmentsTable.id,
+                StableVariationPlatformParamAdjustmentsTable.createdAt,
+            ) {
                 it[vpvId] = id
                 it[platformParamId] = context.param(component, value.prop, adjustment)
-                it[VariationPlatformParamAdjustmentsTable.value] = adjustment.value
-                it[template] = adjustment.template
-            }.single()
+                it[StableVariationPlatformParamAdjustmentsTable.designSystemId] = designSystemId
+            }
+            writer.revision(
+                VariationPlatformParamAdjustmentRevisionsTable,
+                VariationPlatformParamAdjustmentRevisionsTable.entityId,
+                adjustmentId,
+            ) { statement ->
+                statement[VariationPlatformParamAdjustmentRevisionsTable.value] = adjustment.value
+                statement[template] = adjustment.template
+            }
         }
     }
 
-    private fun insertInvariantAdjustments(id: UUID, component: String, value: ValueSeed, context: SeedContext) {
+    private fun insertInvariantAdjustments(
+        id: UUID,
+        designSystemId: UUID,
+        component: String,
+        value: ValueSeed,
+        context: SeedContext,
+        writer: ComponentSeedBatchWriter,
+    ) {
         value.adjust.forEach { adjustment ->
-            InvariantPlatformParamAdjustmentsTable.insertReturning {
+            val adjustmentId = writer.stable(
+                StableInvariantPlatformParamAdjustmentsTable,
+                StableInvariantPlatformParamAdjustmentsTable.id,
+                StableInvariantPlatformParamAdjustmentsTable.createdAt,
+            ) {
                 it[ipvId] = id
                 it[platformParamId] = context.param(component, value.prop, adjustment)
-                it[InvariantPlatformParamAdjustmentsTable.value] = adjustment.value
-                it[template] = adjustment.template
-            }.single()
+                it[StableInvariantPlatformParamAdjustmentsTable.designSystemId] = designSystemId
+            }
+            writer.revision(
+                InvariantPlatformParamAdjustmentRevisionsTable,
+                InvariantPlatformParamAdjustmentRevisionsTable.entityId,
+                adjustmentId,
+            ) { statement ->
+                statement[InvariantPlatformParamAdjustmentRevisionsTable.value] = adjustment.value
+                statement[template] = adjustment.template
+            }
         }
     }
 

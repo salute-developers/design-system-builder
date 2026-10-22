@@ -12,6 +12,16 @@ interface StyleRepository {
     /** Performs the find accessible operation. */
     suspend fun findAccessible(projectId: ProjectId, systemAdmin: Boolean, id: UUID): ComponentStyleSummary?
 
+    /** Checks the resolved draft for another style with the same variation-scoped name. */
+    suspend fun nameExists(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID,
+        variationId: UUID,
+        normalizedName: String,
+        excludingId: UUID? = null,
+    ): Boolean
+
     /** Performs the list by variation and design system operation. */
     suspend fun listByVariationAndDesignSystem(
         projectId: ProjectId,

@@ -16,6 +16,16 @@ interface AppearanceRepository {
     /** Performs the find operation. */
     suspend fun find(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Appearance?
 
+    /** Checks the resolved draft for another appearance with the same component-scoped name. */
+    suspend fun nameExists(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID,
+        componentId: UUID,
+        normalizedName: String?,
+        excludingId: UUID? = null,
+    ): Boolean
+
     /** Performs the create operation. */
     suspend fun create(projectId: ProjectId, systemAdmin: Boolean, command: AppearanceCreate): Appearance?
 

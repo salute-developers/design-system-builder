@@ -7,11 +7,14 @@ import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
 import com.dsbuilder.ds.components.application.ImportComponentConfigUseCase
+import com.dsbuilder.ds.components.domain.ComponentConfigImportResult
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.ErrorResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -22,6 +25,7 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.utils.io.readAvailable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
 
@@ -33,10 +37,15 @@ fun Route.componentConfigRoutes(
     importConfig: ImportComponentConfigUseCase,
     exportConfig: ExportComponentConfigUseCase,
     getWebAdapter: GetComponentWebAdapterUseCase,
+    json: Json,
 ) {
     route("/api/ds/component-config") {
         get {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val query = call.request.queryParameters
             val designSystem = query["ds"]
@@ -56,13 +65,17 @@ fun Route.componentConfigRoutes(
                     ComponentConfigQuery(designSystem, version, appearance, component, platform),
                 )
             ) {
-                is DsResult.Success -> call.respond(ComponentConfigResponse.single(result.value))
+                is DsResult.Success -> call.respondSuccess(result, ComponentConfigResponse.single(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
 
         post("/export") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<ExportComponentConfigRequest>()
             val id = request.designSystemId.toUuidOrNull()
@@ -79,7 +92,7 @@ fun Route.componentConfigRoutes(
                     ExportComponentConfig(id, request.platform, request.components, request.styles),
                 )
             ) {
-                is DsResult.Success -> call.respond(ExportComponentConfigResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, ExportComponentConfigResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
@@ -87,7 +100,9 @@ fun Route.componentConfigRoutes(
         // Временная ручка рядом с `/export`: адресация та же, а ответ CLI сохраняет как есть
         // в `.sdds/web/web-adapter.json`.
         post("/web-adapter") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers, evaluator, call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val id = runCatching { call.receive<ComponentWebAdapterRequest>() }.getOrNull()
                 ?.designSystemId?.toUuidOrNull()
@@ -99,7 +114,11 @@ fun Route.componentConfigRoutes(
         }
 
         post("/import") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val body = call.receiveAtMost(COMPONENT_CONFIG_IMPORT_LIMIT_BYTES)
             if (body == null) {
@@ -116,8 +135,16 @@ fun Route.componentConfigRoutes(
             ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
-            when (val result = importConfig.execute(context, request.toCommand(id))) {
-                is DsResult.Success -> call.respond(ImportComponentConfigResponse.from(result.value))
+            when (
+                val result = importConfig.execute(
+                    context.withIdempotentResponse { value: ComponentConfigImportResult ->
+                        json.encodeToString(ImportComponentConfigResponse.from(value))
+                    },
+                    request.toCommand(id),
+                    call.request.headers["Idempotency-Key"],
+                )
+            ) {
+                is DsResult.Success -> call.respondSuccess(result, ImportComponentConfigResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }

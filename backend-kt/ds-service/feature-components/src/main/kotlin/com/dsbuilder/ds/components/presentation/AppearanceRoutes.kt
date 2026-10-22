@@ -8,14 +8,17 @@ import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.ListAppearanceVariationAxesUseCase
 import com.dsbuilder.ds.components.application.ListAppearancesUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceUseCase
+import com.dsbuilder.ds.components.domain.Appearance
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -39,25 +42,37 @@ fun Route.appearanceRoutes(
 ) {
     route("/api/ds/appearances") {
         get {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respond(result.value.map(AppearanceResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(AppearanceResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, id)) {
-                is DsResult.Success -> call.respond(AppearanceResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, AppearanceResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         post {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateAppearanceRequest>()
             val designSystemId = request.designSystemId.toUuidOrNull()
@@ -72,13 +87,24 @@ fun Route.appearanceRoutes(
                 componentId,
                 request.name.trim(),
             )
-            when (val result = create.execute(context, command)) {
-                is DsResult.Success -> call.respond(HttpStatusCode.Created, AppearanceResponse.from(result.value))
+            val createContext = context.withIdempotentResponse { value: Appearance ->
+                json.encodeToString(AppearanceResponse.serializer(), AppearanceResponse.from(value))
+            }
+            when (val result = create.execute(createContext, command, call.request.headers["Idempotency-Key"])) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    HttpStatusCode.Created,
+                    AppearanceResponse.from(result.value),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         patch("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@patch call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -91,28 +117,46 @@ fun Route.appearanceRoutes(
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             val command = AppearanceRepository.AppearanceUpdate(request.name?.trim())
-            when (val result = update.execute(context, id, command)) {
-                is DsResult.Success -> call.respond(AppearanceResponse.from(result.value))
+            val mutation = call.repeatableMutation(
+                context,
+                payload,
+                json = json,
+                response = AppearanceResponse::from,
+            )
+            when (val result = update.execute(mutation, id, command)) {
+                is DsResult.Success -> call.respondSuccess(result, AppearanceResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         delete("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = delete.execute(context, id)) {
-                is DsResult.Success -> call.respond(OkResponse())
+            val mutation = call.repeatableMutation(context, null, json = json) { _: Unit -> OkResponse() }
+            when (val result = delete.execute(mutation, id)) {
+                is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}/variations") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = axes.execute(context, id)) {
-                is DsResult.Success -> call.respond(result.value.map(AppearanceVariationAxisResponse::from))
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    result.value.map(AppearanceVariationAxisResponse::from),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }

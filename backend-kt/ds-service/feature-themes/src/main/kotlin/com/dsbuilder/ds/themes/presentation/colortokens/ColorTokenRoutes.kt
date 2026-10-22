@@ -6,6 +6,7 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenMutation
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
@@ -17,10 +18,10 @@ import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.presentation.repeatableThemeMutation
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.post
@@ -35,26 +36,36 @@ fun Route.colorTokenRoutes(evaluator: PolicyEvaluator, useCases: ColorTokenUseCa
         post {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
             val command = call.body<CreateColorTokenRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)
-            call.respondFamily(useCases.create.execute(context, tenantId, command), HttpStatusCode.Created)
+            call.respondFamily(
+                useCases.create.execute(call.familyContext(context, command, 201), tenantId, command),
+                HttpStatusCode.Created,
+            )
         }
         put("/{tokenId}/values") {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@put
             val tokenId = call.tokenId() ?: return@put
             val command = call.body<UpdateColorTokenValuesRequest>()?.toCommand()
                 ?: return@put call.respondFailure(BODY)
-            call.respondRevision(useCases.updateValues.execute(context, tenantId, tokenId, command))
+            call.respondRevision(
+                useCases.updateValues.execute(call.revisionContext(context, command), tenantId, tokenId, command),
+            )
         }
         post("/{tokenId}/move") {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
             val tokenId = call.tokenId() ?: return@post
             val command = call.body<MoveColorTokenRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)
-            call.respondFamily(useCases.move.execute(context, tenantId, tokenId, command), HttpStatusCode.OK)
+            call.respondFamily(
+                useCases.move.execute(call.familyContext(context, command), tenantId, tokenId, command),
+                HttpStatusCode.OK,
+            )
         }
         delete("/{tokenId}") {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@delete
             val tokenId = call.tokenId() ?: return@delete
             val body = call.body<DeleteColorTokenRequest>() ?: return@delete call.respondFailure(BODY)
-            call.respondRevision(useCases.delete.execute(context, tenantId, tokenId, body.editRevision))
+            call.respondRevision(
+                useCases.delete.execute(call.revisionContext(context, body), tenantId, tokenId, body.editRevision),
+            )
         }
     }
 }
@@ -91,11 +102,13 @@ private fun UpdateColorTokenValuesRequest.toCommand(): UpdateColorTokenValues? {
 }
 
 private fun List<ColorTokenValueItem>.toValues(): List<ColorTokenValue>? = map { item ->
+    if (item.baseRevision != null && item.baseRevision < 0) return null
     ColorTokenValue(
         platform = ThemeTokenPlatform.fromWire(item.platform) ?: return null,
         mode = ThemeTokenMode.fromWire(item.mode) ?: return null,
         paletteId = item.paletteId?.let { uuid(it) ?: return null },
         value = item.value,
+        baseRevision = item.baseRevision,
     )
 }
 
@@ -103,7 +116,7 @@ private fun uuid(value: String?): UUID? = value?.let { runCatching { UUID.fromSt
 
 /** Контекст запроса и тема; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.tenantTarget(evaluator: PolicyEvaluator): Pair<DsRequestContext, UUID>? {
-    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator)
+    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"])
         ?: return null.also { respondFailure(DsFailure.Forbidden) }
     val tenantId = uuid(parameters["tenantId"]) ?: return null.also { respondFailure(TENANT) }
     return context to tenantId
@@ -123,15 +136,16 @@ private suspend fun ApplicationCall.respondFamily(
     result: DsResult<ColorTokenMutation<StoredColorTokenFamily>>,
     status: HttpStatusCode,
 ) = when (result) {
-    is DsResult.Success -> respond(
+    is DsResult.Success -> respondSuccess(
+        result,
         status,
-        ColorTokenMutationResponse(result.value.editRevision, ColorTokenFamilyDto.from(result.value.value)),
+        ColorTokenMutationResponse(0, ColorTokenFamilyDto.from(result.value.value)),
     )
     is DsResult.Failure -> respondFailure(result.error)
 }
 
 private suspend fun ApplicationCall.respondRevision(result: DsResult<Int>) = when (result) {
-    is DsResult.Success -> respond(ColorTokenRevisionResponse(result.value))
+    is DsResult.Success -> respondSuccess(result, ColorTokenRevisionResponse(result.value))
     is DsResult.Failure -> respondFailure(result.error)
 }
 
@@ -139,3 +153,11 @@ private suspend fun ApplicationCall.respondRevision(result: DsResult<Int>) = whe
 private val TENANT = DsFailure.InvalidRequest("invalid_id", message = "Некорректный идентификатор темы")
 private val TOKEN = DsFailure.InvalidRequest("invalid_id", message = "Некорректный идентификатор токена")
 private val BODY = DsFailure.InvalidRequest("invalid_body", message = "Некорректное тело запроса")
+
+private fun ApplicationCall.familyContext(context: DsRequestContext, body: Any, status: Int = 200) =
+    repeatableThemeMutation(context, body, status) { value: ColorTokenMutation<StoredColorTokenFamily> ->
+        ColorTokenMutationResponse(0, ColorTokenFamilyDto.from(value.value))
+    }
+
+private fun ApplicationCall.revisionContext(context: DsRequestContext, body: Any) =
+    repeatableThemeMutation(context, body) { value: Int -> ColorTokenRevisionResponse(value) }

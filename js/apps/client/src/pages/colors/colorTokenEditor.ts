@@ -1,4 +1,7 @@
 import { colorTokenActions, gradientTokenActions } from '../../actions';
+import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
+import { observeSubjectAddresses } from '../../api/subjectRevisions';
+import { authService } from '../../api/authService';
 import { getAdditionalColorValues } from '../../actions/colors';
 import { AndroidColor, ColorToken, IOSColor, WebColor } from '../../controllers';
 import type { DesignSystem, GradientToken, Theme } from '../../controllers';
@@ -95,8 +98,18 @@ export interface ColorTokenSession {
 }
 
 const sessions = new Map<string, ColorTokenSession>();
-const sessionKey = ({ projectId, designSystemId, tenantId }: ColorTokenContext) =>
-    `${projectId}:${designSystemId}:${tenantId}`;
+const confirmedValues = new WeakMap<ColorTokenSession, Map<string, string>>();
+const structureReads = new WeakMap<ColorTokenSession, { sync: boolean }>();
+const clearSessions = () => {
+    sessions.forEach((session) => {
+        session.autosave.dispose();
+        setDraftAutosaveActivity(session.context, 'color-tokens', null);
+    });
+    sessions.clear();
+};
+authService.onSessionReset(clearSessions);
+const sessionKey = ({ projectId, designSystemId, tenantId, versionId }: ColorTokenContext) =>
+    `${projectId}:${designSystemId}:${tenantId}:${versionId ?? ''}`;
 
 let repository: ColorTokenRepository = createHttpColorTokenRepository();
 let groupRepository: TokenGroupRepository = createHttpTokenGroupRepository();
@@ -105,7 +118,7 @@ let groupRepository: TokenGroupRepository = createHttpTokenGroupRepository();
 export const setColorTokenRepository = (value: ColorTokenRepository, groups?: TokenGroupRepository) => {
     repository = value;
     if (groups) groupRepository = groups;
-    sessions.clear();
+    clearSessions();
 };
 
 export const colorTokenRepository = () => repository;
@@ -148,9 +161,21 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
             },
         },
         onChange: () => {
+            setDraftAutosaveActivity(context, 'color-tokens', session.autosave.overall().state);
             const unsaved = new Set(session.autosave.unsavedKeys());
             [...session.edited.keys()].forEach((key) => unsaved.has(key) || session.edited.delete(key));
             notify(session);
+        },
+        onConfirmed: (payload) => {
+            const confirmed = confirmedValues.get(session) ?? new Map<string, string>();
+            const names = new Map([...session.definitions].map(([name, definition]) => [definition.id, name]));
+            payload.update.members.forEach((member) =>
+                member.values.forEach((value) => {
+                    const name = names.get(member.tokenId);
+                    if (name) confirmed.set(`${value.mode}.${name}:${value.platform}`, JSON.stringify(value.value));
+                }),
+            );
+            confirmedValues.set(session, confirmed);
         },
         onConflict: (error) => {
             // Тема изменена в другом месте: несохранённые значения запоминаются, тема перечитывается, повторная
@@ -209,14 +234,34 @@ const syncTheme = (session: ColorTokenSession, definitions: PlacedDefinition[]) 
 
 /** Перечитывает группы и места определений; после операций над структурой приводит к ним тему. */
 export const refreshStructure = async (session: ColorTokenSession, sync = false) => {
-    // Определения — после групп: у дизайн-системы без групп `ds-service` создаёт их и раскладывает токены при
-    // чтении списка, а прочитанные одновременно определения пришли бы без групп.
-    const groups = await groupRepository.list(session.context);
-    const definitions = await groupRepository.definitions(session.context);
-    if (sync) syncTheme(session, definitions);
+    const previous = structureReads.get(session);
+    const read = { sync: sync || previous?.sync === true };
+    structureReads.set(session, read);
+    while (structureReads.get(session) === read && sessions.get(sessionKey(session.context)) === session) {
+        // Здесь перечитывается структура, не значения: чужая неуспешная очередь
+        // не должна превращать уже выполненную команду в ошибку обновления дерева.
+        const revision = getDraftAutosaveRevision(session.context);
+        // Сначала группы: их инициализация может разложить определения по группам.
+        const groups = await groupRepository.list(session.context);
+        const definitions = await groupRepository.definitions(session.context);
+        if (structureReads.get(session) !== read || sessions.get(sessionKey(session.context)) !== session) return;
+        if (getDraftAutosaveRevision(session.context) !== revision) continue;
+        if (read.sync) syncTheme(session, definitions);
+        adoptGroups(session, groups);
+        setPlacements(session, definitions);
+        read.sync = false;
+        notify(session);
+        return;
+    }
+};
+
+export const adoptGroups = (session: ColorTokenSession, groups: TokenGroupDto[]) => {
     session.groups = groups;
-    setPlacements(session, definitions);
-    notify(session);
+    observeSubjectAddresses(
+        session.context,
+        'token-group',
+        Object.fromEntries(groups.map((group) => [group.id, group.editRevision ?? 0])),
+    );
 };
 
 /** Значения определений токенов с несохранёнными правками: имя с режимом → значения платформ. */
@@ -260,6 +305,17 @@ export const adoptTheme = (session: ColorTokenSession, theme: Theme) => {
     if (session.theme === theme) return;
     if (session.theme && !session.overlay && session.autosave.hasUnsaved()) session.overlay = captureUnsaved(session);
     session.theme = theme;
+    const confirmed = new Map<string, string>();
+    for (const type of ['color', 'gradient'] as const)
+        for (const token of theme.getTokens(type))
+            for (const platform of ['web', 'ios', 'android'] as const) {
+                const value = token.getValue(platform as never);
+                confirmed.set(
+                    `${token.getName()}:${platform}`,
+                    JSON.stringify(type === 'gradient' || Array.isArray(value) ? value : [value]),
+                );
+            }
+    confirmedValues.set(session, confirmed);
     applyOverlay(session, theme);
 };
 
@@ -283,10 +339,26 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         return { theme: session.theme, designSystem: session.designSystem };
     };
 
-    const schedule = (key: ColorTokenKey) =>
-        session.autosave.schedule(tokenId(key), () =>
-            session.theme ? familyUpdate(session.theme, key, session.definitions) : null,
-        );
+    const schedule = (key: ColorTokenKey, restoreLegacy = false) =>
+        session.autosave.schedule(tokenId(key), () => {
+            if (!session.theme || session.context.versionId) return null;
+            const payload = familyUpdate(session.theme, key, session.definitions);
+            if (!payload) return null;
+            const names = new Map([...session.definitions].map(([name, definition]) => [definition.id, name]));
+            const confirmed = confirmedValues.get(session);
+            const members = payload.update.members
+                .map((member) => ({
+                    ...member,
+                    values: member.values.filter(
+                        (value) =>
+                            restoreLegacy ||
+                            confirmed?.get(`${value.mode}.${names.get(member.tokenId)}:${value.platform}`) !==
+                                JSON.stringify(value.value),
+                    ),
+                }))
+                .filter((member) => member.values.length > 0);
+            return members.length ? { tokenId: payload.tokenId, update: { members } } : null;
+        });
 
     const memberToken = (key: ColorTokenKey, mode: ColorMode, context: ColorContext | null) => {
         const subgroup = context ? contextSubgroup(key.group, context) : 'default';
@@ -539,7 +611,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             for (const key of legacyDraftFamilies(entries)) {
                 const defaultName = `${key.group}.default.${key.name}`;
                 if (session.definitions.has(defaultName)) {
-                    schedule(key);
+                    schedule(key, true);
                     continue;
                 }
                 // Токен из черновика уже есть в теме: создаётся с его значениями всех платформ, тема не меняется.

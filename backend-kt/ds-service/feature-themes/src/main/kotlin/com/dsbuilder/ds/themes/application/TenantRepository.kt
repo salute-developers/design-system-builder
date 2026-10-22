@@ -13,6 +13,14 @@ interface TenantRepository {
     /** Performs the findaccessible operation. */
     suspend fun findAccessible(projectId: ProjectId, id: UUID): Tenant?
 
+    /** Checks a normalized non-null tenant name in the currently resolved draft state. */
+    suspend fun nameExists(
+        projectId: ProjectId,
+        designSystemId: UUID,
+        normalizedName: String,
+        excludingId: UUID? = null,
+    ): Boolean
+
     /** Performs the createowned operation. */
     suspend fun createOwned(projectId: ProjectId, command: CreateTenant): Tenant?
 
@@ -23,7 +31,11 @@ interface TenantRepository {
     suspend fun deleteOwned(projectId: ProjectId, id: UUID): Boolean
 
     /** Performs the tokenvalues operation. */
-    suspend fun tokenValues(projectId: ProjectId, id: UUID): List<TenantTokenValue>?
+    suspend fun tokenValues(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<com.dsbuilder.ds.themes.domain.ThemeTokenType> = emptySet(),
+    ): List<TenantTokenValue>?
 
     /** Атомарно заменяет platform-specific значения доступной темы. */
     suspend fun saveTokenValues(

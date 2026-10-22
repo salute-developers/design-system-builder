@@ -88,10 +88,14 @@ export const trapDialogTabKey = (event: ReactKeyboardEvent<HTMLElement>) => {
 export const useAnchoredPopover = (
     open: boolean,
     anchorRef: RefObject<HTMLElement | null>,
-    preferredWidth?: number,
+    preferredWidth?: number | 'content',
 ) => {
     const popoverRef = useRef<HTMLDivElement>(null);
-    const [style, setStyle] = useState<CSSProperties>({ visibility: 'hidden' });
+    const [style, setStyle] = useState<CSSProperties>({
+        visibility: 'hidden',
+        width: preferredWidth === 'content' ? 'max-content' : undefined,
+        maxWidth: 'calc(100vw - 16px)',
+    });
     useLayoutEffect(() => {
         if (!open) return;
         const update = () => {
@@ -102,7 +106,10 @@ export const useAnchoredPopover = (
             const { left, top, width, maxHeight } = getAnchoredPopoverGeometry({
                 anchor: anchorRect,
                 naturalHeight,
-                preferredWidth,
+                preferredWidth:
+                    preferredWidth === 'content'
+                        ? popoverRef.current?.getBoundingClientRect().width || anchorRect.width
+                        : preferredWidth,
                 viewportWidth: window.innerWidth,
                 viewportHeight: window.innerHeight,
             });
@@ -111,7 +118,7 @@ export const useAnchoredPopover = (
                 top,
                 left,
                 zIndex: 2147483647,
-                width,
+                width: preferredWidth === 'content' ? 'max-content' : width,
                 maxWidth: 'calc(100vw - 16px)',
                 maxHeight,
                 overflowY: 'auto',
@@ -138,6 +145,7 @@ export const StyledSelect = ({
     className = '',
     disabled = false,
     popoverWidth,
+    onOpen,
 }: {
     label: string;
     value: string | number;
@@ -146,7 +154,8 @@ export const StyledSelect = ({
     name?: string;
     className?: string;
     disabled?: boolean;
-    popoverWidth?: number;
+    popoverWidth?: number | 'content';
+    onOpen?: () => void;
 }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -211,11 +220,19 @@ export const StyledSelect = ({
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 disabled={disabled}
-                onClick={() => !disabled && setOpen(!open)}
+                onClick={() => {
+                    if (!disabled) {
+                        if (!open) onOpen?.();
+                        setOpen(!open);
+                    }
+                }}
                 onKeyDownCapture={(event) => {
                     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
                     event.preventDefault();
-                    if (!disabled) setOpen(true);
+                    if (!disabled) {
+                        if (!open) onOpen?.();
+                        setOpen(true);
+                    }
                 }}
             >
                 <span>{selected?.label}</span>

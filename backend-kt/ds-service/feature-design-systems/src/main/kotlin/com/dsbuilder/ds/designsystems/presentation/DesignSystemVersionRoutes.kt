@@ -3,49 +3,43 @@ package com.dsbuilder.ds.designsystems.presentation
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
-import com.dsbuilder.ds.core.presentation.OkResponse
+import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersion
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersionUseCase
-import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemVersionsUseCase
 import com.dsbuilder.ds.designsystems.application.ListVersionsByDesignSystemUseCase
-import com.dsbuilder.ds.designsystems.application.UpdateDesignSystemVersion
-import com.dsbuilder.ds.designsystems.application.UpdateDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
-import com.dsbuilder.ds.designsystems.domain.PublicationStatus
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
-import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 
-/** Registers all design-system version operations. */
-@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "LongParameterList")
+/** Чтение публикаций и единственная команда перехода черновика в публикацию. */
+@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
 fun Route.designSystemVersionRoutes(
     evaluator: PolicyEvaluator,
     list: ListDesignSystemVersionsUseCase,
     get: GetDesignSystemVersionUseCase,
     listByDesignSystem: ListVersionsByDesignSystemUseCase,
-    create: CreateDesignSystemVersionUseCase,
-    update: UpdateDesignSystemVersionUseCase,
-    delete: DeleteDesignSystemVersionUseCase,
+    publish: CreateDesignSystemVersionUseCase,
     json: Json,
 ) {
     route("/api/ds/design-system-versions") {
         get {
             val context = context(evaluator) ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respond(result.value.map(DesignSystemVersionResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(DesignSystemVersionResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
@@ -54,7 +48,7 @@ fun Route.designSystemVersionRoutes(
             val id = call.parameters["designSystemId"]?.uuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = listByDesignSystem.execute(context, DesignSystemId(id))) {
-                is DsResult.Success -> call.respond(result.value.map(DesignSystemVersionResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(DesignSystemVersionResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
@@ -62,8 +56,8 @@ fun Route.designSystemVersionRoutes(
             val context = context(evaluator) ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.uuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = get.execute(context, id)) {
-                is DsResult.Success -> call.respond(DesignSystemVersionResponse.from(result.value))
+            when (val result = get.execute(context, DesignSystemVersionId(id))) {
+                is DsResult.Success -> call.respondSuccess(result, DesignSystemVersionResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
@@ -71,60 +65,31 @@ fun Route.designSystemVersionRoutes(
             val context = context(evaluator) ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateDesignSystemVersionRequest>()
             val designSystemId = request.designSystemId.uuid()
-                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            val status = request.publicationStatus?.let(PublicationStatus::fromWire)
+            val draftId = request.draftId.uuid()
+            val idempotencyKey = call.request.headers["Idempotency-Key"]
             if (
-                request.publicationStatus != null && status == null ||
-                request.version.trim().isEmpty() ||
-                request.version.length > 50
+                designSystemId == null || draftId == null || request.draftRevision < 0 ||
+                !VERSION_PATTERN.matches(request.version) ||
+                idempotencyKey.isNullOrBlank()
             ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             val command = CreateDesignSystemVersion(
                 DesignSystemId(designSystemId),
-                request.version.trim(),
-                request.snapshot.toString(),
-                request.changelog?.trim(),
-                status,
+                DesignSystemVersionId(draftId),
+                request.draftRevision,
+                request.version,
+                request.changelog.trim(),
             )
-            when (val result = create.execute(context, command)) {
-                is DsResult.Success -> call.respond(
+            val responseContext = context.withIdempotentResponse { value: DesignSystemVersion ->
+                json.encodeToString(DesignSystemVersionResponse.from(value))
+            }
+            when (val result = publish.execute(responseContext, command, idempotencyKey)) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
                     HttpStatusCode.Created,
                     DesignSystemVersionResponse.from(result.value),
                 )
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-        patch("/{id}") {
-            val context = context(evaluator) ?: return@patch call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.uuid()
-                ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            val payload = call.receive<JsonObject>()
-            val request = runCatching {
-                json.decodeFromJsonElement(UpdateDesignSystemVersionRequest.serializer(), payload)
-            }.getOrNull()
-                ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            val status = request.publicationStatus?.let(PublicationStatus::fromWire)
-            if (request.publicationStatus != null && status == null) {
-                return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            }
-            val command = UpdateDesignSystemVersion(
-                request.changelog?.trim(),
-                "changelog" in payload,
-                status,
-                "publicationStatus" in payload,
-            )
-            when (val result = update.execute(context, id, command)) {
-                is DsResult.Success -> call.respond(DesignSystemVersionResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-        delete("/{id}") {
-            val context = context(evaluator) ?: return@delete call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.uuid()
-                ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = delete.execute(context, id)) {
-                is DsResult.Success -> call.respond(OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
@@ -132,6 +97,8 @@ fun Route.designSystemVersionRoutes(
 }
 
 private fun io.ktor.server.routing.RoutingContext.context(evaluator: PolicyEvaluator) =
-    TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+    TrustedDsRequestContextMapper.map(call.request.headers, evaluator, call.request.queryParameters["versionId"])
 
 private fun String.uuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
+
+private val VERSION_PATTERN = Regex("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$")

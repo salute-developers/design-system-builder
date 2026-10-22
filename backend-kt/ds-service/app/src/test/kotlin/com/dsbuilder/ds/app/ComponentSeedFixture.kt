@@ -13,12 +13,16 @@ import java.util.UUID
 
 /** Глобальный слой компонентов для интеграционных тестов: компоненты, свойства и параметры платформ из сида. */
 internal object ComponentSeedFixture {
-    /** Глобальные компоненты web и их свойства из сида: без них тема не получает компоненты дизайн-системы. */
-    fun seed(postgres: PostgreSQLContainer<Nothing>): Map<String, UUID> {
+    /** Глобальные компоненты web и их свойства: каталог должен быть загружен до создания ДС. */
+    fun seed(postgres: PostgreSQLContainer<Nothing>): Map<String, UUID> =
+        seed(postgres.jdbcUrl, postgres.username, postgres.password)
+
+    /** Тот же полный каталог в отдельной БД сценария, созданной из мигрированного шаблона. */
+    fun seed(jdbcUrl: String, username: String, password: String): Map<String, UUID> {
         val root = requireNotNull(javaClass.getResourceAsStream("/component-seeds.json"))
             .bufferedReader().use { Json.parseToJsonElement(it.readText()).jsonObject }
         val componentIds = linkedMapOf<String, UUID>()
-        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+        DriverManager.getConnection(jdbcUrl, username, password).use { connection ->
             root.getValue("components").jsonArray.forEach { element ->
                 val component = element.jsonObject
                 val componentName = component.getValue("name").jsonPrimitive.content

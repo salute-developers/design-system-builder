@@ -20,7 +20,6 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -37,18 +36,16 @@ class TokenGroupHttpPostgresIntegrationTest {
     @Test
     @Suppress("LongMethod")
     fun `token groups and moves keep definition ids and component references`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
+                ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                 val designSystemId = api.create(
                     "/api/ds/design-systems",
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
-                // Схема создаётся при старте приложения; компоненты дизайн-системы сидятся при создании первой темы.
-                ComponentSeedFixture.seed(postgres)
                 val tenantA = api.create("/api/ds/tenants", EDITOR, tenantBody(designSystemId, "a"))
                 val tenantB = api.create("/api/ds/tenants", EDITOR, tenantBody(designSystemId, "b"))
                 val db = Db(postgres)
@@ -56,10 +53,12 @@ class TokenGroupHttpPostgresIntegrationTest {
                 val colorTokensPath = "/api/ds/tenants/$tenantA/color-tokens"
                 val tokensPath = "/api/ds/design-systems/$designSystemId/tokens"
 
-                // Дизайн-система без групп получает раскладку по разделам и категориям при первом чтении.
+                // Раскладка создана вместе с темой; чтение не инициализирует данные.
                 val groupCount = "SELECT count(*) FROM token_groups WHERE design_system_id = '$designSystemId'"
-                assertEquals(0, db.count(groupCount))
+                val initializedGroups = db.count(groupCount)
+                assertTrue(initializedGroups > 0)
                 val groups = api.list("/api/ds/design-systems/$designSystemId/token-groups?kind=color")
+                assertEquals(initializedGroups, db.count(groupCount))
                 val top = groups.filter { it.jsonObject.getValue("parentId") is JsonNull }
                 assertEquals("Text & Icons", top.first().text("label"))
                 assertEquals("text", top.first().text("code"))
@@ -84,7 +83,7 @@ class TokenGroupHttpPostgresIntegrationTest {
                     status = HttpStatusCode.Created,
                 )
                 assertEquals("brand", brand.obj("value").text("code"))
-                assertEquals(revisionB + 1, api.revision(tenantB))
+                assertEquals(revisionB, api.revision(tenantB))
                 revision = brand.number("editRevision")
                 val main = api.mutate(
                     method = "POST",
@@ -112,13 +111,12 @@ class TokenGroupHttpPostgresIntegrationTest {
                     code = "INVALID_TOKEN_GROUP",
                 )
                 api.reject("POST", groupsPath, VIEWER, groupBody(revision, null, "X"), HttpStatusCode.Forbidden)
-                api.reject(
+                api.mutate(
                     method = "POST",
                     path = groupsPath,
                     actor = EDITOR,
-                    body = groupBody(revision - 1, null, "X"),
-                    status = HttpStatusCode.Conflict,
-                    code = "TENANT_EDIT_CONFLICT",
+                    body = groupBody(revision + 100, null, "Independent"),
+                    status = HttpStatusCode.Created,
                 )
 
                 // Создание токена в подгруппе с другим кодом отклоняется, в своей — кладётся в неё.
@@ -244,11 +242,16 @@ class TokenGroupHttpPostgresIntegrationTest {
                     status = HttpStatusCode.NotFound,
                 )
 
-                // Признак публикации: токены не позже последней опубликованной версии — опубликованы.
-                db.execute(
-                    "INSERT INTO design_system_versions " +
-                        "(design_system_id, version, snapshot, publication_status, published_at) " +
-                        "VALUES ('$designSystemId', '1.0.0', '{}'::jsonb, 'published', now())",
+                // Публикация фиксирует предметную границу без общего JSON-снимка.
+                val system = api.body(api.call("GET", "/api/ds/design-systems/$designSystemId", VIEWER)).jsonObject
+                api.mutate(
+                    "POST",
+                    "/api/ds/design-system-versions",
+                    OWNER,
+                    """{"designSystemId":"$designSystemId","draftId":"${system.text(
+                        "draftId",
+                    )}","draftRevision":${system.number("draftRevision")},"version":"1.0.0"}""",
+                    HttpStatusCode.Created,
                 )
                 val after = api.mutate(
                     method = "POST",
@@ -271,6 +274,10 @@ class TokenGroupHttpPostgresIntegrationTest {
             client.request(path) {
                 this.method = HttpMethod.parse(method)
                 trusted(actor)
+                if (method == "POST") header("Idempotency-Key", java.util.UUID.randomUUID().toString())
+                if (method != "GET" && path !in setOf("/api/ds/design-systems", "/api/ds/tenants")) {
+                    header("X-DS-Base-Revision", "0")
+                }
                 body?.let { jsonBody(it) }
             }
 
@@ -315,10 +322,14 @@ class TokenGroupHttpPostgresIntegrationTest {
         }
     }
 
-    private class Db(private val postgres: PostgreSQLContainer<Nothing>) {
+    private class Db(private val postgres: IsolatedPostgresDatabase) {
         fun <T> query(sql: String, read: (java.sql.ResultSet) -> T): T =
             DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
-                connection.createStatement().use { statement -> statement.executeQuery(sql).use(read) }
+                connection.createStatement().use { statement ->
+                    statement.executeQuery(
+                        activeRevisionTestSql(sql),
+                    ).use(read)
+                }
             }
 
         fun count(sql: String): Int = query(sql) { rows ->
@@ -397,7 +408,7 @@ class TokenGroupHttpPostgresIntegrationTest {
         MODES.map { mode -> """{"platform":"$platform","mode":"$mode","paletteId":null,"value":["$value"]}""" }
     }.joinToString(",")
 
-    private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
+    private fun configuration(postgres: IsolatedPostgresDatabase) = DsServiceConfiguration(
         port = 0,
         databaseUrl = postgres.jdbcUrl,
         databaseUser = postgres.username,

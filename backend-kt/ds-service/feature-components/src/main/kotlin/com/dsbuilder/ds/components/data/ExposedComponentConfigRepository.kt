@@ -7,7 +7,6 @@ import com.dsbuilder.ds.components.application.ImportComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfigPackage
 import com.dsbuilder.ds.core.domain.ProjectId
-import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -46,16 +45,8 @@ class ExposedComponentConfigRepository internal constructor(
         }
         val designSystem = ComponentDesignSystemsTable.selectAll()
             .where { ComponentDesignSystemsTable.id eq query.designSystemId }.single()
-        val version = ComponentDesignSystemVersionsTable.selectAll().where {
-            (ComponentDesignSystemVersionsTable.designSystemId eq query.designSystemId) and
-                (ComponentDesignSystemVersionsTable.publicationStatus eq ComponentPublicationStatusDb.PUBLISHED)
-        }.orderBy(
-            ComponentDesignSystemVersionsTable.publishedAt to SortOrder.DESC,
-            ComponentDesignSystemVersionsTable.version to SortOrder.DESC,
-        ).limit(1).singleOrNull()?.get(ComponentDesignSystemVersionsTable.version)
-            ?: return ComponentConfigRepository.ExportAttempt.Failed(
-                "Design system '${designSystem[ComponentDesignSystemsTable.name]}' has no published version",
-            )
+        val version = componentExportVersion(query.designSystemId)
+            ?: return ComponentConfigRepository.ExportAttempt.NotFound
 
         val componentFilter = normalized(query.components)
         val styleFilter = normalized(query.styles)

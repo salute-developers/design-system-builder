@@ -16,7 +16,7 @@ class ListDesignSystemsUseCase(
     suspend fun execute(context: DsRequestContext): DsResult<List<DesignSystem>> =
         when (val authorization = accessPolicy.require(context, "design-systems:read")) {
             is DsResult.Failure -> authorization
-            is DsResult.Success -> transactions.readOnly {
+            is DsResult.Success -> transactions.readOnly(context) {
                 DsResult.Success(repository.listAccessible(context.projectId))
             }
         }

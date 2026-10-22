@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.data.selectedVersionBelongsTo
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.DesignSystemAggregateRepository
 import com.dsbuilder.ds.designsystems.domain.DesignSystemAppearanceSummary
@@ -8,7 +9,7 @@ import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemStyleSummary
 import com.dsbuilder.ds.designsystems.domain.DesignSystemTenantSummary
 import com.dsbuilder.ds.designsystems.domain.DesignSystemTokenSummary
-import com.dsbuilder.ds.designsystems.domain.PublicationStatus
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionStatus
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
@@ -16,7 +17,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.castTo
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
@@ -35,7 +38,7 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         designSystemId: DesignSystemId,
         query: String?,
     ): List<DesignSystemComponentSummary>? {
-        if (!isAccessible(projectId, designSystemId)) return null
+        if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         var condition = AggregateDesignSystemComponentsTable.designSystemId eq designSystemId.value
         query?.takeIf(String::isNotBlank)?.let { raw ->
             val pattern = "%${raw.trim().lowercase()}%"
@@ -70,9 +73,9 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         type: String?,
         query: String?,
     ): List<DesignSystemTokenSummary>? {
-        if (!isAccessible(projectId, designSystemId)) return null
+        if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         var condition = AggregateTokensTable.designSystemId eq designSystemId.value
-        type?.let { condition = condition and (AggregateTokensTable.type eq it) }
+        type?.let { condition = condition and (AggregateTokensTable.type.castTo<String>(TextColumnType()) eq it) }
         query?.takeIf(String::isNotBlank)?.let { raw ->
             val pattern = "%${raw.trim().lowercase()}%"
             condition = condition and (
@@ -95,16 +98,20 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
     }
 
     /** Номер и время последней опубликованной версии дизайн-системы. */
-    private fun latestPublished(designSystemId: DesignSystemId): Pair<String, Instant>? = DesignSystemVersionsTable
+    private fun latestPublished(designSystemId: DesignSystemId): Pair<String, Instant>? = VersionBoundariesTable
         .selectAll()
         .where {
-            (DesignSystemVersionsTable.designSystemId eq designSystemId.value) and
-                (DesignSystemVersionsTable.publicationStatus eq PublicationStatus.PUBLISHED)
+            (VersionBoundariesTable.designSystemId eq designSystemId.value) and
+                (VersionBoundariesTable.status eq DesignSystemVersionStatus.PUBLISHED)
         }
-        .orderBy(DesignSystemVersionsTable.publishedAt to SortOrder.DESC)
+        .orderBy(VersionBoundariesTable.publishedAt to SortOrder.DESC)
         .limit(1)
         .singleOrNull()
-        ?.let { it[DesignSystemVersionsTable.version] to it[DesignSystemVersionsTable.publishedAt] }
+        ?.let { row ->
+            val version = row[VersionBoundariesTable.version]
+            val publishedAt = row[VersionBoundariesTable.publishedAt]
+            if (version != null && publishedAt != null) version to publishedAt else null
+        }
 
     @Suppress("ReturnCount")
     override suspend fun listComponentStyles(
@@ -112,7 +119,7 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         designSystemId: DesignSystemId,
         componentId: UUID,
     ): List<DesignSystemStyleSummary>? {
-        if (!isAccessible(projectId, designSystemId)) return null
+        if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         val linked = AggregateDesignSystemComponentsTable.selectAll().where {
             (AggregateDesignSystemComponentsTable.designSystemId eq designSystemId.value) and
                 (AggregateDesignSystemComponentsTable.componentId eq componentId)
@@ -137,7 +144,7 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         projectId: ProjectId,
         designSystemId: DesignSystemId,
     ): List<DesignSystemTenantSummary>? {
-        if (!isAccessible(projectId, designSystemId)) return null
+        if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         return AggregateTenantsTable.join(
             DesignSystemsTable,
             JoinType.INNER,
@@ -154,7 +161,7 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         projectId: ProjectId,
         designSystemId: DesignSystemId,
     ): List<DesignSystemAppearanceSummary>? {
-        if (!isAccessible(projectId, designSystemId)) return null
+        if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         return AggregateAppearancesTable.join(
             DesignSystemsTable,
             JoinType.INNER,
@@ -173,6 +180,9 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
             (DesignSystemsTable.id eq id.value) and
                 ((DesignSystemsTable.projectId eq projectId.value) or DesignSystemsTable.projectId.isNull())
         }.limit(1).any()
+
+    private fun isAccessibleAtSelectedVersion(projectId: ProjectId, id: DesignSystemId): Boolean =
+        isAccessible(projectId, id) && selectedVersionBelongsTo(id.value)
 }
 
 private fun accessibleDesignSystem(table: DesignSystemsTable, projectId: ProjectId) =

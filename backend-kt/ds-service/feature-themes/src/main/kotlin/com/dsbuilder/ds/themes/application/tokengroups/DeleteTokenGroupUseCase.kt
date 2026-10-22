@@ -24,7 +24,7 @@ class DeleteTokenGroupUseCase(
     suspend fun execute(context: DsRequestContext, tenantId: UUID, groupId: UUID, editRevision: Int): DsResult<Int> {
         val allowed = policy.requireAll(context, ProjectScope.TENANTS_WRITE, ProjectScope.TOKENS_DELETE)
         if (allowed is DsResult.Failure) return allowed
-        return transactions.required {
+        return transactions.required(context) {
             tokens.withAllThemes(context, tenantId, editRevision) { lock ->
                 val group = groups.find(lock.designSystemId, groupId)
                     ?: return@withAllThemes DsResult.Failure(DsFailure.NotFound)

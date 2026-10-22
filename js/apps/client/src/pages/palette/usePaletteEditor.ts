@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { getDraftAutosaveRevision, reloadWhenDraftAutosaveIsIdle } from '../../api/draftAutosaveActivity';
 
 import type { DesignSystem } from '../../controllers';
 import {
@@ -28,7 +29,7 @@ interface UsePaletteEditorProps {
     designSystem: DesignSystem | null;
     setPalette: (palette: ThemePalette) => void;
     rerender: () => void;
-    reload: () => void;
+    refreshTokens: () => Promise<void>;
 }
 
 export const errorText = (error: unknown) => {
@@ -50,14 +51,25 @@ export const paletteRevision = (palette: ThemePalette, designSystem: DesignSyste
         ? (designSystem?.getParameters()?.editRevision ?? palette.editRevision)
         : palette.editRevision;
 
-/**
- * Уведомление, которое нужно показать после перезагрузки темы: при `reload()` раздел размонтируется вместе
- * с палитрой, и уведомление показывает уже новый экран.
- */
-let noticeAfterReload: PaletteToast | null = null;
-
 /** Состояние экрана палитры и операции с уведомлениями и обработкой конфликта ревизии. */
-export const usePaletteEditor = ({ context, palette, designSystem, setPalette, rerender, reload }: UsePaletteEditorProps) => {
+export const usePaletteEditor = ({
+    context,
+    palette,
+    designSystem,
+    setPalette,
+    rerender,
+    refreshTokens,
+}: UsePaletteEditorProps) => {
+    const contextKey = JSON.stringify(context);
+    const activeContext = useRef(contextKey);
+    const delayedTokensRefresh = useRef<(() => void) | undefined>();
+    useEffect(() => {
+        activeContext.current = contextKey;
+        return () => {
+            activeContext.current = '';
+            delayedTokensRefresh.current?.();
+        };
+    }, [contextKey]);
     const [mode, setMode] = useState<PaletteMode>('palette');
     const [selection, setSelection] = useState<PaletteSelection | null>(null);
     const [search, setSearch] = useState('');
@@ -83,26 +95,19 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
     }, []);
 
     useEffect(() => {
-        if (noticeAfterReload) {
-            showToast(noticeAfterReload);
-            noticeAfterReload = null;
-        }
         return () => clearTimeout(toastTimer.current);
-    }, [showToast]);
+    }, []);
 
-    const reloadWithNotice = useCallback(
-        (notice: PaletteToast) => {
-            noticeAfterReload = notice;
-            reload();
-        },
-        [reload],
-    );
-
-    const refresh = useCallback(async () => {
+    const refresh = useCallback(async (): Promise<ThemePalette> => {
+        const revision = getDraftAutosaveRevision(context);
         const next = await paletteRepository.load(context);
+        if (activeContext.current !== contextKey) return next;
+        if (paletteRepository.source === 'api' && revision !== getDraftAutosaveRevision(context)) {
+            return refresh();
+        }
         setPalette(next);
         return next;
-    }, [context, setPalette]);
+    }, [context, contextKey, setPalette]);
 
     const revision = paletteRevision(palette, designSystem);
 
@@ -123,9 +128,8 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
     }, []);
 
     /**
-     * Выполняет операцию с текущей ревизией палитры. В режиме `api` ревизия общая с сохранением
-     * значений токенов темы, поэтому после операции она переносится в параметры дизайн-системы, а при
-     * конфликте перечитывается вся тема: только так клиент получает актуальную общую ревизию.
+     * Выполняет операцию; прежний editRevision остаётся полем совместимости, а адресные редакции
+     * передаёт репозиторий. Переписанные ссылки обновляются без размонтирования редактора.
      */
     const run = useCallback(
         async <T>(
@@ -142,11 +146,29 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
                     if (parameters) parameters.editRevision = result.editRevision;
                 }
                 const notice: PaletteToast = { tone: 'success', ...success(result.value) };
-                if (options.tokensChanged && api) {
-                    reloadWithNotice(notice);
+                try {
+                    await refresh();
+                } catch {
+                    showToast({
+                        tone: 'error',
+                        title: 'Изменения сохранены',
+                        text: 'Не удалось обновить данные палитры.',
+                    });
                     return result.value;
                 }
-                await refresh();
+                if (options.tokensChanged && api) {
+                    delayedTokensRefresh.current?.();
+                    delayedTokensRefresh.current = reloadWhenDraftAutosaveIsIdle(context, () => {
+                        void refreshTokens().catch(() => {
+                            if (activeContext.current === contextKey)
+                                showToast({
+                                    tone: 'error',
+                                    title: 'Изменения сохранены',
+                                    text: 'Не удалось обновить значения токенов.',
+                                });
+                        });
+                    });
+                }
                 rerender();
                 if (!options.silent) showToast(notice);
                 return result.value;
@@ -157,11 +179,9 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
                         title: 'Тема изменена в другом месте',
                         text: 'Палитра перезагружена. Черновик токенов сохранён.',
                     };
-                    if (paletteRepository.source === 'api') reloadWithNotice(notice);
-                    else {
-                        await refresh().catch(() => undefined);
-                        showToast(notice);
-                    }
+                    if (paletteRepository.source === 'api') await refreshTokens().catch(() => undefined);
+                    else await refresh().catch(() => undefined);
+                    showToast(notice);
                 } else {
                     showToast({ tone: 'error', title: 'Не удалось изменить палитру', text: errorText(error) });
                 }
@@ -170,7 +190,7 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
                 setBusy(false);
             }
         },
-        [designSystem, refresh, reloadWithNotice, rerender, revision, showToast],
+        [designSystem, refresh, refreshTokens, rerender, revision, showToast],
     );
 
     return {

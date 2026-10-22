@@ -39,6 +39,16 @@ class ComponentWebAdapterTest {
     }
 
     @Test
+    fun `forwards selected version through the transaction context`() = runBlocking {
+        val transactions = ImmediateWebAdapterTransactions()
+        val selected = context(userPrincipal("viewer")).copy(versionId = UUID.randomUUID())
+        val repository = RecordingWebAdapterRepository(listOf(entry()))
+        val result = GetComponentWebAdapterUseCase(policy, transactions, repository).execute(selected, designSystemId)
+        assertIs<DsResult.Success<*>>(result)
+        assertEquals(selected, transactions.readContext)
+    }
+
+    @Test
     fun `hides an inaccessible design system as not found`() = runBlocking {
         val result = useCase(RecordingWebAdapterRepository(null))
             .execute(context(userPrincipal("viewer")), designSystemId)
@@ -98,8 +108,13 @@ class ComponentWebAdapterTest {
 }
 
 private class ImmediateWebAdapterTransactions : TransactionRunner {
+    var readContext: DsRequestContext? = null
     override suspend fun <T> required(block: suspend () -> DsResult<T>) = block()
     override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
+    override suspend fun <T> readOnly(context: DsRequestContext, block: suspend () -> DsResult<T>): DsResult<T> {
+        readContext = context
+        return block()
+    }
 }
 
 private class RecordingWebAdapterRepository(

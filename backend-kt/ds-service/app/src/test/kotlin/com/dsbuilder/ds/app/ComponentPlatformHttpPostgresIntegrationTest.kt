@@ -13,13 +13,11 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import java.util.UUID
 import kotlin.test.Test
@@ -67,14 +65,47 @@ class ComponentPlatformHttpPostgresIntegrationTest {
             )
                 .bodyAsText(),
         )
+        val variation = id(
+            post(
+                "/api/ds/variations",
+                """{"componentId":"$component","name":"view"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        val propertyVariationBody = """{"propertyId":"$property","variationId":"$variation"}"""
+        val propertyVariation = post(
+            "/api/ds/property-variations",
+            propertyVariationBody,
+            admin = true,
+            idempotencyKey = "property-variation-replay",
+        )
+        val replayedPropertyVariation = post(
+            "/api/ds/property-variations",
+            propertyVariationBody,
+            admin = true,
+            idempotencyKey = "property-variation-replay",
+        )
+        assertEquals(HttpStatusCode.Created, propertyVariation.status, propertyVariation.bodyAsText())
+        assertEquals(propertyVariation.status, replayedPropertyVariation.status)
+        assertEquals(propertyVariation.bodyAsText(), replayedPropertyVariation.bodyAsText())
 
         val created = post(
             "/api/ds/property-platform-params",
             """{"propertyId":"$property","platform":"xml","name":"sd_textColor","deprecated":true,""" +
                 """"deprecatedMessage":"Use android:textColor"}""",
             admin = true,
+            idempotencyKey = "property-platform-param-replay",
         )
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        val replayed = post(
+            "/api/ds/property-platform-params",
+            """{"propertyId":"$property","platform":"xml","name":"sd_textColor","deprecated":true,""" +
+                """"deprecatedMessage":"Use android:textColor"}""",
+            admin = true,
+            idempotencyKey = "property-platform-param-replay",
+        )
+        assertEquals(created.status, replayed.status)
+        assertEquals(created.bodyAsText(), replayed.bodyAsText())
         val alias = id(created.bodyAsText())
         assertTrue(
             json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("deprecated").jsonPrimitive.boolean,
@@ -117,6 +148,33 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         )
         assertTrue(foreign.status.value >= 400, "an alias of another platform must be rejected: ${foreign.status}")
         assertEquals(2, count("property_platform_params WHERE property_id = '$property'"))
+    }
+
+    @Test
+    fun `state set resolution replays the original status and body`() = withService {
+        val state = post(
+            "/api/ds/states",
+            """{"name":"replay-state"}""",
+            admin = true,
+        )
+        assertEquals(HttpStatusCode.Created, state.status, state.bodyAsText())
+        val body = """{"stateIds":["${id(state.bodyAsText())}"]}"""
+        val first = post(
+            "/api/ds/state-sets/resolve",
+            body,
+            admin = true,
+            idempotencyKey = "state-set-replay",
+        )
+        val replay = post(
+            "/api/ds/state-sets/resolve",
+            body,
+            admin = true,
+            idempotencyKey = "state-set-replay",
+        )
+
+        assertEquals(HttpStatusCode.Created, first.status, first.bodyAsText())
+        assertEquals(first.status, replay.status)
+        assertEquals(first.bodyAsText(), replay.bodyAsText())
     }
 
     @Test
@@ -185,12 +243,7 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         assertEquals(1, exportedCompose.entries())
         assertEquals(0, exportedWeb.entries())
         assertEquals(HttpStatusCode.BadRequest, exportedWithoutPlatform.status)
-        assertEquals(
-            "compose",
-            query(
-                "SELECT data->>'platform' FROM design_system_changes WHERE entity_type = 'components:import' LIMIT 1",
-            ),
-        )
+        assertEquals(null, queryNullable("SELECT to_regclass('public.design_system_changes')"))
     }
 
     @Test
@@ -231,10 +284,23 @@ class ComponentPlatformHttpPostgresIntegrationTest {
                     """{"id":"view","name":"view","values":[${entry(first)},${entry(second)}]}]}""",
             )
 
-            val members = "SELECT string_agg(k, ';' ORDER BY p) FROM (SELECT ac.position AS p, " +
-                "(SELECT string_agg(s.name, '+' ORDER BY m.position) FROM appearance_combination_members m " +
-                "JOIN styles s ON s.id = m.style_id WHERE m.appearance_combination_id = ac.id) AS k " +
-                "FROM appearance_combinations ac) x"
+            val members =
+                "WITH combinations AS (SELECT * FROM (SELECT DISTINCT ON (appearance_combination_id) * " +
+                    "FROM appearance_combination_revisions ORDER BY appearance_combination_id, " +
+                    "version_sequence_number DESC) latest WHERE NOT deleted), " +
+                    "members AS (SELECT * FROM (SELECT DISTINCT ON (appearance_combination_member_id) * " +
+                    "FROM appearance_combination_member_revisions ORDER BY appearance_combination_member_id, " +
+                    "version_sequence_number DESC) latest WHERE NOT deleted), " +
+                    "styles_resolved AS (SELECT * FROM (SELECT DISTINCT ON (style_id) * FROM style_revisions " +
+                    "ORDER BY style_id, version_sequence_number DESC) latest WHERE NOT deleted) " +
+                    "SELECT string_agg(k, ';' ORDER BY p) FROM (SELECT combination.position AS p, " +
+                    "(SELECT string_agg(style_revision.name, '+' ORDER BY member.position) " +
+                    "FROM appearance_combination_members member_entity " +
+                    "JOIN members member ON member.appearance_combination_member_id = member_entity.id " +
+                    "JOIN styles_resolved style_revision ON style_revision.style_id = member.style_id " +
+                    "WHERE member_entity.appearance_combination_id = combination_entity.id) AS k " +
+                    "FROM appearance_combinations combination_entity JOIN combinations combination " +
+                    "ON combination.appearance_combination_id = combination_entity.id) result"
 
             val first = post("/api/ds/component-config/import", body("l", "m"), editor = true)
             assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
@@ -247,21 +313,183 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         }
 
     @Test
-    fun `journal rows without a design system never reach the project feeds`() = withService {
-        val designSystem =
-            id(post("/api/ds/design-systems", """{"name":"beta","projectName":"beta"}""", owner = true).bodyAsText())
-        execute(
-            "INSERT INTO design_system_changes (design_system_id, entity_type, entity_id, operation, data) " +
-                "VALUES (NULL, 'components:import-api-meta', '${UUID.randomUUID()}', 'created', '{}'::jsonb)",
+    fun `client managed journal routes are absent`() = withService {
+        assertEquals(HttpStatusCode.NotFound, get("/api/ds/design-system-changes", viewer = true).status)
+        assertEquals(
+            HttpStatusCode.NotFound,
+            get("/api/ds/design-system-changes/by-design-system/${UUID.randomUUID()}", viewer = true).status,
         )
+    }
 
-        val all = get("/api/ds/design-system-changes", viewer = true)
-        val byDesignSystem = get("/api/ds/design-system-changes/by-design-system/$designSystem", viewer = true)
+    @Test
+    fun `import preserves values references states and platform parameters`() = withService {
+        val ds = id(
+            post(
+                "/api/ds/design-systems",
+                """{"name":"identity","projectName":"identity"}""",
+                owner = true,
+            ).bodyAsText(),
+        )
+        val button = id(
+            post(
+                "/api/ds/components",
+                """{"name":"Button","platform":"compose"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        post("/api/ds/components", """{"name":"Icon","platform":"compose"}""", admin = true)
+        val gap = id(
+            post(
+                "/api/ds/properties",
+                """{"componentId":"$button","name":"gap","type":"value"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        post(
+            "/api/ds/properties",
+            """{"componentId":"$button","name":"content","type":"component_style"}""",
+            admin = true,
+        )
+        val alias = id(
+            post(
+                "/api/ds/property-platform-params",
+                """{"propertyId":"$gap","platform":"compose","name":"gapAlias"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        fun entry(values: String, reversed: Boolean): String {
+            val hover = """{"state":["hovered"],"value":3}"""
+            val pressed = """{"state":["pressed"],"value":4}"""
+            val states = if (reversed) "$pressed,$hover" else "$hover,$pressed"
+            val property = """{"type":"value","value":$values,"states":[$states]}"""
+            return """{"componentName":"button","styleName":"default","config":{"invariants":{
+                "gap":$property,"content":{"type":"component_style","value":"icon.small"}},
+                "variations":[{"id":"size","name":"size","values":[{"name":"l","properties":{"gap":$property}}]},
+                {"id":"view","name":"view","values":[{"name":"default","targets":[{"properties":[
+                {"id":"size","value":"l"}]}],"properties":{"gap":$property}}]}]}}""".replace("\n", "")
+        }
+        val icon = """{"componentName":"icon","styleName":"icon","config":{"variations":[
+            {"id":"size","name":"size","values":[{"name":"small"}]}]}}""".replace("\n", "")
+        fun body(vararg entries: String) = """{"designSystemId":"$ds","platform":"compose","dryRun":false,
+            "meta":{"name":"fixture","source":"test"},"components":[${entries.joinToString(",")}] }"""
+        suspend fun load(value: String) = post("/api/ds/component-config/import", value, editor = true).also {
+            assertEquals(HttpStatusCode.OK, it.status, it.bodyAsText())
+        }
+        val initial = body(entry("[1,2]", false), icon)
+        val report = load(initial)
+        assertEquals("2", field(report.bodyAsText(), "created"), report.bodyAsText())
+        assertEquals(
+            "[]",
+            json.parseToJsonElement(report.bodyAsText()).jsonObject["unresolvedComponentStyles"].toString(),
+        )
+        val values = get("/api/ds/invariant-property-values")
+        val stateValue = requireNotNull(
+            json.parseToJsonElement(values.bodyAsText()).jsonArray.firstOrNull {
+                it.jsonObject["value"]?.jsonPrimitive?.content == "3"
+            },
+        ) { values.bodyAsText() + " report=" + report.bodyAsText() }.jsonObject.getValue("id").jsonPrimitive.content
+        val adjustment = post(
+            "/api/ds/invariant-platform-param-adjustments",
+            """{"ipvId":"$stateValue","platformParamId":"$alias","template":"a ${'$'}1"}""",
+            editor = true,
+        )
+        assertEquals(HttpStatusCode.Created, adjustment.status, adjustment.bodyAsText())
+        val draft = json.parseToJsonElement(get("/api/ds/design-systems/$ds").bodyAsText()).jsonObject
+        val published = post(
+            "/api/ds/design-system-versions",
+            """{"designSystemId":"$ds","draftId":${draft.getValue("draftId")},""" +
+                """"draftRevision":${draft.getValue("draftRevision")},"version":"1.0.0"}""",
+            owner = true,
+            idempotencyKey = "identity-publication",
+        )
+        assertEquals(HttpStatusCode.Created, published.status, published.bodyAsText())
+        val versionId = id(published.bodyAsText())
+        val before = importedState(includeRevisions = true)
+        load(initial)
+        assertEquals(before, importedState(includeRevisions = true))
+        val identities = importedState(includeRevisions = false)
+        val changed = body(entry("[2,3]", true), icon)
+        load(changed)
+        assertEquals(identities, importedState(includeRevisions = false))
+        val adjustmentPath = "/api/ds/invariant-platform-param-adjustments/${id(adjustment.bodyAsText())}"
+        assertEquals(HttpStatusCode.OK, get(adjustmentPath).status)
+        val valuePath = "/api/ds/invariant-property-values/$stateValue"
+        assertEquals("1", field(get("$valuePath?versionId=$versionId").bodyAsText(), "position"))
+        assertEquals("2", field(get(valuePath).bodyAsText(), "position"))
+        val after = importedState(includeRevisions = true)
+        load(changed)
+        assertEquals(after, importedState(includeRevisions = true))
+        execute(
+            """
+            CREATE FUNCTION fail_identity_import() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+            BEGIN
+                IF NEW.value::jsonb = '[9,9]'::jsonb THEN RAISE EXCEPTION 'injected_import_failure'; END IF;
+                RETURN NEW;
+            END; ${'$'}${'$'};
+            CREATE TRIGGER fail_identity_import BEFORE INSERT ON variation_property_value_revisions
+            FOR EACH ROW EXECUTE FUNCTION fail_identity_import();
+            """.trimIndent(),
+        )
+        val failed = post("/api/ds/component-config/import", body(entry("[9,9]", false), icon), editor = true)
+        assertTrue(failed.status.value >= 400, failed.bodyAsText())
+        assertEquals(after, importedState(includeRevisions = true))
+        execute("DROP TRIGGER fail_identity_import ON variation_property_value_revisions")
+        execute("DROP FUNCTION fail_identity_import()")
+        val empty = """{"componentName":"button","styleName":"default","config":{}}"""
+        load(body(entry("[2,3]", true), empty, icon))
+        assertEquals("[]", get("/api/ds/invariant-property-values").bodyAsText())
+        assertEquals(
+            "0",
+            query(
+                "SELECT count(*) FROM (SELECT DISTINCT ON (component_style_reference_id) deleted " +
+                    "FROM component_style_reference_revisions " +
+                    "ORDER BY component_style_reference_id, version_sequence_number DESC) latest WHERE NOT deleted",
+            ),
+        )
+        assertEquals(HttpStatusCode.OK, get("$valuePath?versionId=$versionId").status)
+        assertEquals(HttpStatusCode.OK, get("$adjustmentPath?versionId=$versionId").status)
+    }
 
-        assertEquals(HttpStatusCode.OK, all.status, all.bodyAsText())
-        assertEquals(HttpStatusCode.OK, byDesignSystem.status, byDesignSystem.bodyAsText())
-        assertFalse(all.bodyAsText().contains("components:import-api-meta"))
-        assertEquals(JsonArray(emptyList()), json.parseToJsonElement(byDesignSystem.bodyAsText()))
+    private fun importedState(includeRevisions: Boolean): List<String> {
+        val stable = listOf(
+            "appearances",
+            "appearance_variations",
+            "appearance_variation_values",
+            "styles",
+            "appearance_combinations",
+            "appearance_combination_members",
+            "invariant_property_values",
+            "variation_property_values",
+            "style_combinations",
+            "style_combination_members",
+            "component_style_references",
+            "component_style_reference_styles",
+            "invariant_platform_param_adjustments",
+        )
+        val revisions = listOf(
+            "appearance_revisions",
+            "appearance_variation_revisions",
+            "appearance_variation_value_revisions",
+            "style_revisions",
+            "appearance_combination_revisions",
+            "appearance_combination_member_revisions",
+            "invariant_property_value_revisions",
+            "variation_property_value_revisions",
+            "style_combination_revisions",
+            "style_combination_member_revisions",
+            "component_style_reference_revisions",
+            "component_style_reference_style_revisions",
+            "invariant_platform_param_adjustment_revisions",
+            "entity_edit_states",
+            "entity_edit_paths",
+            "draft_transaction_markers",
+        )
+        return (stable + if (includeRevisions) revisions else emptyList()).map { table ->
+            query(
+                "SELECT COALESCE(string_agg(to_jsonb(row)::text, ';' ORDER BY to_jsonb(row)::text), '') " +
+                    "FROM $table row",
+            )
+        }
     }
 
     private suspend fun io.ktor.client.statement.HttpResponse.entries(): Int =
@@ -284,13 +512,12 @@ class ComponentPlatformHttpPostgresIntegrationTest {
 
     // ── harness ────────────────────────────────────────────────────────────────────────────────────
 
-    private class Service(val postgres: PostgreSQLContainer<Nothing>, val builder: ApplicationTestBuilder)
+    private class Service(val postgres: IsolatedPostgresDatabase, val builder: ApplicationTestBuilder)
 
     private lateinit var service: Service
 
     private fun withService(body: suspend ComponentPlatformHttpPostgresIntegrationTest.() -> Unit) {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
                 application { module(configuration(postgres)) }
                 service = Service(postgres, this)
@@ -306,8 +533,10 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         owner: Boolean = false,
         editor: Boolean = false,
         viewer: Boolean = false,
+        idempotencyKey: String? = null,
     ) = service.builder.client.post(path) {
         actor(admin, owner, editor, viewer)
+        idempotencyKey?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
     }
@@ -336,7 +565,7 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         header("X-System-Admin", admin.toString())
     }
 
-    private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
+    private fun configuration(postgres: IsolatedPostgresDatabase) = DsServiceConfiguration(
         port = 0,
         databaseUrl = postgres.jdbcUrl,
         databaseUser = postgres.username,
@@ -359,6 +588,20 @@ class ComponentPlatformHttpPostgresIntegrationTest {
     private fun count(tableAndWhere: String): Int = query("SELECT count(*) FROM $tableAndWhere").toInt()
 
     private fun query(sql: String): String =
+        DriverManager.getConnection(
+            service.postgres.jdbcUrl,
+            service.postgres.username,
+            service.postgres.password,
+        ).use {
+            it.createStatement().use { statement ->
+                statement.executeQuery(sql).use { rows ->
+                    rows.next()
+                    rows.getString(1)
+                }
+            }
+        }
+
+    private fun queryNullable(sql: String): String? =
         DriverManager.getConnection(
             service.postgres.jdbcUrl,
             service.postgres.username,

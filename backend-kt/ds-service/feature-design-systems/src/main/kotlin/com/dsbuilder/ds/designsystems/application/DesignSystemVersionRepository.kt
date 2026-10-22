@@ -3,25 +3,22 @@ package com.dsbuilder.ds.designsystems.application
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
-import java.util.UUID
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
 
-/** Project-scoped persistence port for versions. */
+/** Хранилище опубликованных временных границ и команды публикации. */
 interface DesignSystemVersionRepository {
-    /** Performs the list operation. */
+    /** Возвращает доступные проекту публикации. */
     suspend fun list(projectId: ProjectId): List<DesignSystemVersion>
 
-    /** Performs the find operation. */
-    suspend fun find(projectId: ProjectId, id: UUID): DesignSystemVersion?
+    /** Находит доступную проекту публикацию. */
+    suspend fun find(projectId: ProjectId, id: DesignSystemVersionId): DesignSystemVersion?
 
-    /** Performs the listbydesignsystem operation. */
-    suspend fun listByDesignSystem(projectId: ProjectId, designSystemId: DesignSystemId): List<DesignSystemVersion>?
+    /** Возвращает публикации одной доступной дизайн-системы. */
+    suspend fun listByDesignSystem(
+        projectId: ProjectId,
+        designSystemId: DesignSystemId,
+    ): List<DesignSystemVersion>?
 
-    /** Performs the create operation. */
-    suspend fun create(projectId: ProjectId, command: CreateDesignSystemVersion): DesignSystemVersion?
-
-    /** Performs the update operation. */
-    suspend fun update(projectId: ProjectId, id: UUID, command: UpdateDesignSystemVersion): DesignSystemVersion?
-
-    /** Performs the delete operation. */
-    suspend fun delete(projectId: ProjectId, id: UUID): Boolean
+    /** Публикует активный черновик одной транзакцией. */
+    suspend fun publish(projectId: ProjectId, command: CreateDesignSystemVersion): PublishDesignSystemResult
 }

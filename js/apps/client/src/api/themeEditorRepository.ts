@@ -1,236 +1,127 @@
-import { http, PROJECTS_URL } from '.';
-import type { Meta, PlatformsVariations, ThemeMeta, ThemeSource, TokenType, VariationType } from '../controllers';
-import type { Parameters } from '../types';
-import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
-import { isComponentEditorEnabled } from '../utils/featureFlags';
-import type { DesignSystemDto, ProjectDto, TenantDto } from './contracts';
+import { readEditor } from './editorReads';
+import { PROJECTS_URL } from './constants';
+import type { ProjectDto, DesignSystemDto, TenantDto } from './contracts';
+import type {
+    EditorContextKey,
+    ThemeEditorSnapshot,
+    DesignSystemComponentDto,
+    DesignSystemVersionDto,
+} from './editorContracts';
+import { apiRoot, readRequest } from './editorHttp';
+import { tokenRepository } from './tokenRepository';
+import { componentRepository } from './componentRepository';
+import type { ThemeSource } from '../controllers/designSystem';
 
-export interface EditorContextKey {
-    projectId: string;
-    designSystemId: string;
-    tenantId: string;
-}
-export interface TokenDefinitionDto {
-    id: string;
-    designSystemId: string;
-    name: string;
-    type: VariationType;
-    displayName: string | null;
-    description: string | null;
-    enabled: boolean;
-    /** Группа или подгруппа токенов; у старого ds-service поля нет. */
-    groupId?: string | null;
-    position?: number;
-    /** Последняя опубликованная версия с этим определением. */
-    publishedIn?: string | null;
-}
-export interface TenantTokenValueDto {
-    tokenId: string;
-    tenantId: string;
-    platform: 'web' | 'ios' | 'android' | null;
-    mode: 'light' | 'dark' | null;
-    paletteId?: string | null;
-    /** Исходная ссылка на палитру: ds-service отдаёт в `value` цвет по палитре темы, а ссылку — здесь. */
-    paletteRef?: string | null;
-    value: unknown;
-}
-interface PaletteDto {
-    id: string;
-    type: 'general' | 'additional';
-    shade: string;
-    saturation: number;
-}
-export interface ThemeEditorSnapshot {
-    designSystem: DesignSystemDto;
-    tenant: TenantDto;
-    themeData: ThemeSource;
-    componentsData: Meta[];
-    /** Compose-компоненты дизайн-системы; пусто, пока Compose-preview не настроен. */
-    composeComponentsData: Meta[];
-    parameters: Partial<Parameters>;
-    editRevision: number;
-    incompleteTokenIds: string[];
-    tokenDefinitions: TokenDefinitionDto[];
-}
-
-const apiRoot = (projectId: string) => `${PROJECTS_URL}/${projectId}/ds`;
-const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
-
-export class ThemeEditorRepository {
-    /**
-     * Compose-компоненты нужны только Compose-preview: без плагина их не запрашиваем, а сбой запроса
-     * не должен ломать редактор web-компонентов.
-     */
-    private async loadComposeComponents(root: string, designSystemName: string, signal?: AbortSignal) {
-        if (!isComponentEditorEnabled() || !getComposePreviewPluginUrl()) return [];
-        try {
-            const response = await http.get<Meta[]>(
-                `${root}/legacy/design-systems/${encodeURIComponent(designSystemName)}/component-configs`,
-                { params: { platform: 'compose' }, signal },
-            );
-            // Компоненты без конфигурации в дизайн-системе в редакторе не показываются: стилей для них нет.
-            return markComposeComponents(response.data.filter(hasConfiguration));
-        } catch (error) {
-            if (signal?.aborted) throw error;
-            console.error('[ThemeEditorRepository] Не удалось загрузить Compose-компоненты', error);
-            return [];
-        }
-    }
-
-    async load(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
-        const root = apiRoot(context.projectId);
-        const [project, designSystem, tenant, tokens, values] = await Promise.all([
-            http.get<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
-            http.get<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, { signal }),
-            http.get<TenantDto>(`${root}/tenants/${context.tenantId}`, { signal }),
-            http.get<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, { signal }),
-            http.get<TenantTokenValueDto[]>(`${root}/tenants/${context.tenantId}/token-values`, { signal }),
-        ]);
-        if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
-
-        const [components, palette] = await Promise.all([
-            // Раздел компонентов выключен сборкой: его данные никому не нужны, запрос не выполняется.
-            isComponentEditorEnabled()
-                ? http.get<Meta[]>(
-                      `${root}/legacy/design-systems/${encodeURIComponent(designSystem.data.name)}/component-configs`,
-                      { params: { platform: 'web' }, signal },
-                  )
-                : Promise.resolve({ data: [] as Meta[] }),
-            values.data.some((value) => value.paletteId)
-                ? http.get<PaletteDto[]>(`${root}/palette`, { signal })
-                : Promise.resolve({ data: [] as PaletteDto[] }),
-        ]);
-        const composeComponents = await this.loadComposeComponents(root, designSystem.data.name, signal);
-        const paletteById = new Map(palette.data.map((entry) => [entry.id, entry]));
-        const valuesByToken = new Map<string, TenantTokenValueDto[]>();
-        for (const value of values.data)
-            valuesByToken.set(value.tokenId, [...(valuesByToken.get(value.tokenId) || []), value]);
-        const incompleteTokenIds: string[] = [];
-        const metaTokens: TokenType[] = [];
-        const emptyPlatforms = () => ({ web: {}, ios: {}, android: {} });
-        const variations = {
-            color: emptyPlatforms(),
-            gradient: emptyPlatforms(),
-            shape: emptyPlatforms(),
-            shadow: emptyPlatforms(),
-            spacing: emptyPlatforms(),
-            typography: emptyPlatforms(),
-            fontFamily: emptyPlatforms(),
-        } as PlatformsVariations;
-
-        for (const token of tokens.data) {
-            const tokenValues = valuesByToken.get(token.id) || [];
-            const usesModes = token.type === 'color' || token.type === 'gradient';
-            const modes = (
-                usesModes ? ['light', 'dark'] : [...new Set(tokenValues.map((value) => value.mode).filter(Boolean))]
-            ) as Array<'light' | 'dark'>;
-            const names = modes.length ? modes.map((mode) => `${mode}.${token.name}`) : [token.name];
-            const complete = names.every((name) =>
-                ['web', 'ios', 'android'].every((platform) =>
-                    tokenValues.some(
-                        (value) =>
-                            value.platform === platform &&
-                            name === (value.mode ? `${value.mode}.${token.name}` : token.name),
-                    ),
-                ),
-            );
-            if (!complete) incompleteTokenIds.push(token.id);
-            for (const name of names)
-                metaTokens.push({
-                    type: token.type,
-                    name,
-                    tags: name.split('.'),
-                    displayName: token.displayName || name,
-                    description: token.description || undefined,
-                    enabled: token.enabled,
-                });
-            if (usesModes) {
-                // Токен, созданный в другой теме или прежними операциями, может прийти без значений этой темы:
-                // пустые заглушки дают построить тему, а экран показывает токен неполным.
-                const group = variations[token.type] as unknown as Record<string, Record<string, unknown>>;
-                for (const name of names)
-                    for (const platform of ['web', 'ios', 'android']) {
-                        group[platform] ||= {};
-                        group[platform][name] ??= token.type === 'gradient' ? [] : '';
-                    }
-            }
-            for (const value of tokenValues) {
-                if (!value.platform) continue;
-                const name = value.mode ? `${value.mode}.${token.name}` : token.name;
-                const group = variations[token.type] as unknown as Record<string, Record<string, unknown>>;
-                group[value.platform] ||= {};
-                const paletteEntry = value.paletteId ? paletteById.get(value.paletteId) : undefined;
-                const preservesArrayShape = token.type === 'gradient' || token.type === 'shadow';
-                const storedValue = [unwrapValue(value.value), ([] as unknown[]).concat(value.value as never)][
-                    Number(preservesArrayShape)
-                ];
-                // При ссылке через paletteId в value хранится прозрачность ссылки: ["0.56"] → [..][0.56].
-                const rawOpacity = paletteEntry ? unwrapValue(value.value) : undefined;
-                const opacity =
-                    typeof rawOpacity === 'number' || (typeof rawOpacity === 'string' && rawOpacity.trim() !== '')
-                        ? Number(rawOpacity)
-                        : NaN;
-                // Редактор работает со ссылками: раскрытый сервером цвет заменяется исходной ссылкой. Ссылка, которую
-                // палитра темы не раскрыла, приходит прежней формой — через paletteId.
-                group[value.platform][name] =
-                    value.paletteRef ??
-                    (paletteEntry
-                        ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]${
-                              Number.isFinite(opacity) && opacity >= 0 && opacity < 1 ? `[${opacity}]` : ''
-                          }`
-                        : storedValue);
-            }
-        }
-        const emptyMeta = {
-            mode: [],
-            category: [],
-            subcategory: [],
-            direction: [],
-            kind: [],
-            size: [],
-            screen: [],
-            weight: [],
-        };
-        const meta = {
+/** Оболочка не читает значения токенов, палитру, компоненты и историю. */
+export async function loadThemeShell(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
+    const root = apiRoot(context.projectId);
+    const request = readRequest(context, signal);
+    const [project, designSystem, tenant, links, version] = await Promise.all([
+        readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
+        readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request),
+        readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
+        readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+        context.versionId
+            ? readEditor<DesignSystemVersionDto>(`${root}/design-system-versions/${context.versionId}`, request)
+            : Promise.resolve(undefined),
+    ]);
+    if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
+    if (version && version.data.designSystemId !== context.designSystemId) throw new Error('VERSION_DESIGN_SYSTEM_MISMATCH');
+    const types = ['color', 'gradient', 'typography', 'fontFamily', 'shape', 'spacing', 'shadow'];
+    const empty = {
+        mode: [],
+        category: [],
+        subcategory: [],
+        direction: [],
+        kind: [],
+        size: [],
+        screen: [],
+        weight: [],
+    };
+    const themeData = {
+        meta: {
             name: tenant.data.name,
-            version: '0.1.0',
-            tokens: metaTokens,
-            color: emptyMeta,
-            gradient: emptyMeta,
-            shape: emptyMeta,
-            shadow: emptyMeta,
-            spacing: emptyMeta,
-            typography: emptyMeta,
-            fontFamily: emptyMeta,
-        } as unknown as ThemeMeta;
-        return {
-            designSystem: designSystem.data,
-            tenant: tenant.data,
-            themeData: { meta, variations },
-            componentsData: components.data,
-            composeComponentsData: composeComponents,
-            parameters: {
-                projectId: context.projectId,
-                projectName: project.data.name,
-                packagesName: designSystem.data.name,
-                tenantId: context.tenantId,
-                designSystemId: context.designSystemId,
-                editRevision: tenant.data.editRevision,
-                readOnly: project.data.status === 'archived' || project.data.effectiveRole === 'viewer',
-                effectiveRole: project.data.effectiveRole,
-            },
+            version: version?.data.version ?? '0.1.0',
+            tokens: [],
+            ...Object.fromEntries(types.map((type) => [type, empty])),
+        },
+        variations: Object.fromEntries(types.map((type) => [type, { web: {}, ios: {}, android: {} }])),
+    } as unknown as ThemeSource;
+    return {
+        tenant: tenant.data,
+        designSystem: designSystem.data,
+        themeData,
+        editRevision: tenant.data.editRevision,
+        incompleteTokenIds: [],
+        tokenIdsByName: {},
+        tokenDefinitionsByName: {},
+        tokenValueRevisionsByKey: {},
+        tokenValueEntityIdsByKey: {},
+        publicationVersion: version?.data.version ?? '0.1.0',
+        componentsData: [],
+        composeComponentsData: [],
+        hasComponents: links.data.some((link) => link.designSystemId === context.designSystemId),
+        parameters: {
+            projectId: context.projectId,
+            projectName: project.data.name,
+            packagesName: designSystem.data.name,
+            tenantId: context.tenantId,
+            designSystemId: context.designSystemId,
+            effectiveRole: project.data.effectiveRole,
             editRevision: tenant.data.editRevision,
-            incompleteTokenIds,
-            tokenDefinitions: tokens.data,
-        };
-    }
+            draftId: designSystem.data.draftId ?? undefined,
+            draftRevision: designSystem.data.draftRevision ?? undefined,
+            readOnly:
+                Boolean(context.versionId) ||
+                project.data.status === 'archived' ||
+                project.data.effectiveRole === 'viewer',
+        },
+    };
+}
 
-    async saveTenantValues(context: EditorContextKey, editRevision: number, values: TenantTokenValueDto[]) {
-        return (
-            await http.put<{ editRevision: number }>(
-                `${apiRoot(context.projectId)}/tenants/${context.tenantId}/token-values`,
-                { editRevision, values },
-            )
-        ).data;
-    }
+export type * from './editorContracts';
+
+/** Получает курсор подтверждённого состояния чтением, независимо от идентичности SSE-события. */
+export async function loadDesignSystemCursor(context: EditorContextKey, signal?: AbortSignal) {
+    return (
+        await readEditor<DesignSystemDto>(
+            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}`,
+            readRequest(context, signal),
+        )
+    ).data;
+}
+
+/** Первичная загрузка редактора объединяет независимые предметные данные. */
+export async function loadThemeEditor(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
+    const root = apiRoot(context.projectId);
+    const request = readRequest(context, signal);
+    const [project, designSystem, tokenData, components, composeComponentsData] = await Promise.all([
+        readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
+        readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request),
+        tokenRepository.loadTokenData(context, signal),
+        componentRepository.loadComponentData(context, signal),
+        componentRepository.loadComposeComponentData(context, signal),
+    ]);
+    return {
+        ...tokenData,
+        designSystem: designSystem.data,
+        componentsData: components,
+        composeComponentsData,
+        parameters: {
+            projectId: context.projectId,
+            projectName: project.data.name,
+            packagesName: designSystem.data.name,
+            tenantId: context.tenantId,
+            designSystemId: context.designSystemId,
+            effectiveRole: project.data.effectiveRole,
+            editRevision: tokenData.tenant.editRevision,
+            draftId: designSystem.data.draftId ?? undefined,
+            draftRevision: designSystem.data.draftRevision ?? undefined,
+            readOnly: [
+                Boolean(context.versionId),
+                project.data.status === 'archived',
+                project.data.effectiveRole === 'viewer',
+            ].some(Boolean),
+        },
+    };
 }

@@ -15,6 +15,9 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.IdempotentRequestLookup
+import com.dsbuilder.ds.core.application.IdempotentRequestRepository
+import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.core.domain.ProjectId
 import kotlinx.coroutines.runBlocking
@@ -41,7 +44,12 @@ class ComponentUseCaseTest {
     /** An unowned component cannot be created by an ordinary project member. */
     @Test
     fun `global component creation requires system admin`() = runBlocking {
-        val result = CreateComponentUseCase(policy, ImmediateTransactions(), RecordingComponentRepository()).execute(
+        val result = CreateComponentUseCase(
+            policy,
+            ImmediateTransactions(),
+            RecordingComponentRepository(),
+            NoopIdempotentRequestRepository(),
+        ).execute(
             ownerContext(),
             ComponentRepository.Create("button", "web", null),
         )
@@ -53,6 +61,20 @@ class ComponentUseCaseTest {
         ProjectPrincipal(ProjectActorType.USER, "user-1", "project-1", "owner"),
         "correlation-1",
     )
+}
+
+private class NoopIdempotentRequestRepository : IdempotentRequestRepository {
+    override suspend fun lookup(projectId: ProjectId, key: String, operation: String, requestHash: String) =
+        IdempotentRequestLookup.New
+
+    override suspend fun save(
+        projectId: ProjectId,
+        key: String,
+        actorId: String,
+        operation: String,
+        requestHash: String,
+        response: IdempotentResponse,
+    ) = Unit
 }
 
 private class ImmediateTransactions : TransactionRunner {

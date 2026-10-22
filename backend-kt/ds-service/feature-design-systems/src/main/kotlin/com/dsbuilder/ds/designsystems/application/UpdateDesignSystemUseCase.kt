@@ -21,7 +21,7 @@ class UpdateDesignSystemUseCase(
         command: UpdateDesignSystem,
     ): DsResult<DesignSystem> = when (val authorization = accessPolicy.require(context, "design-systems:write")) {
         is DsResult.Failure -> authorization
-        is DsResult.Success -> transactions.required {
+        is DsResult.Success -> transactions.required(context) {
             repository.updateOwned(context.projectId, id, command)?.let { DsResult.Success(it) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }

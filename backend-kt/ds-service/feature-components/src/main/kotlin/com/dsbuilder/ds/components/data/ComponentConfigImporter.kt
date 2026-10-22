@@ -6,15 +6,14 @@ import com.dsbuilder.ds.components.domain.ComponentConfig
 import com.dsbuilder.ds.components.domain.RootCandidate
 import com.dsbuilder.ds.components.domain.fallbackRoot
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
@@ -22,10 +21,14 @@ import java.util.UUID
 /** Atomic importer preserving the legacy common-config semantics. */
 internal class ComponentConfigImporter(private val builder: ComponentConfigBuilder = ComponentConfigBuilder()) {
     fun import(command: ImportComponentConfig): ComponentConfigRepository.ImportAttempt = runCatching {
-        val context = createContext(command)
-        command.components.forEach { importOne(command.designSystemId, it, context) }
+        // Как при прежней последовательной замене, последняя запись одного appearance побеждает.
+        // Согласовываем её сразу, чтобы предыдущая запись не удерживала удалённые дочерние элементы.
+        val entries = command.components.associateBy { it.componentName.canonical() to it.styleName }.values.toList()
+        val context = createContext(command.copy(components = entries))
+        entries.forEach { importOne(command.designSystemId, it, context) }
         resolveReferences(command.designSystemId, context)
-        journal(command, context)
+        context.appearances.forEach { clear(it, context.sync) }
+        context.completed.forEach { it() }
         ComponentConfigRepository.ImportAttempt.Success(
             context.report.toDomain(context.paintTypes.mapValues { it.value.toSet() }),
         )
@@ -59,11 +62,18 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         link(ds, componentId)
         loadStates(componentId, context)
         val old = appearance(ds, componentId, entry.styleName)
-        val appearanceId = old?.get(ComponentAppearancesTable.id) ?: ComponentAppearancesTable.insertReturning {
-            it[designSystemId] = ds
-            it[ComponentAppearancesTable.componentId] = componentId
-            it[name] = entry.styleName
-        }.single()[ComponentAppearancesTable.id]
+        val appearanceId = old?.get(ComponentAppearancesTable.id) ?: run {
+            val id = StableAppearancesTable.insertReturning {
+                it[designSystemId] = ds
+                it[StableAppearancesTable.componentId] = componentId
+            }.single()[StableAppearancesTable.id]
+            AppearanceRevisionsTable.replaceRevision(AppearanceRevisionsTable.entityId, id, ds) { statement ->
+                statement[name] = entry.styleName
+                statement[rootVariationId] = null
+                statement[colorSchemeVariationId] = null
+            }
+            id
+        }
         val descriptor = ConfigAppearance(
             appearanceId,
             ds,
@@ -72,10 +82,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             entry.styleName,
         )
         val before = old?.let { builder.build(descriptor, true, linkedSetOf()) }
-        clear(appearanceId)
+        context.appearances += appearanceId
         val axes = upsertAxes(componentId, entry.config)
         val styles = upsertStyles(ds, entry.config, axes)
-        declareAxes(appearanceId, entry.config, axes, styles)
+        declareAxes(appearanceId, entry.config, axes, styles, context)
         val properties = properties(componentId, entry, context)
         writeInvariants(ds, componentId, appearanceId, entry.config, properties, context)
         writeVariations(appearanceId, entry.config, axes, styles, properties, context)
@@ -86,10 +96,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         ) {
             context.report.underivableVariationIds += "${entry.componentName}.${entry.styleName}"
         }
-        when {
-            old == null -> context.report.created++
-            before == builder.build(descriptor, true, linkedSetOf()) -> context.report.unchanged++
-            else -> context.report.updated++
+        context.completed += {
+            when {
+                old == null -> context.report.created++
+                before == builder.build(descriptor, true, linkedSetOf()) -> context.report.unchanged++
+                else -> context.report.updated++
+            }
         }
     }
 
@@ -110,10 +122,15 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                     (DesignSystemComponentsTable.componentId eq component)
             }.any()
         ) {
-            DesignSystemComponentsTable.insertReturning {
+            val id = StableDesignSystemComponentsTable.insertReturning {
                 it[designSystemId] = ds
                 it[componentId] = component
-            }.single()
+            }.single()[StableDesignSystemComponentsTable.id]
+            DesignSystemComponentRevisionsTable.replaceRevision(
+                DesignSystemComponentRevisionsTable.entityId,
+                id,
+                ds,
+            )
         }
     }
 
@@ -123,12 +140,189 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             (ComponentAppearancesTable.name eq name)
     }.singleOrNull()
 
-    private fun clear(id: UUID) {
-        VariationPropertyValuesTable.deleteWhere { appearanceId eq id }
-        InvariantPropertyValuesTable.deleteWhere { appearanceId eq id }
-        StyleCombinationsTable.deleteWhere { appearanceId eq id }
-        AppearanceCombinationsTable.deleteWhere { appearanceId eq id }
-        AppearanceVariationsTable.deleteWhere { appearanceId eq id }
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
+    private fun clear(id: UUID, sync: ComponentConfigImportSync) {
+        val ds = StableAppearancesTable.selectAll().where { StableAppearancesTable.id eq id }
+            .single()[StableAppearancesTable.designSystemId]
+
+        val variationValues = VariationPropertyValuesTable.selectAll().where {
+            VariationPropertyValuesTable.appearanceId eq id
+        }.map { it[VariationPropertyValuesTable.id] }
+        val invariantValues = InvariantPropertyValuesTable.selectAll().where {
+            InvariantPropertyValuesTable.appearanceId eq id
+        }.map { it[InvariantPropertyValuesTable.id] }
+        val styleCombinations = StyleCombinationsTable.selectAll().where {
+            StyleCombinationsTable.appearanceId eq id
+        }.map { it[StyleCombinationsTable.id] }
+        val references = if (variationValues.isEmpty() && invariantValues.isEmpty() && styleCombinations.isEmpty()) {
+            emptyList()
+        } else {
+            ComponentStyleReferencesTable.selectAll().where {
+                var predicate: Op<Boolean> = Op.FALSE
+                if (variationValues.isNotEmpty()) {
+                    predicate = predicate or
+                        (ComponentStyleReferencesTable.variationPropertyValueId inList variationValues)
+                }
+                if (invariantValues.isNotEmpty()) {
+                    predicate = predicate or
+                        (ComponentStyleReferencesTable.invariantPropertyValueId inList invariantValues)
+                }
+                if (styleCombinations.isNotEmpty()) {
+                    predicate = predicate or
+                        (ComponentStyleReferencesTable.styleCombinationId inList styleCombinations)
+                }
+                predicate
+            }.toList()
+        }
+        if (references.isNotEmpty()) {
+            val referenceIds = references.map { it[ComponentStyleReferencesTable.id] }
+            ComponentStyleReferenceStylesTable.selectAll().where {
+                ComponentStyleReferenceStylesTable.referenceId inList referenceIds
+            }.forEach { row ->
+                sync.remove(
+                    ComponentStyleReferenceStyleRevisionsTable,
+                    ComponentStyleReferenceStyleRevisionsTable.entityId,
+                    row[ComponentStyleReferenceStylesTable.id],
+                    ds,
+                )
+            }
+            references.forEach { reference ->
+                sync.remove(
+                    ComponentStyleReferenceRevisionsTable,
+                    ComponentStyleReferenceRevisionsTable.entityId,
+                    reference[ComponentStyleReferencesTable.id],
+                    ds,
+                ) { statement ->
+                    statement[invariantPropertyValueId] =
+                        reference[ComponentStyleReferencesTable.invariantPropertyValueId]
+                    statement[variationPropertyValueId] =
+                        reference[ComponentStyleReferencesTable.variationPropertyValueId]
+                    statement[styleCombinationId] = reference[ComponentStyleReferencesTable.styleCombinationId]
+                }
+            }
+        }
+
+        if (variationValues.isNotEmpty()) {
+            VariationPlatformParamAdjustmentsTable.selectAll().where {
+                VariationPlatformParamAdjustmentsTable.vpvId inList variationValues
+            }.forEach { row ->
+                if (sync.retained(
+                        VariationPropertyValueRevisionsTable,
+                        row[VariationPlatformParamAdjustmentsTable.vpvId],
+                    )
+                ) {
+                    return@forEach
+                }
+                sync.remove(
+                    VariationPlatformParamAdjustmentRevisionsTable,
+                    VariationPlatformParamAdjustmentRevisionsTable.entityId,
+                    row[VariationPlatformParamAdjustmentsTable.id],
+                    ds,
+                )
+            }
+        }
+        if (invariantValues.isNotEmpty()) {
+            InvariantPlatformParamAdjustmentsTable.selectAll().where {
+                InvariantPlatformParamAdjustmentsTable.ipvId inList invariantValues
+            }.forEach { row ->
+                if (sync.retained(
+                        InvariantPropertyValueRevisionsTable,
+                        row[InvariantPlatformParamAdjustmentsTable.ipvId],
+                    )
+                ) {
+                    return@forEach
+                }
+                sync.remove(
+                    InvariantPlatformParamAdjustmentRevisionsTable,
+                    InvariantPlatformParamAdjustmentRevisionsTable.entityId,
+                    row[InvariantPlatformParamAdjustmentsTable.id],
+                    ds,
+                )
+            }
+        }
+        variationValues.forEach { valueId ->
+            sync.remove(
+                VariationPropertyValueRevisionsTable,
+                VariationPropertyValueRevisionsTable.entityId,
+                valueId,
+                ds,
+            )
+        }
+        invariantValues.forEach { valueId ->
+            sync.remove(
+                InvariantPropertyValueRevisionsTable,
+                InvariantPropertyValueRevisionsTable.entityId,
+                valueId,
+                ds,
+            )
+        }
+        val styleMembers = if (styleCombinations.isEmpty()) {
+            emptyMap()
+        } else {
+            StyleCombinationMembersTable.selectAll().where {
+                StyleCombinationMembersTable.combinationId inList styleCombinations
+            }.groupBy { it[StyleCombinationMembersTable.combinationId] }
+        }
+        styleCombinations.forEach { combinationId ->
+            styleMembers[combinationId].orEmpty().forEach { row ->
+                sync.remove(
+                    StyleCombinationMemberRevisionsTable,
+                    StyleCombinationMemberRevisionsTable.entityId,
+                    row[StyleCombinationMembersTable.id],
+                    ds,
+                )
+            }
+            sync.remove(StyleCombinationRevisionsTable, StyleCombinationRevisionsTable.entityId, combinationId, ds)
+        }
+        val appearanceCombinations = AppearanceCombinationsTable.selectAll()
+            .where { AppearanceCombinationsTable.appearanceId eq id }.toList()
+        val appearanceCombinationIds = appearanceCombinations.map { it[AppearanceCombinationsTable.id] }
+        val appearanceMembers = if (appearanceCombinationIds.isEmpty()) {
+            emptyMap()
+        } else {
+            AppearanceCombinationMembersTable.selectAll().where {
+                AppearanceCombinationMembersTable.appearanceCombinationId inList appearanceCombinationIds
+            }.groupBy { it[AppearanceCombinationMembersTable.appearanceCombinationId] }
+        }
+        appearanceCombinations.forEach { combination ->
+            val combinationId = combination[AppearanceCombinationsTable.id]
+            appearanceMembers[combinationId].orEmpty().forEach { member ->
+                sync.remove(
+                    AppearanceCombinationMemberRevisionsTable,
+                    AppearanceCombinationMemberRevisionsTable.entityId,
+                    member[AppearanceCombinationMembersTable.id],
+                    ds,
+                )
+            }
+            sync.remove(
+                AppearanceCombinationRevisionsTable,
+                AppearanceCombinationRevisionsTable.entityId,
+                combinationId,
+                ds,
+            )
+        }
+        val appearanceVariations = AppearanceVariationsTable.selectAll()
+            .where { AppearanceVariationsTable.appearanceId eq id }.toList()
+        val appearanceVariationIds = appearanceVariations.map { it[AppearanceVariationsTable.id] }
+        val appearanceValues = if (appearanceVariationIds.isEmpty()) {
+            emptyMap()
+        } else {
+            AppearanceVariationValuesTable.selectAll().where {
+                AppearanceVariationValuesTable.appearanceVariationId inList appearanceVariationIds
+            }.groupBy { it[AppearanceVariationValuesTable.appearanceVariationId] }
+        }
+        appearanceVariations.forEach { axis ->
+            val axisId = axis[AppearanceVariationsTable.id]
+            appearanceValues[axisId].orEmpty().forEach { value ->
+                sync.remove(
+                    AppearanceVariationValueRevisionsTable,
+                    AppearanceVariationValueRevisionsTable.entityId,
+                    value[AppearanceVariationValuesTable.id],
+                    ds,
+                )
+            }
+            sync.remove(AppearanceVariationRevisionsTable, AppearanceVariationRevisionsTable.entityId, axisId, ds)
+        }
     }
 
     private fun upsertAxes(component: UUID, config: ComponentConfig) = axes(config).associate { (key, name) ->
@@ -150,38 +344,78 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 ComponentStylesTable.selectAll().where {
                     (ComponentStylesTable.designSystemId eq ds) and
                         (ComponentStylesTable.variationId eq variation) and (ComponentStylesTable.name eq value)
-                }.singleOrNull()?.get(ComponentStylesTable.id) ?: ComponentStylesTable.insertReturning {
-                    it[designSystemId] = ds
-                    it[variationId] = variation
-                    it[name] = value
-                    it[description] = null
-                }.single()[ComponentStylesTable.id]
+                }.singleOrNull()?.get(ComponentStylesTable.id) ?: run {
+                    val id = StableStylesTable.insertReturning {
+                        it[designSystemId] = ds
+                        it[variationId] = variation
+                    }.single()[StableStylesTable.id]
+                    StyleRevisionsTable.replaceRevision(StyleRevisionsTable.entityId, id, ds) { statement ->
+                        statement[name] = value
+                        statement[description] = null
+                    }
+                    id
+                }
                 )
         }
 
-    private fun declareAxes(id: UUID, config: ComponentConfig, axes: Map<String, UUID>, styles: Map<String, UUID>) {
+    private fun declareAxes(
+        id: UUID,
+        config: ComponentConfig,
+        axes: Map<String, UUID>,
+        styles: Map<String, UUID>,
+        context: ComponentConfigImportContext,
+    ) {
         val values = axisValues(config).groupBy({ it.first }, { it.second })
         val defaults = config.defaults.associate { it.id to it.value.text() }
         axes(config).forEachIndexed { position, (axisId, _) ->
             val declared = config.variations.firstOrNull { it.id == axisId }
-            val row = AppearanceVariationsTable.insertReturning {
+            val existing = StableAppearanceVariationsTable.selectAll().where {
+                (StableAppearanceVariationsTable.appearanceId eq id) and
+                    (StableAppearanceVariationsTable.variationId eq axes.getValue(axisId))
+            }.singleOrNull()?.get(StableAppearanceVariationsTable.id)
+            val row = existing ?: StableAppearanceVariationsTable.insertReturning {
                 it[appearanceId] = id
                 it[variationId] = axes.getValue(axisId)
-                it[AppearanceVariationsTable.position] = position
-                it[defaultStyleId] = defaults[axisId]?.let { value -> styles[styleKey(axisId, value)] }
-                it[isColorScheme] = false
-                it[declaredType] = declared?.declaredType
-            }.single()[AppearanceVariationsTable.id]
+                it[designSystemId] = StableAppearancesTable.selectAll()
+                    .where { StableAppearancesTable.id eq id }.single()[StableAppearancesTable.designSystemId]
+            }.single()[StableAppearanceVariationsTable.id]
+            val ds = StableAppearanceVariationsTable.selectAll().where { StableAppearanceVariationsTable.id eq row }
+                .single()[StableAppearanceVariationsTable.designSystemId]
+            context.sync.write(
+                AppearanceVariationRevisionsTable,
+                AppearanceVariationsTable,
+                AppearanceVariationRevisionsTable.entityId,
+                row,
+                ds,
+            ) { statement ->
+                statement[AppearanceVariationRevisionsTable.position] = position
+                statement[defaultStyleId] = defaults[axisId]?.let { value -> styles[styleKey(axisId, value)] }
+                statement[declaredType] = declared?.declaredType
+            }
             val ordered = declared?.values?.map { it.name }.orEmpty() + values[axisId].orEmpty()
             ordered.distinct().forEachIndexed { valuePosition, value ->
-                AppearanceVariationValuesTable.insertReturning {
+                val style = styles.getValue(styleKey(axisId, value))
+                val valueId = context.sync.id(
+                    AppearanceVariationValuesTable, AppearanceVariationValuesTable.id,
+                    AppearanceVariationValuesTable.appearanceVariationId to row,
+                    AppearanceVariationValuesTable.styleId to style,
+                ) ?: StableAppearanceVariationValuesTable.insertReturning {
                     it[appearanceVariationId] = row
-                    it[styleId] = styles.getValue(styleKey(axisId, value))
-                    it[AppearanceVariationValuesTable.position] = valuePosition
-                    it[authoredId] = declared?.values?.firstOrNull {
+                    it[designSystemId] = ds
+                }.single()[StableAppearanceVariationValuesTable.id]
+                context.sync.write(
+                    AppearanceVariationValueRevisionsTable,
+                    AppearanceVariationValuesTable,
+                    AppearanceVariationValueRevisionsTable.entityId,
+                    valueId,
+                    ds,
+                ) { statement ->
+                    statement[styleId] = style
+                    statement[AppearanceVariationValueRevisionsTable.position] = valuePosition
+                    statement[authoredId] = declared?.values?.firstOrNull {
                         it.name == value && it.targets.isNullOrEmpty()
                     }?.authoredId
-                }.single()
+                }
             }
         }
         storeRoles(id, config, axes)
@@ -194,7 +428,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             axes(config).mapIndexed { position, (key, name) -> RootCandidate(axes.getValue(key), name, position) },
             colorScheme,
         )
-        AppearanceAxisRoleStore.store(id, root, colorScheme)
+        val current = AppearanceAxisRoleStore.load(listOf(id)).getValue(id)
+        if (current.root != root || current.colorScheme != colorScheme) {
+            AppearanceAxisRoleStore.store(id, root, colorScheme)
+        }
     }
 
     /** Возвращает указанный в конфигурации корень, если он не совпадает ни с одной осью. */
@@ -234,25 +471,37 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         val propertyId = properties[name] ?: return@forEach
         expand(property).forEach { value ->
             val states = stateSet(value.states, context) ?: return@forEach
-            val id = InvariantPropertyValuesTable.insertReturning {
-                it[InvariantPropertyValuesTable.propertyId] = propertyId
+            val id = context.sync.id(
+                InvariantPropertyValuesTable, InvariantPropertyValuesTable.id,
+                InvariantPropertyValuesTable.appearanceId to appearance,
+                InvariantPropertyValuesTable.propertyId to propertyId,
+                InvariantPropertyValuesTable.stateSetId to states,
+            ) ?: StableInvariantPropertyValuesTable.insertReturning {
+                it[StableInvariantPropertyValuesTable.propertyId] = propertyId
                 it[designSystemId] = ds
                 it[componentId] = component
                 it[appearanceId] = appearance
+            }.single()[StableInvariantPropertyValuesTable.id]
+            context.sync.write(
+                InvariantPropertyValueRevisionsTable,
+                InvariantPropertyValuesTable,
+                InvariantPropertyValueRevisionsTable.entityId,
+                id,
+                ds,
+            ) { statement ->
                 val token = token(value.token, context)
-                it[tokenId] = token
-                // Ссылка на токен — только `token_id`: имя берётся у токена и следует за переименованием.
-                it[InvariantPropertyValuesTable.value] = value.value.takeIf { token == null }
-                it[alpha] = value.alpha
-                it[adjustment] = value.adjustment
-                it[position] = value.position
-                it[stateSetId] = states
-            }.single()[InvariantPropertyValuesTable.id]
+                statement[tokenId] = token
+                statement[InvariantPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
+                statement[alpha] = value.alpha
+                statement[adjustment] = value.adjustment
+                statement[position] = value.position
+                statement[stateSetId] = states
+            }
             reference(property, value, ComponentStyleSource.Invariant(id), context)
         }
     }
 
-    @Suppress("NestedBlockDepth")
+    @Suppress("LongMethod", "NestedBlockDepth")
     private fun writeVariations(
         appearance: UUID,
         config: ComponentConfig,
@@ -292,18 +541,47 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             compareRanks(ranks(left.first), ranks(right.first))
         }
         ordered.forEachIndexed { position, (members, authored) ->
-            val id = AppearanceCombinationsTable.insertReturning {
+            val ds = StableAppearancesTable.selectAll().where { StableAppearancesTable.id eq appearance }
+                .single()[StableAppearancesTable.designSystemId]
+            val key = members.joinToString(",")
+            val id = context.sync.id(
+                AppearanceCombinationsTable, AppearanceCombinationsTable.id,
+                AppearanceCombinationsTable.appearanceId to appearance,
+                AppearanceCombinationsTable.combinationKey to key,
+            ) ?: StableAppearanceCombinationsTable.insertReturning {
                 it[appearanceId] = appearance
-                it[combinationKey] = members.joinToString(",")
-                it[AppearanceCombinationsTable.position] = position
-                it[authoredId] = authored
-            }.single()[AppearanceCombinationsTable.id]
+                it[designSystemId] = ds
+            }.single()[StableAppearanceCombinationsTable.id]
+            context.sync.write(
+                AppearanceCombinationRevisionsTable,
+                AppearanceCombinationsTable,
+                AppearanceCombinationRevisionsTable.entityId,
+                id,
+                ds,
+            ) { statement ->
+                statement[combinationKey] = key
+                statement[AppearanceCombinationRevisionsTable.position] = position
+                statement[authoredId] = authored
+            }
             members.forEachIndexed { index, style ->
-                AppearanceCombinationMembersTable.insertReturning {
+                val memberId = context.sync.id(
+                    AppearanceCombinationMembersTable, AppearanceCombinationMembersTable.id,
+                    AppearanceCombinationMembersTable.appearanceCombinationId to id,
+                    AppearanceCombinationMembersTable.styleId to style,
+                ) ?: StableAppearanceCombinationMembersTable.insertReturning {
                     it[appearanceCombinationId] = id
-                    it[styleId] = style
-                    it[AppearanceCombinationMembersTable.position] = index
-                }.single()
+                    it[designSystemId] = ds
+                }.single()[StableAppearanceCombinationMembersTable.id]
+                context.sync.write(
+                    AppearanceCombinationMemberRevisionsTable,
+                    AppearanceCombinationMembersTable,
+                    AppearanceCombinationMemberRevisionsTable.entityId,
+                    memberId,
+                    ds,
+                ) { statement ->
+                    statement[styleId] = style
+                    statement[AppearanceCombinationMemberRevisionsTable.position] = index
+                }
             }
         }
     }
@@ -335,18 +613,35 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         states: UUID,
         c: ComponentConfigImportContext,
     ) {
-        val id = VariationPropertyValuesTable.insertReturning {
+        val ds = StableAppearancesTable.selectAll().where { StableAppearancesTable.id eq a }
+            .single()[StableAppearancesTable.designSystemId]
+        val id = c.sync.id(
+            VariationPropertyValuesTable, VariationPropertyValuesTable.id,
+            VariationPropertyValuesTable.appearanceId to a,
+            VariationPropertyValuesTable.propertyId to p,
+            VariationPropertyValuesTable.styleId to s,
+            VariationPropertyValuesTable.stateSetId to states,
+        ) ?: StableVariationPropertyValuesTable.insertReturning {
             it[propertyId] = p
             it[styleId] = s
             it[appearanceId] = a
+            it[designSystemId] = ds
+        }.single()[StableVariationPropertyValuesTable.id]
+        c.sync.write(
+            VariationPropertyValueRevisionsTable,
+            VariationPropertyValuesTable,
+            VariationPropertyValueRevisionsTable.entityId,
+            id,
+            ds,
+        ) { statement ->
             val token = token(value.token, c)
-            it[tokenId] = token
-            it[VariationPropertyValuesTable.value] = value.value.takeIf { token == null }
-            it[alpha] = value.alpha
-            it[adjustment] = value.adjustment
-            it[position] = value.position
-            it[stateSetId] = states
-        }.single()[VariationPropertyValuesTable.id]
+            statement[tokenId] = token
+            statement[VariationPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
+            statement[alpha] = value.alpha
+            statement[adjustment] = value.adjustment
+            statement[position] = value.position
+            statement[stateSetId] = states
+        }
         reference(property, value, ComponentStyleSource.Variation(id), c)
     }
 
@@ -359,22 +654,51 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         states: UUID,
         c: ComponentConfigImportContext,
     ) {
-        val id = StyleCombinationsTable.insertReturning {
+        val ds = StableAppearancesTable.selectAll().where { StableAppearancesTable.id eq a }
+            .single()[StableAppearancesTable.designSystemId]
+        val key = members.joinToString(",")
+        val id = c.sync.id(
+            StyleCombinationsTable, StyleCombinationsTable.id,
+            StyleCombinationsTable.appearanceId to a,
+            StyleCombinationsTable.propertyId to p,
+            StyleCombinationsTable.combinationKey to key,
+            StyleCombinationsTable.stateSetId to states,
+        ) ?: StableStyleCombinationsTable.insertReturning {
             it[propertyId] = p
             it[appearanceId] = a
-            it[combinationKey] = members.joinToString(",")
-            it[StyleCombinationsTable.value] = value.value.orEmpty()
-            it[tokenId] = token(value.token, c)
-            it[alpha] = value.alpha
-            it[adjustment] = value.adjustment
-            it[position] = value.position
-            it[stateSetId] = states
-        }.single()[StyleCombinationsTable.id]
+            it[designSystemId] = ds
+        }.single()[StableStyleCombinationsTable.id]
+        c.sync.write(
+            StyleCombinationRevisionsTable,
+            StyleCombinationsTable,
+            StyleCombinationRevisionsTable.entityId,
+            id,
+            ds,
+        ) { statement ->
+            statement[combinationKey] = key
+            statement[StyleCombinationRevisionsTable.value] = value.value.orEmpty()
+            statement[tokenId] = token(value.token, c)
+            statement[alpha] = value.alpha
+            statement[adjustment] = value.adjustment
+            statement[position] = value.position
+            statement[stateSetId] = states
+        }
         members.forEach { style ->
-            StyleCombinationMembersTable.insertReturning {
+            val memberId = c.sync.id(
+                StyleCombinationMembersTable, StyleCombinationMembersTable.id,
+                StyleCombinationMembersTable.combinationId to id,
+                StyleCombinationMembersTable.styleId to style,
+            ) ?: StableStyleCombinationMembersTable.insertReturning {
                 it[combinationId] = id
-                it[styleId] = style
-            }.single()
+                it[designSystemId] = ds
+            }.single()[StableStyleCombinationMembersTable.id]
+            c.sync.write(
+                StyleCombinationMemberRevisionsTable,
+                StyleCombinationMembersTable,
+                StyleCombinationMemberRevisionsTable.entityId,
+                memberId,
+                ds,
+            ) { statement -> statement[styleId] = style }
         }
         reference(property, value, ComponentStyleSource.Combination(id), c)
     }
@@ -430,36 +754,63 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             val componentName = context.styleToComponent[styleName] ?: styleName
             val component = component(componentName, context)?.get(ComponentsTable.id)
             val target = component?.let { appearance(ds, it, styleName) }
-            val available = component?.let { componentId ->
-                ComponentStylesTable.join(
-                    VariationsTable,
-                    JoinType.INNER,
-                    ComponentStylesTable.variationId,
-                    VariationsTable.id,
-                ).selectAll().where {
-                    (ComponentStylesTable.designSystemId eq ds) and (VariationsTable.componentId eq componentId)
-                }.associate { it[ComponentStylesTable.name] to it[ComponentStylesTable.id] }
-            }.orEmpty()
+            val available = component?.let { referenceStyles(ds, it) }.orEmpty()
             val targetStyles = parts.drop(1).mapNotNull(available::get)
             if (target == null || targetStyles.size != parts.size - 1) {
                 context.report.unresolvedComponentStyles += pending.reference
             } else {
-                val id = ComponentStyleReferencesTable.insertReturning {
+                val id = context.sync.id(
+                    ComponentStyleReferencesTable, ComponentStyleReferencesTable.id,
+                    ComponentStyleReferencesTable.invariantPropertyValueId to
+                        (pending.source as? ComponentStyleSource.Invariant)?.id,
+                    ComponentStyleReferencesTable.variationPropertyValueId to
+                        (pending.source as? ComponentStyleSource.Variation)?.id,
+                    ComponentStyleReferencesTable.styleCombinationId to
+                        (pending.source as? ComponentStyleSource.Combination)?.id,
+                ) ?: StableComponentStyleReferencesTable.insertReturning {
                     it[designSystemId] = ds
-                    it[invariantPropertyValueId] = (pending.source as? ComponentStyleSource.Invariant)?.id
-                    it[variationPropertyValueId] = (pending.source as? ComponentStyleSource.Variation)?.id
-                    it[styleCombinationId] = (pending.source as? ComponentStyleSource.Combination)?.id
-                    it[targetAppearanceId] = target[ComponentAppearancesTable.id]
-                    it[reference] = pending.reference
-                }.single()[ComponentStyleReferencesTable.id]
+                }.single()[StableComponentStyleReferencesTable.id]
+                context.sync.write(
+                    ComponentStyleReferenceRevisionsTable,
+                    ComponentStyleReferencesTable,
+                    ComponentStyleReferenceRevisionsTable.entityId,
+                    id,
+                    ds,
+                ) { statement ->
+                    statement[invariantPropertyValueId] = (pending.source as? ComponentStyleSource.Invariant)?.id
+                    statement[variationPropertyValueId] = (pending.source as? ComponentStyleSource.Variation)?.id
+                    statement[styleCombinationId] = (pending.source as? ComponentStyleSource.Combination)?.id
+                    statement[targetAppearanceId] = target[ComponentAppearancesTable.id]
+                    statement[reference] = pending.reference
+                }
                 targetStyles.distinct().forEach { style ->
-                    ComponentStyleReferenceStylesTable.insertReturning {
+                    val styleId = context.sync.id(
+                        ComponentStyleReferenceStylesTable, ComponentStyleReferenceStylesTable.id,
+                        ComponentStyleReferenceStylesTable.referenceId to id,
+                        ComponentStyleReferenceStylesTable.styleId to style,
+                    ) ?: StableComponentStyleReferenceStylesTable.insertReturning {
                         it[referenceId] = id
-                        it[styleId] = style
-                    }.single()
+                        it[designSystemId] = ds
+                    }.single()[StableComponentStyleReferenceStylesTable.id]
+                    context.sync.write(
+                        ComponentStyleReferenceStyleRevisionsTable,
+                        ComponentStyleReferenceStylesTable,
+                        ComponentStyleReferenceStyleRevisionsTable.entityId,
+                        styleId,
+                        ds,
+                    ) { statement -> statement[ComponentStyleReferenceStyleRevisionsTable.styleId] = style }
                 }
             }
         }
+
+    private fun referenceStyles(ds: UUID, component: UUID): Map<String, UUID> = ComponentStylesTable.join(
+        VariationsTable,
+        JoinType.INNER,
+        ComponentStylesTable.variationId,
+        VariationsTable.id,
+    ).selectAll().where {
+        (ComponentStylesTable.designSystemId eq ds) and (VariationsTable.componentId eq component)
+    }.associate { it[ComponentStylesTable.name] to it[ComponentStylesTable.id] }
 
     private fun dependencies(
         component: UUID,
@@ -485,47 +836,6 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }.single()
             }
         }
-
-    private fun journal(command: ImportComponentConfig, context: ComponentConfigImportContext) {
-        DesignSystemChangesTable.insertReturning {
-            it[designSystemId] = command.designSystemId
-            it[entityType] = "components:import"
-            it[entityId] = command.designSystemId
-            it[operation] = if (context.report.created > 0) {
-                ComponentChangeOperationDb.CREATED
-            } else {
-                ComponentChangeOperationDb.UPDATED
-            }
-            it[data] = buildJsonObject {
-                put(
-                    "meta",
-                    buildJsonObject {
-                        put("name", command.meta.name)
-                        put("source", command.meta.source)
-                    },
-                )
-                put("platform", command.platform)
-                put("dryRun", command.dryRun)
-                put("created", context.report.created)
-                put("updated", context.report.updated)
-                put("unchanged", context.report.unchanged)
-                put(
-                    "rejected",
-                    buildJsonArray {
-                        context.report.rejected.forEach { rejection ->
-                            add(
-                                buildJsonObject {
-                                    put("componentName", rejection.componentName)
-                                    put("styleName", rejection.styleName)
-                                    put("reason", rejection.reason)
-                                },
-                            )
-                        }
-                    },
-                )
-            }
-        }.single()
-    }
 
     private fun token(name: String?, context: ComponentConfigImportContext): UUID? = name?.let {
         context.tokens[it] ?: run {

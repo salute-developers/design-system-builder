@@ -1,29 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { getOldMenuItems } from '../../utils';
-import { useSelectItemInMenu } from '../../hooks';
+import { locateLegacyToken, useAddressedToken, useSelectItemInMenu } from '../../hooks';
 import { DesignSystem, Theme, Token } from '../../controllers';
 import { MenuOld, Workspace } from '../../layouts';
 import { shapeTokenActions } from '../../actions';
 
 import { TokenShapeEditor } from './features/TokenShapeEditor';
+import type { EditorContextKey } from '../../api/editorContracts';
 
 interface ShapesOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
     updated: object;
     rerender: () => void;
+    editorContext?: EditorContextKey;
 }
 
 export const Shapes = () => {
-    const { designSystem, theme, updated, rerender } = useOutletContext<ShapesOutletContextProps>();
+    const { designSystem, theme, updated, rerender, editorContext } = useOutletContext<ShapesOutletContextProps>();
 
-    const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu();
+    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu();
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
     const data = useMemo(() => getOldMenuItems(theme, 'shape'), [theme, updated]);
+    const addressedToken = useAddressedToken(editorContext, (name) => Boolean(data && locateLegacyToken(data, name)));
+
+    useEffect(() => {
+        if (!data || !addressedToken.requestedTokenName) return;
+        const located = locateLegacyToken(data, addressedToken.requestedTokenName);
+        if (located) {
+            onTabSelect(located.tabIndex);
+            onItemSelect(located.groupIndex, located.itemIndex);
+        }
+    }, [addressedToken.requestedTokenName, data]);
 
     const onTokenAdd = (_: string, tokenName: string, __?: string, tokens?: (Token | unknown)[]) => {
         shapeTokenActions.addToken({ tokenName, tokens, theme, designSystem });
@@ -65,12 +76,23 @@ export const Shapes = () => {
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
                     selectedItemIndexes={selectedItemIndexes}
-                    onItemSelect={onItemSelect}
+                    onItemSelect={(groupIndex, itemIndex) => {
+                        onItemSelect(groupIndex, itemIndex);
+                        const token = data.groups?.[selectedItemIndexes[0]]?.data?.[groupIndex]?.items?.[itemIndex]
+                            ?.data?.[0] as Token | undefined;
+                        if (token) addressedToken.selectTokenName(token.getName());
+                    }}
                     onItemAdd={onTokenAdd}
                     onItemDisable={onTokenDisable}
                 />
             }
-            content={<TokenShapeEditor designSystem={designSystem} theme={theme} tokens={tokens} rerender={rerender} />}
+            content={
+                addressedToken.unavailable ? (
+                    <div role="status">Точный источник токена недоступен.</div>
+                ) : (
+                    <TokenShapeEditor designSystem={designSystem} theme={theme} tokens={tokens} rerender={rerender} />
+                )
+            }
         />
     );
 };

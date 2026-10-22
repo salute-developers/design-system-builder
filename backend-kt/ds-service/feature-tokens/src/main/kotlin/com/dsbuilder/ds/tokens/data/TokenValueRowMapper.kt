@@ -9,11 +9,11 @@ internal object TokenValueRowMapper {
         id = row[TokenValuesTable.id],
         tokenId = row[TokenValuesTable.tokenId],
         tenantId = row[TokenValuesTable.tenantId],
-        paletteId = row[TokenValuesTable.paletteId],
+        paletteId = row[TokenValueRevisionsTable.paletteId],
         platform = row[TokenValuesTable.platform],
         mode = row[TokenValuesTable.mode],
-        value = row[TokenValuesTable.value],
+        value = row[TokenValueRevisionsTable.value],
         createdAt = row[TokenValuesTable.createdAt],
-        updatedAt = row[TokenValuesTable.updatedAt],
+        updatedAt = row[TokenValueRevisionsTable.updatedAt],
     )
 }

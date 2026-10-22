@@ -8,8 +8,9 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
-import com.dsbuilder.ds.themes.application.palette.initializedSnapshot
+import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
+import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
 import java.util.UUID
@@ -26,24 +27,31 @@ class GetTenantTokenValuesUseCase(
      * `paletteId`, а исходная ссылка возвращается в `paletteRef`. Ссылка, которую палитра темы не раскрывает,
      * остаётся как есть. Ревью PR #101: раскрытие по общей палитре давало неверные цвета, поэтому другого режима нет.
      */
-    suspend fun execute(context: DsRequestContext, id: UUID): DsResult<List<TenantTokenValue>> =
+    suspend fun execute(
+        context: DsRequestContext,
+        id: UUID,
+        types: Set<ThemeTokenType> = emptySet(),
+    ): DsResult<List<TenantTokenValue>> =
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
-            // Снимок палитры берёт тему FOR SHARE до чтения значений: оба чтения видят одно состояние, и сопоставление
-            // значений по `id` не теряется из-за параллельного `PUT token-values`. Транзакция изменяющая — теме без
-            // палитры копия шаблона создаётся здесь же.
-            is DsResult.Success -> transactions.required {
-                val snapshot = paletteRepository.initializedSnapshot(context.projectId, id)
-                values(context, id) { values -> snapshot?.let { resolved(id, it, values) } ?: values }
+            is DsResult.Success -> transactions.readOnly(context) {
+                val needsPalette = types.isEmpty() || ThemeTokenType.COLOR in types || ThemeTokenType.GRADIENT in types
+                val snapshot = if (needsPalette) {
+                    paletteRepository.snapshot(context.projectId, id)?.takeIf { it.hasSystemGroups() }
+                } else {
+                    null
+                }
+                values(context, id, types) { values -> snapshot?.let { resolved(id, it, values) } ?: values }
             }
         }
 
     private suspend fun values(
         context: DsRequestContext,
         id: UUID,
+        types: Set<ThemeTokenType>,
         transform: (List<TenantTokenValue>) -> List<TenantTokenValue>,
     ): DsResult<List<TenantTokenValue>> =
-        repository.tokenValues(context.projectId, id)?.let {
+        repository.tokenValues(context.projectId, id, types)?.let {
             DsResult.Success(transform(it))
         } ?: if (context.principal.systemAdmin) {
             DsResult.Success(emptyList())

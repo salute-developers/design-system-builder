@@ -34,7 +34,7 @@ class TenantPaletteMutator(
         operation: (TenantPaletteState, ThemePalette) -> PaletteOperationResult<T>,
     ): DsResult<TenantPaletteMutation<R>> = when (val allowed = policy.require(context, ProjectScope.TENANTS_WRITE)) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.required {
+        is DsResult.Success -> transactions.required(context) {
             when (val lock = repository.lock(context.projectId, tenantId, editRevision)) {
                 TenantPaletteLock.NotFound -> DsResult.Failure(DsFailure.NotFound)
                 is TenantPaletteLock.RevisionConflict ->
@@ -57,13 +57,10 @@ class TenantPaletteMutator(
         is DsResult.Failure -> allowed
         // Изменяющая транзакция: снимок берёт тему FOR SHARE и может создать палитру теме без неё; данные операции
         // не записываются.
-        is DsResult.Success -> transactions.required {
-            val snapshot = repository.initializedSnapshot(context.projectId, tenantId)
+        is DsResult.Success -> transactions.readOnly(context) {
+            val snapshot = repository.snapshot(context.projectId, tenantId)
             when {
                 snapshot == null || !snapshot.owned -> DsResult.Failure(DsFailure.NotFound)
-                snapshot.state.editRevision != editRevision -> DsResult.Failure(
-                    DsFailure.Conflict(EDIT_CONFLICT, editRevision = snapshot.state.editRevision),
-                )
                 else -> when (val result = operation(snapshot.state, palette(tenantId, snapshot))) {
                     is PaletteOperationResult.Rejected -> DsResult.Failure(result.error.toFailure())
                     is PaletteOperationResult.Applied -> DsResult.Success(result.value)
@@ -84,7 +81,7 @@ class TenantPaletteMutator(
         return when (val result = operation(snapshot.state, palette)) {
             is PaletteOperationResult.Rejected -> DsResult.Failure(result.error.toFailure())
             is PaletteOperationResult.Applied -> {
-                repository.save(tenantId, result.state)
+                repository.save(tenantId, snapshot.state, result.state)
                 val after = palette(tenantId, snapshot.copy(state = result.state))
                 DsResult.Success(
                     TenantPaletteMutation(result.state.editRevision, complete(result.value, palette, after)),

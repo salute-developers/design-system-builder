@@ -19,7 +19,7 @@ class GetPaletteEntryUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<PaletteEntry> =
         when (val allowed = policy.require(context, ProjectScope.TOKENS_READ)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly {
+            is DsResult.Success -> transactions.readOnly(context) {
                 repository.find(id)?.let { DsResult.Success(it) }
                     ?: DsResult.Failure(DsFailure.NotFound)
             }

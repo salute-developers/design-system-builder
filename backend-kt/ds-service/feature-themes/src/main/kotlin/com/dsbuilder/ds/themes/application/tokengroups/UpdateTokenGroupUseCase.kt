@@ -36,7 +36,7 @@ class UpdateTokenGroupUseCase(
         val allowed = policy.requireAll(context, ProjectScope.TENANTS_WRITE, ProjectScope.TOKENS_WRITE)
         if (allowed is DsResult.Failure) return allowed
         command.label?.let(TokenGroupRules::label)?.let { return DsResult.Failure(invalidTokenGroup(it)) }
-        return transactions.required {
+        return transactions.required(context) {
             tokens.withAllThemes(context, tenantId, command.editRevision) { lock ->
                 update(tenantId, lock, groupId, command)
             }

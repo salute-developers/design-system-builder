@@ -468,7 +468,7 @@ export const colorTokenActions: ColorTokenActions = {
 
             token.setDescription(defaultDescription);
 
-            updateDraftToken(dsName, dsVersion, token, isDraftAddedToken(token.getName()) ? 'save' : 'remove');
+            updateDraftToken(dsName, dsVersion, token, isDraftAddedToken(token.getName()) ? 'save' : 'discard');
         });
 
         const [colorValue, opacityValue] = getColorAndOpacity(defaultToken.getDefaultValue('web'));

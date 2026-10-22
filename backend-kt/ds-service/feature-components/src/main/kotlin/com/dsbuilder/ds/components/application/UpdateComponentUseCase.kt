@@ -21,7 +21,7 @@ class UpdateComponentUseCase(
         id: UUID,
         command: ComponentRepository.Update,
     ): DsResult<Component> = policy.read(context, ProjectScope.COMPONENTS_WRITE) {
-        transactions.required {
+        transactions.required(context) {
             repository.updateAccessible(context.projectId, context.principal.systemAdmin, id, command)
                 ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
         }

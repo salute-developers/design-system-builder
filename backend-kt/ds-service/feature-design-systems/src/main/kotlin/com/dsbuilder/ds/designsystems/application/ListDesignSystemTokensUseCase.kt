@@ -28,7 +28,7 @@ class ListDesignSystemTokensUseCase(
         )
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly {
+        is DsResult.Success -> transactions.readOnly(context) {
             repository.listTokens(context.projectId, id, type, query)?.let { DsResult.Success(it) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }

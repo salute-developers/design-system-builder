@@ -57,7 +57,7 @@ interface TokenMeta {
     displayName: string;
 }
 
-interface TokenChange {
+export interface TokenChange {
     type: VariationType;
     values: {
         web: any;
@@ -67,23 +67,55 @@ interface TokenChange {
     description?: string;
     enabled: boolean;
     meta?: TokenMeta;
+    deleted?: boolean;
 }
 
 type DraftChanges = Record<string, TokenChange>;
 
-let activeDraftContext: { projectId: string; designSystemId: string; tenantId: string } | null = null;
+export interface DraftContext {
+    projectId: string;
+    designSystemId: string;
+    tenantId: string;
+}
+
+let activeDraftContext: DraftContext | null = null;
+let pendingMutationListener:
+    | ((event: {
+          context: NonNullable<typeof activeDraftContext>;
+          tokenName: string;
+          previousTokenName?: string;
+          change: TokenChange | null;
+          kind: 'create' | 'update' | 'rename' | 'delete' | 'discard';
+      }) => void)
+    | null = null;
 const draftAddedTokensByKey = new Map<string, Set<string>>();
+const volatileDraftChanges = new Map<string, DraftChanges>();
 
 export const setActiveDraftContext = (context: typeof activeDraftContext) => {
     activeDraftContext = context;
 };
 
-const activeKey = (name: string, version: string) =>
-    activeDraftContext
-        ? `${DRAFT_PREFIX}${activeDraftContext.projectId}:${activeDraftContext.designSystemId}:${activeDraftContext.tenantId}`
+export const setPendingMutationListener = (listener: typeof pendingMutationListener) => {
+    pendingMutationListener = listener;
+};
+
+const notifyPendingMutation = (
+    tokenName: string,
+    change: TokenChange | null,
+    kind: 'create' | 'update' | 'rename' | 'delete' | 'discard',
+    previousTokenName?: string,
+) => {
+    if (activeDraftContext && pendingMutationListener) {
+        pendingMutationListener({ context: activeDraftContext, tokenName, previousTokenName, change, kind });
+    }
+};
+
+const activeKey = (name: string, version: string, context: DraftContext | null = activeDraftContext) =>
+    context
+        ? `${DRAFT_PREFIX}${context.projectId}:${context.designSystemId}:${context.tenantId}`
         : `${DRAFT_PREFIX}${name}:${version}`;
-const draftAddedTokens = () => {
-    const key = activeKey('', '');
+const draftAddedTokens = (context?: DraftContext) => {
+    const key = activeKey('', '', context);
     const existing = draftAddedTokensByKey.get(key) ?? new Set<string>();
     draftAddedTokensByKey.set(key, existing);
     return existing;
@@ -91,18 +123,33 @@ const draftAddedTokens = () => {
 
 export const isDraftAddedToken = (tokenName: string) => draftAddedTokens().has(tokenName);
 
-export const getDraftKey = (name: string, version: string) => activeKey(name, version);
+export const getDraftKey = (name: string, version: string, context?: DraftContext) => activeKey(name, version, context);
 
-const loadDraftChanges = (dsName: string, dsVersion: string): DraftChanges => {
-    const raw = localStorage.getItem(getDraftKey(dsName, dsVersion));
+const loadDraftChanges = (dsName: string, dsVersion: string, context?: DraftContext): DraftChanges => {
+    const key = getDraftKey(dsName, dsVersion, context);
+    let raw: string | null;
+    try {
+        raw = localStorage.getItem(key);
+    } catch {
+        return volatileDraftChanges.get(key) ?? {};
+    }
 
     if (!raw) {
+        volatileDraftChanges.delete(key);
         return {};
     }
 
     try {
-        return JSON.parse(raw) as DraftChanges;
+        const changes = JSON.parse(raw) as DraftChanges;
+        volatileDraftChanges.set(key, changes);
+        return changes;
     } catch {
+        volatileDraftChanges.delete(key);
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            // Storage is only a recovery aid; the in-memory autosave path must remain available.
+        }
         return {};
     }
 };
@@ -127,20 +174,34 @@ export const removeDraftEntries = (dsName: string, dsVersion: string, names: rea
     saveDraftChanges(dsName, dsVersion, changes);
 };
 
-const saveDraftChanges = (dsName: string, dsVersion: string, changes: DraftChanges) => {
+export const pendingDraftTokens = (dsName: string, dsVersion: string): DraftChanges =>
+    loadDraftChanges(dsName, dsVersion);
+
+const saveDraftChanges = (dsName: string, dsVersion: string, changes: DraftChanges, context?: DraftContext) => {
+    const key = getDraftKey(dsName, dsVersion, context);
     if (Object.keys(changes).length === 0) {
-        localStorage.removeItem(getDraftKey(dsName, dsVersion));
+        volatileDraftChanges.delete(key);
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            // The server save remains authoritative even when browser storage is unavailable.
+        }
         return;
     }
 
-    localStorage.setItem(getDraftKey(dsName, dsVersion), JSON.stringify(changes));
+    volatileDraftChanges.set(key, changes);
+    try {
+        localStorage.setItem(key, JSON.stringify(changes));
+    } catch {
+        // Keep the pending change in memory so the autosave listener can still enqueue it.
+    }
 };
 
 export const updateDraftToken = (
     dsName: string,
     dsVersion: string,
     token?: Token,
-    action: 'remove' | 'save' | 'toggle' = 'save',
+    action: 'remove' | 'discard' | 'save' | 'toggle' = 'save',
 ) => {
     if (!token) {
         return;
@@ -149,10 +210,35 @@ export const updateDraftToken = (
     const tokenName = token.getName();
     const changes = loadDraftChanges(dsName, dsVersion);
 
-    if (action === 'remove') {
+    if (action === 'discard') {
         delete changes[tokenName];
 
         saveDraftChanges(dsName, dsVersion, changes);
+        notifyPendingMutation(tokenName, null, 'discard');
+        return;
+    }
+
+    if (action === 'remove') {
+        if (draftAddedTokens().has(tokenName)) {
+            draftAddedTokens().delete(tokenName);
+            delete changes[tokenName];
+            saveDraftChanges(dsName, dsVersion, changes);
+            notifyPendingMutation(tokenName, null, 'discard');
+            return;
+        }
+        changes[tokenName] = {
+            type: token.getType(),
+            values: {
+                web: token.getValue('web'),
+                ios: token.getValue('ios'),
+                android: token.getValue('android'),
+            },
+            description: token.getDescription(),
+            enabled: token.getEnabled(),
+            deleted: true,
+        };
+        saveDraftChanges(dsName, dsVersion, changes);
+        notifyPendingMutation(tokenName, changes[tokenName], 'delete');
         return;
     }
 
@@ -173,6 +259,7 @@ export const updateDraftToken = (
         };
 
         saveDraftChanges(dsName, dsVersion, changes);
+        notifyPendingMutation(tokenName, changes[tokenName], 'update');
         return;
     }
 };
@@ -205,6 +292,7 @@ export const renameDraftToken = (dsName: string, dsVersion: string, oldName: str
     };
 
     saveDraftChanges(dsName, dsVersion, changes);
+    notifyPendingMutation(newName, changes[newName], 'rename', oldName);
 };
 
 export const createDraftToken = (dsName: string, dsVersion: string, token: Token) => {
@@ -230,6 +318,20 @@ export const createDraftToken = (dsName: string, dsVersion: string, token: Token
     };
 
     saveDraftChanges(dsName, dsVersion, changes);
+    notifyPendingMutation(tokenName, changes[tokenName], 'create');
+};
+
+/** Удаляет только подтверждённый сервером запрос, не меняя предметные данные редактора. */
+export const confirmDraftToken = (
+    dsName: string,
+    dsVersion: string,
+    tokenName: string,
+    context?: DraftContext,
+) => {
+    const changes = loadDraftChanges(dsName, dsVersion, context);
+    delete changes[tokenName];
+    saveDraftChanges(dsName, dsVersion, changes, context);
+    draftAddedTokens(context).delete(tokenName);
 };
 
 const restoreDraftToken = (theme: Theme, change: TokenChange) => {
@@ -296,12 +398,23 @@ export const clearDraft = (dsName?: string, dsVersion?: string) => {
         return;
     }
 
-    localStorage.removeItem(getDraftKey(dsName, dsVersion));
+    const key = getDraftKey(dsName, dsVersion);
+    volatileDraftChanges.delete(key);
+    try {
+        localStorage.removeItem(key);
+    } catch {
+        // Clearing the in-memory copy is sufficient for the active page session.
+    }
     draftAddedTokens().clear();
 };
 
 export const hasDraft = (dsName: string, dsVersion: string) => {
-    return localStorage.getItem(getDraftKey(dsName, dsVersion)) !== null;
+    const key = getDraftKey(dsName, dsVersion);
+    try {
+        return localStorage.getItem(key) !== null;
+    } catch {
+        return volatileDraftChanges.has(key);
+    }
 };
 
 /** Черновик на момент отправки: ключ фиксируется сразу, чтобы смена tenant не подменила его. */
@@ -332,6 +445,10 @@ export const applyDraftChanges = (theme: Theme, dsName: string, dsVersion: strin
     const changes = loadDraftChanges(dsName, dsVersion);
 
     Object.entries(changes).forEach(([tokenName, change]) => {
+        if (change.deleted) {
+            theme.removeToken(tokenName, change.type);
+            return;
+        }
         let token = theme.getToken(tokenName, change.type);
 
         if (!token) {

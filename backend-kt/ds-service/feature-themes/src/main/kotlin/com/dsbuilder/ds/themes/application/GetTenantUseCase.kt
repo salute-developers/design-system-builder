@@ -20,7 +20,7 @@ class GetTenantUseCase(
         val allowed = policy.require(context, ProjectScope.TENANTS_READ)
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly {
+        is DsResult.Success -> transactions.readOnly(context) {
             repository.findAccessible(context.projectId, id)?.let { DsResult.Success(it) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }

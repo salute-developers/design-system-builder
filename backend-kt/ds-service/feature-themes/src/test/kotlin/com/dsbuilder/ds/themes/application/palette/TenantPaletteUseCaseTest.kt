@@ -52,16 +52,13 @@ class TenantPaletteUseCaseTest {
     }
 
     @Test
-    fun `изменение требует права записи и актуальной ревизии`() = runBlocking {
+    fun `изменение требует права записи но не общей ревизии темы`() = runBlocking {
         val create = CreateTenantPaletteGroupUseCase(mutator) { UUID.fromString(NEW_GROUP_ID) }
         assertEquals(DsFailure.Forbidden, failure(create.execute(context("viewer"), tenantId, "Icons", revision)))
 
-        val stale = conflict(create.execute(owner, tenantId, "Icons", revision - 1))
-        assertEquals("TENANT_EDIT_CONFLICT", stale.code)
-        assertEquals(revision, stale.editRevision)
         assertNull(repository.saved)
 
-        val created = success(create.execute(owner, tenantId, "Icons", revision))
+        val created = success(create.execute(owner, tenantId, "Icons", revision - 1))
         assertEquals(revision + 1, created.editRevision)
         assertEquals(NEW_GROUP_ID, created.value.id)
         assertEquals(revision + 1, repository.saved?.editRevision)
@@ -104,15 +101,16 @@ class TenantPaletteUseCaseTest {
     }
 
     @Test
-    fun `тема без палитры получает её при первом обращении`() = runBlocking {
+    fun `чтение отсутствующей палитры не инициализирует её`() = runBlocking {
         val full = TenantPaletteSnapshot(golden.scenarioState(), golden.scenarioTokens(), golden.scenarioValues())
         val empty = full.copy(state = full.state.copy(template = emptyMap(), groups = emptyList(), ramps = emptyList()))
         val bare = FakeTenantPaletteRepository(empty, initialized = full)
 
-        val palette = success(GetTenantPaletteUseCase(policy, transactions, bare).execute(owner, tenantId))
-
-        assertEquals(tenantId, bare.initializedTenant)
-        assertEquals(full.state.groups.map { it.id }, palette.groups.map { it.id })
+        assertIs<DsFailure.NotFound>(
+            failure(GetTenantPaletteUseCase(policy, transactions, bare).execute(owner, tenantId)),
+        )
+        assertEquals(null, bare.initializedTenant)
+        assertEquals(empty.state, bare.snapshot?.state)
     }
 
     @Test

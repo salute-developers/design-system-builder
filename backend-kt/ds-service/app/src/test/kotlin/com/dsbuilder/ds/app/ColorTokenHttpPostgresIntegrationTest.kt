@@ -40,6 +40,12 @@ class ColorTokenHttpPostgresIntegrationTest {
                 val designSystemId = api.create("/api/ds/design-systems", OWNER, designSystem)
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
+                val initialResponse = api.call("GET", "/api/ds/design-systems/$designSystemId/changes", VIEWER)
+                assertEquals(HttpStatusCode.OK, initialResponse.status, initialResponse.bodyAsText())
+                val initialChanges = api.body(initialResponse).jsonArray
+                assertTrue(
+                    initialChanges.none { it.text("entityType") in setOf("token", "token-value", "token-group") },
+                )
                 val palette = api.read("/api/ds/tenants/$tenantA/palette")
                 val accent = palette.array("groups").single { it.text("systemKey") == "accent" }.text("id")
                 val reference = palette.array("template").first().let { ramp ->
@@ -79,7 +85,7 @@ class ColorTokenHttpPostgresIntegrationTest {
                 val created = api.call("POST", base, MAINTAINER, createBody(revisionA, accent, reference))
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val family = api.body(created).jsonObject
-                assertEquals(revisionA + 1, family.number("editRevision"))
+                assertEquals(0, family.number("editRevision"))
                 val members = family.obj("value").array("members").associate { it.text("name") to it.text("tokenId") }
                 assertEquals(MEMBERS.toSet(), members.keys)
                 members.values.forEach { id ->
@@ -88,14 +94,14 @@ class ColorTokenHttpPostgresIntegrationTest {
                 }
                 assertEquals(MEMBERS.size, count(postgres, groupCount(tenantA, accent)))
                 assertEquals(0, count(postgres, groupCount(tenantB, null)))
-                assertEquals(revisionB + 1, api.revision(tenantB))
+                assertEquals(revisionB, api.revision(tenantB))
                 val tokens = api.read("/api/ds/tenants/$tenantA/palette").array("tokens")
                 val assignment = tokens.single { it.text("tokenId") == members.getValue("text.default.highlight") }
                 assertEquals("explicit", assignment.text("assignment"))
                 assertEquals(accent, assignment.text("groupId"))
 
                 // Повторное имя и неполное семейство.
-                val revision = revisionA + 1
+                val revision = revisionA
                 val duplicate = createBody(revision, null, reference)
                 api.reject("POST", base, MAINTAINER, duplicate, HttpStatusCode.Conflict, "TOKEN_NAME_CONFLICT")
                 val otherMember = member("text.on-dark.other", "#FFFFFF")
@@ -109,17 +115,16 @@ class ColorTokenHttpPostgresIntegrationTest {
                 val values = "$base/$hoverId/values"
                 val updated = api.call("PUT", values, EDITOR, updateBody(revision, defaultId, "#000000"))
                 assertEquals(HttpStatusCode.OK, updated.status, updated.bodyAsText())
-                assertEquals(revision + 1, api.body(updated).jsonObject.number("editRevision"))
+                assertEquals(0, api.body(updated).jsonObject.number("editRevision"))
                 assertEquals(VALUES_PER_MEMBER, count(postgres, valueEquals(tenantA, defaultId, "#000000")))
                 assertEquals(0, count(postgres, valueEquals(tenantB, defaultId, "#000000")))
                 assertEquals(0, count(postgres, valueEquals(tenantA, hoverId, "#000000")))
-                assertEquals(revisionB + 1, api.revision(tenantB))
+                assertEquals(revisionB, api.revision(tenantB))
 
-                // Отказы изменения: устаревшая ревизия, чужое семейство, недопустимое значение, права.
-                val current = revision + 1
-                val stale = updateBody(revision, defaultId, "#111111")
-                val conflict = api.reject("PUT", values, EDITOR, stale, HttpStatusCode.Conflict, "TENANT_EDIT_CONFLICT")
-                assertEquals(current, conflict.number("editRevision"))
+                // Прежний общий счётчик темы не блокирует адресную запись и не меняет соседние значения.
+                val current = api.revision(tenantA)
+                val stale = api.call("PUT", values, EDITOR, updateBody(revision + 100, defaultId, "#000000"))
+                assertEquals(HttpStatusCode.OK, stale.status, stale.bodyAsText())
                 val foreign = updateBody(current, primary, "#111111")
                 api.reject("PUT", values, EDITOR, foreign, HttpStatusCode.BadRequest, "INVALID_TOKEN_FAMILY")
                 val invalid = api.reject(
@@ -164,10 +169,10 @@ class ColorTokenHttpPostgresIntegrationTest {
                 api.reject("DELETE", deletePath, EDITOR, """{"editRevision":$current}""", HttpStatusCode.Forbidden)
                 val deleted = api.call("DELETE", deletePath, MAINTAINER, """{"editRevision":$current}""")
                 assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
-                assertEquals(current + 1, api.body(deleted).jsonObject.number("editRevision"))
+                assertEquals(0, api.body(deleted).jsonObject.number("editRevision"))
                 assertEquals(0, count(postgres, "SELECT count(*) FROM tokens WHERE name LIKE 'text.%.highlight%'"))
                 assertEquals(0, count(postgres, groupCount(tenantA, accent)))
-                assertEquals(revisionB + 2, api.revision(tenantB))
+                assertEquals(revisionB, api.revision(tenantB))
                 val again = """{"editRevision":${current + 1}}"""
                 api.reject("DELETE", deletePath, MAINTAINER, again, HttpStatusCode.NotFound)
             }
@@ -254,7 +259,7 @@ class ColorTokenHttpPostgresIntegrationTest {
     private fun text(postgres: PostgreSQLContainer<Nothing>, sql: String): String =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.createStatement().use { statement ->
-                statement.executeQuery(sql).use { rows ->
+                statement.executeQuery(activeRevisionTestSql(sql)).use { rows ->
                     rows.next()
                     rows.getString(1)
                 }
@@ -264,7 +269,7 @@ class ColorTokenHttpPostgresIntegrationTest {
     private fun count(postgres: PostgreSQLContainer<Nothing>, sql: String): Int =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.createStatement().use { statement ->
-                statement.executeQuery(sql).use { rows ->
+                statement.executeQuery(activeRevisionTestSql(sql)).use { rows ->
                     rows.next()
                     rows.getInt(1)
                 }

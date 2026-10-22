@@ -3,9 +3,12 @@ package com.dsbuilder.ds.themes.presentation
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.CreateTenant
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
@@ -14,16 +17,17 @@ import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValues
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValuesUseCase
+import com.dsbuilder.ds.themes.application.TenantTokenValuesSaveOutcome
 import com.dsbuilder.ds.themes.application.UpdateTenant
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
 import com.dsbuilder.ds.themes.domain.ColorConfiguration
+import com.dsbuilder.ds.themes.domain.Tenant
 import com.dsbuilder.ds.themes.domain.TenantTokenValueInput
 import com.dsbuilder.ds.themes.domain.ThemeProfile
 import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -50,35 +54,56 @@ fun Route.tenantRoutes(
 ) {
     route("/api/ds/tenants") {
         get {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respond(result.value.map(TenantResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(TenantResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, id)) {
-                is DsResult.Success -> call.respond(TenantResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, TenantResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}/token-values") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = getTokenValues.execute(context, id)) {
-                is DsResult.Success -> call.respond(result.value.map(TenantTokenValueResponse::from))
+            val typeNames = call.request.queryParameters["types"]?.split(',')
+            val types = typeNames.orEmpty().mapNotNull(com.dsbuilder.ds.themes.domain.ThemeTokenType::fromWire).toSet()
+            if (typeNames != null && (typeNames.any(String::isBlank) || types.size != typeNames.distinct().size)) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_token_types"))
+            }
+            when (val result = getTokenValues.execute(context, id, types)) {
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(TenantTokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         put("/{id}/token-values") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@put call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@put call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -86,13 +111,27 @@ fun Route.tenantRoutes(
                 ?: return@put call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val command = request.toCommand()
                 ?: return@put call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            when (val result = saveTokenValues.execute(context, id, command)) {
-                is DsResult.Success -> call.respond(TenantTokenValuesSaveResponse(result.value.editRevision))
+            val mutation = call.repeatableMutation(context, request, json = json) {
+                    value: TenantTokenValuesSaveOutcome.Saved ->
+                TenantTokenValuesSaveResponse(value.editRevision, value.values.map(TenantTokenValueResponse::from))
+            }
+            when (val result = saveTokenValues.execute(mutation, id, command)) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    TenantTokenValuesSaveResponse(
+                        result.value.editRevision,
+                        result.value.values.map(TenantTokenValueResponse::from),
+                    ),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         post {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateTenantRequest>()
             val designSystemId = request.designSystemId.toUuid()
@@ -108,13 +147,24 @@ fun Route.tenantRoutes(
                 request.description?.trim(),
                 ColorConfiguration(profile = profile, customPalette = request.customPalette?.toDomain()),
             )
-            when (val result = create.execute(context, command)) {
-                is DsResult.Success -> call.respond(HttpStatusCode.Created, TenantResponse.from(result.value))
+            val createContext = context.withIdempotentResponse<Tenant> {
+                json.encodeToString(TenantResponse.serializer(), TenantResponse.from(it))
+            }
+            when (val result = create.execute(createContext, command, call.request.headers["Idempotency-Key"])) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    HttpStatusCode.Created,
+                    TenantResponse.from(result.value),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         patch("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@patch call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -134,18 +184,24 @@ fun Route.tenantRoutes(
                 request.colorConfig?.toDomain(),
                 "colorConfig" in payload,
             )
-            when (val result = update.execute(context, id, command)) {
-                is DsResult.Success -> call.respond(TenantResponse.from(result.value))
+            val mutation = call.repeatableMutation(context, payload, json = json, response = TenantResponse::from)
+            when (val result = update.execute(mutation, id, command)) {
+                is DsResult.Success -> call.respondSuccess(result, TenantResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         delete("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = delete.execute(context, id)) {
-                is DsResult.Success -> call.respond(OkResponse())
+            val mutation = call.repeatableMutation(context, null, json = json) { _: Unit -> OkResponse() }
+            when (val result = delete.execute(mutation, id)) {
+                is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
@@ -166,7 +222,8 @@ private fun BatchSaveTenantTokenValuesRequest.toCommand(): SaveTenantTokenValues
         val paletteId = value.paletteId?.toUuid() ?: if (value.paletteId == null) null else return null
         val platform = ThemeTokenPlatform.fromWire(value.platform) ?: return null
         val mode = value.mode?.let(ThemeTokenMode::fromWire) ?: if (value.mode == null) null else return null
-        TenantTokenValueInput(tokenId, platform, mode, paletteId, value.value)
+        if (value.baseRevision < 0) return null
+        TenantTokenValueInput(tokenId, platform, mode, paletteId, value.value, value.baseRevision)
     }
     return SaveTenantTokenValues(editRevision, inputs)
 }

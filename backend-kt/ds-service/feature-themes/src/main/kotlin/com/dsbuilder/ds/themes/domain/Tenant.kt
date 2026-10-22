@@ -15,7 +15,7 @@ data class Tenant(
     val description: String?,
     /** Color configuration carried by this contract. */
     val colorConfiguration: ColorConfiguration,
-    /** Ревизия пакетного редактирования значений токенов. */
+    /** Наибольшая редакция значений токенов темы в выбранной границе версии. */
     val editRevision: Int,
     /** Краткое цветовое представление темы. */
     val preview: ThemePreview,

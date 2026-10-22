@@ -34,6 +34,19 @@ class FlywayPostgresIntegrationTest {
             connection(cleanUrl, postgres).use(::assertComponentImportGuards)
             assertFailureRollsBack(cleanUrl, postgres)
 
+            val upgradeUrl = createDatabase(postgres, "upgrade_from_dev")
+            val flywayDev = Flyway.configure()
+                .dataSource(upgradeUrl, postgres.username, postgres.password)
+                .locations("classpath:db/migration")
+                .target("6")
+                .load()
+            assertEquals(6, flywayDev.migrate().migrationsExecuted)
+            assertTrue(flywayDev.validateWithResult().validationSuccessful)
+            val upgradedFlyway = flyway(upgradeUrl, postgres.username, postgres.password)
+            assertEquals(MIGRATION_COUNT - 6, upgradedFlyway.migrate().migrationsExecuted)
+            assertTrue(upgradedFlyway.validateWithResult().validationSuccessful)
+            assertEquals(migrated, connection(upgradeUrl, postgres).use(SchemaFingerprintCalculator()::calculate))
+
             val matchingUrl = createDatabase(postgres, "matching_legacy")
             connection(matchingUrl, postgres).use(::applyBaselineWithoutHistory)
             val expected = connection(matchingUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
@@ -142,7 +155,10 @@ class FlywayPostgresIntegrationTest {
         )
         assertEquals(
             1,
-            count("SELECT count(*) FROM tenant_palette_groups WHERE system_key = 'status' AND label = 'Статус'"),
+            count(
+                "SELECT count(*) FROM tenant_palette_groups g JOIN tenant_palette_group_revisions r " +
+                    "ON r.group_id = g.id WHERE g.system_key = 'status' AND r.label = 'Статус'",
+            ),
         )
     }
 
@@ -215,6 +231,6 @@ class FlywayPostgresIntegrationTest {
 
     private companion object {
         const val BASELINE_SCHEMA_FINGERPRINT = "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
-        const val MIGRATION_COUNT = 6
+        const val MIGRATION_COUNT = 11
     }
 }

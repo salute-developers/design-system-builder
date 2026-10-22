@@ -37,7 +37,7 @@ class SaveTenantTokenValuesUseCase(
         is DsResult.Success -> if (command.values.duplicateKey()) {
             DsResult.Failure(DsFailure.InvalidRequest("invalid_body"))
         } else {
-            transactions.required {
+            transactions.required(context) {
                 when (val outcome = repository.saveTokenValues(context.projectId, id, command)) {
                     // Тема уже заблокирована сохранением; отказ проверки откатывает транзакцию целиком.
                     is TenantTokenValuesSaveOutcome.Saved -> colorViolation(context, id, command.values)

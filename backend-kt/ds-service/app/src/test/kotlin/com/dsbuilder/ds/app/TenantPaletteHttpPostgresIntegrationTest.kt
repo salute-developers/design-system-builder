@@ -25,7 +25,6 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import kotlin.math.roundToInt
 import kotlin.test.Test
@@ -38,8 +37,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
 
     @Test
     fun `theme palette is a template copy edited through the palette API`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
@@ -79,11 +77,9 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 // Значения токенов: обе ссылки на green.500, в тёмной теме Accent — ступень 50, которой нет у h190.
                 api.saveValues(values, accentToken to "[general.green.50]", neutralToken)
 
-                // Группы: устаревшая ревизия, права, создание, повтор, системное имя, пустое имя, переименование.
-                val stale = api.call("POST", "$base/groups", EDITOR, """{"label":"Avatars","editRevision":0}""")
-                assertEquals(HttpStatusCode.Conflict, stale.status)
-                assertEquals("TENANT_EDIT_CONFLICT", api.body(stale).text("code"))
-                assertEquals(api.revision, api.body(stale).number("editRevision"))
+                // Общая прежняя ревизия темы больше не блокирует независимое создание группы.
+                val stale = api.call("POST", "$base/groups", EDITOR, """{"label":"Independent","editRevision":100}""")
+                assertEquals(HttpStatusCode.Created, stale.status, stale.bodyAsText())
                 api.reject("POST", "$base/groups", """"label":"X"""", HttpStatusCode.Forbidden, actor = VIEWER)
                 api.reject("POST", "$base/groups", """"label":"X"""", HttpStatusCode.Forbidden, actor = READ_KEY)
                 assertEquals(false, api.read(base, READ_KEY).bool("canEdit"))
@@ -103,9 +99,9 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 val h190 = """"type":"additional","shade":"h190""""
                 val missing = api.reject("PUT", "$green/source", h190, code = "PALETTE_STEP_MISSING")
                 assertEquals("[50]", missing.obj("details").getValue("steps").toString())
-                val staleBody = """{"editRevision":${api.revision - 1},"values":[]}"""
+                val staleBody = """{"editRevision":${api.revision + 100},"values":[]}"""
                 val staleValues = api.call("PUT", values, EDITOR, staleBody)
-                assertEquals(HttpStatusCode.Conflict, staleValues.status)
+                assertEquals(HttpStatusCode.OK, staleValues.status, staleValues.bodyAsText())
                 api.saveValues(values, accentToken to "[general.green.400]", neutralToken)
                 assertEquals("h190", api.edit("PUT", "$green/source", h190).obj("value").obj("source").text("shade"))
 
@@ -120,6 +116,22 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 val edited = step(api.edit("PATCH", "$green/steps/300", """"value":"#a3d9c5"""").obj("value"), 300)
                 assertEquals(true, edited.bool("overridden"))
                 assertEquals("#A3D9C5", edited.text("value"))
+                val revisions = api.read(base).obj("subjectRevisions")
+                val stepRevision = revisions.getValue("step/$accent/general/green/300").jsonPrimitive.int
+                assertTrue(stepRevision > 0)
+                val nextStep = api.call(
+                    "PATCH",
+                    "$green/steps/300",
+                    EDITOR,
+                    """{"value":"#A3D9C6","editRevision":0}""",
+                    baseRevision = stepRevision,
+                )
+                assertEquals(HttpStatusCode.OK, nextStep.status, nextStep.bodyAsText())
+                val metadata = json.parseToJsonElement(
+                    requireNotNull(nextStep.headers["X-DS-Mutation-Metadata"]),
+                ).jsonArray
+                    .single { it.text("entityType") == "palette-step" }
+                assertTrue(metadata.array("warnings").isEmpty())
                 val sourceValue = edited.text("templateValue").lowercase()
                 val reset = step(api.edit("PATCH", "$green/steps/300", """"value":"$sourceValue"""").obj("value"), 300)
                 assertEquals(false, reset.bool("overridden"))
@@ -152,7 +164,13 @@ class TenantPaletteHttpPostgresIntegrationTest {
 
                 // Удаление растяжки: без стратегии — 409, «как Custom» — ссылки становятся HEX в той же транзакции.
                 api.reject("DELETE", green, "", code = "PALETTE_RAMP_LINKED")
-                assertEquals(2, api.edit("DELETE", green, """"strategy":"detach"""").obj("value").number("reassigned"))
+                val linkedValues = api.read("$base/links?type=general&shade=green&groupId=$accent").jsonArray
+                    .map { it.text("tokenId") to it.jsonObject["mode"] }.distinct().size
+                assertTrue(linkedValues >= 2)
+                assertEquals(
+                    linkedValues,
+                    api.edit("DELETE", green, """"strategy":"detach"""").obj("value").number("reassigned"),
+                )
                 val detached = api.read(values).jsonArray
                 val light = webValue(detached, accentToken, "light")
                 val detachedHex = light.getValue("value").jsonArray.single().jsonPrimitive.content
@@ -183,8 +201,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
 
     @Test
     fun `palette_id references and themes created outside ds-service`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
@@ -193,8 +210,8 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 val tenant = api.createTenant(designSystemId, "a")
                 val base = "/api/ds/tenants/$tenant/palette"
 
-                // Тема, вставленная напрямую (как db-service legacy create), получает палитру при первом обращении.
-                val legacy = insertTenant(postgres, designSystemId, "legacy")
+                // Копия шаблона создаётся вместе с темой; повторное чтение не создаёт дополнительных строк.
+                val legacy = api.createTenant(designSystemId, "second")
                 val legacyPalette = api.read("/api/ds/tenants/$legacy/palette").jsonObject
                 assertEquals(5, legacyPalette.array("groups").size)
                 assertTrue(legacyPalette.array("template").isNotEmpty())
@@ -254,9 +271,8 @@ class TenantPaletteHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `themes without palette initialize on any first access and shared design systems are read-only`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+    fun `reads do not initialize missing palette and shared design systems are read-only`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
@@ -265,29 +281,42 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 api.createTenant(designSystemId, "a")
                 val paletteRows = count(postgres, "SELECT count(*) FROM palette")
 
-                // Первая операция на теме без палитры: копия шаблона создаётся под блокировкой темы.
+                // Прямо вставленная предметная тема не получает копию шаблона при чтении.
                 val first = insertTenant(postgres, designSystemId, "first-operation")
-                val groups = "/api/ds/tenants/$first/palette/groups"
-                val created = api.edit("POST", groups, """"label":"Icons"""", HttpStatusCode.Created)
-                assertEquals("custom", created.obj("value").text("kind"))
-                assertEquals(paletteRows, count(postgres, templateCount(first)))
+                assertEquals(HttpStatusCode.NotFound, api.call("GET", "/api/ds/tenants/$first/palette", VIEWER).status)
+                assertEquals(0, count(postgres, templateCount(first)))
 
                 // Первым обращением может быть чтение значений токенов.
                 val resolved = insertTenant(postgres, designSystemId, "first-resolve")
                 api.read("/api/ds/tenants/$resolved/token-values")
-                assertEquals(paletteRows, count(postgres, templateCount(resolved)))
-                assertEquals(SYSTEM_GROUPS, count(postgres, systemGroupCount(resolved)))
+                assertEquals(0, count(postgres, templateCount(resolved)))
+                assertEquals(0, count(postgres, systemGroupCount(resolved)))
 
                 // Одновременные первые чтения не дублируют копию и группы.
                 val concurrent = insertTenant(postgres, designSystemId, "concurrent")
                 coroutineScope {
-                    (1..4).map { async { api.read("/api/ds/tenants/$concurrent/palette") } }.awaitAll()
+                    (1..4).map {
+                        async {
+                            api.call(
+                                "GET",
+                                "/api/ds/tenants/$concurrent/palette",
+                                VIEWER,
+                            ).status
+                        }
+                    }.awaitAll()
+                        .forEach { assertEquals(HttpStatusCode.NotFound, it) }
                 }
-                assertEquals(paletteRows, count(postgres, templateCount(concurrent)))
-                assertEquals(SYSTEM_GROUPS, count(postgres, systemGroupCount(concurrent)))
+                assertEquals(0, count(postgres, templateCount(concurrent)))
+                assertEquals(0, count(postgres, systemGroupCount(concurrent)))
 
                 // Тема общей дизайн-системы (project_id IS NULL): читается без права правки, изменения — 404.
-                val shared = insertTenant(postgres, insertSharedDesignSystem(postgres), "shared")
+                val sharedSystem = api.create(
+                    "/api/ds/design-systems",
+                    OWNER,
+                    """{"name":"shared","projectName":"shared"}""",
+                )
+                val shared = api.createTenant(sharedSystem, "shared")
+                makeShared(postgres, sharedSystem)
                 val base = "/api/ds/tenants/$shared/palette"
                 val palette = api.read(base, EDITOR).jsonObject
                 assertEquals(false, palette.bool("canEdit"))
@@ -304,14 +333,76 @@ class TenantPaletteHttpPostgresIntegrationTest {
         }
     }
 
+    @Test
+    fun `palette seed batches preserve every canonical color and roll back a late failure`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = PaletteApi(client)
+                val system = api.create("/api/ds/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use {
+                        it.execute(
+                            """
+                            CREATE FUNCTION fail_late_palette_batch() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN
+                                IF (SELECT count(*) FROM palette) >= 300 THEN RAISE EXCEPTION 'late_palette_batch'; END IF;
+                                RETURN NEW;
+                            END; ${'$'}${'$'};
+                            CREATE TRIGGER fail_late_palette_batch BEFORE INSERT ON palette
+                                FOR EACH ROW EXECUTE FUNCTION fail_late_palette_batch();
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val failed = api.call("POST", "/api/ds/tenants", EDITOR, """{"designSystemId":"$system","name":"a"}""")
+                assertEquals(HttpStatusCode.InternalServerError, failed.status, failed.bodyAsText())
+                assertEquals(0, count(postgres, "SELECT count(*) FROM palette"))
+                assertEquals(0, count(postgres, "SELECT count(*) FROM tenants"))
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { it.execute("DROP TRIGGER fail_late_palette_batch ON palette") }
+                }
+                api.createTenant(system, "a")
+                assertCanonicalPalette(postgres)
+                api.createTenant(system, "b")
+                assertCanonicalPalette(postgres)
+            }
+        }
+    }
+
+    private fun assertCanonicalPalette(postgres: IsolatedPostgresDatabase) {
+        val resource = requireNotNull(javaClass.classLoader.getResourceAsStream("token-initial-values.json"))
+            .bufferedReader().use { it.readText() }
+        val expected = json.parseToJsonElement(resource).array("palettes").associate { entry ->
+            listOf("type", "shade", "saturation").joinToString(":") { entry.text(it) } to entry.text("value")
+        }
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery(
+                    "SELECT type::text || ':' || shade || ':' || saturation, value FROM palette",
+                ).use { rows ->
+                    val actual = buildMap { while (rows.next()) put(rows.getString(1), rows.getString(2)) }
+                    assertEquals(expected, actual)
+                }
+            }
+        }
+    }
+
     /** Запросы к ds-service; [revision] — ревизия темы после последней операции. */
     private inner class PaletteApi(private val client: HttpClient) {
         var revision = 0
 
-        suspend fun call(method: String, path: String, actor: Actor, body: String? = null): HttpResponse =
+        suspend fun call(
+            method: String,
+            path: String,
+            actor: Actor,
+            body: String? = null,
+            baseRevision: Int? = null,
+        ): HttpResponse =
             client.request(path) {
                 this.method = HttpMethod.parse(method)
                 trusted(actor)
+                baseRevision?.let { header("X-DS-Base-Revision", it.toString()) }
                 body?.let { jsonBody(it) }
             }
 
@@ -395,10 +486,16 @@ class TenantPaletteHttpPostgresIntegrationTest {
     }.jsonObject
 
     /** Тема, вставленная напрямую в обход `ds-service`, как это делает db-service `legacy/design-systems/create`. */
-    private fun insertTenant(postgres: PostgreSQLContainer<Nothing>, designSystemId: String, name: String): String =
+    private fun insertTenant(postgres: IsolatedPostgresDatabase, designSystemId: String, name: String): String =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.prepareStatement(
-                "INSERT INTO tenants (design_system_id, name) VALUES (?::uuid, ?) RETURNING id",
+                """
+                WITH entity AS (INSERT INTO tenants(design_system_id) VALUES (?::uuid) RETURNING id, design_system_id)
+                INSERT INTO tenant_revisions(tenant_id, design_system_id, design_system_version_id, version_sequence_number, name)
+                SELECT entity.id, entity.design_system_id, boundary.id, boundary.sequence_number, ? FROM entity
+                JOIN design_system_versions boundary ON boundary.design_system_id = entity.design_system_id AND boundary.status = 'draft'
+                RETURNING tenant_id
+                """.trimIndent(),
             ).use { statement ->
                 statement.setString(1, designSystemId)
                 statement.setString(2, name)
@@ -410,15 +507,10 @@ class TenantPaletteHttpPostgresIntegrationTest {
         }
 
     /** Общая дизайн-система без проекта. */
-    private fun insertSharedDesignSystem(postgres: PostgreSQLContainer<Nothing>): String =
+    private fun makeShared(postgres: IsolatedPostgresDatabase, id: String) =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.createStatement().use { statement ->
-                statement.executeQuery(
-                    "INSERT INTO design_systems (name, project_name) VALUES ('shared', 'shared') RETURNING id",
-                ).use { rows ->
-                    rows.next()
-                    rows.getString(1)
-                }
+                statement.executeUpdate("UPDATE design_systems SET project_id = NULL WHERE id = '$id'")
             }
         }
 
@@ -428,10 +520,10 @@ class TenantPaletteHttpPostgresIntegrationTest {
     private fun templateCount(tenantId: String) =
         "SELECT count(*) FROM tenant_palette_template WHERE tenant_id = '$tenantId'"
 
-    private fun count(postgres: PostgreSQLContainer<Nothing>, sql: String): Int =
+    private fun count(postgres: IsolatedPostgresDatabase, sql: String): Int =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.createStatement().use { statement ->
-                statement.executeQuery(sql).use { rows ->
+                statement.executeQuery(activeRevisionTestSql(sql)).use { rows ->
                     rows.next()
                     rows.getInt(1)
                 }
@@ -439,7 +531,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
         }
 
     /** Системный администратор меняет `general.green.500` в общей палитре. */
-    private fun updateGlobalPalette(postgres: PostgreSQLContainer<Nothing>, value: String) =
+    private fun updateGlobalPalette(postgres: IsolatedPostgresDatabase, value: String) =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.prepareStatement(
                 "UPDATE palette SET value = ? WHERE type = 'general' AND shade = 'green' AND saturation = 500",
@@ -449,7 +541,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
             }
         }
 
-    private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
+    private fun configuration(postgres: IsolatedPostgresDatabase) = DsServiceConfiguration(
         port = 0,
         databaseUrl = postgres.jdbcUrl,
         databaseUser = postgres.username,

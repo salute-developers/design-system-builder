@@ -18,7 +18,7 @@ class GetDesignSystemUseCase(
     suspend fun execute(context: DsRequestContext, id: DesignSystemId): DsResult<DesignSystem> =
         when (val authorization = accessPolicy.require(context, "design-systems:read")) {
             is DsResult.Failure -> authorization
-            is DsResult.Success -> transactions.readOnly {
+            is DsResult.Success -> transactions.readOnly(context) {
                 repository.findAccessible(context.projectId, id)?.let { DsResult.Success(it) }
                     ?: DsResult.Failure(DsFailure.NotFound)
             }

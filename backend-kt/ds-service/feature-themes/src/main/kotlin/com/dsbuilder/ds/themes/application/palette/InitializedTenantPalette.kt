@@ -21,3 +21,7 @@ internal suspend fun TenantPaletteRepository.initializedSnapshot(
 }
 
 private val SYSTEM_GROUPS = SystemPaletteGroup.entries.size
+
+/** Системные группы должны существовать до разрешения ссылок; проверка не создаёт их при чтении. */
+internal fun TenantPaletteSnapshot.hasSystemGroups(): Boolean =
+    state.groups.count { it.systemKey != null } == SYSTEM_GROUPS

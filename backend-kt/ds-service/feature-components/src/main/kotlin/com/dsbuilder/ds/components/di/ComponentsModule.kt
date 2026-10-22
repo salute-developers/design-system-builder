@@ -43,11 +43,17 @@ import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentWebAdapterRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
 import com.dsbuilder.ds.components.data.GeneratedDesignSystemComponentInitializer
+import com.dsbuilder.ds.components.data.componentDraftChangeHandlers
 import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
+import com.dsbuilder.ds.core.application.DraftChangeHandler
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 /** Dependency bindings owned by the component feature. */
 val componentsModule = module {
+    componentDraftChangeHandlers().forEach { handler ->
+        single<DraftChangeHandler>(named(handler.entityType)) { handler }
+    }
     single<DesignSystemComponentInitializer> { GeneratedDesignSystemComponentInitializer() }
     single<ComponentRepository> { ExposedComponentRepository() }
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
@@ -58,7 +64,7 @@ val componentsModule = module {
     single<ComponentReuseConfigRepository> { ExposedComponentReuseConfigRepository() }
     factory { ListComponentsUseCase(get(), get(), get()) }
     factory { GetComponentUseCase(get(), get(), get()) }
-    factory { CreateComponentUseCase(get(), get(), get()) }
+    factory { CreateComponentUseCase(get(), get(), get(), get()) }
     factory { UpdateComponentUseCase(get(), get(), get()) }
     factory { DeleteComponentUseCase(get(), get(), get()) }
     factory { ListComponentVariationsUseCase(get(), get(), get()) }
@@ -66,22 +72,22 @@ val componentsModule = module {
     factory { ListDependenciesByComponentUseCase(get(), get(), get()) }
     factory { ListDesignSystemComponentsUseCase(get(), get(), get()) }
     factory { GetDesignSystemComponentUseCase(get(), get(), get()) }
-    factory { CreateDesignSystemComponentUseCase(get(), get(), get()) }
+    factory { CreateDesignSystemComponentUseCase(get(), get(), get(), get()) }
     factory { DeleteDesignSystemComponentUseCase(get(), get(), get()) }
     factory { ListComponentDependenciesUseCase(get(), get(), get()) }
     factory { GetComponentDependencyUseCase(get(), get(), get()) }
-    factory { CreateComponentDependencyUseCase(get(), get(), get()) }
+    factory { CreateComponentDependencyUseCase(get(), get(), get(), get()) }
     factory { UpdateComponentDependencyUseCase(get(), get(), get()) }
     factory { DeleteComponentDependencyUseCase(get(), get(), get()) }
     factory { ListComponentReuseConfigsUseCase(get(), get(), get()) }
     factory { GetComponentReuseConfigUseCase(get(), get(), get()) }
     factory { ListComponentReuseConfigsByDependencyUseCase(get(), get(), get()) }
-    factory { CreateComponentReuseConfigUseCase(get(), get(), get()) }
+    factory { CreateComponentReuseConfigUseCase(get(), get(), get(), get()) }
     factory { UpdateComponentReuseConfigUseCase(get(), get(), get()) }
     factory { DeleteComponentReuseConfigUseCase(get(), get(), get()) }
     factory { GetComponentConfigUseCase(get(), get(), get()) }
     factory { ExportComponentConfigUseCase(get(), get(), get()) }
-    factory { ImportComponentConfigUseCase(get(), get(), get()) }
-    factory { ImportApiMetaUseCase(get(), get(), get()) }
+    factory { ImportComponentConfigUseCase(get(), get(), get(), get()) }
+    factory { ImportApiMetaUseCase(get(), get(), get(), get()) }
     factory { GetComponentWebAdapterUseCase(get(), get(), get()) }
 }

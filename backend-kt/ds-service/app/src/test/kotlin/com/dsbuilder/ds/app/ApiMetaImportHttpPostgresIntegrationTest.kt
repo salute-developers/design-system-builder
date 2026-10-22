@@ -19,7 +19,6 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -94,11 +93,27 @@ class ApiMetaImportHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `an applied import repeats its saved report and rejects another body with the same key`() = withService {
+        val request = componentsBody("compose", dryRun = false)
+        val first = importMeta(request, idempotencyKey = "api-meta-import")
+        val replay = importMeta(request, idempotencyKey = "api-meta-import")
+        val mismatch = importMeta(
+            component("compose", prop("other", "color", """["other"]"""), dryRun = false),
+            idempotencyKey = "api-meta-import",
+        )
+
+        assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
+        assertEquals(first.bodyAsText(), replay.bodyAsText())
+        assertEquals(HttpStatusCode.Conflict, mismatch.status, mismatch.bodyAsText())
+        assertEquals(2, count("properties"))
+    }
+
+    @Test
     fun `a dry run reports what an applied import does and stores nothing`() = withService {
         val applied = componentsBody("compose", dryRun = false)
         val dry = importMeta(componentsBody("compose", dryRun = true)).report()
         assertEquals(0, count("components"))
-        assertEquals(0, count("design_system_changes"))
+        assertEquals(null, queryNullable("SELECT to_regclass('public.design_system_changes')"))
         val real = importMeta(applied).report()
         assertEquals(dry, real)
     }
@@ -223,23 +238,13 @@ class ApiMetaImportHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `an applied import writes one journal row without a design system and no component links`() = withService {
+    fun `an applied import does not write to the design system journal`() = withService {
         importMeta(componentsBody("compose", dryRun = false, source = "C:\\tmp\\dir/uikit-compose-api-meta.json"))
-        assertEquals(1, count("design_system_changes"))
-        assertEquals("components:import-api-meta", query("SELECT entity_type FROM design_system_changes"))
-        assertEquals("true", query("SELECT (design_system_id IS NULL)::text FROM design_system_changes"))
-        assertEquals("created", query("SELECT operation::text FROM design_system_changes"))
-        assertEquals("uikit-compose-api-meta.json", query("SELECT data->>'source' FROM design_system_changes"))
-        assertEquals("false", query("SELECT data->>'dryRun' FROM design_system_changes"))
-        assertEquals("compose", query("SELECT data->>'platform' FROM design_system_changes"))
-        assertEquals("integration-admin", query("SELECT data->>'userId' FROM design_system_changes"))
+        assertEquals(null, queryNullable("SELECT to_regclass('public.design_system_changes')"))
         assertEquals(0, count("design_system_components"))
 
         importMeta(componentsBody("compose", dryRun = false))
-        val latest = query("SELECT operation::text FROM design_system_changes ORDER BY created_at DESC LIMIT 1")
-        assertEquals("updated", latest)
         assertFalse(importMeta(componentsBody("compose", dryRun = true)).bodyAsText().isEmpty())
-        assertEquals(2, count("design_system_changes"))
     }
 
     // ── fixtures ──────────────────────────────────────────────────────────────────────────
@@ -275,8 +280,13 @@ class ApiMetaImportHttpPostgresIntegrationTest {
             "WHERE c.platform = '$platform'",
     )
 
-    private suspend fun importMeta(body: String, admin: Boolean = true) = service.builder.client.post(PATH) {
+    private suspend fun importMeta(
+        body: String,
+        admin: Boolean = true,
+        idempotencyKey: String? = null,
+    ) = service.builder.client.post(PATH) {
         actor(administrator = admin)
+        idempotencyKey?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
     }
@@ -300,13 +310,12 @@ class ApiMetaImportHttpPostgresIntegrationTest {
 
     // ── harness ───────────────────────────────────────────────────────────────────────────
 
-    private class Service(val postgres: PostgreSQLContainer<Nothing>, val builder: ApplicationTestBuilder)
+    private class Service(val postgres: IsolatedPostgresDatabase, val builder: ApplicationTestBuilder)
 
     private lateinit var service: Service
 
     private fun withService(body: suspend ApiMetaImportHttpPostgresIntegrationTest.() -> Unit) {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
                 application { module(configuration(postgres)) }
                 service = Service(postgres, this)
@@ -315,7 +324,7 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         }
     }
 
-    private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
+    private fun configuration(postgres: IsolatedPostgresDatabase) = DsServiceConfiguration(
         port = 0,
         databaseUrl = postgres.jdbcUrl,
         databaseUser = postgres.username,
@@ -331,6 +340,20 @@ class ApiMetaImportHttpPostgresIntegrationTest {
     private fun count(tableAndWhere: String): Int = query("SELECT count(*) FROM $tableAndWhere").toInt()
 
     private fun query(sql: String): String =
+        DriverManager.getConnection(
+            service.postgres.jdbcUrl,
+            service.postgres.username,
+            service.postgres.password,
+        ).use {
+            it.createStatement().use { statement ->
+                statement.executeQuery(sql).use { rows ->
+                    rows.next()
+                    rows.getString(1)
+                }
+            }
+        }
+
+    private fun queryNullable(sql: String): String? =
         DriverManager.getConnection(
             service.postgres.jdbcUrl,
             service.postgres.username,

@@ -16,7 +16,7 @@ class ListComponentReuseConfigsUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<ComponentReuseConfig>> =
         policy.read(context, ProjectScope.COMPONENTS_READ) {
-            transactions.readOnly {
+            transactions.readOnly(context) {
                 DsResult.Success(repository.listAccessible(context.projectId, context.principal.systemAdmin))
             }
         }

@@ -59,6 +59,7 @@ export interface ColorTokensScreenProps {
     palette: ThemePalette | null;
     setPalette?: (palette: ThemePalette) => void;
     tokenDefinitions: TokenDefinitionDto[];
+    colorTokenGroups?: TokenGroupDto[];
     incompleteTokenIds: string[];
     updated: object;
     rerender: () => void;

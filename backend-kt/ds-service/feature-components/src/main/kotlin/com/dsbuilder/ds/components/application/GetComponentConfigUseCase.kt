@@ -17,7 +17,7 @@ class GetComponentConfigUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, query: ComponentConfigQuery): DsResult<ComponentConfig> =
         policy.read(context, ProjectScope.COMPONENTS_READ) {
-            transactions.readOnly {
+            transactions.readOnly(context) {
                 repository.get(context.projectId, context.principal.systemAdmin, query)
                     ?.let { DsResult.Success(it) }
                     ?: DsResult.Failure(DsFailure.NotFound)

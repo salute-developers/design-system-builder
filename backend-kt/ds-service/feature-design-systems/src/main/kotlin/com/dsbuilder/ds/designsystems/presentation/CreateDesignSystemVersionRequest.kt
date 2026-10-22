@@ -1,19 +1,18 @@
 package com.dsbuilder.ds.designsystems.presentation
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 
-/** Legacy-compatible version creation payload. */
+/** Команда публикации, содержащая только клиентские поля. */
 @Serializable
 data class CreateDesignSystemVersionRequest(
-    /** Design system id carried by this contract. */
+    /** Идентификатор дизайн-системы. */
     val designSystemId: String,
-    /** Version carried by this contract. */
+    /** Идентификатор ожидаемого активного черновика. */
+    val draftId: String,
+    /** Ожидаемая техническая редакция черновика. */
+    val draftRevision: Long,
+    /** Продуктовый номер публикации. */
     val version: String,
-    /** Snapshot carried by this contract. */
-    val snapshot: JsonElement,
-    /** Changelog carried by this contract. */
-    val changelog: String? = null,
-    /** Publication status carried by this contract. */
-    val publicationStatus: String? = null,
+    /** Необязательные примечания к публикации. */
+    val changelog: String = "",
 )

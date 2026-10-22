@@ -38,7 +38,7 @@ class CreateTokenGroupUseCase(
         } else {
             null
         }
-        return transactions.required {
+        return transactions.required(context) {
             tokens.withAllThemes(context, tenantId, command.editRevision) { lock ->
                 create(tenantId, lock, command, code)
             }

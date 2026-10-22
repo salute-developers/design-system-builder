@@ -18,6 +18,9 @@ internal class ComponentConfigImportContext(
     val pendingReferences = mutableListOf<PendingComponentStyleReference>()
     val componentIds = linkedMapOf<String, UUID?>()
     val paintTypes = linkedMapOf<String, MutableSet<String>>()
+    val sync = ComponentConfigImportSync()
+    val appearances = linkedSetOf<UUID>()
+    val completed = mutableListOf<() -> Unit>()
 }
 
 internal data class PendingComponentStyleReference(

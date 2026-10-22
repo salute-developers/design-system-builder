@@ -216,32 +216,6 @@ Backend SHALL проверять `type` свойства по значениям
 - **WHEN** запрос на административный маршрут приходит с `Authorization: ProjectKey <token>`
 - **THEN** gateway MUST ответить `401` и MUST NOT передавать запрос в backend
 
-### Requirement: API meta import is recorded in the changes journal
-
-Применённый импорт SHALL записываться в `design_system_changes` в той же транзакции, что и сам импорт, без привязки к дизайн-системе. Колонка `design_system_id` MUST допускать отсутствие значения.
-
-#### Scenario: Запись без дизайн-системы
-
-- **WHEN** импорт применён без `dryRun`
-- **THEN** backend MUST записать строку с `entity_type` `components:import-api-meta` и пустым `design_system_id`
-- **THEN** `entity_id` MUST быть идентификатором запуска, созданным backend'ом
-
-#### Scenario: Содержимое записи
-
-- **WHEN** строка журнала записана
-- **THEN** `data` MUST содержать идентификатор пользователя из `X-User-Id`, платформу, имя файла меты, признак `dryRun` и счётчики отчёта
-- **THEN** `operation` MUST быть `created`, если созданы компоненты или свойства, и `updated` в остальных случаях
-
-#### Scenario: Dry run не оставляет записи
-
-- **WHEN** `dryRun` равен `true`
-- **THEN** backend MUST NOT сохранить строку журнала
-
-#### Scenario: Записи нет в лентах дизайн-систем
-
-- **WHEN** запрашивается лента изменений конкретной дизайн-системы
-- **THEN** она MUST NOT содержать записей об импорте API-меты
-
 ### Requirement: API meta import maintains deprecation status
 
 Импорт SHALL обновлять статус устаревания алиаса по манифесту. Для алиаса, пришедшего объектом: если задан `deprecated`, а алиас не помечен, backend MUST пометить его и записать сообщение; если задан `deprecated` с другим сообщением, backend MUST заменить сообщение; если `deprecated` не задан, а алиас помечен, backend MUST снять пометку и очистить сообщение. Для алиаса, пришедшего строкой, и для алиасов, которых нет в манифесте, backend MUST NOT менять статус. Статус каждого алиаса MUST обновляться независимо от статусов других алиасов того же свойства.

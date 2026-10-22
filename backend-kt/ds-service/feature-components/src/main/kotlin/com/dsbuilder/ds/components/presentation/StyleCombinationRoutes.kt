@@ -9,14 +9,18 @@ import com.dsbuilder.ds.components.application.ListMembersByStyleCombinationUseC
 import com.dsbuilder.ds.components.application.ListStyleCombinationsUseCase
 import com.dsbuilder.ds.components.application.StyleCombinationRepository
 import com.dsbuilder.ds.components.application.UpdateStyleCombinationUseCase
+import com.dsbuilder.ds.components.domain.StyleCombination
+import com.dsbuilder.ds.components.domain.StyleCombinationMember
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -41,25 +45,37 @@ fun Route.styleCombinationRoutes(
 ) {
     route("/api/ds/style-combinations") {
         get {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respond(result.value.map(StyleCombinationResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(StyleCombinationResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, id)) {
-                is DsResult.Success -> call.respond(StyleCombinationResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, StyleCombinationResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         post {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val payload = call.receive<JsonObject>()
             if (payload.hasInvalidNull("combinationKey", "tokenId", "alpha", "adjustment")) {
@@ -70,13 +86,24 @@ fun Route.styleCombinationRoutes(
             }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val command = request.toCommand()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            when (val result = create.execute(context, command)) {
-                is DsResult.Success -> call.respond(HttpStatusCode.Created, StyleCombinationResponse.from(result.value))
+            val createContext = context.withIdempotentResponse { value: StyleCombination ->
+                json.encodeToString(StyleCombinationResponse.serializer(), StyleCombinationResponse.from(value))
+            }
+            when (val result = create.execute(createContext, command, call.request.headers["Idempotency-Key"])) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    HttpStatusCode.Created,
+                    StyleCombinationResponse.from(result.value),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         patch("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@patch call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -89,33 +116,55 @@ fun Route.styleCombinationRoutes(
             }.getOrNull() ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val command = request.toCommand(payload)
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            when (val result = update.execute(context, id, command)) {
-                is DsResult.Success -> call.respond(StyleCombinationResponse.from(result.value))
+            val mutation = call.repeatableMutation(
+                context,
+                payload,
+                json = json,
+                response = StyleCombinationResponse::from,
+            )
+            when (val result = update.execute(mutation, id, command)) {
+                is DsResult.Success -> call.respondSuccess(result, StyleCombinationResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         delete("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = delete.execute(context, id)) {
-                is DsResult.Success -> call.respond(OkResponse())
+            val mutation = call.repeatableMutation(context, null, json = json) { _: Unit -> OkResponse() }
+            when (val result = delete.execute(mutation, id)) {
+                is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}/members") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = listMembers.execute(context, id)) {
-                is DsResult.Success -> call.respond(result.value.map(NestedStyleCombinationMemberResponse::from))
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    result.value.map(NestedStyleCombinationMemberResponse::from),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         post("/{id}/members") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -126,8 +175,21 @@ fun Route.styleCombinationRoutes(
             }
             val styleId = request.styleId.toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            when (val result = addMember.execute(context, StyleCombinationRepository.MemberCreate(id, styleId))) {
-                is DsResult.Success -> call.respond(
+            val createContext = context.withIdempotentResponse { value: StyleCombinationMember ->
+                json.encodeToString(
+                    StyleCombinationMemberResponse.serializer(),
+                    StyleCombinationMemberResponse.from(value),
+                )
+            }
+            when (
+                val result = addMember.execute(
+                    createContext,
+                    StyleCombinationRepository.MemberCreate(id, styleId),
+                    call.request.headers["Idempotency-Key"],
+                )
+            ) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
                     HttpStatusCode.Created,
                     StyleCombinationMemberResponse.from(result.value),
                 )

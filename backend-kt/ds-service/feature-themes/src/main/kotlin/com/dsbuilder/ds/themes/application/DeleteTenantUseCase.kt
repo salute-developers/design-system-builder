@@ -19,7 +19,7 @@ class DeleteTenantUseCase(
         val allowed = policy.require(context, ProjectScope.TENANTS_DELETE)
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.required {
+        is DsResult.Success -> transactions.required(context) {
             if (repository.deleteOwned(context.projectId, id)) {
                 DsResult.Success(Unit)
             } else {

@@ -11,8 +11,7 @@ import com.dsbuilder.ds.themes.domain.tokengroups.TokenGroupKind
 import java.util.UUID
 
 /**
- * Группы и подгруппы токенов дизайн-системы, включая пустые. Дизайн-система без групп получает раскладку цветовых
- * токенов при первом чтении.
+ * Группы и подгруппы токенов выбранной версии, включая пустые. Чтение не инициализирует данные.
  */
 class ListTokenGroupsUseCase(
     private val policy: DsAccessPolicy,
@@ -27,11 +26,9 @@ class ListTokenGroupsUseCase(
     ): DsResult<List<TokenGroup>> =
         when (val allowed = policy.require(context, ProjectScope.TOKENS_READ)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.required {
+            is DsResult.Success -> transactions.readOnly(context) {
                 if (groups.accessible(context.projectId, designSystemId)) {
-                    val listed = groups.list(designSystemId, kind)
-                    if (listed.isEmpty() && kind == TokenGroupKind.COLOR) groups.initializeColor(designSystemId)
-                    DsResult.Success(listed.ifEmpty { groups.list(designSystemId, kind) })
+                    DsResult.Success(groups.list(designSystemId, kind))
                 } else {
                     DsResult.Failure(DsFailure.NotFound)
                 }

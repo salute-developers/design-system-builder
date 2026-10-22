@@ -19,4 +19,6 @@ data class ThemePaletteResponse(
     val tokens: List<PaletteTokenAssignmentDto>,
     /** Копия шаблона темы. */
     val template: List<PaletteTemplateRampDto>,
+    /** Редакции предметных адресов: group/id, ramp/group/type/shade, step/group/type/shade/step, assignment/token. */
+    val subjectRevisions: Map<String, Long> = emptyMap(),
 )

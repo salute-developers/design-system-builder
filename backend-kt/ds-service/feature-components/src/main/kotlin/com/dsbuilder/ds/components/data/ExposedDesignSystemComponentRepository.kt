@@ -8,7 +8,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
@@ -49,13 +48,32 @@ class ExposedDesignSystemComponentRepository : DesignSystemComponentRepository {
     ): DesignSystemComponent? {
         if (!ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, designSystemId)) return null
         if (ComponentsTable.selectAll().where { ComponentsTable.id eq componentId }.none()) return null
-        return DesignSystemComponentsTable.insertReturning {
-            it[DesignSystemComponentsTable.designSystemId] = designSystemId
-            it[DesignSystemComponentsTable.componentId] = componentId
-        }.single().let(::link)
+        val entity = StableDesignSystemComponentsTable.insertReturning {
+            it[StableDesignSystemComponentsTable.designSystemId] = designSystemId
+            it[StableDesignSystemComponentsTable.componentId] = componentId
+        }.single()
+        DesignSystemComponentRevisionsTable.replaceRevision(
+            DesignSystemComponentRevisionsTable.entityId,
+            entity[StableDesignSystemComponentsTable.id],
+            designSystemId,
+        )
+        return DesignSystemComponentsTable.selectAll()
+            .where { DesignSystemComponentsTable.id eq entity[StableDesignSystemComponentsTable.id] }
+            .single().let(::link)
     }
 
+    @Suppress("ReturnCount")
     override suspend fun deleteOwned(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
+        if (!lockComponentSubject(
+                StableDesignSystemComponentsTable,
+                StableDesignSystemComponentsTable.id,
+                StableDesignSystemComponentsTable.designSystemId,
+                "design-system-component",
+                id,
+            )
+        ) {
+            return false
+        }
         val row = DesignSystemComponentsTable.selectAll()
             .where { DesignSystemComponentsTable.id eq id }
             .singleOrNull() ?: return false
@@ -63,7 +81,13 @@ class ExposedDesignSystemComponentRepository : DesignSystemComponentRepository {
         if (!ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, designSystemId)) {
             return false
         }
-        return DesignSystemComponentsTable.deleteWhere { DesignSystemComponentsTable.id eq id } > 0
+        DesignSystemComponentRevisionsTable.replaceRevision(
+            DesignSystemComponentRevisionsTable.entityId,
+            id,
+            designSystemId,
+            deleted = true,
+        )
+        return true
     }
 }
 

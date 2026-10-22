@@ -17,6 +17,6 @@ class ListDesignSystemVersionsUseCase(
         val allowed = policy.require(context, "design-systems:read")
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly { DsResult.Success(repository.list(context.projectId)) }
+        is DsResult.Success -> transactions.readOnly(context) { DsResult.Success(repository.list(context.projectId)) }
     }
 }

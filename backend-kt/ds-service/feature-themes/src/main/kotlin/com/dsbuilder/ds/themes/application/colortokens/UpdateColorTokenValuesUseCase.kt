@@ -29,12 +29,17 @@ class UpdateColorTokenValuesUseCase(
         if (command.members.isEmpty()) {
             return DsResult.Failure(DsFailure.InvalidRequest("invalid_body", message = "Нет значений для сохранения"))
         }
-        command.members.entries.firstOrNull { it.value.isIncomplete() }?.let { (id, _) ->
+        command.members.entries.firstOrNull { (_, values) ->
+            values.isEmpty() || values.map { it.platform to it.mode }.distinct().size != values.size
+        }?.let { (id, _) ->
             return DsResult.Failure(
-                invalidTokenFamily("У определения $id нужны значения web, ios и android для light и dark"),
+                invalidTokenFamily("У определения $id нужны непустые значения без повторов платформы и режима"),
             )
         }
-        return transactions.required {
+        if (command.members.values.flatten().any { it.baseRevision != null && it.baseRevision < 0 }) {
+            return DsResult.Failure(DsFailure.InvalidRequest("invalid_base_revision"))
+        }
+        return transactions.required(context) {
             when (val lock = tokens.lock(context.projectId, tenantId, command.editRevision, allThemes = false)) {
                 is ColorTokenLock.Locked -> update(tenantId, tokenId, lock, command)
                 else -> DsResult.Failure(requireNotNull(lock.failure()))

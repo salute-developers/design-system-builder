@@ -27,7 +27,7 @@ class ListDesignSystemComponentsUseCase(
         )
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly {
+        is DsResult.Success -> transactions.readOnly(context) {
             repository.listComponents(context.projectId, id, query)?.let { DsResult.Success(it) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }

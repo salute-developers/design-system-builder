@@ -17,7 +17,7 @@ class DeleteColorTokenUseCase(
     suspend fun execute(context: DsRequestContext, tenantId: UUID, tokenId: UUID, editRevision: Int): DsResult<Int> {
         val allowed = policy.requireAll(context, ProjectScope.TENANTS_WRITE, ProjectScope.TOKENS_DELETE)
         if (allowed is DsResult.Failure) return allowed
-        return transactions.required {
+        return transactions.required(context) {
             when (val lock = tokens.lock(context.projectId, tenantId, editRevision, allThemes = true)) {
                 is ColorTokenLock.Locked -> when (
                     val found = tokens.family(lock.designSystemId, tokenId).storedOrFailure(tokenId)
@@ -25,7 +25,7 @@ class DeleteColorTokenUseCase(
                     is DsResult.Failure -> found
                     is DsResult.Success -> {
                         val groupIds = tokens.placedById(found.value.members.values).mapNotNull { it.groupId }.toSet()
-                        tokens.deleteDefinitions(found.value.members.values)
+                        tokens.deleteDefinitions(found.value.members.values, primaryTokenId = tokenId)
                         groupIds.forEach { group ->
                             tokens.arrange(group, tokens.placedIn(lock.designSystemId, listOf(group)).slots())
                         }

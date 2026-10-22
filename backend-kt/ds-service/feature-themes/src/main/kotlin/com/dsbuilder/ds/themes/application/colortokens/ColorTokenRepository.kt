@@ -56,7 +56,7 @@ interface ColorTokenRepository {
     suspend fun replaceValues(tenantId: UUID, values: Map<UUID, List<ColorTokenValue>>)
 
     /** Удаляет определения [tokenIds] вместе с их значениями и привязками к группам палитры. */
-    suspend fun deleteDefinitions(tokenIds: Collection<UUID>)
+    suspend fun deleteDefinitions(tokenIds: Collection<UUID>, primaryTokenId: UUID? = null)
 
     /** Увеличивает ревизии тем [tenantIds] и возвращает новые значения. */
     suspend fun bumpRevisions(tenantIds: Collection<UUID>): Map<UUID, Int>
