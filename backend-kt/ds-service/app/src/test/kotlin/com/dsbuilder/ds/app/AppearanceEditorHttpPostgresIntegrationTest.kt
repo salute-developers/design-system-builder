@@ -611,7 +611,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val response = post(
             "/api/ds/design-system-versions",
             """{"designSystemId":"$ds","draftId":"${query(draft.format("id::text"))}",""" +
-                """"draftRevision":${query(draft.format("revision::text"))},"version":"2.0.0","changelog":"fixture"}""",
+                """"draftRevision":${query(draft.format("resolved_draft_revision(id)::text"))},""" +
+                """"version":"2.0.0","changelog":"fixture"}""",
             key = "publish-$ds",
         )
         assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())

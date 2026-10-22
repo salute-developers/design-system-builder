@@ -370,6 +370,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 )
         }
 
+    @Suppress("LongMethod")
     private fun declareAxes(
         id: UUID,
         config: ComponentConfig,
