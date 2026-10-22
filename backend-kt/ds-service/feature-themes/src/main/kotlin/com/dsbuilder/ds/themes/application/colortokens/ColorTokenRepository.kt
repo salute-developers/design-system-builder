@@ -3,6 +3,7 @@ package com.dsbuilder.ds.themes.application.colortokens
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.domain.colortokens.FamilyValue
 import java.util.UUID
 
 /** Хранилище определений и значений цветовых токенов; вызывается внутри транзакции use case. */
@@ -60,14 +61,51 @@ interface ColorTokenRepository {
 
     /** Увеличивает ревизии тем [tenantIds] и возвращает новые значения. */
     suspend fun bumpRevisions(tenantIds: Collection<UUID>): Map<UUID, Int>
+
+    /**
+     * Семейство токена [tokenId] дизайн-системы [designSystemId] на границе активного черновика или `null`, если
+     * токена нет или он вне семейств. Вызывается внутри текущей транзакции, в том числе из отката журнала.
+     */
+    fun familyInDraft(designSystemId: UUID, tokenId: UUID): StoredColorTokenFamily?
+
+    /**
+     * Семейства токенов [tokenIds] дизайн-системы [designSystemId] на границе активного черновика по одному чтению
+     * определений: идентификатор → семейство. Токенов вне семейств и отсутствующих в ответе нет.
+     */
+    fun familiesInDraft(designSystemId: UUID, tokenIds: Collection<UUID>): Map<UUID, StoredColorTokenFamily>
+
+    /**
+     * Блокирует технические состояния определений [tokenIds] в устойчивом порядке до вычисления типа семейства.
+     * `false` — дизайн-система недоступна проекту запроса или у неё нет активного черновика; ошибки SQL не
+     * перехватываются.
+     */
+    fun lockFamilyDefinitions(designSystemId: UUID, tokenIds: Collection<UUID>): Boolean
+
+    /** Действующие на границе черновика значения определений [tokenIds] во всех темах дизайн-системы. */
+    fun familyValuesInDraft(designSystemId: UUID, tokenIds: Collection<UUID>): List<FamilyValue>
+
+    /** Записывает тип [type] определениям [tokenIds] редакциями черновика с путём `/type`. */
+    fun reviseFamilyType(tokenIds: Collection<UUID>, type: ThemeTokenType)
+
+    /** Дизайн-система действующего определения [tokenId] или `null`, если определения нет. */
+    fun designSystemOf(tokenId: UUID): UUID?
+
+    /**
+     * Семейства дизайн-системы, тип которых мог измениться вместе с набором тем: семейства определений типа
+     * `gradient` и определений с градиентным значением в теме [tenantId] на границе черновика. Определения
+     * читаются один раз, каждое семейство входит в ответ один раз.
+     */
+    fun familyTypeCandidates(designSystemId: UUID, tenantId: UUID): List<StoredColorTokenFamily>
 }
 
 /**
  * Слоты группы — семейства цветовых токенов в порядке позиций: определения семейства всегда стоят вместе.
- * Определение вне семейства занимает свой слот.
+ * Определение вне семейства занимает свой слот. Семейство определяется именем без учёта производного типа членов.
  */
 internal fun List<PlacedToken>.slots(): List<List<UUID>> =
-    groupBy { token -> token.type?.let { ColorTokenFamily.of(it, token.name) } ?: token.id }
+    groupBy { token ->
+        token.type?.let { ColorTokenFamily.of(it, token.name) }?.let { it.group to it.name } ?: token.id
+    }
         .values
         .sortedWith(compareBy({ members -> members.minOf { it.position } }, { members -> members.minOf { it.name } }))
         .map { members -> members.map { it.id } }

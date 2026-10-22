@@ -25,7 +25,7 @@ class TokenInitialValuesResourceTest {
         val values = root.getValue("values").jsonArray
         val palettes = root.getValue("palettes").jsonArray
 
-        assertEquals("2583dedc8944f71079673e2579f0f139bba00e84820dd19fdaff695e12e73934", bytes.sha256())
+        assertEquals("676ee3d49cb5ddafc0060bacd012a2498b8f756ed355494cd692387872e15f0b", bytes.sha256())
         assertEquals(7_407, values.size)
         assertEquals(789, palettes.size)
 

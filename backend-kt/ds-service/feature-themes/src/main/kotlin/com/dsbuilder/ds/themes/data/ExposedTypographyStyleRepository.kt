@@ -91,15 +91,17 @@ class ExposedTypographyStyleRepository : TypographyStyleRepository {
     override suspend fun writeValues(designSystemId: UUID, values: List<TypographyValueWrite>) {
         if (values.isEmpty()) return
         val ids = values.mapTo(hashSetOf()) { it.valueId }
-        val palettes = currentThemeTokenValueRows(designSystemId)
+        val current = currentThemeTokenValueRows(designSystemId)
             .filter { row -> row[ThemeTokenValuesTable.id] in ids }
-            .associate { row -> row[ThemeTokenValuesTable.id] to row[ThemeTokenValueRevisionsTable.paletteId] }
+            .associateBy { row -> row[ThemeTokenValuesTable.id] }
         values.sortedBy { it.valueId }.forEach { write ->
+            val row = current[write.valueId]
             writeThemeValueRevision(
                 entity = write.valueId,
                 owner = designSystemId,
-                palette = palettes[write.valueId],
+                palette = row?.get(ThemeTokenValueRevisionsTable.paletteId),
                 data = write.value,
+                overridden = row?.get(ThemeTokenValueRevisionsTable.overridden) ?: false,
                 paths = setOf("/value"),
                 baseRevision = write.baseRevision,
             )

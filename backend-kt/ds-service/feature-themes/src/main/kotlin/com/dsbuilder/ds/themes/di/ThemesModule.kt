@@ -5,6 +5,9 @@ import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
+import com.dsbuilder.ds.core.application.TokenRevertListener
+import com.dsbuilder.ds.core.application.TokenValueReadPolicy
+import com.dsbuilder.ds.core.application.TokenValueWritePolicy
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
 import com.dsbuilder.ds.themes.application.GetTenantTokenValuesUseCase
@@ -14,8 +17,12 @@ import com.dsbuilder.ds.themes.application.SaveTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.TenantRepository
 import com.dsbuilder.ds.themes.application.TenantTokenValueInitializer
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenFamilyTypeSync
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRepository
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRevertListener
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValueReadPolicy
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValueWritePolicy
 import com.dsbuilder.ds.themes.application.colortokens.CreateColorTokenUseCase
 import com.dsbuilder.ds.themes.application.colortokens.DeleteColorTokenUseCase
 import com.dsbuilder.ds.themes.application.colortokens.MoveColorTokenUseCase
@@ -55,7 +62,9 @@ import com.dsbuilder.ds.themes.data.ExposedTypographyUsageRepository
 import com.dsbuilder.ds.themes.data.GeneratedTenantTokenValueInitializer
 import com.dsbuilder.ds.themes.data.InitialTokenPlacementInitializer
 import com.dsbuilder.ds.themes.data.PaletteRevertDependencyValidator
-import com.dsbuilder.ds.themes.data.themeDraftChangeHandlers
+import com.dsbuilder.ds.themes.data.TENANT_ENTITY_TYPE
+import com.dsbuilder.ds.themes.data.paletteDraftChangeHandlers
+import com.dsbuilder.ds.themes.data.tenantDraftChangeHandler
 import com.dsbuilder.ds.themes.data.themeDraftChangePolicy
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
@@ -63,7 +72,10 @@ import org.koin.dsl.module
 /** Dependency bindings owned by the themes feature. */
 val themesModule = module {
     single<DesignSystemTokenPlacementInitializer> { InitialTokenPlacementInitializer() }
-    themeDraftChangeHandlers().forEach { handler ->
+    // Обработчик отката темы пересчитывает тип семейств цветовых токенов и получает зависимость лениво; обработчики
+    // палитры зависимостей не имеют и регистрируются под своими типами сущностей.
+    single<DraftChangeHandler>(named(TENANT_ENTITY_TYPE)) { tenantDraftChangeHandler(get()) }
+    paletteDraftChangeHandlers().forEach { handler ->
         single<DraftChangeHandler>(named(handler.entityType)) { handler }
     }
     single<DraftChangePolicy>(named("theme-journal")) { themeDraftChangePolicy() }
@@ -87,7 +99,7 @@ val themesModule = module {
         )
     }
     factory { UpdateTenantUseCase(get(), get(), get(), get()) }
-    factory { DeleteTenantUseCase(get(), get(), get()) }
+    factory { DeleteTenantUseCase(get(), get(), get(), get()) }
     factory { GetTenantTokenValuesUseCase(get(), get(), get(), get()) }
     factory { SaveTenantTokenValuesUseCase(get(), get(), get(), get(), get()) }
     single<TenantPaletteRepository> { ExposedTenantPaletteRepository() }
@@ -108,9 +120,13 @@ val themesModule = module {
         TenantPaletteUseCases(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
     single<ColorTokenRepository> { ExposedColorTokenRepository(getAll()) }
+    factory { ColorTokenFamilyTypeSync(get()) }
+    single<TokenRevertListener>(named("color-token-type")) { ColorTokenRevertListener(get()) }
+    single<TokenValueWritePolicy>(named("color-token-values")) { ColorTokenValueWritePolicy(get(), get(), get()) }
+    single<TokenValueReadPolicy>(named("color-token-values")) { ColorTokenValueReadPolicy(get(), get()) }
     single<TokenGroupRepository> { ExposedTokenGroupRepository() }
-    factory { CreateColorTokenUseCase(get(), get(), get(), get(), get()) }
-    factory { UpdateColorTokenValuesUseCase(get(), get(), get(), get()) }
+    factory { CreateColorTokenUseCase(get(), get(), get(), get(), get(), get()) }
+    factory { UpdateColorTokenValuesUseCase(get(), get(), get(), get(), get()) }
     factory { DeleteColorTokenUseCase(get(), get(), get()) }
     factory { MoveColorTokenUseCase(get(), get(), get(), get()) }
     factory { ColorTokenUseCases(get(), get(), get(), get()) }
