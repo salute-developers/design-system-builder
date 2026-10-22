@@ -66,6 +66,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                     editValues(scope, section)
                     rejectEdits(scope, section)
                     sharedValuesKeepOwnFlag(scope, section)
+                    removedComponentLeavesUsage(scope)
                     publishedBoundary(scope, section)
                 }
             }
@@ -291,6 +292,28 @@ class SizeTokenHttpPostgresIntegrationTest {
      * Опубликованная версия: прежние значения, признаки и использование, только чтение; удаление в черновике
      * сбрасывает ссылки компонентов и не трогает версию; откат правки возвращает своё значение платформы.
      */
+    /** Удаление компонента из ДС оставляет его конфигурации; использование и вычисляемые радиусы их не учитывают. */
+    private suspend fun removedComponentLeavesUsage(scope: Scope) {
+        listOf("EmptyState", "Button").flatMap { name ->
+            scope.db.texts(
+                "SELECT l.id FROM design_system_components l JOIN components c ON c.id = l.component_id " +
+                    "WHERE l.design_system_id = '${scope.designSystemId}' AND c.name = '$name'",
+            )
+        }.forEach { id ->
+            val response = scope.api.call("DELETE", "/api/ds/design-system-components/$id", OWNER, null)
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        }
+        val section = scope.api.read(scope.base, OWNER).jsonObject
+        val roundM = section.token("radii", "round.m").array("components").map { it.text("name") }
+        assertFalse("EmptyState" in roundM, roundM.toString())
+        assertTrue("Slider" in roundM, roundM.toString())
+        val usages = section.token("radii", "round.l").array("derived")
+            .flatMap { it.array("usages") }
+            .map { it.text("component") }
+        assertFalse("Button" in usages, usages.toString())
+        assertTrue("IconButton" in usages, usages.toString())
+    }
+
     private suspend fun publishedBoundary(scope: Scope, section: JsonObject) {
         val api = scope.api
         val db = scope.db
@@ -316,7 +339,8 @@ class SizeTokenHttpPostgresIntegrationTest {
         assertFalse(historical.flag("canEdit"))
         val publishedM = historical.token("radii", "round.m")
         assertEquals(15, publishedM.number("valuePx"))
-        assertEquals(11, publishedM.array("components").size)
+        // EmptyState и Button убраны из ДС до публикации.
+        assertEquals(9, publishedM.array("components").size)
         assertEquals(18, historical.token("radii", "round.l").obj("platforms").number("android"))
         assertEquals(20, historical.token("radii", "round.l").number("valuePx"))
         api.reject("GET", "${scope.base}?versionId=${UUID.randomUUID()}", VIEWER, null, 404)
@@ -652,6 +676,10 @@ class SizeTokenHttpPostgresIntegrationTest {
         fun text(sql: String): String = requireNotNull(nullable(sql)) { "Нет строк: $sql" }
 
         fun count(sql: String): Int = query(sql) { rows -> rows.next().let { rows.getInt(1) } }
+
+        fun texts(sql: String): List<String> = query(
+            sql,
+        ) { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
 
         private fun nullable(sql: String): String? = query(sql) { rows -> if (rows.next()) rows.getString(1) else null }
 

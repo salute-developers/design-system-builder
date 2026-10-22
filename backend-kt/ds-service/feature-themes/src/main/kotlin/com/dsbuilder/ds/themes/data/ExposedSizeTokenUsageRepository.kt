@@ -30,6 +30,10 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         resolved("style_combinations", "style_combination", ", entity.appearance_id", VALUE_FIELDS)
     private val appearances = resolved("appearances", "appearance", ", entity.component_id", "latest.name")
     private val sizeTokens = resolved("tokens", "token", "", "latest.name, latest.type")
+
+    /** Действующие связи компонентов с дизайн-системой: удаление компонента из ДС оставляет его конфигурации. */
+    private val componentLinks =
+        resolved("design_system_components", "design_system_component", ", entity.component_id", "latest.deleted")
     private val variationAdjustments = resolved(
         "variation_platform_param_adjustments",
         "variation_platform_param_adjustment",
@@ -65,7 +69,10 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         }.groupBy({ it.first }, { it.second })
     }
 
-    /** Действующие значения свойств компонентов [designSystemId], которые ссылаются на токены [tokens]. */
+    /**
+     * Действующие значения свойств компонентов [designSystemId], которые ссылаются на токены [tokens]. Учитываются
+     * только компоненты с действующей связью с дизайн-системой на той же границе версии.
+     */
     private fun references(designSystemId: UUID, tokens: Map<UUID, String>): List<Reference> {
         if (tokens.isEmpty()) return emptyList()
         val names = tokens.values.toSet()
@@ -74,13 +81,15 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
                  invariant_values AS ($invariantValues),
                  combination_values AS ($combinationValues),
                  live_appearances AS ($appearances),
-                 size_tokens AS ($sizeTokens)
+                 size_tokens AS ($sizeTokens),
+                 live_links AS ($componentLinks)
             SELECT 'variation' AS source, v.id AS row_id, v.token_id, v.value, v.adjustment,
                    c.name AS component, c.platform::text AS platform
               FROM variation_values v
               JOIN live_appearances a ON a.id = v.appearance_id
               JOIN components c ON c.id = a.component_id
              WHERE $REFERENCE_FILTER
+               AND EXISTS (SELECT 1 FROM live_links l WHERE l.component_id = c.id)
             UNION ALL
             SELECT 'invariant' AS source, v.id AS row_id, v.token_id, v.value, v.adjustment,
                    c.name AS component, c.platform::text AS platform
@@ -88,6 +97,7 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
               JOIN live_appearances a ON a.id = v.appearance_id
               JOIN components c ON c.id = v.component_id
              WHERE $REFERENCE_FILTER
+               AND EXISTS (SELECT 1 FROM live_links l WHERE l.component_id = c.id)
             UNION ALL
             SELECT 'combination' AS source, v.id AS row_id, v.token_id, v.value, v.adjustment,
                    c.name AS component, c.platform::text AS platform
@@ -95,6 +105,7 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
               JOIN live_appearances a ON a.id = v.appearance_id
               JOIN components c ON c.id = a.component_id
              WHERE $REFERENCE_FILTER
+               AND EXISTS (SELECT 1 FROM live_links l WHERE l.component_id = c.id)
         """.trimIndent()
         return query(sql, designSystemId, CTE_COUNT) { rows ->
             val tokenId = rows.getString("token_id")?.let(UUID::fromString)
@@ -213,7 +224,7 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         const val COMBINATION = "combination"
 
         /** Число подзапросов `resolved` в запросе ссылок: у каждого свой параметр дизайн-системы. */
-        const val CTE_COUNT = 5
+        const val CTE_COUNT = 6
 
         /** Поля редакции значения свойства, которые нужны запросу использования. */
         const val VALUE_FIELDS = "latest.token_id, latest.value, latest.adjustment"
