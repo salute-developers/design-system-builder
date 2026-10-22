@@ -316,7 +316,8 @@
     },
     {
       "name": "appearance-editor",
-      "router": "src/routes/api/appearance-editor.ts",
+      "origin": "ds-service",
+      "router": "",
       "included": true,
       "ownership": "via-design-system",
       "operations": [
