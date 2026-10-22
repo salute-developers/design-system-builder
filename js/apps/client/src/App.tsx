@@ -28,8 +28,8 @@ import {
 import { authService, designSystemsApi } from './api';
 import { getBaseName } from './utils/baseName';
 import {
-    CreateDesignSystemPage,
-    CreateProjectPage,
+    CreateDesignSystemDialog,
+    CreateProjectDialog,
     CreateThemePage,
     DesignSystemPage,
     DesignSystemSettingsPage,
@@ -97,11 +97,13 @@ function App() {
                     }
                 />
                 <Route path="/" element={<ProtectedRoute />}>
-                    <Route path="projects" element={<ProjectsPage />} />
-                    <Route path="projects/new" element={<CreateProjectPage />} />
-                    <Route path="projects/:projectId" element={<ProjectPage />} />
+                    <Route path="projects" element={<ProjectsPage />}>
+                        <Route path="new" element={<CreateProjectDialog />} />
+                    </Route>
+                    <Route path="projects/:projectId" element={<ProjectPage />}>
+                        <Route path="design-systems/new" element={<CreateDesignSystemDialog />} />
+                    </Route>
                     <Route path="projects/:projectId/settings" element={<ProjectSettingsPage />} />
-                    <Route path="projects/:projectId/design-systems/new" element={<CreateDesignSystemPage />} />
                     <Route path="projects/:projectId/design-systems/:designSystemId" element={<DesignSystemPage />} />
                     <Route
                         path="projects/:projectId/design-systems/:designSystemId/settings"

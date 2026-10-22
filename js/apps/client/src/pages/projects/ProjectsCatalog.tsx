@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useOutlet } from 'react-router-dom';
 import { designSystemsApi, projectsApi, type ProjectDto } from '../../api';
 import { CardMenu, CatalogPage, EmptyState, sortCatalogByName, State } from '../../components/Catalog/Catalog';
 import { choose, Visible } from '../../components/rendering';
@@ -9,6 +9,7 @@ import { useLoad } from '../../shared/data/useLoad';
 export const ProjectsPage = () => {
     const state = useLoad(projectsApi.list, [], 'projects');
     const [sort, setSort] = useState('modified');
+    const dialog = useOutlet();
     if (state.error) return <State text="Не удалось загрузить проекты" retry={state.reload} />;
     if (!state.data) return <State text="Загружаем проекты…" />;
     const activeProjects = sortCatalogByName(
@@ -31,25 +32,31 @@ export const ProjectsPage = () => {
                 </Link>
             }
         >
-            {choose(
-                state.data.length === 0,
-                <>
-                    <ProjectCards projects={activeProjects} />
-                    {archivedProjects.length > 0 && (
-                        <section className="archived-projects">
-                            <h2>Архивные</h2>
-                            <ProjectCards projects={archivedProjects} />
-                        </section>
-                    )}
-                </>,
-                <EmptyState
-                    kind="project"
-                    title="Проектов пока нет"
-                    text="Создайте первый проект, чтобы начать работу с дизайн-системами."
-                    action="Создать проект"
-                    to="/projects/new"
-                />,
+            {dialog ? (
+                // Под окном создания проекта — все проекты одной сеткой, как было до вложенного маршрута.
+                <ProjectCards projects={sortCatalogByName(state.data, sort)} />
+            ) : (
+                choose(
+                    state.data.length === 0,
+                    <>
+                        <ProjectCards projects={activeProjects} />
+                        {archivedProjects.length > 0 && (
+                            <section className="archived-projects">
+                                <h2>Архивные</h2>
+                                <ProjectCards projects={archivedProjects} />
+                            </section>
+                        )}
+                    </>,
+                    <EmptyState
+                        kind="project"
+                        title="Проектов пока нет"
+                        text="Создайте первый проект, чтобы начать работу с дизайн-системами."
+                        action="Создать проект"
+                        to="/projects/new"
+                    />,
+                )
             )}
+            {dialog}
         </CatalogPage>
     );
 };

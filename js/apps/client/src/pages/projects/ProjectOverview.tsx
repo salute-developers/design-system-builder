@@ -1,15 +1,19 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useOutlet, useParams } from 'react-router-dom';
 import { designSystemsApi, projectsApi } from '../../api';
 import { CatalogPage, EmptyState, State } from '../../components/Catalog/Catalog';
 import { all, any, choose, Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
-import { useLoad } from '../../shared/data/useLoad';
+import { isAccessDenied, useLoad } from '../../shared/data/useLoad';
+import type { ProjectOutletContext } from '../designSystems/CreateDesignSystemDialog';
 import { DesignSystemCard } from '../designSystems/DesignSystemCard';
 
 export const ProjectPage = () => {
     const { projectId = '' } = useParams();
     const project = useLoad(() => projectsApi.get(projectId), [projectId], `project:${projectId}`);
     const systems = useLoad(() => designSystemsApi.list(projectId), [projectId], `systems:${projectId}`);
+    const dialog = useOutlet({ project: project.data } satisfies Partial<ProjectOutletContext>);
+    if ([project.error, systems.error].some(isAccessDenied))
+        return <State text="Нет доступа" title="Дизайн-системы" back="/projects" projectId={projectId} kind="system" />;
     if (any(project.error, systems.error))
         return (
             <State
@@ -77,7 +81,8 @@ export const ProjectPage = () => {
                 <div className="catalog-grid" aria-busy="true" data-testid="systems-catalog-preserved" />
             ) : (
                 choose(
-                    userSystems.length === 0,
+                    // Под окном создания пустой проект показывает пустую сетку, как до вложенного маршрута.
+                    userSystems.length === 0 && !dialog,
                     <div className="catalog-grid">
                         {userSystems.map((system) => (
                             <DesignSystemCard
@@ -97,6 +102,7 @@ export const ProjectPage = () => {
                     />,
                 )
             )}
+            {systems.data && dialog}
         </CatalogPage>
     );
 };

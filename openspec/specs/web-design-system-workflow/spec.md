@@ -40,7 +40,7 @@ TBD - created by archiving change add-projects-workflow. Update Purpose after ar
 
 ### Requirement: Maintainer и Owner создают дизайн-систему
 
-Веб-клиент SHALL позволять пользователю с разрешением `design-systems:write` создать дизайн-систему внутри текущего проекта.
+Веб-клиент SHALL позволять пользователю с разрешением `design-systems:write` создать дизайн-систему внутри текущего проекта. Маршрут `/projects/{projectId}/design-systems/new` MUST открывать окно создания поверх страницы проекта как её дочерний маршрут, а не отдельную страницу с копией каталога.
 
 #### Scenario: Дизайн-система успешно создана
 
@@ -49,10 +49,17 @@ TBD - created by archiving change add-projects-workflow. Update Purpose after ar
 - **THEN** API MUST атомарно создать дизайн-систему и общий набор определений токенов, необходимый для создания её тем
 - **THEN** клиент MUST открыть обзор созданной дизайн-системы
 
+#### Scenario: Окно открыто поверх страницы проекта
+
+- **WHEN** пользователь открывает `/projects/{projectId}/design-systems/new` или `/projects/{projectId}/design-systems/new?mode=import`
+- **THEN** клиент MUST показать страницу проекта с одной шапкой и одним каталогом дизайн-систем
+- **THEN** поверх неё MUST быть открыто окно создания или импорта соответственно
+- **THEN** «Отмена» MUST вернуть на `/projects/{projectId}` без перезагрузки каталога
+
 #### Scenario: Создание недоступно Viewer и Editor
 
 - **WHEN** Viewer или Editor открывает маршрут создания напрямую
-- **THEN** клиент MUST показать состояние отсутствия доступа
+- **THEN** клиент MUST показать поверх страницы проекта окно отсутствия доступа
 - **THEN** клиент MUST NOT отправлять запрос создания
 
 #### Scenario: Инициализация дизайн-системы завершилась ошибкой

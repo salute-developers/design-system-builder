@@ -8,7 +8,7 @@ import { can } from '../../modules/projects/domain/permissions';
 import { themesApi } from '../../modules/themes/data/themesApi';
 import { resetQueryCache } from '../../shared/data/useLoad';
 import { ProjectPage } from '../projects/ProjectOverview';
-import { CreateDesignSystemPage } from './CreateDesignSystemPage';
+import { CreateDesignSystemDialog } from './CreateDesignSystemDialog';
 import { DesignSystemSettingsPage } from './DesignSystemSettingsPage';
 
 const project = (role: ProjectRole, status: ProjectDto['status'] = 'active'): ProjectDto => ({
@@ -35,8 +35,9 @@ const renderAt = (path: string) =>
     render(
         <MemoryRouter initialEntries={[path]}>
             <Routes>
-                <Route path="/projects/:projectId" element={<ProjectPage />} />
-                <Route path="/projects/:projectId/design-systems/new" element={<CreateDesignSystemPage />} />
+                <Route path="/projects/:projectId" element={<ProjectPage />}>
+                    <Route path="design-systems/new" element={<CreateDesignSystemDialog />} />
+                </Route>
                 <Route path="/projects/:projectId/design-systems/:designSystemId" element={<p>Обзор системы</p>} />
                 <Route
                     path="/projects/:projectId/design-systems/:designSystemId/settings"
@@ -103,7 +104,7 @@ describe('design system import and export', () => {
         renderAt('/projects/project-1/design-systems/new?mode=import');
 
         expect(await screen.findByRole('link', { name: 'Отмена' })).toHaveAttribute('href', '/projects/project-1');
-        // Кнопка каталога остаётся видимой за открытым окном импорта.
+        // Под окном — страница проекта со своей единственной кнопкой «Импортировать».
         expect(screen.getByRole('link', { name: 'Импортировать' })).toHaveAttribute(
             'href',
             '/projects/project-1/design-systems/new?mode=import',
