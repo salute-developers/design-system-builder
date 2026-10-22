@@ -52,6 +52,26 @@ const component = (name: string): Meta => ({
 });
 const create = () => new EditorSectionData(context, snapshot(), new AbortController().signal);
 
+it('сначала получает группы, затем определения цветов, сохраняя результат в кэше раздела', async () => {
+    let finishGroups!: (value: []) => void;
+    reads.groups.mockImplementationOnce(
+        () =>
+            new Promise((resolve) => {
+                finishGroups = resolve;
+            }),
+    );
+    const data = create();
+    const reading = data.activate('colors');
+    await vi.waitFor(() => expect(reads.groups).toHaveBeenCalledOnce());
+    expect(reads.tokens).not.toHaveBeenCalled();
+    finishGroups([]);
+    await reading;
+    expect(reads.tokens).toHaveBeenCalledOnce();
+    await data.activate('colors');
+    expect(reads.groups).toHaveBeenCalledOnce();
+    expect(reads.tokens).toHaveBeenCalledOnce();
+});
+
 beforeEach(() => {
     vi.clearAllMocks();
     reads.shell.mockImplementation(async () => snapshot());

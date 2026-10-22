@@ -142,10 +142,15 @@ export class EditorSectionData {
         if (stale) {
             if (sectionTokenTypes[section]) {
                 const paletteGeneration = this.invalidated.get('palette') ?? 0;
-                const [values, groups] = await Promise.all([
-                    tokenRepository.loadTokenData(this.context, this.signal, this.snapshot.publicationVersion, types),
-                    section === 'colors' ? tokenRepository.loadColorGroups(this.context, this.signal) : undefined,
-                ]);
+                // Как в структурном редакторе: группы должны быть готовы до чтения размещений токенов.
+                const groups =
+                    section === 'colors' ? await tokenRepository.loadColorGroups(this.context, this.signal) : undefined;
+                const values = await tokenRepository.loadTokenData(
+                    this.context,
+                    this.signal,
+                    this.snapshot.publicationVersion,
+                    types,
+                );
                 if (values.paletteError) throw values.paletteError;
                 this.snapshot = mergeSectionTokens(this.snapshot, values, types);
                 if (groups !== undefined) this.snapshot = { ...this.snapshot, colorTokenGroups: groups };

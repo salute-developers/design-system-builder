@@ -207,9 +207,9 @@ const commitLight = (value: string) => {
 beforeEach(() => {
     localStorage.clear();
     published = null;
+    post.mockImplementation(async () => ({ data: { components: [] } }));
     extraTokens = [];
     invalidTokens = [];
-    post.mockImplementation(async () => ({ data: { components: [] } }));
     groupState = [...GROUPS];
     definitionState = definitions();
     repository.create.mockReset();
