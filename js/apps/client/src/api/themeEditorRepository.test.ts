@@ -473,7 +473,17 @@ describe('Editor repositories', () => {
             if (url.endsWith('/components/component-1/variations')) return Promise.resolve({ data: [] });
             throw new Error(`Unexpected GET ${url}`);
         });
-        post.mockResolvedValue({ data: { components: [] } });
+        post.mockResolvedValue({
+            data: {
+                components: [
+                    {
+                        componentName: 'button',
+                        styleName: 'default',
+                        config: { invariants: {}, defaults: [], variations: [] },
+                    },
+                ],
+            },
+        });
 
         const [meta] = await componentRepository.loadComponentData(context, undefined, 'compose');
 

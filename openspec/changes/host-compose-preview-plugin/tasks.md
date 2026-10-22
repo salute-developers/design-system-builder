@@ -1,6 +1,6 @@
 ## 1. Хранилище и модель данных (backend-kt/ds-service)
 
-- [x] 1.1 Добавить миграцию Flyway `V8__compose_preview_plugin_builds.sql`: таблица билдов и уникальный частичный индекс на активный билд платформы; не менять `schema-fingerprint.json` базовой схемы
+- [x] 1.1 Добавить миграцию Flyway `V12__compose_preview_plugin_builds.sql`: таблица билдов и уникальный частичный индекс на активный билд платформы; не менять `schema-fingerprint.json` базовой схемы
 - [x] 1.2 Добавить в каталог версий `software.amazon.awssdk:s3` (версия как в `documentation-service`) и подключить к `feature-components`
 - [x] 1.3 Домен: `PluginBuild`, `PublishOutcome`, правила проверки manifest (поля, `version = commit.take(12)`, sha256 меты, `entrypoint`)
 - [x] 1.4 Application: порты `PluginBuildStorage` и `PluginBuildRepository`, use case публикации и use case выдачи адреса активного билда
@@ -65,4 +65,4 @@
 - [x] 7.2 `cd backend-kt/identity-gateway && ./gradlew build` и smoke-проверки gateway
 - [x] 7.3 `cd frontend-kt && ./gradlew build`
 - [x] 7.4 `cd js/apps/client && npm run build && npm test`
-- [x] 7.5 `./setup-local.sh`: применить `V8`, опубликовать плагин, открыть редактор и увидеть плагин (публикация, повтор и откат проверены на контуре; кадр превью рисуется после задачи 4.7; проверены и ключи S3 `builds/<buildId>/…` с префиксом и без него); повторить публикацию того же билда (`unchanged`) и публикацию старого билда (`activated`)
+- [x] 7.5 `./setup-local.sh`: применить `V12`, опубликовать плагин, открыть редактор и увидеть плагин (публикация, повтор и откат проверены на контуре; кадр превью рисуется после задачи 4.7; проверены и ключи S3 `builds/<buildId>/…` с префиксом и без него); повторить публикацию того же билда (`unchanged`) и публикацию старого билда (`activated`)

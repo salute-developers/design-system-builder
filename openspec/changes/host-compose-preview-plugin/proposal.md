@@ -6,7 +6,7 @@ Compose-preview в редакторе компонентов работает с
 
 ## What Changes
 
-- **Бэкенд (`backend-kt/ds-service`)**: реестр билдов плагина. Таблица `compose_preview_plugin_builds` (Flyway `V8`), маршрут публикации `POST /api/admin/compose-preview/plugin-builds` (архив и нормализованная мета одним запросом), проверка архива и manifest, заливка файлов в S3, импорт меты и запись активного билда в одной транзакции БД, идемпотентность, пробная отправка, очистка старых билдов.
+- **Бэкенд (`backend-kt/ds-service`)**: реестр билдов плагина. Таблица `compose_preview_plugin_builds` (Flyway `V12`), маршрут публикации `POST /api/admin/compose-preview/plugin-builds` (архив и нормализованная мета одним запросом), проверка архива и manifest, заливка файлов в S3, импорт меты и запись активного билда в одной транзакции БД, идемпотентность, пробная отправка, очистка старых билдов.
 - **Выдача адреса клиенту**: маршрут `GET /api/projects/{projectId}/ds/compose-preview/plugin` возвращает адрес и версию активного билда.
 - **Хранилище**: порт `PluginBuildStorage` с реализацией на AWS SDK v2 (как в `documentation-service`), настройка через переменные окружения; публичное чтение префикса плагина в бакете.
 - **Авторизация CI**: служебная учётка Keycloak (`client_credentials`) с ролью `compose_preview_publisher`; gateway передаёт роль доверенным заголовком; публиковать могут эта роль и системный администратор; другие маршруты роль не открывает.
@@ -31,7 +31,7 @@ Compose-preview в редакторе компонентов работает с
 
 ## Impact
 
-- `backend-kt/ds-service`: `feature-components` (маршруты публикации и чтения, use case, репозиторий, порт хранилища, распаковка архива), `app` (Flyway `V8`, конфигурация S3, DI), `contracts` (манифест маршрутов, аудит потребителей), `src/main/resources/openapi/documentation.yaml`, каталог версий (AWS SDK `software.amazon.awssdk:s3`).
+- `backend-kt/ds-service`: `feature-components` (маршруты публикации и чтения, use case, репозиторий, порт хранилища, распаковка архива), `app` (Flyway `V12`, конфигурация S3, DI), `contracts` (манифест маршрутов, аудит потребителей), `src/main/resources/openapi/documentation.yaml`, каталог версий (AWS SDK `software.amazon.awssdk:s3`).
 - `backend-kt/identity-gateway`: `feature-auth` (роль `compose_preview_publisher`, доверенный заголовок `X-Compose-Preview-Publisher`), `gateway` (маршрут публикации с лимитом тела), `keycloak` (клиент, роль, аудитория; realm локального и production контура, bootstrap-скрипт).
 - `backend-kt/docker-compose.local.yml` и production-конфигурация: переменные S3 для `ds-service`, бакет и политика чтения MinIO.
 - `frontend-kt`: `feature-components` или новая feature `preview-plugin` (use case, порты, HTTP-источник, чтение архива, хеширование), `cli` (команда, вход служебной учёткой), `USAGE.md`.
