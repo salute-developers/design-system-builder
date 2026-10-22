@@ -18,7 +18,8 @@ internal suspend fun initializeColorTokenGroups(owner: UUID, repository: Exposed
             row[ThemeTokenRevisionsTable.type]?.let { type ->
                 ColorTokenFamily.of(type, row[ThemeTokenRevisionsTable.name])?.let { it to row }
             }
-        }.groupBy({ it.first }, { it.second })
+        }
+        .byFamilyName()
         .mapNotNull { (family, rows) ->
             initialSection(family)?.let { section ->
                 InitialFamily(family, section, initialCategory(family, section), rows)
@@ -42,7 +43,6 @@ internal suspend fun initializeColorTokenGroups(owner: UUID, repository: Exposed
                 compareBy(
                     { item -> item.rows.minOf { it[ThemeTokensTable.createdAt] } },
                     { it.family.name },
-                    { it.family.type.wireValue },
                 ),
             )
                 .forEachIndexed { position, item ->
@@ -62,6 +62,15 @@ private data class InitialFamily(
     val category: String,
     val rows: List<org.jetbrains.exposed.v1.core.ResultRow>,
 )
+
+/**
+ * Определения, сгруппированные по семейству по правилу имени (группа и имя) без учёта типа: тип производный, и члены
+ * одного семейства могут временно иметь разные типы. Семейство группы — семейство её первого определения.
+ */
+internal fun <T> List<Pair<ColorTokenFamily, T>>.byFamilyName(): List<Pair<ColorTokenFamily, List<T>>> =
+    groupBy { (family, _) -> family.group to family.name }
+        .values
+        .map { entries -> entries.first().first to entries.map { it.second } }
 
 internal fun initialSection(family: ColorTokenFamily): Int? =
     if (family.group == "surface" && family.name == "read-only") {

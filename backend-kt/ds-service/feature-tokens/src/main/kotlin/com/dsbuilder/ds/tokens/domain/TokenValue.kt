@@ -24,4 +24,8 @@ data class TokenValue(
     val createdAt: Instant,
     /** Updatedat carried by this contract. */
     val updatedAt: Instant,
+    /** Исходная ссылка на палитру, если [value] при чтении целиком вычислен по палитре темы. */
+    val paletteRef: String? = null,
+    /** Хранимое значение, если [value] при чтении отдаётся в другой форме и не задан целиком ссылкой. */
+    val sourceValue: JsonElement? = null,
 )

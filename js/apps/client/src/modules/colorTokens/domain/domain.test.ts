@@ -92,7 +92,7 @@ describe('токены экрана', () => {
             deps({ 'text.default.accent': { groupId: 'accent', position: 2, publishedIn: '1.0.0' } }),
         );
 
-        expect(accent.id).toBe('color:text.accent');
+        expect(accent.id).toBe('text.accent');
         expect(accent.displayName).toBe('textAccent');
         expect(accent.modes.light).toMatchObject({ paletteLabel: 'Blue 500', opacity: 0.56, resolved: '#3377FFFF' });
         expect(accent).toMatchObject({ groupId: 'accent', position: 2, publishedIn: '1.0.0' });
@@ -181,7 +181,7 @@ describe('новый токен', () => {
 
     it('собирает подтемы с наследованием и состояния', () => {
         const members = newTokenMembers(
-            { type: 'color', group: 'text', name: 'highlight' },
+            { group: 'text', name: 'highlight' },
             { light: '#111', dark: '#EEE' },
             (value, _g, _s, mode, state) => `${value}:${mode}:${state}`,
         );
@@ -195,11 +195,7 @@ describe('новый токен', () => {
             { mode: 'light', value: '#EEE:light:hover' },
             { mode: 'dark', value: '#EEE:dark:hover' },
         ]);
-        const bg = newTokenMembers(
-            { type: 'color', group: 'background', name: 'banner' },
-            { light: '#111', dark: '#EEE' },
-            () => '',
-        );
+        const bg = newTokenMembers({ group: 'background', name: 'banner' }, { light: '#111', dark: '#EEE' }, () => '');
         expect(bg.map((member) => member.name)).toEqual([
             'background.default.banner',
             'background.dark.banner',
@@ -241,11 +237,7 @@ describe('пары контраста', () => {
     const resolveTheme = (name: string) => colors[name.replace(/^(light|dark)\./, '')] ?? '#808080';
 
     it('находит пары токена в стилях кнопки по web-свойствам и состояниям', () => {
-        const pairs = collectContrastPairs(
-            buttonStyles(),
-            { type: 'color', group: 'surface', name: 'accent' },
-            resolveTheme,
-        );
+        const pairs = collectContrastPairs(buttonStyles(), { group: 'surface', name: 'accent' }, resolveTheme);
         const accent = pairs.filter((pair) => pair.style === 'accent');
         expect(accent.length).toBeGreaterThan(0);
         expect(new Set(accent.map((pair) => pair.backgroundToken))).toContain('surface.default.accent-hover');

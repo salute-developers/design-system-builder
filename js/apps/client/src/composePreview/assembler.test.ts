@@ -426,12 +426,34 @@ describe('assembleComposePreviewPayload', () => {
             expect(assembled(d).theme['color.nested.only']).toEqual({ type: 'color', value: '#010203FF' });
         });
 
+        it('passes a solid platform value of a gradient family as a single-colour linear layer', () => {
+            for (const value of ['#112233', ['#112233'], [{ kind: 'color', background: '#112233' }]]) {
+                const d = draft();
+                d.invariantProperties.push(prop({ name: 'brush', value: 'gradient.solid' }));
+                d.themeTokens.push({ id: 'gradient.solid', type: 'gradient', enabled: true, values: { web: value } });
+                expect(assembled(d).theme['gradient.solid']).toEqual({
+                    type: 'gradient',
+                    layers: [
+                        {
+                            kind: 'linear',
+                            angle: 0,
+                            stops: [
+                                { color: '#112233FF', position: 0 },
+                                { color: '#112233FF', position: 1 },
+                            ],
+                        },
+                    ],
+                });
+            }
+        });
+
         it.each([
             ['radial gradient', { kind: 'radial', colors: ['#FFFFFF', '#000000'], locations: [0, 1] }],
             ['single stop', { kind: 'linear', colors: ['#FFFFFF'], locations: [0], angle: 0 }],
             ['location out of range', { kind: 'linear', colors: ['#FFFFFF', '#000000'], locations: [0, 2], angle: 0 }],
             ['mismatched lengths', { kind: 'linear', colors: ['#FFFFFF', '#000000'], locations: [0], angle: 0 }],
             ['invalid colour', { kind: 'linear', colors: ['#FFFFFF', 'red'], locations: [0, 1], angle: 0 }],
+            ['invalid solid layer', { kind: 'color', background: '[general.red.500]' }],
         ])('rejects an unsupported gradient token: %s', (_name, layer) => {
             const d = draft();
             d.invariantProperties.push(prop({ name: 'brush', value: 'gradient.bad' }));

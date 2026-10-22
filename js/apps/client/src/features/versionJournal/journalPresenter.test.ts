@@ -194,6 +194,108 @@ describe('presentJournal', () => {
         expect(result.canRevert).toBe(false);
     });
 
+    it('показывает значение цветового токена целиком: ссылку palette_id — ступенью, признак — своим значением', () => {
+        const color = { ...token, type: 'color' as const, displayName: 'Акцент' };
+        const state = { token_id: token.id, platform: 'android', mode: 'light', overridden: false };
+        const [result, ...rest] = presentJournal({
+            changes: [
+                change({
+                    entityType: 'token-value',
+                    changedPaths: ['/palette_id', '/value', '/overridden'],
+                    previousValue: { ...state, palette_id: 'palette-1', value: [0.5] },
+                    currentValue: { ...state, palette_id: null, value: ['[general.green.600][0.5]'], overridden: true },
+                }),
+            ],
+            tokens: [color],
+            components: [],
+            actorLabels: {},
+            context,
+            palette: [{ id: 'palette-1', type: 'general', shade: 'green', saturation: 600 }],
+        });
+
+        expect(rest).toEqual([]);
+        expect(result.platformLabel).toBe('Android');
+        expect(result.revertPaths).toBeUndefined();
+        expect(result.changedFields).toEqual([
+            { path: '/overridden', label: 'Своё значение платформы · Светлый режим', before: false, after: true },
+        ]);
+        // Другая ступень после формы `palette_id`: значение без `palette_id` отменяется только записью целиком.
+        const [other] = presentJournal({
+            changes: [
+                change({
+                    entityType: 'token-value',
+                    changedPaths: ['/palette_id', '/value'],
+                    previousValue: { ...state, palette_id: 'palette-1', value: null },
+                    currentValue: { ...state, palette_id: null, value: ['[general.green.700]'] },
+                }),
+            ],
+            tokens: [color],
+            components: [],
+            actorLabels: {},
+            context,
+            palette: [{ id: 'palette-1', type: 'general', shade: 'green', saturation: 600 }],
+        });
+        expect(other.changedFields.map(({ label, before, after }) => [label, before, after])).toEqual([
+            ['Цвет · Светлый режим', '[general.green.600]', '[general.green.700]'],
+        ]);
+        expect(other.revertPaths).toBeUndefined();
+        expect(other.canRevert).toBe(true);
+    });
+
+    it('делит запись градиента на строки параметров с путями отмены, а смену вида оставляет структурной', () => {
+        const gradient = { ...token, type: 'gradient' as const, displayName: 'Акцент' };
+        const value = (platform: string, layer: unknown) => ({
+            token_id: token.id,
+            platform,
+            mode: 'dark',
+            value: [layer],
+        });
+        const ios = (angle: number, color: string) => ({
+            kind: 'linear',
+            locations: [0, 1],
+            colors: ['#FFFFFFFF', color],
+            angle,
+        });
+        const present = (previousValue: object, currentValue: object) =>
+            presentJournal({
+                changes: [change({ entityType: 'token-value', changedPaths: ['/value'], previousValue, currentValue })],
+                tokens: [gradient],
+                components: [],
+                actorLabels: {},
+                context,
+            });
+
+        const native = present(
+            value('ios', ios(45, '[general.teal.400]')),
+            value('ios', ios(90, '[general.blue.500]')),
+        );
+        const css = present(
+            value('web', 'linear-gradient(45deg, #FFFFFF 0%, [general.teal.400] 100%)'),
+            value('web', 'linear-gradient(90deg, #FFFFFF 0%, [general.blue.500] 100%)'),
+        );
+        const kind = present(
+            value('web', '[general.green.400]'),
+            value('web', 'conic-gradient(from 0deg at 50% 50%, #FFFFFF 0%, #000000 100%)'),
+        );
+
+        expect(
+            native.map(({ changedFields, revertPaths, canRevert }) => [changedFields[0].label, revertPaths, canRevert]),
+        ).toEqual([
+            ['Угол · Темный режим', ['/value/0/angle'], true],
+            ['Стоп 2 · цвет · Темный режим', ['/value/0/colors/1'], true],
+        ]);
+        expect(new Set(native.map(({ key }) => key)).size).toBe(2);
+        // Параметры CSS-строки web отдельными путями не отменяются: строка отменяет запись целиком.
+        expect(css.map(({ revertPaths, canRevert }) => [revertPaths, canRevert])).toEqual([
+            [undefined, true],
+            [undefined, true],
+        ]);
+        expect(kind).toHaveLength(1);
+        expect(kind[0].structural).toBe(true);
+        expect(kind[0].revertPaths).toBeUndefined();
+        expect(kind[0].changedFields.map(({ label }) => label)).toEqual(['Вид значения · Темный режим']);
+    });
+
     it('не разделяет добавление и перестановку слоёв на отмену случайного индекса', () => {
         const gradient = { ...token, type: 'gradient' as const };
         for (const value of [

@@ -1,11 +1,14 @@
 package com.dsbuilder.ds.tokens.presentation
 
 import com.dsbuilder.ds.tokens.domain.TokenValue
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /** Legacy-compatible token-value response. */
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 data class TokenValueResponse(
     /** Id carried by this contract. */
     val id: String,
@@ -25,6 +28,12 @@ data class TokenValueResponse(
     val createdAt: String,
     /** Updatedat carried by this contract. */
     val updatedAt: String,
+    /** Исходная ссылка на палитру, если [value] целиком вычислен по палитре темы; иначе поле не отдаётся. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val paletteRef: String? = null,
+    /** Хранимое значение, если [value] отдан в другой форме и не задан целиком ссылкой; иначе поле не отдаётся. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val sourceValue: JsonElement? = null,
 ) {
     companion object {
         /** Performs the from operation. */
@@ -38,6 +47,8 @@ data class TokenValueResponse(
             value.value,
             value.createdAt.toString(),
             value.updatedAt.toString(),
+            value.paletteRef,
+            value.sourceValue,
         )
     }
 }
