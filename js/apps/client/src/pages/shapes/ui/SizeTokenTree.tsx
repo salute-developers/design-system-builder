@@ -55,6 +55,14 @@ const glyph = (token: SizeToken) =>
         <i className={`sizing-kind-glyph ${token.kind === 'radius' ? 'is-radius' : 'is-gap'}`} aria-hidden="true" />
     );
 
+/** Глиф строки нового токена: как у токенов раздела, у тени — пустой квадрат. */
+const placeholderGlyph = (kind: SizeTokenKind) =>
+    kind === 'shadow' ? (
+        <i className="st-row-chip is-shadow" aria-hidden="true" />
+    ) : (
+        <i className={`sizing-kind-glyph ${kind === 'radius' ? 'is-radius' : 'is-gap'}`} aria-hidden="true" />
+    );
+
 /** Дерево раздела по `sizingTokenTree` прототипа: «Радиусы», «Отступы», «Тени». */
 export const SizeTokenTree = (props: SizeTokenTreeProps) => {
     const { sections, selectedId, query, searchOpen, collapsed, editable } = props;
@@ -144,6 +152,10 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
                                     placeholder={NEW_TOKEN_PLACEHOLDER[section.kind]}
                                     busy={props.creating.busy}
                                     error={props.creating.error}
+                                    row={{
+                                        className: 'token-row sizing-token-row',
+                                        leading: placeholderGlyph(section.kind),
+                                    }}
                                     onSubmit={(name) => props.onCreate(section.kind, name)}
                                     onCancel={props.onCancelCreate}
                                 />

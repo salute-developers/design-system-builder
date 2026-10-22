@@ -3666,37 +3666,41 @@
     outline-offset: 0;
 }
 
-/* Строка нового токена в дереве — правила `token-tree-input` раздела «Цвета». */
+/* Строка нового токена в дереве — как в разделе «Цвета»: выглядит как сама строка токена, глиф раздела и имя, без
+ * поля с рамкой. */
 .size-tokens-screen .token-tree-input {
     display: grid;
     gap: 4px;
-    margin: 2px 8px;
 }
 
 .size-tokens-screen .token-tree-input-field {
     position: relative;
     display: flex;
     align-items: center;
+    cursor: text;
 }
 
-.size-tokens-screen .token-tree-input input {
-    width: 100%;
-    height: 30px;
-    padding: 0 30px 0 10px;
-    border: 1px solid #4284ff;
-    border-radius: 6px;
-    background: #20252c;
-    color: #e8ebf0;
+/* Специфичность — как у поля поиска дерева: общее правило полей экрана задаёт фон и скругление. */
+.size-tokens-screen.st-theme-workspace
+    .token-browser
+    .token-tree-input.is-row
+    input:not([type='checkbox']):not([type='radio']):not([type='range']) {
+    flex: 1;
+    min-width: 0;
+    height: 24px;
+    padding: 4px;
+    border: 0;
+    border-radius: 0;
+    outline: none;
+    background: transparent;
+    color: #dfe2e7;
     font: inherit;
     font-size: 12px;
-    outline: none;
-}
-
-.size-tokens-screen .token-tree-input.is-error input {
-    border-color: #ff6b6b;
+    letter-spacing: -0.18px;
 }
 
 .size-tokens-screen .token-tree-input-error {
+    padding: 0 16px 4px;
     color: #ff8a8a;
     font-size: 11px;
     line-height: 14px;
