@@ -22,12 +22,23 @@ export type AssemblyResult =
     | { ok: false; diagnostics: AssemblyDiagnostic[] };
 
 const failure = (diagnostic: AssemblyDiagnostic): AssemblyResult => ({ ok: false, diagnostics: [diagnostic] });
-const diagnostic = (
-    code: AssemblyDiagnostic['code'],
-    message: string,
-    path?: string,
-): AssemblyDiagnostic => ({ code, message, path });
+const diagnostic = (code: AssemblyDiagnostic['code'], message: string, path?: string): AssemblyDiagnostic => ({
+    code,
+    message,
+    path,
+});
 const stateName = (name: string) => (name === 'hover' || name === 'hovered' ? 'hovered' : name);
+
+/**
+ * Протокол не умеет поправку к токену, поэтому скорректированная форма передаётся производным токеном темы
+ * `<токен>@adjust(<поправка>)`: его радиусы собираются из радиусов исходного токена при сборке темы.
+ */
+const ADJUSTED_TOKEN = /^(.+)@adjust\((-?\d+(?:\.\d+)?)\)$/;
+const adjustedTokenId = (tokenId: string, adjustment: number) => `${tokenId}@adjust(${adjustment})`;
+const parseAdjustedTokenId = (id: string) => {
+    const match = ADJUSTED_TOKEN.exec(id);
+    return match ? { baseId: match[1], adjustment: Number(match[2]) } : undefined;
+};
 
 const sourceFor = (
     property: PreviewPropertyDraft,
@@ -36,11 +47,7 @@ const sourceFor = (
 ): PreviewPropertySource | AssemblyDiagnostic => {
     if (raw === undefined) return diagnostic('incompatible_value', `Property ${property.id} has no value`, property.id);
     const numeric = typeof raw === 'number' ? raw : Number(raw);
-    if (
-        !adjusted &&
-        (property.type === 'dimension' || property.type === 'float') &&
-        Number.isFinite(numeric)
-    ) {
+    if (!adjusted && (property.type === 'dimension' || property.type === 'float') && Number.isFinite(numeric)) {
         return { type: 'literal', value: numeric };
     }
     // Свойство типа `value` хранит значение без темы (имя константы enum, флаг): это литерал, а не токен.
@@ -50,6 +57,10 @@ const sourceFor = (
         return { type: 'tokenRef', tokenId: raw };
     }
     const adjustment = adjusted ? Number(property.adjustment) : 0;
+    // Форма хранится токеном, поправка (в пикселях) смещает его радиусы.
+    if (adjusted && property.type === 'shape' && typeof raw === 'string' && Number.isFinite(adjustment)) {
+        return { type: 'tokenRef', tokenId: adjustment === 0 ? raw : adjustedTokenId(raw, adjustment) };
+    }
     if (property.adjustment !== undefined && !Number.isFinite(numeric + adjustment)) {
         return diagnostic('incompatible_value', `Adjustment for ${property.id} requires a number`, property.id);
     }
@@ -240,8 +251,28 @@ const assemble = (draft: ComponentPreviewDraft): AssemblyResult => {
 
     const resolve = (requestedId: string): AssemblyDiagnostic | undefined => {
         if (theme[requestedId]) return;
+        const adjusted = parseAdjustedTokenId(requestedId);
+        if (adjusted) {
+            const error = resolve(adjusted.baseId);
+            if (error) return error;
+            const base = theme[adjusted.baseId];
+            if (base?.type !== 'shape') {
+                return diagnostic(
+                    'incompatible_value',
+                    `Adjustment for ${adjusted.baseId} requires a shape token`,
+                    adjusted.baseId,
+                );
+            }
+            const radii = base.cornerRadii.map((radius) => Math.max(0, radius + adjusted.adjustment));
+            theme[requestedId] = { type: 'shape', cornerRadii: radii as [number, number, number, number] };
+            return;
+        }
         if (visiting.includes(requestedId)) {
-            return diagnostic('cycle', `Theme reference cycle: ${[...visiting, requestedId].join(' -> ')}`, requestedId);
+            return diagnostic(
+                'cycle',
+                `Theme reference cycle: ${[...visiting, requestedId].join(' -> ')}`,
+                requestedId,
+            );
         }
         const referenceAlias = requestedId.startsWith('fontFamily.')
             ? requestedId.slice('fontFamily.'.length)
@@ -344,7 +375,7 @@ const normalizeToken = (
     }
     if (token.type === 'shape') {
         const radius = numberFrom(
-            raw && typeof raw === 'object' && !Array.isArray(raw) ? raw.cornerRadius ?? raw.value : raw,
+            raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw.cornerRadius ?? raw.value) : raw,
         );
         return Number.isFinite(radius)
             ? { type: 'shape', cornerRadii: [radius, radius, radius, radius] }
@@ -378,11 +409,7 @@ const normalizeToken = (
         if (!font || typeof font !== 'object' || Array.isArray(font)) continue;
         const url = String(font.link ?? (Array.isArray(font.src) ? font.src[0] : '') ?? '');
         if (!url) return diagnostic('missing_asset', `Font ${token.id} has no asset URL`, token.id);
-        const fontType = /\.otf(?:$|[?#])/i.test(url)
-            ? 'OTF'
-            : /\.ttf(?:$|[?#])/i.test(url)
-              ? 'TTF'
-              : undefined;
+        const fontType = /\.otf(?:$|[?#])/i.test(url) ? 'OTF' : /\.ttf(?:$|[?#])/i.test(url) ? 'TTF' : undefined;
         if (!fontType) {
             return diagnostic('missing_asset', `Font ${token.id} has unsupported asset format`, token.id);
         }
@@ -395,9 +422,7 @@ const normalizeToken = (
         faces.push({
             assetId: asset.id,
             weight: numberFrom(font.fontWeight ?? font.weight),
-            style: String(font.fontStyle ?? font.style ?? 'normal').toUpperCase() === 'ITALIC'
-                ? 'ITALIC'
-                : 'NORMAL',
+            style: String(font.fontStyle ?? font.style ?? 'normal').toUpperCase() === 'ITALIC' ? 'ITALIC' : 'NORMAL',
         });
     }
     return { type: 'fontFamily', faces, allowFallback: fonts.length === 0 };
