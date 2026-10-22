@@ -35,6 +35,13 @@ SHALL строиться так: только `to` — `@media (max-width: <to>p
 - **WHEN** в `breakpoints` описан один экран без границ
 - **THEN** его типографика MUST выводиться в селекторе темы без медиазапроса
 
+#### Scenario: Нулевые границы
+
+- **WHEN** в `breakpoints` задано `[{ "name": "screenS", "to": 0 }, { "name": "screenM", "from": 0, "to": 959 }, { "name": "screenL", "from": 960 }]`
+- **THEN** типографика `screenS` MUST быть обёрнута в `@media (max-width: 0px)`
+- **THEN** типографика `screenM` MUST быть обёрнута в `@media (min-width: 0px) and (max-width: 959px)`
+- **THEN** граница `0` MUST NOT теряться и MUST NOT давать блок без медиазапроса
+
 #### Scenario: Одна тема
 
 - **WHEN** брейкпоинты заданы и разработчик передаёт `--tenant <name>`

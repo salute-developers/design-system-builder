@@ -1,7 +1,7 @@
 ## 1. Генератор тем в js/cli
 
 - [x] 1.1 Описать `ScreenName`/`Breakpoint` в `themeBuilder/types/constants.ts` и перевести `webBreakpoints` в массив из трёх экранов с прежними значениями
-- [x] 1.2 Добавить `getTypographyBreakpoints` в `themeBuilder/utils/theme.ts`: блоки в порядке массива, один экран без границ — селектор без медиазапроса
+- [x] 1.2 Добавить `getTypographyBreakpoints` в `themeBuilder/utils/theme.ts`: блоки в порядке массива, один экран без границ — селектор без медиазапроса; медиазапрос строится без `getMediaQuery` из plasma
 - [x] 1.3 Перевести `generateThemes`, `generateCSSThemes`, `generateCSSModuleThemes` на список экранов параметром
 - [x] 1.4 Добавить опцию `breakpoints` в `generateThemeSet` со значением по умолчанию `webBreakpoints`
 
@@ -21,6 +21,7 @@
 - [x] 4.1 Тест: брейкпоинты из config попадают в `themes/*.ts`, `css/*__dark|light.css` и `css/*.module.css`
 - [x] 4.2 Тест: без `breakpoints` вывод совпадает с прежним; описанная часть экранов выводит только их; один экран — без медиазапроса
 - [x] 4.3 Тест: отсутствие начала или конца, неверный состав массива дают ошибку с путём к config до записи файлов; несостыкованные экраны допускаются
+- [x] 4.4 Тест: нулевые границы `from` и `to` дают медиазапрос с `0px`
 
 ## 5. Проверка
 
