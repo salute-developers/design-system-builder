@@ -51,7 +51,7 @@ These were deleted intentionally. If you see stale references to them in code/do
 ## Key files to remember
 
 - [apps/client/src/api/componentRepository.ts](apps/client/src/api/componentRepository.ts) and [componentModelEnrichment.ts](apps/client/src/api/componentModelEnrichment.ts) — load the theme-editor component model from `ds-service` and fill web params, property variations, templates and dependencies
-- [apps/client/src/api/designSystemImport.ts](apps/client/src/api/designSystemImport.ts) — design-system import through `ds-service`
+- [apps/client/src/modules/designSystems/application/importThemeFile.ts](apps/client/src/modules/designSystems/application/importThemeFile.ts) and [exportDesignSystemFile.ts](apps/client/src/modules/designSystems/application/exportDesignSystemFile.ts) — design-system import and export through `ds-service`
 - [cli/src/generator](cli/src/generator/) — theme and component generators, templates and manifests
 - [cli/src/import-plasma-component.ts](cli/src/import-plasma-component.ts) — plasma component import
 - [docker-compose.dev.yml](docker-compose.dev.yml) — the client container
