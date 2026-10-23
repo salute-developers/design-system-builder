@@ -37,5 +37,8 @@ export function toGeneratorThemeSource(source: ThemeSource, palette: Palette) {
 export async function generateThemes(source: ThemeSetSource, outputDirectory: string) {
     const themeSources = source.themes.map((theme) => toGeneratorThemeSource(theme, source.palette));
     await rm(outputDirectory, { recursive: true, force: true });
-    await generateThemeSet(themeSources, outputDirectory, { defaultThemeName: source.defaultThemeName });
+    await generateThemeSet(themeSources, outputDirectory, {
+        defaultThemeName: source.defaultThemeName,
+        breakpoints: source.breakpoints,
+    });
 }

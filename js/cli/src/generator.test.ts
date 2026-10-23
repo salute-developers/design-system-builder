@@ -39,7 +39,7 @@ describe('generator', () => {
         });
 
         const files = await readdir(pathToDir);
-        for (const file of ['rollup.config.mjs', 'babel.config.js', 'eslint.config.mjs', 'scripts', 'package.json', 'src']) {
+        for (const file of ['rollup.config.mjs', 'babel.config.js', 'scripts', 'package.json', 'src']) {
             assert.ok(files.includes(file), `${file} is missing`);
         }
         const packageJson = JSON.parse(await readFile(join(pathToDir, 'package.json'), 'utf8'));

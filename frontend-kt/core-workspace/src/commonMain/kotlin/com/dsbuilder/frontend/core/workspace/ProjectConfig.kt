@@ -1,7 +1,10 @@
 package com.dsbuilder.frontend.core.workspace
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 
 /**
  * Локальный project-scoped config CLI без raw secrets и environment-specific API URL.
@@ -13,7 +16,10 @@ import kotlinx.serialization.Serializable
  * @property palettePath относительный путь до локального `palette.json`.
  * @property platforms целевые платформы проекта как canonical identifiers (`swiftui`, `compose`, …).
  * Хранятся строками: config — модель хранения, разбор значения в доменный тип делает читатель контекста.
+ * @property breakpoints экраны адаптивной web-типографики. Хранятся как есть: смысл и проверку значения
+ * определяет web-генератор тем. Без значения поле в config не записывается.
  */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 public data class ProjectConfig(
     public val projectId: String,
@@ -22,6 +28,8 @@ public data class ProjectConfig(
     public val tenants: List<ProjectConfigTenant> = emptyList(),
     public val palettePath: String? = null,
     public val platforms: List<String> = emptyList(),
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    public val breakpoints: JsonArray? = null,
 )
 
 /**

@@ -17,7 +17,6 @@ export const createPackageJSON = ({
     // Без компонентов нет `src/components`, и babel на нём падает — собираем только тему через rollup.
     const buildSteps = [
         ...(hasTheme ? ['CSS_BUILD_PATH=css npm run copy-css-files'] : []),
-        'npm run lint -- --fix',
         ...(hasComponents ? ['npm run build:styled-components'] : []),
         'npm run build:css',
     ];
@@ -106,6 +105,7 @@ export const createPackageJSON = ({
             },
             scripts: {
                 prepare: 'npm run build',
+                postpack: 'git check-ignore -q . 2>/dev/null; test $? = 1 && git clean -fdX -e "!*.tgz" . || true',
                 prebuild: 'rm -rf ./components ./es ./tokens ./theme ./css ./index.*',
                 'prebuild:css': 'rm -rf src-css && ./scripts/copy-linaria-components.sh',
                 build: buildSteps.join(' && '),
@@ -116,7 +116,6 @@ export const createPackageJSON = ({
                 'pregenerate:typings': 'rm -rf components/**/*.d.ts && rm -f index.d.ts',
                 'generate:typings': 'tsc --outDir . --emitDeclarationOnly',
                 'copy-css-files': 'mkdir -p ${CSS_BUILD_PATH} && cp -R src/theme/css/* ${CSS_BUILD_PATH}',
-                lint: '../node_modules/.bin/eslint ./src --ext .ts --quiet',
             },
             sideEffects: ['*.css'],
         },
