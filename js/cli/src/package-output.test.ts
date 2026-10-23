@@ -78,7 +78,11 @@ describe('writePackagePart', () => {
             assert.ok(files.includes(file), `${file} is missing`);
         }
         assert.ok(!files.some((file) => file.endsWith('.tgz')));
+        // eslint в сборке пакета нет: ни конфигов, ни скрипта lint.
+        assert.ok(!files.includes('eslint.config.mjs') && !files.includes('.eslintrc.js'));
         const packageJson = JSON.parse(await readFile(join(output, 'package.json'), 'utf8'));
+        assert.equal(packageJson.scripts.lint, undefined);
+        assert.doesNotMatch(packageJson.scripts.build, /lint/);
         assert.equal(packageJson.name, `${process.env.NPM_PACKAGE_SCOPE}/brand`);
         assert.equal(packageJson.version, '1.2.3');
         // src — ровно части нового пакета; прочее содержимое output остаётся.
