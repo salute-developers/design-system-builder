@@ -16,6 +16,7 @@ import com.dsbuilder.ds.components.application.DeleteComponentUseCase
 import com.dsbuilder.ds.components.application.DeleteDesignSystemComponentUseCase
 import com.dsbuilder.ds.components.application.DesignSystemComponentRepository
 import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
+import com.dsbuilder.ds.components.application.GetActivePluginBuildUseCase
 import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
@@ -32,6 +33,8 @@ import com.dsbuilder.ds.components.application.ListComponentVariationsUseCase
 import com.dsbuilder.ds.components.application.ListComponentsUseCase
 import com.dsbuilder.ds.components.application.ListDependenciesByComponentUseCase
 import com.dsbuilder.ds.components.application.ListDesignSystemComponentsUseCase
+import com.dsbuilder.ds.components.application.PluginBuildRepository
+import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentUseCase
@@ -42,6 +45,7 @@ import com.dsbuilder.ds.components.data.ExposedComponentRepository
 import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentWebAdapterRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
+import com.dsbuilder.ds.components.data.ExposedPluginBuildRepository
 import com.dsbuilder.ds.components.data.GeneratedDesignSystemComponentInitializer
 import com.dsbuilder.ds.components.data.componentDraftChangeHandlers
 import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
@@ -58,6 +62,9 @@ val componentsModule = module {
     single<ComponentRepository> { ExposedComponentRepository() }
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
     single<ApiMetaRepository> { ExposedApiMetaRepository() }
+    single<PluginBuildRepository> { ExposedPluginBuildRepository() }
+    factory { PublishPluginBuildUseCase(get(), get(), get(), get(), get()) }
+    factory { GetActivePluginBuildUseCase(get(), get(), get(), get(), get()) }
     single<ComponentWebAdapterRepository> { ExposedComponentWebAdapterRepository() }
     single<DesignSystemComponentRepository> { ExposedDesignSystemComponentRepository() }
     single<ComponentDependencyRepository> { ExposedComponentDependencyRepository() }

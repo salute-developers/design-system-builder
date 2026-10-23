@@ -1,4 +1,10 @@
-export { getComposePreviewPluginUrl } from './config';
+export { getComposePreviewPluginOverride } from './config';
+export {
+    getComposePreviewPluginUrl,
+    resetComposePreviewPluginLocation,
+    resolveComposePreviewPluginUrl,
+} from './pluginLocation';
+export type { ComposePreviewPluginDescriptor, PluginDescriptorFetcher } from './pluginLocation';
 export { isComposePreviewEnvironmentSupported } from './environment';
 export { BASIC_BUTTON_PREVIEW_FIXTURE, createBasicButtonPreviewPayload } from './basicButtonFixture';
 export { hasConfiguration, markComposeComponents, parseComponentRoute, toComponentRoute } from './composeComponents';

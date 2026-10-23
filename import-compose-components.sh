@@ -1,25 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-JS_COMPOSE_PROJECT_NAME="${DSBUILDER_JS_COMPOSE_PROJECT_NAME:-design-system-builder}"
 GATEWAY_URL="${GATEWAY_URL:-http://localhost:8080}"
-DESIGN_SYSTEM="base"
 META_FILE=""
 
 usage() {
   cat <<'USAGE'
 Usage:
-  ./import-compose-components.sh --from path/to/uikit-compose-api-meta.json [--design-system base]
+  ./import-compose-components.sh --from path/to/uikit-compose-api-meta.json
 
 Local dev helper for the stack started by ./setup-local.sh. It imports the Compose API meta into the
-shared component layer and links the imported Compose components to a design system, so the component
-editor lists them in the "Compose" group.
+shared component layer. It does not link components to a design system: that is done by
+`dsbuilder components push`, which creates the links and the component configurations together, so the
+component editor lists the components in the "Compose" group only after the push.
 
 Options:
   --from FILE            API meta of uikit-compose. It must come from the release the Compose
                          preview plugin is built from.
-  --design-system NAME   Design system to link the components to. Default: base.
   --gateway-url URL      Gateway URL. Env: GATEWAY_URL. Default: http://localhost:8080.
   --help                 Show this help.
 
@@ -38,10 +35,6 @@ while [[ $# -gt 0 ]]; do
       META_FILE="${2:-}"
       shift 2
       ;;
-    --design-system)
-      DESIGN_SYSTEM="${2:-}"
-      shift 2
-      ;;
     --gateway-url)
       GATEWAY_URL="${2:-}"
       shift 2
@@ -58,7 +51,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-for command_name in docker dsbuilder; do
+for command_name in dsbuilder; do
   command -v "$command_name" >/dev/null 2>&1 || {
     echo "[compose-import] Required command '$command_name' not found" >&2
     exit 1
@@ -78,21 +71,4 @@ if ! dsbuilder components import-api --from "$META_FILE" --platform compose --ap
   exit 1
 fi
 
-log "Linking Compose components to the design system '$DESIGN_SYSTEM'"
-docker compose \
-  --project-name "$JS_COMPOSE_PROJECT_NAME" \
-  --project-directory "$ROOT_DIR/js" \
-  -f "$ROOT_DIR/js/docker-compose.dev.yml" \
-  exec -T postgres-registry psql -U postgres -d ds_registry -v ON_ERROR_STOP=1 -v ds="$DESIGN_SYSTEM" -qAt <<'SQL'
-WITH target AS (
-  SELECT id FROM design_systems WHERE name = :'ds'
-), linked AS (
-  INSERT INTO design_system_components (design_system_id, component_id)
-  SELECT target.id, c.id FROM target, components c WHERE c.platform = 'compose'
-  ON CONFLICT (design_system_id, component_id) DO NOTHING
-  RETURNING 1
-)
-SELECT 'linked ' || (SELECT count(*) FROM linked) || ' new Compose component(s); design system found: ' || (SELECT count(*) FROM target);
-SQL
-
-log "Done. Open the component editor with VITE_COMPOSE_PREVIEW_PLUGIN_URL set to see the Compose group."
+log "Done. Link the components and add their configurations with `dsbuilder components push --platform compose --apply`."

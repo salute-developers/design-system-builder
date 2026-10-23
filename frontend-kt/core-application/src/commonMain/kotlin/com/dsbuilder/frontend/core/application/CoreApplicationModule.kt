@@ -43,6 +43,7 @@ public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
             apiKeyResolver = get<ApiKeyResolver>(),
             credentialStore = get<CredentialStore>(),
             tokenClient = get<TokenClient>(),
+            environment = get<EnvironmentReader>(),
         )
     }
 }

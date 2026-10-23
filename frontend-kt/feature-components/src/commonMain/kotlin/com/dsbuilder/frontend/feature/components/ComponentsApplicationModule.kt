@@ -18,6 +18,9 @@ import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseC
 import com.dsbuilder.frontend.feature.components.application.GenerateComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaUseCase
 import com.dsbuilder.frontend.feature.components.application.LocalComponentPackageWriter
+import com.dsbuilder.frontend.feature.components.application.PreviewPluginArchiveSource
+import com.dsbuilder.frontend.feature.components.application.PreviewPluginRemoteSource
+import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
 import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.WebAdapterFileSource
 import com.dsbuilder.frontend.feature.components.application.WebAdapterFileWriter
@@ -25,10 +28,12 @@ import com.dsbuilder.frontend.feature.components.data.DefaultComponentPackageLoa
 import com.dsbuilder.frontend.feature.components.data.HttpApiMetaRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentReadRemoteSource
+import com.dsbuilder.frontend.feature.components.data.HttpPreviewPluginRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpWebAdapterFileSource
 import com.dsbuilder.frontend.feature.components.data.LocalApiMetaFileSource
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageFileWriter
+import com.dsbuilder.frontend.feature.components.data.LocalPreviewPluginArchiveSource
 import com.dsbuilder.frontend.feature.components.data.LocalWebAdapterFileWriter
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ComposeApiMetaNormalizer
@@ -111,6 +116,17 @@ private fun Module.apiMetaBindings() {
                 TargetPlatform.SWIFT_UI to get<SwiftUiApiMetaNormalizer>(),
                 TargetPlatform.REACT to get<WebApiMetaNormalizer>(),
             ),
+        )
+    }
+    single<PreviewPluginArchiveSource> { LocalPreviewPluginArchiveSource(get<WorkspaceFileSystem>()) }
+    single<PreviewPluginRemoteSource> { HttpPreviewPluginRemoteSource(get<AuthenticatedHttpClientFactory>()) }
+    single {
+        PublishPreviewPluginUseCase(
+            credentialProvider = get<CredentialProvider>(),
+            apiUrlResolver = get<ApiUrlResolver>(),
+            archiveSource = get<PreviewPluginArchiveSource>(),
+            remoteSource = get<PreviewPluginRemoteSource>(),
+            normalizer = get<ComposeApiMetaNormalizer>(),
         )
     }
 }

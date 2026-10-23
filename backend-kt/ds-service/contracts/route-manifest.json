@@ -453,6 +453,16 @@
         ["POST", "/component-config/export", "ExportComponentConfigRequest", "ComponentConfigPackage", 200, "components:read", null],
         ["POST", "/component-config/web-adapter", "ComponentWebAdapterRequest", "ComponentWebAdapter", 200, "components:read", null]
       ]
+    },
+    {
+      "name": "compose-preview",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "global-read-system-admin-write",
+      "operations": [
+        ["GET", "/compose-preview/plugin", null, "ActivePluginBuild", 200, "components:read", null]
+      ]
     }
   ]
 }

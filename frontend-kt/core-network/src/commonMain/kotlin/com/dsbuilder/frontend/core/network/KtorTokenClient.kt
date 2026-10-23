@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.core.network
 
+import com.dsbuilder.frontend.core.auth.AccessTokenResponse
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.TokenClient
@@ -46,6 +47,7 @@ public class KtorTokenClient(
                 append("password", password)
                 append("scope", "openid")
             },
+            decode = ::decodeToken,
         )
     }
 
@@ -57,7 +59,30 @@ public class KtorTokenClient(
                 append("client_id", PUBLIC_CLIENT_ID)
                 append("refresh_token", refreshToken)
             },
+            decode = ::decodeToken,
         )
+
+    override suspend fun clientCredentials(
+        apiUrl: String,
+        clientId: String,
+        clientSecret: String,
+    ): AuthResult<AccessTokenResponse> {
+        if (!allowsPasswordAuth(apiUrl)) {
+            return AuthResult.Failed(
+                AuthErrorCode.INVALID_AUTH_URL,
+                "Error: service account login requires HTTPS, except localhost and 127.0.0.1.",
+            )
+        }
+        return requestToken(
+            apiUrl = apiUrl,
+            parameters = Parameters.build {
+                append("grant_type", "client_credentials")
+                append("client_id", clientId)
+                append("client_secret", clientSecret)
+            },
+            decode = ::decodeAccessToken,
+        )
+    }
 
     @Suppress("TooGenericExceptionCaught")
     override suspend fun logout(apiUrl: String, refreshToken: String): AuthResult<Unit> =
@@ -85,14 +110,15 @@ public class KtorTokenClient(
         }
 
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun requestToken(
+    private suspend fun <T> requestToken(
         apiUrl: String,
         parameters: Parameters,
-    ): AuthResult<TokenResponse> =
+        decode: (String) -> AuthResult<T>,
+    ): AuthResult<T> =
         try {
             val response = httpClient.submitForm(endpoint(apiUrl, "/auth/token"), parameters)
             when {
-                response.status.isSuccess() -> decodeToken(response.bodyAsText())
+                response.status.isSuccess() -> decode(response.bodyAsText())
                 response.status == HttpStatusCode.BadRequest -> decodeTokenError(response.bodyAsText())
                 response.status == HttpStatusCode.Unauthorized -> AuthResult.Failed(
                     AuthErrorCode.AUTH_REQUIRED,
@@ -127,7 +153,17 @@ public class KtorTokenClient(
             AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: cannot parse token response.")
         }
 
-    private fun decodeTokenError(body: String): AuthResult<TokenResponse> =
+    private fun decodeAccessToken(body: String): AuthResult<AccessTokenResponse> =
+        try {
+            val response: GatewayAccessTokenResponse = json.decodeFromString(body)
+            AuthResult.Success(AccessTokenResponse(response.accessToken))
+        } catch (exception: SerializationException) {
+            AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: cannot parse token response.")
+        } catch (exception: IllegalArgumentException) {
+            AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: cannot parse token response.")
+        }
+
+    private fun decodeTokenError(body: String): AuthResult<Nothing> =
         try {
             val response: GatewayErrorResponse = json.decodeFromString(body)
             if (response.error == "invalid_grant") {
@@ -162,6 +198,12 @@ private data class GatewayTokenResponse(
     val expiresIn: Long,
     @SerialName("refresh_expires_in")
     val refreshExpiresIn: Long? = null,
+)
+
+@Serializable
+private data class GatewayAccessTokenResponse(
+    @SerialName("access_token")
+    val accessToken: String,
 )
 
 @Serializable

@@ -43,6 +43,16 @@ export const webParamsByProperty = (params: PropertyPlatformParamDto[]) => {
     return byProperty;
 };
 
+/** Compose-параметры свойства: их имена в `composeParameters` нужны сборке payload Compose-превью. */
+export const composeParamsByProperty = (params: PropertyPlatformParamDto[]) => {
+    const byProperty = new Map<string, string[]>();
+    for (const param of params) {
+        if (param.platform !== 'compose') continue;
+        byProperty.set(param.propertyId, [...(byProperty.get(param.propertyId) ?? []), param.name]);
+    }
+    return byProperty;
+};
+
 /** Имена вариаций, в панелях которых показывается свойство. */
 export const variationNamesByProperty = (
     links: PropertyVariationDto[],

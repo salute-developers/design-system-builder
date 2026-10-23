@@ -112,6 +112,10 @@ public interface AuthenticatedHttpClient {
 
     /** Выполняет multipart POST с project API key. */
     public suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
+        postMultipart(path, listOf(file))
+
+    /** Выполняет multipart POST с несколькими частями; параметры запроса задаются в [path]. */
+    public suspend fun postMultipart(path: String, files: List<MultipartFile>): AuthenticatedHttpResponse =
         error("Multipart POST is not supported by this client.")
 }
 
@@ -137,6 +141,7 @@ public interface AuthenticatedHttpClientFactory {
         when (credential) {
             is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
             is BackendCredential.Bearer -> error("Bearer credentials are not supported by this client.")
+            is BackendCredential.ServiceToken -> error("Service tokens are not supported by this client.")
         }
 }
 
@@ -164,26 +169,31 @@ public class KtorAuthenticatedHttpClient(
             }
         }
 
-    override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
+    override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
+        postMultipart(path, listOf(file))
+
+    override suspend fun postMultipart(path: String, files: List<MultipartFile>): AuthenticatedHttpResponse {
         val response = httpClient.post(url(path)) {
             authorizationHeader()
             setBody(
                 MultiPartFormDataContent(
                     formData {
-                        append(
-                            file.partName,
-                            file.bytes,
-                            Headers.build {
-                                append(HttpHeaders.ContentType, file.contentType)
-                                append(
-                                    HttpHeaders.ContentDisposition,
-                                    ContentDisposition.File.withParameter(
-                                        ContentDisposition.Parameters.FileName,
-                                        file.fileName,
-                                    ).toString(),
-                                )
-                            },
-                        )
+                        files.forEach { file ->
+                            append(
+                                file.partName,
+                                file.bytes,
+                                Headers.build {
+                                    append(HttpHeaders.ContentType, file.contentType)
+                                    append(
+                                        HttpHeaders.ContentDisposition,
+                                        ContentDisposition.File.withParameter(
+                                            ContentDisposition.Parameters.FileName,
+                                            file.fileName,
+                                        ).toString(),
+                                    )
+                                },
+                            )
+                        }
                     },
                 ),
             )
@@ -283,6 +293,7 @@ public class KtorAuthenticatedHttpClient(
     private fun io.ktor.client.request.HttpRequestBuilder.authorizationHeader() {
         val value = when (credential) {
             is BackendCredential.Bearer -> "Bearer ${credential.accessToken}"
+            is BackendCredential.ServiceToken -> "Bearer ${credential.accessToken}"
             is BackendCredential.ProjectKey -> "ProjectKey ${credential.value}"
         }
         header(HttpHeaders.Authorization, value)

@@ -162,6 +162,16 @@ GitHub Actions summary сохраняет commit и digest каждого усп
 - bootstrap admin и PostgreSQL-настройки Keycloak;
 - `PROJECTS_DATABASE_URL`, credentials и `PROJECTS_INTERNAL_API_KEY`;
 - PostgreSQL URL для `ds-service` и `documentation-service`;
-- S3 credentials для Kotlin `documentation-service`.
+- S3 credentials для Kotlin `documentation-service`;
+- публикация Compose preview plugin: `DS_PLUGIN_S3_*` и `DS_PLUGIN_PUBLIC_BASE_URL` у `ds-service` (пусто: публикация отвечает `503`, адрес плагина `404`), `PREVIEW_PUBLISHER_CLIENT_SECRET` для служебной учётки CI. Адрес плагина строится как `DS_PLUGIN_PUBLIC_BASE_URL/builds/<buildId>/` и префикс `DS_PLUGIN_S3_PREFIX` сам не добавляет: при заданном префиксе `DS_PLUGIN_PUBLIC_BASE_URL` должен указывать на этот префикс (файлы лежат в `<prefix>/builds/<buildId>/`), иначе адрес вернёт `404`.
 
 `KEYCLOAK_ISSUER` должен совпадать с публичным issuer URL. Внутренние адреса сервисов уже заданы через compose service-name DNS. Не включайте для stack опцию Coolify `Connect to Predefined Network`, иначе одинаковые service names разных environments окажутся в общей сети и начнут конфликтовать. Реальные `.env`, GHCR PAT, Coolify tokens и webhook URLs не должны попадать в git или логи.
+
+## Служебная учётка публикации Compose preview plugin
+
+CI репозитория `plasma-android` публикует плагин служебной учёткой Keycloak `dsbuilder-preview-publisher` (`client_credentials`) с единственной ролью `compose_preview_publisher`. Учётка принимается только маршрутом `POST /api/admin/compose-preview/plugin-builds`: импорт API-меты остаётся за системным администратором, а проектные маршруты требуют членства в проекте.
+
+- **Выдача.** Задайте `PREVIEW_PUBLISHER_CLIENT_SECRET` (по умолчанию имя клиента `dsbuilder-preview-publisher`, `PREVIEW_PUBLISHER_CLIENT_ID`) и перезапустите bootstrap Keycloak: он создаёт роль, клиент, audience mapper и назначает роль service account. Без секрета клиент не создаётся.
+- **Передача.** Секрет и адрес API окружения передаются команде `plasma-android` как секреты репозитория `DSB_CLIENT_ID_<ENV>`, `DSB_CLIENT_SECRET_<ENV>`, `DSB_API_URL_<ENV>`. Не отправляйте секрет в чатах и не коммитьте.
+- **Ротация и отзыв.** Смените `PREVIEW_PUBLISHER_CLIENT_SECRET` и перезапустите bootstrap (секрет клиента обновляется); для немедленного отзыва отключите клиент в Keycloak. Токены короткоживущие и не сохраняются на диск.
+- **Хранилище плагина.** Ключ записи `DS_PLUGIN_S3_ACCESS_KEY` должен быть ограничен префиксом `DS_PLUGIN_S3_PREFIX`; префикс не должен быть вложен в префикс клиента, иначе выкладка клиента с `--delete-removed` удалит файлы плагина. На префиксе нужны публичное чтение и CORS для origin клиента.

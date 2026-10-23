@@ -11,7 +11,9 @@ services:
       VITE_CLIENT_ID: dsbuilder-api
       # Источник палитры темы: api (ds-service, по умолчанию) или local (браузер, без сервера)
       VITE_PALETTE_SOURCE: api
-      VITE_COMPOSE_PREVIEW_PLUGIN_URL: ${VITE_COMPOSE_PREVIEW_PLUGIN_URL:-http://localhost:8081/}
+      # Empty by default: the client asks the backend for the active plugin build (published by publish-compose-plugin.sh).
+      # A direct address overrides it, for example the dev server of the plugin at http://localhost:8081/.
+      VITE_COMPOSE_PREVIEW_PLUGIN_URL: ${VITE_COMPOSE_PREVIEW_PLUGIN_URL:-}
       VITE_COMPONENT_EDITOR_ENABLED: ${VITE_COMPONENT_EDITOR_ENABLED:-true}
     ports:
       - "3002:5173"

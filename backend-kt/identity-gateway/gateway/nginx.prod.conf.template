@@ -94,6 +94,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -121,6 +122,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -144,6 +146,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -163,6 +166,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -190,6 +194,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -209,6 +214,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -237,6 +243,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -269,11 +276,42 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             rewrite ^/api/admin/component-config/import-api-meta$ /api/ds/admin/component-config/import-api-meta break;
+            proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;
+        }
+
+        # Публикация Compose preview plugin: архив и нормализованная мета одним multipart-запросом. Принимается только
+        # токен пользователя (ключ проекта получает 401); роль публикации или системного администратора проверяет ds-service.
+        location = /api/admin/compose-preview/plugin-builds {
+            client_max_body_size 64m;
+            proxy_read_timeout 120s;
+            proxy_send_timeout 120s;
+
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_user;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+            auth_request_set $trusted_compose_preview_publisher $upstream_http_x_compose_preview_publisher;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id "global";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher $trusted_compose_preview_publisher;
+
+            proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/admin/compose-preview/plugin-builds$ /api/ds/admin/compose-preview/plugin-builds break;
             proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;
         }
 
@@ -303,6 +341,7 @@ http {
             proxy_set_header X-Project-Key-Id $trusted_project_key_id;
             proxy_set_header X-Project-Scopes $trusted_project_scopes;
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -337,6 +376,7 @@ http {
             proxy_set_header X-Project-Key-Id $trusted_project_key_id;
             proxy_set_header X-Project-Scopes $trusted_project_scopes;
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
             proxy_set_header X-Request-Id $request_id;
             proxy_set_header Host ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -367,6 +407,7 @@ http {
             proxy_set_header X-Project-Key-Id $trusted_project_key_id;
             proxy_set_header X-Project-Scopes $trusted_project_scopes;
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -386,6 +427,9 @@ http {
 
         location = /_auth_user {
             internal;
+            # Подзапрос проверяет размер тела по своему location, хотя тело не передаёт: без своего лимита (общий 2m)
+            # большие загрузки (архив плагина) получают 413 до проверки прав.
+            client_max_body_size 64m;
             proxy_pass_request_body off;
             proxy_set_header Content-Length "";
             proxy_set_header Authorization $http_authorization;

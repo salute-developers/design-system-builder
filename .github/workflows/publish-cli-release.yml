@@ -1,0 +1,42 @@
+name: Publish CLI release
+
+# JVM-дистрибутив CLI для CI других репозиториев (например, публикация Compose preview plugin из plasma-android).
+# Релиз создаётся по тегу `cli-vX.Y.Z`, файл `dsbuilder-cli-jvm.zip` прикладывается к нему.
+on:
+  push:
+    tags:
+      - 'cli-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag of the release, for example cli-v0.1.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  jvm-distribution:
+    name: JVM distribution
+    runs-on: macos-14
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :cli:packageJvmCli
+        working-directory: frontend-kt
+      - name: Publish the release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" \
+            --title "DS Builder CLI ${RELEASE_TAG#cli-v}" \
+            --notes "JVM distribution of the dsbuilder CLI (Java 17): unpack and run bin/dsbuilder."
+          gh release upload "$RELEASE_TAG" frontend-kt/cli/build/distributions/dsbuilder-cli-jvm.zip --clobber

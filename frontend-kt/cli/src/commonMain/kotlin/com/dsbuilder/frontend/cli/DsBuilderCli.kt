@@ -8,6 +8,7 @@ import com.dsbuilder.frontend.cli.feature.docs.di.docsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.ds.di.dsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.init.di.initCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.mcp.di.mcpCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.previewplugin.di.previewPluginCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.status.di.statusCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.theme.di.themeCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.toolchain.di.toolchainCliPresentationModule
@@ -62,6 +63,9 @@ public class DsBuilderCli(
      * @return результат обработки вызова.
      */
     public fun execute(args: List<String>): CliResult {
+        rejectSecretArgument(args)?.let { message ->
+            return CliResult(exitCode = 1, output = message)
+        }
         rejectPasswordArgument(args)?.let { message ->
             return CliResult(exitCode = 1, output = message)
         }
@@ -75,6 +79,10 @@ public class DsBuilderCli(
      * This path is used by installed entrypoints so Clikt prompts can read real stdin.
      */
     public fun executeInteractive(args: List<String>): Int {
+        rejectSecretArgument(args)?.let { message ->
+            println(message)
+            return 1
+        }
         rejectPasswordArgument(args)?.let { message ->
             println(message)
             return 1
@@ -105,6 +113,7 @@ public class DsBuilderCli(
                 themeCliPresentationModule(),
                 componentsApplicationModule(),
                 componentsCliPresentationModule(),
+                previewPluginCliPresentationModule(),
                 dsApplicationModule(),
                 dsCliPresentationModule(),
                 toolchainApplicationModule(),
@@ -147,6 +156,14 @@ public class DsBuilderCli(
             )
         }.koin.get()
 }
+
+/** Секрет служебной учётки передаётся только через окружение: аргумент попал бы в историю оболочки и в логи. */
+private fun rejectSecretArgument(args: List<String>): String? =
+    if (args.any { it == "--client-secret" || it.startsWith("--client-secret=") }) {
+        "Error: the client secret must be passed through DSBUILDER_CLIENT_SECRET and cannot be a command-line argument."
+    } else {
+        null
+    }
 
 private fun rejectPasswordArgument(args: List<String>): String? {
     val loginIndex = args.indexOfFirst { it == "login" }
