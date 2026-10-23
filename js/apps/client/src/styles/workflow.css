@@ -1293,9 +1293,15 @@ button:disabled {
     transform-origin: 18px 18px;
     animation: editor-autosave-spin 0.8s linear infinite;
 }
-@keyframes editor-autosave-spin { to { transform: rotate(360deg); } }
+@keyframes editor-autosave-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
 @media (prefers-reduced-motion: reduce) {
-    .editor-autosave-status.is-saving .editor-autosave-progress { animation: none; }
+    .editor-autosave-status.is-saving .editor-autosave-progress {
+        animation: none;
+    }
 }
 .editor-autosave-tooltip {
     padding: 8px 10px;
@@ -1304,7 +1310,10 @@ button:disabled {
     background: var(--builder-panel, #212327);
     color: var(--p-text, #f3f3f3);
     box-shadow: 0 4px 16px #0006;
-    font: 400 12px/16px Inter, system-ui, sans-serif;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
     white-space: pre-line;
     pointer-events: none;
 }
@@ -1437,10 +1446,12 @@ button:disabled {
     background: transparent;
 }
 .builder-icon-sidebar[data-testid='editor-rail'] .builder-rail-icon {
-    filter: brightness(0) saturate(100%) invert(84%) sepia(6%) saturate(359%) hue-rotate(177deg) brightness(93%) contrast(88%);
+    filter: brightness(0) saturate(100%) invert(84%) sepia(6%) saturate(359%) hue-rotate(177deg) brightness(93%)
+        contrast(88%);
 }
 .builder-icon-sidebar[data-testid='editor-rail'] .builder-rail-button.is-active .builder-rail-icon {
-    filter: brightness(0) saturate(100%) invert(84%) sepia(6%) saturate(359%) hue-rotate(177deg) brightness(93%) contrast(88%);
+    filter: brightness(0) saturate(100%) invert(84%) sepia(6%) saturate(359%) hue-rotate(177deg) brightness(93%)
+        contrast(88%);
 }
 .builder-icon-sidebar .builder-rail-logo {
     background: #2b8ced;
@@ -2048,6 +2059,12 @@ button:disabled {
     height: 100%;
     opacity: 0;
     cursor: pointer;
+}
+.create-design-system-file.is-disabled {
+    opacity: 0.5;
+}
+.create-design-system-file input:disabled {
+    cursor: default;
 }
 .create-design-system-file > span:not(.create-design-system-file-action) {
     min-width: 0;
@@ -4019,7 +4036,10 @@ button:disabled {
     border-radius: 6px;
     background: var(--p-bg);
     color: var(--p-text);
-    font: 400 12px/16px Inter, system-ui, sans-serif;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
 }
 .editor-version-error button {
     margin-top: 8px;

@@ -1,5 +1,5 @@
 import type { ChangeEvent, FormEvent } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../../api';
 import { choose } from '../../components/rendering';
@@ -30,20 +30,29 @@ export const ImportDesignSystemForm = ({
     const [name, setName] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [reading, setReading] = useState(false);
     const [result, setResult] = useState<ImportedDesignSystem | null>(null);
+    // Номер последнего выбора — страховка к блокировке поля: результат прежнего чтения не должен подменить новый.
+    const latestRead = useRef(0);
 
     const chooseFile = async (event: ChangeEvent<HTMLInputElement>) => {
         const selected = event.target.files?.[0];
+        const read = ++latestRead.current;
         setFile(null);
         setError('');
         setFileName(selected?.name ?? '');
         if (!selected) return;
+        setReading(true);
         try {
             const themeFile = await readThemeFile(selected);
+            if (read !== latestRead.current) return;
             setFile(themeFile);
             setName(themeFile.meta.name);
         } catch {
+            if (read !== latestRead.current) return;
             setError('Не удалось прочитать файл: нужен .zip сборки темы или .json данных темы.');
+        } finally {
+            if (read === latestRead.current) setReading(false);
         }
     };
 
@@ -95,16 +104,24 @@ export const ImportDesignSystemForm = ({
             </header>
             <label className="create-design-system-field">
                 <span>Файл темы</span>
-                <span className="create-design-system-file">
+                <span
+                    className={choose(
+                        reading || busy,
+                        'create-design-system-file',
+                        'create-design-system-file is-disabled',
+                    )}
+                >
                     <input
                         type="file"
                         name="themeFile"
                         accept=".zip,.json,application/json,application/zip"
                         onChange={(event) => void chooseFile(event)}
+                        // Пока файл читается, второй выбор не даём: чтение zip заметно дольше чтения json.
+                        disabled={reading || busy}
                         aria-label="Файл темы"
                     />
                     <span className={choose(Boolean(fileName), 'is-placeholder', '')}>
-                        {fileName || 'Файл .zip или .json'}
+                        {choose(reading, fileName || 'Файл .zip или .json', `Читаем ${fileName}…`)}
                     </span>
                     <span className="create-design-system-file-action" aria-hidden="true">
                         Выбрать
@@ -130,7 +147,7 @@ export const ImportDesignSystemForm = ({
                 <Link className="secondary" to={`/projects/${projectId}`}>
                     Отмена
                 </Link>
-                <button type="submit" className="primary" disabled={busy || !file || !name.trim()}>
+                <button type="submit" className="primary" disabled={busy || reading || !file || !name.trim()}>
                     {choose(busy, 'Импортировать', 'Импортируем…')}
                 </button>
             </footer>
