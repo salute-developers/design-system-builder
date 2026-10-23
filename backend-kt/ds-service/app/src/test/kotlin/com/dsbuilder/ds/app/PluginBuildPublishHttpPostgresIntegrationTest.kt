@@ -69,6 +69,9 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.ServiceUnavailable, publish(archive(), Actor.PUBLISHER, dryRun = false).status)
         assertEquals(0, count("compose_preview_plugin_builds"))
         assertEquals(0, count("components"))
+        // The state of an environment without the plugin storage: no address, so the client shows no Compose preview.
+        assertEquals(HttpStatusCode.NotFound, active(Actor.USER).status)
+        assertEquals(HttpStatusCode.NotFound, active(Actor.ADMIN).status)
     }
 
     @Test
