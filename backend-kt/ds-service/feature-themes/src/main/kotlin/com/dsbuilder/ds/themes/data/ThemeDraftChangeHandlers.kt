@@ -65,6 +65,7 @@ private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCan
             row[ThemeTokenValueCreationBaselinesTable.tokenValueId] to InitialTokenValue(
                 row[ThemeTokenValueCreationBaselinesTable.paletteId],
                 row[ThemeTokenValueCreationBaselinesTable.value],
+                row[ThemeTokenValueCreationBaselinesTable.overridden],
             )
         }
     }
@@ -86,9 +87,10 @@ private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCan
             current + mapOf(
                 "palette_id" to baseline.paletteId.json(),
                 "value" to (baseline.value ?: JsonNull),
+                "overridden" to JsonPrimitive(baseline.overridden),
             ),
         )
-        val changedPaths = setOf("palette_id", "value")
+        val changedPaths = setOf("palette_id", "value", "overridden")
             .filterTo(linkedSetOf()) { field -> previous[field] != current[field] }
             .mapTo(linkedSetOf()) { field -> "/$field" }
         candidate.takeIf { changedPaths.isNotEmpty() }?.copy(
@@ -99,7 +101,7 @@ private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCan
 
 private fun UUID?.json(): JsonElement = this?.let { JsonPrimitive(it.toString()) } ?: JsonNull
 
-private data class InitialTokenValue(val paletteId: UUID?, val value: JsonElement?)
+private data class InitialTokenValue(val paletteId: UUID?, val value: JsonElement?, val overridden: Boolean)
 
 private fun themeDraftChangeHandler(): DraftChangeHandler {
     val delegate = ExposedDraftChangeHandler(

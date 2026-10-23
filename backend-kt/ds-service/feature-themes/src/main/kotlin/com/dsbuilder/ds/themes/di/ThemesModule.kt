@@ -35,6 +35,13 @@ import com.dsbuilder.ds.themes.application.palette.TenantPaletteMutator
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteUseCases
 import com.dsbuilder.ds.themes.application.palette.UpdateTenantPaletteStepUseCase
+import com.dsbuilder.ds.themes.application.sizetokens.CreateSizeTokenUseCase
+import com.dsbuilder.ds.themes.application.sizetokens.DeleteSizeTokenUseCase
+import com.dsbuilder.ds.themes.application.sizetokens.GetSizeTokensUseCase
+import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenRepository
+import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUsageRepository
+import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUseCases
+import com.dsbuilder.ds.themes.application.sizetokens.UpdateSizeTokenValueUseCase
 import com.dsbuilder.ds.themes.application.tokengroups.CreateTokenGroupUseCase
 import com.dsbuilder.ds.themes.application.tokengroups.DeleteTokenGroupUseCase
 import com.dsbuilder.ds.themes.application.tokengroups.ListTokenGroupsUseCase
@@ -42,6 +49,8 @@ import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupUseCases
 import com.dsbuilder.ds.themes.application.tokengroups.UpdateTokenGroupUseCase
 import com.dsbuilder.ds.themes.data.ExposedColorTokenRepository
+import com.dsbuilder.ds.themes.data.ExposedSizeTokenRepository
+import com.dsbuilder.ds.themes.data.ExposedSizeTokenUsageRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantPaletteRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantRepository
 import com.dsbuilder.ds.themes.data.ExposedTokenGroupRepository
@@ -112,4 +121,11 @@ val themesModule = module {
     factory { UpdateTokenGroupUseCase(get(), get(), get(), get()) }
     factory { DeleteTokenGroupUseCase(get(), get(), get(), get()) }
     factory { TokenGroupUseCases(get(), get(), get(), get()) }
+    single<SizeTokenRepository> { ExposedSizeTokenRepository(getAll()) }
+    single<SizeTokenUsageRepository> { ExposedSizeTokenUsageRepository() }
+    factory { GetSizeTokensUseCase(get(), get(), get(), get(), get()) }
+    factory { UpdateSizeTokenValueUseCase(get(), get(), get(), get(), get()) }
+    factory { CreateSizeTokenUseCase(get(), get(), get(), get(), get(), get()) }
+    factory { DeleteSizeTokenUseCase(get(), get(), get()) }
+    factory { SizeTokenUseCases(get(), get(), get(), get()) }
 }

@@ -460,6 +460,11 @@ class ExposedTenantRepository : TenantRepository {
         baseRevision = null,
     )
 
+    /**
+     * Общая запись значений не знает о своём значении платформы: признак `overridden` берётся из последней редакции
+     * значения, а не сбрасывается в `false`.
+     */
+    @Suppress("LongParameterList")
     private fun writeTokenValueRevision(
         entityId: UUID,
         designSystemId: UUID,
@@ -470,6 +475,7 @@ class ExposedTenantRepository : TenantRepository {
         baseRevision: Long?,
     ) {
         val draft = themeDraft(designSystemId) ?: error("Active draft is missing")
+        val overridden = latestThemeValueOverridden(entityId)
         ThemeTokenValueRevisionsTable.deleteWhere {
             (ThemeTokenValueRevisionsTable.tokenValueId eq entityId) and
                 (ThemeTokenValueRevisionsTable.designSystemVersionId eq draft[ThemeVersionBoundariesTable.id])
@@ -482,6 +488,7 @@ class ExposedTenantRepository : TenantRepository {
                 it[versionSequenceNumber] = draft[ThemeVersionBoundariesTable.sequenceNumber]
                 it[ThemeTokenValueRevisionsTable.paletteId] = paletteId
                 it[ThemeTokenValueRevisionsTable.value] = value
+                it[ThemeTokenValueRevisionsTable.overridden] = overridden
                 it[ThemeTokenValueRevisionsTable.deleted] = deleted
             }
         }

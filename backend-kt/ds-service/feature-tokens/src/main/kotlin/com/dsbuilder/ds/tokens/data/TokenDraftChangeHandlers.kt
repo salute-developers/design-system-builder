@@ -53,7 +53,11 @@ private fun tokenValueDraftChangeHandler(): DraftChangeHandler {
             TokenValuesTable.platform,
             TokenValuesTable.mode,
         ),
-        revisionValueColumns = listOf(TokenValueRevisionsTable.paletteId, TokenValueRevisionsTable.value),
+        revisionValueColumns = listOf(
+            TokenValueRevisionsTable.paletteId,
+            TokenValueRevisionsTable.value,
+            TokenValueRevisionsTable.overridden,
+        ),
     )
     return object : DraftChangeHandler by delegate {
         override fun revertFields(
@@ -83,7 +87,7 @@ private fun tokenValueDraftChangeHandler(): DraftChangeHandler {
                         (TokenValueRevisionsTable.designSystemVersionId eq versionId) and
                             (TokenValueRevisionsTable.tokenValueId eq entityId)
                     }
-                    SubjectMutationPaths.with(setOf("/palette_id", "/value")) {
+                    SubjectMutationPaths.with(setOf("/palette_id", "/value", "/overridden")) {
                         TokenValueRevisionsTable.insert {
                             it[tokenValueId] = entityId
                             it[designSystemId] = current[TokenValueRevisionsTable.designSystemId]
@@ -91,6 +95,7 @@ private fun tokenValueDraftChangeHandler(): DraftChangeHandler {
                             it[versionSequenceNumber] = current[TokenValueRevisionsTable.versionSequenceNumber]
                             it[paletteId] = baseline[TokenValueCreationBaselinesTable.paletteId]
                             it[value] = baseline[TokenValueCreationBaselinesTable.value]
+                            it[overridden] = baseline[TokenValueCreationBaselinesTable.overridden]
                             it[deleted] = false
                         }
                     }

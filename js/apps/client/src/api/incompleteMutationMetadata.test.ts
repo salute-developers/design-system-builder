@@ -16,9 +16,11 @@ describe('incomplete mutation metadata', () => {
         expect(refresh).toHaveBeenLastCalledWith('theme-tokens');
         report('/api/projects/p1/ds/appearances');
         expect(refresh).toHaveBeenLastCalledWith('all');
+        report('/api/projects/p1/ds/tenants/t1/size-tokens/token-1/value');
+        expect(refresh).toHaveBeenLastCalledWith('theme-tokens');
         cancel();
         report('/api/projects/p1/ds/tenants/t1/palette');
-        expect(refresh).toHaveBeenCalledTimes(2);
+        expect(refresh).toHaveBeenCalledTimes(3);
     });
 
     it('does not change an open historical version', () => {

@@ -54,6 +54,36 @@ class OpenApiDocumentResourceTest {
         assertEquals("1", members.getValue("values").jsonObject.getValue("minItems").jsonPrimitive.content)
     }
 
+    /** Токены размеров: чтение на границе версии, предметные мутации с метаданными и без `editRevision`. */
+    @Test
+    fun `size token operations document version reads and subject mutations`() {
+        val base = "/api/ds/tenants/{tenantId}/size-tokens"
+        val operations = mapOf(
+            "get" to paths.getValue(base),
+            "post" to paths.getValue(base),
+            "put" to paths.getValue("$base/{tokenId}/value"),
+            "delete" to paths.getValue("$base/{tokenId}"),
+        ).mapValues { (method, item) -> item.jsonObject.getValue(method).jsonObject }
+        fun refs(method: String) = operations.getValue(method).getValue("parameters").jsonArray.mapNotNull {
+            it.jsonObject["\$ref"]?.jsonPrimitive?.content
+        }
+        assertTrue("#/components/parameters/VersionId" in refs("get"))
+        listOf("post", "put", "delete").forEach { method ->
+            assertTrue("#/components/parameters/OptionalBaseRevision" in refs(method), method)
+            val responses = operations.getValue(method).getValue("responses").jsonObject
+            val success = responses.getValue(if (method == "post") "201" else "200").jsonObject
+            assertTrue("X-DS-Mutation-Metadata" in success.getValue("headers").jsonObject, method)
+            assertTrue("X-DS-Mutation-Metadata-Truncated" in success.getValue("headers").jsonObject, method)
+            assertFalse("409" in responses && method != "post", method)
+        }
+        assertTrue("#/components/parameters/OptionalIdempotencyKey" in refs("post"))
+        val schemas = document.getValue("components").jsonObject.getValue("schemas").jsonObject
+        listOf("SizeTokens", "UpdateSizeTokenValueRequest", "SizeTokenUpdated", "CreateSizeTokenRequest").forEach {
+            assertFalse("editRevision" in schemas.getValue(it).jsonObject.getValue("properties").jsonObject, it)
+        }
+        assertTrue("colorRef" in schemas.getValue("SizeShadowLayer").jsonObject.getValue("properties").jsonObject)
+    }
+
     /** Отмена параметра расширяет существующий маршрут, не меняя смысл пустого запроса. */
     @Test
     fun `revert accepts optional parameter paths without adding a route`() {
@@ -100,7 +130,7 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        assertEquals(179, operationCount) // Добавлено read-only чтение сводки журнала.
+        assertEquals(183, operationCount) // Добавлены сводка журнала и 4 операции токенов размеров.
         assertTrue("/api/ds/design-systems/{id}/changes/summary" in paths)
         assertTrue("/api/ds/design-systems" in paths)
         assertTrue("/api/ds/component-config/import" in paths)

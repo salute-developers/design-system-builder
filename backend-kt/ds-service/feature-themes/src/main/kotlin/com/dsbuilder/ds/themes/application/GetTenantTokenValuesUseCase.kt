@@ -11,8 +11,11 @@ import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
 import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
-import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
+import com.dsbuilder.ds.themes.domain.palette.ShadowLayerColors
+import com.dsbuilder.ds.themes.domain.palette.ThemePalette
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
+import com.dsbuilder.ds.themes.domain.sizetokens.SizePlatformValues
+import kotlinx.serialization.json.Json
 import java.util.UUID
 
 /** Reads token values only for an accessible theme, with colors resolved by the theme palette. */
@@ -26,6 +29,7 @@ class GetTenantTokenValuesUseCase(
      * Читает значения токенов темы: ссылки цветовых значений заменяются HEX по палитре темы и группе токена без
      * `paletteId`, а исходная ссылка возвращается в `paletteRef`. Ссылка, которую палитра темы не раскрывает,
      * остаётся как есть. Ревью PR #101: раскрытие по общей палитре давало неверные цвета, поэтому другого режима нет.
+     * Ссылки цветов слоёв тени заменяются `#RRGGBBAA` на своём месте, исходное значение — в `sourceValue`.
      */
     suspend fun execute(
         context: DsRequestContext,
@@ -35,7 +39,7 @@ class GetTenantTokenValuesUseCase(
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
             is DsResult.Success -> transactions.readOnly(context) {
-                val needsPalette = types.isEmpty() || ThemeTokenType.COLOR in types || ThemeTokenType.GRADIENT in types
+                val needsPalette = types.isEmpty() || types.any { it in PALETTE_TYPES }
                 val snapshot = if (needsPalette) {
                     paletteRepository.snapshot(context.projectId, id)?.takeIf { it.hasSystemGroups() }
                 } else {
@@ -64,10 +68,16 @@ class GetTenantTokenValuesUseCase(
         snapshot: TenantPaletteSnapshot,
         values: List<TenantTokenValue>,
     ): List<TenantTokenValue> {
-        val palette = ThemePaletteBuilder.build(id.toString(), false, snapshot.state, snapshot.tokens, snapshot.values)
+        val palette = snapshot.palette(id.toString(), false)
         val tokenNames = snapshot.tokens.associate { it.id to it.name }
         val colorValues = snapshot.values.filter { it.valueId != null }.associateBy { it.valueId }
+        val layerTokenNames = snapshot.layerTokens.associate { it.id to it.name }
+        val layerValues = snapshot.layerValues.mapNotNull { it.valueId }.toSet()
         return values.map { value ->
+            if (value.id.toString() in layerValues) {
+                val tokenName = layerTokenNames[value.tokenId?.toString()]
+                return@map tokenName?.let { resolvedLayers(value, palette, it) } ?: value
+            }
             val colorValue = colorValues[value.id.toString()]
             val reference = colorValue?.reference
             val tokenName = colorValue?.let { tokenNames[it.tokenId] }
@@ -79,5 +89,23 @@ class GetTenantTokenValuesUseCase(
                 value.copy(paletteId = null, valueJson = "[\"$hex\"]", paletteRef = reference?.format())
             }
         }
+    }
+
+    /** Значение тени с цветами слоёв, раскрытыми по палитре темы; нераскрываемая ссылка остаётся как есть. */
+    private fun resolvedLayers(value: TenantTokenValue, palette: ThemePalette, tokenName: String): TenantTokenValue {
+        val source = value.valueJson?.let(Json::parseToJsonElement) ?: return value
+        val resolved = ShadowLayerColors.mapReferences(source) { reference ->
+            ThemePaletteResolver.resolve(palette, tokenName, reference)?.let(SizePlatformValues::normalizedColor)
+        }
+        return if (resolved == source) {
+            value
+        } else {
+            value.copy(valueJson = resolved.toString(), sourceValue = value.valueJson)
+        }
+    }
+
+    private companion object {
+        /** Типы, значения которых ссылаются на палитру темы: цвета, стопы градиентов и цвета слоёв теней. */
+        val PALETTE_TYPES = setOf(ThemeTokenType.COLOR, ThemeTokenType.GRADIENT, ThemeTokenType.SHADOW)
     }
 }
