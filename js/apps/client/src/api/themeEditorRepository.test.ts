@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { pluginUrl, get, put, post, patch, remove } = vi.hoisted(() => ({
+const { pluginUrl, platformParams, get, put, post, patch, remove } = vi.hoisted(() => ({
     pluginUrl: { value: undefined as string | undefined },
+    platformParams: { value: false },
     get: vi.fn(),
     put: vi.fn(),
     post: vi.fn(),
@@ -19,9 +20,10 @@ vi.mock('./http', () => ({ http: { get, put, post, patch, delete: remove } }));
 // его интервалы, отмена, объединение и повторы проверяются отдельно в editorReads.test.ts.
 vi.mock('./editorReads', () => ({
     readEditor: (url: string, request: unknown, body?: unknown) =>
-        // Дополнения модели компонентов (web-параметры, вариации свойств, шаблоны, связи) — пустые списки.
+        // Дополнения модели компонентов (web-параметры, вариации свойств, шаблоны, связи) — пустые списки; параметры
+        // платформ тест может подменить сам: `property-platform-params` читается и для Compose.
         ['/property-platform-params', '/property-variations', '/component-config/web-adapter', '/component-deps'].some(
-            (suffix) => url.endsWith(suffix),
+            (suffix) => url.endsWith(suffix) && !(suffix === '/property-platform-params' && platformParams.value),
         )
             ? Promise.resolve({ data: [] })
             : body === undefined
@@ -97,6 +99,7 @@ const reply = (tenantId: string, color: string) => (url: string) => {
 
 beforeEach(() => {
     pluginUrl.value = undefined;
+    platformParams.value = false;
     get.mockReset();
     put.mockReset();
     post.mockReset();
@@ -445,6 +448,7 @@ describe('Editor repositories', () => {
     });
 
     it('maps Compose parameters of a property from property-platform-params', async () => {
+        platformParams.value = true;
         get.mockImplementation((url: string) => {
             if (url.endsWith('/design-system-components'))
                 return Promise.resolve({
