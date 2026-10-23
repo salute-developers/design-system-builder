@@ -15,7 +15,7 @@ import java.util.UUID
  * Роли осей appearance: корневая ось и ось цветовой схемы.
  *
  * Роль хранится ссылкой с appearance на ось, объявленную у него же. Флаг `is_color_scheme` на связи
- * остаётся для отката на `db-service` и всегда повторяет ссылку.
+ * сохранён ради существующей схемы и всегда повторяет ссылку.
  */
 internal object AppearanceAxisRoleStore {
     /** Роли одного appearance. */

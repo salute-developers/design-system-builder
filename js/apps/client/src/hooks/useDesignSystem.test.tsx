@@ -102,9 +102,7 @@ describe('согласованная загрузка целых раздело�
     it('первое чтение не застревает из-за цветовой очереди, оставшейся с ошибкой', async () => {
         setDraftAutosaveActivity(context, 'color-tokens', 'error');
         try {
-            const { result } = renderHook(() =>
-                useDesignSystem(context, undefined, undefined, true, { section: 'colors' }),
-            );
+            const { result } = renderHook(() => useDesignSystem(context, true, { section: 'colors' }));
             await act(async () => Promise.resolve());
             expect(result.current.sectionLoading).toBe(false);
             expect(loadTokenData).toHaveBeenCalledTimes(1);
@@ -128,7 +126,7 @@ describe('согласованная загрузка целых раздело�
             });
             Object.assign(paletteRepository, { source: 'local' });
             try {
-                const { result } = renderHook(() => useDesignSystem(context, undefined, undefined, true, { section }));
+                const { result } = renderHook(() => useDesignSystem(context, true, { section }));
                 await act(async () => Promise.resolve());
                 expect(result.current.palette).toBe(palette);
                 expect(getActivePalette()).toBe(palette);
@@ -150,7 +148,7 @@ describe('согласованная загрузка целых раздело�
     it('не пересоздаёт компонентный снимок по saved/cleanup уведомлениям эффекта автосохранения', async () => {
         let subscriptions = 0;
         const Probe = () => {
-            const state = useDesignSystem(context, undefined, undefined, true, { section: 'components' });
+            const state = useDesignSystem(context, true, { section: 'components' });
             useEffect(() => {
                 if (!state.designSystem) return;
                 subscriptions++;
@@ -172,8 +170,7 @@ describe('согласованная загрузка целых раздело�
     });
     it('подтверждение собственной записи инвалидирует кэш, но не читает скрытые разделы', async () => {
         const { rerender } = renderHook(
-            ({ section }: { section: EditorSection }) =>
-                useDesignSystem(context, undefined, undefined, true, { section }),
+            ({ section }: { section: EditorSection }) => useDesignSystem(context, true, { section }),
             { initialProps: { section: 'colors' as EditorSection } },
         );
         await act(async () => Promise.resolve());
@@ -196,9 +193,7 @@ describe('согласованная загрузка целых раздело�
                     release = resolve;
                 }),
         );
-        const { result } = renderHook(() =>
-            useDesignSystem(context, undefined, undefined, true, { section: 'colors' }),
-        );
+        const { result } = renderHook(() => useDesignSystem(context, true, { section: 'colors' }));
         await act(async () => Promise.resolve());
         await act(async () => {
             setDraftAutosaveActivity(context, 'color-tokens', 'saving');
@@ -213,7 +208,7 @@ describe('согласованная загрузка целых раздело�
     it('восстанавливает реальные скрытые правки с серверными идентификаторами при входе в настройки', async () => {
         setActiveDraftContext(context);
         updateDraftToken('System', '0.1.0', token);
-        renderHook(() => useDesignSystem(context, undefined, undefined, true, { section: 'settings' }));
+        renderHook(() => useDesignSystem(context, true, { section: 'settings' }));
         await act(async () => vi.advanceTimersByTimeAsync(400));
         expect(loadTokenData).toHaveBeenCalledWith(context, expect.any(AbortSignal), '0.1.0', ['color', 'gradient']);
         expect(saveTokenMutation).toHaveBeenCalledTimes(1);
@@ -221,8 +216,7 @@ describe('согласованная загрузка целых раздело�
     });
     it('открывает цвета без компонентов и меняет раздел без пересоздания сессии', async () => {
         const { result, rerender } = renderHook(
-            ({ section }: { section: EditorSection }) =>
-                useDesignSystem(context, undefined, undefined, true, { section }),
+            ({ section }: { section: EditorSection }) => useDesignSystem(context, true, { section }),
             { initialProps: { section: 'colors' as EditorSection } },
         );
         await act(async () => Promise.resolve());
@@ -245,8 +239,7 @@ describe('согласованная загрузка целых раздело�
 
     it('не читает скрытые цвета по SSE, но обновляет их при возвращении', async () => {
         const { rerender } = renderHook(
-            ({ section }: { section: EditorSection }) =>
-                useDesignSystem(context, undefined, undefined, true, { section }),
+            ({ section }: { section: EditorSection }) => useDesignSystem(context, true, { section }),
             { initialProps: { section: 'colors' as EditorSection } },
         );
         await act(async () => Promise.resolve());
@@ -262,7 +255,7 @@ describe('согласованная загрузка целых раздело�
     });
 
     it('ошибка независимой компонентной очереди не блокирует обновление цветов', async () => {
-        renderHook(() => useDesignSystem(context, undefined, undefined, true, { section: 'colors' }));
+        renderHook(() => useDesignSystem(context, true, { section: 'colors' }));
         await act(async () => Promise.resolve());
         loadTokenData.mockClear();
         await act(async () => {
@@ -275,8 +268,7 @@ describe('согласованная загрузка целых раздело�
 
     it('уход в настройки сохраняет очередь и серверную идентичность отложенной цветовой правки', async () => {
         const { rerender } = renderHook(
-            ({ section }: { section: EditorSection }) =>
-                useDesignSystem(context, undefined, undefined, true, { section }),
+            ({ section }: { section: EditorSection }) => useDesignSystem(context, true, { section }),
             { initialProps: { section: 'colors' as EditorSection } },
         );
         await act(async () => Promise.resolve());

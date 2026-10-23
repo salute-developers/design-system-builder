@@ -1,1 +1,0 @@
-ALTER TABLE "design_systems" ADD COLUMN "project_id" text;

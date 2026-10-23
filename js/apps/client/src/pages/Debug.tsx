@@ -1,19 +1,13 @@
 import { ChangeEvent, MouseEvent, useCallback, useState } from 'react';
 import { isAxiosError } from 'axios';
 import styled, { keyframes } from 'styled-components';
-import {
-    IconSave,
-    IconDownload,
-    IconDocumentImportOutline,
-    IconUploadOutline,
-    IconTrashOutline,
-} from '@salutejs/plasma-icons';
+import { IconSave, IconDocumentImportOutline, IconTrashOutline, IconUploadOutline } from '@salutejs/plasma-icons';
 
 import { BasicButton, LinkButton, Dialog, Switch, TextField } from '../components';
 import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
 import { importTokensToTheme, importDesignSystem, clearDraft } from '../utils';
-import { Parameters } from '../types';
-import { designSystemSave, downloadThemeData } from './Main.utils';
+import { importDesignSystemToProject } from '../api/designSystemImport';
+import { designSystemSave } from './Main.utils';
 
 const spin = keyframes`
     to { 
@@ -59,7 +53,6 @@ const Spinner = styled.div`
 
 interface ImportDialogData {
     defaultName: string;
-    parameters: Partial<Parameters>;
     themeData: ThemeSource;
 }
 
@@ -96,9 +89,6 @@ export const Debug = (props: DebugProps) => {
             },
         [],
     );
-
-    const onThemeDataDownload = async () =>
-        withDesignSystem((loadedDesignSystem) => downloadThemeData(loadedDesignSystem));
 
     const onClearDraftClick = (event: MouseEvent<HTMLDivElement>) => {
         event.stopPropagation();
@@ -184,10 +174,9 @@ export const Debug = (props: DebugProps) => {
 
         try {
             const content = file.name.endsWith('.json') ? await file.text() : await file.arrayBuffer();
+            const { name, themeData } = await importDesignSystem(content);
 
-            const { name, parameters, themeData } = await importDesignSystem(content);
-
-            setImportDialogData({ defaultName: name, parameters, themeData });
+            setImportDialogData({ defaultName: name, themeData });
             setCustomName(name);
             setIsDefaultName(true);
         } catch (error) {
@@ -196,29 +185,22 @@ export const Debug = (props: DebugProps) => {
     };
 
     const onImportConfirm = async () => {
-        if (!importDialogData) {
+        const projectId = designSystem?.getParameters()?.projectId;
+
+        if (!importDialogData || !projectId) {
+            console.error('Failed to import design system: project is unknown, open a theme first');
             return;
         }
 
-        const { defaultName, parameters, themeData } = importDialogData;
+        const { defaultName, themeData } = importDialogData;
         const name = isDefaultName ? defaultName : customName;
 
         setLoading(true);
 
         try {
-            await DesignSystem.create({
-                name,
-                version: '0.1.0',
-                parameters: {
-                    ...parameters,
-                    projectName: name.split('_').join(' ').toUpperCase(),
-                    packagesName: name,
-                    projectId: designSystem?.getParameters()?.projectId,
-                },
-                themeData,
-            });
+            const imported = await importDesignSystemToProject(projectId, name, themeData);
 
-            console.log('Design system imported successfully');
+            console.log('Design system imported successfully', imported);
         } catch (error) {
             console.error('Failed to import design system:', error);
         } finally {
@@ -249,11 +231,6 @@ export const Debug = (props: DebugProps) => {
                     text="Очистить черновик дизайн системы"
                     contentRight={<IconTrashOutline size="s" />}
                     onClick={onClearDraftClick}
-                />
-                <LinkButton
-                    text="Скачать тему"
-                    contentRight={<IconDownload size="s" />}
-                    onClick={withLoading(onThemeDataDownload)}
                 />
                 <LinkButton
                     text="Импортировать токены (PIXSO)"

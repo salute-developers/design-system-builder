@@ -9,12 +9,7 @@ import {
     type ThemeMeta,
 } from '../themeBuilder';
 import { Config, resolveStyleReference, type Meta } from '../componentBuilder';
-import {
-    kebabToCamel,
-    loadDesignSystem,
-    saveDesignSystem,
-    updateDesignSystem,
-} from '../../utils';
+import { kebabToCamel } from '../../utils';
 import { Parameters } from '../../types';
 
 interface DesignSystemProps {
@@ -46,48 +41,6 @@ export class DesignSystem {
 
         this.themeData = {} as ThemeSource;
         this.componentsData = [];
-    }
-
-    public static async create({
-        name,
-        version = '0.1.0',
-        parameters,
-        themeData: externalThemeData,
-    }: DesignSystemProps): Promise<DesignSystem> {
-        const instance = new DesignSystem({ name, version, parameters });
-
-        // TOD: Временно новая дизайн-система создаётся только с темой: компоненты из `base` в неё не копируются.
-        instance.themeData = externalThemeData ?? instance.generateThemeData(parameters);
-        instance.componentsData = [];
-
-        if (name && version) {
-            await saveDesignSystem({
-                name,
-                version,
-                parameters,
-                themeData: instance.themeData,
-                componentsData: instance.componentsData,
-            });
-        }
-
-        return instance;
-    }
-
-    public static async get({ name, version = '0.1.0', projectId = '' }: DesignSystemProps): Promise<DesignSystem> {
-        const instance = new DesignSystem({ name, version });
-        const data = await loadDesignSystem({ name, version, projectId });
-
-        if (!data) {
-            throw new Error('Дизайн-система не найдена');
-        }
-
-        const { themeData, componentsData, parameters } = data;
-
-        instance.themeData = themeData;
-        instance.componentsData = componentsData;
-        instance.parameters = { ...parameters, projectId }; // TODO: Забирать эти значения из бд
-
-        return instance;
     }
 
     public static fromSnapshot({
@@ -144,58 +97,6 @@ export class DesignSystem {
             meta: createMetaTokens(defaultTheme),
             variations: createVariationTokens(defaultTheme),
         };
-    }
-
-    // public async saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
-    //     this.themeData = data;
-
-    //     if (!this.name || !this.version) {
-    //         return;
-    //     }
-
-    //     return await saveDesignSystem({
-    //         name: this.name,
-    //         version: this.version,
-    //         parameters: this.parameters,
-    //         themeData: this.themeData,
-    //         componentsData: this.componentsData,
-    //     });
-    // }
-
-    // public async saveComponentsData(data: Meta[]) {
-    //     this.componentsData = data;
-
-    //     if (!this.name || !this.version) {
-    //         return;
-    //     }
-
-    //     return await saveDesignSystem({
-    //         name: this.name,
-    //         version: this.version,
-    //         parameters: this.parameters,
-    //         themeData: this.themeData,
-    //         componentsData: this.componentsData,
-    //     });
-    // }
-
-    public async updateDesignSystemData(
-        themeData: { meta: ThemeMeta; variations: PlatformsVariations },
-        componentsData: Meta[],
-    ) {
-        this.themeData = themeData;
-        this.componentsData = componentsData;
-
-        if (!this.name || !this.version) {
-            return;
-        }
-
-        return await updateDesignSystem({
-            name: this.name,
-            version: this.version,
-            parameters: this.parameters,
-            themeData: this.themeData,
-            componentsData: this.componentsData,
-        });
     }
 
     public getName() {

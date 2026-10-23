@@ -34,19 +34,19 @@ TBD - created by archiving change deploy-workflow. Update Purpose after archive.
 - **THEN** система MUST завершить workflow до публикации образов
 
 ### Requirement: Полный набор production-образов
-Workflow MUST собирать и публиковать образы `projects-service`, `auth-helper`, `documentation-service`, `ds-service`, `db-service`, `gateway`, `keycloak` и `keycloak-bootstrap` из соответствующих production Dockerfile репозитория. Образы `generator`, `publisher` и `documentation-generator` MUST NOT собираться и публиковаться.
+Workflow MUST собирать и публиковать образы `projects-service`, `auth-helper`, `documentation-service`, `ds-service`, `gateway`, `keycloak` и `keycloak-bootstrap` из соответствующих production Dockerfile репозитория. Образы `generator`, `publisher`, `documentation-generator` и `db-service` MUST NOT собираться и публиковаться.
 
 #### Scenario: Успешная сборка набора
-- **WHEN** все восемь production Dockerfile успешно собираются для выбранного commit
-- **THEN** registry MUST содержать все восемь образов с тегами, определёнными политикой выбранной ветки
+- **WHEN** все семь production Dockerfile успешно собираются для выбранного commit
+- **THEN** registry MUST содержать все семь образов с тегами, определёнными политикой выбранной ветки
 
 #### Scenario: Ошибка одного образа
-- **WHEN** сборка или push хотя бы одного из восьми образов завершается ошибкой
+- **WHEN** сборка или push хотя бы одного из семи образов завершается ошибкой
 - **THEN** workflow MUST завершиться неуспешно и MUST NOT вызывать Coolify deploy webhook
 
 #### Scenario: Удалённые сервисы не публикуются
 - **WHEN** workflow строит матрицу образов
-- **THEN** матрица MUST NOT содержать `generator`, `publisher` и `documentation-generator`
+- **THEN** матрица MUST NOT содержать `generator`, `publisher`, `documentation-generator` и `db-service`
 
 ### Requirement: Политика тегов dev
 При запуске из `dev` workflow MUST публиковать каждый образ с единственным перезаписываемым тегом `dev`.

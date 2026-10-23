@@ -101,9 +101,14 @@ const server = createServer(async (req, res) => {
             '/api/projects/project-1/ds/components',
             '/api/projects/project-1/ds/appearances',
             '/api/projects/project-1/ds/design-systems/ds-1/changes',
+            '/api/projects/project-1/ds/property-platform-params',
+            '/api/projects/project-1/ds/property-variations',
+            '/api/projects/project-1/ds/component-deps',
         ].includes(path)) return send(res, []);
         if (req.method === 'POST' && path === '/api/projects/project-1/ds/component-config/export')
             return send(res, { components: [] });
+        if (req.method === 'POST' && path === '/api/projects/project-1/ds/component-config/web-adapter')
+            return send(res, []);
         if (path === '/api/projects') return send(res, [project]);
         if (path === '/api/projects/project-1') return send(res, project);
         if (path.endsWith('/design-systems/ds-1/tenants')) return send(res, [theme]);
@@ -111,7 +116,6 @@ const server = createServer(async (req, res) => {
         if (path.endsWith('/design-systems/ds-1')) return send(res, designSystem);
         if (path.endsWith('/tenants/theme-1/token-values')) return send(res, tokenValues);
         if (path.endsWith('/tenants/theme-1')) return send(res, theme);
-        if (path.includes('/legacy/design-systems/Existing%20Design%20System/component-configs')) return send(res, []);
         res.statusCode = 404;
         return send(res, { error: `Unhandled fixture: ${req.method} ${path}` });
     }

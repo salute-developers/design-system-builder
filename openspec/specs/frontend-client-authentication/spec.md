@@ -153,7 +153,7 @@ policy без удаления session при транспортных ошиб�
 
 ### Requirement: User session для всех авторизованных CLI операций
 
-Каждая CLI-команда, выполняющая project-scoped backend request, SHALL поддерживать выбранный Bearer user credential наряду с project key и SHALL передавать ответ backend об отказе без смены actor. Проверка project role на `db-service` `component-config/import` остаётся отдельным backend gap, описанным в `backend-audit.md`.
+Каждая CLI-команда, выполняющая project-scoped backend request, SHALL поддерживать выбранный Bearer user credential наряду с project key и SHALL передавать ответ backend об отказе без смены actor.md`.
 
 #### Scenario: Публикация с user session
 
@@ -195,3 +195,4 @@ policy без удаления session при транспортных ошиб�
 - **WHEN** клиент использует Authorization Code + PKCE как способ авторизации
 - **THEN** клиент MUST NOT запрашивать логин или пароль в собственном UI
 - **THEN** ввод учётных данных происходит только в системном браузере пользователя
+

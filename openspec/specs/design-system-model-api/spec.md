@@ -178,14 +178,13 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 
 ### Requirement: Исключённые маршруты не входят в Kotlin-сервис
 
-`ds-service` MUST NOT реализовывать маршруты `documentation-pages`, `saved-queries`, `/legacy/**` и `/api/admin/**`, а также операции генерации артефактов. Единственное административное исключение — импорт API-меты в глобальный слой компонентов, он выполняется в `ds-service` под внутренним путём `/api/ds/admin/component-config/import-api-meta`.
+`ds-service` MUST NOT реализовывать маршруты `documentation-pages`, `saved-queries`, `/legacy/**`, а также операции генерации артефактов. Единственный административный маршрут продукта — импорт API-меты в глобальный слой компонентов, он выполняется в `ds-service` под внутренним путём `/api/ds/admin/component-config/import-api-meta`; других маршрутов `/api/admin/**` в продукте нет.
 
 | Исключённая область | Маршруты, от которых отказывается `ds-service` |
 |---|---|
 | Документация | `GET /documentation-pages`, `GET /documentation-pages/{id}`, `GET /documentation-pages/by-design-system/{designSystemId}`, `POST /documentation-pages`, `PATCH /documentation-pages/{id}`, `DELETE /documentation-pages/{id}` |
 | Сохранённые запросы | `GET /saved-queries`, `GET /saved-queries/{id}`, `POST /saved-queries`, `PATCH /saved-queries/{id}`, `DELETE /saved-queries/{id}`, `GET /saved-queries/{id}/run` |
-| Legacy | `GET /legacy/design-systems/{name}/component-configs`, `GET /legacy/design-systems/{name}/theme-data`, `GET /legacy/design-systems/{name}/tenant-params`, `POST /legacy/design-systems/create`, `POST /legacy/design-systems/{name}/update`, `GET /legacy/design-systems/{name}/download-theme` |
-| Администрирование | `GET /api/admin/tables`, `GET /api/admin/tables/{name}`, `GET /api/admin/queries`, `GET /api/admin/queries/{id}`, `POST /api/admin/nl-query`, `GET /api/admin/schema` |
+| Legacy (удалены вместе с db-service) | `GET /legacy/design-systems/{name}/component-configs`, `GET /legacy/design-systems/{name}/theme-data`, `GET /legacy/design-systems/{name}/tenant-params`, `POST /legacy/design-systems/create`, `POST /legacy/design-systems/{name}/update`, `GET /legacy/design-systems/{name}/download-theme` |
 
 Отдельных смонтированных маршрутов генерации в текущем предметном router нет; `download-theme` считается legacy-операцией и исключён явно.
 
@@ -197,34 +196,28 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 
 #### Scenario: Совместное существование с db-service
 
-- **WHEN** исключённый маршрут временно требуется существующему потребителю
-- **THEN** Gateway MAY сохранить более специфичную маршрутизацию этого пути в `db-service`
+- **WHEN** исключённый маршрут требуется существующему потребителю
+- **THEN** Gateway MUST ответить `404`: upstream db-service удалён, более специфичной маршрутизации исключённых путей нет
 - **AND** это MUST NOT добавлять исключённый маршрут в контракт `ds-service`
 
-### Requirement: Gateway compatibility routing для исключённых API
+#### Scenario: Административные маршруты db-service удалены
 
-Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/api/projects/{projectId}/ds/saved-queries/**` в `db-service` с существующим project-scoped trusted context. Gateway MUST направлять `/api/admin/**` в `db-service` с существующей user-authentication семантикой, кроме точного маршрута `POST /api/admin/component-config/import-api-meta`: его Gateway MUST направлять в `ds-service` (user-authentication, служебный проект `global`). `documentation-pages` MUST NOT получать fallback внутри `/ds/**`, поскольку принадлежит `documentation-service`.
-
-#### Scenario: Сохранённый запрос остаётся доступен во время миграции
-
-- **WHEN** авторизованный principal вызывает `/api/projects/{projectId}/ds/saved-queries`
-- **THEN** Gateway проксирует запрос в `db-service`
-- **AND** `ds-service` не обрабатывает этот маршрут
+- **WHEN** клиент вызывает `GET /api/admin/tables`, `GET /api/admin/queries`, `GET /api/admin/schema` или любой путь `/api/projects/{projectId}/ds/legacy/**` через Gateway
+- **THEN** Gateway MUST ответить `404` и MUST NOT содержать для них upstream
 
 ### Requirement: Совместимость перенесённого API
 
-Каждый перенесённый маршрут SHALL сохранять наблюдаемый контракт текущего `db-service`: имена и обязательность path/query/body полей, форму JSON, семантику `null` и отсутствующих полей, коды успешных ответов, предметные ошибки, порядок элементов там, где он стабилен, и транзакционные границы.
+Каждый перенесённый маршрут SHALL сохранять наблюдаемый контракт прежнего `db-service`, зафиксированный в OpenAPI `ds-service`: имена и обязательность path/query/body полей, форму JSON, семантику `null` и отсутствующих полей, коды успешных ответов, предметные ошибки, порядок элементов там, где он стабилен, и транзакционные границы.
 
 #### Scenario: Сравнение чтения двух реализаций
 
-- **WHEN** `db-service` и `ds-service` получают один запрос чтения на эквивалентных данных
-- **THEN** статусы и JSON-ответы MUST совпасть после нормализации только документированных недетерминированных значений
+- **WHEN** `ds-service` получает запрос чтения перенесённого маршрута
+- **THEN** статус и JSON-ответ MUST соответствовать OpenAPI `ds-service`; второй реализации для сравнения нет
 
 #### Scenario: Сравнение мутации двух реализаций
 
-- **WHEN** одинаковая допустимая мутация выполняется в отдельных эквивалентных базах
-- **THEN** обе реализации MUST вернуть совместимые ответы
-- **AND** итоговое состояние предметных таблиц MUST быть эквивалентным
+- **WHEN** допустимая мутация выполняется в `ds-service`
+- **THEN** ответ и итоговое состояние предметных таблиц MUST соответствовать документированным транзакционным границам
 
 #### Scenario: Версия в текущем component-config
 
@@ -250,14 +243,14 @@ Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/
 
 ### Requirement: Совместимый контракт профилей и preview тем
 
-`ds-service` SHALL воспроизводить актуальный контракт `db-service` из `feature/projects-workflow`: `POST /tenants` принимает `profile` (`sber`, `malachite`, `b2b` или `custom`) и для `custom` обязательный `customPalette`; ответы `Tenant` содержат `editRevision` и `preview`; список тем и агрегаты дизайн-систем SHALL возвращать вычисленные preview без раскрытия внутренних данных токенов.
+`ds-service` SHALL сохранять контракт тем, унаследованный от прежнего `db-service`: `POST /tenants` принимает `profile` (`sber`, `malachite`, `b2b` или `custom`) и для `custom` обязательный `customPalette`; ответы `Tenant` содержат `editRevision` и `preview`; список тем и агрегаты дизайн-систем SHALL возвращать вычисленные preview без раскрытия внутренних данных токенов.
 
 #### Scenario: Создание темы с профилем
 
 - **WHEN** principal с `tenants:write` создаёт тему доступной дизайн-системы с валидным профилем
 - **THEN** `ds-service` MUST нормализовать имя и создать тему с `editRevision = 0`
 - **AND** MUST создать начальные значения токенов в той же транзакционной границе
-- **AND** ответ MUST быть совместим с DTO `Tenant` текущего `db-service`
+- **AND** ответ MUST соответствовать DTO `Tenant` из OpenAPI `ds-service`
 
 #### Scenario: Дублирующее имя темы
 
@@ -398,7 +391,7 @@ Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/
 
 - **GIVEN** одна и та же база с конфигурациями компонентов, шаблонами web-параметров и compose-связями
 - **WHEN** клиент с permission `components:read` запрашивает web-адаптер доступной дизайн-системы у `ds-service`
-- **THEN** сервис MUST вернуть `200` и массив с теми же записями, полями и значениями, что возвращает `db-service`
+- **THEN** сервис MUST вернуть `200` и массив с записями по контракту `Web adapter endpoint`
 - **AND** `componentName` MUST быть именем компонента в написании `meta.json`, а `name` — именем из базы
 
 #### Scenario: Шаблоны собираются по стилям
