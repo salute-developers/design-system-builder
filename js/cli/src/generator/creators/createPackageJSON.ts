@@ -105,6 +105,7 @@ export const createPackageJSON = ({
             },
             scripts: {
                 prepare: 'npm run build',
+                postpack: 'git check-ignore -q . 2>/dev/null; test $? = 1 && git clean -fdX -e "!*.tgz" . || true',
                 prebuild: 'rm -rf ./components ./es ./tokens ./theme ./css ./index.*',
                 'prebuild:css': 'rm -rf src-css && ./scripts/copy-linaria-components.sh',
                 build: buildSteps.join(' && '),
