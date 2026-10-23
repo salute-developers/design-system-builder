@@ -10,7 +10,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 /** Заполняет новую дизайн-систему компонентными конфигурациями из ресурса ds-service. */
@@ -235,34 +234,31 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
         }
         writer.revision(DesignSystemComponentRevisionsTable, DesignSystemComponentRevisionsTable.entityId, linkId)
 
+        check(seed.variations.map { it.name }.distinct().size == seed.variations.size) {
+            "Component seed '${seed.name}' declares variations with duplicate names"
+        }
         val variations = seed.variations.associate { variation ->
-            val existing = VariationsTable.selectAll().where {
-                (VariationsTable.componentId eq componentId) and (VariationsTable.name eq variation.name)
-            }.singleOrNull()
-            val id = existing?.get(VariationsTable.id) ?: VariationsTable.insertReturning {
-                it[VariationsTable.componentId] = componentId
-                it[name] = variation.name
-                it[description] = variation.description.orEmpty()
-            }.single()[VariationsTable.id]
-            if (existing != null) {
-                VariationsTable.update({ VariationsTable.id eq id }) {
-                    it[description] = variation.description.orEmpty()
-                }
+            val id = writer.stable(StableVariationsTable, StableVariationsTable.id, StableVariationsTable.createdAt) {
+                it[StableVariationsTable.designSystemId] = designSystemId
+                it[StableVariationsTable.componentId] = componentId
+            }
+            writer.revision(VariationRevisionsTable, VariationRevisionsTable.entityId, id) { statement ->
+                statement[name] = variation.name
+                statement[description] = variation.description.orEmpty()
             }
             variation.name to id
         }
-        seed.propertyVariations.forEach { binding ->
-            val propertyId = context.property(seed.name, binding.property)
-            val variationId = variations.getValue(binding.variation)
-            if (!PropertyVariationsTable.selectAll().where {
-                    (PropertyVariationsTable.propertyId eq propertyId) and
-                        (PropertyVariationsTable.variationId eq variationId)
-                }.any()
+        seed.propertyVariations.map { binding ->
+            context.property(seed.name, binding.property) to variations.getValue(binding.variation)
+        }.distinct().forEach { (propertyId, variationId) ->
+            writer.stable(
+                StablePropertyVariationsTable,
+                StablePropertyVariationsTable.id,
+                StablePropertyVariationsTable.createdAt,
             ) {
-                PropertyVariationsTable.insertReturning {
-                    it[PropertyVariationsTable.propertyId] = propertyId
-                    it[PropertyVariationsTable.variationId] = variationId
-                }.single()
+                it[StablePropertyVariationsTable.propertyId] = propertyId
+                it[StablePropertyVariationsTable.variationId] = variationId
+                it[StablePropertyVariationsTable.designSystemId] = designSystemId
             }
         }
 

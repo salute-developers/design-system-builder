@@ -1,7 +1,7 @@
 {
   "project": {
     "lang": "javascript",
-    "loc": 4877,
+    "loc": 4880,
     "packages": 10,
     "modules": 51,
     "classes": 14,
@@ -30,7 +30,7 @@
     },
     "complexity": {
       "score": 886,
-      "density": 18.17,
+      "density": 18.16,
       "stat(modules)": {
         "avg": 17,
         "min": 1,

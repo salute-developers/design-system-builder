@@ -6,7 +6,6 @@ import com.dsbuilder.ds.components.domain.Appearance
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
@@ -98,13 +97,8 @@ internal object AppearanceEditorConfigurationOperations {
 
     /** Добавляет ось цветовой схемы `view` со значением `default`, переиспользуя вариацию и стиль каталога. */
     private fun addColorSchemeAxis(designSystemId: UUID, componentId: UUID, appearanceId: UUID) {
-        val variationId = VariationsTable.selectAll().where {
-            (VariationsTable.componentId eq componentId) and (VariationsTable.name.lowerCase() eq COLOR_SCHEME_AXIS)
-        }.singleOrNull()?.get(VariationsTable.id) ?: VariationsTable.insertReturning {
-            it[VariationsTable.componentId] = componentId
-            it[name] = COLOR_SCHEME_AXIS
-            it[description] = null
-        }.single()[VariationsTable.id]
+        val variationId =
+            VariationWrites.findOrCreate(designSystemId, componentId, COLOR_SCHEME_AXIS, ignoreCase = true)
         val styleId = ComponentStylesTable.selectAll().where {
             (ComponentStylesTable.designSystemId eq designSystemId) and
                 (ComponentStylesTable.variationId eq variationId) and

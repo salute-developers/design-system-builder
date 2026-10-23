@@ -3,6 +3,7 @@
 package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.components.application.ComponentModelRepository
+import com.dsbuilder.ds.components.application.EditorRuleViolationException
 import com.dsbuilder.ds.components.domain.ComponentPropertySummary
 import com.dsbuilder.ds.components.domain.ComponentStyleSummary
 import com.dsbuilder.ds.components.domain.ComponentVariationSummary
@@ -11,6 +12,7 @@ import com.dsbuilder.ds.components.domain.PropertyPlatformParam
 import com.dsbuilder.ds.components.domain.PropertyVariation
 import com.dsbuilder.ds.components.domain.VariationPlatformParamAdjustment
 import com.dsbuilder.ds.core.domain.ProjectId
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -25,10 +27,24 @@ import java.util.UUID
 /** Exposed persistence for variations, properties, platform params, links, and adjustments. */
 @Suppress("TooManyFunctions")
 class ExposedComponentModelRepository : ComponentModelRepository {
-    override suspend fun listVariations(projectId: ProjectId, systemAdmin: Boolean): List<ComponentVariationSummary> {
-        return VariationsTable.selectAll()
-            .where { ComponentOwnership.readableComponent(VariationsTable.componentId, projectId, systemAdmin) }
-            .map(::variationModel)
+    override suspend fun listVariations(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID?,
+    ): List<ComponentVariationSummary> = VariationsTable.selectAll().where {
+        ComponentOwnership.readableVariation(VariationsTable.id, projectId, systemAdmin) and
+            (designSystemId?.let { VariationsTable.designSystemId eq it } ?: Op.TRUE)
+    }.map(::variationModel)
+
+    override suspend fun variationNameExists(
+        designSystemId: UUID,
+        componentId: UUID,
+        normalizedName: String,
+        excludingId: UUID?,
+    ): Boolean = VariationsTable.selectAll().where {
+        (VariationsTable.designSystemId eq designSystemId) and (VariationsTable.componentId eq componentId)
+    }.any { row ->
+        row[VariationsTable.id] != excludingId && row[VariationsTable.name].trim().lowercase() == normalizedName
     }
 
     override suspend fun findVariation(
@@ -36,53 +52,130 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         systemAdmin: Boolean,
         id: UUID,
     ): ComponentVariationSummary? = VariationsTable.selectAll().where {
-        (VariationsTable.id eq id) and ComponentOwnership.readableComponent(
-            VariationsTable.componentId,
-            projectId,
-            systemAdmin,
-        )
+        (VariationsTable.id eq id) and ComponentOwnership.readableVariation(VariationsTable.id, projectId, systemAdmin)
     }.singleOrNull()?.let(::variationModel)
+
+    override suspend fun canWriteVariation(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean =
+        ComponentOwnership.canWriteVariation(projectId, systemAdmin, id)
+
+    override suspend fun canCreateVariation(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID,
+        componentId: UUID,
+    ): Boolean = ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, designSystemId) &&
+        DesignSystemComponentsTable.selectAll().where {
+            (DesignSystemComponentsTable.designSystemId eq designSystemId) and
+                (DesignSystemComponentsTable.componentId eq componentId)
+        }.any()
 
     override suspend fun createVariation(
         projectId: ProjectId,
         systemAdmin: Boolean,
         command: ComponentModelRepository.VariationCreate,
     ): ComponentVariationSummary? {
-        if (command.componentId !in ComponentOwnership.writableComponentIds(projectId, systemAdmin)) return null
-        return VariationsTable.insertReturning {
-            it[componentId] = command.componentId
-            it[name] = command.name
-            it[description] = command.description
-        }.single().let(::variationModel)
+        if (!canCreateVariation(projectId, systemAdmin, command.designSystemId, command.componentId)) return null
+        val id = VariationWrites.create(command.designSystemId, command.componentId, command.name, command.description)
+        return VariationsTable.selectAll().where { VariationsTable.id eq id }.single().let(::variationModel)
     }
 
+    @Suppress("ReturnCount")
     override suspend fun updateVariation(
         projectId: ProjectId,
         systemAdmin: Boolean,
         id: UUID,
         command: ComponentModelRepository.VariationUpdate,
     ): ComponentVariationSummary? {
-        return VariationsTable.updateReturning(where = {
-            (VariationsTable.id eq id) and ComponentOwnership.writableComponent(
-                VariationsTable.componentId,
-                projectId,
-                systemAdmin,
+        if (!lockComponentSubject(
+                StableVariationsTable,
+                StableVariationsTable.id,
+                StableVariationsTable.designSystemId,
+                "variation",
+                id,
             )
-        }) {
-            command.name?.let { value -> it[name] = value }
-            if (command.descriptionPresent) it[description] = command.description
-            it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::variationModel)
+        ) {
+            return null
+        }
+        val current = VariationsTable.selectAll().where {
+            (VariationsTable.id eq id) and
+                ComponentOwnership.writableVariation(VariationsTable.id, projectId, systemAdmin)
+        }.singleOrNull() ?: return null
+        val changedPaths = buildSet {
+            if (command.name != null) add("/name")
+            if (command.descriptionPresent) add("/description")
+        }
+        if (changedPaths.isEmpty()) return variationModel(current)
+        command.name?.let { checkRenameAgainstAppearances(id, it) }
+        VariationRevisionsTable.replaceRevision(
+            VariationRevisionsTable.entityId,
+            id,
+            current[VariationsTable.designSystemId],
+            changedPaths = changedPaths,
+        ) {
+            it[name] = command.name ?: current[VariationsTable.name]
+            it[description] =
+                if (command.descriptionPresent) command.description else current[VariationsTable.description]
+        }
+        return VariationsTable.selectAll().where { VariationsTable.id eq id }.single().let(::variationModel)
     }
 
-    override suspend fun deleteVariation(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean =
-        VariationsTable.deleteWhere {
-            (VariationsTable.id eq id) and ComponentOwnership.writableComponent(
-                VariationsTable.componentId,
-                projectId,
-                systemAdmin,
+    override suspend fun deleteVariation(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
+        if (!lockComponentSubject(
+                StableVariationsTable,
+                StableVariationsTable.id,
+                StableVariationsTable.designSystemId,
+                "variation",
+                id,
             )
-        } > 0
+        ) {
+            return false
+        }
+        val current = VariationsTable.selectAll().where {
+            (VariationsTable.id eq id) and
+                ComponentOwnership.writableVariation(VariationsTable.id, projectId, systemAdmin)
+        }.singleOrNull() ?: return false
+        if (variationInUse(id)) {
+            throw EditorRuleViolationException(
+                "variation_in_use",
+                "The variation is used by styles, appearance axes or reuse configurations",
+                conflict = true,
+            )
+        }
+        VariationRevisionsTable.replaceRevision(
+            VariationRevisionsTable.entityId,
+            id,
+            current[VariationsTable.designSystemId],
+            deleted = true,
+        ) {
+            it[name] = current[VariationsTable.name]
+            it[description] = current[VariationsTable.description]
+        }
+        return true
+    }
+
+    /** Новое имя оси не должно совпасть с действующим именем другой оси оформления, где ось не переименована. */
+    private fun checkRenameAgainstAppearances(id: UUID, newName: String) {
+        val target = newName.trim().lowercase()
+        AppearanceVariationsTable.selectAll().where { AppearanceVariationsTable.variationId eq id }.forEach { axis ->
+            if (axis[AppearanceVariationsTable.displayName] != null) return@forEach
+            val taken = AppearanceEditorRules.axisNames(
+                axis[AppearanceVariationsTable.appearanceId],
+                excluding = axis[AppearanceVariationsTable.id],
+            ).any { it == target }
+            if (taken) {
+                throw EditorRuleViolationException(
+                    "axis_name_taken",
+                    "The axis name is already used in an appearance of the design system",
+                    conflict = true,
+                )
+            }
+        }
+    }
+
+    private fun variationInUse(id: UUID): Boolean =
+        ComponentStylesTable.selectAll().where { ComponentStylesTable.variationId eq id }.any() ||
+            AppearanceVariationsTable.selectAll().where { AppearanceVariationsTable.variationId eq id }.any() ||
+            ComponentReuseConfigsTable.selectAll().where { ComponentReuseConfigsTable.variationId eq id }.any()
 
     override suspend fun variationStyles(
         projectId: ProjectId,
@@ -247,9 +340,12 @@ class ExposedComponentModelRepository : ComponentModelRepository {
     ): PropertyVariation? {
         if (!ComponentOwnership.canWriteProperty(projectId, systemAdmin, command.propertyId)) return null
         if (!ComponentOwnership.canWriteVariation(projectId, systemAdmin, command.variationId)) return null
+        val owner = StableVariationsTable.selectAll().where { StableVariationsTable.id eq command.variationId }
+            .single()[StableVariationsTable.designSystemId]
         return PropertyVariationsTable.insertReturning {
             it[propertyId] = command.propertyId
             it[variationId] = command.variationId
+            it[designSystemId] = owner
         }.single().let(::propertyVariation)
     }
 
@@ -582,6 +678,7 @@ private fun readableDesignSystemIds(projectId: ProjectId, systemAdmin: Boolean):
 private fun variationModel(row: ResultRow) = ComponentVariationSummary(
     row[VariationsTable.id],
     row[VariationsTable.componentId],
+    row[VariationsTable.designSystemId],
     row[VariationsTable.name],
     row[VariationsTable.description],
     row[VariationsTable.createdAt],

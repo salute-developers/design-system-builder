@@ -656,17 +656,6 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
 
     /** Связывает свойство с вариациями осей области в каталоге, как это делает импорт. */
     private fun linkProperty(propertyId: UUID, variationIds: List<UUID>) {
-        variationIds.forEach { variationId ->
-            val present = PropertyVariationsTable.selectAll().where {
-                (PropertyVariationsTable.propertyId eq propertyId) and
-                    (PropertyVariationsTable.variationId eq variationId)
-            }.any()
-            if (!present) {
-                PropertyVariationsTable.insertReturning {
-                    it[PropertyVariationsTable.propertyId] = propertyId
-                    it[PropertyVariationsTable.variationId] = variationId
-                }.single()
-            }
-        }
+        variationIds.forEach { variationId -> VariationWrites.linkProperty(propertyId, variationId) }
     }
 }
