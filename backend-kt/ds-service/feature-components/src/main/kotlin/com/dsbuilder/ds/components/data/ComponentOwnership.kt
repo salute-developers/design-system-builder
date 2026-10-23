@@ -31,12 +31,12 @@ internal object ComponentOwnership {
         c: Expression<UUID>,
         p: ProjectId,
         admin: Boolean,
-    ) = scope(admin, c, variations(readableComponents(p)))
+    ) = scope(admin, c, variations(readableDs(p), readableComponents(p)))
     fun writableVariation(
         c: Expression<UUID>,
         p: ProjectId,
         admin: Boolean,
-    ) = scope(admin, c, variations(writableComponentIds(p)))
+    ) = scope(admin, c, ownVariations(writableDs(p)))
     fun readableProperty(
         c: Expression<UUID>,
         p: ProjectId,
@@ -318,8 +318,16 @@ internal object ComponentOwnership {
         p: ProjectId,
     ) = writableComponents(p).adjustWhere { DesignSystemComponentsTable.componentId notInSubQuery foreignComponents(p) }
     private fun variations(
+        d: Query,
         c: Query,
-    ) = VariationsTable.select(VariationsTable.id).where { VariationsTable.componentId inSubQuery c }
+    ) = VariationsTable.select(VariationsTable.id).where {
+        (VariationsTable.designSystemId inSubQuery d) and (VariationsTable.componentId inSubQuery c)
+    }
+
+    /** Ось принадлежит одной дизайн-системе: право записи в систему не зависит от других систем компонента. */
+    private fun ownVariations(
+        d: Query,
+    ) = VariationsTable.select(VariationsTable.id).where { VariationsTable.designSystemId inSubQuery d }
     private fun properties(
         c: Query,
     ) = PropertiesTable.select(PropertiesTable.id).where { PropertiesTable.componentId inSubQuery c }
@@ -405,8 +413,8 @@ internal object ComponentOwnership {
     ) = InvariantPlatformParamAdjustmentsTable.select(InvariantPlatformParamAdjustmentsTable.id).where {
         (InvariantPlatformParamAdjustmentsTable.ipvId inSubQuery v) and (InvariantPlatformParamAdjustmentsTable.platformParamId inSubQuery p)
     }
-    private fun readableVariationIds(p: ProjectId) = variations(readableComponents(p))
-    private fun writableVariationIds(p: ProjectId) = variations(writableComponentIds(p))
+    private fun readableVariationIds(p: ProjectId) = variations(readableDs(p), readableComponents(p))
+    private fun writableVariationIds(p: ProjectId) = ownVariations(writableDs(p))
     private fun readablePropertyIds(p: ProjectId) = properties(readableComponents(p))
     private fun writablePropertyIds(p: ProjectId) = properties(writableComponentIds(p))
     private fun readableAppearanceIds(p: ProjectId) = appearances(readableDs(p), readableComponents(p))

@@ -126,7 +126,10 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         }.limit(1).any()
         if (!linked) return null
         val variationIds = AggregateVariationsTable.selectAll()
-            .where { AggregateVariationsTable.componentId eq componentId }
+            .where {
+                (AggregateVariationsTable.designSystemId eq designSystemId.value) and
+                    (AggregateVariationsTable.componentId eq componentId)
+            }
             .map { it[AggregateVariationsTable.id] }
         if (variationIds.isEmpty()) return emptyList()
         return AggregateStylesTable.join(

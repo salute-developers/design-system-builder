@@ -89,6 +89,27 @@ internal object StyleRevisionsTable : ComponentRevisionTable("style_revisions") 
     val description = text("description").nullable()
 }
 
+internal object StableVariationsTable : Table("variations") {
+    val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
+    val componentId = uuid("component_id")
+    val createdAt = timestamp("created_at")
+}
+
+internal object StablePropertyVariationsTable : Table("property_variations") {
+    val id = uuid("id")
+    val propertyId = uuid("property_id")
+    val variationId = uuid("variation_id")
+    val designSystemId = uuid("design_system_id")
+    val createdAt = timestamp("created_at")
+}
+
+internal object VariationRevisionsTable : ComponentRevisionTable("variation_revisions") {
+    val entityId = uuid("variation_id")
+    val name = text("name")
+    val description = text("description").nullable()
+}
+
 internal object StableComponentReuseConfigsTable : Table("component_reuse_configs") {
     val id = uuid("id")
     val componentDepId = uuid("component_dep_id")

@@ -145,8 +145,8 @@ val componentModelModule = module {
     factory { DuplicateAppearanceConfigurationUseCase(get(), get(), get(), get(), get()) }
     factory { ListVariationsUseCase(get(), get(), get()) }
     factory { GetVariationUseCase(get(), get(), get()) }
-    factory { CreateVariationUseCase(get(), get(), get(), get()) }
-    factory { UpdateVariationUseCase(get(), get(), get()) }
+    factory { CreateVariationUseCase(get(), get(), get(), get(), get()) }
+    factory { UpdateVariationUseCase(get(), get(), get(), get()) }
     factory { DeleteVariationUseCase(get(), get(), get()) }
     factory { ListVariationStylesUseCase(get(), get(), get()) }
     factory { ListVariationPropertiesUseCase(get(), get(), get()) }

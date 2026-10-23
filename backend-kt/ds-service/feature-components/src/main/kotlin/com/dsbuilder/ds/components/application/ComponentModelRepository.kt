@@ -14,7 +14,30 @@ import java.util.UUID
 @Suppress("TooManyFunctions")
 interface ComponentModelRepository {
     /** Performs the list variations operation. */
-    suspend fun listVariations(projectId: ProjectId, systemAdmin: Boolean): List<ComponentVariationSummary>
+    suspend fun listVariations(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID? = null,
+    ): List<ComponentVariationSummary>
+
+    /** Tells whether the caller may change the axis. */
+    suspend fun canWriteVariation(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean
+
+    /** Tells whether the caller may create an axis of the component in the writable design system. */
+    suspend fun canCreateVariation(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID,
+        componentId: UUID,
+    ): Boolean
+
+    /** Tells whether a variation of the component already has the name in the design system. */
+    suspend fun variationNameExists(
+        designSystemId: UUID,
+        componentId: UUID,
+        normalizedName: String,
+        excludingId: UUID? = null,
+    ): Boolean
 
     /** Performs the find variation operation. */
     suspend fun findVariation(projectId: ProjectId, systemAdmin: Boolean, id: UUID): ComponentVariationSummary?
@@ -175,6 +198,8 @@ interface ComponentModelRepository {
 
     /** Public model for variation create. */
     data class VariationCreate(
+        /** Design system that will own the variation axis. */
+        val designSystemId: UUID,
         /** Component id carried by this contract. */
         val componentId: UUID,
         /** Name carried by this contract. */

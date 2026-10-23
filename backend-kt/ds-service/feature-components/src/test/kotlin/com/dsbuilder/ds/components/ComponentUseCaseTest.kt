@@ -104,6 +104,7 @@ private class RecordingComponentRepository : ComponentRepository {
         projectId: ProjectId,
         systemAdmin: Boolean,
         id: UUID,
+        designSystemId: UUID?,
     ): List<ComponentVariationSummary>? = null
 
     override suspend fun properties(

@@ -10,6 +10,8 @@ data class ComponentVariationSummaryResponse(
     val id: String,
     /** Component id carried by this contract. */
     val componentId: String,
+    /** Design system that owns the variation axis. */
+    val designSystemId: String,
     /** Name carried by this contract. */
     val name: String,
     /** Description carried by this contract. */
@@ -24,6 +26,7 @@ data class ComponentVariationSummaryResponse(
         fun from(value: ComponentVariationSummary) = ComponentVariationSummaryResponse(
             value.id.toString(),
             value.componentId.toString(),
+            value.designSystemId.toString(),
             value.name,
             value.description,
             value.createdAt.toString(),
