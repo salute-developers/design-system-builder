@@ -20,8 +20,28 @@ const readFile = (file: File, asText: boolean) =>
         else reader.readAsArrayBuffer(file);
     });
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** `variations[тип][платформа][имя]`: тип и платформа — объекты, значения проверяет сборка пакета значений. */
+const isVariations = (value: unknown): value is ThemeFile['variations'] =>
+    isRecord(value) &&
+    Object.values(value).every((platforms) => isRecord(platforms) && Object.values(platforms).every(isRecord));
+
+/**
+ * Проверяет структуру файла до импорта: некорректный файл должен дать ошибку чтения, а не упасть посреди импорта
+ * после создания дизайн-системы и темы.
+ */
 export const toThemeFile = (source: ThemeFile): ThemeFile => {
-    if (!source?.meta || !Array.isArray(source.meta.tokens)) throw new Error('INVALID_THEME_FILE');
+    if (!isRecord(source) || !isRecord(source.meta) || !Array.isArray(source.meta.tokens))
+        throw new Error('INVALID_THEME_FILE');
+    if (
+        !source.meta.tokens.every(
+            (token) => isRecord(token) && typeof token.type === 'string' && typeof token.name === 'string',
+        )
+    )
+        throw new Error('INVALID_THEME_FILE');
+    if (source.variations !== undefined && !isVariations(source.variations)) throw new Error('INVALID_THEME_FILE');
     return {
         meta: {
             name: String(source.meta.name ?? ''),

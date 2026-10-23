@@ -154,6 +154,17 @@ describe('design system import and export', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('Файл темы не прошёл проверку');
         expect(remove).toHaveBeenCalledWith('project-1', 'ds-new');
     });
+    it('rejects a file with broken variations before any request', { timeout: 20_000 }, async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
+        const create = vi.spyOn(designSystemsData, 'create');
+        renderAt('/projects/project-1/design-systems/new?mode=import');
+
+        await upload(JSON.stringify({ ...themeFile, variations: { color: null } }));
+        expect(await screen.findByRole('alert', {}, PARSE_TIMEOUT)).toHaveTextContent('Не удалось прочитать файл');
+        expect(screen.getByRole('button', { name: 'Импортировать' })).toBeDisabled();
+        expect(create).not.toHaveBeenCalled();
+    });
+
     it('keeps maintainers on the plain create form even with the import mode in the address', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
         renderAt('/projects/project-1/design-systems/new?mode=import');
