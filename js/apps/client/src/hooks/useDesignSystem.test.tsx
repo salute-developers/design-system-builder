@@ -959,6 +959,48 @@ describe('useDesignSystem server autosave', () => {
         expect(localStorage.getItem(getDraftKey('System', '0.1.0', context))).toBeNull();
     });
 
+    it('computes the definition patch of a queued change against the definition confirmed by the previous save', async () => {
+        load.mockResolvedValueOnce({
+            ...(await load()),
+            tokenDefinitionsByName: {
+                accent: {
+                    id: 'token-1',
+                    designSystemId: 'ds-1',
+                    name: 'accent',
+                    type: 'color',
+                    displayName: 'Accent',
+                    description: 'Accent',
+                    enabled: true,
+                },
+            },
+        });
+        let finishFirstSave: ((value: Awaited<ReturnType<typeof saveTokenMutation>>) => void) | undefined;
+        const firstSave = new Promise<Awaited<ReturnType<typeof saveTokenMutation>>>((resolve) => {
+            finishFirstSave = resolve;
+        });
+        saveTokenMutation.mockReturnValueOnce(firstSave);
+        render(<Probe />);
+        await act(async () => Promise.resolve());
+
+        const disabledToken = { ...token, getEnabled: () => false } as unknown as Token;
+        act(() => updateDraftToken('System', '0.1.0', disabledToken));
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(400);
+            await Promise.resolve();
+        });
+        act(() => updateDraftToken('System', '0.1.0', token));
+        await act(async () => {
+            finishFirstSave?.({ tokenId: 'token-1', editRevision: 4, baseRevision: 5, valueBaseRevisions: {} });
+            await firstSave;
+            await vi.runAllTimersAsync();
+        });
+
+        expect(saveTokenMutation.mock.calls.map((call) => call[2].definitionPatch)).toEqual([
+            { enabled: false },
+            { enabled: true },
+        ]);
+    });
+
     it('does not remove recovery data of a newer session in the same tenant', async () => {
         let finish!: (value: unknown) => void;
         saveTokenMutation.mockImplementationOnce(

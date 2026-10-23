@@ -5,8 +5,8 @@ import { ApiError, authService, designSystemsApi, projectsApi, type ProjectDto }
 import { getAnchoredPopoverGeometry } from '../components/Overlay/Overlay';
 import { resetQueryCache } from '../shared/data/useLoad';
 import {
-    CreateDesignSystemPage,
-    CreateProjectPage,
+    CreateDesignSystemDialog,
+    CreateProjectDialog,
     CreateThemePage,
     DesignSystemPage,
     DesignSystemSettingsPage,
@@ -40,6 +40,31 @@ const project = (role: ProjectDto['effectiveRole'], status: ProjectDto['status']
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
 });
+/** Окно создания проекта — дочерний маршрут каталога проектов. */
+const atCreateProject = () =>
+    render(
+        <MemoryRouter initialEntries={['/projects/new']}>
+            <Routes>
+                <Route path="/projects" element={<ProjectsPage />}>
+                    <Route path="new" element={<CreateProjectDialog />} />
+                </Route>
+                <Route path="/projects/:projectId" element={<ProjectPage />} />
+            </Routes>
+        </MemoryRouter>,
+    );
+
+/** Окно создания дизайн-системы — дочерний маршрут страницы проекта. */
+const atCreateDesignSystem = (path = '/projects/project-1/design-systems/new') =>
+    render(
+        <MemoryRouter initialEntries={[path]}>
+            <Routes>
+                <Route path="/projects/:projectId" element={<ProjectPage />}>
+                    <Route path="design-systems/new" element={<CreateDesignSystemDialog />} />
+                </Route>
+                <Route path="/projects/:projectId/design-systems/:designSystemId" element={<DesignSystemPage />} />
+            </Routes>
+        </MemoryRouter>,
+    );
 const at = (path: string, element: React.ReactNode) => {
     const route = path
         .replace('/projects/project-1', '/projects/:projectId')
@@ -96,13 +121,13 @@ describe('project workflow', () => {
 
     it('exposes project, design-system, and theme routes through separate page modules', () => {
         expect(Object.keys(projectPages).sort()).toEqual([
-            'CreateProjectPage',
+            'CreateProjectDialog',
             'ProjectPage',
             'ProjectSettingsPage',
             'ProjectsPage',
         ]);
         expect(Object.keys(designSystemPages).sort()).toEqual([
-            'CreateDesignSystemPage',
+            'CreateDesignSystemDialog',
             'DesignSystemCard',
             'DesignSystemPage',
             'DesignSystemSettingsPage',
@@ -155,9 +180,7 @@ describe('project workflow', () => {
         expect(view.container.querySelector('.builder-icon-sidebar')).toBeInTheDocument();
         expect(view.container.querySelector('.catalog-grid > .catalog-card')).toBeInTheDocument();
         expect(workflowCss).toMatch(/@media\s*\(max-width:\s*760px\)/);
-        expect(workflowCss).toMatch(
-            /\.builder-shell\s*\{[^}]*grid-template-columns:\s*44px minmax\(0,\s*1fr\)/,
-        );
+        expect(workflowCss).toMatch(/\.builder-shell\s*\{[^}]*grid-template-columns:\s*44px minmax\(0,\s*1fr\)/);
         expect(workflowCss).toMatch(
             /@media\s*\(max-width:\s*760px\)\s*\{[\s\S]*?\.catalog-grid,\s*\.catalog-loading-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*330px\)/,
         );
@@ -214,10 +237,12 @@ describe('project workflow', () => {
     });
 
     it('shows registered-user suggestions by name and uses the selected identifier', async () => {
-        const search = vi.spyOn(projectsApi, 'memberCandidates').mockResolvedValue([
-            { userId: 'user-2', username: 'alex', email: 'alex@example.com', displayName: 'Alex User' },
-        ]);
-        at('/projects/new', <CreateProjectPage />);
+        const search = vi
+            .spyOn(projectsApi, 'memberCandidates')
+            .mockResolvedValue([
+                { userId: 'user-2', username: 'alex', email: 'alex@example.com', displayName: 'Alex User' },
+            ]);
+        atCreateProject();
         fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Platform' } });
         fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
         fireEvent.change(screen.getByPlaceholderText('Имя или корпоративная почта'), {
@@ -433,7 +458,7 @@ describe('project workflow', () => {
             createdAt: '',
             updatedAt: '',
         });
-        at('/projects/new', <CreateProjectPage />);
+        atCreateProject();
         expect(await screen.findByText('Проект')).toBeInTheDocument();
         expect(screen.getByText('Команда')).toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('Название'), { target: { value: '  Platform  ' } });
@@ -458,7 +483,7 @@ describe('project workflow', () => {
             .mockResolvedValueOnce({ userId: 'ok', role: 'viewer', createdAt: '', updatedAt: '' })
             .mockRejectedValueOnce(new ApiError(404, 'registered_user_not_found'))
             .mockResolvedValueOnce({ userId: 'retry', role: 'editor', createdAt: '', updatedAt: '' });
-        at('/projects/new', <CreateProjectPage />);
+        atCreateProject();
         fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Platform' } });
         fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
         const add = (email: string, role: string) => {
@@ -481,7 +506,7 @@ describe('project workflow', () => {
 
     it('keeps project catalog cards beneath the create-project modal', async () => {
         vi.spyOn(projectsApi, 'list').mockResolvedValue([project('owner')]);
-        const view = at('/projects/new', <CreateProjectPage />);
+        const view = atCreateProject();
 
         expect(await screen.findByRole('dialog', { name: 'Создать проект' })).toBeInTheDocument();
         expect(view.container.querySelector('[data-testid="projects-catalog-cards"] .catalog-card')).toHaveTextContent(
@@ -919,12 +944,26 @@ describe('design system and Theme workflow', () => {
 
     it('does not create a second shell for embedded theme settings, including loading', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
-        vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([{
-            id: 'theme-1', designSystemId: 'ds-1', name: 'Brand', editRevision: 0,
-            colorConfig: { profile: 'sber' },
-            preview: { accentLight: '#108E26', onAccentLight: '#fff', surfaceLight: '#fff', accentDark: '#1A9E32', surfaceDark: '#101010' },
-        }]);
-        const view = at('/projects/project-1/design-systems/ds-1/themes/theme-1/settings', <ThemeSettingsPage embedded />);
+        vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([
+            {
+                id: 'theme-1',
+                designSystemId: 'ds-1',
+                name: 'Brand',
+                editRevision: 0,
+                colorConfig: { profile: 'sber' },
+                preview: {
+                    accentLight: '#108E26',
+                    onAccentLight: '#fff',
+                    surfaceLight: '#fff',
+                    accentDark: '#1A9E32',
+                    surfaceDark: '#101010',
+                },
+            },
+        ]);
+        const view = at(
+            '/projects/project-1/design-systems/ds-1/themes/theme-1/settings',
+            <ThemeSettingsPage embedded />,
+        );
         expect(view.container.querySelector('.builder-icon-sidebar')).not.toBeInTheDocument();
         expect(view.container.querySelector('.builder-hierarchy-bar')).not.toBeInTheDocument();
         expect(await screen.findByText('Параметры темы')).toBeInTheDocument();
@@ -969,21 +1008,38 @@ describe('design system and Theme workflow', () => {
     });
 
     it.each([
-        ['Design System', <CreateDesignSystemPage />, 'create'],
-        ['Theme', <CreateThemePage />, 'createTenant'],
-    ] as const)('does not expose the %s create form before project access is loaded', (label, page, mutation) => {
+        ['Design System', () => atCreateDesignSystem(), 'create'],
+        ['Theme', () => at('/projects/project-1/design-systems/ds-1/themes/new', <CreateThemePage />), 'createTenant'],
+    ] as const)('does not expose the %s create form before project access is loaded', (_label, open, mutation) => {
         vi.spyOn(projectsApi, 'get').mockImplementation(() => new Promise(() => {}));
         const request = vi.spyOn(designSystemsApi, mutation);
-        const path =
-            label === 'Theme'
-                ? '/projects/project-1/design-systems/ds-1/themes/new'
-                : '/projects/project-1/design-systems/new';
 
-        at(path, page);
+        open();
 
         expect(screen.getByText('Загружаем проект…')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Создать/ })).not.toBeInTheDocument();
         expect(request).not.toHaveBeenCalled();
+    });
+
+    it('keeps archived projects in the single catalog grid under the create-project dialog', async () => {
+        vi.spyOn(projectsApi, 'list').mockResolvedValue([
+            project('owner'),
+            { ...project('owner', 'archived'), id: 'project-2', name: 'Old' },
+        ]);
+        const view = atCreateProject();
+        await screen.findByRole('dialog');
+        expect(view.container.querySelectorAll('.catalog-grid')).toHaveLength(1);
+        expect(view.container.querySelector('.catalog-grid')).toHaveTextContent('Old');
+        expect(screen.queryByText('Архивные')).not.toBeInTheDocument();
+    });
+
+    it('keeps an empty grid instead of the empty state under the create design system dialog', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
+        vi.spyOn(designSystemsApi, 'list').mockResolvedValue([]);
+        const view = atCreateDesignSystem();
+        await screen.findByPlaceholderText('Название дизайн-системы');
+        expect(view.container.querySelector('.catalog-grid')).toBeInTheDocument();
+        expect(screen.queryByText('Дизайн-систем пока нет')).not.toBeInTheDocument();
     });
 
     it('keeps the current project in Create Design System navigation', async () => {
@@ -991,11 +1047,14 @@ describe('design system and Theme workflow', () => {
         vi.spyOn(designSystemsApi, 'list').mockResolvedValue([
             { id: 'ds-1', projectId: 'project-1', name: 'System', tenantCount: 0, themePreviews: [] },
         ]);
-        at('/projects/project-1/design-systems/new', <CreateDesignSystemPage />);
+        const view = atCreateDesignSystem();
         expect(await screen.findByPlaceholderText('Название дизайн-системы')).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Создать дизайн-систему' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Отмена' })).toHaveAttribute('href', '/projects/project-1');
-        expect(screen.getByTestId('design-systems-catalog-cards')).toHaveTextContent('System');
+        // Под окном — сама страница проекта: одна шапка и один каталог, без копии.
+        expect(screen.getAllByRole('link', { name: 'Создать дизайн-систему' })).toHaveLength(1);
+        expect(view.container.querySelectorAll('.catalog-grid')).toHaveLength(1);
+        expect(view.container.querySelector('.catalog-grid')).toHaveTextContent('System');
         expect(screen.getByRole('button', { name: 'Создать' })).toBeDisabled();
     });
 
@@ -1012,14 +1071,7 @@ describe('design system and Theme workflow', () => {
         });
         vi.spyOn(designSystemsApi, 'get').mockImplementation(() => new Promise(() => {}));
         vi.spyOn(designSystemsApi, 'tenants').mockImplementation(() => new Promise(() => {}));
-        const view = render(
-            <MemoryRouter initialEntries={['/projects/project-1/design-systems/new']}>
-                <Routes>
-                    <Route path="/projects/:projectId/design-systems/new" element={<CreateDesignSystemPage />} />
-                    <Route path="/projects/:projectId/design-systems/:designSystemId" element={<DesignSystemPage />} />
-                </Routes>
-            </MemoryRouter>,
-        );
+        const view = atCreateDesignSystem();
         fireEvent.change(await screen.findByPlaceholderText('Название дизайн-системы'), {
             target: { value: 'New System' },
         });
@@ -1048,17 +1100,13 @@ describe('design system and Theme workflow', () => {
     });
 
     it.each([
-        ['Design System', <CreateDesignSystemPage />, 'create'],
-        ['Theme', <CreateThemePage />, 'createTenant'],
-    ] as const)('does not expose the %s create form when project access fails', async (label, page, mutation) => {
+        ['Design System', () => atCreateDesignSystem(), 'create'],
+        ['Theme', () => at('/projects/project-1/design-systems/ds-1/themes/new', <CreateThemePage />), 'createTenant'],
+    ] as const)('does not expose the %s create form when project access fails', async (_label, open, mutation) => {
         vi.spyOn(projectsApi, 'get').mockRejectedValue(new ApiError(403));
         const request = vi.spyOn(designSystemsApi, mutation);
-        const path =
-            label === 'Theme'
-                ? '/projects/project-1/design-systems/ds-1/themes/new'
-                : '/projects/project-1/design-systems/new';
 
-        at(path, page);
+        open();
 
         expect(await screen.findByText('Нет доступа')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Создать/ })).not.toBeInTheDocument();
@@ -1140,7 +1188,7 @@ describe('design system and Theme workflow', () => {
     });
 
     it('keeps keyboard focus inside the project creation dialog', async () => {
-        at('/projects/new', <CreateProjectPage />);
+        atCreateProject();
         const name = await screen.findByLabelText('Название');
         await waitFor(() => expect(name).toHaveFocus());
         fireEvent.change(name, { target: { value: 'Platform' } });
@@ -1168,7 +1216,7 @@ describe('design system and Theme workflow', () => {
                 resolveProjects = resolve;
             }),
         );
-        at('/projects/new', <CreateProjectPage />);
+        atCreateProject();
         await new Promise((resolve) => window.setTimeout(resolve, 30));
         expect(screen.queryByRole('dialog', { name: 'Создать проект' })).not.toBeInTheDocument();
         resolveProjects([]);

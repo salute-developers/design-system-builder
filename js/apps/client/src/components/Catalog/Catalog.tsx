@@ -86,11 +86,14 @@ export const CardMenu = ({
     settingsTo,
     canDelete = false,
     extraAction,
+    actions = [],
 }: {
     label: string;
     settingsTo: string;
     canDelete?: boolean;
     extraAction?: { label: string; to: string; danger?: boolean };
+    /** Действия без перехода; меню закрывается, если `onSelect` не вернул `false`. */
+    actions?: Array<{ label: string; onSelect: () => Promise<boolean | void> | void; disabled?: boolean }>;
 }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -142,6 +145,19 @@ export const CardMenu = ({
                             {extraAction.label}
                         </Link>
                     )}
+                    {actions.map((action) => (
+                        <button
+                            key={action.label}
+                            type="button"
+                            role="menuitem"
+                            disabled={action.disabled}
+                            onClick={() =>
+                                void Promise.resolve(action.onSelect()).then((done) => done !== false && setOpen(false))
+                            }
+                        >
+                            {action.label}
+                        </button>
+                    ))}
                     {canDelete && (
                         <>
                             <span role="separator" />

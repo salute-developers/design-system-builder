@@ -1,12 +1,11 @@
 import { ChangeEvent, MouseEvent, useCallback, useState } from 'react';
 import { isAxiosError } from 'axios';
 import styled, { keyframes } from 'styled-components';
-import { IconSave, IconDocumentImportOutline, IconTrashOutline, IconUploadOutline } from '@salutejs/plasma-icons';
+import { IconSave, IconDocumentImportOutline, IconTrashOutline } from '@salutejs/plasma-icons';
 
-import { BasicButton, LinkButton, Dialog, Switch, TextField } from '../components';
-import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
-import { importTokensToTheme, importDesignSystem, clearDraft } from '../utils';
-import { importDesignSystemToProject } from '../api/designSystemImport';
+import { BasicButton, LinkButton, Dialog } from '../components';
+import { Config, DesignSystem, Theme } from '../controllers';
+import { importTokensToTheme, clearDraft } from '../utils';
 import { designSystemSave } from './Main.utils';
 
 const spin = keyframes`
@@ -51,11 +50,6 @@ const Spinner = styled.div`
     animation: ${spin} 0.6s linear infinite;
 `;
 
-interface ImportDialogData {
-    defaultName: string;
-    themeData: ThemeSource;
-}
-
 interface DebugProps {
     designSystem: DesignSystem | null;
     theme: Theme | null;
@@ -68,9 +62,6 @@ interface DebugProps {
 export const Debug = (props: DebugProps) => {
     const { designSystem, theme, components, rerender, reload } = props;
 
-    const [importDialogData, setImportDialogData] = useState<ImportDialogData | null>(null);
-    const [isDefaultName, setIsDefaultName] = useState(true);
-    const [customName, setCustomName] = useState('');
     const [loading, setLoading] = useState(false);
     const [isClearDraftDialogOpen, setIsClearDraftDialogOpen] = useState(false);
 
@@ -165,55 +156,6 @@ export const Debug = (props: DebugProps) => {
         }
     };
 
-    const onImportDesignSystem = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-
-        if (!file) {
-            return;
-        }
-
-        try {
-            const content = file.name.endsWith('.json') ? await file.text() : await file.arrayBuffer();
-            const { name, themeData } = await importDesignSystem(content);
-
-            setImportDialogData({ defaultName: name, themeData });
-            setCustomName(name);
-            setIsDefaultName(true);
-        } catch (error) {
-            console.error('Failed to import design system:', error);
-        }
-    };
-
-    const onImportConfirm = async () => {
-        const projectId = designSystem?.getParameters()?.projectId;
-
-        if (!importDialogData || !projectId) {
-            console.error('Failed to import design system: project is unknown, open a theme first');
-            return;
-        }
-
-        const { defaultName, themeData } = importDialogData;
-        const name = isDefaultName ? defaultName : customName;
-
-        setLoading(true);
-
-        try {
-            const imported = await importDesignSystemToProject(projectId, name, themeData);
-
-            console.log('Design system imported successfully', imported);
-        } catch (error) {
-            console.error('Failed to import design system:', error);
-        } finally {
-            setLoading(false);
-        }
-
-        setImportDialogData(null);
-    };
-
-    const onImportCancel = () => {
-        setImportDialogData(null);
-    };
-
     return (
         <>
             <Root>
@@ -238,12 +180,6 @@ export const Debug = (props: DebugProps) => {
                     accept=".json"
                     onFileChange={onImportTokens}
                 />
-                <LinkButton
-                    text="Импортировать дизайн систему"
-                    contentRight={<IconUploadOutline size="s" />}
-                    accept=".zip, .json"
-                    onFileChange={onImportDesignSystem}
-                />
             </Root>
             <Dialog
                 opened={isClearDraftDialogOpen}
@@ -256,36 +192,6 @@ export const Debug = (props: DebugProps) => {
             >
                 Все несохранённые изменения будут потеряны. Продолжить?
             </Dialog>
-            {importDialogData && (
-                <Dialog
-                    opened={Boolean(importDialogData)}
-                    title="Импортировать дизайн систему"
-                    onClose={onImportCancel}
-                    actions={[
-                        <BasicButton text="Отмена" backgroundColor="transparent" onClick={onImportCancel} />,
-                        <BasicButton text="Импортировать" onClick={onImportConfirm} />,
-                    ]}
-                >
-                    <Switch
-                        checked={isDefaultName}
-                        label="Оставить название по умолчанию"
-                        onToggle={(checked) => {
-                            setIsDefaultName(checked);
-                            if (checked) {
-                                setCustomName(importDialogData.defaultName);
-                            }
-                        }}
-                    />
-                    <TextField
-                        value={isDefaultName ? importDialogData.defaultName : customName}
-                        readOnly={isDefaultName}
-                        label="Название дизайн системы"
-                        stretched
-                        hasBackground
-                        onChange={(value) => setCustomName(value)}
-                    />
-                </Dialog>
-            )}
         </>
     );
 };
