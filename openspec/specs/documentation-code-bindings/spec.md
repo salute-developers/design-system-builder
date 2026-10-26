@@ -1,6 +1,7 @@
 # documentation-code-bindings Specification
 ## Purpose
-TBD - created by archiving change add-documentation-ingestion-pipeline. Update Purpose after archive.
+Выбор платформенных адаптеров и привязка компонентов и токенов документации к программному коду.
+
 ## Requirements
 ### Requirement: Строгий adapter selection для info-artifacts
 Service MUST выбирать structured artifact adapter по canonical `platform`, artifact type и versioned `format`; присутствующий info-artifact без поддерживаемого adapter MUST блокировать publication.

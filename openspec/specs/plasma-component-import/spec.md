@@ -88,7 +88,12 @@
 
 ### Requirement: Import reads plasma sources and writes the component package
 
-Инструмент `import:plasma` в `js/cli` SHALL читать объект токенов компонента из `plasma-new-hope`, конфиг оформления из `sdds-serv` и имена, типы и web-значения формы токенов темы из `.sdds/tenants/<тема>`, и записывать конфигурации компонента в пакет `.sdds/components` в native-формате пакета (`<component>_<style>_config.json`, запись в `meta.json`) и манифест генератора `templates/<X>/component.json`. Шаблоны web-параметров инструмент SHALL записывать в поле `webTemplates` манифеста и MUST NOT записывать в конфигурации пакета.
+Инструмент `import:plasma` в `js/cli` SHALL читать объект токенов компонента из `plasma-new-hope`, конфиг оформления из `sdds-serv` и имена, типы и web-значения формы токенов темы из `.sdds/tenants/<тема>`, и записывать конфигурации компонента в пакет `.sdds/components` в native-формате пакета (`<component>_<style>_config.json`, запись в `meta.json`) и манифест генератора `templates/<X>/component.json`.
+
+#### Scenario: Размещение шаблонов web-параметров
+
+- **WHEN** импорт записывает шаблоны web-параметров компонента
+- **THEN** Шаблоны web-параметров инструмент SHALL записывать в поле `webTemplates` манифеста и MUST NOT записывать в конфигурации пакета.
 
 #### Scenario: Сухой прогон по умолчанию
 

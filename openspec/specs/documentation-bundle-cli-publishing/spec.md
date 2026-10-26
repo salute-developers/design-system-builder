@@ -1,7 +1,8 @@
 # documentation-bundle-cli-publishing Specification
 
 ## Purpose
-TBD - created by archiving change connect-cli-documentation-bundle-upload. Update Purpose after archive.
+Публикация архива документации через CLI с разрешением адреса API и ключа проекта и обработкой результата приёмки.
+
 ## Requirements
 ### Requirement: Project-scoped публикация documentation bundle
 

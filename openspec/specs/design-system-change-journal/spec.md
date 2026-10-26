@@ -1,7 +1,8 @@
 # design-system-change-journal Specification
 
 ## Purpose
-TBD - created by archiving change add-versioned-multi-user-editing. Update Purpose after archive.
+Вычисляемый журнал предметных изменений дизайн-системы, его чтение клиентом и отмена изменений черновика.
+
 ## Requirements
 ### Requirement: Журнал вычисляется из предметных редакций
 

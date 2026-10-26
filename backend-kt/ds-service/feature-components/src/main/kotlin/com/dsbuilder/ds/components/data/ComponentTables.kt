@@ -83,8 +83,18 @@ internal object DesignSystemComponentsTable : ResolvedRevisionTable(
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object VariationsTable : Table("variations") {
+internal object VariationsTable : ResolvedRevisionTable(
+    "variations",
+    resolvedRevisionSql(
+        "variations",
+        "variation_revisions",
+        "variation_id",
+        listOf("id", "design_system_id", "component_id", "created_at"),
+        listOf("name", "description"),
+    ),
+) {
     val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
     val componentId = reference("component_id", ComponentsTable.id)
     val name = text("name")
     val description = text("description").nullable()
@@ -250,6 +260,7 @@ internal object PropertyVariationsTable : Table("property_variations") {
     val id = uuid("id")
     val propertyId = reference("property_id", PropertiesTable.id)
     val variationId = reference("variation_id", VariationsTable.id)
+    val designSystemId = uuid("design_system_id")
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)

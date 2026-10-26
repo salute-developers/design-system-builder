@@ -1,7 +1,8 @@
 # component-editor-feature-flag Specification
 
 ## Purpose
-TBD - created by archiving change add-component-editor-feature-flag. Update Purpose after archive.
+Управление доступностью раздела компонентов через флаг сборки, включая маршруты и загрузку данных.
+
 ## Requirements
 ### Requirement: Раздел компонентов включается сборочным флагом
 

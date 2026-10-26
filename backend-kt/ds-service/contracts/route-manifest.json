@@ -212,7 +212,7 @@
       "name": "variations",
       "router": "src/routes/api/variations.ts",
       "included": true,
-      "ownership": "via-component-design-system",
+      "ownership": "via-design-system",
       "operations": [
         ["GET", "/variations", null, "Variation[]", 200, "components:variations:read", null],
         ["GET", "/variations/{id}", null, "Variation", 200, "components:variations:read", null],
@@ -253,7 +253,7 @@
       "name": "property-variations",
       "router": "src/routes/api/property-variations.ts",
       "included": true,
-      "ownership": "via-property-and-variation-component-design-system",
+      "ownership": "via-property-and-variation-design-system",
       "operations": [
         ["GET", "/property-variations", null, "PropertyVariation[]", 200, "components:variations:read", null],
         ["GET", "/property-variations/{id}", null, "PropertyVariation", 200, "components:variations:read", null],

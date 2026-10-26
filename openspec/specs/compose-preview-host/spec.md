@@ -1,7 +1,8 @@
 # compose-preview-host Specification
 
 ## Purpose
-TBD - created by archiving change add-compose-preview-host-to-dsbuilder-client. Update Purpose after archive.
+Загрузка Compose-плагина и управление сеансом превью: жизненный цикл iframe, корреляция сообщений и выбор способа отображения.
+
 ## Requirements
 ### Requirement: Client загружает Compose plugin по runtime URL
 

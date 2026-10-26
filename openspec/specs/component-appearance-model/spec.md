@@ -1,7 +1,8 @@
 # component-appearance-model Specification
 
 ## Purpose
-TBD - created by archiving change add-cli-components-fetch. Update Purpose after archive.
+Модель оформления компонента: объявленные оси и значения вариаций, свойства, состояния и правила целостности конфигурации.
+
 ## Requirements
 ### Requirement: Variation axis declaration belongs to the appearance
 
@@ -691,4 +692,14 @@ flag SHALL remain equal to the new reference while the column exists.
 
 - **WHEN** оформление создано в черновике
 - **THEN** журнал MUST содержать запись `CREATE` с признаком
+
+### Requirement: Объявление оси ссылается на ось своей системы
+
+Объявление оси в оформлении SHALL ссылаться на ось вариации той же дизайн-системы и того же компонента, что и само оформление.
+
+#### Scenario: Ось другой системы
+
+- **WHEN** запись объявляет в оформлении системы A ось системы B
+- **THEN** `ds-service` MUST отклонить запись
+- **THEN** объявления остальных осей оформления MUST NOT измениться
 

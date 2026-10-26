@@ -41,3 +41,9 @@ internal fun activeRevisionTestSql(sql: String): String {
     }
     return "WITH $ctes\n$sql"
 }
+
+/** Действующие оси вариации (последняя редакция, не удалена); подставляются вместо `variations` в запросах тестов. */
+internal const val RESOLVED_VARIATIONS_TEST_SQL =
+    "(SELECT v.id, v.design_system_id, v.component_id, r.name, r.description FROM variations v " +
+        "JOIN LATERAL (SELECT c.* FROM variation_revisions c WHERE c.variation_id = v.id " +
+        "ORDER BY c.version_sequence_number DESC LIMIT 1) r ON NOT r.deleted)"

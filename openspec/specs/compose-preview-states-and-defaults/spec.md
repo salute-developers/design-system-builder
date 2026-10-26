@@ -1,7 +1,8 @@
 # compose-preview-states-and-defaults Specification
 
 ## Purpose
-TBD - created by archiving change fix-compose-preview-states-and-defaults. Update Purpose after archive.
+Правила приоритета состояний, выбора значений по умолчанию и ввода числовых свойств в Compose-превью.
+
 ## Requirements
 ### Requirement: Приоритет состояний как в Android
 

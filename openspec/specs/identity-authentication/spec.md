@@ -1,7 +1,8 @@
 # identity-authentication Specification
 
 ## Purpose
-TBD - created by archiving change plasmabldr-137-add-identity-gateway-foundation. Update Purpose after archive.
+Аутентификация пользователей через Keycloak, проверка JWT, глобальные роли и авторизация нативных клиентов и IDE.
+
 ## Requirements
 ### Requirement: Keycloak user authentication
 

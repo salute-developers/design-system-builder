@@ -1,7 +1,8 @@
 # theme-lifecycle Specification
 
 ## Purpose
-TBD - created by archiving change add-projects-workflow. Update Purpose after archive.
+Жизненный цикл темы как tenant дизайн-системы: создание из стартового профиля, превью и проверка названия.
+
 ## Requirements
 ### Requirement: Theme является tenant дизайн-системы
 

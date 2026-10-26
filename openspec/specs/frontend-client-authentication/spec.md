@@ -1,7 +1,8 @@
 # frontend-client-authentication Specification
 
 ## Purpose
-TBD - created by archiving change add-frontend-mcp-server. Update Purpose after archive.
+Общая пользовательская авторизация CLI и MCP, хранение сеанса, ротация токенов и приоритет источников учётных данных.
+
 ## Requirements
 ### Requirement: Общая пользовательская авторизация CLI и MCP
 

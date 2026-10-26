@@ -18,9 +18,9 @@ class PaletteRevisionMigrationPostgresIntegrationTest {
             assertEquals(6, dev.migrate().migrationsExecuted)
             connection(postgres).use { connection ->
                 seedDev(connection)
-                assertEquals(7, flyway(postgres).migrate().migrationsExecuted)
+                assertEquals(8, flyway(postgres).migrate().migrationsExecuted)
                 assertEquals(0, flyway(postgres).migrate().migrationsExecuted)
-                assertEquals("13", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
+                assertEquals("14", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
                 assertEquals(
                     "custom",
                     scalar(connection, "SELECT label FROM tenant_palette_group_revisions WHERE group_id = '$GROUP'"),
@@ -80,7 +80,7 @@ class PaletteRevisionMigrationPostgresIntegrationTest {
                 assertEquals("#123456", scalar(connection, "SELECT value FROM tenant_palette_steps"))
                 assertEquals("6", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
                 connection.createStatement().use { it.execute("DROP FUNCTION enforce_palette_revision_integrity()") }
-                assertEquals(7, flyway(postgres).migrate().migrationsExecuted)
+                assertEquals(8, flyway(postgres).migrate().migrationsExecuted)
                 assertEquals("#123456", scalar(connection, "SELECT value FROM tenant_palette_step_revisions"))
             }
         }

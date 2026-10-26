@@ -25,7 +25,12 @@ interface ComponentRepository {
     suspend fun deleteAccessible(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean
 
     /** Performs the variations operation. */
-    suspend fun variations(projectId: ProjectId, systemAdmin: Boolean, id: UUID): List<ComponentVariationSummary>?
+    suspend fun variations(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        id: UUID,
+        designSystemId: UUID? = null,
+    ): List<ComponentVariationSummary>?
 
     /** Performs the properties operation. */
     suspend fun properties(projectId: ProjectId, systemAdmin: Boolean, id: UUID): List<ComponentPropertySummary>?

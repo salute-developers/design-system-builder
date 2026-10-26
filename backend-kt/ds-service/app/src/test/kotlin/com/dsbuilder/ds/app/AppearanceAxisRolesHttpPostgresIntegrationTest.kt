@@ -231,7 +231,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertEquals(
             "shape",
             query(
-                "SELECT name FROM variations " +
+                "SELECT name FROM $RESOLVED_VARIATIONS_TEST_SQL variations " +
                     "WHERE id = (SELECT root_variation_id FROM ($RESOLVED_APPEARANCES) resolved)",
             ),
         )
@@ -243,7 +243,12 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         importConfig(ds, "default", config(root = null, scheme = null))
         val appearance = appearanceId()
         val component = query("SELECT id FROM components WHERE name = 'Button'")
-        val variation = id(post("/api/ds/variations", """{"componentId":"$component","name":"shape"}""").bodyAsText())
+        val variation = id(
+            post(
+                "/api/ds/variations",
+                """{"designSystemId":"$ds","componentId":"$component","name":"shape"}""",
+            ).bodyAsText(),
+        )
         val created = post(
             "/api/ds/appearance-variations",
             """{"appearanceId":"$appearance","variationId":"$variation","position":0}""",
@@ -259,7 +264,12 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         importConfig(ds, "default", config(root = null, scheme = null))
         val appearance = appearanceId()
         val component = query("SELECT id FROM components WHERE name = 'Button'")
-        val variation = id(post("/api/ds/variations", """{"componentId":"$component","name":"shape"}""").bodyAsText())
+        val variation = id(
+            post(
+                "/api/ds/variations",
+                """{"designSystemId":"$ds","componentId":"$component","name":"shape"}""",
+            ).bodyAsText(),
+        )
         val body = """{"appearanceId":"$appearance","variationId":"$variation","position":0}"""
 
         val first = post("/api/ds/appearance-variations", body, idempotencyKey = "axis-create")
@@ -341,7 +351,8 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         single { variationName(it.getValue("variationId").jsonPrimitive.content) == name }
             .getValue("id").jsonPrimitive.content
 
-    private fun variationName(id: String) = query("SELECT name FROM variations WHERE id = '$id'")
+    private fun variationName(id: String) =
+        query("SELECT name FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE id = '$id'")
 
     private fun appearanceId() = query("SELECT appearance_id FROM ($RESOLVED_APPEARANCES) resolved")
 

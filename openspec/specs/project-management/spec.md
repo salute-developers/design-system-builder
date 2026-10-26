@@ -1,7 +1,8 @@
 # project-management Specification
 
 ## Purpose
-TBD - created by archiving change plasmabldr-137-add-projects-core. Update Purpose after archive.
+Управление проектами: создание, чтение метаданных, единственный владелец, архивирование и восстановление.
+
 ## Requirements
 ### Requirement: Authenticated user can create project
 

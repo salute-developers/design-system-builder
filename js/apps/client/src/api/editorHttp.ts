@@ -10,6 +10,12 @@ export const readRequest = (context: EditorContextKey, signal?: AbortSignal) => 
     params: context.versionId ? { versionId: context.versionId } : undefined,
 });
 
+/** Оси вариации принадлежат дизайн-системе: чтение вариаций всегда ограничено системой контекста. */
+export const variationReadRequest = (context: EditorContextKey, signal?: AbortSignal) => {
+    const request = readRequest(context, signal);
+    return { ...request, params: { ...request.params, designSystemId: context.designSystemId } };
+};
+
 export const keepaliveRequest = (keepalive: boolean) =>
     keepalive ? { adapter: 'fetch' as const, fetchOptions: { keepalive: true } } : {};
 

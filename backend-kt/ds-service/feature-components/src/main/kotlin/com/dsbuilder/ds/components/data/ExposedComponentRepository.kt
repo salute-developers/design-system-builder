@@ -6,6 +6,7 @@ import com.dsbuilder.ds.components.domain.ComponentDependencyGraph
 import com.dsbuilder.ds.components.domain.ComponentPropertySummary
 import com.dsbuilder.ds.components.domain.ComponentVariationSummary
 import com.dsbuilder.ds.core.domain.ProjectId
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -60,9 +61,14 @@ class ExposedComponentRepository : ComponentRepository {
         projectId: ProjectId,
         systemAdmin: Boolean,
         id: UUID,
+        designSystemId: UUID?,
     ): List<ComponentVariationSummary>? {
         if (id !in ComponentOwnership.readableComponentIds(projectId, systemAdmin)) return null
-        return VariationsTable.selectAll().where { VariationsTable.componentId eq id }.map(::variation)
+        return VariationsTable.selectAll().where {
+            (VariationsTable.componentId eq id) and
+                ComponentOwnership.readableDesignSystem(VariationsTable.designSystemId, projectId, systemAdmin) and
+                (designSystemId?.let { VariationsTable.designSystemId eq it } ?: Op.TRUE)
+        }.map(::variation)
     }
 
     override suspend fun properties(
@@ -116,6 +122,7 @@ private fun findComponent(id: UUID): Component? = ComponentsTable.selectAll()
 private fun variation(row: ResultRow) = ComponentVariationSummary(
     row[VariationsTable.id],
     row[VariationsTable.componentId],
+    row[VariationsTable.designSystemId],
     row[VariationsTable.name],
     row[VariationsTable.description],
     row[VariationsTable.createdAt],

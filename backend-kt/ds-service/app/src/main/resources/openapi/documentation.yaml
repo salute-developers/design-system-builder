@@ -3067,6 +3067,14 @@ paths:
           required: true
           name: id
           in: path
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: false
+          name: designSystemId
+          in: query
+          description: Return only variation axes owned by this design system.
       responses:
         '200':
           description: List of items
@@ -3639,6 +3647,14 @@ paths:
       summary: List all variations
       parameters:
         - $ref: '#/components/parameters/VersionId'
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: false
+          name: designSystemId
+          in: query
+          description: Return only variation axes owned by this design system.
       responses:
         '200':
           description: List of items
@@ -3676,6 +3692,12 @@ paths:
                 $ref: '#/components/schemas/Variation'
         '400':
           description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A variation with this name already exists in the design system
           content:
             application/json:
               schema:
@@ -3754,6 +3776,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A variation with this name already exists in the design system
           content:
             application/json:
               schema:
@@ -8090,6 +8118,9 @@ components:
         componentId:
           type: string
           format: uuid
+        designSystemId:
+          type: string
+          format: uuid
         name:
           type: string
         description:
@@ -8106,6 +8137,7 @@ components:
       required:
         - id
         - componentId
+        - designSystemId
         - name
         - description
         - createdAt
@@ -9526,6 +9558,9 @@ components:
     CreateVariation:
       type: object
       properties:
+        designSystemId:
+          type: string
+          format: uuid
         componentId:
           type: string
           format: uuid
@@ -9537,6 +9572,7 @@ components:
           type: string
           maxLength: 1000
       required:
+        - designSystemId
         - componentId
         - name
     UpdateVariation:

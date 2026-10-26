@@ -1,6 +1,7 @@
 # documentation-publication-reading Specification
 ## Purpose
-TBD - created by archiving change add-documentation-ingestion-pipeline. Update Purpose after archive.
+Авторизованное чтение документации проекта: состояние загрузки, активная публикация, навигация и страницы.
+
 ## Requirements
 ### Requirement: Project-scoped private authorization чтения
 Gateway MUST проксировать documentation read endpoints только через `/api/projects/{projectId}/documentation/...` с existing project auth и trusted context. Documentation Service MUST требовать permission `documentation:read` и MUST отдельно проверять принадлежность job/publication trusted project.

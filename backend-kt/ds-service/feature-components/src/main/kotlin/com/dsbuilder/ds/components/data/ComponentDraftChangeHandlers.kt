@@ -34,6 +34,16 @@ internal fun componentDraftChangeHandlers(): List<DraftChangeHandler> = listOf(
         ),
     ),
     componentHandler(
+        "variation",
+        StableVariationsTable,
+        StableVariationsTable.id,
+        StableVariationsTable.designSystemId,
+        VariationRevisionsTable,
+        VariationRevisionsTable.entityId,
+        stableValues = listOf(StableVariationsTable.componentId),
+        revisionValues = listOf(VariationRevisionsTable.name, VariationRevisionsTable.description),
+    ),
+    componentHandler(
         "style",
         StableStylesTable,
         StableStylesTable.id,

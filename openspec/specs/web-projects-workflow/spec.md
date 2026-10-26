@@ -1,7 +1,8 @@
 # web-projects-workflow Specification
 
 ## Purpose
-TBD - created by archiving change add-projects-workflow. Update Purpose after archive.
+Управление проектами и участниками в веб-клиенте с отображением доступных действий согласно итоговой роли пользователя.
+
 ## Requirements
 ### Requirement: Пользователь видит доступные проекты
 

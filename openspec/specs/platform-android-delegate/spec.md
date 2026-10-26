@@ -1,7 +1,8 @@
 # platform-android-delegate Specification
 
 ## Purpose
-TBD - created by archiving change platform-android-delegate. Update Purpose after archive.
+Делегирование Android-операций внешнему инструменту, его обнаружение и диагностика доступности.
+
 ## Requirements
 ### Requirement: Android toolchain delegate
 

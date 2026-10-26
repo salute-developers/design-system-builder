@@ -407,7 +407,11 @@ class VersionedPalettePostgresIntegrationTest {
                     INSERT INTO appearance_revisions(
                         appearance_id, design_system_id, design_system_version_id, version_sequence_number, name)
                         VALUES ('$appearance', '${fixture.system.value}', '${fixture.draft}', 1, 'default');
-                    INSERT INTO variations(id, component_id, name) VALUES ('$variation', '$component', 'size');
+                    INSERT INTO variations(id, design_system_id, component_id)
+                        VALUES ('$variation', '${fixture.system.value}', '$component');
+                    INSERT INTO variation_revisions(variation_id, design_system_id, design_system_version_id,
+                        version_sequence_number, name)
+                        VALUES ('$variation', '${fixture.system.value}', '${fixture.draft}', 1, 'size');
                     INSERT INTO styles(id, design_system_id, variation_id)
                         VALUES ('$style', '${fixture.system.value}', '$variation');
                     INSERT INTO style_revisions(style_id, design_system_id, design_system_version_id,
