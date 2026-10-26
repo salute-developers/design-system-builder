@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 
 import {
     TYPOGRAPHY_OVERRIDE_PLATFORMS,
@@ -57,6 +57,27 @@ const PropertyIcon = ({ name }: { name: keyof typeof ICONS }) => (
 );
 
 const familyTitle = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
+
+/** Закрывает открытое меню по Escape и по нажатию мыши вне `ref`. */
+const useDismiss = (ref: RefObject<HTMLElement>, open: boolean, close: () => void) => {
+    useEffect(() => {
+        if (!open) return;
+        const dismiss = (event: Event) => {
+            if (
+                event instanceof globalThis.KeyboardEvent
+                    ? event.key === 'Escape'
+                    : !ref.current?.contains(event.target as Node)
+            )
+                close();
+        };
+        document.addEventListener('mousedown', dismiss);
+        document.addEventListener('keydown', dismiss);
+        return () => {
+            document.removeEventListener('mousedown', dismiss);
+            document.removeEventListener('keydown', dismiss);
+        };
+    }, [ref, open, close]);
+};
 
 interface NumberFieldProps {
     icon: keyof typeof ICONS;
@@ -123,39 +144,67 @@ interface SelectFieldProps {
     onChange: (value: string) => void;
 }
 
-/** Поле выбора `typographyPropertyField` прототипа: значок, список и шеврон. */
-const SelectField = ({ icon, lead, trailing, label, value, options, error, disabled, onChange }: SelectFieldProps) => (
-    <div>
-        <div
-            className={`typography-property-field is-select-field ${error ? 'has-error' : ''} ${trailing ? 'has-trailing' : ''}`}
-        >
-            {lead ?? <PropertyIcon name={icon} />}
-            <div className="typography-property-value">
-                <select
-                    aria-label={label}
-                    value={value}
-                    disabled={disabled}
-                    onChange={(event) => onChange(event.target.value)}
-                >
-                    {options.map((option) => (
-                        <option key={option.value} value={option.value}>
-                            {option.label}
-                        </option>
-                    ))}
-                </select>
-                <span className="typography-property-chevron">
-                    <TyGlyph name="chevron-down" />
-                </span>
+/**
+ * Поле выбора `typographyPropertyField` прототипа: значок, значение и шеврон. Список — своё меню, как у семейства:
+ * выпадающий список нативного `<select>` браузеры рисуют по-своему, в Chrome на Windows — светлым текстом на белом.
+ */
+const SelectField = ({ icon, lead, trailing, label, value, options, error, disabled, onChange }: SelectFieldProps) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const close = useCallback(() => setOpen(false), []);
+    useDismiss(ref, open, close);
+    const selected = options.find((option) => option.value === value);
+    return (
+        <div className="typography-select-control" ref={ref}>
+            <div
+                className={`typography-property-field is-select-field ${error ? 'has-error' : ''} ${trailing ? 'has-trailing' : ''}`}
+            >
+                {lead ?? <PropertyIcon name={icon} />}
+                <div className="typography-property-value">
+                    <button
+                        type="button"
+                        className="typography-select-trigger"
+                        aria-label={label}
+                        aria-haspopup="listbox"
+                        aria-expanded={open}
+                        disabled={disabled}
+                        onClick={() => setOpen((current) => !current)}
+                    >
+                        {selected?.label ?? value}
+                    </button>
+                    <span className="typography-property-chevron">
+                        <TyGlyph name="chevron-down" />
+                    </span>
+                </div>
+                {trailing}
             </div>
-            {trailing}
+            {open && !disabled && (
+                <div className="font-family-menu typography-select-menu" role="listbox" aria-label={label}>
+                    {options.map((option) => (
+                        <button
+                            key={option.value}
+                            type="button"
+                            role="option"
+                            aria-selected={option.value === value}
+                            className={option.value === value ? 'is-selected' : ''}
+                            onClick={() => {
+                                setOpen(false);
+                                if (option.value !== value) onChange(option.value);
+                            }}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {error && (
+                <p className="typography-field-error" role="alert">
+                    {error}
+                </p>
+            )}
         </div>
-        {error && (
-            <p className="typography-field-error" role="alert">
-                {error}
-            </p>
-        )}
-    </div>
-);
+    );
+};
 
 /** Поле стиля, у которого iOS и Android могут задать своё значение. */
 type OverridableField = 'size' | 'lineHeight' | 'letterSpacing' | 'weight';
@@ -178,23 +227,8 @@ const OverrideAdd = ({
 }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (!open) return;
-        const close = (event: Event) => {
-            if (
-                event instanceof globalThis.KeyboardEvent
-                    ? event.key === 'Escape'
-                    : !ref.current?.contains(event.target as Node)
-            )
-                setOpen(false);
-        };
-        document.addEventListener('mousedown', close);
-        document.addEventListener('keydown', close);
-        return () => {
-            document.removeEventListener('mousedown', close);
-            document.removeEventListener('keydown', close);
-        };
-    }, [open]);
+    const close = useCallback(() => setOpen(false), []);
+    useDismiss(ref, open, close);
     if (!platforms.length) return null;
     return (
         <div className="typography-override-add" ref={ref}>
@@ -333,23 +367,8 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
     const instances = style.components.reduce((sum, component) => sum + component.count, 0);
 
     useEffect(() => setMenuOpen(false), [style.group, style.size]);
-    useEffect(() => {
-        if (!menuOpen) return;
-        const close = (event: Event) => {
-            if (
-                event instanceof globalThis.KeyboardEvent
-                    ? event.key === 'Escape'
-                    : !familyRef.current?.contains(event.target as Node)
-            )
-                setMenuOpen(false);
-        };
-        document.addEventListener('mousedown', close);
-        document.addEventListener('keydown', close);
-        return () => {
-            document.removeEventListener('mousedown', close);
-            document.removeEventListener('keydown', close);
-        };
-    }, [menuOpen]);
+    const closeMenu = useCallback(() => setMenuOpen(false), []);
+    useDismiss(familyRef, menuOpen, closeMenu);
 
     return (
         <>

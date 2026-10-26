@@ -2154,3 +2154,81 @@
     color: var(--builder-ui-text-paragraph);
     font-size: 12px;
 }
+
+/* Стрелка группы дерева — как в разделах «Палитра» и «Цвета»: уголок из двух границ по центру строки вместо
+ * символов «⌄» и «›», которые шрифт ставит ниже текста. */
+.typography-screen .token-tree-heading > .token-tree-chevron {
+    position: relative;
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    display: block;
+    font-size: 0;
+    color: transparent;
+}
+
+.typography-screen .token-tree-heading > .token-tree-chevron::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 1.5px;
+    width: 5px;
+    height: 5px;
+    border-right: 1.5px solid #8993a1;
+    border-bottom: 1.5px solid #8993a1;
+    transform: rotate(45deg);
+}
+
+.typography-screen .token-tree-heading[aria-expanded='false'] > .token-tree-chevron::before {
+    left: 2px;
+    top: 3px;
+    transform: rotate(-45deg);
+}
+
+.typography-screen .token-tree-heading:hover > .token-tree-chevron::before {
+    border-color: #d8dde5;
+}
+
+/* Списки начертания и веса — своё меню, как у семейства: нативный список `<select>` каждый браузер рисует
+ * по-своему. Кнопка списка выглядит как значение поля. */
+.typography-screen .editor-fonts-workbench .typography-select-control {
+    position: relative;
+    min-width: 0;
+}
+
+.typography-screen .editor-fonts-workbench .typography-property-value .typography-select-trigger {
+    width: 100%;
+    min-width: 0;
+    height: 16px;
+    padding: 0 16px 0 0;
+    overflow: hidden;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--builder-ui-text-primary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.typography-screen .editor-fonts-workbench .typography-select-control > .typography-select-menu {
+    /* Под полем: отступ поля 4 px + высота 24 px + зазор 2 px. */
+    top: 30px;
+    left: 0;
+    right: 0;
+}
+
+/* Поля без права правки приглушены целиком, как кнопка семейства; раньше приглушалась только она, а поля
+ * размера и веса выглядели доступными. */
+.typography-screen .editor-fonts-workbench .typography-property-field:has(:disabled) {
+    opacity: 0.45;
+}
+
+.typography-screen .editor-fonts-workbench .typography-property-field :disabled {
+    opacity: 1;
+    cursor: not-allowed;
+}
