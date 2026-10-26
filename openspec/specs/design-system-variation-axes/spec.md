@@ -1,7 +1,8 @@
 # design-system-variation-axes Specification
 
 ## Purpose
-TBD - created by archiving change per-design-system-variation-axes. Update Purpose after archive.
+Принадлежность осей вариации дизайн-системе, изоляция их связей и миграция общих осей с сохранением данных.
+
 ## Requirements
 ### Requirement: Ось вариации принадлежит дизайн-системе
 

@@ -1,7 +1,8 @@
 # frontend-mcp-server Specification
 
 ## Purpose
-TBD - created by archiving change add-frontend-mcp-server. Update Purpose after archive.
+Общий Kotlin Multiplatform MCP-сервер с отдельными средствами запуска, локальным транспортом stdio и разрешением контекста проекта.
+
 ## Requirements
 ### Requirement: Общий Kotlin Multiplatform MCP server
 

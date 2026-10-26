@@ -1,7 +1,8 @@
 # project-member-lookup Specification
 
 ## Purpose
-TBD - created by archiving change plasmabldr-137-add-project-member-lookup. Update Purpose after archive.
+Поиск зарегистрированных пользователей для добавления в проект и отображение сведений об участниках без создания приглашений.
+
 ## Requirements
 ### Requirement: Add project member by registered identity
 

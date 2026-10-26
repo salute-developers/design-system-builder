@@ -1,7 +1,8 @@
 # component-editor-operations Specification
 
 ## Purpose
-TBD - created by archiving change component-editor-model-api. Update Purpose after archive.
+Операции редактора оформления, согласование параллельных правок и их связь с журналом, публикацией и откатом.
+
 ## Requirements
 ### Requirement: Модель оформления для редактора
 
@@ -21,7 +22,12 @@ TBD - created by archiving change component-editor-model-api. Update Purpose aft
 
 ### Requirement: Операции редактора используют согласование правок многопользовательского редактирования
 
-Операции изменения оформления SHALL выполняться по правилам change `add-versioned-multi-user-editing`: принимать `X-DS-Base-Revision`, сохранять только изменённые поля в активный `DRAFT`, блокировать затронутые логические сущности в устойчивом порядке и фиксировать всё одной транзакцией. Общая ревизия на оформление или компонент SHALL NOT вводиться: техническая редакция принадлежит каждой затронутой сущности (`appearance-variation`, `appearance-variation-value`, `style`, `invariant-property-value`, `variation-property-value`, `style-combination`, `component-style-reference` и т. д.).
+Операции изменения оформления SHALL выполняться по правилам change `add-versioned-multi-user-editing`: принимать `X-DS-Base-Revision`, сохранять только изменённые поля в активный `DRAFT`, блокировать затронутые логические сущности в устойчивом порядке и фиксировать всё одной транзакцией.
+
+#### Scenario: Независимые технические редакции сущностей
+
+- **WHEN** операция меняет несколько сущностей одного оформления
+- **THEN** Общая ревизия на оформление или компонент SHALL NOT вводиться: техническая редакция принадлежит каждой затронутой сущности (`appearance-variation`, `appearance-variation-value`, `style`, `invariant-property-value`, `variation-property-value`, `style-combination`, `component-style-reference` и т. д.).
 
 #### Scenario: Операция меняет несколько сущностей
 

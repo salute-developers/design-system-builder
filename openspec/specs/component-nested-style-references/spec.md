@@ -1,7 +1,8 @@
 # component-nested-style-references Specification
 
 ## Purpose
-TBD - created by archiving change component-editor-model-api. Update Purpose after archive.
+Ссылки на стили вложенных компонентов: проверка целей, сохранение при импорте и согласованное обновление зависимостей.
+
 ## Requirements
 ### Requirement: Запись ссылки на стиль вложенного компонента
 

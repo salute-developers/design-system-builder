@@ -149,7 +149,12 @@
 
 ### Requirement: Разделение платформ применяется миграцией поверх baseline
 
-Контрактный отпечаток схемы (`contracts/schema-fingerprint.json`) и ожидаемый отпечаток локального контура SHALL описывать схему замороженного baseline Flyway (версия `1`), то есть состояние до разделения платформ компонентов. Разделение платформ и пометка устаревших алиасов (`component_platform`, `components.platform`, `deprecated`, `deprecated_message`) SHALL применяться Flyway-миграцией `V3__component_platform_split_and_axis_roles.sql` поверх baseline и не менять отпечаток baseline. Миграция MUST NOT опираться на временные таблицы, удаляемые при commit, и MUST останавливаться, если находит нативные данные, которые нельзя потерять.
+Контрактный отпечаток схемы (`contracts/schema-fingerprint.json`) и ожидаемый отпечаток локального контура SHALL описывать схему замороженного baseline Flyway (версия `1`), то есть состояние до разделения платформ компонентов.
+
+#### Scenario: Миграция поверх замороженного исходного состояния
+
+- **WHEN** Flyway применяет разделение платформ к исходной схеме
+- **THEN** Разделение платформ и пометка устаревших алиасов (`component_platform`, `components.platform`, `deprecated`, `deprecated_message`) SHALL применяться Flyway-миграцией `V3__component_platform_split_and_axis_roles.sql` поверх baseline и не менять отпечаток baseline. Миграция MUST NOT опираться на временные таблицы, удаляемые при commit, и MUST останавливаться, если находит нативные данные, которые нельзя потерять.
 
 #### Scenario: Пустая база
 

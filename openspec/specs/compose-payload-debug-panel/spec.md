@@ -1,7 +1,8 @@
 # compose-payload-debug-panel Specification
 
 ## Purpose
-TBD - created by archiving change add-compose-payload-debug-panel. Update Purpose after archive.
+Просмотр и копирование данных запроса Compose-превью в режиме отладки.
+
 ## Requirements
 ### Requirement: Payload Compose-превью можно посмотреть и скопировать в debug-режиме
 

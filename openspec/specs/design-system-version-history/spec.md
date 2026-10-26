@@ -1,7 +1,8 @@
 # design-system-version-history Specification
 
 ## Purpose
-TBD - created by archiving change add-versioned-multi-user-editing. Update Purpose after archive.
+Временные границы дизайн-системы, разрешение предметных редакций, публикация черновика и чтение истории версий.
+
 ## Requirements
 ### Requirement: Дизайн-система имеет независимые временные границы
 

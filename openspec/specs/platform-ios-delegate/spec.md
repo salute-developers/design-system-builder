@@ -1,7 +1,8 @@
 # platform-ios-delegate Specification
 
 ## Purpose
-TBD - created by archiving change platform-ios-delegate. Update Purpose after archive.
+Делегирование iOS-операций внешнему инструменту, его обнаружение и диагностика доступности.
+
 ## Requirements
 ### Requirement: iOS toolchain delegate
 

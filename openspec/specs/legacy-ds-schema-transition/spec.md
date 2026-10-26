@@ -1,7 +1,8 @@
 # legacy-ds-schema-transition Specification
 
 ## Purpose
-TBD - created by archiving change migrate-legacy-ds-schema. Update Purpose after archive.
+Переход прежней схемы данных на штатные миграции с проверенным исходным состоянием, атомарностью и сохранением истории.
+
 ## Requirements
 ### Requirement: Штатная цепочка миграций
 

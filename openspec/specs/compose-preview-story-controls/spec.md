@@ -1,7 +1,8 @@
 # compose-preview-story-controls Specification
 
 ## Purpose
-TBD - created by archiving change connect-component-editor-to-compose-preview-payload. Update Purpose after archive.
+Элементы управления Compose-превью по описанию плагина: свойства примера, вариации и обновление состояния без перезагрузки.
+
 ## Requirements
 ### Requirement: Client получает story property description от plugin
 

@@ -1,7 +1,8 @@
 # project-authorization-policy Specification
 
 ## Purpose
-TBD - created by archiving change introduce-project-authorization-policy. Update Purpose after archive.
+Единая политика прав проекта, наследование ролей и проверка разрешений с отказом при некорректной конфигурации.
+
 ## Requirements
 ### Requirement: Canonical project authorization policy
 
@@ -127,6 +128,11 @@ Permission evaluation SHALL определять право actor на тип д
 ### Requirement: Матрица permissions предметного API
 
 `ds-service` SHALL применять permission общей policy по предметной группе и действию до обращения к данным.
+
+#### Scenario: Разрешения по предметным группам
+
+- **WHEN** проверяется разрешение на чтение, изменение или удаление предметных данных
+- **THEN** набор MUST соответствовать следующей таблице
 
 | Группа операций | Чтение | Создание и изменение | Удаление |
 |---|---|---|---|

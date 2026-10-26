@@ -1,7 +1,8 @@
 # design-system-version-journal-ui Specification
 
 ## Purpose
-TBD - created by archiving change add-version-journal-publication-ui. Update Purpose after archive.
+Раздел журнала версий в клиенте: отображение предметных изменений, отмена черновых правок и переход к их источнику.
+
 ## Requirements
 ### Requirement: Журнал открывается отдельным разделом дизайн-системы
 

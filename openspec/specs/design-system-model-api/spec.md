@@ -1,7 +1,8 @@
 # design-system-model-api Specification
 
 ## Purpose
-TBD - created by archiving change add-mcp-design-system-read-tools. Update Purpose after archive.
+Предметный API дизайн-системы: разрешённые маршруты, DTO, платформы, права доступа и операции компонентной модели.
+
 ## Requirements
 ### Requirement: Project-scoped token read API
 API предметной модели DS Builder SHALL предоставлять через `ds-service` project-scoped endpoints чтения эталонных токенов и их значений.
@@ -133,6 +134,11 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 
 `ds-service` SHALL реализовать приведённый ниже набор маршрутов относительно публичного префикса `P = /api/projects/{projectId}/ds` и внутреннего префикса `/api/ds` после переписывания Gateway. Маршрут, отсутствующий в этом наборе, MUST NOT публиковаться OpenAPI нового сервиса.
 
+#### Scenario: Полный перечень маршрутов по ресурсам
+
+- **WHEN** проверяется соответствие предметного API разрешённому набору маршрутов
+- **THEN** набор MUST соответствовать следующей таблице
+
 | Ресурс | Обязательные маршруты относительно `P` |
 |---|---|
 | Дизайн-системы | `GET /design-systems`, `GET /design-systems/{id}`, `POST /design-systems`, `PATCH /design-systems/{id}`, `DELETE /design-systems/{id}`, `GET /design-systems/{id}/components`, `GET /design-systems/{id}/tokens`, `GET /design-systems/{id}/components/{componentId}/styles`, `GET /design-systems/{id}/tenants`, `GET /design-systems/{id}/appearances`, `GET /design-systems/{id}/changes` |
@@ -179,6 +185,11 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 ### Requirement: Исключённые маршруты не входят в Kotlin-сервис
 
 `ds-service` MUST NOT реализовывать маршруты `documentation-pages`, `saved-queries`, `/legacy/**`, а также операции генерации артефактов. Единственный административный маршрут продукта — импорт API-меты в глобальный слой компонентов, он выполняется в `ds-service` под внутренним путём `/api/ds/admin/component-config/import-api-meta`; других маршрутов `/api/admin/**` в продукте нет.
+
+#### Scenario: Исключённые области маршрутизации
+
+- **WHEN** проверяется отсутствие исключённых маршрутов в предметном API
+- **THEN** перечень исключённых маршрутов MUST соответствовать следующей таблице
 
 | Исключённая область | Маршруты, от которых отказывается `ds-service` |
 |---|---|
@@ -324,7 +335,12 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 
 ### Requirement: Платформа в component-config
 
-`GET /component-config` SHALL требовать query-параметр `platform`, а `POST /component-config/import` и `POST /component-config/export` — поле тела `platform`; без платформы или со значением вне словаря `ds-service` MUST отвечать `400`. Компонент MUST выбираться только среди компонентов этой платформы, экспорт MUST отдавать конфигурации только компонентов этой платформы, а конфигурация без компонента на платформе импорта MUST отклоняться с причиной, называющей платформу. Запись журнала `components:import` MUST содержать `platform`.
+`GET /component-config` SHALL требовать query-параметр `platform`, а `POST /component-config/import` и `POST /component-config/export` — поле тела `platform`; без платформы или со значением вне словаря `ds-service` MUST отвечать `400`.
+
+#### Scenario: Выбор платформенных данных конфигурации
+
+- **WHEN** запрос component-config задаёт допустимую платформу
+- **THEN** Компонент MUST выбираться только среди компонентов этой платформы, экспорт MUST отдавать конфигурации только компонентов этой платформы, а конфигурация без компонента на платформе импорта MUST отклоняться с причиной, называющей платформу. Запись журнала `components:import` MUST содержать `platform`.
 
 #### Scenario: Импорт в компонент своей платформы
 
@@ -362,7 +378,12 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 
 ### Requirement: Административный импорт API-меты в ds-service
 
-`ds-service` SHALL предоставлять административный маршрут `POST /api/ds/admin/component-config/import-api-meta`, который Gateway публикует как `POST /api/admin/component-config/import-api-meta`. Маршрут MUST быть доступен только доверенному системному администратору, принимать манифест API-меты одним запросом (до 16 MiB), выполнять запись аддитивно в одной транзакции и писать в журнал `design_system_changes` строку с `design_system_id = NULL`. Маршрут не входит в проектный префикс `/api/projects/{projectId}/ds`, не описывается в OpenAPI проектных маршрутов и не требует идентификатора дизайн-системы.
+`ds-service` SHALL предоставлять административный маршрут `POST /api/ds/admin/component-config/import-api-meta`, который Gateway публикует как `POST /api/admin/component-config/import-api-meta`.
+
+#### Scenario: Доверенный административный импорт
+
+- **WHEN** вызывается административный маршрут импорта API-меты
+- **THEN** Маршрут MUST быть доступен только доверенному системному администратору, принимать манифест API-меты одним запросом (до 16 MiB), выполнять запись аддитивно в одной транзакции и писать в журнал `design_system_changes` строку с `design_system_id = NULL`. Маршрут не входит в проектный префикс `/api/projects/{projectId}/ds`, не описывается в OpenAPI проектных маршрутов и не требует идентификатора дизайн-системы.
 
 #### Scenario: Системный администратор импортирует мету
 
@@ -538,7 +559,12 @@ API SHALL версионировать только данные компоне�
 
 ### Requirement: Маршруты операций редактора оформления входят в разрешённый набор
 
-Перечень предметных маршрутов `ds-service` SHALL быть дополнен маршрутами операций редактора оформления (относительно `P = /api/projects/{projectId}/ds`): `GET /appearances/{id}/editor-model`, `POST /appearances/{id}/axes`, `DELETE /appearances/{id}/axes/{axisId}`, `POST /appearances/{id}/axis-order`, `POST /appearances/{id}/axes/{axisId}/values`, `DELETE /appearances/{id}/axis-values/{valueId}`, `PUT /appearances/{id}/axes/{axisId}/value-order`, `PUT /appearances/{id}/property-values`, `DELETE /appearances/{id}/property-values` (область в параметрах запроса `propertyId`, `styleIds`, `states`), `PUT /appearances/{id}/state-order`, `POST /appearances/new`, `POST /appearances/{id}/duplicate`. Эти маршруты MUST NOT считаться предметными маршрутами вне набора, запрещёнными требованием «Полный разрешённый набор предметных маршрутов»: их добавление выполняется этим OpenSpec-изменением.
+Операции редактора оформления SHALL входить в разрешённый набор предметного API по приведённому ниже перечню.
+
+#### Scenario: Полный перечень операций редактора
+
+- **WHEN** проверяется разрешённый набор маршрутов редактора оформления
+- **THEN** Перечень предметных маршрутов `ds-service` SHALL быть дополнен маршрутами операций редактора оформления (относительно `P = /api/projects/{projectId}/ds`): `GET /appearances/{id}/editor-model`, `POST /appearances/{id}/axes`, `DELETE /appearances/{id}/axes/{axisId}`, `POST /appearances/{id}/axis-order`, `POST /appearances/{id}/axes/{axisId}/values`, `DELETE /appearances/{id}/axis-values/{valueId}`, `PUT /appearances/{id}/axes/{axisId}/value-order`, `PUT /appearances/{id}/property-values`, `DELETE /appearances/{id}/property-values` (область в параметрах запроса `propertyId`, `styleIds`, `states`), `PUT /appearances/{id}/state-order`, `POST /appearances/new`, `POST /appearances/{id}/duplicate`. Эти маршруты MUST NOT считаться предметными маршрутами вне набора, запрещёнными требованием «Полный разрешённый набор предметных маршрутов»: их добавление выполняется этим OpenSpec-изменением.
 
 #### Scenario: Проверка route manifest
 

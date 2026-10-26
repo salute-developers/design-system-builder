@@ -1,7 +1,8 @@
 # component-appearance-model Specification
 
 ## Purpose
-TBD - created by archiving change add-cli-components-fetch. Update Purpose after archive.
+Модель оформления компонента: объявленные оси и значения вариаций, свойства, состояния и правила целостности конфигурации.
+
 ## Requirements
 ### Requirement: Variation axis declaration belongs to the appearance
 
