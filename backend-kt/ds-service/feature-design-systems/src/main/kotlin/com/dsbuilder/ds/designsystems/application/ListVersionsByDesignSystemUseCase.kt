@@ -4,6 +4,7 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
@@ -18,8 +19,12 @@ class ListVersionsByDesignSystemUseCase(
     suspend fun execute(context: DsRequestContext, id: DesignSystemId): DsResult<List<DesignSystemVersion>> =
         when (val allowed = policy.require(context, "design-systems:read")) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly(context) {
-                repository.listByDesignSystem(context.projectId, id)?.let { DsResult.Success(it) }
+            is DsResult.Success -> transactions.readOnly(
+                context,
+                ModelReadTarget(ModelReadTarget.Kind.VERSION_HISTORY, id.value),
+            ) { selected ->
+                repository.pageByDesignSystem(selected.projectId, id, selected.readQuery)
+                    ?.let { DsResult.Success(it.items, readPage = it.page) }
                     ?: if (context.principal.systemAdmin) {
                         DsResult.Success(emptyList())
                     } else {

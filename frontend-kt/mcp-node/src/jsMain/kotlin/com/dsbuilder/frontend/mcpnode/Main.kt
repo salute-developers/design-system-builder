@@ -1,13 +1,11 @@
 package com.dsbuilder.frontend.mcpnode
 
 import com.dsbuilder.frontend.core.application.ClientRuntime
-import com.dsbuilder.frontend.core.application.ContextResolver
 import com.dsbuilder.frontend.core.application.coreApplicationModule
 import com.dsbuilder.frontend.core.auth.CredentialStoreFileSystem
 import com.dsbuilder.frontend.core.auth.CredentialStoreLock
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.auth.FileCredentialStore
-import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.KtorAuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.KtorTokenClient
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
@@ -25,10 +23,10 @@ import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCas
 import com.dsbuilder.frontend.feature.components.componentsApplicationModule
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
 import com.dsbuilder.frontend.feature.docs.docsApplicationModule
+import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
+import com.dsbuilder.frontend.feature.ds.dsApplicationModule
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
-import com.dsbuilder.frontend.feature.theme.application.TokenReadUseCases
-import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.dsbuilder.frontend.mcpserver.CheckProjectStatusMcpReader
 import com.dsbuilder.frontend.mcpserver.DsBuilderMcpServerCore
 import com.dsbuilder.frontend.mcpserver.MCP_SERVER_VERSION
@@ -65,6 +63,10 @@ public fun main() {
 
 internal fun runNodeCli(args: List<String>): Int? =
     when {
+        args.any { it == "--api-url" || it.startsWith("--api-url=") } -> {
+            nodeProcess.stderr.write("Error: --api-url is not supported. Set DSBUILDER_API_URL instead.\n")
+            1
+        }
         args.isEmpty() || args.first() == "--help" || args.first() == "-h" -> {
             printRootHelp()
             0
@@ -93,18 +95,15 @@ internal fun runNodeCli(args: List<String>): Int? =
     }
 
 private fun serve(args: List<String>) {
-    val apiUrl = optionValue(args, "--api-url")
     val workspace = optionValue(args, "--workspace")
     val runtime = defaultNodeRuntime()
     val koin = nodeKoin(runtime)
     val core = DsBuilderMcpServerCore(
-        config = McpServerConfig(apiUrlOverride = apiUrl, workspace = workspace),
-        contextResolver = koin.get<ContextResolver>(),
-        apiUrlResolver = koin.get<ApiUrlResolver>(),
+        config = McpServerConfig(workspace = workspace),
         projectStatusReader = CheckProjectStatusMcpReader(koin.get<CheckProjectStatusUseCase>()),
         docsReadUseCases = koin.get<DocsReadUseCases>(),
-        tokenReadUseCases = koin.get<TokenReadUseCases>(),
         componentReadUseCases = koin.get<ComponentReadUseCases>(),
+        modelReadUseCase = koin.get<ReadDesignSystemModelUseCase>(),
     )
     MainScope().launch {
         try {
@@ -132,8 +131,8 @@ private fun runAuth(args: List<String>): Int? {
     MainScope().launch {
         val exitCode = when (args.first()) {
             "login" -> authLogin(args.drop(1), koin)
-            "status" -> authStatus(args.drop(1), koin)
-            "logout" -> authLogout(args.drop(1), koin)
+            "status" -> authStatus(koin)
+            "logout" -> authLogout(koin)
             else -> {
                 println("Error: unknown auth command `${args.first()}`.")
                 1
@@ -152,7 +151,7 @@ private suspend fun authLogin(args: List<String>, koin: Koin): Int {
         LoginCommand(
             username = username,
             password = password,
-            apiUrlOverride = optionValue(args, "--api-url"),
+            apiUrlOverride = null,
             updatedAt = currentTimeMillis(),
         ),
     )
@@ -168,8 +167,8 @@ private suspend fun authLogin(args: List<String>, koin: Koin): Int {
     }
 }
 
-private suspend fun authStatus(args: List<String>, koin: Koin): Int =
-    when (val result = koin.get<AuthStatusUseCase>().execute(AuthStatusCommand(optionValue(args, "--api-url")))) {
+private suspend fun authStatus(koin: Koin): Int =
+    when (val result = koin.get<AuthStatusUseCase>().execute(AuthStatusCommand(null))) {
         is AuthStatusResult.LoggedIn -> {
             println("Logged in to ${result.apiUrl} as ${result.username}.")
             0
@@ -180,8 +179,8 @@ private suspend fun authStatus(args: List<String>, koin: Koin): Int =
         }
     }
 
-private suspend fun authLogout(args: List<String>, koin: Koin): Int =
-    when (val result = koin.get<LogoutUseCase>().execute(LogoutCommand(optionValue(args, "--api-url")))) {
+private suspend fun authLogout(koin: Koin): Int =
+    when (val result = koin.get<LogoutUseCase>().execute(LogoutCommand(null))) {
         is LogoutResult.Failed -> {
             println(result.message)
             1
@@ -199,8 +198,8 @@ private fun nodeKoin(runtime: ClientRuntime): Koin =
             authApplicationModule(),
             statusApplicationModule(),
             docsApplicationModule(),
-            themeApplicationModule(),
             componentsApplicationModule(),
+            dsApplicationModule(),
         )
     }.koin
 
@@ -342,11 +341,13 @@ private fun printRootHelp() {
 private fun printServeHelp() {
     println(
         """
-        Usage: dsbuilder-mcp serve [--api-url <url>] [--workspace <path>]
+        Usage: dsbuilder-mcp serve [--workspace <path>]
 
         Options:
-          --api-url     Override the DS Builder backend API URL.
           --workspace   Resolve project context from this workspace path.
+
+        Environment:
+          DSBUILDER_API_URL   DS Builder backend API URL.
         """.trimIndent(),
     )
 }

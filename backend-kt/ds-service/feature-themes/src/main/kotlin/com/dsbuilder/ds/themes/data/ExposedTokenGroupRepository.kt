@@ -1,6 +1,10 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
+import com.dsbuilder.ds.core.application.mapItems
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.modelReadPage
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.tokengroups.NewTokenGroup
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
@@ -41,6 +45,25 @@ class ExposedTokenGroupRepository : TokenGroupRepository {
                 val top = rows.filter { it.parentId == null }
                 top + top.flatMap { parent -> rows.filter { it.parentId == parent.id } }
             }
+
+    override suspend fun page(
+        designSystemId: UUID,
+        kind: TokenGroupKind,
+        read: ModelReadQuery,
+    ): ModelReadItems<TokenGroup> {
+        if (read.limit == null && read.cursor == null && read.parentId == null) {
+            return ModelReadItems(list(designSystemId, kind))
+        }
+        val parent = read.parentId?.let {
+            runCatching { UUID.fromString(it) }.getOrNull()
+                ?: throw com.dsbuilder.ds.core.data.InvalidModelReadQueryException()
+        }
+        return TokenGroupsTable.selectAll().where {
+            (TokenGroupsTable.designSystemId eq designSystemId) and (TokenGroupsTable.kind eq kind) and
+                (parent?.let { TokenGroupsTable.parentId eq it } ?: org.jetbrains.exposed.v1.core.Op.TRUE)
+        }.modelReadPage(read, "token-groups/${kind.wireValue}", TokenGroupsTable.label, TokenGroupsTable.id)
+            .mapItems(::group)
+    }
 
     override suspend fun find(designSystemId: UUID, groupId: UUID): TokenGroup? =
         TokenGroupsTable.selectAll()

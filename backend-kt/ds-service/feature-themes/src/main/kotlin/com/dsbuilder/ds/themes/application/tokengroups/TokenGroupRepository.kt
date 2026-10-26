@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.themes.application.tokengroups
 
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.domain.tokengroups.TokenGroup
 import com.dsbuilder.ds.themes.domain.tokengroups.TokenGroupKind
@@ -12,6 +14,10 @@ interface TokenGroupRepository {
 
     /** Группы и подгруппы вида [kind] дизайн-системы: по уровню, родителю и позиции. */
     suspend fun list(designSystemId: UUID, kind: TokenGroupKind): List<TokenGroup>
+
+    /** Узлы с фильтром и необязательной SQL-пагинацией. */
+    suspend fun page(designSystemId: UUID, kind: TokenGroupKind, read: ModelReadQuery): ModelReadItems<TokenGroup> =
+        ModelReadItems(list(designSystemId, kind))
 
     /** Группа или подгруппа [groupId] дизайн-системы [designSystemId]. */
     suspend fun find(designSystemId: UUID, groupId: UUID): TokenGroup?

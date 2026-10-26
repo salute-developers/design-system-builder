@@ -1,6 +1,10 @@
 package com.dsbuilder.frontend.cli
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,6 +17,7 @@ class McpCliLauncherContractTest {
     fun mcpServeRespondsToInitializeAndToolsListOverSubprocessStdio() {
         val process = ProcessBuilder(
             javaBinary(),
+            "-Duser.home=${Files.createTempDirectory("dsbuilder-mcp-test-home")}",
             "-cp",
             System.getProperty("java.class.path"),
             "com.dsbuilder.frontend.cli.MainKt",
@@ -42,22 +47,21 @@ class McpCliLauncherContractTest {
             val stderr = process.errorStream.readBytes().decodeToString()
             assertEquals(0, process.exitValue(), stderr)
             assertTrue(initializeResponse.contains(""""id":1"""), initializeResponse)
-            assertTrue(initializeResponse.contains(""""version":"0.1.0""""))
+            assertTrue(initializeResponse.contains(""""version":"0.2.0""""))
             assertTrue(toolsListResponse.contains(""""id":2"""), toolsListResponse)
             assertTrue(toolsListResponse.contains("design_system_get_context"), toolsListResponse)
             assertTrue(toolsListResponse.contains("project_get_status"), toolsListResponse)
-            assertTrue(contextResponse.contains("project-headless"), contextResponse)
-            assertTrue(contextResponse.contains("explicit-link"), contextResponse)
+            assertTrue(contextResponse.contains("AUTH_REQUIRED"), contextResponse)
+            val registry = Json.parseToJsonElement(toolsListResponse).jsonObject
+                .getValue("result").jsonObject.getValue("tools").jsonArray
+            assertEquals(22, registry.size)
+            assertTrue(toolsListResponse.contains("appearanceId"), toolsListResponse)
             assertTrue(toolsListResponse.contains("components.basic-button"), toolsListResponse)
             assertTrue(toolsListResponse.contains("component-style"), toolsListResponse)
             assertTrue(toolsListResponse.contains("The value component is not valid"), toolsListResponse)
             assertTrue(toolsListResponse.contains("\"enum\":[\"component-style\",\"token\"]"), toolsListResponse)
             assertTrue(toolsListResponse.contains("BasicButton.S.Accent"), toolsListResponse)
             assertTrue(toolsListResponse.contains("android for Compose"), toolsListResponse)
-            assertTrue(
-                toolsListResponse.contains("queries such as BasicButton or button may be empty"),
-                toolsListResponse,
-            )
             assertTrue(toolsListResponse.contains("\"enum\":[\"light\",\"dark\"]"), toolsListResponse)
             assertTrue(!initializeResponse.contains("Run DS Builder MCP tools."), initializeResponse)
             assertTrue(!toolsListResponse.contains("Run DS Builder MCP tools."), toolsListResponse)
@@ -87,7 +91,7 @@ class McpCliLauncherContractTest {
 
     private fun contextRequest(): String =
         """
-        {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{"designSystem":"dsbuilder://projects/project-headless/design-systems/ds-headless?version=1.0&platform=compose"}}}
+        {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{"designSystem":"dsbuilder://projects/project-headless/design-systems/ds-headless?version=1.0.0&platform=compose"}}}
         """.trimIndent()
 }
 

@@ -191,12 +191,12 @@ cd frontend-kt
 
 Поднимите локальный контур (gateway, Keycloak, db-service из вашей ветки), соберите CLI
 (`frontend-kt/install-local-cli.sh`) и войдите администратором: импорт доступен только системному
-администратору (`dsbuilder auth login --username admin@example.com --api-url http://localhost:8080`).
+администратору (`dsbuilder auth login --username admin@example.com`).
 
 ```bash
-dsbuilder components import-api --from <файл меты> --platform swiftui --api-url http://localhost:8080          # dry run
-dsbuilder components import-api --from <файл меты> --platform swiftui --api-url http://localhost:8080 --apply
-dsbuilder components import-api --from <файл меты> --platform swiftui --api-url http://localhost:8080 --apply # повтор
+dsbuilder components import-api --from <файл меты> --platform swiftui          # dry run
+dsbuilder components import-api --from <файл меты> --platform swiftui --apply
+dsbuilder components import-api --from <файл меты> --platform swiftui --apply # повтор
 ```
 
 Ожидаемо: на чистой платформе все счётчики `Created` растут, на повторе нули, `Rejected: 0`, раздел
@@ -273,3 +273,6 @@ select c.platform, count(*) from components c group by 1;
   записях.
 - Забыли зарегистрировать нормализатор в `ComponentsApplicationModule`: команда ответит, что платформа не
   поддержана.
+
+Backend API URL is configured through `DSBUILDER_API_URL` only; the `--api-url` option is not supported.
+For local development, set `export DSBUILDER_API_URL=http://localhost:8080` before CLI commands, and pass the same environment variable to the MCP process.

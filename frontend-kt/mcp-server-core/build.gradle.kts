@@ -12,16 +12,16 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.coreApplication)
-            implementation(projects.coreAuth)
-            implementation(projects.coreNetwork)
             implementation(projects.featureComponents)
+            implementation(projects.featureDs)
             implementation(projects.featureDocs)
             implementation(projects.featureStatus)
-            implementation(projects.featureTheme)
             implementation(libs.kotlinx.serialization.json)
         }
 
         commonTest.dependencies {
+            implementation(projects.coreAuth)
+            implementation(projects.coreNetwork)
             implementation(libs.kotlinx.coroutines.test)
         }
 

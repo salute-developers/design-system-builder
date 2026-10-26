@@ -53,6 +53,10 @@ public sealed interface AuthenticatedHttpResult {
      */
     public data class Success(
         public val body: String,
+        /** Разрешённые заголовки чтения с именами в нижнем регистре. */
+        public val headers: Map<String, String> = emptyMap(),
+        /** Повтор разрешённого заголовка делает метаданные неоднозначными. */
+        public val readHeadersValid: Boolean = true,
     ) : AuthenticatedHttpResult
 
     /**
@@ -218,7 +222,15 @@ public class KtorAuthenticatedHttpClient(
     }
 
     private suspend fun HttpResponse.toResult(): AuthenticatedHttpResult = when {
-        status.isSuccess() -> AuthenticatedHttpResult.Success(bodyAsText())
+        status.isSuccess() -> AuthenticatedHttpResult.Success(
+            bodyAsText(),
+            listOf("x-ds-read-context", "x-ds-page-limit", "x-ds-next-cursor").mapNotNull { name ->
+                headers.getAll(name)?.singleOrNull()?.let { name to it }
+            }.toMap(),
+            listOf("x-ds-read-context", "x-ds-page-limit", "x-ds-next-cursor").none { name ->
+                headers.getAll(name).orEmpty().size > 1
+            },
+        )
         status == HttpStatusCode.Unauthorized -> AuthenticatedHttpResult.Failure(
             "Status: unauthorized. Credential is missing or invalid.".withReason(denialReason()),
             status.value,

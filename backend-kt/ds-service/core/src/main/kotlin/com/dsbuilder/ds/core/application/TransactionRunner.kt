@@ -16,4 +16,11 @@ interface TransactionRunner {
 
     /** Executes a read with an optional published version selected by [context]. */
     suspend fun <T> readOnly(context: DsRequestContext, block: suspend () -> DsResult<T>): DsResult<T> = readOnly(block)
+
+    /** Разрешает DS и версию ресурса перед чтением в той же транзакции. */
+    suspend fun <T> readOnly(
+        context: DsRequestContext,
+        target: ModelReadTarget,
+        block: suspend (DsRequestContext) -> DsResult<T>,
+    ): DsResult<T> = readOnly(context) { block(context) }
 }

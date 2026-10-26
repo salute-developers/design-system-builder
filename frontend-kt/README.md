@@ -36,10 +36,10 @@
 ```bash
 ./gradlew :cli:runJvm --args="--help"
 ./gradlew :cli:runJvm --args="init --project-id project-123 --design-system-id ds-456"
-./gradlew :cli:runJvm --args="status --api-url http://localhost:8080 --api-key dev-token"
-./gradlew :cli:runJvm --args="auth status --api-url http://localhost:8080"
+./gradlew :cli:runJvm --args="status --api-key dev-token"
+./gradlew :cli:runJvm --args="auth status"
 ./gradlew :cli:runJvm --args="mcp serve --workspace /path/to/project"
-./gradlew :cli:runJvm --args="theme fetch --api-url http://localhost:8080 --api-key dev-token"
+./gradlew :cli:runJvm --args="theme fetch --api-key dev-token"
 ```
 
 ## Контекст и авторизация
@@ -58,7 +58,7 @@ dsbuilder docs publish --bundle ./docs-bundle.tar.gz --design-system 'dsbuilder:
 DSBUILDER_API_KEY=... dsbuilder status --design-system 'dsbuilder://projects/project-123/design-systems/ds-456?version=1.0.0&platform=compose' --project-key-env DSBUILDER_API_KEY
 ```
 
-Ссылка задаёт только контекст. API URL выбирается отдельно через `--api-url` или
+Ссылка задаёт только контекст. API URL выбирается отдельно только через переменную окружения
 `DSBUILDER_API_URL`. Без `--project-key-env` явная ссылка использует пользовательскую сессию.
 Для `components push/fetch` с явной ссылкой требуются локальные `--from`/`--to`.
 `theme fetch` записывает данные в локальную `.sdds`. При запуске без локального config укажите ссылку и каталог: `dsbuilder theme fetch --design-system '<uri>' --destination ./my-project`. Команда создаст `./my-project/.sdds/config.json` и не перезапишет существующий config.
@@ -75,7 +75,7 @@ DSBUILDER_API_KEY=... dsbuilder status --design-system 'dsbuilder://projects/pro
 
 ```bash
 dsbuilder-mcp --help
-dsbuilder-mcp auth status --api-url http://localhost:8080
+dsbuilder-mcp auth status
 dsbuilder-mcp serve --workspace /path/to/project
 ```
 
@@ -118,3 +118,6 @@ Release-архив собирается Gradle-задачами модуля `:c
 ./install.sh
 dsbuilder --help
 ```
+
+Backend API URL is configured through `DSBUILDER_API_URL` only; the `--api-url` option is not supported.
+For local development, set `export DSBUILDER_API_URL=http://localhost:8080` before CLI commands, and pass the same environment variable to the MCP process.

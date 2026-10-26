@@ -7,9 +7,11 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -17,6 +19,29 @@ import kotlin.test.assertTrue
  * `core-network` (ADR-0004).
  */
 class KtorAuthenticatedHttpClientRequestTest {
+    @Test
+    fun onlyUnambiguousReadHeadersCrossTheTransportBoundary() = runTest {
+        val engine = MockEngine {
+            respond(
+                "[]",
+                headers = headersOf(
+                    "X-DS-Read-Context" to listOf("{}"),
+                    "X-DS-Page-Limit" to listOf("50"),
+                    "X-DS-Next-Cursor" to listOf("one", "two"),
+                    "Authorization" to listOf("secret"),
+                    "Set-Cookie" to listOf("session=secret"),
+                    "X-Internal-Url" to listOf("private"),
+                ),
+            )
+        }
+        HttpClient(engine).use { http ->
+            val client = KtorAuthenticatedHttpClientFactory { http }.create("https://api.example.test", "key")
+            val result = client.get("/list") as AuthenticatedHttpResult.Success
+            assertEquals(mapOf("x-ds-read-context" to "{}", "x-ds-page-limit" to "50"), result.headers)
+            assertFalse(result.readHeadersValid)
+        }
+    }
+
     @Test
     fun ktorHttpClientSendsBearerMultipartWithoutProjectKey() = runTest {
         var request: HttpRequestData? = null

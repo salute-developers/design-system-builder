@@ -30,7 +30,6 @@ internal class DsFetchCliCommand(
     private val fetchComponentsUseCase: FetchComponentsUseCase,
 ) : CliktCommand(name = "fetch") {
     private val apiKey: String? by option("--api-key")
-    private val apiUrl: String? by option("--api-url")
     private val designSystem: String? by option("--design-system")
     private val projectKeyEnv: String? by option("--project-key-env")
     private val platform: TargetPlatform? by option("--platform").targetPlatform()
@@ -48,7 +47,7 @@ internal class DsFetchCliCommand(
             fetchThemesUseCase.execute(
                 FetchThemesCommand(
                     apiKeyOverride = apiKey,
-                    apiUrlOverride = apiUrl,
+                    apiUrlOverride = null,
                     designSystemUri = designSystem,
                     projectKeyEnvName = projectKeyEnv,
                     destinationDirectory = destination,
@@ -68,7 +67,7 @@ internal class DsFetchCliCommand(
                 FetchComponentsCommand(
                     destination = ComponentDestination(directory = to),
                     apiKeyOverride = apiKey,
-                    apiUrlOverride = apiUrl,
+                    apiUrlOverride = null,
                     designSystemUri = designSystem,
                     projectKeyEnvName = projectKeyEnv,
                     platform = platform,

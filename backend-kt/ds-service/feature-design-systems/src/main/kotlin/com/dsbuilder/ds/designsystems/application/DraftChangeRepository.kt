@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.designsystems.application
 
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
@@ -16,6 +18,16 @@ interface DraftChangeRepository {
         designSystemId: DesignSystemId,
         versionId: DesignSystemVersionId?,
     ): List<DraftChange>?
+
+    /** Сохраняет предел вычисления журнала до применения страницы. */
+    suspend fun page(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+        read: ModelReadQuery,
+    ): ModelReadItems<DraftChange>? = list(projectId, systemAdmin, designSystemId, versionId)
+        ?.let { ModelReadItems(it) }
 
     /** Проверяет, содержит ли выбранный активный черновик хотя бы одно предметное изменение. */
     suspend fun hasChanges(projectId: ProjectId, designSystemId: DesignSystemId): Boolean?

@@ -68,22 +68,6 @@ internal data class KnowledgeChunkSummaryDto(
 )
 
 @Serializable
-internal data class TokenSummaryDto(
-    val id: String,
-    val name: String,
-    val type: String,
-    val displayName: String? = null,
-    val description: String? = null,
-)
-
-@Serializable
-internal data class ComponentSummaryDto(
-    val id: String,
-    val name: String,
-    val description: String? = null,
-)
-
-@Serializable
 internal data class ComponentBindingDto<T>(
     val id: String,
     val subject: String,

@@ -73,6 +73,7 @@ paths:
         - Design Systems
       summary: Get design system by ID
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
         - schema:
             type: string
             format: uuid
@@ -84,6 +85,9 @@ paths:
       responses:
         '200':
           description: Item
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
           content:
             application/json:
               schema:
@@ -96,6 +100,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
           content:
             application/json:
               schema:
@@ -198,6 +208,11 @@ paths:
         Project-scoped authoritative component list. Preserves array response shape and supports optional
         textual query.
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/ExactName'
+        - $ref: '#/components/parameters/ComponentPlatformFilter'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -214,6 +229,13 @@ paths:
       responses:
         '200':
           description: Component list
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
+            X-DS-Page-Limit:
+              $ref: '#/components/headers/ReadPageLimit'
+            X-DS-Next-Cursor:
+              $ref: '#/components/headers/ReadNextCursor'
           content:
             application/json:
               schema:
@@ -238,6 +260,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
   /api/ds/design-systems/{id}/token-groups:
     get:
@@ -246,6 +274,10 @@ paths:
       summary: List token groups and subgroups of a design system
       description: Includes empty groups. Ordered by level, parent and position.
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/ParentIdFilter'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -263,6 +295,13 @@ paths:
       responses:
         '200':
           description: Token groups
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
+            X-DS-Page-Limit:
+              $ref: '#/components/headers/ReadPageLimit'
+            X-DS-Next-Cursor:
+              $ref: '#/components/headers/ReadNextCursor'
           content:
             application/json:
               schema:
@@ -303,6 +342,11 @@ paths:
         Project-scoped authoritative token list. Preserves array response shape and supports optional
         type/query filters.
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/ExactName'
+        - $ref: '#/components/parameters/GroupIdFilter'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -332,6 +376,13 @@ paths:
       responses:
         '200':
           description: Token list
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
+            X-DS-Page-Limit:
+              $ref: '#/components/headers/ReadPageLimit'
+            X-DS-Next-Cursor:
+              $ref: '#/components/headers/ReadNextCursor'
           content:
             application/json:
               schema:
@@ -369,6 +420,10 @@ paths:
         - Design Systems
       summary: Get component styles in design system
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/ExactName'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -387,6 +442,13 @@ paths:
       responses:
         '200':
           description: Styles
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
+            X-DS-Page-Limit:
+              $ref: '#/components/headers/ReadPageLimit'
+            X-DS-Next-Cursor:
+              $ref: '#/components/headers/ReadNextCursor'
           content:
             application/json:
               schema:
@@ -411,6 +473,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
   /api/ds/design-systems/{id}/tenants:
     get:
@@ -418,6 +486,11 @@ paths:
         - Design Systems
       summary: Get tenants for design system
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/ExactName'
+        - $ref: '#/components/parameters/ReadQueryFilter'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -429,6 +502,13 @@ paths:
       responses:
         '200':
           description: List of items
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
+            X-DS-Page-Limit:
+              $ref: '#/components/headers/ReadPageLimit'
+            X-DS-Next-Cursor:
+              $ref: '#/components/headers/ReadNextCursor'
           content:
             application/json:
               schema:
@@ -437,6 +517,18 @@ paths:
                   $ref: '#/components/schemas/Tenant'
         '500':
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'NOT_FOUND: ресурс или выбранная версия недоступны.'
           content:
             application/json:
               schema:
@@ -505,6 +597,9 @@ paths:
         - Design Systems
       summary: Get changes for design system
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
         - schema:
             type: string
             format: uuid
@@ -516,6 +611,13 @@ paths:
       responses:
         '200':
           description: List of items
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
+            X-DS-Page-Limit:
+              $ref: '#/components/headers/ReadPageLimit'
+            X-DS-Next-Cursor:
+              $ref: '#/components/headers/ReadNextCursor'
           content:
             application/json:
               schema:
@@ -530,6 +632,18 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'NOT_FOUND: ресурс или выбранная версия недоступны.'
           content:
             application/json:
               schema:
@@ -635,6 +749,9 @@ paths:
         - Design System Versions
       summary: All versions for a design system
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageCursor'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -646,6 +763,13 @@ paths:
       responses:
         '200':
           description: List of items
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
+            X-DS-Page-Limit:
+              $ref: '#/components/headers/ReadPageLimit'
+            X-DS-Next-Cursor:
+              $ref: '#/components/headers/ReadNextCursor'
           content:
             application/json:
               schema:
@@ -654,6 +778,18 @@ paths:
                   $ref: '#/components/schemas/DesignSystemVersion'
         '500':
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'NOT_FOUND: ресурс или выбранная версия недоступны.'
           content:
             application/json:
               schema:
@@ -997,6 +1133,10 @@ paths:
         - Tenant palette
       summary: Theme palette of a tenant
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/PaletteGroupFilter'
+        - $ref: '#/components/parameters/PaletteTypeFilter'
+        - $ref: '#/components/parameters/PaletteShadeFilter'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -1007,6 +1147,9 @@ paths:
       responses:
         '200':
           description: Theme palette
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
           content:
             application/json:
               schema:
@@ -2325,6 +2468,7 @@ paths:
         - Tokens
       summary: Get token by ID
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -2336,6 +2480,9 @@ paths:
       responses:
         '200':
           description: Item
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
           content:
             application/json:
               schema:
@@ -2348,6 +2495,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
           content:
             application/json:
               schema:
@@ -2447,6 +2600,7 @@ paths:
         - Tokens
       summary: Filtered token values for a token
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -2482,6 +2636,9 @@ paths:
       responses:
         '200':
           description: Token values
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
           content:
             application/json:
               schema:
@@ -4712,6 +4869,7 @@ paths:
         Ручка нужна для переноса объявлений при копировании дизайн-системы: тянуть ради десятка
         строк все объявления базы и фильтровать их на клиенте значит возить мегабайты.
       parameters:
+        - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -4723,6 +4881,9 @@ paths:
       responses:
         '200':
           description: List of items
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
           content:
             application/json:
               schema:
@@ -4731,6 +4892,18 @@ paths:
                   $ref: '#/components/schemas/AppearanceAxisDeclaration'
         '500':
           description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'NOT_FOUND: ресурс или выбранная версия недоступны.'
           content:
             application/json:
               schema:
@@ -10262,6 +10435,86 @@ components:
           example:
             - /value/fontSize
   parameters:
+    ModelVersion:
+      name: version
+      in: query
+      required: false
+      description: draft либо точный major.minor.patch; несовместим с versionId. В истории версий фильтрует номер публикации.
+      schema:
+        type: string
+        pattern: '^(draft|(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$'
+    PageLimit:
+      name: limit
+      in: query
+      required: false
+      description: Размер страницы 1..200. Без limit/cursor возвращается полный массив; cursor без limit использует 50.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+    PageCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Непрозрачное продолжение, привязанное к проекту, списку, DS, границе, фильтрам и порядку; размер страницы можно менять.
+      schema:
+        type: string
+    ExactName:
+      name: name
+      in: query
+      required: false
+      description: Точное имя; несовместимо с query.
+      schema:
+        type: string
+    GroupIdFilter:
+      name: groupId
+      in: query
+      required: false
+      description: UUID группы токенов.
+      schema:
+        type: string
+    ParentIdFilter:
+      name: parentId
+      in: query
+      required: false
+      description: UUID непосредственного родителя; без фильтра возвращаются все узлы.
+      schema:
+        type: string
+    ReadQueryFilter:
+      name: query
+      in: query
+      required: false
+      description: Подстрока имени или описания без учёта регистра; несовместима с name.
+      schema:
+        type: string
+    ComponentPlatformFilter:
+      name: platform
+      in: query
+      required: false
+      description: Платформа компонента web, compose, xml или ios.
+      schema:
+        type: string
+    PaletteGroupFilter:
+      name: groupId
+      in: query
+      required: false
+      description: Идентификатор группы палитры.
+      schema:
+        type: string
+    PaletteTypeFilter:
+      name: type
+      in: query
+      required: false
+      description: Вид растяжки general или additional.
+      schema:
+        type: string
+    PaletteShadeFilter:
+      name: shade
+      in: query
+      required: false
+      description: Точный оттенок; требует type.
+      schema:
+        type: string
     OptionalBaseRevision:
       name: X-DS-Base-Revision
       in: header
@@ -10305,6 +10558,24 @@ components:
         minLength: 1
         maxLength: 255
   headers:
+    ReadContext:
+      description: >-
+        Безопасный JSON из транзакции данных. Черновик содержит designSystemId, version=draft,
+        draftId, draftRevision; публикация — designSystemId, version, versionId;
+        история — только designSystemId. Credentials и внутренние URL исключены.
+      schema:
+        type: string
+      example: '{"designSystemId":"550e8400-e29b-41d4-a716-446655440000","version":"draft","draftId":"550e8400-e29b-41d4-a716-446655440001","draftRevision":42}'
+    ReadPageLimit:
+      description: Размер явно запрошенной страницы; тело сохраняет прежний массив.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+    ReadNextCursor:
+      description: Продолжение только непоследней страницы; смена draftRevision допустима, смена draftId даёт INVALID_QUERY.
+      schema:
+        type: string
     MutationMetadata:
       description: >
         JSON-массив технических редакций изменённых сущностей. Поле warnings содержит пути, которые после

@@ -2,8 +2,6 @@
 
 package com.dsbuilder.frontend.feature.components.application
 
-import com.dsbuilder.frontend.core.application.ContextResolver
-import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.RuntimeFailureCode
 import com.dsbuilder.frontend.core.application.RuntimeRequest
 import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
@@ -11,16 +9,11 @@ import com.dsbuilder.frontend.core.application.RuntimeResolution
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
-import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
-
-public data class ComponentListReadCommand(val query: String?, val platform: String?)
-
-public data class ComponentGetReadCommand(val componentId: String)
 
 public data class ComponentConfigReadCommand(val identifier: String, val style: String?)
 
@@ -59,43 +52,16 @@ public sealed interface ComponentReadResult {
 }
 
 public interface ComponentReadRemoteSource {
-    public suspend fun list(runtime: ComponentReadRuntime, command: ComponentListReadCommand): ComponentReadResult
-
-    public suspend fun get(runtime: ComponentReadRuntime, command: ComponentGetReadCommand): ComponentReadResult
 
     public suspend fun config(runtime: ComponentReadRuntime, command: ComponentConfigReadCommand): ComponentReadResult
-
-    public suspend fun styles(runtime: ComponentReadRuntime, command: ComponentGetReadCommand): ComponentReadResult
-
-    public suspend fun variations(runtime: ComponentReadRuntime, command: ComponentGetReadCommand): ComponentReadResult
 
     public suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult
 }
 
 public class ComponentReadUseCases(
-    private val contextResolver: ContextResolver,
-    private val apiUrlResolver: ApiUrlResolver,
-    private val credentialProvider: CredentialProvider,
+    private val runtimeResolver: RuntimeRequestResolver,
     private val remoteSource: ComponentReadRemoteSource,
 ) {
-    public suspend fun list(
-        command: ComponentListReadCommand,
-        request: RuntimeRequest = RuntimeRequest(),
-    ): ComponentReadResult =
-        withRuntime(request) { remoteSource.list(it, command) }
-
-    public suspend fun get(
-        command: ComponentGetReadCommand,
-        request: RuntimeRequest = RuntimeRequest(),
-    ): ComponentReadResult =
-        withRuntime(request) { remoteSource.get(it, command) }
-
-    public suspend fun config(
-        command: ComponentConfigReadCommand,
-        request: RuntimeRequest = RuntimeRequest(),
-    ): ComponentReadResult =
-        withRuntime(request) { remoteSource.config(it, command) }
-
     public suspend fun projectedConfig(
         command: ComponentProjectedConfigReadCommand,
         request: RuntimeRequest = RuntimeRequest(),
@@ -120,20 +86,6 @@ public class ComponentReadUseCases(
         }
         projectConfig((config as ComponentReadResult.Success).value, command.selection, tokenNames)
     }
-
-    public suspend fun styles(
-        command: ComponentGetReadCommand,
-        request: RuntimeRequest = RuntimeRequest(),
-    ): ComponentReadResult =
-        withRuntime(request) { remoteSource.styles(it, command) }
-
-    public suspend fun variations(
-        command: ComponentGetReadCommand,
-        request: RuntimeRequest = RuntimeRequest(),
-    ): ComponentReadResult =
-        withRuntime(request) { remoteSource.variations(it, command) }
-
-    private val runtimeResolver = RuntimeRequestResolver(contextResolver, apiUrlResolver, credentialProvider)
 
     private suspend fun withRuntime(
         request: RuntimeRequest,

@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenMutation
@@ -17,7 +18,6 @@ import com.dsbuilder.ds.themes.presentation.repeatableThemeMutation
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -30,12 +30,12 @@ import kotlin.coroutines.cancellation.CancellationException
 /** Регистрирует список групп токенов дизайн-системы и операции над ними в теме. */
 fun Route.tokenGroupRoutes(evaluator: PolicyEvaluator, useCases: TokenGroupUseCases) {
     get("/api/ds/design-systems/{designSystemId}/token-groups") {
-        val context = call.context(evaluator) ?: return@get
+        val context = call.modelReadContext(evaluator) ?: return@get
         val designSystemId = uuid(call.parameters["designSystemId"])
             ?: return@get call.respondFailure(invalidId("дизайн-системы"))
         val kind = call.groupKind() ?: return@get
         when (val result = useCases.list.execute(context, designSystemId, kind)) {
-            is DsResult.Success -> call.respond(result.value.map(TokenGroupDto::from))
+            is DsResult.Success -> call.respondSuccess(result, result.value.map(TokenGroupDto::from))
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }

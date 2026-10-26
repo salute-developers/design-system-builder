@@ -1,3 +1,6 @@
+> Backend задаётся через окружение: `export DSBUILDER_API_URL=http://localhost:8080`.
+> CLI и MCP используют эту переменную; параметр `--api-url` удалён.
+
 # DS Builder CLI
 
 `dsbuilder` — CLI для локальной работы с проектом дизайн-системы DS Builder.
@@ -43,9 +46,9 @@ dsbuilder --version
 Для сценариев без project API key можно сохранить локальную user session:
 
 ```bash
-dsbuilder auth login --username alice --api-url https://your-gateway
-dsbuilder auth status --api-url https://your-gateway
-dsbuilder auth logout --api-url https://your-gateway
+dsbuilder auth login --username alice
+dsbuilder auth status
+dsbuilder auth logout
 ```
 
 Пароль вводится только интерактивно. `auth status` не печатает access token или refresh token.
@@ -126,7 +129,7 @@ CLI делает один refresh/retry; для rejected project key fallback н
 CLI может запустить локальный MCP server поверх тех же shared use cases:
 
 ```bash
-dsbuilder mcp serve --workspace /path/to/project --api-url https://your-gateway
+dsbuilder mcp serve --workspace /path/to/project
 ```
 
 Команда работает по stdio. Stdout зарезервирован под JSON-RPC protocol messages; диагностический вывод не должен
@@ -185,13 +188,13 @@ DS Builder и загружает одним запросом.
 По умолчанию читается локальная директория `.sdds/components`:
 
 ```bash
-dsbuilder components push --api-url https://your-gateway
+dsbuilder components push
 ```
 
 Другая директория:
 
 ```bash
-dsbuilder components push --from ./configs --api-url https://your-gateway
+dsbuilder components push --from ./configs
 ```
 
 ### Платформа
@@ -233,8 +236,8 @@ Rejected: 1
 Команда пишет в backend, поэтому реальная запись требует явного `--apply`:
 
 ```bash
-dsbuilder components push --api-url https://your-gateway           # план, ничего не пишется
-dsbuilder components push --api-url https://your-gateway --apply   # запись
+dsbuilder components push           # план, ничего не пишется
+dsbuilder components push --apply   # запись
 ```
 
 Оба режима возвращают одинаковый отчёт, поэтому план совпадает с тем, что произойдёт при
@@ -243,7 +246,7 @@ dsbuilder components push --api-url https://your-gateway --apply   # запис�
 ### API URL передаётся явно
 
 Умолчание в коде указывает на общую установку, поэтому для записи оно запрещено: нужен
-`--api-url` либо переменная `DSBUILDER_API_URL`. Без них команда отказывает и не отправляет
+переменная `DSBUILDER_API_URL`. Без неё команда отказывает и не отправляет
 запрос.
 
 Перед отправкой печатаются обе стороны — что отправляется и куда:
@@ -252,7 +255,7 @@ dsbuilder components push --api-url https://your-gateway --apply   # запис�
 Package: sdds_sbcom
 Source: /path/to/.sdds/components
 Configurations: 47
-API URL: https://your-gateway (from --api-url)
+API URL: https://your-gateway (from DSBUILDER_API_URL)
 Project: f7328fe3-eedf-46b3-8fc4-e447357b4b0b
 Design system: 7115755a-621f-49b1-b0e3-5c28c52b17af
 ```
@@ -309,14 +312,13 @@ components:write
 `components push` и `components fetch` этот слой используют: свойства и состояния, которых в нём нет,
 попадают в отчёт `push` как `unknownProperties` и `unknownStates`.
 
-Нужна user session администратора на **том же API URL**, который передаётся команде:
+Нужна user session администратора на **том же API URL**, который задан через `DSBUILDER_API_URL`:
 
 ```bash
-dsbuilder auth login --username admin@example.com --api-url https://your-gateway
+dsbuilder auth login --username admin@example.com
+dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose # план, ничего не пишется
 dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
-  --api-url https://your-gateway           # план, ничего не пишется
-dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
-  --api-url https://your-gateway --apply   # запись
+  --apply   # запись
 ```
 
 Команде не нужны проект, `.sdds/config.json`, Gradle и дизайн-система: только файл, платформа и API URL.
@@ -386,7 +388,7 @@ Status: forbidden. Credential has no access to this project. Server: System admi
 ```
 
 Первая часть сообщения общая для всех команд; причина после `Server:` — из ответа backend. Если user
-session для этого API URL нет, команда подскажет `dsbuilder auth login --api-url <url>` и ничего не
+session для этого API URL нет, команда подскажет `dsbuilder auth login` и ничего не
 отправит.
 
 ### Что при импорте View не попадает в базу
@@ -604,12 +606,11 @@ dsbuilder docs publish --bundle ./build/docs-bundle.tar.gz
 
 Команда читает project id и credential reference из `.sdds/config.json`. API key разрешается из
 configured environment variable, затем из `DSBUILDER_API_KEY`; разовый override задаётся через
-`--api-key`. Gateway URL разрешается из `--api-url`, `DSBUILDER_API_URL` или default CLI URL:
+`--api-key`. Gateway URL разрешается из `DSBUILDER_API_URL` или default CLI URL:
 
 ```bash
 dsbuilder docs publish \
-  --api-key dev-token \
-  --api-url http://localhost:8080
+  --api-key dev-token
 ```
 
-Опция ранней placeholder-реализации `--api-base-url` больше не поддерживается; используйте `--api-url`.
+Опция ранней placeholder-реализации `--api-base-url` больше не поддерживается; используйте `DSBUILDER_API_URL`.

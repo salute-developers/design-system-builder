@@ -93,7 +93,7 @@ public class ContextResolver(
                     designSystemId = DesignSystemId(selection.designSystemId.value),
                     credentialEnvName = CredentialEnvName(projectKeyEnvName ?: "DSBUILDER_API_KEY"),
                     configPath = "",
-                    platforms = listOf(selection.platform),
+                    platforms = listOfNotNull(selection.platform),
                     credentialPolicy = if (projectKeyEnvName == null) {
                         CredentialPolicy.USER_SESSION
                     } else {
@@ -114,7 +114,7 @@ public class ContextResolver(
         return ProjectContextReadResult.Failed(
             "Error: Design-system context is required. Pass --design-system " +
                 "'dsbuilder://projects/<project-id>/design-systems/<design-system-id>" +
-                "?version=<version>&platform=<platform>', or run " +
+                "?version=<version>[&platform=<platform>]', or run " +
                 "`dsbuilder init --project-id <id> --design-system-id <id>`.",
             ProjectContextFailure.NOT_INITIALIZED,
         )

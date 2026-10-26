@@ -22,7 +22,7 @@ class CliCoreWriteSupportTest {
         val resolved = ApiUrlResolver(EnvironmentReader { null }).resolve("http://localhost:8080")
 
         assertEquals(ApiUrlSource.ARGUMENT, resolved.source)
-        assertEquals("--api-url", resolved.sourceName)
+        assertEquals("runtime override", resolved.sourceName)
         assertTrue(!resolved.isCodeDefault)
     }
 
@@ -51,7 +51,7 @@ class CliCoreWriteSupportTest {
         val result = ApiUrlResolver(EnvironmentReader { null }).resolveForWrite(null)
 
         val rejected = assertNotNull(result as? WriteApiUrlResult.Rejected, "умолчание принято для записи")
-        assertTrue(rejected.message.contains("--api-url"), rejected.message)
+        assertTrue(rejected.message.contains("DSBUILDER_API_URL"), rejected.message)
         assertTrue(rejected.message.contains(API_URL_ENV), rejected.message)
     }
 

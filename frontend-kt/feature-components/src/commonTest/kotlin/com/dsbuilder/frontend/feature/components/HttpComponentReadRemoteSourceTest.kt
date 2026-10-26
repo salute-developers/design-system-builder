@@ -6,11 +6,11 @@ import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigReadCommand
-import com.dsbuilder.frontend.feature.components.application.ComponentGetReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRuntime
 import com.dsbuilder.frontend.feature.components.data.HttpComponentReadRemoteSource
@@ -41,6 +41,26 @@ class HttpComponentReadRemoteSourceTest {
     }
 
     @Test
+    fun configExportUsesTheSelectedPlatformInTheBackendVocabulary() = runTest {
+        for ((platform, expected) in listOf(
+            TargetPlatform.REACT to "web",
+            TargetPlatform.COMPOSE to "compose",
+            TargetPlatform.ANDROID_VIEW to "xml",
+            TargetPlatform.SWIFT_UI to "ios",
+        )) {
+            var requestBody = ""
+            val source = source { requestBody = it }
+            val runtime = runtime()
+            source.config(
+                runtime.copy(context = runtime.context.copy(platforms = listOf(platform))),
+                ComponentConfigReadCommand("basic-button", null),
+            )
+            val body = Json.parseToJsonElement(requestBody).jsonObject
+            assertEquals(expected, body.getValue("platform").jsonPrimitive.content)
+        }
+    }
+
+    @Test
     fun explicitStyleIsSentAsArray() = runTest {
         var requestBody = ""
         val source = source { requestBody = it }
@@ -49,43 +69,6 @@ class HttpComponentReadRemoteSourceTest {
 
         val styles = Json.parseToJsonElement(requestBody).jsonObject.getValue("styles").jsonArray
         assertEquals("basic-button", styles.single().jsonPrimitive.content)
-    }
-
-    @Test
-    fun detailAndVariationReadsReuseIdRoutesWhileStylesStayAggregated() = runTest {
-        val requestedPaths = mutableListOf<String>()
-        val source = HttpComponentReadRemoteSource(
-            object : AuthenticatedHttpClientFactory {
-                override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-                    error("Project-key overload should not be used.")
-
-                override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =
-                    object : AuthenticatedHttpClient {
-                        override suspend fun get(path: String): AuthenticatedHttpResult {
-                            requestedPaths += path
-                            return AuthenticatedHttpResult.Success("{}")
-                        }
-
-                        override suspend fun post(path: String, body: String): AuthenticatedHttpResult =
-                            error("Unexpected POST")
-                    }
-            },
-            Json,
-        )
-        val command = ComponentGetReadCommand("component-1")
-
-        source.get(runtime(), command)
-        source.variations(runtime(), command)
-        source.styles(runtime(), command)
-
-        assertEquals(
-            listOf(
-                "/api/projects/project-1/ds/components/component-1",
-                "/api/projects/project-1/ds/components/component-1/variations",
-                "/api/projects/project-1/ds/design-systems/ds-1/components/component-1/styles",
-            ),
-            requestedPaths,
-        )
     }
 
     private fun source(onPost: (String) -> Unit) = HttpComponentReadRemoteSource(

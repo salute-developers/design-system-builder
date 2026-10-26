@@ -94,7 +94,7 @@ public class CheckProjectStatusUseCase internal constructor(
  * Command model для [CheckProjectStatusUseCase].
  *
  * @property apiKeyOverride runtime override из `--api-key`.
- * @property apiUrlOverride runtime override из `--api-url`.
+ * @property apiUrlOverride runtime API URL override.
  * @property workspace optional starting directory for project context resolution.
  * @property designSystemUri explicit design-system link.
  * @property projectKeyEnvName environment variable for an explicit project key.

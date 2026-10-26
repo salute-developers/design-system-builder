@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.core.application.ContextSource
 import com.dsbuilder.frontend.core.application.ContextSourceResult
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.CredentialResult
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
@@ -16,8 +17,6 @@ import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigView
-import com.dsbuilder.frontend.feature.components.application.ComponentGetReadCommand
-import com.dsbuilder.frontend.feature.components.application.ComponentListReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentProjectedConfigReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
@@ -52,16 +51,6 @@ class ComponentProjectedConfigReadTest {
         )
         val observed = mutableListOf<ComponentReadRuntime>()
         val remote = object : ComponentReadRemoteSource {
-            override suspend fun list(
-                runtime: ComponentReadRuntime,
-                command: ComponentListReadCommand,
-            ): ComponentReadResult = error("Unexpected list")
-
-            override suspend fun get(
-                runtime: ComponentReadRuntime,
-                command: ComponentGetReadCommand,
-            ): ComponentReadResult = error("Unexpected get")
-
             override suspend fun config(
                 runtime: ComponentReadRuntime,
                 command: ComponentConfigReadCommand,
@@ -89,38 +78,30 @@ class ComponentProjectedConfigReadTest {
                 )
             }
 
-            override suspend fun styles(
-                runtime: ComponentReadRuntime,
-                command: ComponentGetReadCommand,
-            ): ComponentReadResult = error("Unexpected styles")
-
-            override suspend fun variations(
-                runtime: ComponentReadRuntime,
-                command: ComponentGetReadCommand,
-            ): ComponentReadResult = error("Unexpected variations")
-
             override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult {
                 observed += runtime
                 return success("""{"source":"api","data":[{"name":"round.m","type":"shape"}]}""")
             }
         }
         val useCases = ComponentReadUseCases(
-            contextResolver,
-            ApiUrlResolver(
-                object : EnvironmentReader {
-                    override fun get(name: String): String? = null
+            RuntimeRequestResolver(
+                contextResolver,
+                ApiUrlResolver(
+                    object : EnvironmentReader {
+                        override fun get(name: String): String? = null
+                    },
+                ),
+                object : CredentialProvider {
+                    override suspend fun resolve(
+                        apiUrl: ProjectApiUrl,
+                        projectKeyOverride: String?,
+                        credentialEnvName: CredentialEnvName,
+                    ): CredentialResult = CredentialResult.Selected(
+                        BackendCredential.ProjectKey("key"),
+                        BackendCredentialType.PROJECT_KEY,
+                    )
                 },
             ),
-            object : CredentialProvider {
-                override suspend fun resolve(
-                    apiUrl: ProjectApiUrl,
-                    projectKeyOverride: String?,
-                    credentialEnvName: CredentialEnvName,
-                ): CredentialResult = CredentialResult.Selected(
-                    BackendCredential.ProjectKey("key"),
-                    BackendCredentialType.PROJECT_KEY,
-                )
-            },
             remote,
         )
 

@@ -24,9 +24,9 @@ kotlin {
             implementation(projects.coreWorkspace)
             implementation(projects.featureAuth)
             implementation(projects.featureComponents)
+            implementation(projects.featureDs)
             implementation(projects.featureDocs)
             implementation(projects.featureStatus)
-            implementation(projects.featureTheme)
             implementation(projects.mcpServerCore)
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines.core)
@@ -69,7 +69,7 @@ tasks.register<Sync>("packageMcpNodeNpm") {
             """
             {
               "name": "@dsbuilder/mcp",
-              "version": "0.1.0",
+              "version": "0.2.0",
               "private": true,
               "license": "UNLICENSED",
               "type": "commonjs",
@@ -103,6 +103,7 @@ tasks.register("npmPackMcpNodeSmoke") {
                 .directory(smokeDir)
                 .redirectErrorStream(true)
             builder.environment()["HOME"] = homeDir.absolutePath
+            builder.environment()["DSBUILDER_API_URL"] = "http://localhost:9"
             val process = builder.start()
             val output = process.inputStream.readBytes().decodeToString()
             check(process.waitFor(60, TimeUnit.SECONDS)) {
@@ -138,12 +139,15 @@ tasks.register("npmPackMcpNodeSmoke") {
         check(!passwordOutput.contains("secret")) {
             "auth login rejection leaked password argument: $passwordOutput"
         }
+        val removedOptionOutput = runChecked(
+            smokeDir.resolve("node_modules/.bin/dsbuilder-mcp").absolutePath,
+            "serve", "--api-url", "http://localhost:9", expectedExitCode = 1,
+        )
+        check(removedOptionOutput.contains("Set DSBUILDER_API_URL"))
         val statusOutput = runChecked(
             smokeDir.resolve("node_modules/.bin/dsbuilder-mcp").absolutePath,
             "auth",
             "status",
-            "--api-url",
-            "http://localhost:9",
             expectedExitCode = 1,
         )
         check(statusOutput.contains("Not logged in")) {
@@ -156,8 +160,6 @@ tasks.register("npmPackMcpNodeSmoke") {
             smokeDir.resolve("node_modules/.bin/dsbuilder-mcp").absolutePath,
             "auth",
             "logout",
-            "--api-url",
-            "http://localhost:9",
         )
         val serveBuilder = ProcessBuilder(smokeDir.resolve("node_modules/.bin/dsbuilder-mcp").absolutePath, "serve")
             .directory(smokeDir)
@@ -175,7 +177,7 @@ tasks.register("npmPackMcpNodeSmoke") {
             writer.appendLine("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""")
             writer.appendLine("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"missing_tool","arguments":{}}}""")
             writer.appendLine(
-                """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{"designSystem":"dsbuilder://projects/project-headless/design-systems/ds-headless?version=1.0&platform=compose"}}}""",
+                """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{"designSystem":"dsbuilder://projects/project-headless/design-systems/550e8400-e29b-41d4-a716-446655440000?version=1.0.0&platform=compose"}}}""",
             )
             writer.appendLine(
                 """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{}}}""",
@@ -190,7 +192,7 @@ tasks.register("npmPackMcpNodeSmoke") {
             check(initializeResponse.contains(""""id":1""")) {
                 "Initialize response did not contain id 1: $initializeResponse"
             }
-            check(initializeResponse.contains(""""version":"0.1.0"""")) {
+            check(initializeResponse.contains(""""version":"0.2.0"""")) {
                 "Initialize response did not contain server version: $initializeResponse"
             }
             check(toolsResponse.contains(""""id":2""")) {
@@ -208,6 +210,18 @@ tasks.register("npmPackMcpNodeSmoke") {
             check(toolsResponse.contains("component_config_get")) {
                 "tools/list response did not contain component_config_get: $toolsResponse"
             }
+            val modelToolNames = Regex(""""name":"([a-z_]+)"""")
+                .findAll(toolsResponse).map { it.groupValues[1] }.toList()
+            check(modelToolNames.size == 22 && modelToolNames.toSet().size == 22) {
+                "Expected exactly 22 distinct tools: $modelToolNames"
+            }
+            listOf(
+                "design_system_versions_list", "design_system_version_get", "design_system_changes_list",
+                "tenants_list", "token_groups_list", "palette_get",
+            ).forEach { name -> check(name in modelToolNames) { "Missing tool: $name" } }
+            check(toolsResponse.contains("appearanceId")) {
+                "Appearance variation schema is missing appearanceId"
+            }
             check(!toolsResponse.contains("token_update", ignoreCase = true)) {
                 "tools/list response unexpectedly contained mutating token tool: $toolsResponse"
             }
@@ -223,8 +237,8 @@ tasks.register("npmPackMcpNodeSmoke") {
             check(!unknownToolResponse.contains(""""result"""")) {
                 "unknown tool response returned tool result instead of protocol error: $unknownToolResponse"
             }
-            check(explicitContextResponse.contains("project-headless")) {
-                "Explicit context was not resolved: $explicitContextResponse"
+            check(explicitContextResponse.contains("AUTH_REQUIRED")) {
+                "Explicit context must require authentication: $explicitContextResponse"
             }
             check(missingContextResponse.contains("CONTEXT_REQUIRED")) {
                 "Missing context did not return CONTEXT_REQUIRED: $missingContextResponse"

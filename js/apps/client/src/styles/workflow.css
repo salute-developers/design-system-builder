@@ -4024,3 +4024,23 @@ button:disabled {
 .change-journal small {
     color: #ffffff99;
 }
+
+.mcp-link-popover {
+    padding: 16px;
+    border: 1px solid var(--p-line, #ffffff1a);
+    border-radius: 8px;
+    background: var(--builder-panel, #212327);
+    color: var(--p-text, #f3f3f3);
+    box-shadow: 0 4px 16px #0006;
+    font: 400 13px/20px Inter, system-ui, sans-serif;
+    overflow: auto;
+}
+.mcp-link-popover p { margin: 0 0 12px; }
+.mcp-link-field { display: flex; align-items: center; gap: 8px; }
+.mcp-link-field input {
+    flex: 1; min-width: 0; padding: 8px;
+    border: 1px solid var(--p-line, #ffffff1a); border-radius: 4px;
+    background: transparent; color: inherit; font: inherit;
+}
+.mcp-link-field button { flex-shrink: 0; }
+.mcp-link-popover [role="status"] { display: block; margin-top: 8px; }

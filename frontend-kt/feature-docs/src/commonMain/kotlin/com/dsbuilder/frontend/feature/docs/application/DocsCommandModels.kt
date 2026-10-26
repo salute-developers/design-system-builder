@@ -92,7 +92,7 @@ public sealed interface DocsGenerateResult {
  *
  * @property bundlePath путь к tar.gz-архиву пакета.
  * @property apiKeyOverride runtime override из `--api-key`.
- * @property apiUrlOverride runtime override из `--api-url`.
+ * @property apiUrlOverride runtime API URL override.
  * @property designSystemUri явная ссылка на дизайн-систему.
  * @property projectKeyEnvName env-переменная ключа для явной ссылки.
  */

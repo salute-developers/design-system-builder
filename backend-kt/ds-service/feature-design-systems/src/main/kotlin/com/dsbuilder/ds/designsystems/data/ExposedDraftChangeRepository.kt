@@ -5,8 +5,11 @@ import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.modelReadJournalPage
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.DraftChangeLimitExceededException
 import com.dsbuilder.ds.designsystems.application.DraftChangeRepository
@@ -32,6 +35,16 @@ class ExposedDraftChangeRepository(
     private val policies: List<DraftChangePolicy> = emptyList(),
     private val dependencies: List<DraftChangeDependencyValidator> = emptyList(),
 ) : DraftChangeRepository {
+    override suspend fun page(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+        read: ModelReadQuery,
+    ): ModelReadItems<DraftChange>? = list(projectId, systemAdmin, designSystemId, versionId)
+        ?.sortedWith(compareBy<DraftChange> { it.entityType }.thenBy { it.entityId.toString() })
+        ?.modelReadJournalPage(read, DraftChange::entityType, DraftChange::entityId)
+
     override suspend fun list(
         projectId: ProjectId,
         systemAdmin: Boolean,

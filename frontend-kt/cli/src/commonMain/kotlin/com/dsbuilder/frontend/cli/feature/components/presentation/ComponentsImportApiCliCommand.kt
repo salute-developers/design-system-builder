@@ -30,8 +30,6 @@ internal class ComponentsImportApiCliCommand(
 
     private val platform: TargetPlatform by option("--platform").targetPlatform().required()
         .help(platformImportApiHelp(importApiMetaUseCase.supportedPlatforms))
-
-    private val apiUrl: String? by option("--api-url")
         .help("Backend API URL; the user session saved by `dsbuilder auth login` for this URL is used.")
 
     private val mapType: List<String> by option("--map-type")
@@ -59,7 +57,7 @@ internal class ComponentsImportApiCliCommand(
                     from = from,
                     dryRun = !apply,
                     typeMap = typeMap,
-                    apiUrlOverride = apiUrl,
+                    apiUrlOverride = null,
                 ),
                 onTarget = { target -> echo(target.render()) },
             )

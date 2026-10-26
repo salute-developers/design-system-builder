@@ -1,16 +1,9 @@
 package com.dsbuilder.frontend.mcpserver
 
-import com.dsbuilder.frontend.core.application.ContextResolver
 import com.dsbuilder.frontend.core.application.ContextSelection
-import com.dsbuilder.frontend.core.application.ProjectContextFailure
-import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.RuntimeRequest
-import com.dsbuilder.frontend.core.domain.ContextProvenance
-import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigView
-import com.dsbuilder.frontend.feature.components.application.ComponentGetReadCommand
-import com.dsbuilder.frontend.feature.components.application.ComponentListReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentProjectedConfigReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentReadErrorCode
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
@@ -23,20 +16,20 @@ import com.dsbuilder.frontend.feature.docs.application.DocumentationFetchCommand
 import com.dsbuilder.frontend.feature.docs.application.DocumentationPageCommand
 import com.dsbuilder.frontend.feature.docs.application.DocumentationPublicationCommand
 import com.dsbuilder.frontend.feature.docs.application.DocumentationSearchCommand
+import com.dsbuilder.frontend.feature.ds.application.ModelReadCommand
+import com.dsbuilder.frontend.feature.ds.application.ModelReadOperation
+import com.dsbuilder.frontend.feature.ds.application.ModelReadResult
+import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusCommand
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusErrorCode
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
-import com.dsbuilder.frontend.feature.theme.application.TokenGetReadCommand
-import com.dsbuilder.frontend.feature.theme.application.TokenListReadCommand
-import com.dsbuilder.frontend.feature.theme.application.TokenReadResult
-import com.dsbuilder.frontend.feature.theme.application.TokenReadUseCases
-import com.dsbuilder.frontend.feature.theme.application.TokenValuesReadCommand
 import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -44,7 +37,7 @@ import kotlinx.serialization.json.contentOrNull
 /**
  * Semantic version reported by both MCP launchers.
  */
-public const val MCP_SERVER_VERSION: String = "0.1.0"
+public const val MCP_SERVER_VERSION: String = "0.2.0"
 
 /**
  * Runtime inputs shared by the CLI and Node MCP launchers.
@@ -126,6 +119,8 @@ public data class McpToolInputDefinition(
     public val allowedValues: List<String> = emptyList(),
     /** JSON Schema item type when [type] is `array`. */
     public val itemType: String? = null,
+    /** Required input for the tool schema. */
+    public val required: Boolean = false,
 )
 
 /**
@@ -153,18 +148,6 @@ public data class McpToolError(
 )
 
 @Serializable
-private data class ContextBody(
-    val projectId: String,
-    val designSystemId: String,
-    val configPath: String?,
-    val apiUrl: String,
-    val credentialType: String? = null,
-    val provenance: String = "local-config",
-    val version: String? = null,
-    val platform: String? = null,
-)
-
-@Serializable
 private data class StatusBody(
     val projectName: String,
     val designSystemName: String,
@@ -177,52 +160,32 @@ private data class StatusBody(
  */
 public class DsBuilderMcpServerCore(
     private val config: McpServerConfig,
-    private val contextResolver: ContextResolver,
-    private val apiUrlResolver: ApiUrlResolver,
     private val projectStatusReader: McpProjectStatusReader,
     private val docsReadUseCases: DocsReadUseCases? = null,
-    private val tokenReadUseCases: TokenReadUseCases? = null,
     private val componentReadUseCases: ComponentReadUseCases? = null,
+    private val modelReadUseCase: ReadDesignSystemModelUseCase? = null,
     private val json: Json = Json { encodeDefaults = true },
 ) {
     /**
      * Returns the read-only tools registered by this server core.
      */
-    public fun tools(): List<McpToolDefinition> = listOf(
-        McpToolDefinition(
-            name = "design_system_get_context",
-            description = "Return resolved DS Builder project and design-system context.",
-        ),
-        McpToolDefinition(
-            name = "project_get_status",
-            description = "Verify backend access for the resolved DS Builder project.",
-        ),
-        documentationSearchTool(),
-        tool("documentation_fetch", "Fetch one published documentation knowledge chunk.", "kbUrl"),
-        tool("documentation_get_navigation", "Read active publication navigation.", "version", "platform"),
-        tool("documentation_get_page", "Read one active publication page.", "path", "version", "platform"),
-        codeBindingSearchTool(),
-        codeBindingGetTool(),
-        tokensListTool(),
-        tool("token_get", "Read one authoritative design-system token by stable ID.", "tokenId"),
-        tokenValuesGetTool(),
-        componentsListTool(),
-        tool("component_get", "Read one authoritative design-system component by stable ID.", "componentId"),
-        componentConfigGetTool(),
-        tool("component_styles_get", "Read authoritative component styles by stable component ID.", "componentId"),
-        tool(
-            "component_variations_get",
-            "Read authoritative configuration-model variations by stable component ID. " +
-                "Do not use this tool to list published code variations; " +
-                "use code_binding_search followed by code_binding_get with detail=summary instead.",
-            "componentId",
-        ),
-    ).map { definition ->
+    public fun tools(): List<McpToolDefinition> = (
+        listOf(
+            McpToolDefinition(name = "project_get_status", description = "Verify backend project access."),
+            documentationSearchTool(),
+            tool("documentation_fetch", "Fetch one published documentation knowledge chunk.", "kbUrl"),
+            tool("documentation_get_navigation", "Read active publication navigation.", "version", "platform"),
+            tool("documentation_get_page", "Read one active publication page.", "path", "version", "platform"),
+            codeBindingSearchTool(),
+            codeBindingGetTool(),
+            componentConfigGetTool(),
+        ) + modelMcpTools()
+        ).map { definition ->
         definition.copy(
             inputSchema = definition.inputSchema + (
                 "designSystem" to stringInput(
                     "Optional dsbuilder://projects/{projectId}/design-systems/{designSystemId}" +
-                        "?version=...&platform=... link. " +
+                        "?version=... link. The platform query parameter is optional. " +
                         "Selects a resource for this call; it is not an API URL or credential.",
                 )
                 ),
@@ -235,49 +198,87 @@ public class DsBuilderMcpServerCore(
     @Suppress("CyclomaticComplexMethod")
     public suspend fun callTool(name: String, arguments: JsonObject = JsonObject(emptyMap())): McpToolResult =
         when (name) {
-            "design_system_get_context" -> designSystemGetContext(arguments)
+            "design_system_get_context" -> readModelTool(name, arguments)
             "project_get_status" -> projectGetStatus(arguments)
+            "design_system_versions_list" -> readModelTool(name, arguments)
+            "design_system_version_get" -> readModelTool(name, arguments)
+            "design_system_changes_list" -> readModelTool(name, arguments)
+            "tenants_list" -> readModelTool(name, arguments)
+            "token_groups_list" -> readModelTool(name, arguments)
+            "palette_get" -> readModelTool(name, arguments)
             "documentation_search" -> documentationSearch(arguments)
             "documentation_fetch" -> documentationFetch(arguments)
             "documentation_get_navigation" -> documentationNavigation(arguments)
             "documentation_get_page" -> documentationPage(arguments)
             "code_binding_search" -> codeBindingSearch(arguments)
             "code_binding_get" -> codeBindingGet(arguments)
-            "tokens_list" -> tokensList(arguments)
-            "token_get" -> tokenGet(arguments)
-            "token_values_get" -> tokenValuesGet(arguments)
-            "components_list" -> componentsList(arguments)
-            "component_get" -> componentGet(arguments)
+            "tokens_list" -> readModelTool(name, arguments)
+            "token_get" -> readModelTool(name, arguments)
+            "token_values_get" -> readModelTool(name, arguments)
+            "components_list" -> readModelTool(name, arguments)
+            "component_get" -> readModelTool(name, arguments)
             "component_config_get" -> componentConfigGet(arguments)
-            "component_styles_get" -> componentStylesGet(arguments)
-            "component_variations_get" -> componentVariationsGet(arguments)
+            "component_styles_get" -> readModelTool(name, arguments)
+            "component_variations_get" -> readModelTool(name, arguments)
             else -> protocolError("Unknown tool: $name")
         }
 
-    private suspend fun designSystemGetContext(arguments: JsonObject): McpToolResult {
-        val found = when (
-            val result = contextResolver.resolve(config.workspace, arguments.optional("designSystem"))
+    private suspend fun readModelTool(name: String, arguments: JsonObject): McpToolResult {
+        val operation = modelToolOperations.getValue(name)
+        val schema = modelMcpTools().single { it.name == name }.inputSchema
+        val argumentError = modelArgumentError(arguments, schema)
+        if (argumentError != null) return toolError("INVALID_QUERY", argumentError)
+        val idName = modelResourceArgument(operation)
+        val id = idName?.let { arguments.required(it) }
+        if (idName != null && id == null) return toolError("INVALID_QUERY", "$idName is required")
+        return executeModelTool(operation, id, idName, arguments)
+    }
+
+    private suspend fun executeModelTool(
+        operation: ModelReadOperation,
+        id: String?,
+        idName: String?,
+        arguments: JsonObject,
+    ): McpToolResult {
+        val useCase = modelReadUseCase ?: return backendReaderUnavailable()
+        val filters = arguments.filterKeys { it !in setOf("designSystem", "version", "limit", "cursor", idName) }
+            .mapValues { (_, value) -> (value as JsonPrimitive).content }
+        return when (
+            val result = useCase.execute(
+                ModelReadCommand(
+                    operation,
+                    id,
+                    arguments.optional("version"),
+                    filters,
+                    arguments.optional("limit")?.toIntOrNull(),
+                    arguments.optional("cursor"),
+                ),
+                runtimeRequest(arguments),
+            )
         ) {
-            is ProjectContextReadResult.Failed -> return toolError(result.reason.toMcpCode(), result.message)
-            is ProjectContextReadResult.Found -> result
+            is ModelReadResult.Success -> success(result.value.toString())
+            is ModelReadResult.Failed -> toolError(result.code, result.message)
         }
-        val context = found.context
-        val apiUrl = apiUrlResolver.resolve(config.apiUrlOverride, found.projectEnvironment)
-        return success(
-            ContextBody(
-                projectId = context.projectId.value,
-                designSystemId = context.designSystemId.value,
-                configPath = context.configPath.takeIf(String::isNotEmpty),
-                apiUrl = apiUrl.value,
-                provenance = if (context.provenance == ContextProvenance.EXPLICIT_LINK) {
-                    "explicit-link"
-                } else {
-                    "local-config"
-                },
-                version = context.selectedVersion,
-                platform = context.platforms.singleOrNull()?.cliValue,
-            ),
-        )
+    }
+
+    private fun modelArgumentError(arguments: JsonObject, schema: Map<String, McpToolInputDefinition>): String? {
+        if (arguments.keys.any { it != "designSystem" && it !in schema }) {
+            return "Unsupported model read argument."
+        }
+        val invalid = arguments.entries.firstOrNull { (key, value) ->
+            val definition = schema[key]
+            definition != null && !validModelArgument(value, definition)
+        }
+        return invalid?.let { "Invalid model read argument: ${it.key}" }
+    }
+
+    private fun validModelArgument(value: JsonElement, definition: McpToolInputDefinition): Boolean {
+        val primitive = value as? JsonPrimitive ?: return false
+        return when (definition.type) {
+            "string" -> primitive.isString
+            "integer" -> !primitive.isString && primitive.content.toIntOrNull() != null
+            else -> false
+        }
     }
 
     private suspend fun projectGetStatus(arguments: JsonObject): McpToolResult =
@@ -397,89 +398,6 @@ public class DsBuilderMcpServerCore(
         }
     }
 
-    private suspend fun tokensList(arguments: JsonObject): McpToolResult {
-        val name = arguments.optional("name")
-        val query = arguments.optional("query")
-        if (name != null && query != null) return invalidArgument("name and query are mutually exclusive")
-        val useCases = tokenReadUseCases ?: return backendReaderUnavailable()
-        return useCases.list(
-            TokenListReadCommand(arguments.optional("type"), name ?: query),
-            runtimeRequest(arguments),
-        ).toMcpResult().let {
-            compactTokenList(it, json, name, arguments.optional("limit")?.toIntOrNull())
-        }
-    }
-
-    private suspend fun tokenGet(arguments: JsonObject): McpToolResult {
-        val tokenId = arguments.required("tokenId") ?: return invalidArgument("tokenId is required")
-        val useCases = tokenReadUseCases ?: return backendReaderUnavailable()
-        return useCases.get(
-            TokenGetReadCommand(tokenId),
-            runtimeRequest(arguments),
-        ).toMcpResult()
-    }
-
-    private suspend fun tokenValuesGet(arguments: JsonObject): McpToolResult {
-        val tokenId = arguments.required("tokenId") ?: return invalidArgument("tokenId is required")
-        val useCases = tokenReadUseCases ?: return backendReaderUnavailable()
-        return useCases.values(
-            TokenValuesReadCommand(
-                tokenId = tokenId,
-                tenantId = arguments.optional("tenantId"),
-                mode = arguments.optional("mode"),
-                platform = arguments.optional("platform"),
-            ),
-            runtimeRequest(arguments),
-        ).toMcpResult()
-    }
-
-    private suspend fun componentsList(arguments: JsonObject): McpToolResult {
-        val name = arguments.optional("name")
-        val query = arguments.optional("query")
-        if (name != null && query != null) return invalidArgument("name and query are mutually exclusive")
-        val useCases = componentReadUseCases ?: return backendReaderUnavailable()
-        return useCases.list(
-            ComponentListReadCommand(name ?: query, arguments.optional("platform")),
-            runtimeRequest(arguments),
-        ).toMcpResult().let {
-            compactComponentList(it, json, name, arguments.optional("limit")?.toIntOrNull())
-        }
-    }
-
-    private suspend fun componentGet(arguments: JsonObject): McpToolResult =
-        componentIdentifier(arguments) {
-            componentReadUseCases?.get(
-                ComponentGetReadCommand(it),
-                runtimeRequest(arguments),
-            )
-        }
-
-    private suspend fun componentStylesGet(arguments: JsonObject): McpToolResult =
-        componentIdentifier(arguments) {
-            componentReadUseCases?.styles(
-                ComponentGetReadCommand(it),
-                runtimeRequest(arguments),
-            )
-        }
-
-    private suspend fun componentVariationsGet(arguments: JsonObject): McpToolResult =
-        componentIdentifier(arguments) {
-            componentReadUseCases?.variations(
-                ComponentGetReadCommand(it),
-                runtimeRequest(arguments),
-            )
-        }
-
-    private suspend fun componentIdentifier(
-        arguments: JsonObject,
-        block: suspend (String) -> ComponentReadResult?,
-    ): McpToolResult {
-        val componentId = arguments.required("componentId") ?: return invalidArgument("componentId is required")
-        val result = block(componentId) ?: return backendReaderUnavailable()
-        return result.toMcpResult()
-    }
-
-    @Suppress("ReturnCount", "CyclomaticComplexMethod")
     private suspend fun componentConfigGet(arguments: JsonObject): McpToolResult {
         val name = arguments.optional("subject")?.toComponentPackageName()
             ?: arguments.optional("name")
@@ -487,12 +405,26 @@ public class DsBuilderMcpServerCore(
         val selection = parseVariationSelection(arguments.optional("selection"))
             ?: return invalidArgument("selection must be comma-separated variationId=value pairs without duplicates")
         val projection = arguments.optional("projection") ?: "full"
-        if (projection !in setOf("full", "token-references")) {
-            return invalidArgument("projection must be full or token-references")
+        val error = projectionError(projection, selection.isEmpty())
+        return if (error != null) {
+            invalidArgument(error)
+        } else {
+            readComponentConfig(name, selection, projection, arguments)
         }
-        if (projection == "token-references" && selection.isEmpty()) {
-            return invalidArgument("selection is required for token-references projection")
-        }
+    }
+
+    private fun projectionError(projection: String, selectionEmpty: Boolean): String? = when {
+        projection !in setOf("full", "token-references") -> "projection must be full or token-references"
+        projection == "token-references" && selectionEmpty -> "selection is required for token-references projection"
+        else -> null
+    }
+
+    private suspend fun readComponentConfig(
+        name: String,
+        selection: Map<String, String>,
+        projection: String,
+        arguments: JsonObject,
+    ): McpToolResult {
         val useCases = componentReadUseCases ?: return backendReaderUnavailable()
         val view = if (projection == "token-references") {
             ComponentConfigView.TOKEN_REFERENCES
@@ -514,9 +446,6 @@ public class DsBuilderMcpServerCore(
         }
     }
 
-    private fun success(body: ContextBody): McpToolResult =
-        McpToolResult(isError = false, body = json.encodeToString(ContextBody.serializer(), body))
-
     private fun success(body: StatusBody): McpToolResult =
         McpToolResult(isError = false, body = json.encodeToString(StatusBody.serializer(), body))
 
@@ -535,22 +464,10 @@ public class DsBuilderMcpServerCore(
 
     private fun CheckProjectStatusErrorCode.toMcpErrorCode(): String = name
 
-    private fun ProjectContextFailure.toMcpCode(): String = when (this) {
-        ProjectContextFailure.NOT_INITIALIZED -> "CONTEXT_REQUIRED"
-        ProjectContextFailure.INVALID_CONTEXT -> "INVALID_CONTEXT"
-        ProjectContextFailure.INVALID -> "CONTEXT_NOT_FOUND"
-    }
-
     private fun DocsReadResult.toMcpResult(): McpToolResult =
         when (this) {
             is DocsReadResult.Failed -> toolError(code.name, message)
             is DocsReadResult.Success -> success(json.encodeToString(value))
-        }
-
-    private fun TokenReadResult.toMcpResult(): McpToolResult =
-        when (this) {
-            is TokenReadResult.Failed -> toolError(code.name, message)
-            is TokenReadResult.Success -> success(json.encodeToString(value))
         }
 
     private fun ComponentReadResult.toMcpResult(): McpToolResult =
@@ -699,61 +616,6 @@ private fun componentConfigGetTool(): McpToolDefinition = McpToolDefinition(
                 "and does not resolve token values.",
             allowedValues = listOf("full", "token-references"),
         ),
-    ),
-)
-
-private fun tokenValuesGetTool(): McpToolDefinition = McpToolDefinition(
-    name = "token_values_get",
-    description =
-    "Read authoritative light or dark values for a token resolved to a stable ID with tokens_list. " +
-        "Compose uses the android model platform; omit platform to return all platform rows.",
-    inputSchema = mapOf(
-        "tokenId" to stringInput("Stable token model UUID returned by tokens_list."),
-        "tenantId" to stringInput("Optional tenant UUID from the resolved design-system context."),
-        "mode" to stringInput("Theme mode.", allowedValues = listOf("light", "dark")),
-        "platform" to stringInput(
-            "Design-system model platform. Use android for Compose; compose is not valid here. " +
-                "Omit to return web, ios, and android rows.",
-            allowedValues = listOf("web", "android", "ios"),
-        ),
-    ),
-)
-
-private fun tokensListTool(): McpToolDefinition = McpToolDefinition(
-    name = "tokens_list",
-    description =
-    "Search the authoritative token catalog by token metadata. This tool does not search component usage: " +
-        "queries such as BasicButton or button may be empty even when the component uses tokens. " +
-        "Read component_config_get first, then look up the exact token names found in its properties and use the " +
-        "returned stable IDs with token_get or token_values_get.",
-    inputSchema = mapOf(
-        "type" to stringInput(
-            "Optional exact token type.",
-            allowedValues = listOf("color", "gradient", "typography", "fontFamily", "spacing", "shape", "shadow"),
-        ),
-        "name" to stringInput(
-            "Optional exact token name. It is sent through the existing backend query and checked exactly by MCP. " +
-                "Do not combine with query.",
-        ),
-        "query" to stringInput("Substring matched against token metadata, not component-to-token dependencies."),
-        "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of tokens to return."),
-    ),
-)
-
-private fun componentsListTool(): McpToolDefinition = McpToolDefinition(
-    name = "components_list",
-    description =
-    "Search authoritative design-system component metadata. Returns compact summaries; use component_get for the " +
-        "full component DTO. Do not use this tool to discover published code variations; " +
-        "use code_binding_search followed by code_binding_get with detail=summary instead.",
-    inputSchema = mapOf(
-        "name" to stringInput(
-            "Optional exact component name. It is sent through the existing backend query and checked exactly by " +
-                "MCP. Do not combine with query.",
-        ),
-        "query" to stringInput("Substring matched against component name and description."),
-        "platform" to stringInput("Optional target platform retained for the component-list contract."),
-        "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of components to return."),
     ),
 )
 

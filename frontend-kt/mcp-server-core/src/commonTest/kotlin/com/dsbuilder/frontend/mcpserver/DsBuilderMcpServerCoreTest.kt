@@ -7,6 +7,7 @@ import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.CredentialRequest
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectEnvironmentLoader
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.BackendCredential
@@ -20,10 +21,11 @@ import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigReadCommand
-import com.dsbuilder.frontend.feature.components.application.ComponentGetReadCommand
-import com.dsbuilder.frontend.feature.components.application.ComponentListReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRuntime
@@ -39,30 +41,64 @@ import com.dsbuilder.frontend.feature.docs.application.DocumentationFetchCommand
 import com.dsbuilder.frontend.feature.docs.application.DocumentationPageCommand
 import com.dsbuilder.frontend.feature.docs.application.DocumentationPublicationCommand
 import com.dsbuilder.frontend.feature.docs.application.DocumentationSearchCommand
+import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
+import com.dsbuilder.frontend.feature.ds.dsApplicationModule
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusErrorCode
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
-import com.dsbuilder.frontend.feature.theme.application.TokenGetReadCommand
-import com.dsbuilder.frontend.feature.theme.application.TokenListReadCommand
-import com.dsbuilder.frontend.feature.theme.application.TokenReadRemoteSource
-import com.dsbuilder.frontend.feature.theme.application.TokenReadResult
-import com.dsbuilder.frontend.feature.theme.application.TokenReadRuntime
-import com.dsbuilder.frontend.feature.theme.application.TokenReadUseCases
-import com.dsbuilder.frontend.feature.theme.application.TokenValuesReadCommand
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okio.BufferedSink
+import org.koin.dsl.koinApplication
+import org.koin.dsl.module
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DsBuilderMcpServerCoreTest {
+    @Test
+    fun appearanceReadUsesExplicitIdAndVersionArgumentOverridesTheUri() = runTest {
+        val paths = mutableListOf<String>()
+        val core = server(
+            modelReadUseCase = modelReader { _, _, path ->
+                paths += path
+                modelResponse(path).copy(body = "[]")
+            },
+        )
+        val id = "550e8400-e29b-41d4-a716-446655440010"
+        val link = "dsbuilder://projects/project-a/design-systems/" +
+            "550e8400-e29b-41d4-a716-446655440000?version=1.0.0&platform=compose"
+        val result = core.callTool(
+            "component_variations_get",
+            JsonObject(
+                mapOf(
+                    "appearanceId" to JsonPrimitive(id),
+                    "version" to JsonPrimitive("draft"),
+                    "designSystem" to JsonPrimitive(link),
+                ),
+            ),
+        )
+        assertFalse(result.isError, result.body)
+        assertEquals("/api/projects/project-a/ds/appearances/$id/variations?version=draft", paths.single())
+        assertErrorCode(
+            "INVALID_QUERY",
+            core.callTool(
+                "component_variations_get",
+                JsonObject(mapOf("componentId" to JsonPrimitive(id))),
+            ),
+        )
+        assertEquals(1, paths.size)
+        val tool = core.tools().single { it.name == "component_variations_get" }
+        assertTrue(tool.inputSchema.getValue("appearanceId").required)
+        assertFalse("componentId" in tool.inputSchema)
+        assertFalse("version" in core.tools().single { it.name == "component_get" }.inputSchema)
+    }
+
     @Test
     fun tokenToolUsesProjectEnvKeyAndProcessOverride() = runTest {
         val fileSystem = McpEnvFileSystem("DSBUILDER_API_KEY=file-secret\nDSBUILDER_API_URL=https://project.test")
@@ -71,62 +107,47 @@ class DsBuilderMcpServerCoreTest {
             ProjectEnvironmentLoader(fileSystem),
         )
         var processKey: String? = null
-        val process = EnvironmentReader { name -> processKey.takeIf { name == "DSBUILDER_API_KEY" } }
-        val keyResolver = ApiKeyResolver(process)
+        val keys = ApiKeyResolver(EnvironmentReader { name -> if (name == "DSBUILDER_API_KEY") processKey else null })
         val credentials = object : CredentialProvider {
             override suspend fun resolve(
                 apiUrl: ProjectApiUrl,
                 projectKeyOverride: String?,
                 credentialEnvName: CredentialEnvName,
-            ): CredentialResult = error("request overload expected")
-
-            override suspend fun resolve(request: CredentialRequest): CredentialResult {
-                val key = keyResolver.resolve(
-                    request.projectKeyOverride,
-                    request.credentialEnvName.value,
-                    request.projectEnvironment,
-                )
-                return CredentialResult.Selected(
-                    BackendCredential.ProjectKey(key.value),
-                    BackendCredentialType.PROJECT_KEY,
-                )
-            }
+            ): CredentialResult = error("request expected")
+            override suspend fun resolve(request: CredentialRequest): CredentialResult = CredentialResult.Selected(
+                BackendCredential.ProjectKey(
+                    keys.resolve(
+                        request.projectKeyOverride,
+                        request.credentialEnvName.value,
+                        request.projectEnvironment,
+                    ).value,
+                ),
+                BackendCredentialType.PROJECT_KEY,
+            )
         }
-        val used = mutableListOf<Pair<String, BackendCredential>>()
-        val reads = TokenReadUseCases(
+        val used = mutableListOf<BackendCredential>()
+        val reader = modelReader(
             resolver,
-            ApiUrlResolver(process),
             credentials,
-            object : TokenReadRemoteSource {
-                override suspend fun list(runtime: TokenReadRuntime, command: TokenListReadCommand): TokenReadResult {
-                    used += runtime.apiUrl.value to runtime.credential
-                    return TokenReadResult.Success(JsonObject(emptyMap()))
-                }
-                override suspend fun get(runtime: TokenReadRuntime, command: TokenGetReadCommand): TokenReadResult =
-                    error("not called")
-                override suspend fun values(
-                    runtime: TokenReadRuntime,
-                    command: TokenValuesReadCommand,
-                ): TokenReadResult =
-                    error("not called")
-            },
-        )
-        val mcp = server(
+        ) { _, credential, path ->
+            used += credential
+            modelResponse(path)
+        }
+        val core = server(
             contextResolver = resolver,
+            modelReadUseCase = reader,
             config = McpServerConfig(workspace = "/workspace"),
-            tokenReadUseCases = reads,
         )
-        val first = mcp.callTool("tokens_list")
+        assertFalse(core.callTool("tokens_list").isError)
         processKey = "process-secret"
-        val second = mcp.callTool("tokens_list")
-
-        assertFalse(first.isError, first.body)
-        assertFalse(second.isError, second.body)
-        assertEquals("https://project.test", used[0].first)
-        assertEquals(BackendCredential.ProjectKey("file-secret"), used[0].second)
-        assertEquals(BackendCredential.ProjectKey("process-secret"), used[1].second)
-        assertFalse(first.body.contains("file-secret"))
-        assertFalse(second.body.contains("process-secret"))
+        assertFalse(core.callTool("tokens_list").isError)
+        assertEquals(
+            listOf<BackendCredential>(
+                BackendCredential.ProjectKey("file-secret"),
+                BackendCredential.ProjectKey("process-secret"),
+            ),
+            used,
+        )
     }
 
     @Test
@@ -151,7 +172,8 @@ class DsBuilderMcpServerCoreTest {
             json.parseToJsonElement(second.body).jsonObject.getValue("apiUrl").jsonPrimitive.content,
         )
         assertFalse(second.body.contains("next-secret"))
-        val link = "dsbuilder://projects/project-b/design-systems/ds-b?version=1&platform=compose"
+        val link = "dsbuilder://projects/project-b/design-systems/" +
+            "550e8400-e29b-41d4-a716-446655440003?version=1&platform=compose"
         val explicit = mcp.callTool(
             "design_system_get_context",
             JsonObject(mapOf("designSystem" to JsonPrimitive(link))),
@@ -167,7 +189,8 @@ class DsBuilderMcpServerCoreTest {
             JsonObject(
                 mapOf(
                     "designSystem" to JsonPrimitive(
-                        "dsbuilder://projects/project-a/design-systems/ds-a?version=1.0.0&platform=compose",
+                        "dsbuilder://projects/project-a/design-systems/" +
+                            "550e8400-e29b-41d4-a716-446655440002?version=1.0.0&platform=compose",
                     ),
                 ),
             ),
@@ -177,7 +200,8 @@ class DsBuilderMcpServerCoreTest {
             JsonObject(
                 mapOf(
                     "designSystem" to JsonPrimitive(
-                        "dsbuilder://projects/project-b/design-systems/ds-b?version=2.0.0&platform=swiftui",
+                        "dsbuilder://projects/project-b/design-systems/" +
+                            "550e8400-e29b-41d4-a716-446655440003?version=2.0.0&platform=swiftui",
                     ),
                 ),
             ),
@@ -204,47 +228,36 @@ class DsBuilderMcpServerCoreTest {
 
     @Test
     fun tokenReadUsesEachCallsExplicitProject() = runTest {
-        val projects = mutableListOf<String>()
-        val reads = tokenReadUseCases(
-            object : TokenReadRemoteSource {
-                override suspend fun list(
-                    runtime: TokenReadRuntime,
-                    command: TokenListReadCommand,
-                ): TokenReadResult {
-                    projects += runtime.context.projectId.value
-                    return TokenReadResult.Success(JsonObject(emptyMap()))
-                }
-                override suspend fun get(runtime: TokenReadRuntime, command: TokenGetReadCommand): TokenReadResult =
-                    error("not called")
-                override suspend fun values(
-                    runtime: TokenReadRuntime,
-                    command: TokenValuesReadCommand,
-                ): TokenReadResult =
-                    error("not called")
+        val paths = mutableListOf<String>()
+        val core = server(
+            modelReadUseCase = modelReader { _, _, path ->
+                paths += path
+                modelResponse(path)
             },
         )
-        val server = server(tokenReadUseCases = reads)
-        listOf("project-a" to "ds-a", "project-b" to "ds-b").forEach { (project, ds) ->
-            val result = server.callTool(
+        listOf("project-a", "project-b").forEach { project ->
+            val result = core.callTool(
                 "tokens_list",
                 JsonObject(
                     mapOf(
                         "designSystem" to JsonPrimitive(
-                            "dsbuilder://projects/$project/design-systems/$ds?version=1.0.0&platform=compose",
+                            "dsbuilder://projects/$project/design-systems/" +
+                                "550e8400-e29b-41d4-a716-446655440000?version=1.0.0&platform=compose",
                         ),
                     ),
                 ),
             )
             assertFalse(result.isError, result.body)
         }
-        assertEquals(listOf("project-a", "project-b"), projects)
+        assertTrue(paths[0].startsWith("/api/projects/project-a/"))
+        assertTrue(paths[1].startsWith("/api/projects/project-b/"))
     }
 
     @Test
     fun invalidExplicitLinkNeverUsesLocalContext() = runTest {
         val result = server().callTool(
             "design_system_get_context",
-            JsonObject(mapOf("designSystem" to JsonPrimitive("dsbuilder://projects/a/design-systems/b?version=1"))),
+            JsonObject(mapOf("designSystem" to JsonPrimitive("dsbuilder://projects/a/design-systems/b?bad=1"))),
         )
         assertErrorCode("INVALID_CONTEXT", result)
     }
@@ -256,30 +269,17 @@ class DsBuilderMcpServerCoreTest {
                 apiUrl: ProjectApiUrl,
                 projectKeyOverride: String?,
                 credentialEnvName: CredentialEnvName,
-            ): CredentialResult = CredentialResult.Failed(
-                AuthErrorCode.BACKEND_UNAVAILABLE,
-                "Token endpoint unavailable",
-            )
+            ): CredentialResult =
+                CredentialResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Token endpoint unavailable")
         }
-        val remote = object : TokenReadRemoteSource {
-            override suspend fun list(runtime: TokenReadRuntime, command: TokenListReadCommand): TokenReadResult =
-                error("Backend must not be called")
-
-            override suspend fun get(runtime: TokenReadRuntime, command: TokenGetReadCommand): TokenReadResult =
-                error("Backend must not be called")
-
-            override suspend fun values(runtime: TokenReadRuntime, command: TokenValuesReadCommand): TokenReadResult =
-                error("Backend must not be called")
-        }
-        val cases = TokenReadUseCases(contextResolver(), apiUrlResolver(), provider, remote)
-
-        assertErrorCode("BACKEND_UNAVAILABLE", server(tokenReadUseCases = cases).callTool("tokens_list"))
+        val reader = modelReader(provider = provider) { _, _, _ -> error("Backend must not be called") }
+        assertErrorCode("BACKEND_UNAVAILABLE", server(modelReadUseCase = reader).callTool("tokens_list"))
     }
 
     private val json = Json { ignoreUnknownKeys = true }
     private val context = ProjectContext(
         projectId = ProjectId("project-1"),
-        designSystemId = DesignSystemId("ds-1"),
+        designSystemId = DesignSystemId("550e8400-e29b-41d4-a716-446655440000"),
         credentialEnvName = CredentialEnvName("DSBUILDER_API_KEY"),
         configPath = "/workspace/.sdds/config.json",
         platforms = listOf(TargetPlatform.COMPOSE),
@@ -291,26 +291,33 @@ class DsBuilderMcpServerCoreTest {
 
         val tools = server.tools()
 
+        assertEquals(22, tools.size)
         assertEquals(
-            listOf(
+            setOf(
                 "design_system_get_context",
                 "project_get_status",
+                "design_system_versions_list",
+                "design_system_version_get",
+                "design_system_changes_list",
+                "tenants_list",
+                "tokens_list",
+                "token_get",
+                "token_values_get",
+                "token_groups_list",
+                "palette_get",
+                "components_list",
+                "component_get",
+                "component_styles_get",
+                "component_variations_get",
+                "component_config_get",
                 "documentation_search",
                 "documentation_fetch",
                 "documentation_get_navigation",
                 "documentation_get_page",
                 "code_binding_search",
                 "code_binding_get",
-                "tokens_list",
-                "token_get",
-                "token_values_get",
-                "components_list",
-                "component_get",
-                "component_config_get",
-                "component_styles_get",
-                "component_variations_get",
             ),
-            tools.map { it.name },
+            tools.map { it.name }.toSet(),
         )
         assertFalse(
             tools.any { it.name.contains("create") || it.name.contains("update") || it.name.contains("delete") },
@@ -385,8 +392,8 @@ class DsBuilderMcpServerCoreTest {
         assertEquals(listOf("light", "dark"), values.inputSchema.getValue("mode").allowedValues)
         assertEquals(listOf("web", "android", "ios"), values.inputSchema.getValue("platform").allowedValues)
         assertTrue(values.inputSchema.getValue("platform").description!!.contains("android for Compose"))
-        assertTrue(tokens.description.contains("queries such as BasicButton or button may be empty"))
-        assertTrue(components.description.contains("code_binding_get with detail=summary"))
+        assertTrue(tokens.inputSchema.containsKey("cursor"))
+        assertEquals("integer", components.inputSchema.getValue("limit").type)
         assertTrue(componentVariations.description.contains("published code variations"))
         assertTrue(tokens.inputSchema.containsKey("name"))
         assertTrue(components.inputSchema.containsKey("name"))
@@ -395,7 +402,7 @@ class DsBuilderMcpServerCoreTest {
         assertFalse(token.inputSchema.containsKey("name"))
         assertFalse(values.inputSchema.containsKey("name"))
         assertFalse(component.inputSchema.containsKey("name"))
-        assertFalse(componentStyles.inputSchema.containsKey("name"))
+        assertTrue(componentStyles.inputSchema.containsKey("name"))
         assertFalse(componentVariations.inputSchema.containsKey("name"))
     }
 
@@ -413,16 +420,6 @@ class DsBuilderMcpServerCoreTest {
         val server = server(
             componentReadUseCases = componentReadUseCases(
                 object : ComponentReadRemoteSource {
-                    override suspend fun list(
-                        runtime: ComponentReadRuntime,
-                        command: ComponentListReadCommand,
-                    ): ComponentReadResult = error("Unexpected component list")
-
-                    override suspend fun get(
-                        runtime: ComponentReadRuntime,
-                        command: ComponentGetReadCommand,
-                    ): ComponentReadResult = error("Unexpected component get")
-
                     override suspend fun config(
                         runtime: ComponentReadRuntime,
                         command: ComponentConfigReadCommand,
@@ -430,16 +427,6 @@ class DsBuilderMcpServerCoreTest {
                         captured = command
                         return ComponentReadResult.Success(JsonObject(emptyMap()))
                     }
-
-                    override suspend fun styles(
-                        runtime: ComponentReadRuntime,
-                        command: ComponentGetReadCommand,
-                    ): ComponentReadResult = error("Unexpected component styles")
-
-                    override suspend fun variations(
-                        runtime: ComponentReadRuntime,
-                        command: ComponentGetReadCommand,
-                    ): ComponentReadResult = error("Unexpected component variations")
 
                     override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult =
                         error("Unexpected token catalog")
@@ -465,10 +452,10 @@ class DsBuilderMcpServerCoreTest {
 
         assertFalse(result.isError)
         assertEquals("project-1", body.getValue("projectId").jsonPrimitive.content)
-        assertEquals("ds-1", body.getValue("designSystemId").jsonPrimitive.content)
+        assertEquals("550e8400-e29b-41d4-a716-446655440000", body.getValue("designSystemId").jsonPrimitive.content)
         assertEquals("/workspace/.sdds/config.json", body.getValue("configPath").jsonPrimitive.content)
         assertEquals("https://api.example.com", body.getValue("apiUrl").jsonPrimitive.content)
-        assertEquals(JsonNull, body.getValue("credentialType"))
+        assertEquals("PROJECT_KEY", body.getValue("credentialType").jsonPrimitive.content)
         assertFalse(result.body.contains("secret-value"))
     }
 
@@ -489,15 +476,18 @@ class DsBuilderMcpServerCoreTest {
     }
 
     @Test
-    fun designSystemContextDoesNotRequireCredentials() = runTest {
-        val server = server()
-
-        val result = server.callTool("design_system_get_context")
-        val body = json.parseToJsonElement(result.body).jsonObject
-
-        assertFalse(result.isError)
-        assertEquals("project-1", body.getValue("projectId").jsonPrimitive.content)
-        assertEquals("ds-1", body.getValue("designSystemId").jsonPrimitive.content)
+    fun contextReadRequiresCredentialsButToolDiscoveryDoesNot() = runTest {
+        val provider = object : CredentialProvider {
+            override suspend fun resolve(
+                apiUrl: ProjectApiUrl,
+                projectKeyOverride: String?,
+                credentialEnvName: CredentialEnvName,
+            ): CredentialResult =
+                CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Authentication required")
+        }
+        val core = server(modelReadUseCase = modelReader(provider = provider) { _, _, _ -> error("No backend call") })
+        assertEquals(22, core.tools().size)
+        assertErrorCode("AUTH_REQUIRED", core.callTool("design_system_get_context"))
     }
 
     @Test
@@ -548,8 +538,8 @@ class DsBuilderMcpServerCoreTest {
 
     @Test
     fun readToolsValidateRequiredArgumentsWithoutResolvingCredentials() = runTest {
-        assertErrorCode("INVALID_ARGUMENT", server().callTool("token_get"))
-        assertErrorCode("INVALID_ARGUMENT", server().callTool("component_get"))
+        assertErrorCode("INVALID_QUERY", server().callTool("token_get"))
+        assertErrorCode("INVALID_QUERY", server().callTool("component_get"))
         assertErrorCode("INVALID_ARGUMENT", server().callTool("documentation_search"))
     }
 
@@ -562,75 +552,28 @@ class DsBuilderMcpServerCoreTest {
             ),
         )
 
-        assertErrorCode("INVALID_ARGUMENT", server().callTool("tokens_list", arguments))
-        assertErrorCode("INVALID_ARGUMENT", server().callTool("components_list", arguments))
+        assertErrorCode("INVALID_QUERY", server().callTool("tokens_list", arguments))
+        assertErrorCode("INVALID_QUERY", server().callTool("components_list", arguments))
     }
 
     @Test
-    fun tokenListUsesExactNameAsBackendQueryAndReturnsCompactResult() = runTest {
-        var called = false
-        val server = server(
-            tokenReadUseCases = tokenReadUseCases(
-                object : TokenReadRemoteSource {
-                    override suspend fun list(
-                        runtime: TokenReadRuntime,
-                        command: TokenListReadCommand,
-                    ): TokenReadResult {
-                        called = true
-                        assertEquals("project-1", runtime.context.projectId.value)
-                        assertEquals("b", command.query)
-                        return TokenReadResult.Success(
-                            JsonObject(
-                                mapOf(
-                                    "source" to JsonPrimitive("design-system-model-api"),
-                                    "data" to JsonArray(
-                                        listOf(
-                                            JsonObject(
-                                                mapOf(
-                                                    "id" to JsonPrimitive("a-id"),
-                                                    "name" to JsonPrimitive("a"),
-                                                    "type" to JsonPrimitive("color"),
-                                                    "createdAt" to JsonPrimitive("now"),
-                                                ),
-                                            ),
-                                            JsonObject(
-                                                mapOf(
-                                                    "id" to JsonPrimitive("b-id"),
-                                                    "name" to JsonPrimitive("b"),
-                                                    "type" to JsonPrimitive("color"),
-                                                    "createdAt" to JsonPrimitive("now"),
-                                                ),
-                                            ),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        )
-                    }
-
-                    override suspend fun get(runtime: TokenReadRuntime, command: TokenGetReadCommand): TokenReadResult =
-                        error("Unexpected token get")
-
-                    override suspend fun values(
-                        runtime: TokenReadRuntime,
-                        command: TokenValuesReadCommand,
-                    ): TokenReadResult = error("Unexpected token values")
-                },
-            ),
+    fun tokenListPassesExactNameAndLimitToBackendWithoutLocalFiltering() = runTest {
+        var path = ""
+        val core = server(
+            modelReadUseCase = modelReader { _, _, requested ->
+                path = requested
+                modelResponse(requested).copy(body = "[{\"id\":\"server-id\",\"name\":\"server-result\"}]")
+            },
         )
-
-        val result = server.callTool(
+        val result = core.callTool(
             "tokens_list",
-            JsonObject(mapOf("name" to JsonPrimitive("b"), "limit" to JsonPrimitive("1"))),
+            JsonObject(mapOf("name" to JsonPrimitive("b"), "limit" to JsonPrimitive(1))),
         )
-        val body = json.parseToJsonElement(result.body).jsonObject
-        val token = (body.getValue("data") as JsonArray).single().jsonObject
-
-        assertTrue(called)
-        assertFalse(result.isError)
-        assertEquals("b", token.getValue("name").jsonPrimitive.content)
-        assertFalse(token.containsKey("createdAt"))
-        assertFalse(result.body.contains("secret-value"))
+        assertFalse(result.isError, result.body)
+        assertTrue(path.contains("name=b"))
+        assertTrue(path.contains("limit=1"))
+        val item = (json.parseToJsonElement(result.body).jsonObject.getValue("items") as JsonArray).single().jsonObject
+        assertEquals("server-result", item.getValue("name").jsonPrimitive.content)
     }
 
     @Test
@@ -713,31 +656,90 @@ class DsBuilderMcpServerCoreTest {
         },
         config: McpServerConfig = McpServerConfig(apiUrlOverride = "https://api.example.com"),
         docsReadUseCases: DocsReadUseCases? = null,
-        tokenReadUseCases: TokenReadUseCases? = null,
         componentReadUseCases: ComponentReadUseCases? = null,
+        modelReadUseCase: ReadDesignSystemModelUseCase = modelReader(contextResolver),
     ): DsBuilderMcpServerCore = DsBuilderMcpServerCore(
         config = config,
-        contextResolver = contextResolver,
-        apiUrlResolver = ApiUrlResolver(
-            object : EnvironmentReader {
-                override fun get(name: String): String? = null
-            },
-        ),
         projectStatusReader = projectStatusReader,
         docsReadUseCases = docsReadUseCases,
-        tokenReadUseCases = tokenReadUseCases,
         componentReadUseCases = componentReadUseCases,
+        modelReadUseCase = modelReadUseCase,
     )
 
-    private fun tokenReadUseCases(remoteSource: TokenReadRemoteSource): TokenReadUseCases =
-        TokenReadUseCases(contextResolver(), apiUrlResolver(), credentialProvider(), remoteSource)
+    private fun modelReader(
+        resolver: ContextResolver = contextResolver(),
+        provider: CredentialProvider = credentialProvider(),
+        response: (
+            String,
+            BackendCredential,
+            String,
+        ) -> AuthenticatedHttpResult.Success = { _, _, path -> modelResponse(path) },
+    ): ReadDesignSystemModelUseCase = koinApplication {
+        modules(
+            dsApplicationModule(),
+            module {
+                single<ContextResolver> { resolver }
+                single<CredentialProvider> { provider }
+                single<ApiUrlResolver> { apiUrlResolver() }
+                single<AuthenticatedHttpClientFactory> {
+                    object : AuthenticatedHttpClientFactory {
+                        override fun create(
+                            apiUrl: String,
+                            apiKey: String,
+                        ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.ProjectKey(apiKey))
+                        override fun create(
+                            apiUrl: String,
+                            credential: BackendCredential,
+                        ): AuthenticatedHttpClient = object : AuthenticatedHttpClient {
+                            override suspend fun get(path: String): AuthenticatedHttpResult = response(
+                                apiUrl,
+                                credential,
+                                path,
+                            )
+                            override suspend fun post(
+                                path: String,
+                                body: String,
+                            ): AuthenticatedHttpResult = error("Unexpected POST")
+                        }
+                    }
+                }
+            },
+        )
+    }.koin.get()
+
+    private fun modelResponse(path: String): AuthenticatedHttpResult.Success {
+        val ds = path.substringAfter(
+            "/design-systems/",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ).substringBefore('/').substringBefore('?')
+        val version = path.substringAfter("version=", "draft").substringBefore('&')
+        val context = buildString {
+            append("{\"designSystemId\":\"$ds\",\"version\":\"$version\",")
+            if (version == "draft") {
+                append("\"draftId\":\"550e8400-e29b-41d4-a716-446655440001\",\"draftRevision\":1}")
+            } else {
+                append("\"versionId\":\"550e8400-e29b-41d4-a716-446655440001\"}")
+            }
+        }
+        val limit = path.substringAfter("limit=", "").substringBefore('&')
+        return AuthenticatedHttpResult.Success(
+            if (limit.isEmpty()) "{}" else "[]",
+            buildMap {
+                put("x-ds-read-context", context)
+                if (limit.isNotEmpty()) put("x-ds-page-limit", limit)
+            },
+        )
+    }
 
     private fun docsReadUseCases(remoteSource: DocsReadRemoteSource): DocsReadUseCases =
         DocsReadUseCases(contextResolver(), apiUrlResolver(), credentialProvider(), remoteSource)
 
     @Suppress("unused")
     private fun componentReadUseCases(remoteSource: ComponentReadRemoteSource): ComponentReadUseCases =
-        ComponentReadUseCases(contextResolver(), apiUrlResolver(), credentialProvider(), remoteSource)
+        ComponentReadUseCases(
+            RuntimeRequestResolver(contextResolver(), apiUrlResolver(), credentialProvider()),
+            remoteSource,
+        )
 
     private fun contextResolver(): ContextResolver = ContextResolver(
         listOf(
