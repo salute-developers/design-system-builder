@@ -159,6 +159,7 @@ const renderScreen = async (
     missing: string[] = [],
     components: Config[] = [],
     cachedGroups = false,
+    entry = '/',
 ) => {
     get.mockImplementation((url: string) => Promise.resolve(reply(role, missing)(url)));
     const snapshot = await loadThemeEditor(context);
@@ -197,7 +198,7 @@ const renderScreen = async (
         );
     };
     render(
-        <MemoryRouter>
+        <MemoryRouter initialEntries={[entry]}>
             <Host />
         </MemoryRouter>,
     );
@@ -237,6 +238,34 @@ afterEach(() => {
 });
 
 describe('ColorTokensScreen', () => {
+    it('selects the token addressed by the journal and allows choosing another token afterwards', async () => {
+        extraTokens = [{ name: 'secondary', groupId: 'g-accent', position: 1 }];
+        await renderScreen('owner', [], [], false, '/?tokenId=secondary-0');
+        await waitFor(() =>
+            expect(within(inspector()).getByRole('heading', { name: 'textSecondary' })).toBeInTheDocument(),
+        );
+        fireEvent.click(screen.getByTestId('color-token-row-color:text.accent'));
+        await waitFor(() =>
+            expect(within(inspector()).getByRole('heading', { name: 'textAccent' })).toBeInTheDocument(),
+        );
+        repository.create.mockImplementation(async (_context, input) => ({
+            editRevision: 4,
+            value: {
+                type: input.type,
+                group: input.group,
+                name: input.name,
+                members: input.members.map((member, index) => ({ tokenId: `created-${index}`, name: member.name })),
+            },
+        }));
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить токен в Status' }));
+        const field = screen.getByRole('textbox', { name: 'Имя нового токена' });
+        fireEvent.change(field, { target: { value: 'Highlight' } });
+        fireEvent.keyDown(field, { key: 'Enter' });
+        await waitFor(() =>
+            expect(within(inspector()).getByRole('heading', { name: 'textHighlight' })).toBeInTheDocument(),
+        );
+    });
+
     it('использует группы раздела без повторного чтения групп и определений', async () => {
         const groupReads = groupRepository.list.mock.calls.length;
         const definitionReads = groupRepository.definitions.mock.calls.length;
@@ -942,7 +971,7 @@ describe('ColorTokensScreen', () => {
         expect(screen.getByTestId('color-token-row-color:text.accent')).toHaveAttribute('draggable', 'false');
         fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
         expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
-        expect(screen.getByText('Read-only access')).toBeInTheDocument();
+        expect(screen.getByText('Только просмотр')).toBeInTheDocument();
 
         // Вкладка «Доступность» пока скрыта по решению команды.
         expect(screen.queryByRole('button', { name: 'Доступность' })).toBeNull();

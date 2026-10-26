@@ -8,7 +8,7 @@ import {
     type KeyboardEvent,
     type PointerEvent,
 } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import '../../styles/palette.css';
 import '../../styles/color-tokens.css';
@@ -104,6 +104,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const { context, designSystem, theme, components, palette, setPalette, rerender } = props;
     const navigate = useNavigate();
     const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { session, editor, views, groups, groupsError, status } = useColorTokenEditor(props);
     const parameters = designSystem.getParameters();
     const readOnly = parameters?.readOnly === true;
@@ -147,13 +148,32 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const selected = views.find((view) => view.id === selectedId) ?? tree.flatMap(treeTokens)[0] ?? views[0] ?? null;
 
     // Переход из инспектора палитры: выбрать токен, имя определения которого передано в state маршрута.
-    const requested = (location.state as { tokenName?: string } | null)?.tokenName;
+    const requestedTokenId = searchParams.get('tokenId');
+    const appliedAddress = useRef<string | null>(null);
+    const requestedDefinition = props.tokenDefinitions.find((token) => token.id === requestedTokenId);
+    const requested = requestedTokenId
+        ? requestedDefinition?.name
+        : (location.state as { tokenName?: string } | null)?.tokenName;
     useEffect(() => {
-        if (!requested) return;
+        if (!requested) {
+            appliedAddress.current = null;
+            return;
+        }
+        if (appliedAddress.current === `${requestedTokenId ?? 'palette'}:${requested}`) return;
         const parsed = parseMemberName(requested);
-        const match = parsed && views.find((view) => view.key.group === parsed.group && view.key.name === parsed.name);
-        if (match) setSelectedId(match.id);
-    }, [requested, views]);
+        const match =
+            parsed &&
+            views.find(
+                (view) =>
+                    view.key.group === parsed.group &&
+                    view.key.name === parsed.name &&
+                    (!requestedDefinition || view.key.type === requestedDefinition.type),
+            );
+        if (match) {
+            appliedAddress.current = `${requestedTokenId ?? 'palette'}:${requested}`;
+            setSelectedId(match.id);
+        }
+    }, [requested, requestedTokenId, requestedDefinition?.type, views]);
 
     useEffect(() => writeStorage(PANELS_KEY, panels), [panels]);
     useEffect(() => writeStorage(COLLAPSED_KEY, collapsed), [collapsed]);
@@ -192,6 +212,21 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
 
     const select = (view: ColorTokenView) => {
         setSelectedId(view.id);
+        if (requestedTokenId) {
+            const definition = props.tokenDefinitions.find((token) => {
+                const parsed = parseMemberName(token.name);
+                return (
+                    parsed &&
+                    token.type === view.key.type &&
+                    parsed.group === view.key.group &&
+                    parsed.name === view.key.name
+                );
+            });
+            const next = new URLSearchParams(searchParams);
+            if (definition) next.set('tokenId', definition.id);
+            else next.delete('tokenId');
+            setSearchParams(next, { replace: true });
+        }
         if (picker) setPicker(null);
     };
 
@@ -242,6 +277,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
         await refreshPalette();
         setSelectedId(tokenId(key));
+        if (requestedTokenId) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('tokenId');
+            setSearchParams(next, { replace: true });
+        }
         rerender();
     };
 
@@ -607,6 +647,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             редакторе — нажмите «Повторить», чтобы отправить их.
                         </div>
                     )}
+                    {requestedTokenId && !requestedDefinition && (
+                        <div className="ct-banner" role="status">
+                            Точный источник токена недоступен.
+                        </div>
+                    )}
                     {groupsError && (
                         <div className="ct-banner" role="alert">
                             Не удалось загрузить группы токенов: {groupsError}
@@ -619,7 +664,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     )}
                     {readOnly && (
                         <div className="viewer-banner">
-                            <span>Read-only access</span>
+                            <span>Только просмотр</span>
                         </div>
                     )}
                     {legacyFamilies > 0 && !readOnly && (

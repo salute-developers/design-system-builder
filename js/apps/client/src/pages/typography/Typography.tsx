@@ -16,10 +16,11 @@ interface TypographyOutletContextProps {
     updated: object;
     rerender: () => void;
     editorContext?: EditorContextKey;
+    changedTokenNames?: Set<string>;
 }
 
 export const Typography = () => {
-    const { designSystem, theme, updated, rerender, editorContext } =
+    const { designSystem, theme, updated, rerender, editorContext, changedTokenNames } =
         useOutletContext<TypographyOutletContextProps>();
 
     const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu([0, 1, 0]);
@@ -76,6 +77,7 @@ export const Typography = () => {
                     header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
+                    changedTokenNames={changedTokenNames}
                     selectedItemIndexes={selectedItemIndexes}
                     onItemSelect={(groupIndex, itemIndex) => {
                         onItemSelect(groupIndex, itemIndex);

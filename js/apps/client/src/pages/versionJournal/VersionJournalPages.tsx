@@ -417,15 +417,21 @@ export const DesignSystemChangesPage = () => {
                             </ActionRow>
                         </Status>
                     )}
-                    {revertState.operationError && <Status role="alert">{revertState.operationError}</Status>}
-                    {revertState.refreshFailed && (
-                        <Button
-                            type="button"
-                            disabled={Boolean(revertState.reverting)}
-                            onClick={() => void revertState.retryRefresh()}
-                        >
-                            Повторить загрузку данных
-                        </Button>
+                    {(revertState.operationError || revertState.refreshFailed) && (
+                        <Status role="alert">
+                            {revertState.operationError}
+                            {revertState.refreshFailed && (
+                                <ActionRow>
+                                    <Button
+                                        type="button"
+                                        disabled={Boolean(revertState.reverting)}
+                                        onClick={() => void revertState.retryRefresh()}
+                                    >
+                                        Повторить загрузку данных
+                                    </Button>
+                                </ActionRow>
+                            )}
+                        </Status>
                     )}
                     {!journal.loading && !journal.error && filtered.length === 0 && (
                         <EmptyState>

@@ -1,3 +1,4 @@
+import { useChangedTokenNames } from '../features/versionJournal/useChangedTokenNames';
 import { useLayoutEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
@@ -114,6 +115,12 @@ export const Main = () => {
     );
     useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
     const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}`;
+    const changedTokenNames = useChangedTokenNames(
+        editorContext,
+        tokenDefinitions,
+        summaryCursor,
+        Boolean(designSystem) && ['shapes', 'typography'].includes(editorSection),
+    );
     const journalSummary = useJournalSummary(editorContext, summaryCursor, Boolean(designSystem));
     useReloadAfterAutosave(autosaveStatus, journalSummary.reload);
     const onClickPanelButton = (path: string) => {
@@ -388,25 +395,26 @@ export const Main = () => {
                                 editorContext,
                                 autosaveStatus,
                                 editorJournal,
+                                changedTokenNames,
                                 refreshChanges,
                             }}
                         />
                     )}
                 </EditorCanvas>
+                {Boolean(loadError) ? (
+                    <>
+                        <div role="alert">{loadErrorMessages[loadError!]}</div>
+                    </>
+                ) : null}
+                {incompleteTokenIds.length > 0 ? (
+                    <>
+                        <div role="alert">
+                            В теме отсутствуют значения {incompleteTokenIds.length} токенов. Редактор не смешивает их со
+                            значениями другой темы.
+                        </div>
+                    </>
+                ) : null}
             </EditorBody>
-            {Boolean(loadError) ? (
-                <>
-                    <div role="alert">{loadErrorMessages[loadError!]}</div>
-                </>
-            ) : null}
-            {incompleteTokenIds.length > 0 ? (
-                <>
-                    <div role="alert">
-                        В теме отсутствуют значения {incompleteTokenIds.length} токенов. Редактор не смешивает их со
-                        значениями другой темы.
-                    </div>
-                </>
-            ) : null}
             {Boolean(isEditingDesignSystem && !isReadOnly && isDebugMode()) ? (
                 <>
                     <Debug
