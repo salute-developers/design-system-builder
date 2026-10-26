@@ -1,6 +1,7 @@
 # documentation-info-artifact-packaging Specification
 ## Purpose
-TBD - created by archiving change add-documentation-ingestion-pipeline. Update Purpose after archive.
+Идентификаторы платформ, имена и версионируемые форматы дополнительных информационных артефактов архива документации.
+
 ## Requirements
 ### Requirement: Канонические platform identifiers документационного bundle
 CLI MUST записывать в manifest canonical platform `compose`, `android-view`, `swiftui`, `uikit`, `react` или `design` и MUST отклонять неизвестное значение при генерации bundle.

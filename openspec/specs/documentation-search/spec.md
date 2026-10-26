@@ -1,6 +1,7 @@
 # documentation-search Specification
 ## Purpose
-TBD - created by archiving change add-documentation-ingestion-pipeline. Update Purpose after archive.
+Авторизованный поиск по активным публикациям документации с фильтрами, предсказуемым ранжированием и получением ресурсов знаний.
+
 ## Requirements
 ### Requirement: Private combined documentation search
 Service SHALL предоставлять private project-scoped lexical search по active publication только actor с permission `documentation:read`, объединяя normalized exact/prefix/trigram `StructuredLookupTerm` и technical/Russian/English PostgreSQL FTS `KnowledgeChunk` без semantic/vector search, embedding provider, LLM или network dependency.

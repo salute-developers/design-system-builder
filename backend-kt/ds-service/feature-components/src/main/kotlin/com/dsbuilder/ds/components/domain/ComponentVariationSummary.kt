@@ -9,6 +9,8 @@ data class ComponentVariationSummary(
     val id: UUID,
     /** Component id carried by this contract. */
     val componentId: UUID,
+    /** Design system that owns the variation axis. */
+    val designSystemId: UUID,
     /** Name carried by this contract. */
     val name: String,
     /** Description carried by this contract. */

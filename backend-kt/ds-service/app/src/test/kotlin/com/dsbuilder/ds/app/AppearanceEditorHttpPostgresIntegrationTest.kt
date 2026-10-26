@@ -58,7 +58,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
 
         assertEquals(listOf("view", "scale"), axisNames(model(fixture.appearance)))
         assertEquals(listOf("view", "size"), axisNames(model(copy)))
-        val catalogName = "SELECT name FROM variations WHERE id = " +
+        val catalogName = "SELECT name FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE id = " +
             "(SELECT variation_id FROM appearance_variations WHERE id = '$size')"
         assertEquals("size", query(catalogName))
         assertTrue(renamed.headers["X-DS-Mutation-Metadata"].orEmpty().contains("appearance-variation"))
@@ -84,7 +84,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `a value rename is local and a catalog variation is renamed only by an administrator`() = withService {
+    fun `a value rename is local and an axis of a foreign design system is not renamed by a member`() = withService {
         val fixture = fixture()
         val copy = duplicate(fixture.appearance, "Button copy")
         val value = valueOf(model(fixture.appearance), "size", "a")
@@ -95,14 +95,31 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val taken = patch("/api/ds/appearance-variation-values/$value", """{"displayName":"B"}""")
         assertEquals("value_name_taken", code(taken))
 
-        val variation = query("SELECT id FROM variations WHERE name = 'size'")
+        val variation = query("SELECT id FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE name = 'size'")
         val denied = service.builder.client.patch("/api/ds/variations/$variation") {
             actor(admin = false, role = "owner")
             contentType(ContentType.Application.Json)
             setBody("""{"name":"scale"}""")
         }
-        assertEquals(HttpStatusCode.Forbidden, denied.status, denied.bodyAsText())
-        assertEquals("size", query("SELECT name FROM variations WHERE id = '$variation'"))
+        // Дизайн-система фикстуры глобальная для проекта: участник проекта не пишет в её оси.
+        assertTrue(
+            denied.status == HttpStatusCode.Forbidden || denied.status == HttpStatusCode.NotFound,
+            denied.bodyAsText(),
+        )
+        assertEquals("size", query("SELECT name FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE id = '$variation'"))
+    }
+
+    @Test
+    fun `renaming an axis of the catalog to a display name used in an appearance is rejected`() = withService {
+        val fixture = fixture()
+        val size = axisOf(model(fixture.appearance), "size")
+        val displayed = patch("/api/ds/appearance-variations/$size", """{"displayName":"scale"}""", base = 0)
+        assertEquals(HttpStatusCode.OK, displayed.status, displayed.bodyAsText())
+        val view = query("SELECT id FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE name = 'view'")
+
+        val clash = patch("/api/ds/variations/$view", """{"name":"scale"}""")
+        assertEquals(HttpStatusCode.Conflict, clash.status, clash.bodyAsText())
+        assertEquals("view", query("SELECT name FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE id = '$view'"))
     }
 
     // ── оси ────────────────────────────────────────────────────────────────────────────────────────
@@ -443,7 +460,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals(
             "size",
             query(
-                "SELECT name FROM variations WHERE id = " +
+                "SELECT name FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE id = " +
                     "(SELECT variation_id FROM appearance_variations WHERE id = '$scale')",
             ),
         )
@@ -459,7 +476,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         }
         // Дизайн-система фикстуры глобальная для проекта-читателя: запись недоступна, оформление не раскрывается.
         assertTrue(denied.status == HttpStatusCode.Forbidden || denied.status == HttpStatusCode.NotFound)
-        assertEquals("1", query("SELECT count(*) FROM variations WHERE name = 'size'"))
+        assertEquals("1", query("SELECT count(*) FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE name = 'size'"))
         val unknown = get("/api/ds/appearances/$MISSING_ID/editor-model")
         assertEquals(HttpStatusCode.NotFound, unknown.status)
     }

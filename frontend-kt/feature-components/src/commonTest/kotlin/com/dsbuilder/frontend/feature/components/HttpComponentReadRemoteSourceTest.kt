@@ -81,7 +81,7 @@ class HttpComponentReadRemoteSourceTest {
         assertEquals(
             listOf(
                 "/api/projects/project-1/ds/components/component-1",
-                "/api/projects/project-1/ds/components/component-1/variations",
+                "/api/projects/project-1/ds/components/component-1/variations?designSystemId=ds-1",
                 "/api/projects/project-1/ds/design-systems/ds-1/components/component-1/styles",
             ),
             requestedPaths,

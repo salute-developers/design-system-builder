@@ -21,7 +21,7 @@ import type {
     ComponentConfigExportDto,
     PendingComponentMutation,
 } from './editorContracts';
-import { apiRoot, parseMutationMetadata, readRequest } from './editorHttp';
+import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
 import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
 import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
@@ -235,7 +235,10 @@ export const componentRepository = {
                         readEditor<ComponentPropertyDto[]>(`${root}/components/${component.id}/properties`, request),
                     ),
                     limitedRequest(() =>
-                        readEditor<ComponentVariationDto[]>(`${root}/components/${component.id}/variations`, request),
+                        readEditor<ComponentVariationDto[]>(
+                            `${root}/components/${component.id}/variations`,
+                            variationReadRequest(context, signal),
+                        ),
                     ),
                 ]);
                 const styles = componentName

@@ -1,7 +1,8 @@
 # gateway-authorization Specification
 
 ## Purpose
-TBD - created by archiving change plasmabldr-137-add-identity-gateway-foundation. Update Purpose after archive.
+Защита проектных маршрутов на Gateway, формирование доверенного контекста и изоляция внутренних маршрутов сервисов.
+
 ## Requirements
 ### Requirement: Gateway protects project routes
 

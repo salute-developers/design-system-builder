@@ -1,7 +1,8 @@
 # cli-themes Specification
 
 ## Purpose
-TBD - created by archiving change cli-themes. Update Purpose after archive.
+Загрузка тем дизайн-системы через CLI в локальный проект: значения токенов, палитра и сведения о темах в конфигурации.
+
 ## Requirements
 ### Requirement: CLI theme fetch command
 

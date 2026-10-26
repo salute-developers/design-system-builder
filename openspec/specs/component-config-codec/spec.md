@@ -260,7 +260,10 @@ Codec SHALL carry the axis type declared by the configuration and derive it only
 configuration declares none. The role of the colour scheme axis and its declared type are
 independent facts: the role says where the values go, the type says how the axis is declared.
 
-`sdds_serv` declares its colour scheme axis as `view` in all 46 cases, and the two look like one
+#### Scenario: Объявленный тип независим от роли цветовой схемы
+
+- **WHEN** конфигурация объявляет ось цветовой схемы как `enum`
+- **THEN** `sdds_serv` declares its colour scheme axis as `view` in all 46 cases, and the two look like one
 fact there. `sdds_sbcom` declares 10 such axes as `enum` while keeping their values in `view` —
 `counter` is one of them, and deriving the type from the role renamed its generated styles from
 `Counter.Mute` to `Counter.MuteNo`.
@@ -348,7 +351,10 @@ MUST NOT be carried as a separate stored field.
 The corpus SHALL contain configurations from at least two design systems, because a single design
 system can be degenerate in ways that hide defects.
 
-`sdds_serv` proved degenerate on two counts at once: its colour scheme axis is always named `view`
+#### Scenario: Различия конфигураций в корпусе
+
+- **WHEN** корпус содержит конфигурации `sdds_serv` и `sdds_sbcom`
+- **THEN** `sdds_serv` proved degenerate on two counts at once: its colour scheme axis is always named `view`
 (525 entries of 525), and the key of a `view` entry always equals the axis value (525 of 525). Both
 coincidences were encoded as rules and both are false in `sdds_sbcom`, where the scheme axis carries
 six different names and the key differs from the value in 67 cases of 70.

@@ -1,7 +1,8 @@
 # component-editor-configurations Specification
 
 ## Purpose
-TBD - created by archiving change component-editor-model-api. Update Purpose after archive.
+Создание, дублирование, переименование и удаление конфигураций компонента с сохранением конфигурации по умолчанию.
+
 ## Requirements
 ### Requirement: Конфигурация по умолчанию
 

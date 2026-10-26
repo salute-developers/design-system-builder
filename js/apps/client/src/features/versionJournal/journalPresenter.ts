@@ -113,6 +113,7 @@ const componentEntityTypes = new Set([
     'style',
     'style-combination',
     'style-combination-member',
+    'variation',
     'variation-platform-param-adjustment',
     'variation-property-value',
 ]);

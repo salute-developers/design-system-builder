@@ -1,7 +1,8 @@
 # component-value-alpha Specification
 
 ## Purpose
-TBD - created by archiving change add-component-value-alpha. Update Purpose after archive.
+Передача прозрачности значений в конфигурации компонента, сохранение правок и отображение в превью.
+
 ## Requirements
 ### Requirement: Прозрачность значения отдаётся в конфигурации компонента
 

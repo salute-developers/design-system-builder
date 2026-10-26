@@ -1,7 +1,8 @@
 # multi-user-design-system-editing Specification
 
 ## Purpose
-TBD - created by archiving change add-versioned-multi-user-editing. Update Purpose after archive.
+Сохранение параллельных правок в серверный черновик с согласованием по изменённым полям и независимым техническим состоянием сущностей.
+
 ## Requirements
 ### Requirement: Изменение сохраняется в активный серверный черновик
 

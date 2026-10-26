@@ -1,7 +1,8 @@
 # container-image-delivery Specification
 
 ## Purpose
-TBD - created by archiving change deploy-workflow. Update Purpose after archive.
+Публикация полного набора производственных контейнерных образов из разрешённых веток с проверкой версий и политикой тегов.
+
 ## Requirements
 ### Requirement: Ручной запуск публикации из разрешённой ветки
 Система MUST предоставлять ручной GitHub Actions workflow, который использует выбранный в GitHub ref и допускает публикацию только из веток `dev` и `master`.

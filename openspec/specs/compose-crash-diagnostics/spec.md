@@ -1,7 +1,8 @@
 # compose-crash-diagnostics Specification
 
 ## Purpose
-TBD - created by archiving change add-compose-crash-details. Update Purpose after archive.
+Передача причин сбоев Compose-плагина, показ диагностики в режиме отладки и копирование сообщения.
+
 ## Requirements
 ### Requirement: Плагин сообщает причину сбоя в результате
 

@@ -94,7 +94,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             )
         }
         context.appearances += appearanceId
-        val axes = upsertAxes(componentId, entry.config, names)
+        val axes = upsertAxes(ds, componentId, entry.config, names)
         val styles = upsertStyles(ds, entry.config, axes, names)
         declareAxes(appearanceId, entry.config, axes, styles, names, context)
         val properties = properties(componentId, entry, context)
@@ -126,8 +126,9 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         config: ComponentConfig,
         names: EffectiveNameSnapshot,
     ): String? {
-        val catalogAxes = VariationsTable.selectAll().where { VariationsTable.componentId eq component }
-            .associate { it[VariationsTable.name] to it[VariationsTable.id] }
+        val catalogAxes = VariationsTable.selectAll().where {
+            (VariationsTable.designSystemId eq ds) and (VariationsTable.componentId eq component)
+        }.associate { it[VariationsTable.name] to it[VariationsTable.id] }
         axes(config).forEach { (_, name) ->
             val effective = names.axis(name)?.variationId
             val catalog = catalogAxes[name]
@@ -369,19 +370,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     }
 
     private fun upsertAxes(
+        ds: UUID,
         component: UUID,
         config: ComponentConfig,
         names: EffectiveNameSnapshot,
     ) = axes(config).associate { (key, name) ->
-        key to (
-            names.axis(name)?.variationId ?: VariationsTable.selectAll().where {
-                (VariationsTable.componentId eq component) and (VariationsTable.name eq name)
-            }.singleOrNull()?.get(VariationsTable.id) ?: VariationsTable.insertReturning {
-                it[componentId] = component
-                it[VariationsTable.name] = name
-                it[description] = null
-            }.single()[VariationsTable.id]
-            )
+        key to (names.axis(name)?.variationId ?: VariationWrites.findOrCreate(ds, component, name))
     }
 
     private fun upsertStyles(
@@ -761,17 +755,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         reference(property, value, ComponentStyleSource.Combination(id), c)
     }
 
-    private fun linkProperty(property: UUID, variation: UUID) {
-        if (!PropertyVariationsTable.selectAll().where {
-                (PropertyVariationsTable.propertyId eq property) and (PropertyVariationsTable.variationId eq variation)
-            }.any()
-        ) {
-            PropertyVariationsTable.insertReturning {
-                it[propertyId] = property
-                it[variationId] = variation
-            }.single()
-        }
-    }
+    private fun linkProperty(property: UUID, variation: UUID) = VariationWrites.linkProperty(property, variation)
 
     private fun stateSet(names: List<String>, context: ComponentConfigImportContext): UUID? {
         val ids = names.map { name ->

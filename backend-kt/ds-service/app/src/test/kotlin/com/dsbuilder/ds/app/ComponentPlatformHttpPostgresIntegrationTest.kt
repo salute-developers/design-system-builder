@@ -65,10 +65,18 @@ class ComponentPlatformHttpPostgresIntegrationTest {
             )
                 .bodyAsText(),
         )
+        val designSystem =
+            id(post("/api/ds/design-systems", """{"name":"toast","projectName":"toast"}""", owner = true).bodyAsText())
+        val linked = post(
+            "/api/ds/design-system-components",
+            """{"designSystemId":"$designSystem","componentId":"$component"}""",
+            admin = true,
+        )
+        assertEquals(HttpStatusCode.Created, linked.status, linked.bodyAsText())
         val variation = id(
             post(
                 "/api/ds/variations",
-                """{"componentId":"$component","name":"view"}""",
+                """{"designSystemId":"$designSystem","componentId":"$component","name":"view"}""",
                 admin = true,
             ).bodyAsText(),
         )

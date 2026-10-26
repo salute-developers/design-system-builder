@@ -1,7 +1,8 @@
 # documentation-bundle-ingestion Specification
 
 ## Purpose
-TBD - created by archiving change add-documentation-bundle-upload. Update Purpose after archive.
+Приём архива документации: авторизация, безопасное ограниченное чтение и проверка манифеста.
+
 ## Requirements
 ### Requirement: Авторизация публикации документации
 Documentation service MUST требовать permission `documentation:write` для публикации bundle. User actor получает permission через grants effective project role; project key actor — только при наличии точного scope `documentation:write`; `system_admin` использует global override canonical policy.

@@ -38,7 +38,11 @@ class GeneratedComponentInitializationPostgresIntegrationTest {
             })
             runBlocking { initializer.initialize(id) }
         }
-        assertEquals(expected.values.sumOf { (it + 249) / 250 } * 2, batches)
+        // Связи свойств с осями не имеют редакций: на них приходятся только пакеты устойчивых строк.
+        assertEquals(
+            expected.values.sumOf { (it + 249) / 250 } * 2 + (propertyVariationCount + 249) / 250,
+            batches,
+        )
         assertCounts(database)
         transaction(database) { runBlocking { initializer.initialize(id) } }
         assertCounts(database)
@@ -127,6 +131,7 @@ class GeneratedComponentInitializationPostgresIntegrationTest {
         }
         mapOf(
             "design_system_components" to components.size,
+            "variations" to components.sumOf { it.items("variations").size },
             "styles" to components.sumOf { component ->
                 component.items("variations").sumOf { it.items("styles").size }
             },
@@ -142,10 +147,20 @@ class GeneratedComponentInitializationPostgresIntegrationTest {
         )
     }
 
+    private val propertyVariationCount: Int by lazy {
+        requireNotNull(javaClass.getResourceAsStream("/component-seeds.json"))
+            .bufferedReader().use { Json.parseToJsonElement(it.readText()).jsonObject.getValue("components").jsonArray }
+            .sumOf { component ->
+                component.jsonObject.items("propertyVariations")
+                    .map { it.getValue("property") to it.getValue("variation") }.distinct().size
+            }
+    }
+
     private fun JsonObject.items(name: String): List<JsonObject> = this[name]?.jsonArray.orEmpty().map { it.jsonObject }
 
     private val revisions = mapOf(
         "design_system_components" to "design_system_component_revisions",
+        "variations" to "variation_revisions",
         "styles" to "style_revisions",
         "appearances" to "appearance_revisions",
         "appearance_variations" to "appearance_variation_revisions",

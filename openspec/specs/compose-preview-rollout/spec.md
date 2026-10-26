@@ -1,7 +1,8 @@
 # compose-preview-rollout Specification
 
 ## Purpose
-TBD - created by archiving change ship-compose-preview-on-web. Update Purpose after archive.
+Условия включения Compose-превью, возврат к React-превью при сбоях и независимость остальных функций клиента.
+
 ## Requirements
 ### Requirement: Условие включения Compose-preview
 Клиент SHALL показывать Compose-preview только если при сборке задан адрес плагина. Без адреса клиент MUST вести себя так же, как до этого изменения. Compose-preview SHALL предлагаться компоненту платформы `compose`, чьё имя входит в `manifest.components`; web-компонентам Compose-переключатель MUST NOT предлагаться.

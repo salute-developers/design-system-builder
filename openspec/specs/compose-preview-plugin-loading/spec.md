@@ -1,7 +1,8 @@
 # compose-preview-plugin-loading Specification
 
 ## Purpose
-TBD - created by archiving change ship-compose-preview-on-web. Update Purpose after archive.
+Загрузка плагина превью по адресу во время работы, проверка манифеста и требования к раздаче и происхождению кода.
+
 ## Requirements
 ### Requirement: Плагин загружается во время работы по адресу
 Клиент SHALL загружать плагин Compose-preview во время работы по адресу из переменной сборки `VITE_COMPOSE_PREVIEW_PLUGIN_URL`. Файлы плагина MUST NOT входить в сборку клиента, MUST NOT линковаться с кодом клиента и MUST NOT храниться в Git-репозитории.

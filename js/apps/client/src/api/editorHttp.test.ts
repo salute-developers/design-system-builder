@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { keepaliveRequest, parseMutationMetadata, readRequest, tokenValueKey } from './editorHttp';
+import {
+    keepaliveRequest,
+    parseMutationMetadata,
+    readRequest,
+    tokenValueKey,
+    variationReadRequest,
+} from './editorHttp';
 
 const context = { projectId: 'project', designSystemId: 'ds', tenantId: 'theme' };
 
@@ -12,6 +18,15 @@ describe('параметры предметных запросов редакт�
             params: { versionId: 'published' },
         });
         expect(readRequest(context, signal)).toEqual({ signal, params: undefined });
+    });
+
+    it('ограничивает чтение вариаций дизайн-системой контекста и сохраняет границу версии', () => {
+        const signal = new AbortController().signal;
+        expect(variationReadRequest({ ...context, versionId: 'published' }, signal)).toEqual({
+            signal,
+            params: { versionId: 'published', designSystemId: 'ds' },
+        });
+        expect(variationReadRequest(context)).toEqual({ signal: undefined, params: { designSystemId: 'ds' } });
     });
 
     it('включает fetch keepalive только при явном запросе', () => {

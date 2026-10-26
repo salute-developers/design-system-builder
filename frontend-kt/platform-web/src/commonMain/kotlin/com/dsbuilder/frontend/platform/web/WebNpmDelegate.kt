@@ -17,8 +17,9 @@ import com.dsbuilder.frontend.core.process.ProcessRunner
  *
  * Тема и компоненты генерируются раздельно, как у Android: `THEME` — `generate:theme`,
  * `COMPONENTS` — `generate:components`; `DESIGN_SYSTEM` — `generate:ds`, обе части одним запуском
- * (с `--package` — один полный пакет). Генератору передаётся `.sdds` рабочей копии и, если задан,
- * каталог результата; остальные аргументы (например, `--package`) — как есть.
+ * (с `--package` — один полный пакет). Генератору передаются `.sdds` рабочей копии и каталог результата:
+ * заданный `--output` или `output` в рабочей копии. Без него генератор писал бы в свой каталог, потому что
+ * запускается из него. Остальные аргументы (например, `--package`) передаются как есть.
  *
  * Инструмент ищется только по явному пути (`--tool` или `DSBUILDER_WEB_TOOL`): установщика нет,
  * генератор живёт в репозитории и запускается рядом с ним.
@@ -98,17 +99,15 @@ public class WebNpmDelegate internal constructor(
         data class Missing(val hint: String) : Located
     }
 
-    /** `npm run <script> -- --sdds <.sdds> [--out <output>] <passthrough>`. */
+    /** `npm run <script> -- --sdds <.sdds> --out <output> <passthrough>`. */
     private fun arguments(script: String, invocation: DelegateInvocation): List<String> = buildList {
         add("run")
         add(script)
         add("--")
         add("--sdds")
         add(invocation.workspace.sddsDir)
-        invocation.output?.let {
-            add("--out")
-            add(it)
-        }
+        add("--out")
+        add(invocation.output ?: "${invocation.workspace.workspaceDir.trimEnd('/')}/$DEFAULT_OUTPUT_DIRECTORY")
         addAll(invocation.passthrough)
     }
 
@@ -133,5 +132,8 @@ public class WebNpmDelegate internal constructor(
         )
 
         const val MISSING_NPM_HINT = "$NPM_EXECUTABLE was not found in PATH. Install Node.js."
+
+        /** Каталог результата в рабочей копии, когда `--output` не задан; совпадает с умолчанием `js/cli`. */
+        const val DEFAULT_OUTPUT_DIRECTORY = "output"
     }
 }

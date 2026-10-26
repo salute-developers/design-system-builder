@@ -1,7 +1,8 @@
 # compose-component-visibility Specification
 
 ## Purpose
-TBD - created by archiving change hide-components-without-configuration. Update Purpose after archive.
+Отображение в меню Compose-компонентов с доступными конфигурациями и обработка ссылок на скрытые компоненты.
+
 ## Requirements
 ### Requirement: Compose-компоненты без конфигурации скрыты
 

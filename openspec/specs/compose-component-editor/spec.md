@@ -1,7 +1,8 @@
 # compose-component-editor Specification
 
 ## Purpose
-TBD - created by archiving change edit-compose-components-in-editor. Update Purpose after archive.
+Редактирование конфигураций Compose-компонентов и выбор платформенного превью с восстановлением после остановки плагина.
+
 ## Requirements
 ### Requirement: Component configs are served per platform
 
