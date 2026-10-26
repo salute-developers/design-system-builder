@@ -151,6 +151,28 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const requestedTokenId = searchParams.get('tokenId');
     const appliedAddress = useRef<string | null>(null);
     const requestedDefinition = props.tokenDefinitions.find((token) => token.id === requestedTokenId);
+    const clearDeletedTokenAddress = (removed: ColorTokenView[]) => {
+        if (!requestedTokenId || !requestedDefinition) return;
+        const parsed = parseMemberName(requestedDefinition.name);
+        if (
+            !parsed ||
+            !removed.some(
+                (view) =>
+                    view.key.type === requestedDefinition.type &&
+                    view.key.group === parsed.group &&
+                    view.key.name === parsed.name,
+            )
+        )
+            return;
+        setSearchParams(
+            (current) => {
+                const next = new URLSearchParams(current);
+                next.delete('tokenId');
+                return next;
+            },
+            { replace: true },
+        );
+    };
     const requested = requestedTokenId
         ? requestedDefinition?.name
         : (location.state as { tokenName?: string } | null)?.tokenName;
@@ -341,10 +363,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
 
     const removeGroup = async (group: TokenGroupDto, confirmed: boolean) => {
         if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
+        const removed = groupTokens(group);
         try {
             await editor.removeGroup(group.id);
             await refreshPalette();
             setDeleting(null);
+            clearDeletedTokenAddress(removed);
             rerender();
         } catch (error) {
             if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
@@ -365,6 +389,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             await refreshPalette();
             setDeleting(null);
             setSelectedId(null);
+            clearDeletedTokenAddress([view]);
             rerender();
         } catch (error) {
             if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });

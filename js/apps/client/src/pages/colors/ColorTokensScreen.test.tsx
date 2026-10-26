@@ -1,6 +1,6 @@
 import { useReducer, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
@@ -116,6 +116,7 @@ const reply =
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 let tenantSeq = 0;
+const RouteSearch = () => <span data-testid="route-search" hidden>{useLocation().search}</span>;
 
 const repository = {
     create: vi.fn<ColorTokenRepository['create']>(),
@@ -200,6 +201,7 @@ const renderScreen = async (
     render(
         <MemoryRouter initialEntries={[entry]}>
             <Host />
+            <RouteSearch />
         </MemoryRouter>,
     );
     return { designSystem, reloadTheme: (change?: (theme: Theme) => void) => act(() => swapTheme(change)) };
@@ -918,12 +920,13 @@ describe('ColorTokensScreen', () => {
             if (groupId === 'g-text') definitionState = [];
             return { editRevision: 4 };
         });
-        await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')]);
+        await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')], false, '/?tokenId=accent-0');
         await screen.findByTestId('token-subgroup-Status');
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить подгруппу Status' }));
         expect(screen.queryByRole('dialog')).toBeNull();
         await waitFor(() => expect(screen.queryByTestId('token-subgroup-Status')).toBeNull());
+        expect(screen.getByTestId('route-search')).toHaveTextContent('tokenId=accent-0');
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить группу Text & Icons' }));
         const dialog = screen.getByRole('dialog');
@@ -932,18 +935,30 @@ describe('ColorTokensScreen', () => {
         fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить группу' }));
 
         await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.accent')).toBeNull());
+        await waitFor(() => expect(screen.getByTestId('route-search')).toBeEmptyDOMElement());
         expect(groupRepository.remove).toHaveBeenLastCalledWith(expect.anything(), 'g-text', 4);
     });
 
     it('удаляет токен без связей с компонентами без подтверждения', async () => {
         repository.delete.mockResolvedValue({ editRevision: 4 });
-        await renderScreen();
+        await renderScreen('maintainer', [], [], false, '/?tokenId=accent-0');
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
 
         expect(screen.queryByRole('dialog')).toBeNull();
         await waitFor(() => expect(repository.delete).toHaveBeenCalledWith(expect.anything(), 'accent-0', 3));
         await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.accent')).toBeNull());
+        await waitFor(() => expect(screen.getByTestId('route-search')).toBeEmptyDOMElement());
+    });
+
+    it('сохраняет адрес токена при ошибке удаления', async () => {
+        repository.delete.mockRejectedValue(new Error('Удаление отклонено'));
+        await renderScreen('maintainer', [], [], false, '/?tokenId=accent-0');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
+
+        expect(await screen.findByText('Не удалось удалить токен: Удаление отклонено')).toBeInTheDocument();
+        expect(screen.getByTestId('route-search')).toHaveTextContent('tokenId=accent-0');
     });
 
     it('удаляет токен, используемый в компонентах, после подтверждения со списком компонентов', async () => {
