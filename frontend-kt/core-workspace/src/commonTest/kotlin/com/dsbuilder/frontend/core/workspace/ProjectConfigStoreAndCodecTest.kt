@@ -1,5 +1,7 @@
 package com.dsbuilder.frontend.core.workspace
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -185,6 +187,45 @@ class ProjectConfigStoreAndCodecTest {
     }
 
     @Test
+    fun configCodecKeepsBreakpointsAsTheyAre() {
+        val codec = ProjectConfigCodec()
+        val text = """
+            {
+              "projectId": "project-a",
+              "designSystemId": "design-system-a",
+              "credential": { "type": "env", "name": "DSBUILDER_PROJECT_A_API_KEY" },
+              "breakpoints": $BREAKPOINTS
+            }
+        """.trimIndent()
+
+        val encoded = codec.encode(codec.decode(text))
+
+        assertEquals(breakpoints(), codec.decode(encoded).breakpoints)
+    }
+
+    @Test
+    fun configCodecDoesNotWriteMissingBreakpoints() {
+        val encoded = ProjectConfigCodec().encode(projectConfig())
+
+        assertFalse(encoded.contains("breakpoints"))
+    }
+
+    @Test
+    fun configStoreUpdatesTenantsPreservingBreakpoints() {
+        val fileSystem = initializedFileSystem()
+        val store = ProjectConfigStore(fileSystem)
+        store.updateConfig("/repo/.sdds/config.json") { config -> config.copy(breakpoints = breakpoints()) }
+
+        store.updateTenantsPreservingAliases(
+            configPath = "/repo/.sdds/config.json",
+            tenants = listOf(configTenant("tenant-a")),
+        )
+        val updated = ProjectConfigCodec().decode(fileSystem.readText("/repo/.sdds/config.json"))
+
+        assertEquals(breakpoints(), updated.breakpoints)
+    }
+
+    @Test
     fun configDiscoveryUsesCurrentDirectoryConfig() {
         val fileSystem = FakeWorkspaceFileSystem(currentDirectory = "/repo/package-a")
         fileSystem.writeText("/repo/package-a/.sdds/config.json", ProjectConfigCodec().encode(projectConfig("current")))
@@ -217,6 +258,8 @@ class ProjectConfigStoreAndCodecTest {
         assertTrue(exception.message!!.contains("Project is not initialized"))
     }
 
+    private fun breakpoints(): JsonArray = Json.decodeFromString(JsonArray.serializer(), BREAKPOINTS)
+
     private fun projectConfig(projectId: String = "project-a"): ProjectConfig = ProjectConfig(
         projectId = projectId,
         designSystemId = "design-system-a",
@@ -240,5 +283,10 @@ class ProjectConfigStoreAndCodecTest {
         val fileSystem = FakeWorkspaceFileSystem(currentDirectory = "/repo/src")
         fileSystem.writeText("/repo/.sdds/config.json", ProjectConfigCodec().encode(projectConfig()))
         return fileSystem
+    }
+
+    private companion object {
+        const val BREAKPOINTS =
+            """[{"name":"screenS","from":959},{"name":"screenM","from":960,"to":1280},{"name":"screenL","to":1281}]"""
     }
 }

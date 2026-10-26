@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
+# Компоненты необязательны: пакет может состоять из одной темы.
 # Example: Calendar
-components=$(grep -R plasma-new-hope src/components | cut -d / -f 3 | sort -u)
+components=$([ -d src/components ] && grep -R plasma-new-hope src/components | cut -d / -f 3 | sort -u)
 
 mkdir -p src-css/components/
 
@@ -32,4 +33,7 @@ for file in $files; do
 done;
 
 # plasma-new-hope/styled-components => plasma-new-hope
-perl -p -i -e "s/\/styled-components//g" $files
+# Без файлов `perl -i` читает stdin и ждёт ввода из терминала.
+if [ -n "$files" ]; then
+    perl -p -i -e "s/\/styled-components//g" $files
+fi

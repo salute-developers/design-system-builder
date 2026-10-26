@@ -11,7 +11,7 @@
 
 Тема и компоненты генерируются раздельно, как у Android: `generate:theme` — только тема,
 `generate:components` — только компоненты; `generate:ds` — обе части одним запуском, а с `--package` —
-один полный пакет `<scope>-<name>-<version>.tgz` (`dsbuilder ds generate`). Из общего CLI их запускает
+папка одного полного пакета (`dsbuilder ds generate`). Из общего CLI их запускает
 `dsbuilder theme generate --platform react` и `dsbuilder components generate --platform react`:
 делегат платформы `web` ищет этот каталог по `--tool` или переменной `DSBUILDER_WEB_TOOL`.
 
@@ -70,10 +70,10 @@ npm run generate:ds -- --sdds ../../cli/.sdds --tenant plasma_homeds_default --p
 
 - без флагов — исходники `src/theme` или `src/components`; `src/index.ts` экспортирует то, что
   лежит в `src` (компоненты верхнего уровня и тему, если она есть);
-- с `--package` — собранный пакет из одной части: `<scope>-<name>-<version>-theme.tgz` или
-  `…-components.tgz` (например, `sddsjs-base-0.1.0-components.tgz` при `--name base`). Имя самого пакета у
-  обеих частей одно, суффикс только у файла, чтобы архивы не перезаписывали друг друга. В пакете
-  компонентов нет темы: её CSS-переменные приложение подключает пакетом темы.
+- с `--package` — папка пакета из одной части без сборки и архива: `package.json`, конфиги сборки
+  (rollup, babel, tsconfig), `scripts` и `src`. `src` заменяется целиком, остальное содержимое каталога
+  (`node_modules`, `package-lock.json`) остаётся. В пакете компонентов нет темы: её CSS-переменные
+  приложение подключает пакетом темы.
 
 ```sh
 npm run generate:theme -- --package --name base
@@ -81,11 +81,9 @@ npm run generate:components -- --package --name base
 npm run generate:ds -- --package --name base
 ```
 
-Пакет собирается во временном каталоге `js/cli/result-*`. pacote запускает у пакета только `prepare`
-(`npm run build`) и не устанавливает его зависимости: babel, rollup, tsc, `react`, `styled-components`,
-`@salutejs/plasma-new-hope` и eslint скрипты пакета берут из `js/cli/node_modules`, конфиг eslint — из
-заготовки пакета (`src/generator/constants/eslint.config.mjs`). Типы пакета строятся по той версии
-`@salutejs/plasma-new-hope`, что установлена в `js/cli`. CLI не обращается к бэкенду и не публикует пакет.
+Папку пакета собирают и упаковывают сами: `npm install` (запускает `prepare`, то есть `npm run build`)
+и `npm pack`. Сборка копирует CSS темы, собирает компоненты babel, CSS-версию rollup и типы tsc;
+eslint в ней нет, и `src` она не меняет. CLI не обращается к бэкенду и не публикует пакет.
 `component-configs.json` генерацией не используется.
 
 # Метаданные Style API
