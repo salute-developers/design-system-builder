@@ -3,6 +3,7 @@ package com.dsbuilder.frontend.core.application
 import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.PkcePlatform
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
@@ -17,6 +18,8 @@ import org.koin.dsl.module
  */
 public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
     single<ClientRuntime> { runtime }
+    single<com.dsbuilder.frontend.core.auth.UserAccessTokenCache> { runtime.accessTokenCache }
+    single<PkcePlatform> { runtime.pkcePlatform }
     single<WorkspaceFileSystem> { get<ClientRuntime>().fileSystem }
     single<EnvironmentReader> { get<ClientRuntime>().environmentReader }
     single<AuthenticatedHttpClientFactory> {
@@ -24,6 +27,7 @@ public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
             get<ClientRuntime>().httpClientFactory,
             get<CredentialProvider>(),
             get<CredentialStore>(),
+            get<com.dsbuilder.frontend.core.auth.UserAccessTokenCache>(),
         )
     }
     single<ProcessRunner> { get<ClientRuntime>().processRunner }
@@ -44,6 +48,7 @@ public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
             credentialStore = get<CredentialStore>(),
             tokenClient = get<TokenClient>(),
             environment = get<EnvironmentReader>(),
+            cache = get<com.dsbuilder.frontend.core.auth.UserAccessTokenCache>(),
         )
     }
 }

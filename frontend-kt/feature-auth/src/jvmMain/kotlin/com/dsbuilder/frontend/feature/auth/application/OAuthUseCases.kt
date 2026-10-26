@@ -1,7 +1,11 @@
 package com.dsbuilder.frontend.feature.auth.application
 
+import com.dsbuilder.frontend.core.auth.AuthResult
+import com.dsbuilder.frontend.core.auth.OAuthCallback
+import com.dsbuilder.frontend.core.auth.OAuthCallbackListener
+import com.dsbuilder.frontend.core.auth.PkceChallenge
 import com.dsbuilder.frontend.core.auth.PkceGenerator
-import com.dsbuilder.frontend.core.auth.PkcePair
+import com.dsbuilder.frontend.core.auth.PkcePlatform
 import com.dsbuilder.frontend.core.auth.TokenExchangeClient
 import com.dsbuilder.frontend.core.auth.UserOAuthTokens
 import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
@@ -11,7 +15,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
-import java.util.UUID
 
 /**
  * Результат Authorization Code + PKCE логина.
@@ -32,9 +35,7 @@ public sealed interface OAuthLoginResult {
  * Оркестрирует Authorization Code + PKCE flow: PKCE + `state` -> loopback listener -> системный
  * браузер -> ожидание redirect -> обмен кода на токены -> применение сессии.
  *
- * Живёт в `jvmMain`, потому что использует `core-auth`'s `PkceGenerator`, который сам объявлен
- * `jvmMain`-only (единственный сегодняшний потребитель PKCE — JVM-клиенты: `:plugins:android-studio`,
- * будущий `:cli`'s JVM-таргет).
+ * Адаптирует платформенные порты IDE к общему [PkceLoginFlow] и сохраняет независимую сессию IDE.
  */
 public class OAuthLoginUseCase(
     private val clientId: String,
@@ -45,75 +46,68 @@ public class OAuthLoginUseCase(
     private val redirectListenerFactory: RedirectListenerFactory,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    /**
-     * Запускает вход и возвращает финальный результат. Блокирующее ожидание loopback redirect
-     * выполняется на [ioDispatcher], а не на диспетчере вызывающей стороны (например UI-потоке IDE).
-     */
-    @Suppress("TooGenericExceptionCaught")
-    public suspend fun execute(apiUrlOverride: String? = null): OAuthLoginResult = try {
-        withContext(ioDispatcher) { performLogin(apiUrlOverride) }
-    } catch (exception: CancellationException) {
-        throw exception
-    } catch (exception: Exception) {
-        OAuthLoginResult.Failed(exception.message ?: "Не удалось выполнить вход.")
-    }
-
-    private suspend fun performLogin(apiUrlOverride: String?): OAuthLoginResult {
-        val gatewayBaseUrl = apiUrlResolver.resolve(apiUrlOverride).value
-        val listener = redirectListenerFactory.create()
-        val redirectUri = "http://127.0.0.1:${listener.port}/callback"
-        val pkce = PkceGenerator.generate()
-        val expectedState = UUID.randomUUID().toString()
-        val authorizeUrl = AuthorizeUrlBuilder(gatewayBaseUrl, clientId).build(pkce, expectedState, redirectUri)
-
-        // Порт освобождается при любом исходе: ошибка запуска браузера, таймаут, отмена, успех.
-        val callback = try {
-            browserLauncher.browse(authorizeUrl)
-            runInterruptible { listener.awaitCallback() }
-        } finally {
-            listener.close()
+    /** Запускает общий PKCE-сценарий с отдельным защищённым хранилищем IDE. */
+    public suspend fun execute(apiUrlOverride: String? = null): OAuthLoginResult = withContext(ioDispatcher) {
+        val platform = IdePkcePlatform(browserLauncher, redirectListenerFactory)
+        val apiUrl = try {
+            apiUrlResolver.resolve(apiUrlOverride).value
+        } catch (exception: IllegalArgumentException) {
+            return@withContext OAuthLoginResult.Failed("Некорректный API URL.")
         }
-
-        return when (callback) {
-            is LoopbackCallbackResult.Success ->
-                handleSuccess(callback, pkce, expectedState, redirectUri)
-            is LoopbackCallbackResult.Error ->
-                OAuthLoginResult.Failed(callback.errorDescription ?: callback.error)
-            LoopbackCallbackResult.Malformed ->
-                OAuthLoginResult.Failed("Не удалось получить ответ авторизации.")
+        when (
+            val result = PkceLoginFlow(platform).execute(apiUrl, clientId) { code ->
+                val tokens = tokenExchangeClient.exchangeAuthorizationCode(
+                    code = code.code,
+                    codeVerifier = code.verifier,
+                    redirectUri = code.redirectUri,
+                    clientId = clientId,
+                )
+                sessionResolver.applyTokens(
+                    UserOAuthTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresInSeconds),
+                )
+                AuthResult.Success(Unit)
+            }
+        ) {
+            is AuthResult.Success -> OAuthLoginResult.LoggedIn
+            is AuthResult.Failed -> OAuthLoginResult.Failed(result.message)
         }
     }
+}
 
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun handleSuccess(
-        callback: LoopbackCallbackResult.Success,
-        pkce: PkcePair,
-        expectedState: String,
-        redirectUri: String,
-    ): OAuthLoginResult {
-        if (callback.state != expectedState) {
-            return OAuthLoginResult.Failed("Ответ авторизации не прошёл проверку state.")
-        }
+private class IdePkcePlatform(
+    private val browser: BrowserLauncher,
+    private val factory: RedirectListenerFactory,
+) : PkcePlatform {
+    override fun generate(): PkceChallenge {
+        val pair = PkceGenerator.generate()
+        return PkceChallenge(
+            pair.codeVerifier,
+            pair.codeChallenge,
+            PkceGenerator.generate().codeVerifier,
+        )
+    }
 
-        return try {
-            val tokens = tokenExchangeClient.exchangeAuthorizationCode(
-                code = callback.code,
-                codeVerifier = pkce.codeVerifier,
-                redirectUri = redirectUri,
-                clientId = clientId,
-            )
-            sessionResolver.applyTokens(
-                UserOAuthTokens(
-                    accessToken = tokens.accessToken,
-                    refreshToken = tokens.refreshToken,
-                    expiresInSeconds = tokens.expiresInSeconds,
-                ),
-            )
-            OAuthLoginResult.LoggedIn
-        } catch (exception: Exception) {
-            OAuthLoginResult.Failed(exception.message ?: "Не удалось обменять код на токены.")
+    override suspend fun listen(): OAuthCallbackListener {
+        val delegate = factory.create()
+        return object : OAuthCallbackListener {
+            override val port: Int get() = delegate.port
+            override suspend fun awaitCallback(): OAuthCallback {
+                val params = when (val callback = runInterruptible { delegate.awaitCallback(180) }) {
+                    is LoopbackCallbackResult.Success -> mapOf(
+                        "code" to listOf(callback.code),
+                        "state" to listOf(callback.state),
+                    )
+                    is LoopbackCallbackResult.Error -> mapOf("error" to listOf(callback.error))
+                    LoopbackCallbackResult.Malformed -> emptyMap()
+                }
+                return OAuthCallback("/callback", params)
+            }
+            override suspend fun complete(success: Boolean) = Unit
+            override fun close() = delegate.close()
         }
     }
+    override suspend fun openBrowser(url: String) = browser.browse(url)
+    override fun currentTimeMillis(): Long = System.currentTimeMillis()
 }
 
 /**
@@ -141,6 +135,8 @@ public class RefreshUserSessionUseCase(
                 ),
             )
             true
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (exception: Exception) {
             sessionResolver.clear()
             false

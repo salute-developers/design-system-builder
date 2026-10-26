@@ -3,22 +3,27 @@ package com.dsbuilder.frontend.core.network
 import com.dsbuilder.frontend.core.auth.AccessTokenResponse
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
+import com.dsbuilder.frontend.core.auth.INTERACTIVE_CLIENT_ID
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.submitForm
+import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import io.ktor.http.Url
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
-private const val PUBLIC_CLIENT_ID = "dsbuilder-api"
+private const val PUBLIC_CLIENT_ID = INTERACTIVE_CLIENT_ID
 
 /**
  * Gateway-backed token client for user sessions.
@@ -27,29 +32,25 @@ public class KtorTokenClient(
     private val httpClient: HttpClient,
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) : TokenClient {
-    override suspend fun login(
+    override suspend fun exchangeCode(
         apiUrl: String,
-        username: String,
-        password: String,
-    ): AuthResult<TokenResponse> {
-        if (!allowsPasswordAuth(apiUrl)) {
-            return AuthResult.Failed(
-                AuthErrorCode.INVALID_AUTH_URL,
-                "Error: password auth requires HTTPS, except localhost and 127.0.0.1.",
-            )
-        }
-        return requestToken(
-            apiUrl = apiUrl,
-            parameters = Parameters.build {
-                append("grant_type", "password")
-                append("client_id", PUBLIC_CLIENT_ID)
-                append("username", username)
-                append("password", password)
-                append("scope", "openid")
-            },
-            decode = ::decodeToken,
-        )
-    }
+        code: String,
+        verifier: String,
+        redirectUri: String,
+    ): AuthResult<TokenResponse> = requestToken(
+        apiUrl,
+        Parameters.build {
+            append("grant_type", "authorization_code")
+            append("client_id", PUBLIC_CLIENT_ID)
+            append("code", code)
+            append("code_verifier", verifier)
+            append("redirect_uri", redirectUri)
+        },
+        decode = ::decodeToken,
+    )
+
+    override suspend fun username(apiUrl: String, accessToken: String): AuthResult<String> =
+        KtorUserInfoClient(httpClient, json).read(apiUrl, accessToken)
 
     override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
         requestToken(
@@ -67,7 +68,7 @@ public class KtorTokenClient(
         clientId: String,
         clientSecret: String,
     ): AuthResult<AccessTokenResponse> {
-        if (!allowsPasswordAuth(apiUrl)) {
+        if (!allowsInteractiveAuth(apiUrl)) {
             return AuthResult.Failed(
                 AuthErrorCode.INVALID_AUTH_URL,
                 "Error: service account login requires HTTPS, except localhost and 127.0.0.1.",
@@ -86,27 +87,33 @@ public class KtorTokenClient(
 
     @Suppress("TooGenericExceptionCaught")
     override suspend fun logout(apiUrl: String, refreshToken: String): AuthResult<Unit> =
-        try {
-            val response = httpClient.submitForm(
-                url = endpoint(apiUrl, "/auth/logout"),
-                formParameters = Parameters.build {
-                    append("client_id", PUBLIC_CLIENT_ID)
-                    append("refresh_token", refreshToken)
-                },
-            )
-            when {
-                response.status.isSuccess() -> AuthResult.Success(Unit)
-                response.status == HttpStatusCode.Unauthorized -> AuthResult.Failed(
-                    AuthErrorCode.AUTH_REQUIRED,
-                    "Error: user session is not authorized.",
+        if (!allowsInteractiveAuth(apiUrl)) {
+            invalidAuthUrl()
+        } else {
+            try {
+                val response = httpClient.submitForm(
+                    url = oauthEndpoint(apiUrl, "/auth/logout"),
+                    formParameters = Parameters.build {
+                        append("client_id", PUBLIC_CLIENT_ID)
+                        append("refresh_token", refreshToken)
+                    },
                 )
-                else -> AuthResult.Failed(
-                    AuthErrorCode.BACKEND_UNAVAILABLE,
-                    "Error: backend returned HTTP ${response.status.value}.",
-                )
+                when {
+                    response.status.isSuccess() -> AuthResult.Success(Unit)
+                    response.status == HttpStatusCode.Unauthorized -> AuthResult.Failed(
+                        AuthErrorCode.AUTH_REQUIRED,
+                        "Error: user session is not authorized.",
+                    )
+                    else -> AuthResult.Failed(
+                        AuthErrorCode.BACKEND_UNAVAILABLE,
+                        "Error: backend returned HTTP ${response.status.value}.",
+                    )
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: backend is unavailable.")
             }
-        } catch (exception: Exception) {
-            AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, transportMessage(exception))
         }
 
     @Suppress("TooGenericExceptionCaught")
@@ -115,26 +122,32 @@ public class KtorTokenClient(
         parameters: Parameters,
         decode: (String) -> AuthResult<T>,
     ): AuthResult<T> =
-        try {
-            val response = httpClient.submitForm(endpoint(apiUrl, "/auth/token"), parameters)
-            when {
-                response.status.isSuccess() -> decode(response.bodyAsText())
-                response.status == HttpStatusCode.BadRequest -> decodeTokenError(response.bodyAsText())
-                response.status == HttpStatusCode.Unauthorized -> AuthResult.Failed(
-                    AuthErrorCode.AUTH_REQUIRED,
-                    "Error: credentials are invalid or expired.",
-                )
-                response.status == HttpStatusCode.Forbidden -> AuthResult.Failed(
-                    AuthErrorCode.FORBIDDEN,
-                    "Error: authentication is forbidden.",
-                )
-                else -> AuthResult.Failed(
-                    AuthErrorCode.BACKEND_UNAVAILABLE,
-                    "Error: backend returned HTTP ${response.status.value}.",
-                )
+        if (!allowsInteractiveAuth(apiUrl)) {
+            invalidAuthUrl()
+        } else {
+            try {
+                val response = httpClient.submitForm(oauthEndpoint(apiUrl, "/auth/token"), parameters)
+                when {
+                    response.status.isSuccess() -> decode(response.bodyAsText())
+                    response.status == HttpStatusCode.BadRequest -> decodeTokenError(response.bodyAsText())
+                    response.status == HttpStatusCode.Unauthorized -> AuthResult.Failed(
+                        AuthErrorCode.AUTH_REQUIRED,
+                        "Error: credentials are invalid or expired.",
+                    )
+                    response.status == HttpStatusCode.Forbidden -> AuthResult.Failed(
+                        AuthErrorCode.FORBIDDEN,
+                        "Error: authentication is forbidden.",
+                    )
+                    else -> AuthResult.Failed(
+                        AuthErrorCode.BACKEND_UNAVAILABLE,
+                        "Error: backend returned HTTP ${response.status.value}.",
+                    )
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: backend is unavailable.")
             }
-        } catch (exception: Exception) {
-            AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, transportMessage(exception))
         }
 
     private fun decodeToken(body: String): AuthResult<TokenResponse> =
@@ -144,7 +157,8 @@ public class KtorTokenClient(
                 TokenResponse(
                     accessToken = response.accessToken,
                     refreshToken = response.refreshToken,
-                    refreshExpiresAt = response.refreshExpiresIn ?: response.expiresIn,
+                    refreshExpiresAt = nowMillis() + (response.refreshExpiresIn ?: response.expiresIn) * 1000,
+                    expiresInSeconds = response.expiresIn,
                 ),
             )
         } catch (exception: SerializationException) {
@@ -177,15 +191,20 @@ public class KtorTokenClient(
             AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: token request failed.")
         }
 
-    private fun endpoint(apiUrl: String, path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
+    @OptIn(ExperimentalTime::class)
+    private fun nowMillis(): Long = Clock.System.now().toEpochMilliseconds()
+}
 
-    private fun allowsPasswordAuth(apiUrl: String): Boolean {
-        val url = Url(apiUrl)
-        return url.protocol.name == "https" || url.host == "localhost" || url.host == "127.0.0.1"
-    }
-
-    private fun transportMessage(exception: Exception): String =
-        "Error: backend is unavailable${exception.message?.substringBefore('\n')?.let { ": $it" } ?: "."}"
+/** Разрешает передачу учётных данных по HTTPS и HTTP на локальном loopback. */
+public fun allowsInteractiveAuth(apiUrl: String): Boolean = try {
+    val url = Url(apiUrl)
+    url.user.isNullOrEmpty() && url.password.isNullOrEmpty() &&
+        (
+            url.protocol.name == "https" ||
+                (url.protocol.name == "http" && (url.host == "localhost" || url.host == "127.0.0.1"))
+            )
+} catch (exception: IllegalArgumentException) {
+    false
 }
 
 @Serializable
@@ -210,3 +229,8 @@ private data class GatewayAccessTokenResponse(
 private data class GatewayErrorResponse(
     val error: String,
 )
+
+internal fun oauthEndpoint(apiUrl: String, path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
+
+internal fun invalidAuthUrl(): AuthResult.Failed =
+    AuthResult.Failed(AuthErrorCode.INVALID_AUTH_URL, "Авторизация требует HTTPS.")

@@ -132,7 +132,7 @@ tasks.register("npmPackMcpNodeSmoke") {
             "secret",
             expectedExitCode = 1,
         )
-        check(passwordOutput.contains("password must be entered interactively")) {
+        check(passwordOutput.contains("password login was removed")) {
             "auth login did not reject --password: $passwordOutput"
         }
         check(!passwordOutput.contains("secret")) {

@@ -1,7 +1,10 @@
 package com.dsbuilder.frontend.core.application
 
+import com.dsbuilder.frontend.core.auth.AuthErrorCode
+import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.CredentialStore
+import com.dsbuilder.frontend.core.auth.UserAccessTokenCache
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
@@ -16,6 +19,7 @@ internal class RefreshingAuthenticatedHttpClientFactory(
     private val delegate: AuthenticatedHttpClientFactory,
     private val credentialProvider: CredentialProvider,
     private val credentialStore: CredentialStore,
+    private val cache: UserAccessTokenCache = UserAccessTokenCache(),
 ) : AuthenticatedHttpClientFactory {
     override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
         create(apiUrl, BackendCredential.ProjectKey(apiKey))
@@ -45,43 +49,54 @@ internal class RefreshingAuthenticatedHttpClientFactory(
             send: suspend (AuthenticatedHttpClient) -> AuthenticatedHttpResponse,
         ): AuthenticatedHttpResponse {
             val first = send(firstClient)
-            return if (first.statusCode == 401) {
-                refreshedClient()?.let { send(it) }?.also { second ->
-                    if (second.statusCode == 401) credentialStore.delete(apiUrl)
-                } ?: first
-            } else {
-                first
+            if (first.statusCode != 401 || credential !is BackendCredential.Bearer) return first
+            return when (val refreshed = refreshedClient()) {
+                is AuthResult.Failed -> AuthenticatedHttpResponse(errorStatus(refreshed.code), refreshed.message)
+                is AuthResult.Success -> send(refreshed.value).also { second ->
+                    if (second.statusCode == 401) clearSession()
+                }
             }
         }
 
         private suspend fun retryResult(
             first: AuthenticatedHttpResult,
             retry: suspend (AuthenticatedHttpClient) -> AuthenticatedHttpResult,
-        ): AuthenticatedHttpResult =
-            if (first is AuthenticatedHttpResult.Failure && first.statusCode == 401) {
-                refreshedClient()?.let { client ->
-                    retry(client).also { second ->
-                        if (second is AuthenticatedHttpResult.Failure && second.statusCode == 401) {
-                            credentialStore.delete(apiUrl)
-                        }
-                    }
-                } ?: first
-            } else {
-                first
+        ): AuthenticatedHttpResult {
+            if (first !is AuthenticatedHttpResult.Failure || first.statusCode != 401) return first
+            if (credential !is BackendCredential.Bearer) return first
+            return when (val refreshed = refreshedClient()) {
+                is AuthResult.Failed -> AuthenticatedHttpResult.Failure(refreshed.message, errorStatus(refreshed.code))
+                is AuthResult.Success -> retry(refreshed.value).also { second ->
+                    if (second is AuthenticatedHttpResult.Failure && second.statusCode == 401) clearSession()
+                }
             }
+        }
 
-        private suspend fun refreshedClient(): AuthenticatedHttpClient? {
-            if (credential !is BackendCredential.Bearer) return null
+        private suspend fun clearSession() = cache.withSessionLock {
+            credentialStore.delete(apiUrl)
+            cache.clear(apiUrl)
+        }
+
+        private suspend fun refreshedClient(): AuthResult<AuthenticatedHttpClient> {
             val result = credentialProvider.resolve(
                 CredentialRequest(
                     apiUrl = ProjectApiUrl(apiUrl),
                     credentialEnvName = CredentialEnvName("DSBUILDER_API_KEY"),
                     policy = CredentialPolicy.USER_SESSION,
+                    forceRefresh = true,
+                    rejectedAccessToken = (credential as? BackendCredential.Bearer)?.accessToken,
                 ),
             )
-            val refreshed = (result as? CredentialResult.Selected)?.credential as? BackendCredential.Bearer
-                ?: return null
-            return delegate.create(apiUrl, refreshed)
+            return when (result) {
+                is CredentialResult.Failed -> AuthResult.Failed(result.code, result.message)
+                is CredentialResult.Selected -> AuthResult.Success(delegate.create(apiUrl, result.credential))
+            }
         }
+    }
+
+    private fun errorStatus(code: AuthErrorCode): Int = when (code) {
+        AuthErrorCode.AUTH_REQUIRED, AuthErrorCode.PROJECT_KEY_INVALID -> 401
+        AuthErrorCode.FORBIDDEN -> 403
+        else -> 503
     }
 }

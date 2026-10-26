@@ -44,3 +44,15 @@ An explicit `designSystem` link does not read the local project's `.env`.
 
 Documentation and code-binding tools read published documentation artifacts. Token and component tools read the
 authoritative DS Builder model API through `/api/projects/{projectId}/ds/...`.
+
+Browser authentication: run `dsbuilder-mcp auth login --api-url <URL>` on the same
+machine as your system browser. Password arguments and terminal password prompts
+are no longer supported. Repeat browser login once to replace legacy sessions.
+CLI and MCP share refresh sessions; IDE sessions remain separate. `auth status`
+reports local metadata only. For CI use a project key. `serve` and tools never
+open a browser. HTTPS is required except for localhost and 127.0.0.1.
+
+Браузерный вход завершается русской страницей результата DS Builder. После
+сообщения «Вы успешно авторизованы. Можете закрыть вкладку.» сессия уже сохранена.
+При отказе callback, обмена кода или сохранения показывается страница ошибки;
+повторите `auth login` в терминале.

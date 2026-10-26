@@ -39,6 +39,7 @@ public actual fun defaultClientRuntime(): ClientRuntime {
         processRunner = JvmProcessRunner,
         credentialStore = FileCredentialStore(JvmCredentialStoreFileSystem, JvmCredentialStoreLock),
         tokenClient = KtorTokenClient(httpClient),
+        pkcePlatform = JvmPkcePlatform,
         close = { httpClient.close() },
     )
 }
