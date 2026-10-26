@@ -432,7 +432,7 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         icon="variant"
                         label="Начертание"
                         value={variant}
-                        disabled={false}
+                        disabled={disabled}
                         error={null}
                         options={TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map(({ id, label }) => ({
                             value: id,

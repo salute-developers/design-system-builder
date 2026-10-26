@@ -323,13 +323,10 @@ describe('экран «Типографика»', () => {
         expect((inspector().getByLabelText('Size') as HTMLInputElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Семейство шрифта') as HTMLButtonElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Weight Regular') as HTMLButtonElement).disabled).toBe(true);
-        // Начертание только выбирает, какое из трёх показать, и ничего не записывает.
-        expect((inspector().getByLabelText('Начертание') as HTMLButtonElement).disabled).toBe(false);
+        // В режиме просмотра ничего нельзя менять, в том числе начертание.
+        expect((inspector().getByLabelText('Начертание') as HTMLButtonElement).disabled).toBe(true);
         fireEvent.click(inspector().getByLabelText('Начертание'));
-        fireEvent.click(
-            within(inspector().getByRole('listbox', { name: 'Начертание' })).getByRole('option', { name: 'Medium' }),
-        );
-        expect(inspector().getByLabelText('Weight Medium').textContent).toBe('500 / Medium');
+        expect(inspector().queryByRole('listbox', { name: 'Начертание' })).toBeNull();
         fireEvent.click(screen.getByRole('tab', { name: 'Мелкие' }));
         fireEvent.click(tree().getByText('Body M'));
         expect(screen.getByRole('heading', { name: 'Body / Body M' })).toBeTruthy();
