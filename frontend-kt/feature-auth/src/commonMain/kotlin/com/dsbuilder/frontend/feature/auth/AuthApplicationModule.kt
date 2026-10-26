@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.feature.auth
 
 import com.dsbuilder.frontend.core.auth.CredentialStore
+import com.dsbuilder.frontend.core.auth.PkcePlatform
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.feature.auth.application.AuthStatusUseCase
@@ -13,7 +14,22 @@ import org.koin.dsl.module
  * Creates Koin module for user auth use cases.
  */
 public fun authApplicationModule(): Module = module {
-    single { LoginUseCase(get<ApiUrlResolver>(), get<TokenClient>(), get<CredentialStore>()) }
+    single {
+        LoginUseCase(
+            get<ApiUrlResolver>(),
+            get<TokenClient>(),
+            get<CredentialStore>(),
+            get<PkcePlatform>(),
+            get<com.dsbuilder.frontend.core.auth.UserAccessTokenCache>(),
+        )
+    }
     single { AuthStatusUseCase(get<ApiUrlResolver>(), get<CredentialStore>()) }
-    single { LogoutUseCase(get<ApiUrlResolver>(), get<TokenClient>(), get<CredentialStore>()) }
+    single {
+        LogoutUseCase(
+            get<ApiUrlResolver>(),
+            get<TokenClient>(),
+            get<CredentialStore>(),
+            get<com.dsbuilder.frontend.core.auth.UserAccessTokenCache>(),
+        )
+    }
 }

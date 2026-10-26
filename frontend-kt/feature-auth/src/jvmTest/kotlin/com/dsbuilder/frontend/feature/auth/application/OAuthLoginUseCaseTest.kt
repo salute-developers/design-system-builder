@@ -104,6 +104,21 @@ private fun useCase(
 
 class OAuthLoginUseCaseTest {
     @Test
+    fun malformedApiUrlReturnsFailureBeforeOpeningBrowser() = runTest {
+        val browser = FakeBrowserLauncher()
+        val login = useCase(
+            FakeTokenExchangeClient { error("Не должен вызываться") },
+            UserSessionCredentialResolver(FakeRefreshTokenStore()),
+            browser,
+            RedirectListenerFactory { error("Listener не должен открываться") },
+        )
+        for (url in listOf("ftp://example.com", "https://example.com?secret=hidden")) {
+            assertIs<OAuthLoginResult.Failed>(login.execute(url))
+        }
+        assertEquals(emptyList(), browser.browsedUrls)
+    }
+
+    @Test
     fun listenerIsClosedAfterSuccessfulLogin() = runTest {
         val browserLauncher = FakeBrowserLauncher()
         val listener = FakeRedirectListener(
@@ -243,7 +258,7 @@ class OAuthLoginUseCaseTest {
             },
         ).execute()
 
-        assertEquals(OAuthLoginResult.Failed("User cancelled"), result)
+        assertEquals(OAuthLoginResult.Failed("Ответ авторизации не прошёл проверку."), result)
     }
 
     @Test

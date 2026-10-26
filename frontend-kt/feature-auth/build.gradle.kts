@@ -15,6 +15,10 @@ kotlin {
             api(libs.koin.core)
         }
 
+        jvmTest.dependencies {
+            implementation(libs.kotlinx.serialization.json)
+        }
+
         commonTest.dependencies {
             implementation(libs.kotlinx.coroutines.test)
         }

@@ -155,7 +155,7 @@ private fun rejectPasswordArgument(args: List<String>): String? {
 
     val hasPasswordArg = args.any { it == "--password" || it.startsWith("--password=") }
     return if (hasPasswordArg) {
-        "Error: password must be entered interactively and cannot be passed as a command-line argument."
+        "Error: password login was removed; use auth login to open the system browser."
     } else {
         null
     }
