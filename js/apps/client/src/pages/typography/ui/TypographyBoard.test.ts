@@ -28,4 +28,12 @@ describe('высота строк борда', () => {
         expect(style).toMatchObject({ fontSize: '160px', lineHeight: '50px', height: '50px' });
         expect(style.fontFamily).toBe("'SB Sans Display', sans-serif");
     });
+
+    it('образец рисуется весом выбранного начертания, без него у стиля — первым из имеющихся', () => {
+        const style = bodyM('screen-l');
+        expect(sampleStyle([], style).fontWeight).toBe(400);
+        expect(sampleStyle([], style, 'bold').fontWeight).toBe(600);
+        const withoutBold = { ...style, variants: { medium: style.variants.medium } };
+        expect(sampleStyle([], withoutBold, 'bold').fontWeight).toBe(500);
+    });
 });

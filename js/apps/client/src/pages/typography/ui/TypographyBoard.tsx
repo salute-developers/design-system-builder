@@ -6,8 +6,10 @@ import {
     sampleText,
     styleKey,
     styleLabel,
+    styleVariant,
     type TypographyFamily,
     type TypographyStyle,
+    type TypographyVariant,
 } from '../../../modules/typographyTokens';
 
 interface TypographyBoardProps {
@@ -15,6 +17,8 @@ interface TypographyBoardProps {
     styles: TypographyStyle[];
     families: TypographyFamily[];
     selectedKey: string;
+    /** Начертание, выбранное в инспекторе: образцы рисуются его весом. */
+    variant: TypographyVariant;
     onSelect: (key: string) => void;
 }
 
@@ -47,20 +51,24 @@ export const fontNameOf = (families: TypographyFamily[], family: string) =>
     families.find((item) => item.name === family)?.fontName || family;
 
 /**
- * Образец текста стилем: семейство, размер, высота строки, вес начертания и трекинг. Образец обрезается по высоте
- * строки: уменьшение высоты строки видно на борде.
+ * Образец текста стилем: семейство, размер, высота строки, вес выбранного начертания и трекинг. Образец обрезается
+ * по высоте строки: уменьшение высоты строки видно на борде.
  */
-export const sampleStyle = (families: TypographyFamily[], style: TypographyStyle): CSSProperties => ({
+export const sampleStyle = (
+    families: TypographyFamily[],
+    style: TypographyStyle,
+    variant: TypographyVariant = 'normal',
+): CSSProperties => ({
     fontFamily: `'${fontNameOf(families, style.fontFamily)}', sans-serif`,
     fontSize: `${style.sizePx}px`,
     lineHeight: `${style.lineHeightPx}px`,
     height: `${style.lineHeightPx}px`,
-    fontWeight: style.variants.normal?.weight ?? 400,
+    fontWeight: style.variants[styleVariant(style, variant)]?.weight ?? 400,
     letterSpacing: `${style.letterSpacingEm}em`,
 });
 
 /** Борд-шкала стилей экрана по `typographyScaleCanvas` прототипа. */
-export const TypographyBoard = ({ title, styles, families, selectedKey, onSelect }: TypographyBoardProps) => (
+export const TypographyBoard = ({ title, styles, families, selectedKey, variant, onSelect }: TypographyBoardProps) => (
     <div className="token-canvas typography-canvas">
         <div className="typography-board">
             <header className="typography-board-header">
@@ -106,7 +114,7 @@ export const TypographyBoard = ({ title, styles, families, selectedKey, onSelect
                                     <span className="typography-canvas-sample">
                                         <span
                                             className="typography-visible-sample"
-                                            style={sampleStyle(families, style)}
+                                            style={sampleStyle(families, style, variant)}
                                         >
                                             {sampleText(style.group)}
                                         </span>

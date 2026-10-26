@@ -9,6 +9,7 @@ import {
     parseNumber,
     sampleText,
     styleLabel,
+    styleVariant,
     type TypographyField,
     type TypographyOverridePlatform,
     type TypographyFamily,
@@ -24,6 +25,9 @@ interface TypographyInspectorProps {
     themeCount: number;
     editable: boolean;
     banners: ReactNode;
+    /** Выбранное начертание: общее с бордом, остаётся при выборе другого стиля. */
+    variant: TypographyVariant;
+    onVariantChange: (variant: TypographyVariant) => void;
     error: (field: TypographyField, platform?: TypographyOverridePlatform) => string | null;
     onChange: (change: TypographyStyleChange) => void;
     onOpenComponent: (name: string) => void;
@@ -272,11 +276,7 @@ const weightOptions = (weight: number | undefined) =>
 export const TypographyInspector = (props: TypographyInspectorProps) => {
     const { style, families, themeCount, editable, error, onChange } = props;
     const [menuOpen, setMenuOpen] = useState(false);
-    // Начертание выбирается в инспекторе и остаётся при выборе другого стиля; нет его у стиля — первое из есть.
-    const [variantId, setVariantId] = useState<TypographyVariant>('normal');
-    const variant = style.variants[variantId]
-        ? variantId
-        : (TYPOGRAPHY_VARIANTS.find(({ id }) => style.variants[id])?.id ?? 'normal');
+    const variant = styleVariant(style, props.variant);
     const variantLabel = TYPOGRAPHY_VARIANTS.find(({ id }) => id === variant)?.label ?? variant;
     const weight = style.variants[variant]?.weight;
 
@@ -438,7 +438,7 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                             value: id,
                             label,
                         }))}
-                        onChange={(value) => setVariantId(value as TypographyVariant)}
+                        onChange={(value) => props.onVariantChange(value as TypographyVariant)}
                     />
                     {overridable(
                         'weight',

@@ -2232,3 +2232,37 @@
     opacity: 1;
     cursor: not-allowed;
 }
+
+/* Выделение строки борда — по макету Figma и как у карточек раздела «Цвета» (`.token-swatch-card-split`):
+ * строка не заливается и не получает полосу слева, рамку получает образец. Наведение — серая рамка, выбранный
+ * стиль — синяя в 2 px, наведение на выбранный осветляет её внешний край. */
+.typography-screen .editor-fonts-workbench .typography-canvas-row:hover,
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected {
+    background: transparent;
+    box-shadow: none;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row:focus-visible {
+    outline: 0;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row .typography-canvas-sample,
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected .typography-canvas-sample {
+    border-radius: 8px;
+    background: var(--builder-ui-bg-primary);
+    transition: box-shadow 0.12s ease;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row:hover .typography-canvas-sample,
+.typography-screen .editor-fonts-workbench .typography-canvas-row:focus-visible .typography-canvas-sample {
+    box-shadow: inset 0 0 0 1px #8f9aa8;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected .typography-canvas-sample {
+    box-shadow: inset 0 0 0 2px #2d78ff;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected:hover .typography-canvas-sample,
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected:focus-visible .typography-canvas-sample {
+    box-shadow: inset 0 0 0 1px #7fb0ff, inset 0 0 0 2px #2d78ff;
+}

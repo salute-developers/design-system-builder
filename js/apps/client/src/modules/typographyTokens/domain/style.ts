@@ -1,5 +1,6 @@
 import {
     TYPOGRAPHY_SCREENS,
+    TYPOGRAPHY_VARIANTS,
     type TypographyOverride,
     type TypographyOverridePlatform,
     type TypographyScreen,
@@ -31,6 +32,10 @@ const SAMPLES: Record<string, string> = {
     body: 'Съешь ещё этих мягких французских булок',
     text: 'Текстовый стиль интерфейса',
 };
+
+/** Начертание стиля для показа: выбранное, а если его у стиля нет — первое из имеющихся. */
+export const styleVariant = (style: TypographyStyle, wanted: TypographyVariant): TypographyVariant =>
+    style.variants[wanted] ? wanted : (TYPOGRAPHY_VARIANTS.find(({ id }) => style.variants[id])?.id ?? 'normal');
 
 /** Веса в списке начертаний прототипа. */
 export const TYPOGRAPHY_WEIGHTS: ReadonlyArray<{ value: number; label: string }> = [

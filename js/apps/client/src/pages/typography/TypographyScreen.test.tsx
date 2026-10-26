@@ -168,6 +168,11 @@ describe('экран «Типографика»', () => {
         fireEvent.click(variants[2]);
         expect(inspector().queryByRole('listbox', { name: 'Начертание' })).toBeNull();
         expect(inspector().getByLabelText('Weight Bold').textContent).toBe('600 / SemiBold');
+        // Образцы борда рисуются весом выбранного начертания.
+        const sample = document.querySelector(
+            '.typography-canvas-row.is-selected .typography-visible-sample',
+        ) as HTMLElement;
+        expect(sample.style.fontWeight).toBe('600');
         fireEvent.click(inspector().getByLabelText('Weight Bold'));
         fireEvent.click(
             within(inspector().getByRole('listbox', { name: 'Weight Bold' })).getByRole('option', {

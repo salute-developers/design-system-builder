@@ -13,6 +13,7 @@ import {
     styleKey,
     type TypographyContext,
     type TypographyScreen as Screen,
+    type TypographyVariant,
 } from '../../modules/typographyTokens';
 import { useTypographyEditor } from './useTypographyEditor';
 import { TyGlyph } from './ui/TyGlyph';
@@ -63,6 +64,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
 
     const [screen, setScreen] = useState<Screen>('screen-l');
     const [selectedKey, setSelectedKey] = useState(DEFAULT_STYLE_KEY);
+    const [variant, setVariant] = useState<TypographyVariant>('normal');
     const [query, setQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readStorage(COLLAPSED_KEY, {}));
@@ -254,6 +256,8 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                             themeCount={styles.themeCount}
                             editable={!readOnly}
                             banners={banners}
+                            variant={variant}
+                            onVariantChange={setVariant}
                             error={(field, platform) => editor.fieldError(selected, field, platform)}
                             onChange={(change) => editor.edit(selected, change)}
                             onOpenComponent={(name) =>
@@ -278,6 +282,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                             styles={current}
                             families={styles.families}
                             selectedKey={selected ? styleKey(selected) : selectedKey}
+                            variant={variant}
                             onSelect={selectStyle}
                         />
                     ) : (
