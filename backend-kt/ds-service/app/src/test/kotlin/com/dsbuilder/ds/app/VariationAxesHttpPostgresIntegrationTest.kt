@@ -6,6 +6,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -248,6 +249,137 @@ class VariationAxesHttpPostgresIntegrationTest {
             )
             assertEquals(HttpStatusCode.NotFound, deniedCreate.status, deniedCreate.bodyAsText())
         }
+
+    @Test
+    fun `axis rename revert rejects effective appearance name conflict and preserves the draft`() = withService {
+        val component = component("Button")
+        val system = designSystem("alpha", component)
+        val size = createAxis(system, component, "size")
+        val shape = createAxis(system, component, "shape")
+        val appearance = id(
+            post(
+                "/api/ds/appearances",
+                """{"designSystemId":"$system","componentId":"$component","name":"default"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        declareAxis(appearance, size, 0)
+        val shapeAxis = declareAxis(appearance, shape, 1)
+        val published = publish(system)
+        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$size", """{"name":"scale"}""").status)
+        for ((index, displayName) in listOf("size", " Size ").withIndex()) {
+            assertEquals(
+                HttpStatusCode.OK,
+                patch("/api/ds/appearance-variations/$shapeAxis", """{"displayName":"$displayName"}""").status,
+            )
+            val before = draftSnapshot(system)
+            val rejected = revertAxis(system, size, "appearance-name-conflict-$index")
+            assertEquals(HttpStatusCode.Conflict, rejected.status, rejected.bodyAsText())
+            assertEquals(before, draftSnapshot(system))
+        }
+        assertEquals("scale", field(adminGet("/api/ds/variations/$size").bodyAsText(), "name"))
+        assertEquals("size", field(adminGet("/api/ds/variations/$size?versionId=$published").bodyAsText(), "name"))
+
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/ds/appearance-variations/$shapeAxis", """{"displayName":null}""").status,
+        )
+        val reverted = revertAxis(system, size, "appearance-name-resolved")
+        assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
+        assertEquals(setOf("size", "shape"), axisNames(component, system).toSet())
+    }
+
+    @Test
+    fun `axis rename revert rejects case insensitive catalog conflict and preserves the draft`() = withService {
+        val component = component("Button")
+        val system = designSystem("alpha", component)
+        val size = createAxis(system, component, "size")
+        val published = publish(system)
+        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$size", """{"name":"scale"}""").status)
+        val conflicting = createAxis(system, component, "Size")
+        val before = draftSnapshot(system)
+        val rejected = revertAxis(system, size, "catalog-name-conflict")
+        assertEquals(HttpStatusCode.Conflict, rejected.status, rejected.bodyAsText())
+        assertEquals(before, draftSnapshot(system))
+        assertEquals(setOf("scale", "Size"), axisNames(component, system).toSet())
+        assertEquals("size", field(adminGet("/api/ds/variations/$size?versionId=$published").bodyAsText(), "name"))
+
+        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$conflicting", """{"name":"density"}""").status)
+        val otherSystem = designSystem("beta", component)
+        createAxis(otherSystem, component, "Size")
+        val otherComponent = component("Badge")
+        val linked = post(
+            "/api/ds/design-system-components",
+            """{"designSystemId":"$system","componentId":"$otherComponent"}""",
+            admin = true,
+        )
+        assertEquals(HttpStatusCode.Created, linked.status, linked.bodyAsText())
+        createAxis(system, otherComponent, "Size")
+        val reverted = revertAxis(system, size, "catalog-name-resolved")
+        assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
+        assertEquals(setOf("size", "density"), axisNames(component, system).toSet())
+        assertEquals(listOf("Size"), axisNames(component, otherSystem))
+        assertEquals(listOf("Size"), axisNames(otherComponent, system))
+    }
+
+    @Test
+    fun `axis rename revert allows an appearance override that keeps effective names distinct`() = withService {
+        val component = component("Button")
+        val system = designSystem("alpha", component)
+        val size = createAxis(system, component, "size")
+        val shape = createAxis(system, component, "shape")
+        val created = post(
+            "/api/ds/appearances",
+            """{"designSystemId":"$system","componentId":"$component","name":"default"}""",
+            admin = true,
+        )
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        val appearance = id(created.bodyAsText())
+        val sizeAxis = declareAxis(appearance, size, 0)
+        val shapeAxis = declareAxis(appearance, shape, 1)
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/ds/appearance-variations/$sizeAxis", """{"displayName":"density"}""").status,
+        )
+        publish(system)
+        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$size", """{"name":"scale"}""").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/ds/appearance-variations/$shapeAxis", """{"displayName":"size"}""").status,
+        )
+        val reverted = revertAxis(system, size, "appearance-override-allowed")
+        assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
+        assertEquals("size", field(adminGet("/api/ds/variations/$size").bodyAsText(), "name"))
+        assertEquals("density", field(adminGet("/api/ds/appearance-variations/$sizeAxis").bodyAsText(), "displayName"))
+        assertEquals("size", field(adminGet("/api/ds/appearance-variations/$shapeAxis").bodyAsText(), "displayName"))
+    }
+
+    private suspend fun declareAxis(appearance: String, variation: String, position: Int): String {
+        val created = post(
+            "/api/ds/appearance-variations",
+            """{"appearanceId":"$appearance","variationId":"$variation","position":$position}""",
+            admin = true,
+        )
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        return id(created.bodyAsText())
+    }
+
+    private suspend fun draftSnapshot(system: String): List<String> = listOf(
+        get("/api/ds/design-systems/$system").bodyAsText(),
+        get("/api/ds/design-systems/$system/changes").bodyAsText(),
+    )
+
+    private suspend fun revertAxis(system: String, axis: String, key: String): HttpResponse {
+        val journal = json.parseToJsonElement(get("/api/ds/design-systems/$system/changes").bodyAsText()).jsonArray
+        val change = journal.map { it.jsonObject }.first { it["entityId"]?.jsonPrimitive?.content == axis }
+        return post(
+            "/api/ds/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
+            "{}",
+            owner = true,
+            idempotencyKey = key,
+            baseRevision = change.getValue("editRevision").jsonPrimitive.content,
+        )
+    }
 
     // ── fixtures ───────────────────────────────────────────────────────────────────────────────────
 
