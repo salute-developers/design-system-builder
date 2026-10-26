@@ -22,47 +22,6 @@ internal fun compactDocumentationFetch(json: Json, result: McpToolResult): McpTo
     return result.copy(body = codec.encodeToString(ProjectionEnvelope(envelope.source, envelope.data.summary())))
 }
 
-internal fun compactTokenList(
-    result: McpToolResult,
-    json: Json,
-    exactName: String?,
-    limit: Int?,
-): McpToolResult = compactNamedList(
-    result,
-    json,
-    exactName,
-    limit,
-)
-
-internal fun compactComponentList(
-    result: McpToolResult,
-    json: Json,
-    exactName: String?,
-    limit: Int?,
-): McpToolResult {
-    if (result.isError) return result
-    val codec = projectionJson(json)
-    val envelope = runCatching { codec.decodeFromString<ProjectionEnvelope<List<ComponentSummaryDto>>>(result.body) }
-        .getOrNull() ?: return result
-    val items = envelope.data.filtered(exactName, limit, ComponentSummaryDto::name)
-    return result.copy(body = codec.encodeToString(ProjectionEnvelope(envelope.source, items)))
-}
-
-@Suppress("ReturnCount")
-private fun compactNamedList(
-    result: McpToolResult,
-    json: Json,
-    exactName: String?,
-    limit: Int?,
-): McpToolResult {
-    if (result.isError) return result
-    val codec = projectionJson(json)
-    val envelope = runCatching { codec.decodeFromString<ProjectionEnvelope<List<TokenSummaryDto>>>(result.body) }
-        .getOrNull() ?: return result
-    val items = envelope.data.filtered(exactName, limit, TokenSummaryDto::name)
-    return result.copy(body = codec.encodeToString(ProjectionEnvelope(envelope.source, items)))
-}
-
 internal enum class CodeBindingDetail(val wireValue: String) {
     SUMMARY("summary"),
     VARIATIONS("variations"),
@@ -120,10 +79,6 @@ private fun KnowledgeChunkDto.summary() = KnowledgeChunkSummaryDto(
     markdown,
     subjects,
 )
-
-private fun <T> List<T>.filtered(exactName: String?, limit: Int?, nameOf: (T) -> String): List<T> =
-    (exactName?.let { name -> filter { nameOf(it) == name } } ?: this)
-        .let { items -> limit?.takeIf { it > 0 }?.let(items::take) ?: items }
 
 private fun ComponentBindingDto<ComponentBindingPayloadDto>.toSummary(
     styles: List<ComponentStyleDto>,

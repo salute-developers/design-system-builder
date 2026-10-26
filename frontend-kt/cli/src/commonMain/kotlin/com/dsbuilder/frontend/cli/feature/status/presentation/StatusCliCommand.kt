@@ -17,7 +17,6 @@ internal class StatusCliCommand(
 ) : CliktCommand(name = "status") {
     private val apiKey: String? by option("--api-key")
 
-    private val apiUrl: String? by option("--api-url")
     private val designSystem: String? by option("--design-system")
     private val projectKeyEnv: String? by option("--project-key-env")
 
@@ -26,7 +25,7 @@ internal class StatusCliCommand(
             checkProjectStatusUseCase.execute(
                 CheckProjectStatusCommand(
                     apiKeyOverride = apiKey,
-                    apiUrlOverride = apiUrl,
+                    apiUrlOverride = null,
                     designSystemUri = designSystem,
                     projectKeyEnvName = projectKeyEnv,
                 ),

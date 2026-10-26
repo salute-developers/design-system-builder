@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.components
 
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReader
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
@@ -56,7 +57,7 @@ public fun componentsApplicationModule(): Module = module {
         HttpComponentConfigRemoteSource(httpClientFactory = get<AuthenticatedHttpClientFactory>())
     }
     single<ComponentReadRemoteSource> { HttpComponentReadRemoteSource(get(), get()) }
-    single { ComponentReadUseCases(get(), get(), get(), get()) }
+    single { ComponentReadUseCases(RuntimeRequestResolver(get(), get(), get()), get()) }
     single {
         PushComponentsUseCase(
             projectContextReader = get<ProjectContextReader>(),

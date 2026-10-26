@@ -13,6 +13,7 @@ import { IconColorSwatchOutline } from '../icons';
 import { StyledSpinner as EditorLoadingSpinner } from '../components/EditorLoading/EditorLoading.styles';
 
 import { AutosaveIndicator } from '../components/AutosaveIndicator';
+import { McpLinkButton } from '../components/McpLinkButton';
 import { EditorVersionSelect } from '../components/EditorVersionSelect';
 import { useJournal, useReloadAfterAutosave } from '../features/versionJournal/useJournal';
 import { Button as JournalButton } from './versionJournal/VersionJournalPages.styles';
@@ -341,6 +342,11 @@ export const Main = () => {
                                                 draftId={designSystem?.getParameters()?.draftId}
                                                 selectedVersion={designSystem?.getVersion()}
                                             />
+                                        )}
+                                        {editorContext && designSystem && (!editorVersionId || designSystem.getVersion()) && (
+                                            <McpLinkButton projectId={editorContext.projectId}
+                                                designSystemId={editorContext.designSystemId}
+                                                version={editorVersionId ? designSystem.getVersion()! : 'draft'} />
                                         )}
                                         <JournalButton
                                             className="primary"

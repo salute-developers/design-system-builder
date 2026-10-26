@@ -29,7 +29,6 @@ internal class ComponentsPushCliCommand(
 
     private val platform: TargetPlatform? by option("--platform").targetPlatform().help(PLATFORM_COMPONENTS_HELP)
 
-    private val apiUrl: String? by option("--api-url")
     private val designSystem: String? by option("--design-system")
     private val projectKeyEnv: String? by option("--project-key-env")
 
@@ -47,7 +46,7 @@ internal class ComponentsPushCliCommand(
                     source = ComponentSource(directory = from),
                     dryRun = !apply,
                     apiKeyOverride = apiKey,
-                    apiUrlOverride = apiUrl,
+                    apiUrlOverride = null,
                     designSystemUri = designSystem,
                     projectKeyEnvName = projectKeyEnv,
                     platformOverride = platform,

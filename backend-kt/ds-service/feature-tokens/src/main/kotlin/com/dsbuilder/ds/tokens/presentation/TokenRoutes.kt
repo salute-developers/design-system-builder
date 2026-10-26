@@ -6,6 +6,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -49,23 +50,15 @@ fun Route.tokenRoutes(
     route("/api/ds/tokens") {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+                call.request.headers, evaluator, call.request.queryParameters["versionId"],
+            ) ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(TokenResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+            val context = call.modelReadContext(evaluator) ?: return@get
             val id = call.parameters["id"]?.tokenUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, id)) {
@@ -74,12 +67,7 @@ fun Route.tokenRoutes(
             }
         }
         get("/{id}/values") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+            val context = call.modelReadContext(evaluator) ?: return@get
             val id = call.parameters["id"]?.tokenUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val tenantId = call.request.queryParameters["tenantId"]?.tokenUuid()

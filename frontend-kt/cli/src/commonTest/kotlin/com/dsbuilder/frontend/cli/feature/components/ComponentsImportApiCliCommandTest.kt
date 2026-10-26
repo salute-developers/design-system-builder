@@ -50,7 +50,8 @@ class ComponentsImportApiCliCommandTest {
 
     @Test
     fun theCredentialIsTheUserSessionTokenNotTheProjectKeyFromTheEnvironment() {
-        val result = run(base(), env = mapOf("DSBUILDER_API_KEY" to "secret-key"))
+        val result =
+            run(base(), env = mapOf("DSBUILDER_API_KEY" to "secret-key", "DSBUILDER_API_URL" to "http://backend"))
 
         assertEquals(0, result.exitCode, result.output)
         assertEquals(listOf<BackendCredential>(BackendCredential.Bearer("access-token")), credentials)
@@ -73,7 +74,7 @@ class ComponentsImportApiCliCommandTest {
         listOf(
             "Platform: compose",
             "Source: $META_PATH",
-            "API URL: http://backend (from --api-url)",
+            "API URL: http://backend (from DSBUILDER_API_URL)",
         ).forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
         listOf("Project:", "Design system:", "Linked to the design system").forEach {
             assertTrue(!result.output.contains(it), "лишнее '$it' в выводе:\n${result.output}")
@@ -91,8 +92,6 @@ class ComponentsImportApiCliCommandTest {
                     "uikit-compose-api-meta.json",
                     "--platform",
                     "compose",
-                    "--api-url",
-                    "http://backend",
                 ),
                 files = mapOf("/repo/uikit-compose-api-meta.json" to META),
             )
@@ -154,9 +153,9 @@ class ComponentsImportApiCliCommandTest {
     @Test
     fun fromAndPlatformAreRequired() {
         val withoutFrom =
-            run(listOf("components", "import-api", "--platform", "compose", "--api-url", "http://backend"))
+            run(listOf("components", "import-api", "--platform", "compose"))
         val withoutPlatform =
-            run(listOf("components", "import-api", "--from", META_PATH, "--api-url", "http://backend"))
+            run(listOf("components", "import-api", "--from", META_PATH))
 
         assertEquals(1, withoutFrom.exitCode, withoutFrom.output)
         assertTrue(withoutFrom.output.contains("--from"), withoutFrom.output)
@@ -179,10 +178,11 @@ class ComponentsImportApiCliCommandTest {
 
     @Test
     fun withoutAnExplicitApiUrlNothingIsSent() {
-        val result = run(listOf("components", "import-api", "--from", META_PATH, "--platform", "compose"))
+        val result =
+            run(listOf("components", "import-api", "--from", META_PATH, "--platform", "compose"), env = emptyMap())
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("--api-url"), result.output)
+        assertTrue(result.output.contains("DSBUILDER_API_URL"), result.output)
         assertTrue(requests.isEmpty())
     }
 
@@ -220,7 +220,7 @@ class ComponentsImportApiCliCommandTest {
         val result = run(base(), session = false)
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("dsbuilder auth login --api-url http://backend"), result.output)
+        assertTrue(result.output.contains("DSBUILDER_API_URL=http://backend dsbuilder auth login"), result.output)
         assertTrue(result.output.contains("system administrator"), result.output)
         assertTrue(requests.isEmpty())
     }
@@ -399,14 +399,12 @@ class ComponentsImportApiCliCommandTest {
         from,
         "--platform",
         platform,
-        "--api-url",
-        "http://backend",
     )
 
     private fun run(
         args: List<String>,
         files: Map<String, String> = mapOf(META_PATH to META),
-        env: Map<String, String> = emptyMap(),
+        env: Map<String, String> = mapOf("DSBUILDER_API_URL" to "http://backend"),
         session: Boolean = true,
         report: String = REPORT,
         answer: AuthenticatedHttpResult = AuthenticatedHttpResult.Success(report),

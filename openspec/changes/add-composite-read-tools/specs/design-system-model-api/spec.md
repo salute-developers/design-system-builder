@@ -48,13 +48,19 @@ API SHALL предоставлять новую операцию по designSyst
 
 ### Requirement: Необязательное обогащение деталей компонента
 
-Существующие чтения вариаций, свойств и зависимостей SHALL поддерживать явный include для допустимых значений/defaults, платформенных параметров и настроек переиспользования. Без include прежние тела SHALL сохраняться.
+Существующие чтения свойств и зависимостей SHALL поддерживать явный include для платформенных параметров и настроек переиспользования. Без include прежние тела SHALL сохраняться. Чтение осей конфигурации через GET /appearances/{id}/variations SHALL сохранить существующие values/defaults без повторного расширения.
 
 #### Scenario: Детали запрошены
 
-- **WHEN** клиент передал include=values,defaults для variations, platformParams для properties либо reuseConfig для deps
+- **WHEN** клиент передал include=platformParams для properties либо include=reuseConfig для deps
 - **THEN** сервер MUST собрать дополнительные данные выбранной модели без обхода связей клиентом
 - **THEN** метаданные родителей и детей, уже доступные в deps, MUST сохраниться
+
+#### Scenario: Вариации уже доступны в первом Change
+
+- **WHEN** клиент читает GET /appearances/{id}/variations
+- **THEN** контракт первого Change MUST сохранить обязательный appearanceId, существующие оси, values и defaultStyleId без include=values,defaults и новой серверной проекции
+- **THEN** этот Change MUST NOT реализовывать их повторно или расширять GET /components/{id}/variations
 
 #### Scenario: Предметный контекст расширения
 

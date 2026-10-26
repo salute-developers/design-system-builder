@@ -5,7 +5,7 @@
 - [ ] 1.1 Подтвердить поставку add-versioned-read-tools и его селектора/метаданных/22 tools; проверить текущие builder, проверки доступа, платформы и отсутствие зависимости от PKCE.
 - [ ] 1.2 Расширить существующий component-config/export альтернативным componentId и selection без изменения старого полного пакета; проверить platform по ID, конфликт с components, выбор styles, частичный/неизвестный/неоднозначный selection и прежний CLI-экспорт.
 - [ ] 1.3 Реализовать новую операцию component-config/tokens/query с полным selection, проверенными tokenId и путями использования; проверить неполные оси, недоказанные строки, чужие компоненты, историческую версию и отсутствие вычисления значений темы.
-- [ ] 1.4 Добавить include=values,defaults/platformParams/reuseConfig в существующие variations/properties/deps; проверить прежние ответы без include, доступные метаданные целей, существующие проверки DS и отсутствие клиентского обхода связей.
+- [ ] 1.4 Добавить include=platformParams/reuseConfig в существующие properties/deps; проверить прежние ответы без include, доступные метаданные целей, существующие проверки DS и отсутствие клиентского обхода связей. Вариации по appearanceId сохраняют существующие values/defaults первого Change без нового include или серверной проекции.
 - [ ] 1.5 Обеспечить одну согласованную read-only транзакцию составного чтения; интеграционным тестом конкурентной записи проверить целостность config/ссылок/метаданных и отсутствие записи.
 
 ## 2. Публикации и проекции документации
@@ -18,7 +18,7 @@
 
 ## 3. Итоговые MCP tools
 
-- [ ] 3.1 Перевести component_config_get на componentId/объект selection и серверный экспорт; подключить component_tokens_get/properties/dependencies и расширенные variations, удалив локальные предметные вычисления. Проверить единый runtime и только execute у каждого нового/изменённого UseCase.
+- [ ] 3.1 Перевести component_config_get на componentId/объект selection и серверный экспорт; подключить component_tokens_get/properties/dependencies, удалив локальные предметные вычисления. Сохранить component_get и component_variations_get первого Change: мета по componentId и оси по appearanceId соответственно; проверить существующие values/defaults без include=values,defaults и отсутствие вызовов GET /components/{id}/variations. Проверить единый runtime и только execute у каждого нового/изменённого UseCase.
 - [ ] 3.2 Подключить documentation_publications_list, subjects[], явные публикации и серверные проекции; использовать существующие ID-маршруты, не скрывать ошибки разрешения, не подставлять latest/platform и не блокировать явный ID унаследованной версией.
 - [ ] 3.3 Обновить схемы, аннотации и контракт tools/list до ровно 26 имён обоих launcher; проверить параллельные designSystem URI, отсутствие credentials/workspace, секретов и смены actor, сохранить project_get_status и README несовместимых MCP-параметров.
 

@@ -1,11 +1,9 @@
 package com.dsbuilder.frontend.mcpnode
 
-import com.dsbuilder.frontend.core.application.ContextResolver
-import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
+import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
-import com.dsbuilder.frontend.feature.theme.application.TokenReadUseCases
 import com.dsbuilder.frontend.mcpserver.CheckProjectStatusMcpReader
 import com.dsbuilder.frontend.mcpserver.DsBuilderMcpServerCore
 import com.dsbuilder.frontend.mcpserver.MCP_SERVER_VERSION
@@ -25,6 +23,10 @@ public fun main() {
 
 internal fun runNodeCli(args: List<String>): Int? =
     when {
+        args.any { it == "--api-url" || it.startsWith("--api-url=") } -> {
+            nodeProcess.stderr.write("Error: --api-url is not supported. Set DSBUILDER_API_URL instead.\n")
+            1
+        }
         args.isEmpty() || args.first() == "--help" || args.first() == "-h" -> {
             printRootHelp()
             0
@@ -53,17 +55,14 @@ internal fun runNodeCli(args: List<String>): Int? =
     }
 
 private fun serve(args: List<String>) {
-    val apiUrl = optionValue(args, "--api-url")
     val workspace = optionValue(args, "--workspace")
     val runtime = defaultNodeRuntime()
     val koin = nodeKoin(runtime)
     val core = DsBuilderMcpServerCore(
-        config = McpServerConfig(apiUrlOverride = apiUrl, workspace = workspace),
-        contextResolver = koin.get<ContextResolver>(),
-        apiUrlResolver = koin.get<ApiUrlResolver>(),
+        config = McpServerConfig(workspace = workspace),
         projectStatusReader = CheckProjectStatusMcpReader(koin.get<CheckProjectStatusUseCase>()),
         docsReadUseCases = koin.get<DocsReadUseCases>(),
-        tokenReadUseCases = koin.get<TokenReadUseCases>(),
+        modelReadUseCase = koin.get<ReadDesignSystemModelUseCase>(),
         componentReadUseCases = koin.get<ComponentReadUseCases>(),
     )
     MainScope().launch {
@@ -93,11 +92,13 @@ private fun printRootHelp() {
 private fun printServeHelp() {
     println(
         """
-        Usage: dsbuilder-mcp serve [--api-url <url>] [--workspace <path>]
+        Usage: dsbuilder-mcp serve [--workspace <path>]
 
         Options:
-          --api-url     Override the DS Builder backend API URL.
           --workspace   Resolve project context from this workspace path.
+
+        Environment:
+          DSBUILDER_API_URL   DS Builder backend API URL.
         """.trimIndent(),
     )
 }

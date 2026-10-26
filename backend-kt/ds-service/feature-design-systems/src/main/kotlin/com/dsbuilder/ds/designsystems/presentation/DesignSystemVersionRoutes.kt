@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersion
@@ -44,7 +45,7 @@ fun Route.designSystemVersionRoutes(
             }
         }
         get("/by-design-system/{designSystemId}") {
-            val context = context(evaluator) ?: return@get call.respondFailure(DsFailure.Forbidden)
+            val context = call.modelReadContext(evaluator) ?: return@get
             val id = call.parameters["designSystemId"]?.uuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = listByDesignSystem.execute(context, DesignSystemId(id))) {

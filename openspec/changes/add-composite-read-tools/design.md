@@ -31,11 +31,12 @@ flowchart LR
 
 Параметр include существующих ID-маршрутов включает дополнительные поля, не меняя прежний ответ без параметра:
 
-- variations: `include=values,defaults` — допустимые значения и имеющиеся defaults выбранной модели;
 - properties: `include=platformParams` — существующие платформенные параметры свойств;
 - deps: `include=reuseConfig` — настройки переиспользования выбранной DS; метаданные родителей/детей уже есть и не реализуются повторно.
 
-MCP №15–17 явно включает нужные данные. Где ресурс глобальный, а расширение зависит от DS, запрос расширения принимает designSystemId и использует существующую проверку связи; это не новый обязательный параметр всех старых чтений. Платформы компонентов web/compose/xml/ios и токенов web/android/ios сохраняются.
+MCP №16–17 явно включает нужные данные. Где ресурс глобальный, а расширение зависит от DS, запрос расширения принимает designSystemId и использует существующую проверку связи; это не новый обязательный параметр всех старых чтений. Платформы компонентов web/compose/xml/ios и токенов web/android/ios сохраняются.
+
+`component_variations_get` (№15) уже подключён первым Change к существующему `GET /appearances/{id}/variations` с обязательным appearanceId. Оси, значения и defaultStyleId входят в прежний ответ. Его схема и результат сохраняются без include=values,defaults, новых серверных проекций и повторной реализации. `GET /components/{id}/variations` не используется MCP; его удаление или изменение остаётся за другим Change.
 
 ## Публикации документации
 
@@ -79,9 +80,9 @@ Bindings listing получает `detail=summary|full`, без detail оста�
 | 10 | token_groups_list | V, kind=color, parentId?, L | Первый Change |
 | 11 | palette_get | V, tenantId, groupId?, type?, shade? | Первый Change |
 | 12 | components_list | V, name/query, platform?, L | Первый Change |
-| 13 | component_get | V, componentId | Первый Change |
+| 13 | component_get | componentId | Первый Change: мета без выбора конфигурации и версии |
 | 14 | component_styles_get | V, componentId, name?, L | Первый Change |
-| 15 | component_variations_get | V, componentId | Первый Change: чтение; этот Change: обогащение |
+| 15 | component_variations_get | V, appearanceId | Первый Change: оси конфигурации с существующими значениями/defaults; без расширения |
 | 16 | component_properties_get | V, componentId | Этот Change, новый tool |
 | 17 | component_dependencies_get | V, componentId | Этот Change, новый tool |
 | 18 | component_config_get | V, componentId, style?, selection? | Этот Change, изменение прежнего tool |

@@ -285,7 +285,7 @@ class RuntimeAdaptersTest {
         assertEquals(
             "Error: Design-system context is required. Pass --design-system " +
                 "'dsbuilder://projects/<project-id>/design-systems/<design-system-id>" +
-                "?version=<version>&platform=<platform>', or run " +
+                "?version=<version>[&platform=<platform>]', or run " +
                 "`dsbuilder init --project-id <id> --design-system-id <id>`.",
             result.message,
         )
@@ -495,6 +495,15 @@ class RuntimeAdaptersTest {
     }
 
     @Test
+    fun linkWithoutPlatformResolvesWithNoImplicitPlatform() {
+        val resolver = ContextResolver(emptyList())
+        val result = resolver.resolve(designSystemUri = "dsbuilder://projects/a/design-systems/b?version=draft")
+        val context = assertIs<ProjectContextReadResult.Found>(result).context
+        assertEquals(emptyList(), context.platforms)
+        assertEquals("draft", context.selectedVersion)
+    }
+
+    @Test
     fun invalidExplicitLinkDoesNotFallBackToWorkspace() {
         var sourceCalled = false
         val resolver = ContextResolver(
@@ -505,7 +514,7 @@ class RuntimeAdaptersTest {
                 },
             ),
         )
-        val result = resolver.resolve("/repo", "dsbuilder://projects/a/design-systems/b?version=1")
+        val result = resolver.resolve("/repo", "dsbuilder://projects/a/design-systems/b?version=1&platform=unknown")
         assertEquals(ProjectContextFailure.INVALID_CONTEXT, assertIs<ProjectContextReadResult.Failed>(result).reason)
         assertEquals(false, sourceCalled)
     }

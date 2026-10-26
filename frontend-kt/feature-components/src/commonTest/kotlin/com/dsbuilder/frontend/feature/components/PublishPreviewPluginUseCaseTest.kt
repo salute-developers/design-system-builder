@@ -179,7 +179,7 @@ class PublishPreviewPluginUseCaseTest {
 
         val result = execute(apiUrlOverride = null, touched = touched)
 
-        assertTrue(assertIs<PublishPreviewPluginResult.Failed>(result).message.contains("--api-url"))
+        assertTrue(assertIs<PublishPreviewPluginResult.Failed>(result).message.contains("DSBUILDER_API_URL"))
         assertEquals(false, touched.read)
         assertEquals(false, touched.published)
     }

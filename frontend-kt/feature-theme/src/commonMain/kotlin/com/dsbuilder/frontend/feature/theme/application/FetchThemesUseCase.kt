@@ -153,7 +153,7 @@ private sealed interface RuntimeResolutionResult {
  * Command model для [FetchThemesUseCase].
  *
  * @property apiKeyOverride runtime override из `--api-key`.
- * @property apiUrlOverride runtime override из `--api-url`.
+ * @property apiUrlOverride runtime API URL override.
  * @property designSystemUri явная ссылка на дизайн-систему.
  * @property projectKeyEnvName env-переменная ключа для явной ссылки.
  * @property destinationDirectory локальный каталог для загрузки без `.sdds`.

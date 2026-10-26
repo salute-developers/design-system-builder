@@ -1,40 +1,22 @@
 package com.dsbuilder.frontend.mcpserver
 
-internal fun readOnlyMcpToolDefinitions(): List<McpToolDefinition> = listOf(
-    McpToolDefinition(
-        name = "design_system_get_context",
-        description = "Return resolved DS Builder project and design-system context.",
-    ),
-    McpToolDefinition(
-        name = "project_get_status",
-        description = "Verify backend access for the resolved DS Builder project.",
-    ),
-    documentationSearchTool(),
-    tool("documentation_fetch", "Fetch one published documentation knowledge chunk.", "kbUrl"),
-    tool("documentation_get_navigation", "Read active publication navigation.", "version", "platform"),
-    tool("documentation_get_page", "Read one active publication page.", "path", "version", "platform"),
-    codeBindingSearchTool(),
-    codeBindingGetTool(),
-    tokensListTool(),
-    tool("token_get", "Read one authoritative design-system token by stable ID.", "tokenId"),
-    tokenValuesGetTool(),
-    componentsListTool(),
-    tool("component_get", "Read one authoritative design-system component by stable ID.", "componentId"),
-    componentConfigGetTool(),
-    tool("component_styles_get", "Read authoritative component styles by stable component ID.", "componentId"),
-    tool(
-        "component_variations_get",
-        "Read authoritative configuration-model variations by stable component ID. " +
-            "Do not use this tool to list published code variations; " +
-            "use code_binding_search followed by code_binding_get with detail=summary instead.",
-        "componentId",
-    ),
-).map { definition ->
+internal fun readOnlyMcpToolDefinitions(): List<McpToolDefinition> = (
+    listOf(
+        McpToolDefinition(name = "project_get_status", description = "Verify backend project access."),
+        documentationSearchTool(),
+        tool("documentation_fetch", "Fetch one published documentation knowledge chunk.", "kbUrl"),
+        tool("documentation_get_navigation", "Read active publication navigation.", "version", "platform"),
+        tool("documentation_get_page", "Read one active publication page.", "path", "version", "platform"),
+        codeBindingSearchTool(),
+        codeBindingGetTool(),
+        componentConfigGetTool(),
+    ) + modelMcpTools()
+    ).map { definition ->
     definition.copy(
         inputSchema = definition.inputSchema + (
             "designSystem" to stringInput(
                 "Optional dsbuilder://projects/{projectId}/design-systems/{designSystemId}" +
-                    "?version=...&platform=... link. " +
+                    "?version=... link. The platform query parameter is optional. " +
                     "Selects a resource for this call; it is not an API URL or credential.",
             )
             ),
@@ -162,61 +144,6 @@ private fun componentConfigGetTool(): McpToolDefinition = McpToolDefinition(
                 "and does not resolve token values.",
             allowedValues = listOf("full", "token-references"),
         ),
-    ),
-)
-
-private fun tokenValuesGetTool(): McpToolDefinition = McpToolDefinition(
-    name = "token_values_get",
-    description =
-    "Read authoritative light or dark values for a token resolved to a stable ID with tokens_list. " +
-        "Compose uses the android model platform; omit platform to return all platform rows.",
-    inputSchema = mapOf(
-        "tokenId" to stringInput("Stable token model UUID returned by tokens_list."),
-        "tenantId" to stringInput("Optional tenant UUID from the resolved design-system context."),
-        "mode" to stringInput("Theme mode.", allowedValues = listOf("light", "dark")),
-        "platform" to stringInput(
-            "Design-system model platform. Use android for Compose; compose is not valid here. " +
-                "Omit to return web, ios, and android rows.",
-            allowedValues = listOf("web", "android", "ios"),
-        ),
-    ),
-)
-
-private fun tokensListTool(): McpToolDefinition = McpToolDefinition(
-    name = "tokens_list",
-    description =
-    "Search the authoritative token catalog by token metadata. This tool does not search component usage: " +
-        "queries such as BasicButton or button may be empty even when the component uses tokens. " +
-        "Read component_config_get first, then look up the exact token names found in its properties and use the " +
-        "returned stable IDs with token_get or token_values_get.",
-    inputSchema = mapOf(
-        "type" to stringInput(
-            "Optional exact token type.",
-            allowedValues = listOf("color", "gradient", "typography", "fontFamily", "spacing", "shape", "shadow"),
-        ),
-        "name" to stringInput(
-            "Optional exact token name. It is sent through the existing backend query and checked exactly by MCP. " +
-                "Do not combine with query.",
-        ),
-        "query" to stringInput("Substring matched against token metadata, not component-to-token dependencies."),
-        "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of tokens to return."),
-    ),
-)
-
-private fun componentsListTool(): McpToolDefinition = McpToolDefinition(
-    name = "components_list",
-    description =
-    "Search authoritative design-system component metadata. Returns compact summaries; use component_get for the " +
-        "full component DTO. Do not use this tool to discover published code variations; " +
-        "use code_binding_search followed by code_binding_get with detail=summary instead.",
-    inputSchema = mapOf(
-        "name" to stringInput(
-            "Optional exact component name. It is sent through the existing backend query and checked exactly by " +
-                "MCP. Do not combine with query.",
-        ),
-        "query" to stringInput("Substring matched against component name and description."),
-        "platform" to stringInput("Optional target platform retained for the component-list contract."),
-        "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of components to return."),
     ),
 )
 

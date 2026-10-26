@@ -6,6 +6,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
@@ -39,9 +40,7 @@ fun Route.designSystemChangeRoutes(
 
 private fun Route.summaryChangeRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
     get("/api/ds/design-systems/{id}/changes/summary") {
-        val context = TrustedDsRequestContextMapper.map(
-            call.request.headers, evaluator, call.request.queryParameters["versionId"],
-        ) ?: return@get call.respondFailure(DsFailure.Forbidden)
+        val context = call.modelReadContext(evaluator) ?: return@get
         val id = call.parameters["id"]?.uuid()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
         val rawVersion = call.request.queryParameters["versionId"]
@@ -56,12 +55,7 @@ private fun Route.summaryChangeRoute(evaluator: PolicyEvaluator, list: ListDraft
 
 private fun Route.listChangeRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
     get("/api/ds/design-systems/{id}/changes") {
-        val context = TrustedDsRequestContextMapper.map(
-            call.request.headers,
-            evaluator,
-            call.request.queryParameters["versionId"],
-        )
-            ?: return@get call.respondFailure(DsFailure.Forbidden)
+        val context = call.modelReadContext(evaluator) ?: return@get
         val designSystemId = call.parameters["id"]?.uuid()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
         val rawVersionId = call.request.queryParameters["versionId"]

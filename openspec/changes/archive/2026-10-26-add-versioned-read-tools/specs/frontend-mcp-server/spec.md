@@ -50,7 +50,7 @@ MCP SHALL читать авторитетные токены через API мо
 
 
 ### Requirement: MCP component read tools
-MCP SHALL читать компоненты из авторитетного API модели, передавая версии и фильтры серверу. Схема component_config_get сохраняется до add-composite-read-tools.
+MCP SHALL читать мету компонента и версионированные данные конфигураций через соответствующие существующие API, передавая поддерживаемые версии и фильтры серверу. Схема component_config_get сохраняется до add-composite-read-tools.
 
 #### Scenario: Component list reads system components
 - **WHEN** клиент вызывает components_list с необязательными name, query, platform, limit, cursor или version
@@ -68,10 +68,36 @@ MCP SHALL читать компоненты из авторитетного API 
 - **THEN** MCP MUST сохранить текущую каноническую конфигурацию, props, bindings, invariants, variations и доступные ревизии
 - **THEN** этот этап MUST NOT объявлять componentId новым параметром прежнего экспорта или менять selection/projection до следующего Change
 
+#### Scenario: Мета компонента без выбора конфигурации
+
+- **WHEN** клиент вызывает component_get с componentId
+- **THEN** MCP MUST вызвать GET /components/{id} и сохранить id, name, description, platform, createdAt и updatedAt
+- **THEN** tool MUST NOT добавлять список конфигураций, выбирать appearance или объявлять ответ снимком одной DS
+- **THEN** схема tool MUST NOT содержать version; версия URI/контекста MUST NOT передаваться как версия глобальной меты
+- **THEN** отсутствие X-DS-Read-Context одной DS/публикации MUST NOT считаться ошибкой этого чтения
+
 #### Scenario: Component styles and variations read model details
-- **WHEN** клиент вызывает `component_styles_get` либо `component_variations_get` с `componentId` и необязательным `version`
-- **THEN** MCP MUST вернуть детали оформления и метаданные осей из API модели
-- **THEN** MCP MUST сохранить ID компонента и оформления для последующей адресации сущностей
+
+- **WHEN** клиент вызывает component_styles_get с componentId и необязательным version
+- **THEN** MCP MUST использовать прежний маршрут оформлений DS и сохранить ID компонента и оформления
+- **WHEN** component_variations_get получает appearanceId и необязательный version
+- **THEN** MCP MUST читать оси указанной конфигурации через GET /appearances/{id}/variations и сохранять appearanceId и variationId
+
+#### Scenario: Вариации конкретной конфигурации
+
+- **WHEN** клиент вызывает component_variations_get с обязательным appearanceId и необязательным version
+- **THEN** MCP MUST вызвать GET /appearances/{id}/variations и вернуть существующие оси, values и defaultStyleId без include=values,defaults и локальной сборки конфигурации
+- **THEN** результат MUST сохранить id объявления оси, appearanceId, variationId, position, isRoot, isColorScheme, declaredType, даты и доступные поля значений
+- **THEN** фактическая DS и версия MUST определяться сервером по appearance и передаваться в контексте чтения
+- **THEN** MCP MUST NOT вызывать GET /components/{id}/variations или выбирать единственную/default-конфигурацию автоматически
+
+#### Scenario: Аргументы и версия вариаций
+
+- **WHEN** appearanceId отсутствует либо вместо него передан прежний componentId
+- **THEN** MCP MUST вернуть INVALID_QUERY
+- **WHEN** version задан явно
+- **THEN** он MUST перекрыть версию URI/контекста; при отсутствии выбора MUST использоваться draft
+- **THEN** NOT_FOUND неизвестной, недоступной или отсутствующей на выбранной границе конфигурации либо чужой версии MUST NOT превращаться в чтение draft
 
 #### Scenario: Ограниченное чтение оформлений
 
@@ -104,3 +130,24 @@ MCP SHALL предоставлять design_system_versions_list, design_system_
 - **WHEN** сервер вернул страницу массива и HTTP-заголовки чтения
 - **THEN** MCP MUST вернуть структурированные context/items/nextCursor без требования обёртки HTTP-тела
 - **THEN** отсутствие обязательных метаданных ограниченной страницы MUST дать BACKEND_UNAVAILABLE, а не ложное успешное завершение списка
+
+### Requirement: Ссылка на DS без обязательной платформы
+
+Клиент SHALL принимать ссылку `dsbuilder://projects/{projectId}/design-systems/{designSystemId}?version={version}` без platform. Явный platform SHALL оставаться поддерживаемым, неизвестное значение SHALL отклоняться. Отсутствующая платформа SHALL NOT подменяться платформой по умолчанию или значением из локального workspace.
+
+#### Scenario: Чтение модели по ссылке из UI
+
+- **WHEN** пользователь копирует ссылку MCP в тулбаре текущей DS
+- **THEN** ссылка MUST содержать projectId, designSystemId и текущую версию (draft или публикацию) без обязательного platform
+- **THEN** чтения, не требующие платформы, MUST разрешать контекст с пустым списком платформ
+- **THEN** платформенные операции MUST сохранить явное уточнение платформы, если она необходима для операции
+
+### Requirement: API URL задаётся окружением
+
+CLI и MCP launcher SHALL использовать `DSBUILDER_API_URL` для выбора backend и SHALL NOT принимать опцию `--api-url` ни в одной команде. При отсутствии переменной SHALL сохраняться существующий адрес по умолчанию. Успешный login SHALL NOT сохранять активный API URL как отдельную настройку. Локальный `.env` SHALL сохранять существующие правила разрешения контекста; явная ссылка SHALL NOT читать `.env` workspace.
+
+#### Scenario: Общий backend для login и MCP
+
+- **WHEN** CLI auth и MCP запущены с одинаковой переменной окружения DSBUILDER_API_URL
+- **THEN** они MUST использовать одинаковый API URL и соответствующую ему сохранённую сессию
+- **THEN** переданный `--api-url` MUST отклоняться до сетевых запросов

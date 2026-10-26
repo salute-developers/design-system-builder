@@ -41,6 +41,7 @@ internal fun DsBuilderMcpServerCore.createSdkServer(): Server {
                 name = tool.name,
                 description = tool.description,
                 inputSchema = ToolSchema(
+                    required = tool.inputSchema.filterValues { it.required }.keys.toList(),
                     properties = buildJsonObject {
                         tool.inputSchema.forEach { (name, definition) ->
                             put(
@@ -64,7 +65,11 @@ internal fun DsBuilderMcpServerCore.createSdkServer(): Server {
                         }
                     },
                 ),
-                toolAnnotations = ToolAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true),
+                toolAnnotations = ToolAnnotations(
+                    readOnlyHint = true,
+                    destructiveHint = false,
+                    idempotentHint = true,
+                ),
             ) { request ->
                 val arguments = request.arguments as? JsonObject ?: JsonObject(emptyMap())
                 val result = core.callTool(tool.name, arguments)

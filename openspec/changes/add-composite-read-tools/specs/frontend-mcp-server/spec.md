@@ -23,7 +23,7 @@
 
 ### Requirement: MCP component read tools
 
-MCP SHALL читать авторитетную модель выбранной версии через общие серверные операции без локальной сборки конфигурации или обхода каталога токенов. Списки SHALL сохранить правила первого Change.
+MCP SHALL читать авторитетную модель выбранной версии через общие серверные операции без локальной сборки конфигурации или обхода каталога токенов. Списки, чтение меты component_get и адресация вариаций по appearanceId SHALL сохранить правила первого Change.
 
 #### Scenario: Component list reads system components
 
@@ -39,12 +39,23 @@ MCP SHALL читать авторитетную модель выбранной 
 - **THEN** результат MUST сохранить каноническую конфигурацию и доступные props/bindings/invariants/variations/ревизии
 - **THEN** subject/name и projection MUST NOT заменять componentId в новой схеме tool
 
+#### Scenario: Мета компонента сохраняет контракт первого Change
+
+- **WHEN** component_get получает componentId
+- **THEN** MCP MUST сохранить чтение меты через GET /components/{id} без выбора конфигурации и версии глобальной меты
+
 #### Scenario: Component styles and variations read model details
 
-- **WHEN** component_get, component_styles_get или component_variations_get получает componentId и version
-- **THEN** результат MUST сохранить стабильные ID и семантику модели
-- **THEN** styles MUST поддерживать name/limit/cursor по правилам первого Change
-- **THEN** variations MUST явно запросить серверные допустимые значения и имеющиеся defaults
+- **WHEN** component_styles_get получает componentId и необязательный version
+- **THEN** результат MUST сохранить стабильные ID и поддержку name/limit/cursor по правилам первого Change
+- **WHEN** component_variations_get получает appearanceId и необязательный version
+- **THEN** MCP MUST сохранить чтение осей конкретной конфигурации и стабильные appearanceId и variationId по правилам первого Change
+
+#### Scenario: Вариации сохраняют контракт первого Change
+
+- **WHEN** component_variations_get получает appearanceId и необязательный version
+- **THEN** MCP MUST сохранить чтение GET /appearances/{id}/variations, существующие values/defaultStyleId и серверный контекст выбранной границы
+- **THEN** схема и результат MUST NOT требовать нового include=values,defaults, componentId вместо appearanceId или локальной сборки конфигурации
 
 ### Requirement: MCP documentation read tools
 

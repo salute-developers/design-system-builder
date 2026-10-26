@@ -1,27 +1,30 @@
 package com.dsbuilder.frontend.mcpserver
 
-import com.dsbuilder.frontend.core.application.ContextResolver
-import com.dsbuilder.frontend.core.application.ProjectContextFailure
-import com.dsbuilder.frontend.core.application.ProjectContextReadResult
-import com.dsbuilder.frontend.core.domain.ContextProvenance
-import com.dsbuilder.frontend.core.network.ApiUrlResolver
+import com.dsbuilder.frontend.core.application.ContextSelection
+import com.dsbuilder.frontend.core.application.RuntimeRequest
 import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
+import com.dsbuilder.frontend.feature.ds.application.ModelReadCommand
+import com.dsbuilder.frontend.feature.ds.application.ModelReadOperation
+import com.dsbuilder.frontend.feature.ds.application.ModelReadResult
+import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusCommand
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusErrorCode
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
-import com.dsbuilder.frontend.feature.theme.application.TokenReadUseCases
 import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * Semantic version reported by both MCP launchers.
  */
-public const val MCP_SERVER_VERSION: String = "0.1.0"
+public const val MCP_SERVER_VERSION: String = "0.2.0"
 
 /**
  * Runtime inputs shared by the CLI and Node MCP launchers.
@@ -103,6 +106,8 @@ public data class McpToolInputDefinition(
     public val allowedValues: List<String> = emptyList(),
     /** JSON Schema item type when [type] is `array`. */
     public val itemType: String? = null,
+    /** Required input for the tool schema. */
+    public val required: Boolean = false,
 )
 
 /**
@@ -130,18 +135,6 @@ public data class McpToolError(
 )
 
 @Serializable
-private data class ContextBody(
-    val projectId: String,
-    val designSystemId: String,
-    val configPath: String?,
-    val apiUrl: String,
-    val credentialType: String? = null,
-    val provenance: String = "local-config",
-    val version: String? = null,
-    val platform: String? = null,
-)
-
-@Serializable
 private data class StatusBody(
     val projectName: String,
     val designSystemName: String,
@@ -154,21 +147,18 @@ private data class StatusBody(
  */
 public class DsBuilderMcpServerCore(
     private val config: McpServerConfig,
-    private val contextResolver: ContextResolver,
-    private val apiUrlResolver: ApiUrlResolver,
     private val projectStatusReader: McpProjectStatusReader,
     private val docsReadUseCases: DocsReadUseCases? = null,
-    private val tokenReadUseCases: TokenReadUseCases? = null,
     private val componentReadUseCases: ComponentReadUseCases? = null,
+    private val modelReadUseCase: ReadDesignSystemModelUseCase? = null,
     private val json: Json = Json { encodeDefaults = true },
 ) {
     private val readContext = McpReadToolContext(config, json)
     private val documentationMcpTools = DocumentationMcpTools(docsReadUseCases, readContext)
     private val codeBindingMcpTools = CodeBindingMcpTools(docsReadUseCases, readContext)
-    private val tokenMcpTools = TokenMcpTools(tokenReadUseCases, readContext)
     private val componentMcpTools = ComponentMcpTools(componentReadUseCases, readContext)
 
-    /** Возвращает определения read-only инструментов для обоих launcher. */
+    /** Returns the read-only tools registered by this server core. */
     public fun tools(): List<McpToolDefinition> = readOnlyMcpToolDefinitions()
 
     /**
@@ -177,52 +167,90 @@ public class DsBuilderMcpServerCore(
     @Suppress("CyclomaticComplexMethod")
     public suspend fun callTool(name: String, arguments: JsonObject = JsonObject(emptyMap())): McpToolResult =
         when (name) {
-            "design_system_get_context" -> designSystemGetContext(arguments)
+            "design_system_get_context" -> readModelTool(name, arguments)
             "project_get_status" -> projectGetStatus(arguments)
+            "design_system_versions_list" -> readModelTool(name, arguments)
+            "design_system_version_get" -> readModelTool(name, arguments)
+            "design_system_changes_list" -> readModelTool(name, arguments)
+            "tenants_list" -> readModelTool(name, arguments)
+            "token_groups_list" -> readModelTool(name, arguments)
+            "palette_get" -> readModelTool(name, arguments)
             "documentation_search" -> documentationMcpTools.documentationSearch(arguments)
             "documentation_fetch" -> documentationMcpTools.documentationFetch(arguments)
             "documentation_get_navigation" -> documentationMcpTools.documentationNavigation(arguments)
             "documentation_get_page" -> documentationMcpTools.documentationPage(arguments)
             "code_binding_search" -> codeBindingMcpTools.codeBindingSearch(arguments)
             "code_binding_get" -> codeBindingMcpTools.codeBindingGet(arguments)
-            "tokens_list" -> tokenMcpTools.tokensList(arguments)
-            "token_get" -> tokenMcpTools.tokenGet(arguments)
-            "token_values_get" -> tokenMcpTools.tokenValuesGet(arguments)
-            "components_list" -> componentMcpTools.componentsList(arguments)
-            "component_get" -> componentMcpTools.componentGet(arguments)
+            "tokens_list" -> readModelTool(name, arguments)
+            "token_get" -> readModelTool(name, arguments)
+            "token_values_get" -> readModelTool(name, arguments)
+            "components_list" -> readModelTool(name, arguments)
+            "component_get" -> readModelTool(name, arguments)
             "component_config_get" -> componentMcpTools.componentConfigGet(arguments)
-            "component_styles_get" -> componentMcpTools.componentStylesGet(arguments)
-            "component_variations_get" -> componentMcpTools.componentVariationsGet(arguments)
+            "component_styles_get" -> readModelTool(name, arguments)
+            "component_variations_get" -> readModelTool(name, arguments)
             else -> protocolError("Unknown tool: $name")
         }
 
-    private suspend fun designSystemGetContext(arguments: JsonObject): McpToolResult = with(readContext) {
-        val found = when (
-            val result = contextResolver.resolve(config.workspace, arguments.optional("designSystem"))
-        ) {
-            is ProjectContextReadResult.Failed -> return@with toolError(result.reason.toMcpCode(), result.message)
-            is ProjectContextReadResult.Found -> result
-        }
-        val context = found.context
-        val apiUrl = apiUrlResolver.resolve(config.apiUrlOverride, found.projectEnvironment)
-        return@with success(
-            ContextBody(
-                projectId = context.projectId.value,
-                designSystemId = context.designSystemId.value,
-                configPath = context.configPath.takeIf(String::isNotEmpty),
-                apiUrl = apiUrl.value,
-                provenance = if (context.provenance == ContextProvenance.EXPLICIT_LINK) {
-                    "explicit-link"
-                } else {
-                    "local-config"
-                },
-                version = context.selectedVersion,
-                platform = context.platforms.singleOrNull()?.cliValue,
-            ),
-        )
+    private suspend fun readModelTool(name: String, arguments: JsonObject): McpToolResult {
+        val operation = modelToolOperations.getValue(name)
+        val schema = modelMcpTools().single { it.name == name }.inputSchema
+        val argumentError = modelArgumentError(arguments, schema)
+        if (argumentError != null) return toolError("INVALID_QUERY", argumentError)
+        val idName = modelResourceArgument(operation)
+        val id = idName?.let { arguments.required(it) }
+        if (idName != null && id == null) return toolError("INVALID_QUERY", "$idName is required")
+        return executeModelTool(operation, id, idName, arguments)
     }
 
-    private suspend fun projectGetStatus(arguments: JsonObject): McpToolResult = with(readContext) {
+    private suspend fun executeModelTool(
+        operation: ModelReadOperation,
+        id: String?,
+        idName: String?,
+        arguments: JsonObject,
+    ): McpToolResult {
+        val useCase = modelReadUseCase ?: return backendReaderUnavailable()
+        val filters = arguments.filterKeys { it !in setOf("designSystem", "version", "limit", "cursor", idName) }
+            .mapValues { (_, value) -> (value as JsonPrimitive).content }
+        return when (
+            val result = useCase.execute(
+                ModelReadCommand(
+                    operation,
+                    id,
+                    arguments.optional("version"),
+                    filters,
+                    arguments.optional("limit")?.toIntOrNull(),
+                    arguments.optional("cursor"),
+                ),
+                runtimeRequest(arguments),
+            )
+        ) {
+            is ModelReadResult.Success -> success(result.value.toString())
+            is ModelReadResult.Failed -> toolError(result.code, result.message)
+        }
+    }
+
+    private fun modelArgumentError(arguments: JsonObject, schema: Map<String, McpToolInputDefinition>): String? {
+        if (arguments.keys.any { it != "designSystem" && it !in schema }) {
+            return "Unsupported model read argument."
+        }
+        val invalid = arguments.entries.firstOrNull { (key, value) ->
+            val definition = schema[key]
+            definition != null && !validModelArgument(value, definition)
+        }
+        return invalid?.let { "Invalid model read argument: ${it.key}" }
+    }
+
+    private fun validModelArgument(value: JsonElement, definition: McpToolInputDefinition): Boolean {
+        val primitive = value as? JsonPrimitive ?: return false
+        return when (definition.type) {
+            "string" -> primitive.isString
+            "integer" -> !primitive.isString && primitive.content.toIntOrNull() != null
+            else -> false
+        }
+    }
+
+    private suspend fun projectGetStatus(arguments: JsonObject): McpToolResult =
         when (
             val result = projectStatusReader.read(
                 null,
@@ -241,24 +269,35 @@ public class DsBuilderMcpServerCore(
             )
             is CheckProjectStatusResult.Failed -> toolError(result.code.toMcpErrorCode(), result.message)
         }
-    }
 
-    private fun success(body: ContextBody): McpToolResult =
-        McpToolResult(isError = false, body = json.encodeToString(ContextBody.serializer(), body))
+    private fun runtimeRequest(arguments: JsonObject): RuntimeRequest = RuntimeRequest(
+        selection = arguments.optional("designSystem")?.let { ContextSelection.Link(it) }
+            ?: ContextSelection.Local(config.workspace),
+        apiUrlOverride = config.apiUrlOverride,
+    )
 
     private fun success(body: StatusBody): McpToolResult =
         McpToolResult(isError = false, body = json.encodeToString(StatusBody.serializer(), body))
+
+    private fun success(body: String): McpToolResult = McpToolResult(isError = false, body = body.ifBlank { "{}" })
+
+    private fun toolError(code: String, message: String): McpToolResult =
+        McpToolResult(isError = true, body = json.encodeToString(McpToolError(code, message)))
+
+    private fun invalidArgument(message: String): McpToolResult = toolError("INVALID_ARGUMENT", message)
+
+    private fun backendReaderUnavailable(): McpToolResult =
+        toolError("BACKEND_UNAVAILABLE", "Backend read tools are not configured.")
 
     private fun protocolError(message: String): McpToolResult =
         McpToolResult(isError = true, body = json.encodeToString(McpToolError("PROTOCOL_ERROR", message)))
 
     private fun CheckProjectStatusErrorCode.toMcpErrorCode(): String = name
 
-    private fun ProjectContextFailure.toMcpCode(): String = when (this) {
-        ProjectContextFailure.NOT_INITIALIZED -> "CONTEXT_REQUIRED"
-        ProjectContextFailure.INVALID_CONTEXT -> "INVALID_CONTEXT"
-        ProjectContextFailure.INVALID -> "CONTEXT_NOT_FOUND"
-    }
+    private fun JsonObject.required(name: String): String? = optional(name)?.takeIf(String::isNotBlank)
+
+    private fun JsonObject.optional(name: String, default: String? = null): String? =
+        (this[name] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) ?: default
 }
 
 /**

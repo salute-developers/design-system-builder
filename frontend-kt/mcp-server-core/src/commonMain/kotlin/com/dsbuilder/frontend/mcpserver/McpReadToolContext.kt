@@ -4,7 +4,6 @@ import com.dsbuilder.frontend.core.application.ContextSelection
 import com.dsbuilder.frontend.core.application.RuntimeRequest
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
 import com.dsbuilder.frontend.feature.docs.application.DocsReadResult
-import com.dsbuilder.frontend.feature.theme.application.TokenReadResult
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -36,12 +35,6 @@ internal class McpReadToolContext(
         when (this) {
             is DocsReadResult.Failed -> toolError(code.name, message)
             is DocsReadResult.Success -> success(json.encodeToString(value))
-        }
-
-    fun TokenReadResult.toMcpResult(): McpToolResult =
-        when (this) {
-            is TokenReadResult.Failed -> toolError(code.name, message)
-            is TokenReadResult.Success -> success(json.encodeToString(value))
         }
 
     fun ComponentReadResult.toMcpResult(): McpToolResult =

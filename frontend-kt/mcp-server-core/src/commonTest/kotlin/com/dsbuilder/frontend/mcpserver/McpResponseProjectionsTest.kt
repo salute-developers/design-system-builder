@@ -48,58 +48,6 @@ class McpResponseProjectionsTest {
     }
 
     @Test
-    fun tokenListReturnsExactCompactSummary() {
-        val json = Json
-        val input = McpToolResult(
-            false,
-            """
-            {
-              "source":"design-system-model-api",
-              "data":[
-                {"id":"1","name":"surface.default","type":"color","displayName":"Surface","description":null,"createdAt":"now"},
-                {"id":"2","name":"surface.default.clear","type":"color","createdAt":"now"}
-              ]
-            }
-            """.trimIndent(),
-        )
-
-        val data = json.parseToJsonElement(compactTokenList(input, json, "surface.default", null).body)
-            .jsonObject.getValue("data").jsonArray
-        val token = data.single().jsonObject
-
-        assertEquals("1", token.getValue("id").jsonPrimitive.content)
-        assertEquals("surface.default", token.getValue("name").jsonPrimitive.content)
-        assertFalse(token.containsKey("createdAt"))
-    }
-
-    @Test
-    fun componentListReturnsCompactSummariesAndAppliesExplicitLimit() {
-        val json = Json
-        val input = McpToolResult(
-            false,
-            """
-            {
-              "source":"design-system-model-api",
-              "data":[
-                {"id":"1","name":"badge","description":"Badge","updatedAt":"now"},
-                {"id":"2","name":"button","description":"Button","updatedAt":"now"}
-              ]
-            }
-            """.trimIndent(),
-        )
-
-        val unbounded = json.parseToJsonElement(compactComponentList(input, json, null, null).body)
-            .jsonObject.getValue("data").jsonArray
-        val data = json.parseToJsonElement(compactComponentList(input, json, null, 1).body)
-            .jsonObject.getValue("data").jsonArray
-        val component = data.single().jsonObject
-
-        assertEquals(2, unbounded.size)
-        assertEquals("badge", component.getValue("name").jsonPrimitive.content)
-        assertFalse(component.containsKey("updatedAt"))
-    }
-
-    @Test
     fun searchKeepsCursorAndDropsOnlyBindingPayload() {
         val json = Json
         val input = McpToolResult(

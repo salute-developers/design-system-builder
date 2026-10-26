@@ -27,7 +27,6 @@ internal class ComponentsFetchCliCommand(
     private val platform: TargetPlatform? by option("--platform").targetPlatform()
         .help("$PLATFORM_COMPONENTS_HELP react also fetches the web adapter into .sdds/web/web-adapter.json.")
 
-    private val apiUrl: String? by option("--api-url")
     private val designSystem: String? by option("--design-system")
     private val projectKeyEnv: String? by option("--project-key-env")
 
@@ -37,7 +36,7 @@ internal class ComponentsFetchCliCommand(
                 FetchComponentsCommand(
                     destination = ComponentDestination(directory = to),
                     apiKeyOverride = apiKey,
-                    apiUrlOverride = apiUrl,
+                    apiUrlOverride = null,
                     designSystemUri = designSystem,
                     projectKeyEnvName = projectKeyEnv,
                     platform = platform,

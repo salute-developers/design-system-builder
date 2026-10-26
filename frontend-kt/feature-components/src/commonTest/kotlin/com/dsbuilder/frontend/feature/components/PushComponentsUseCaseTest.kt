@@ -116,7 +116,7 @@ class PushComponentsUseCaseTest {
 
         val target = assertNotNull(result.target, "цель не сообщена")
         assertEquals("http://localhost:8080", target.apiUrl.value)
-        assertEquals("--api-url", target.apiUrl.sourceName)
+        assertEquals("runtime override", target.apiUrl.sourceName)
         assertEquals("project-a", target.projectId)
         assertEquals("ds-a", target.designSystemId)
         assertEquals("sdds_sbcom", target.packageName)
@@ -147,7 +147,7 @@ class PushComponentsUseCaseTest {
         )
 
         val failed = assertNotNull(result as? PushComponentsResult.Failed)
-        assertTrue(failed.message.contains("--api-url"), failed.message)
+        assertTrue(failed.message.contains("DSBUILDER_API_URL"), failed.message)
         assertTrue(failed.message.contains(API_URL_ENV), failed.message)
         assertTrue(!requested, "запрос отправлен несмотря на умолчание API URL")
         assertNull(failed.target, "цель сообщена, хотя запрос не готовился")

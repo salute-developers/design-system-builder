@@ -48,7 +48,7 @@ private suspend fun authLogin(args: List<String>, koin: Koin): Int {
     }
     val result = koin.get<LoginUseCase>().execute(
         LoginCommand(
-            apiUrlOverride = optionValue(args, "--api-url"),
+            apiUrlOverride = null,
         ),
     )
     return when (result) {
@@ -64,7 +64,7 @@ private suspend fun authLogin(args: List<String>, koin: Koin): Int {
 }
 
 private suspend fun authStatus(args: List<String>, koin: Koin): Int =
-    when (val result = koin.get<AuthStatusUseCase>().execute(AuthStatusCommand(optionValue(args, "--api-url")))) {
+    when (val result = koin.get<AuthStatusUseCase>().execute(AuthStatusCommand(null))) {
         is AuthStatusResult.LoggedIn -> {
             println("Logged in to ${result.apiUrl} as ${result.username}.")
             0
@@ -76,7 +76,7 @@ private suspend fun authStatus(args: List<String>, koin: Koin): Int =
     }
 
 private suspend fun authLogout(args: List<String>, koin: Koin): Int =
-    when (val result = koin.get<LogoutUseCase>().execute(LogoutCommand(optionValue(args, "--api-url")))) {
+    when (val result = koin.get<LogoutUseCase>().execute(LogoutCommand(null))) {
         is LogoutResult.Failed -> {
             println(result.message)
             1

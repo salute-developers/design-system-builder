@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemStyleSummary
@@ -28,8 +29,12 @@ class ListDesignSystemComponentStylesUseCase(
         )
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly(context) {
-            repository.listComponentStyles(context.projectId, id, componentId)?.let { DsResult.Success(it) }
+        is DsResult.Success -> transactions.readOnly(
+            context,
+            ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, id.value),
+        ) { selected ->
+            repository.pageComponentStyles(selected.projectId, id, componentId, selected.readQuery)
+                ?.let { DsResult.Success(it.items, readPage = it.page) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }
     }
