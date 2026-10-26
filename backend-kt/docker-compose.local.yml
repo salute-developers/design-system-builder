@@ -15,6 +15,7 @@ services:
       - "8090:8080"
     volumes:
       - ./identity-gateway/keycloak/dsbuilder-realm.json:/opt/keycloak/data/import/dsbuilder-realm.json:ro
+      - ./identity-gateway/keycloak/themes/dsbuilder:/opt/keycloak/themes/dsbuilder:ro
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
       interval: 15s

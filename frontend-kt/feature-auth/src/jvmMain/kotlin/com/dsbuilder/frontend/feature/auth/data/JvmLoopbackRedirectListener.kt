@@ -26,9 +26,13 @@ public class JvmLoopbackRedirectListener : RedirectListener {
     override val port: Int get() = server.address.port
 
     init {
-        server.createContext("/callback") { exchange ->
+        server.createContext("/") { exchange ->
             val query = exchange.requestURI.parseQuery()
-            val result = parseResult(query)
+            val result = if (exchange.requestMethod == "GET" && exchange.requestURI.rawPath == "/callback") {
+                parseResult(query)
+            } else {
+                LoopbackCallbackResult.Malformed
+            }
 
             val responseBody = CALLBACK_PAGE.toByteArray()
             exchange.responseHeaders.add("Content-Type", "text/html; charset=utf-8")
@@ -61,28 +65,28 @@ public class JvmLoopbackRedirectListener : RedirectListener {
         }
     }
 
-    private fun parseResult(query: Map<String, String>): LoopbackCallbackResult = when {
+    private fun parseResult(query: Map<String, List<String>>): LoopbackCallbackResult = when {
         query["error"] != null -> LoopbackCallbackResult.Error(
-            error = query.getValue("error"),
-            errorDescription = query["error_description"],
+            error = query.getValue("error").singleOrNull() ?: "invalid_request",
+            errorDescription = query["error_description"]?.singleOrNull(),
         )
-        query["code"] != null && query["state"] != null -> LoopbackCallbackResult.Success(
-            code = query.getValue("code"),
-            state = query.getValue("state"),
+        query["code"]?.singleOrNull() != null &&
+            query["state"]?.singleOrNull() != null -> LoopbackCallbackResult.Success(
+            code = query.getValue("code").single(),
+            state = query.getValue("state").single(),
         )
         else -> LoopbackCallbackResult.Malformed
     }
 
-    private fun URI.parseQuery(): Map<String, String> =
-        query.orEmpty()
+    private fun URI.parseQuery(): Map<String, List<String>> =
+        rawQuery.orEmpty()
             .split("&")
             .filter { it.isNotBlank() }
-            .associate { pair ->
-                val parts = pair.split("=", limit = 2)
-                val key = parts[0]
-                val value = parts.getOrElse(1) { "" }
-                key to URLDecoder.decode(value, "UTF-8")
-            }
+            .map { it.split("=", limit = 2) }
+            .groupBy(
+                keySelector = { URLDecoder.decode(it[0], "UTF-8") },
+                valueTransform = { URLDecoder.decode(it.getOrElse(1) { "" }, "UTF-8") },
+            )
 }
 
 /**

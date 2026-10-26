@@ -8,10 +8,13 @@ CLI/MCP должны получать пользовательскую сесс�
 
 - **BREAKING**: `auth login` обоих executable использует Authorization Code + PKCE S256 вместо парольного входа.
 - Переиспользуется существующий публичный OAuth-клиент `dsbuilder-studio-plugin`; новой регистрации нет, web/IDE сохраняют настройки и работу.
+- Браузерный вход `dsbuilder-studio-plugin` получает тему Keycloak в оформлении текущей страницы входа DS Builder; тема применяется к CLI/MCP и IDE, обработка учётных данных остаётся в Keycloak.
 - Общий сценарий и порты криптографии, браузера, loopback listener и хранилища работают на JVM, macOS arm64/x64 и Node.
 - Общая файловая refresh-сессия CLI/MCP получает clientId и безопасное имя из userinfo; старые несовместимые сессии требуют повторного входа.
 - Access token кешируется в памяти с запасом 30 секунд; сохраняются межпроцессная ротация, один повтор после 401, отсутствие refresh после 403 и сохранение сессии при транспортной ошибке.
 - `status/logout`, help и README обновляются; serve и tools не открывают браузер. Project keys и отдельное защищённое хранилище IDE сохраняются.
+
+- После браузерного callback CLI/MCP показывают автономную русскую страницу результата; успех появляется только после обмена кода и сохранения сессии.
 
 ## Возможности
 
@@ -27,6 +30,6 @@ CLI/MCP должны получать пользовательскую сесс�
 
 Независим от `add-versioned-read-tools` и `add-composite-read-tools`; может выпускаться с текущим набором tools. Не меняет ни реестр read-tools, ни предметные API и форматы их ответов.
 
-Затрагивает `frontend-kt/core-auth`, `core-network`, `core-application`, `feature-auth`, `cli`, `mcp-node` и платформенные composition root, а также конфигурацию Keycloak и Gateway authorize/token/userinfo/logout при необходимости. Хранилище остаётся `~/.sdds/sessions/<hash API URL>.json`. JS-схема и платформы продукта не меняются. Новых сервисов, OAuth-клиентов и обязательных внешних зависимостей нет. Защищённые файлы процесса, архитектурных тестов и Strictacode policy вне scope.
+Затрагивает `frontend-kt/core-auth`, `core-network`, `core-application`, `feature-auth`, `cli`, `mcp-node` и платформенные composition root, а также тему Keycloak, её поставку в локальном и производственном контурах, настройку темы для `dsbuilder-studio-plugin` и конфигурацию Gateway authorize/token/userinfo/logout при необходимости. Хранилище остаётся `~/.sdds/sessions/<hash API URL>.json`. JS-схема и платформы продукта не меняются. Новых сервисов, OAuth-клиентов и обязательных внешних зависимостей нет. Защищённые файлы процесса, архитектурных тестов и Strictacode policy вне scope.
 
-Заменяет часть авторизации объединённого `unify-read-tools-and-pkce`; реализация не выполнена.
+Заменяет часть авторизации объединённого `unify-read-tools-and-pkce`. Поведение текущей React-страницы входа и её способ авторизации не меняются.
