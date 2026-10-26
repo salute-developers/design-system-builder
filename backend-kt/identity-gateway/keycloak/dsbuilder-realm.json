@@ -60,7 +60,8 @@
         "http://localhost:*"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "login_theme": "dsbuilder"
       },
       "protocol": "openid-connect",
       "protocolMappers": [

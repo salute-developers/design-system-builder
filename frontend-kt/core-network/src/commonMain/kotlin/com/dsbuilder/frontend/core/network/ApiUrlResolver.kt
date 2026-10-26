@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.core.network
 
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.normalizeSessionApiUrl
 
 /**
  * Имя env-переменной с backend API URL.
@@ -70,14 +71,20 @@ public class ApiUrlResolver(
      */
     public fun resolve(override: String?, projectEnvironment: EnvironmentReader? = null): ResolvedApiUrl {
         if (!override.isNullOrBlank()) {
-            return ResolvedApiUrl(value = override, source = ApiUrlSource.ARGUMENT)
+            return ResolvedApiUrl(
+                value = normalizeSessionApiUrl(override),
+                source = ApiUrlSource.ARGUMENT,
+            )
         }
 
         (
             environmentReader.get(API_URL_ENV)?.takeIf { it.isNotBlank() }
                 ?: projectEnvironment?.get(API_URL_ENV)?.takeIf { it.isNotBlank() }
             )?.let {
-            return ResolvedApiUrl(value = it, source = ApiUrlSource.ENVIRONMENT)
+            return ResolvedApiUrl(
+                value = normalizeSessionApiUrl(it),
+                source = ApiUrlSource.ENVIRONMENT,
+            )
         }
 
         return ResolvedApiUrl(value = DEFAULT_API_URL, source = ApiUrlSource.CODE_DEFAULT)

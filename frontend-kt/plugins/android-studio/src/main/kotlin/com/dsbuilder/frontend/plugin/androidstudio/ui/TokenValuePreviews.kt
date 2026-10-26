@@ -1,0 +1,253 @@
+package com.dsbuilder.frontend.plugin.androidstudio.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import com.dsbuilder.frontend.plugin.androidstudio.tokens.GradientLayer
+import com.dsbuilder.frontend.plugin.androidstudio.tokens.ShadowLayerValue
+import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenValuePayload
+import com.sdds.compose.uikit.Text
+import com.sdds.compose.uikit.graphics.Gradients
+import com.sdds.compose.uikit.shadow.ShadowAppearance
+import com.sdds.compose.uikit.shadow.ShadowLayer
+import com.sdds.compose.uikit.shadow.shadow
+import com.sdds.serv.styles.accordion.style
+import com.sdds.serv.styles.divider.style
+import com.sdds.serv.styles.iconbutton.style
+import com.sdds.serv.styles.listitem.style
+import com.sdds.serv.styles.textfield.style
+import com.sdds.serv.theme.SddsServTheme
+
+/** Общий размер превью для `color`/`gradient`/`shadow` — одинаковый, чтобы список не «прыгал». */
+private val TYPE_SWATCH_SIZE = 64.dp
+private val SWATCH_SHAPE = RoundedCornerShape(8.dp)
+
+/** Нейтральный цвет заливки для превью без собственного цвета (`shape`/`spacing`). */
+private val NEUTRAL_SWATCH_COLOR = Color(0xFFB0B0B0)
+private val SPACING_BAR_HEIGHT = 8.dp
+private const val MAX_SPACING_PREVIEW_DP = 64f
+
+/**
+ * Превью формы — прямоугольник, у которого половина высоты больше самого большого конечного
+ * `cornerRadius` в токенах (`round.xxl` = 32dp). На квадрате или невысоком прямоугольнике
+ * `RoundedCornerShape` клэмпит радиус до половины короткой стороны — все значения от этого
+ * порога и выше вырождаются в одинаковую полную «таблетку», неотличимую от `round.circle`
+ * (9999dp). При высоте 72dp клэмп срабатывает только на 36dp — `round.xxl` (32dp) остаётся
+ * видимо не до конца скруглённым прямоугольником, а `round.circle` — единственный, кто
+ * действительно превращается в полную таблетку. Точное значение всё равно остаётся в подписи.
+ */
+private val SHAPE_PREVIEW_WIDTH = 96.dp
+private val SHAPE_PREVIEW_HEIGHT = 72.dp
+
+/**
+ * `round.circle` (и любой другой сентинел такого рода) использует заведомо нереальный для
+ * настоящего UI радиус (`9999dp` в сидах) только затем, чтобы форма гарантированно стала кругом
+ * при любом размере элемента — показывать эту цифру как размер в dp вводит в заблуждение (это
+ * не измерение, а сигнал «максимально круглая форма»).
+ */
+internal const val SHAPE_CIRCLE_THRESHOLD_DP = 999f
+
+/**
+ * Превью тени рисуется на белой подложке независимо от темы IDE — токены теней рассчитаны на
+ * полупрозрачный тёмный цвет поверх светлой поверхности и не видны на тёмном фоне. Сама
+ * «приподнятая» поверхность — тёмная, для контраста с белой подложкой. Подложка обрезана по
+ * своей форме (`clip`), иначе рисуемое утекает в фон строки списка снаружи подложки.
+ *
+ * Использует настоящий `Modifier.shadow(ShadowAppearance(layers), shape)` из `sdds-uikit-compose`
+ * — тот же примитив, которым в самом `plasma-android` рисуются тени у `Popover`/`Modal`/`ToolBar`
+ * (см. `BasePopover.kt`), там он прекрасно виден. Три предыдущих подхода (сам этот примитив без
+ * поправок, затем `Modifier.blur`, затем ручная имитация блюра слоями) не показывали ничего —
+ * тень не была сломана, недоставало **отступа** вокруг поверхности под размер тени. Реальные
+ * компоненты вроде `Popover` резервируют этот отступ явно (`getShadowSafePaddings()` в
+ * `ShadowUtils.kt`: `radius = spreadRadius + blurRadius`, отступ на каждую сторону —
+ * `radius ∓ offset`), потому что сами по себе они — поверхности в сотни dp, где токен
+ * (`blurRadius` до 112dp, `offset` до 60dp) — небольшая доля размера. У нас подложка всего 64dp
+ * (`TYPE_SWATCH_SIZE`), и без такого отступа `Modifier.clip` подложки просто обрезал тень раньше,
+ * чем она успевала стать видимой на глаз.
+ *
+ * `getShadowSafePaddings()` — `internal` в `sdds-uikit-compose`, недоступен из плагина, поэтому
+ * здесь используется не сам расчёт отступа, а более простой эквивалент: `blurRadius`/`offset`
+ * клэмпятся так, чтобы `spreadRadius + blurRadius + |offset|` не превышало половины свободного
+ * места вокруг `SHADOW_PREVIEW_SURFACE_SIZE` внутри `TYPE_SWATCH_SIZE` — тень остаётся честной
+ * (тот же рендер, что у `Popover`), просто её геометрия подрезана под доступное место, а не
+ * подделана. Точные `blur`/`offset`/`spread` токена остаются в подписи текстом.
+ */
+private val SHADOW_PREVIEW_BACKDROP = Color.White
+private val SHADOW_PREVIEW_SURFACE = Color(0xFF2C2C2C)
+private val SHADOW_PREVIEW_BACKDROP_SIZE = 128.dp
+private val SHADOW_PREVIEW_SURFACE_SIZE = 48.dp
+private const val MAX_SHADOW_BLUR_PREVIEW_DP = 24f
+private const val MAX_SHADOW_OFFSET_PREVIEW_DP = 16f
+
+internal fun previewContent(payload: TokenValuePayload): (@Composable RowScope.() -> Unit)? = when (payload) {
+    is TokenValuePayload.ColorValue -> { { ColorSwatch(payload.hex) } }
+    is TokenValuePayload.ShapeValue -> { { ShapeSwatch(payload) } }
+    is TokenValuePayload.SpacingValue -> { { SpacingBar(payload) } }
+    is TokenValuePayload.GradientValue -> { { GradientSwatch(payload) } }
+    is TokenValuePayload.ShadowValue -> { { ShadowSwatch(payload) } }
+    is TokenValuePayload.TypographyValue -> { { TypographySample(payload) } }
+    TokenValuePayload.Unsupported -> null
+}
+
+@Composable
+private fun ColorSwatch(hex: String) {
+    val color = parseHexColor(hex)
+    Column(
+        modifier = Modifier
+            .size(TYPE_SWATCH_SIZE)
+            .background(color ?: Color.Transparent, SWATCH_SHAPE),
+    ) {}
+}
+
+@Composable
+private fun ShapeSwatch(value: TokenValuePayload.ShapeValue) {
+    Column(
+        modifier = Modifier
+            .width(SHAPE_PREVIEW_WIDTH)
+            .height(SHAPE_PREVIEW_HEIGHT)
+            .background(NEUTRAL_SWATCH_COLOR, RoundedCornerShape(value.cornerRadiusDp.dp)),
+    ) {}
+}
+
+@Composable
+private fun SpacingBar(value: TokenValuePayload.SpacingValue) {
+    Column(
+        modifier = Modifier
+            .height(SPACING_BAR_HEIGHT)
+            .width(spacingPreviewWidthDp(value.valueDp).dp)
+            .background(NEUTRAL_SWATCH_COLOR, RoundedCornerShape(2.dp)),
+    ) {}
+}
+
+/** Ширина полоски-превью — значение как есть, но не больше [MAX_SPACING_PREVIEW_DP] (не ломает строку списка). */
+internal fun spacingPreviewWidthDp(valueDp: Float): Float = valueDp.coerceAtMost(MAX_SPACING_PREVIEW_DP)
+
+@Composable
+private fun GradientSwatch(value: TokenValuePayload.GradientValue) {
+    val brush = gradientBrush(value.layers.first())
+    Column(
+        modifier = Modifier
+            .size(TYPE_SWATCH_SIZE)
+            .background(brush ?: SolidColor(Color.Transparent), SWATCH_SHAPE),
+    ) {}
+}
+
+/**
+ * Строит [Brush] по слою градиента через `sdds-uikit-compose` (`Gradients.Linear`/`Radial`/`Sweep`) —
+ * те же примитивы, которыми реальные приложения на дизайн-системе рисуют градиенты. `radial`/`angular`
+ * рендерятся приближённо: ios-поля `startRadius`/`startAngle`/`endAngle` не имеют аналога в этих
+ * примитивах (см. design.md) — используется только `endRadius`/`radius`, оборот всегда полный.
+ */
+internal fun gradientBrush(layer: GradientLayer): Brush? = when (layer) {
+    is GradientLayer.Linear -> Gradients.Linear(
+        colors = layer.colors.mapNotNull(::parseHexColor),
+        stops = layer.locations,
+        angleInDegrees = layer.angle,
+    )
+    is GradientLayer.Radial -> Gradients.Radial(
+        colors = layer.colors.mapNotNull(::parseHexColor),
+        stops = layer.locations,
+        radius = layer.radius,
+        centerX = layer.centerX,
+        centerY = layer.centerY,
+    )
+    is GradientLayer.Angular -> Gradients.Sweep(
+        colors = layer.colors.mapNotNull(::parseHexColor),
+        stops = layer.locations,
+        centerX = layer.centerX,
+        centerY = layer.centerY,
+    )
+    is GradientLayer.Solid -> parseHexColor(layer.hex)?.let(::SolidColor)
+}
+
+@Composable
+private fun ShadowSwatch(value: TokenValuePayload.ShadowValue) {
+    val layers = value.layers.map(::toPreviewShadowLayer)
+    // Подложка обрезана по своей форме (clip) — у поверхности внутри есть запас места под
+    // клэмпнутые blur/offset (см. KDoc у SHADOW_PREVIEW_BACKDROP), но очень большие значения
+    // токена всё равно клэмпятся под этот запас, а не рисуются в реальную величину.
+    Box(
+        modifier = Modifier
+            .size(SHADOW_PREVIEW_BACKDROP_SIZE)
+            .clip(SWATCH_SHAPE)
+            .background(SHADOW_PREVIEW_BACKDROP, SWATCH_SHAPE),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(SHADOW_PREVIEW_SURFACE_SIZE)
+                .shadow(ShadowAppearance(layers), SWATCH_SHAPE)
+                .background(SHADOW_PREVIEW_SURFACE, SWATCH_SHAPE),
+        )
+    }
+}
+
+/** Клэмпит `blurRadius`/`offset` под запас места вокруг [SHADOW_PREVIEW_SURFACE_SIZE] — см. KDoc выше. */
+private fun toPreviewShadowLayer(layer: ShadowLayerValue): ShadowLayer = ShadowLayer(
+    color = parseHexColor(layer.colorHex) ?: Color.Black,
+    offset = DpOffset(
+        layer.offsetX.dp.coerceIn(-MAX_SHADOW_OFFSET_PREVIEW_DP.dp, MAX_SHADOW_OFFSET_PREVIEW_DP.dp),
+        layer.offsetY.dp.coerceIn(-MAX_SHADOW_OFFSET_PREVIEW_DP.dp, MAX_SHADOW_OFFSET_PREVIEW_DP.dp),
+    ),
+    spreadRadius = layer.spreadRadius.dp,
+    blurRadius = layer.blurRadius.dp.coerceAtMost(MAX_SHADOW_BLUR_PREVIEW_DP.dp),
+    fallbackElevation = layer.fallbackElevation?.dp,
+)
+
+@Composable
+private fun TypographySample(value: TokenValuePayload.TypographyValue) {
+    Text(text = "Aa", textColor = SddsServTheme.colors.textDefaultPrimary, style = typographyTextStyle(value))
+}
+
+/** Маппинг нормализованной [TokenValuePayload.TypographyValue] в Compose [TextStyle]. */
+internal fun typographyTextStyle(value: TokenValuePayload.TypographyValue): TextStyle = TextStyle(
+    fontSize = value.fontSizeSp.sp,
+    lineHeight = value.lineHeightSp.sp,
+    fontWeight = FontWeight(value.fontWeight),
+    letterSpacing = value.letterSpacingEm.em,
+)
+
+/** Компактный человекочитаемый текст вместо сырого JSON; [TokenValuePayload.Unsupported] — фолбэк на [rawValue]. */
+/** Разбирает `#RRGGBB`/`#RRGGBBAA` (прозрачность в конце, как во всей теме) из raw JSON-текста значения. `null`, если это не hex-цвет. */
+internal fun parseHexColor(rawValue: String?): Color? {
+    val hex = rawValue?.trim()?.trim('"')?.removePrefix("#") ?: return null
+
+    return try {
+        when (hex.length) {
+            6 -> Color(
+                red = hex.substring(0, 2).toInt(16),
+                green = hex.substring(2, 4).toInt(16),
+                blue = hex.substring(4, 6).toInt(16),
+            )
+            8 -> Color(
+                red = hex.substring(0, 2).toInt(16),
+                green = hex.substring(2, 4).toInt(16),
+                blue = hex.substring(4, 6).toInt(16),
+                alpha = hex.substring(6, 8).toInt(16),
+            )
+            else -> null
+        }
+    } catch (exception: NumberFormatException) {
+        null
+    }
+}

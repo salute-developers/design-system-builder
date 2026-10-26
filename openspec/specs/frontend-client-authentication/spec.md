@@ -1,57 +1,66 @@
 # frontend-client-authentication Specification
 
 ## Purpose
-TBD - created by archiving change add-frontend-mcp-server. Update Purpose after archive.
+Определяет пользовательскую авторизацию клиентов DS Builder, общий PKCE-вход CLI и MCP, хранение и обновление сессии, приоритет credentials и совместимость с IDE.
+
 ## Requirements
+
 ### Requirement: Общая пользовательская авторизация CLI и MCP
 
-`frontend-kt` SHALL предоставлять общую пользовательскую access/refresh session для `dsbuilder` и `dsbuilder-mcp`,
-использующую тот же resolved API URL, что и DS Builder API.
+CLI и MCP SHALL получать общую пользовательскую сессию через Authorization Code + PKCE S256 в системном браузере и использовать тот же API URL, что и запросы DS Builder.
 
 #### Scenario: Интерактивный login получает token через gateway
 
-- **WHEN** пользователь запускает `auth login` с выбранным `--api-url`
-- **THEN** клиент MUST запросить login и password интерактивно с выключенным echo для password
-- **THEN** клиент MUST отправить Direct Access Grant в `POST <apiUrl>/auth/token` с фиксированным public `clientId`
-- **THEN** клиент MUST NOT принимать password через command-line argument
-- **THEN** клиент MUST NOT сохранять password после завершения запроса
+- **WHEN** пользователь запускает auth login в dsbuilder или dsbuilder-mcp
+- **THEN** клиент MUST открыть браузер, проверить state callback и обменять code с code_verifier через Gateway
+- **THEN** оба executable MUST использовать общий прикладной сценарий
+- **THEN** клиент MUST NOT запрашивать логин/пароль в терминале или принимать пароль через argv
 
 #### Scenario: Небезопасный auth URL отклоняется
 
-- **WHEN** `auth login` разрешает API URL с plain HTTP
-- **THEN** host MUST быть `localhost` или `127.0.0.1`
-- **THEN** любой другой plain HTTP URL MUST быть отклонен до отправки login/password
+- **WHEN** API URL использует HTTP вне localhost или 127.0.0.1
+- **THEN** клиент MUST отклонить авторизацию до открытия браузера и передачи секретов
+
+#### Scenario: Ошибка callback
+
+- **WHEN** callback содержит неверный state, ошибку OAuth, повторный либо некорректный code
+- **THEN** клиент MUST отклонить вход и не создавать сессию
+
+#### Scenario: Ограниченный listener
+
+- **WHEN** вход завершается, отменяется или превышает 180 секунд
+- **THEN** loopback listener MUST закрыться
+- **THEN** listener MUST быть доступен только на 127.0.0.1 со случайным свободным портом и проверяемым callback path
 
 #### Scenario: Auth команды доступны в обоих executable
 
-- **WHEN** пользователь запускает `dsbuilder auth --help` или `dsbuilder-mcp auth --help`
-- **THEN** оба executable MUST предоставлять `login`, `status` и `logout`
-- **THEN** обе presentation-реализации MUST вызывать общие auth use cases
+- **WHEN** пользователь вызывает auth --help любого executable
+- **THEN** SHALL быть доступны login, status и logout
+- **THEN** при отсутствии браузера login MUST вернуть диагностическую ошибку без парольного резервного пути
 
 ### Requirement: File-based user session
 
-Пользовательская session SHALL храниться отдельно для каждого нормализованного backend API URL в
-`~/.sdds/sessions/<backend-url-hash>.json` через общий `CredentialStore` port.
+CLI/MCP SHALL сохранять refresh-сессию отдельно для нормализованного API URL в ~/.sdds/sessions через общий CredentialStore, указывая OAuth clientId. Access token SHALL оставаться только в памяти.
 
 #### Scenario: Session сохраняет минимальный секретный state
 
-- **WHEN** login или refresh успешно возвращает token response
-- **THEN** session MUST содержать только `schemaVersion`, `apiUrl`, `username`, `refreshToken`, `refreshExpiresAt` и `updatedAt`
-- **THEN** session MUST NOT содержать password, access token, ID token, роли, project context или design-system context
-- **THEN** access token MUST оставаться только в памяти процесса
+- **WHEN** браузерный вход или refresh завершился успешно
+- **THEN** файл MUST содержать только schemaVersion, apiUrl, clientId, username, refreshToken, refreshExpiresAt и updatedAt
+- **THEN** файл MUST NOT содержать пароль, access/ID token, роли или контекст проекта/дизайн-системы
+- **THEN** username MUST получаться из проверенного ответа identity-провайдера без дополнительного запроса пользователю
 
 #### Scenario: Session из другого environment не используется
 
-- **WHEN** resolved API URL не совпадает с точным нормализованным `apiUrl` внутри прочитанной session
-- **THEN** клиент MUST отклонить session
-- **THEN** клиент MUST NOT отправлять ее refresh token в выбранный backend
+- **WHEN** сессия принадлежит другому API URL или прежнему OAuth-клиенту
+- **THEN** клиент MUST вернуть AUTH_REQUIRED с предложением повторного входа
+- **THEN** клиент MUST NOT отправить её refresh token другому серверу или clientId
 
 #### Scenario: Session file защищен и заменяется атомарно
 
-- **WHEN** platform поддерживает POSIX permissions
-- **THEN** session directory MUST иметь режим `0700`, а session file — `0600`
-- **WHEN** session обновляется
-- **THEN** новый JSON MUST быть полностью записан во временный файл до atomic replace исходного файла
+- **WHEN** платформа поддерживает POSIX permissions
+- **THEN** каталог MUST иметь 0700, а файл 0600
+- **WHEN** сессия обновляется
+- **THEN** файл MUST заменяться атомарно после полной записи временного файла
 
 ### Requirement: Обязательная ротация refresh token
 
@@ -130,26 +139,34 @@ CLI и MCP SHALL выбирать backend credential согласно явной
 
 ### Requirement: User access token lifecycle
 
-Общий `CredentialProvider` SHALL обновлять пользовательский access token до истечения и применять ограниченную retry
-policy без удаления session при транспортных ошибках.
+CLI/MCP SHALL кешировать access token только в памяти процесса до срока истечения с запасом 30 секунд и сохранять ограниченный повтор после 401 без удаления refresh-сессии при транспортных ошибках.
+
+#### Scenario: Повторные чтения
+
+- **WHEN** access token ещё пригоден
+- **THEN** следующий запрос MUST использовать его без обращения к token endpoint
+
+#### Scenario: Истечение токена
+
+- **WHEN** токен истекает или отсутствует в памяти
+- **THEN** клиент MUST обновить сессию с сохранением межпроцессной ротации
+- **THEN** конкурентные обновления внутри процесса MUST быть объединены
 
 #### Scenario: User access token получает 401
 
-- **WHEN** backend возвращает `401` для user access token
-- **THEN** клиент MAY выполнить ровно один forced refresh и ровно один retry исходного запроса
-- **THEN** повторный `401` или `invalid_grant` MUST удалить локальную session и вернуть `AUTH_REQUIRED`
+- **WHEN** API возвращает 401 пользовательскому запросу
+- **THEN** клиент MUST выполнить не более одного принудительного refresh и одного повтора
+- **THEN** повторный 401 или invalid_grant MUST очистить файл и кеш и вернуть AUTH_REQUIRED
 
 #### Scenario: User access token получает 403
 
-- **WHEN** backend возвращает `403` для user access token
-- **THEN** клиент MUST вернуть `FORBIDDEN`
-- **THEN** клиент MUST NOT выполнять token refresh
+- **WHEN** API возвращает 403
+- **THEN** клиент MUST вернуть FORBIDDEN без refresh или смены actor
 
 #### Scenario: Backend временно недоступен
 
-- **WHEN** token или API request завершается transport failure
-- **THEN** клиент MUST вернуть `BACKEND_UNAVAILABLE`
-- **THEN** сохраненная user session MUST остаться доступной для следующей попытки
+- **WHEN** refresh или API временно недоступны
+- **THEN** клиент MUST вернуть BACKEND_UNAVAILABLE и сохранить refresh-сессию
 
 ### Requirement: User session для всех авторизованных CLI операций
 
@@ -169,29 +186,108 @@ policy без удаления session при транспортных ошиб�
 
 ### Requirement: Authorization Code + PKCE как альтернативный способ получить user session
 
-`feature-auth` SHALL предоставлять Authorization Code + PKCE через системный браузер как второй, не заменяющий существующий Direct Access Grant, способ получить пользовательскую сессию (`UserOAuthTokens`) для клиентов с интерактивным UI (например `:plugins:android-studio`).
+Общий PKCE-сценарий SHALL быть доступен CLI/MCP на JVM, macOS и Node, а также интерактивным IDE-клиентам через платформенные порты. CLI/MCP SHALL использовать его вместо Direct Access Grant; IDE SHALL сохранять защищённое хранилище и использовать тот же clientId dsbuilder-studio-plugin без объединения refresh-сессий с CLI/MCP.
 
 #### Scenario: Клиент запускает PKCE-флоу
 
-- **WHEN** клиентское приложение вызывает OAuth use case из `feature-auth`
-- **THEN** use case генерирует PKCE-пару и `state` через `PkceGenerator` из `core-auth`
-- **THEN** use case строит authorize URL и открывает его через предоставленную клиентом реализацию порта `BrowserLauncher`
-- **THEN** use case дожидается OAuth redirect через предоставленную клиентом реализацию порта `RedirectListener`
+- **WHEN** любой клиент начинает PKCE-вход
+- **THEN** сценарий MUST получить криптографически стойкие verifier/state, открыть браузер через порт, дождаться callback и проверить state до обмена кода
 
 #### Scenario: Полученные токены применяются через общий resolver
 
-- **WHEN** authorization code успешно обменян на токены через `TokenExchangeClient`
-- **THEN** use case применяет `UserOAuthTokens` через `UserSessionCredentialResolver` из `core-auth`, используя тот же resolver, что и Direct Access Grant флоу
-- **THEN** refresh token сохраняется через предоставленную клиентом реализацию порта `RefreshTokenStore`, а не через файловый `CredentialStore`, используемый `auth login`
+- **WHEN** CLI/MCP получает токены
+- **THEN** refresh token MUST поступить в общий файловый CredentialStore
+- **WHEN** IDE получает токены
+- **THEN** refresh token MUST поступить в предоставленное IDE защищённое хранилище без зависимости от файловой сессии CLI
 
 #### Scenario: Тихий refresh на 401 переиспользует общий примитив
 
-- **WHEN** authenticated HTTP-запрос клиента завершается `401` и в `RefreshTokenStore` есть сохранённый refresh token
-- **THEN** use case тихого refresh из `feature-auth` обменивает его через `TokenExchangeClient.refresh`
-- **THEN** при неудаче use case очищает сессию через `UserSessionCredentialResolver.clear()`, не завершаясь исключением наружу
+- **WHEN** IDE обновляет сессию по сохранённому refresh token
+- **THEN** клиент SHALL использовать общий обмен токенов и существующий resolver с проверяемым результатом без необработанного исключения
 
 #### Scenario: PKCE-флоу не требует username/password UI
 
-- **WHEN** клиент использует Authorization Code + PKCE как способ авторизации
-- **THEN** клиент MUST NOT запрашивать логин или пароль в собственном UI
-- **THEN** ввод учётных данных происходит только в системном браузере пользователя
+- **WHEN** клиент использует PKCE
+- **THEN** ввод логина/пароля MUST происходить только в браузере identity-провайдера
+
+### Requirement: Переиспользование публичного OAuth-клиента IDE для CLI/MCP
+
+CLI и MCP SHALL переиспользовать существующий dsbuilder-studio-plugin с обязательным PKCE S256, loopback redirect и audience dsbuilder-api, без client secret и password grant. Новая регистрация OAuth-клиента MUST NOT создаваться. Действующие настройки web/IDE SHALL сохраняться.
+
+#### Scenario: Общая регистрация и независимые сессии
+
+- **WHEN** пользователь входит через IDE, CLI или MCP
+- **THEN** каждый клиент MUST использовать clientId dsbuilder-studio-plugin
+- **THEN** CLI/MCP MUST сохранять свою общую файловую сессию, а IDE — отдельную сессию в защищённом хранилище без обмена refresh token между ними
+
+#### Scenario: Проверка обмена
+
+- **WHEN** клиент обменивает code без правильного code_verifier
+- **THEN** identity-провайдер MUST отказать в выдаче токенов
+
+#### Scenario: Проверка audience
+
+- **WHEN** CLI/MCP получает access token
+- **THEN** Gateway MUST принимать его для существующей project-scoped авторизации по audience dsbuilder-api
+
+### Requirement: Сессионные команды не запускаются инструментами
+
+MCP serve и tools SHALL использовать готовые credentials без открытия браузера; status SHALL описывать локальную сессию, logout SHALL отзывать refresh token и очищать локальное состояние.
+
+#### Scenario: Авторизация отсутствует
+
+- **WHEN** MCP запускается без сессии
+- **THEN** initialize и tools/list MUST работать
+- **THEN** авторизованное чтение MUST вернуть AUTH_REQUIRED без интерактивного входа
+
+#### Scenario: Статус и выход
+
+- **WHEN** пользователь вызывает status
+- **THEN** команда MUST вернуть безопасные локальные метаданные без обещания проверки доступа на сервере
+- **WHEN** пользователь вызывает logout
+- **THEN** клиент MUST попытаться отозвать refresh token с сохранённым clientId и удалить файл и кеш процесса даже при ошибке отзыва
+
+### Requirement: Единое оформление браузерного входа DS Builder
+
+Браузерная форма входа OAuth-клиента dsbuilder-studio-plugin SHALL использовать оформление текущей страницы входа DS Builder; обработка учётных данных и продолжение OAuth SHALL оставаться в Keycloak.
+
+#### Scenario: Показ формы и успешный вход
+
+- **WHEN** CLI, MCP или IDE начинает вход без активной SSO-сессии
+- **THEN** пользователь MUST увидеть русскую форму DS Builder с подзаголовком, полями учётных данных и доступной с клавиатуры кнопкой входа
+- **THEN** размеры, интервалы, шрифты и цвета формы MUST соответствовать текущей странице входа web-клиента; регистрация и блок «Запросить доступ» MUST NOT отображаться
+- **THEN** успешный вход MUST продолжить исходный PKCE-сценарий с сохранением state и redirect URI
+
+#### Scenario: Ошибка и узкий экран
+
+- **WHEN** пользователь вводит неверные учётные данные или открывает форму на узком экране
+- **THEN** форма MUST отображать ошибку Keycloak и сохранять доступность полей и кнопки без горизонтального переполнения
+
+#### Scenario: Совместимость web-клиента
+
+- **WHEN** тема включается для dsbuilder-studio-plugin в локальном или производственном контуре
+- **THEN** оформление и способ авторизации существующей React-страницы web-клиента MUST сохраняться
+- **THEN** дополнительные шаги авторизации Keycloak MUST оставаться работоспособными
+
+### Requirement: Браузерная страница результата входа CLI и MCP
+
+CLI и MCP SHALL возвращать в браузер стилизованную русскую страницу результата вместо пустого HTTP-ответа callback на JVM, macOS и Node.
+
+#### Scenario: Сессия сохранена
+
+- **WHEN** callback проверен, код обменян и сессия успешно сохранена
+- **THEN** браузер MUST показать «Вы успешно авторизованы. Можете закрыть вкладку.»
+- **THEN** страница MUST соответствовать тёмному оформлению DS Builder и быть пригодной для узкого окна
+
+#### Scenario: Вход не завершился успешно
+
+- **WHEN** callback неверен, обмен или сохранение сессии отказали, вход отменён или истёк таймаут при подключённом браузере
+- **THEN** ответ MUST показать нейтральное сообщение об ошибке без утверждения об успешном входе
+- **THEN** повторный callback MUST NOT приниматься как новый успешный вход
+
+#### Scenario: Безопасность и освобождение ресурсов
+
+- **WHEN** listener возвращает результат или браузер закрывает соединение
+- **THEN** HTML MUST NOT содержать код OAuth, state, verifier, токены, имя пользователя или текст ответа сервера
+- **THEN** страница MUST работать без внешних ресурсов, а listener MUST освобождаться после ограниченного ожидания отправки
+- **THEN** разрыв соединения MUST NOT отменять уже сохранённую сессию

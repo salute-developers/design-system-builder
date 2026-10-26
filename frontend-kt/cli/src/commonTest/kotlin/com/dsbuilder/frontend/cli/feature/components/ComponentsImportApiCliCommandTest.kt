@@ -420,7 +420,7 @@ class ComponentsImportApiCliCommandTest {
 
     private fun sessionStore(present: Boolean): CredentialStore = object : CredentialStore {
         override suspend fun read(apiUrl: String): UserSession? = UserSession(
-            schemaVersion = 1,
+            schemaVersion = 2,
             apiUrl = apiUrl,
             username = "admin@example.com",
             refreshToken = "refresh-token",
@@ -434,7 +434,12 @@ class ComponentsImportApiCliCommandTest {
     }
 
     private fun tokenClient(): TokenClient = object : TokenClient {
-        override suspend fun login(apiUrl: String, username: String, password: String): AuthResult<TokenResponse> =
+        override suspend fun exchangeCode(
+            apiUrl: String,
+            code: String,
+            verifier: String,
+            redirectUri: String,
+        ): AuthResult<TokenResponse> =
             AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
 
         override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =

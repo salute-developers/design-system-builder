@@ -70,3 +70,15 @@ full arrays, and CLI `theme fetch` and `components fetch` retain their full down
 
 Backend API URL is configured through `DSBUILDER_API_URL` only; the `--api-url` option is not supported.
 For local development, set `export DSBUILDER_API_URL=http://localhost:8080` before CLI commands, and pass the same environment variable to the MCP process.
+
+Browser authentication: run `dsbuilder-mcp auth login` on the same
+machine as your system browser. Password arguments and terminal password prompts
+are no longer supported. Repeat browser login once to replace legacy sessions.
+CLI and MCP share refresh sessions; IDE sessions remain separate. `auth status`
+reports local metadata only. For CI use a project key. `serve` and tools never
+open a browser. HTTPS is required except for localhost and 127.0.0.1.
+
+Браузерный вход завершается русской страницей результата DS Builder. После
+сообщения «Вы успешно авторизованы. Можете закрыть вкладку.» сессия уже сохранена.
+При отказе callback, обмена кода или сохранения показывается страница ошибки;
+повторите `auth login` в терминале.
