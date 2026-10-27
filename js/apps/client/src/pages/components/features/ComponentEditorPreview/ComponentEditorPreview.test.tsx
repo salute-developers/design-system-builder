@@ -45,7 +45,7 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
             return { ok: true, draft: {} };
         },
         assembleComposePreviewPayload: () => ({ ok: true, payload }),
-        ComposePreviewFrame: ({ onDescription }: { onDescription?: (value: PreviewComponentDescription) => void }) => {
+        ComposePreviewSlot: ({ onDescription }: { onDescription?: (value: PreviewComponentDescription) => void }) => {
             useEffect(() => {
                 emitDescription = onDescription;
                 onDescription?.(emittedDescription);

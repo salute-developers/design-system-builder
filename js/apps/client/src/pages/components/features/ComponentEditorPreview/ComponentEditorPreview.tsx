@@ -13,7 +13,7 @@ import {
 } from '../../../../components';
 import {
     COMPOSE_HOST_DEFAULTS,
-    ComposePreviewFrame,
+    ComposePreviewSlot,
     assembleComposePreviewPayload,
     createComponentPreviewDraft,
     getComposePreviewPluginUrl,
@@ -203,8 +203,13 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         payloadCache.current = { key, payload: composeAssembly.payload };
         return composeAssembly.payload;
     }, [composeAssembly]);
-    const lastComposePayload = useRef(composePayload);
-    if (composePayload) lastComposePayload.current = composePayload;
+    // Кадр принадлежит компоненту редактора: после переключения payload прежнего компонента в превью не уходит,
+    // область показывает загрузку, пока не соберётся payload нового.
+    const composeOwner = `${config.getPlatform()}:${componentName}`;
+    const lastComposePayload = useRef<{ owner: string; payload: PreviewPayloadInput }>();
+    if (composePayload) lastComposePayload.current = { owner: composeOwner, payload: composePayload };
+    const currentComposePayload =
+        lastComposePayload.current?.owner === composeOwner ? lastComposePayload.current.payload : undefined;
     const composeDiagnostic = missingFromPlugin
         ? `Компонент ${componentName} не зарегистрирован в Compose-плагине`
         : composeDescriptionError ?? (composeAssembly.ok ? undefined : composeAssembly.diagnostics[0]?.message);
@@ -218,7 +223,6 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         setNumericDrafts({});
         setComposeDescriptionError(undefined);
         setRendererMode(isComposeComponent ? { label: 'Compose', value: 'compose' } : { label: 'React', value: 'react' });
-        lastComposePayload.current = undefined;
         if (!composePluginUrl || !composeEnvironmentSupported) return;
 
         void loadComposePreviewManifest(composePluginUrl)
@@ -426,7 +430,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     };
 
     // Отладочный блок с payload: только в debug-режиме и только для Compose-renderer.
-    const showPayloadDebug = isDebugMode() && activeRenderer === 'compose' && Boolean(lastComposePayload.current);
+    const showPayloadDebug = isDebugMode() && activeRenderer === 'compose' && Boolean(currentComposePayload);
 
     return (
         <Root>
@@ -464,10 +468,13 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
                     {activeRenderer === 'compose' && composePluginUrl && composeEnvironmentSupported ? (
                         <>
-                            {lastComposePayload.current && !missingFromPlugin ? (
-                                <ComposePreviewFrame
+                            {!missingFromPlugin &&
+                            (currentComposePayload || (isComposeComponent && !composeDiagnostic)) ? (
+                                // Iframe плагина живёт в хосте раздела: область только показывает его над собой.
+                                <ComposePreviewSlot
                                     pluginUrl={composePluginUrl}
-                                    payload={lastComposePayload.current}
+                                    owner={composeOwner}
+                                    payload={currentComposePayload}
                                     onDescription={onComposeDescription}
                                     onDescriptionError={onComposeDescriptionError}
                                 />
@@ -494,8 +501,8 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                         </StyledStorySelector>
                     )}
                 </StyledComponentWrapper>
-                {showPayloadDebug && lastComposePayload.current && (
-                    <ComposePayloadDebug payload={lastComposePayload.current} />
+                {showPayloadDebug && currentComposePayload && (
+                    <ComposePayloadDebug payload={currentComposePayload} />
                 )}
                 <StyledComponentControls $reserveHeight={showPayloadDebug}>
                     {variations.map(renderDynamicProps)}

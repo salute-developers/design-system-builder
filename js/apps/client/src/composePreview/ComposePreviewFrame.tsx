@@ -9,9 +9,15 @@ import type { LoadedComposePreviewManifest } from './types';
 import { ComposeFailureDetails } from './ComposeFailureDetails';
 import { FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
 
-interface ComposePreviewFrameProps {
+export interface ComposePreviewFrameProps {
     pluginUrl: string;
-    payload: PreviewPayloadInput;
+    /** Без payload плагин только загружается и ждёт `ready`: так хост раздела прогревает его до выбора компонента. */
+    payload?: PreviewPayloadInput;
+    /**
+     * Чья область превью сейчас показывает кадр. При смене получателя кадр прежнего скрывается до `success`
+     * нового payload, а описание компонента запрашивается заново.
+     */
+    subscriber?: string;
     timeoutMs?: number;
     onDescription?: (description: PreviewComponentDescription) => void;
     onDescriptionError?: (error: Error) => void;
@@ -49,6 +55,7 @@ const defaultCreateSession: NonNullable<ComposePreviewFrameProps['createSession'
 export const ComposePreviewFrame = ({
     pluginUrl,
     payload,
+    subscriber = '',
     timeoutMs,
     onDescription,
     onDescriptionError,
@@ -65,7 +72,15 @@ export const ComposePreviewFrame = ({
     const [readyVersion, setReadyVersion] = useState(0);
     // Готова ли текущая сессия: после перезапуска iframe новая сессия ещё грузится, а `readyVersion` остаётся от прежней.
     const sessionReadyRef = useRef(false);
-    const [revealed, setRevealed] = useState(false);
+    // Для какого получателя iframe открыт и для какого пришёл последний `success`: кадр одного получателя
+    // не показывается другому, пока его собственный payload не отрисован.
+    const [revealedFor, setRevealedFor] = useState<string>();
+    const [renderedFor, setRenderedFor] = useState<string>();
+    const revealed = revealedFor === subscriber;
+    const resetReveal = () => {
+        setRevealedFor(undefined);
+        setRenderedFor(undefined);
+    };
     // Остановленный Compose оживает только перезагрузкой iframe; payload, который его остановил, повторно не шлём.
     const [generation, setGeneration] = useState(0);
     const crashedPayloadRef = useRef<string>();
@@ -83,7 +98,7 @@ export const ComposePreviewFrame = ({
         sessionReadyRef.current = false;
         setStatus('loading');
         setFailure(undefined);
-        setRevealed(false);
+        resetReveal();
 
         void loadManifest(pluginUrl)
             .then((plugin) => {
@@ -114,11 +129,12 @@ export const ComposePreviewFrame = ({
         };
     }, [pluginUrl, timeoutMs, loadManifest, createSession, generation]);
 
+    const componentId = payload?.component.id;
     useEffect(() => {
         const session = sessionRef.current;
-        if (!session || !readyVersion || !sessionReadyRef.current) return;
+        if (!session || !readyVersion || !sessionReadyRef.current || !componentId) return;
 
-        const { requestId, result } = session.describeComponent(payload.component.id);
+        const { requestId, result } = session.describeComponent(componentId);
         latestDescriptionRef.current = requestId;
         void result
             .then((description) => {
@@ -128,7 +144,7 @@ export const ComposePreviewFrame = ({
                 if (latestDescriptionRef.current !== requestId) return;
                 onDescriptionError?.(error instanceof Error ? error : new Error(String(error)));
             });
-    }, [payload.component.id, readyVersion, onDescription, onDescriptionError]);
+    }, [componentId, subscriber, readyVersion, onDescription, onDescriptionError]);
 
     useEffect(() => {
         const onVisible = () => {
@@ -144,7 +160,13 @@ export const ComposePreviewFrame = ({
     useEffect(() => {
         const session = sessionRef.current;
         // До готовности новой сессии не шлём: `send` бросает исключение. Последний payload уйдёт после её `ready`.
-        if (!session || !readyVersion || !sessionReadyRef.current) return;
+        // Без payload область превью скрыта: поздний ответ на прежний запрос уже никому не нужен и не должен
+        // перезапускать плагин, если скрытый кадр не успел подтвердиться.
+        if (!payload && latestRequestRef.current) {
+            latestRequestRef.current = undefined;
+            setStatus((current) => (current === 'rendering' ? 'ready' : current));
+        }
+        if (!session || !readyVersion || !sessionReadyRef.current || !payload) return;
         // Сравнение по содержимому: payload пересобирается при каждом изменении редактора, но тот же самый
         // payload, остановивший плагин, повторно слать нельзя, иначе плагин перезапускается бесконечно.
         if (crashedPayloadRef.current === payloadKey) return;
@@ -154,10 +176,13 @@ export const ComposePreviewFrame = ({
         setFailureCause(undefined);
         const { requestId, result } = session.send(payload);
         latestRequestRef.current = requestId;
+        const requestedFor = subscriber;
 
         void result
             .then(() => {
-                if (latestRequestRef.current === requestId) setStatus('success');
+                if (latestRequestRef.current !== requestId) return;
+                setRenderedFor(requestedFor);
+                setStatus('success');
             })
             .catch((error) => {
                 if (latestRequestRef.current !== requestId) return;
@@ -180,31 +205,36 @@ export const ComposePreviewFrame = ({
                 setFailureCause(failureDetails(error));
                 setStatus('failure');
             });
-    }, [payload, readyVersion, resendTick]);
+        // Новый получатель получает свой payload, даже если объект тот же: иначе его кадр так и не откроется.
+    }, [payload, subscriber, readyVersion, resendTick]);
 
     // Iframe скрыт до первого успешного render: пока Compose/Wasm поднимается, он рисует белый кадр.
     // Показываем после двух кадров, чтобы нарисованный результат уже был на экране.
     useEffect(() => {
-        if (status !== 'success' || revealed) return;
+        if (status !== 'success' || renderedFor !== subscriber || revealed) return;
         let second = 0;
         const first = requestAnimationFrame(() => {
-            second = requestAnimationFrame(() => setRevealed(true));
+            second = requestAnimationFrame(() => setRevealedFor(subscriber));
         });
 
         return () => {
             cancelAnimationFrame(first);
             cancelAnimationFrame(second);
         };
-    }, [status, revealed]);
+    }, [status, renderedFor, subscriber, revealed]);
 
-    const cause = failure ? failureCause : crashNotice?.key === payloadKey ? crashNotice.details : undefined;
+    // Уведомление о сбое относится к payload, который остановил плагин; без payload его нет.
+    const activeCrash = crashNotice && payload && crashNotice.key === payloadKey ? crashNotice : undefined;
+    const cause = failure ? failureCause : activeCrash?.details;
 
     return (
         <FrameRoot data-status={status}>
             <PreviewIframe
                 ref={iframeRef}
                 title="Compose component preview"
-                $hidden={!revealed && status !== 'failure'}
+                // Отказ показывает iframe как раньше, но не кадр, открытый для другого получателя.
+                $hidden={!revealed && (status !== 'failure' || revealedFor !== undefined)}
+                data-revealed={revealed}
                 sandbox="allow-scripts allow-same-origin"
                 onLoad={() => {
                     const session = sessionRef.current;
@@ -216,7 +246,7 @@ export const ComposePreviewFrame = ({
                     latestDescriptionRef.current = undefined;
                     setFailure(undefined);
                     setStatus('loading');
-                    setRevealed(false);
+                    resetReveal();
                     void session
                         .waitUntilReady()
                         .then(() => {
@@ -232,11 +262,11 @@ export const ComposePreviewFrame = ({
                         });
                 }}
             />
-            {status === 'loading' && <Status>Loading Compose preview…</Status>}
-            {status === 'rendering' && <Status>Rendering Compose preview…</Status>}
-            {(failure ?? (crashNotice?.key === payloadKey ? crashNotice.message : undefined)) && (
-                <Status role="alert">{failure ?? crashNotice?.message}</Status>
+            {(status === 'loading' || (status === 'ready' && !payload && subscriber)) && (
+                <Status>Loading Compose preview…</Status>
             )}
+            {status === 'rendering' && <Status>Rendering Compose preview…</Status>}
+            {(failure ?? activeCrash?.message) && <Status role="alert">{failure ?? activeCrash?.message}</Status>}
             {isDebugMode() && cause && <ComposeFailureDetails details={cause} />}
         </FrameRoot>
     );

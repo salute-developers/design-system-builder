@@ -30,8 +30,8 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
                 surface: { width: 360, height: 160, background: '#FFFFFFFF' },
             },
         }),
-        ComposePreviewFrame: ({ payload }: { payload: unknown }) => {
-            if (!pluginState.framePayloads.includes(payload)) pluginState.framePayloads.push(payload);
+        ComposePreviewSlot: ({ payload }: { payload?: unknown }) => {
+            if (payload && !pluginState.framePayloads.includes(payload)) pluginState.framePayloads.push(payload);
             return <div data-testid="compose-frame" />;
         },
     };

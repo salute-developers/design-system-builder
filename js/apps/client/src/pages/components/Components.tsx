@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import {
+    ComposePreviewHostProvider,
     getComposePreviewPluginUrl,
+    isComposePreviewEnvironmentSupported,
     loadComposePreviewManifest,
     parseComponentRoute,
     toComponentRoute,
@@ -21,6 +23,7 @@ import { ComponentEditor } from './features/ComponentEditor';
 import { PlatformSwitch } from './Components.styles';
 
 import { AutosaveIndicator } from '../../components/AutosaveIndicator';
+import { EditorLoading } from '../../components/EditorLoading';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource } from '../../api/draftAutosaveActivity';
 interface ComponentsOutletContextProps {
@@ -31,6 +34,10 @@ interface ComponentsOutletContextProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
+    /** Раздел загружен, грузится выбранный компонент: загрузка показывается только в настройке и превью. */
+    componentLoading?: boolean;
+    /** Ошибка загрузки выбранного компонента; меню и хост Compose-плагина остаются на экране. */
+    componentError?: string;
 }
 
 type Platform = ComponentRoute['platform'];
@@ -51,8 +58,17 @@ type PendingComponentSave = PendingComponentMutation &
     };
 
 export const Components = () => {
-    const { designSystem, theme, components, composeComponents, updated, rerender, reload } =
-        useOutletContext<ComponentsOutletContextProps>();
+    const {
+        designSystem,
+        theme,
+        components,
+        composeComponents,
+        updated,
+        rerender,
+        reload,
+        componentLoading,
+        componentError,
+    } = useOutletContext<ComponentsOutletContextProps>();
     const { componentName } = useParams<{ componentName?: string }>();
     const location = useLocation();
     const navigate = useNavigate();
@@ -180,6 +196,11 @@ export const Components = () => {
             tenantId: parameters.tenantId,
         };
     }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId]);
+    // Compose-плагин живёт на уровне раздела: запускается при входе, переживает смену компонента и уничтожается
+    // при уходе из раздела, смене адреса плагина или контекста дизайн-системы.
+    const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
+    const composePluginUrl = composeEnvironmentSupported ? getComposePreviewPluginUrl() : undefined;
+    const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId].join(':');
     const storagePrefix = editorContext
         ? `ds_pending_component:${editorContext.projectId}:${editorContext.designSystemId}:${editorContext.tenantId}`
         : null;
@@ -345,60 +366,76 @@ export const Components = () => {
         }
     };
 
-    if (!data || !designSystem || !theme || !components) {
-        return null;
-    }
-
-    if (!platform) {
-        return <Navigate to={componentNavigationTarget('../colors', location.search)} replace />;
-    }
+    const section =
+        !data || !designSystem || !theme || !components ? null : !platform ? (
+            <Navigate to={componentNavigationTarget('../colors', location.search)} replace />
+        ) : (
+            <Workspace
+                section="components"
+                readOnly={designSystem.getParameters()?.readOnly}
+                menuBackground={'transparent'}
+                menu={
+                    <MenuOld
+                        // Развёрнутая группа берётся из выбора при монтировании: с группами плагина меню собирается заново.
+                        key={`${platform}-${pluginGroups ? 'plugin-groups' : 'default-groups'}`}
+                        header={designSystem.getParameters()?.projectName}
+                        subheader={designSystem.getParameters()?.packagesName}
+                        data={data}
+                        canAdd={false}
+                        canDisable={false}
+                        sectionTitle="Компоненты"
+                        selectedItemIndexes={selectedItemIndexes}
+                        onItemSelect={onItemSelect}
+                        toolbar={
+                            <PlatformSwitch>
+                                <SegmentButton
+                                    label="Платформа"
+                                    items={platformSwitchItems(platforms)}
+                                    selected={platformItems[platform]}
+                                    onSelect={onPlatformSelect}
+                                />
+                            </PlatformSwitch>
+                        }
+                    />
+                }
+                content={
+                    <>
+                        <AutosaveIndicator
+                            status={autosaveStatus}
+                            retry={() => autosaveQueue.current?.retryFailed()}
+                            lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
+                        />
+                        {componentLoading ? (
+                            <EditorLoading text="Загружаем компонент…" />
+                        ) : componentError ? (
+                            <div role="alert">
+                                Не удалось загрузить компонент{' '}
+                                <button type="button" onClick={reload}>
+                                    Повторить
+                                </button>
+                            </div>
+                        ) : (
+                            <ComponentEditor
+                                designSystem={designSystem}
+                                theme={theme}
+                                configs={configs}
+                                updated={updated}
+                                onConfigUpdate={onConfigUpdate}
+                            />
+                        )}
+                    </>
+                }
+            />
+        );
 
     return (
-        <Workspace
-            section="components"
-            readOnly={designSystem.getParameters()?.readOnly}
-            menuBackground={'transparent'}
-            menu={
-                <MenuOld
-                    // Развёрнутая группа берётся из выбора при монтировании: с группами плагина меню собирается заново.
-                    key={`${platform}-${pluginGroups ? 'plugin-groups' : 'default-groups'}`}
-                    header={designSystem.getParameters()?.projectName}
-                    subheader={designSystem.getParameters()?.packagesName}
-                    data={data}
-                    canAdd={false}
-                    canDisable={false}
-                    sectionTitle="Компоненты"
-                    selectedItemIndexes={selectedItemIndexes}
-                    onItemSelect={onItemSelect}
-                    toolbar={
-                        <PlatformSwitch>
-                            <SegmentButton
-                                label="Платформа"
-                                items={platformSwitchItems(platforms)}
-                                selected={platformItems[platform]}
-                                onSelect={onPlatformSelect}
-                            />
-                        </PlatformSwitch>
-                    }
-                />
-            }
-            content={
-                <>
-                    <AutosaveIndicator
-                        status={autosaveStatus}
-                        retry={() => autosaveQueue.current?.retryFailed()}
-                        lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
-                    />
-                    <ComponentEditor
-                        designSystem={designSystem}
-                        theme={theme}
-                        configs={configs}
-                        updated={updated}
-                        onConfigUpdate={onConfigUpdate}
-                    />
-                </>
-            }
-        />
+        <ComposePreviewHostProvider
+            pluginUrl={composePluginUrl}
+            scope={composeHostScope}
+            preload={Boolean(composeComponents?.length)}
+        >
+            {section}
+        </ComposePreviewHostProvider>
     );
 };
 
