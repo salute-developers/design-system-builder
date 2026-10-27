@@ -25,6 +25,15 @@ describe('assembleComposePreviewPayload', () => {
         expect(result.payload.assets).toHaveLength(1);
     });
 
+    it('lets the plugin fall back to the default font when a font file cannot be downloaded', () => {
+        const result = assembleComposePreviewPayload(draft());
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const family = result.payload.theme['font.body'];
+        expect(family).toMatchObject({ type: 'fontFamily', allowFallback: true });
+        expect(family.type === 'fontFamily' && family.faces.length).toBeGreaterThan(0);
+    });
+
     it('rejects missing mappings, conflicts, cycles and unavailable platform values', () => {
         const missingMapping = draft();
         missingMapping.invariantProperties[0].composeParameters = [];
