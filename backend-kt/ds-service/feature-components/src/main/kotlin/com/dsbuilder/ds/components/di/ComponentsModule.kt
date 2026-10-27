@@ -18,7 +18,9 @@ import com.dsbuilder.ds.components.application.DesignSystemComponentRepository
 import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetActivePluginBuildUseCase
 import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
+import com.dsbuilder.ds.components.application.GetComponentDependenciesWithReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
+import com.dsbuilder.ds.components.application.GetComponentPropertiesWithPlatformParamsUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
@@ -77,6 +79,8 @@ val componentsModule = module {
     factory { ListComponentVariationsUseCase(get(), get(), get()) }
     factory { ListComponentPropertiesUseCase(get(), get(), get()) }
     factory { ListDependenciesByComponentUseCase(get(), get(), get()) }
+    factory { GetComponentPropertiesWithPlatformParamsUseCase(get(), get(), get(), get(), get()) }
+    factory { GetComponentDependenciesWithReuseConfigUseCase(get(), get(), get(), get(), get()) }
     factory { ListDesignSystemComponentsUseCase(get(), get(), get()) }
     factory { GetDesignSystemComponentUseCase(get(), get(), get()) }
     factory { CreateDesignSystemComponentUseCase(get(), get(), get(), get()) }

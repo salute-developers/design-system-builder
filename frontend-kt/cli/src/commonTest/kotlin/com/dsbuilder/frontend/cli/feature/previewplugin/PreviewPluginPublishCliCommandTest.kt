@@ -49,9 +49,6 @@ class PreviewPluginPublishCliCommandTest {
                 override suspend fun delete(apiUrl: String) = Unit
             },
             tokenClient = object : TokenClient {
-                override suspend fun login(apiUrl: String, username: String, password: String) =
-                    AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
-
                 override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
                     AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
 
@@ -104,7 +101,7 @@ class PreviewPluginPublishCliCommandTest {
         val result = run(base(apiUrl = null))
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("--api-url"), result.output)
+        assertTrue(result.output.contains("DSBUILDER_API_URL"), result.output)
         assertTrue(requests.isEmpty())
     }
 

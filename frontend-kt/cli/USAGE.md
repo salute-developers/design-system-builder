@@ -138,14 +138,22 @@ dsbuilder mcp serve --workspace /path/to/project
 Read-only tools:
 
 - `design_system_get_context`, `project_get_status`
-- `documentation_search`, `documentation_fetch`, `documentation_get_navigation`, `documentation_get_page`
+- `design_system_versions_list`, `design_system_version_get`, `design_system_changes_list`
+- `tenants_list`, `token_groups_list`, `palette_get`
+- `documentation_publications_list`, `documentation_search`, `documentation_fetch`, `documentation_get_navigation`, `documentation_get_page`
 - `code_binding_search`, `code_binding_get`
 - `tokens_list`, `token_get`, `token_values_get`
-- `components_list`, `component_get`, `component_config_get`, `component_styles_get`, `component_variations_get`
+- `components_list`, `component_get`, `component_styles_get`, `component_variations_get`
+- `component_properties_get`, `component_dependencies_get`, `component_configurations_list`, `component_config_get`, `component_tokens_get`
 
 `documentation_*` and `code_binding_*` read published documentation artifacts. Token and component tools read the
 authoritative DS Builder model API through `/api/projects/{projectId}/ds/...`; they do not reconstruct model state from
 published documentation.
+
+Оба launcher предоставляют 27 read-only tools. `component_config_get` теперь принимает `appearanceId` и
+необязательные `selectedValueIds` вместо прежнего `componentId`; ID конфигурации возвращает
+`component_configurations_list`. Для страниц `documentation_search` передавайте фактический `publicationId`
+из первого ответа вместе с исходными фильтрами. Если публикация уже недоступна, начните новый поиск.
 
 ## Загрузка темы
 

@@ -9,7 +9,7 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
         fun create(projectId: String, designSystemId: String, command: ModelReadCommand): ModelReadHttpRequest {
             val page = command.operation in PAGE_OPERATIONS || isPublishedVersion(command)
             val limit = if (command.operation == ModelReadOperation.VERSION && page) 1 else command.limit ?: 50
-            val query = parameters(command, page, limit).entries.joinToString("&") {
+            val query = parameters(command, designSystemId, page, limit).entries.joinToString("&") {
                 "${encode(it.key)}=${encode(it.value)}"
             }
             val url = "/api/projects/${encode(projectId)}/ds/${path(command, designSystemId)}" +
@@ -41,6 +41,8 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
             ModelReadOperation.PALETTE -> "tenants/$id/palette"
             ModelReadOperation.COMPONENT -> "components/$id"
             ModelReadOperation.APPEARANCE_VARIATIONS -> "appearances/$id/variations"
+            ModelReadOperation.COMPONENT_PROPERTIES -> "components/$id/properties"
+            ModelReadOperation.COMPONENT_DEPENDENCIES -> "components/$id/deps"
             else -> error("Unsupported resource operation")
         }
 
@@ -51,8 +53,21 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
                 "design-system-versions/by-design-system/${encode(designSystemId)}"
             }
 
-        private fun parameters(command: ModelReadCommand, page: Boolean, limit: Int): Map<String, String> {
+        private fun parameters(
+            command: ModelReadCommand,
+            designSystemId: String,
+            page: Boolean,
+            limit: Int,
+        ): Map<String, String> {
             val parameters = command.filters.toMutableMap()
+            if (command.operation == ModelReadOperation.COMPONENT_PROPERTIES) {
+                parameters["include"] = "platformParams"
+                parameters["designSystemId"] = designSystemId
+            }
+            if (command.operation == ModelReadOperation.COMPONENT_DEPENDENCIES) {
+                parameters["include"] = "reuseConfig"
+                parameters["designSystemId"] = designSystemId
+            }
             if (command.operation != ModelReadOperation.COMPONENT && command.operation != ModelReadOperation.VERSIONS) {
                 parameters["version"] = command.version ?: "draft"
             }

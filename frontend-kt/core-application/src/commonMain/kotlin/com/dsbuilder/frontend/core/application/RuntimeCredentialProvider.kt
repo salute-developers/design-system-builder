@@ -52,7 +52,11 @@ internal class RuntimeCredentialProvider(
     ): CredentialResult = resolve(CredentialRequest(apiUrl, projectKeyOverride, credentialEnvName, policy))
 
     override suspend fun resolve(request: CredentialRequest): CredentialResult = when (request.policy) {
-        CredentialPolicy.USER_SESSION -> resolveSessionCredential(request.apiUrl, request.forceRefresh, request.rejectedAccessToken)
+        CredentialPolicy.USER_SESSION -> resolveSessionCredential(
+            request.apiUrl,
+            request.forceRefresh,
+            request.rejectedAccessToken,
+        )
         CredentialPolicy.SERVICE_ACCOUNT_OR_USER_SESSION -> resolveServiceOrSession(request)
         CredentialPolicy.AUTO, CredentialPolicy.PROJECT_KEY_ENV -> resolveProjectKeyOrSession(request)
     }
@@ -78,7 +82,9 @@ internal class RuntimeCredentialProvider(
         val apiUrl = request.apiUrl
         val clientId = environment.get(SERVICE_ACCOUNT_CLIENT_ID_ENV)?.takeIf(String::isNotBlank)
         val clientSecret = environment.get(SERVICE_ACCOUNT_CLIENT_SECRET_ENV)?.takeIf(String::isNotBlank)
-        if (clientId == null && clientSecret == null) return resolveSessionCredential(apiUrl, request.forceRefresh, request.rejectedAccessToken)
+        if (clientId == null && clientSecret == null) {
+            return resolveSessionCredential(apiUrl, request.forceRefresh, request.rejectedAccessToken)
+        }
         if (clientId == null || clientSecret == null) {
             return CredentialResult.Failed(
                 AuthErrorCode.AUTH_REQUIRED,

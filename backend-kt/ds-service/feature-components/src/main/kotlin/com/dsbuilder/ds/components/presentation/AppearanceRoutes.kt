@@ -7,6 +7,7 @@ import com.dsbuilder.ds.components.application.DeleteAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.ListAppearanceVariationAxesUseCase
 import com.dsbuilder.ds.components.application.ListAppearancesUseCase
+import com.dsbuilder.ds.components.application.ListComponentConfigurationsUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceUseCase
 import com.dsbuilder.ds.components.domain.Appearance
 import com.dsbuilder.ds.core.application.DsFailure
@@ -34,6 +35,7 @@ import kotlinx.serialization.json.JsonObject
 fun Route.appearanceRoutes(
     evaluator: PolicyEvaluator,
     list: ListAppearancesUseCase,
+    configurations: ListComponentConfigurationsUseCase,
     get: GetAppearanceUseCase,
     create: CreateAppearanceUseCase,
     update: UpdateAppearanceUseCase,
@@ -43,6 +45,31 @@ fun Route.appearanceRoutes(
 ) {
     route("/api/ds/appearances") {
         get {
+            val query = call.request.queryParameters
+            if (query["designSystemId"] != null || query["componentId"] != null) {
+                val context = call.modelReadContext(evaluator) ?: return@get
+                val designSystemId = query["designSystemId"].toUuidOrNull()
+                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
+                val componentId = query["componentId"].toUuidOrNull()
+                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_component_id"))
+                val limit = query["limit"]?.toIntOrNull() ?: 20
+                when (
+                    val result = configurations.execute(
+                        context,
+                        designSystemId,
+                        componentId,
+                        limit,
+                        query["cursor"],
+                    )
+                ) {
+                    is DsResult.Success -> call.respondSuccess(
+                        result,
+                        ComponentConfigurationsResponse.from(result.value),
+                    )
+                    is DsResult.Failure -> call.respondFailure(result.error)
+                }
+                return@get
+            }
             val context = TrustedDsRequestContextMapper.map(
                 call.request.headers, evaluator, call.request.queryParameters["versionId"],
             ) ?: return@get call.respondFailure(DsFailure.Forbidden)

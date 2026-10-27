@@ -333,6 +333,8 @@
       "ownership": "via-design-system",
       "operations": [
         ["GET", "/appearances/{id}/editor-model", null, "AppearanceEditorModel", 200, "components:variations:read", null],
+        ["GET", "/appearances/{id}/resolved-properties", null, "ResolvedComponentPropertiesResponse", 200, "components:variations:read", null],
+        ["GET", "/appearances/{id}/token-references", null, "ComponentTokenReferencesResponse", 200, "components:variations:read", null],
         ["POST", "/appearances/{id}/axes", "AddAppearanceAxis", "EditorAxis", 201, "components:variations:write", null],
         ["DELETE", "/appearances/{id}/axes/{axisId}", null, "EditorRemoval", 200, "components:variations:delete", null],
         ["POST", "/appearances/{id}/axis-order", "ReorderAppearanceAxes", "EditorAxis[]", 200, "components:variations:write", null],

@@ -39,17 +39,18 @@ An explicit `designSystem` link does not read the local project's `.env`.
 - `design_system_get_context`, `project_get_status`
 - `design_system_versions_list`, `design_system_version_get`, `design_system_changes_list`
 - `tenants_list`, `token_groups_list`, `palette_get`
-- `documentation_search`, `documentation_fetch`, `documentation_get_navigation`, `documentation_get_page`
+- `documentation_publications_list`, `documentation_search`, `documentation_fetch`, `documentation_get_navigation`, `documentation_get_page`
 - `code_binding_search`, `code_binding_get`
 - `tokens_list`, `token_get`, `token_values_get`
-- `components_list`, `component_get`, `component_config_get`, `component_styles_get`, `component_variations_get`
+- `components_list`, `component_get`, `component_styles_get`, `component_variations_get`
+- `component_properties_get`, `component_dependencies_get`, `component_configurations_list`, `component_config_get`, `component_tokens_get`
 
 Documentation and code-binding tools read published documentation artifacts. Token and component tools read the
 authoritative DS Builder model API through `/api/projects/{projectId}/ds/...`.
 
-## Model reads in 0.2.0
+## Model and documentation reads
 
-Both launchers expose the same 22 read-only tools. Discovery (`initialize`, `tools/list`) works without credentials;
+Both launchers expose the same 27 read-only tools. Discovery (`initialize`, `tools/list`) works without credentials;
 model reads, including `design_system_get_context`, require the selected credential.
 
 Versioned reads use an exact `major.minor.patch` or `draft`. An explicit `version` overrides the URI version;
@@ -65,8 +66,19 @@ an old draft cursor invalid. Use a publication for an unchanged model boundary. 
 read/page metadata is reported as `BACKEND_UNAVAILABLE`, never as a successful final page.
 
 This changes the previous MCP list shape and appearance argument. HTTP clients omitting `limit/cursor` retain
-full arrays, and CLI `theme fetch` and `components fetch` retain their full download formats. The existing
-`component_config_get` and six documentation tools keep their schemas and behavior.
+full arrays, and CLI `theme fetch` and `components fetch` retain their full download formats.
+
+`component_configurations_list` returns configuration IDs for a component. `component_config_get` now requires
+`appearanceId` and accepts `selectedValueIds`; it returns the resolved properties for exactly that selection.
+`component_tokens_get` requires a value from every axis and returns verified token IDs and usage paths. The
+previous `component_config_get(componentId)` arguments are incompatible with this version.
+
+Documentation reads can select an exact `publicationId`. Without one, supply an exact documentation `version`
+and `platform` (or select them in the design-system link). `documentation_publications_list` discovers published
+IDs, including republished versions. `documentation_search` accepts repeated `subjects` and returns a factual
+publication ID in its context; pass that ID with the original query and subjects for later pages. If the old
+publication is no longer available, start a new search. `code_binding_search` returns summaries; `code_binding_get`
+accepts exact `appearanceNames`, `variationNames` and `detail`. `documentation_fetch` returns compact content.
 
 Backend API URL is configured through `DSBUILDER_API_URL` only; the `--api-url` option is not supported.
 For local development, set `export DSBUILDER_API_URL=http://localhost:8080` before CLI commands, and pass the same environment variable to the MCP process.

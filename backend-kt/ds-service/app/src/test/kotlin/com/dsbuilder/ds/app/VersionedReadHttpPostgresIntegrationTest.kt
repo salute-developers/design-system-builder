@@ -188,8 +188,8 @@ class VersionedReadHttpPostgresIntegrationTest {
                 val current = api(client, "GET", path).array().single { it.jsonObject.field("id") == axisId }.jsonObject
                 assertEquals("draft-type", current.field("declaredType"))
                 val removed = api(client, "DELETE", "/api/ds/appearances/$appearanceId")
-                assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
-                assertEquals(HttpStatusCode.NotFound, api(client, "GET", path).status)
+                assertEquals(HttpStatusCode.UnprocessableEntity, removed.status, removed.bodyAsText())
+                assertEquals(HttpStatusCode.OK, api(client, "GET", path).status)
                 assertEquals(HttpStatusCode.OK, api(client, "GET", "$path?version=1.0.0").status)
                 val versionList =
                     api(client, "GET", "/api/ds/design-system-versions/by-design-system/$ds?version=1.0.0&limit=1")

@@ -10,11 +10,15 @@ import com.dsbuilder.documentation.search.application.DocumentationSearchOutcome
 import com.dsbuilder.documentation.search.application.DocumentationSearchRequest
 import com.dsbuilder.documentation.search.application.FetchKnowledgeChunkUseCase
 import com.dsbuilder.documentation.search.application.SearchDocumentationUseCase
+import com.dsbuilder.documentation.search.application.SearchPublication
+import com.dsbuilder.documentation.search.application.compact
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /** HTTP limits private documentation search. */
 data class DocumentationSearchLimits(
@@ -26,7 +30,7 @@ data class DocumentationSearchLimits(
 )
 
 /** Регистрирует private project-scoped search и knowledge fetch endpoints. */
-@Suppress("CyclomaticComplexMethod")
+@Suppress("CyclomaticComplexMethod", "LongMethod")
 fun Route.documentationSearchRoutes(
     search: SearchDocumentationUseCase,
     fetch: FetchKnowledgeChunkUseCase,
@@ -38,16 +42,19 @@ fun Route.documentationSearchRoutes(
         val parameters = call.request.queryParameters
         val designSystemId = parameters["designSystemId"].nonBlank()
             ?: return@get call.respond(HttpStatusCode.BadRequest)
+        val publicationId = parameters["publicationId"].nonBlank()
         val version = parameters["version"].nonBlank()
-            ?: return@get call.respond(HttpStatusCode.BadRequest)
+            ?: if (publicationId != null) "" else return@get call.respond(HttpStatusCode.BadRequest)
         val platform = parameters["platform"].nonBlank()
-            ?: return@get call.respond(HttpStatusCode.BadRequest)
+            ?: if (publicationId != null) "" else return@get call.respond(HttpStatusCode.BadRequest)
         val query = parameters["query"].nonBlank()
             ?.takeIf { it.encodeToByteArray().size <= limits.maxQueryBytes }
             ?: return@get call.respond(HttpStatusCode.BadRequest)
         val subjects = parameters.getAll("subject").orEmpty().filter(String::isNotBlank).toSet()
         if (subjects.size > limits.maxSubjects) return@get call.respond(HttpStatusCode.BadRequest)
-        val cursor = parameters["cursor"]?.toIntOrNull() ?: 0
+        val cursor = parameters["cursor"]?.let {
+            it.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
+        } ?: 0
         if (cursor !in 0..limits.maxCursor) return@get call.respond(HttpStatusCode.BadRequest)
         val requestedLimit = parameters["limit"]?.toIntOrNull() ?: limits.defaultLimit
         val limit = requestedLimit.coerceIn(1, limits.maxLimit)
@@ -62,10 +69,14 @@ fun Route.documentationSearchRoutes(
                     subjects,
                     cursor,
                     limit,
+                    publicationId,
                 ),
             )
         ) {
-            is DocumentationSearchOutcome.Found -> call.respond(outcome.page)
+            is DocumentationSearchOutcome.Found -> {
+                call.response.headers.append("X-DS-Read-Context", searchReadContext(outcome.publication))
+                call.respond(outcome.page)
+            }
             DocumentationSearchOutcome.InvalidQuery -> call.respond(HttpStatusCode.BadRequest)
             DocumentationSearchOutcome.PublicationNotFound -> call.respond(HttpStatusCode.NotFound)
         }
@@ -74,12 +85,34 @@ fun Route.documentationSearchRoutes(
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val url = call.request.queryParameters["url"].nonBlank()
             ?: return@get call.respond(HttpStatusCode.BadRequest)
-        fetch.execute(projectId, url)?.let { call.respond(it) }
+        val detail = call.request.queryParameters["detail"]
+        if (detail != null && detail !in setOf("full", "compact")) {
+            return@get call.respond(HttpStatusCode.BadRequest)
+        }
+        fetch.execute(projectId, url)?.let {
+            call.response.headers.append(
+                "X-DS-Read-Context",
+                buildJsonObject {
+                    put("designSystemId", it.designSystemId)
+                    put("version", it.version)
+                    put("platform", it.platform)
+                    put("publicationId", it.publicationId)
+                }.toString(),
+            )
+            call.respond(if (detail == "compact") it.compact() else it)
+        }
             ?: call.respond(HttpStatusCode.NotFound)
     }
 }
 
 private fun String?.nonBlank(): String? = this?.takeIf(String::isNotBlank)
+
+private fun searchReadContext(publication: SearchPublication): String = buildJsonObject {
+    put("designSystemId", publication.designSystemId)
+    put("version", publication.version)
+    put("platform", publication.platform)
+    put("publicationId", publication.publicationId)
+}.toString()
 
 private suspend fun ApplicationCall.requireDocumentationRead(evaluator: PolicyEvaluator): ProjectPrincipal? {
     val principal = trustedPrincipal(evaluator) ?: run {

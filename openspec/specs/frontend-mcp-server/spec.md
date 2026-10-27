@@ -86,26 +86,24 @@ MCP server SHALL получать project/design-system context только ч�
 
 ### Requirement: Начальный набор MCP tools
 
-Первый этап расширения MCP SHALL предоставлять ровно 22 инструмента чтения согласно design.md Change add-versioned-read-tools, сохраняя оба launcher и общий прикладной слой.
+После второго этапа MCP SHALL предоставлять 27 инструментов чтения из design.md add-composite-read-tools через общий прикладной слой обоих launcher. Пять новых имён дополняют 22 инструмента первого этапа.
 
 #### Scenario: design_system_get_context не раскрывает credential
 
-- **WHEN** клиент вызывает `design_system_get_context`
-- **THEN** tool MUST вернуть разрешённый контекст проекта/DS, API URL и фактическую версию из метаданных серверного чтения
-- **THEN** tool SHALL сохранять безопасный тип credential при его наличии
-- **THEN** tool MUST NOT вернуть ключ проекта, access token, refresh token или пароль
+- **WHEN** клиент вызывает design_system_get_context
+- **THEN** результат MUST сохранить безопасный разрешённый контекст, API URL и доступные метаданные фактической версии
+- **THEN** ключ проекта, access/refresh token и пароль MUST отсутствовать
 
 #### Scenario: project_get_status проверяет backend
 
-- **WHEN** клиент вызывает `project_get_status` с разрешенным context и credential
-- **THEN** tool MUST вызвать общий сценарий status
-- **THEN** tool MUST вернуть структурированный status без разбора вывода CLI
+- **WHEN** клиент вызывает project_get_status
+- **THEN** инструмент MUST сохранить общий сценарий проверки проекта/DS без выбора версии и разбора CLI
 
 #### Scenario: Реестр первого этапа
 
-- **WHEN** клиент вызывает tools/list после первого этапа
-- **THEN** он MUST получить design_system_get_context, project_get_status, design_system_versions_list, design_system_version_get, design_system_changes_list, tenants_list, tokens_list, token_get, token_values_get, token_groups_list, palette_get, components_list, component_get, component_styles_get, component_variations_get, component_config_get, documentation_search, documentation_fetch, documentation_get_navigation, documentation_get_page, code_binding_search и code_binding_get
-- **THEN** все инструменты MUST оставаться read-only и доступными для обнаружения без credentials
+- **WHEN** клиент вызывает tools/list любого launcher
+- **THEN** имена MUST быть design_system_get_context, project_get_status, design_system_versions_list, design_system_version_get, design_system_changes_list, tenants_list, tokens_list, token_get, token_values_get, token_groups_list, palette_get, components_list, component_get, component_styles_get, component_variations_get, component_properties_get, component_dependencies_get, component_configurations_list, component_config_get, component_tokens_get, documentation_publications_list, documentation_search, documentation_fetch, documentation_get_navigation, documentation_get_page, code_binding_search и code_binding_get
+- **THEN** инструменты MUST оставаться read-only, а initialize/tools/list MUST работать без credentials и workspace
 
 ### Requirement: Стабильные MCP results и ошибки
 
@@ -191,69 +189,82 @@ MCP presentation SHALL описывать `designSystem` как выбор ре�
 - **THEN** он MUST NOT переключаться на локальную `.sdds` или другой actor
 
 ### Requirement: MCP documentation read tools
-MCP server SHALL expose read-only documentation tools that use the shared frontend application layer and return structured documentation DTOs.
+
+MCP SHALL использовать существующие gateway-маршруты документации и серверные проекции. Разрешение точного publicationId отдельным HTTP-запросом SHALL быть допустимо без локальных предметных вычислений.
 
 #### Scenario: Documentation search returns structured results
-- **WHEN** MCP client calls `documentation_search` with `query`, resolved project context, design system, version and platform
-- **THEN** MCP server MUST call the shared documentation search use case
-- **THEN** MCP server MUST return deterministic JSON-compatible results with markdown hits, code-binding hits, snippets, subjects, `kbUrl` values and optional `nextCursor`
-- **THEN** MCP server MUST NOT require the client to call shell commands or parse CLI output
 
-#### Scenario: Documentation read requires an exact version selection
-- **WHEN** a documentation or code-binding read tool omits `version` and the resolved design-system context does not select one
-- **THEN** MCP server MUST return `AMBIGUOUS_CONTEXT` before calling the documentation backend
-- **THEN** MCP server MUST NOT substitute a synthetic version such as `0.0.0`
+- **WHEN** документационный поиск получает query, subjects[], limit, cursor и селектор публикации
+- **THEN** subjects MUST передаваться повторяющимися subject без изменения текущей возможности бэкенда
+- **THEN** результат MUST сохранять фрагменты, привязки, subjects, kbUrl и числовой nextCursor
+- **THEN** MCP MUST читать фактический publicationId из заголовка и передавать его с исходными фильтрами для продолжения
 
 #### Scenario: Documentation fetch reads knowledge chunk
-- **WHEN** MCP client calls `documentation_fetch` with a `kbUrl` returned by `documentation_search`
-- **THEN** MCP server MUST call the shared documentation fetch use case
-- **THEN** MCP server MUST return the published `markdown` with source metadata or a structured `NOT_FOUND` error
-- **THEN** MCP server MUST omit the derived `searchText` search-index copy from the model-visible response
+
+- **WHEN** documentation_fetch получает kbUrl
+- **THEN** MCP MUST запросить существующий kb/fetch с detail=compact
+- **THEN** markdown и метаданные MUST сохраниться, searchText MUST отсутствовать, публикация MUST определяться kbUrl
 
 #### Scenario: Documentation navigation and pages read active publication
-- **WHEN** MCP client calls `documentation_get_navigation` or `documentation_get_page`
-- **THEN** MCP server MUST resolve the active publication for the requested or context-selected version and platform
-- **THEN** MCP server MUST return navigation or page DTOs from the documentation service
-- **THEN** MCP server MUST return `PUBLICATION_NOT_FOUND` when no active publication exists
+
+- **WHEN** documentation_get_navigation либо documentation_get_page получает точные version/platform без publicationId
+- **THEN** MCP MUST разрешить ID через publications/active и вызвать существующий ID-маршрут
+- **WHEN** publicationId задан явно
+- **THEN** предварительное разрешение active MUST NOT требоваться
+- **THEN** 401/403/503 MUST сохранить AUTH_REQUIRED/FORBIDDEN/BACKEND_UNAVAILABLE вместо PUBLICATION_NOT_FOUND
+
+#### Scenario: Documentation read requires an exact version selection
+
+- **WHEN** publicationId отсутствует, а аргументы/контекст не определяют точные version/platform
+- **THEN** MCP MUST вернуть AMBIGUOUS_CONTEXT без latest, 0.0.0 или платформы по умолчанию
+- **WHEN** запрошен draft
+- **THEN** MCP MUST вернуть INVALID_QUERY
+- **WHEN** publicationId задан явно
+- **THEN** унаследованные version/platform MUST NOT препятствовать его чтению, но явно несовместимые параметры MUST быть отклонены
 
 ### Requirement: MCP code binding read tools
-MCP server SHALL expose read-only code binding tools for locating and reading references from published documentation artifacts.
+
+MCP SHALL читать опубликованные CodeBinding через существующие ID-маршруты с явным запросом серверных проекций. Они MUST NOT представляться авторитетной конфигурационной моделью.
 
 #### Scenario: Code binding search filters by subject and kind
-- **WHEN** MCP client calls `code_binding_search` with `subject` and optional `kind`, `name`, `limit` or `cursor`
-- **THEN** MCP server MUST call the shared code binding search use case
-- **THEN** MCP server MUST return binding IDs, canonical subjects, kinds, names, platforms and pagination metadata
+
+- **WHEN** переданы subject, kind, name, limit, cursor и селектор публикации
+- **THEN** MCP MUST передать существующие фильтры, сохранить подстрочную семантику name и явно запросить detail=summary
+- **THEN** результат MUST содержать компактные ID, subjects, kinds, names, platforms и nextCursor
 
 #### Scenario: Code binding get resolves an exact reference
-- **WHEN** MCP client calls `code_binding_get` with a `bindingId`
-- **THEN** MCP server MUST resolve that exact published binding before applying any model-visible projection
-- **THEN** MCP server MUST return `NOT_FOUND` when the binding is absent or outside the authorized project
+
+- **WHEN** передан bindingId
+- **THEN** результат MUST содержать выбранную привязку либо NOT_FOUND с сохранением категорий доступа и недоступности
 
 #### Scenario: Component binding get returns bounded response detail
-- **WHEN** MCP client calls `code_binding_get` without `detail` or `variationNames`
-- **THEN** MCP server MUST return a compact component binding summary containing appearance names, variation axes, defaults and counts
-- **THEN** MCP server MUST omit expanded variations and style API metadata from the summary
-- **WHEN** MCP client calls `code_binding_get` with `detail=variations` or exact `variationNames`
-- **THEN** MCP server MUST return concrete variation code references while omitting style API metadata
-- **WHEN** MCP client calls `code_binding_get` with `detail=full`
-- **THEN** MCP server MUST preserve the complete published binding payload after applying optional name filters
 
-#### Scenario: Tool descriptions route published code variation queries
-- **WHEN** an MCP client inspects tool descriptions to answer which published code variations are available
-- **THEN** `code_binding_search` MUST direct the client to continue with `code_binding_get` using `detail=summary`
-- **THEN** `components_list` and `component_variations_get` MUST identify their results as configuration-model data and direct published code variation queries to the code binding tools
+- **WHEN** detail и variationNames отсутствуют в вызове tool
+- **THEN** MCP MUST явно передать detail=summary и получить оформления, оси, defaults и counts без развёрнутых вариаций/styleApi
+- **WHEN** variationNames задан без detail
+- **THEN** MCP MUST передать detail=variations
+- **WHEN** явно передан detail=summary вместе с variationNames
+- **THEN** tool MUST вернуть INVALID_ARGUMENT
+- **WHEN** detail=full
+- **THEN** результат MUST сохранить полный опубликованный payload после серверной фильтрации
 
 #### Scenario: Component binding get filters opaque appearance and variation names
-- **WHEN** MCP client calls `code_binding_get` with optional `appearanceNames` or `variationNames`
-- **THEN** MCP server MUST fetch the unchanged published binding from the backend
-- **THEN** MCP server MUST filter `platformPayload.styles` by exact `styleName` values from `appearanceNames`
-- **THEN** MCP server MUST filter each retained appearance's `variations` by exact `name` values from `variationNames`
-- **THEN** MCP server MUST NOT interpret appearance or variation names as fixed semantic axes
+
+- **WHEN** заданы appearanceNames или variationNames
+- **THEN** MCP MUST передать точные имена серверу без локальной фильтрации или интерпретации как осей
+
+#### Scenario: Tool descriptions route published code variation queries
+
+- **WHEN** агент ищет опубликованные варианты кода
+- **THEN** описания MUST направлять его к code_binding_search и code_binding_get
+- **THEN** components_list и component_variations_get MUST обозначать данные как модель конфигурации
 
 #### Scenario: Code bindings are not authoritative system model
-- **WHEN** MCP client reads a token or component through `code_binding_get`
-- **THEN** MCP server MUST identify the result as documentation/code-reference data
-- **THEN** MCP server MUST NOT present code binding data as authoritative token or component configuration state
+
+- **WHEN** сервер доказал соответствие привязки модели
+- **THEN** componentId SHALL передаваться для продолжения через component_config_get
+- **WHEN** соответствие не доказано
+- **THEN** поле MUST отсутствовать без сопоставления по похожему имени
 
 ### Requirement: MCP token read tools
 
@@ -280,54 +291,49 @@ MCP SHALL читать авторитетные токены через API мо
 - **THEN** platform MUST остаться web/android/ios
 
 ### Requirement: MCP component read tools
-MCP SHALL читать мету компонента и версионированные данные конфигураций через соответствующие существующие API, передавая поддерживаемые версии и фильтры серверу. Схема component_config_get сохраняется до add-composite-read-tools.
+
+MCP SHALL читать авторитетную модель выбранной версии через общие серверные операции без локальной сборки конфигурации или обхода каталога токенов. Списки, чтение меты component_get и адресация вариаций по appearanceId SHALL сохранить правила первого Change.
 
 #### Scenario: Component list reads system components
-- **WHEN** клиент вызывает components_list с необязательными name, query, platform, limit, cursor или version
-- **THEN** MCP MUST вызвать общий прикладной сценарий чтения модели
-- **THEN** MCP MUST вернуть компактные данные с ID, именами и описаниями
-- **THEN** точный `name` и `platform` MUST применяться сервером
-- **THEN** name и query MUST NOT приниматься вместе
-- **THEN** MCP MUST явно запросить серверный `limit` и читать продолжение из заголовка без локальной обрезки массива
-- **THEN** при отсутствии `limit` MCP MUST передать 50; это не меняет полную выдачу HTTP без limit/cursor
-- **THEN** MCP MUST NOT восстанавливать список из документации
+
+- **WHEN** переданы name либо query, platform, limit, cursor или version
+- **THEN** фильтры MUST выполняться сервером, а MCP MUST явно передавать limit=50 по умолчанию
+- **THEN** список MUST NOT восстанавливаться из документации или обрезаться локально
+- **THEN** name и query вместе MUST быть отклонены
 
 #### Scenario: Component config get reads authoritative config
 
-- **WHEN** клиент вызывает component_config_get с каноническим subject либо точным name и необязательным style
-- **THEN** MCP MUST сохранить текущую каноническую конфигурацию, props, bindings, invariants, variations и доступные ревизии
-- **THEN** этот этап MUST NOT объявлять componentId новым параметром прежнего экспорта или менять selection/projection до следующего Change
+- **WHEN** component_config_get получает appearanceId и selectedValueIds
+- **THEN** MCP MUST вызвать серверное чтение итоговых параметров одной предметной операцией без локального расчёта приоритетов
+- **THEN** результат MUST сохранить значения свойств, tokenId и ID/технические редакции записей-источников
+- **THEN** subject/name и projection MUST NOT заменять appearanceId в новой схеме tool
 
 #### Scenario: Мета компонента без выбора конфигурации
 
-- **WHEN** клиент вызывает component_get с componentId
-- **THEN** MCP MUST вызвать GET /components/{id} и сохранить id, name, description, platform, createdAt и updatedAt
-- **THEN** tool MUST NOT добавлять список конфигураций, выбирать appearance или объявлять ответ снимком одной DS
-- **THEN** схема tool MUST NOT содержать version; версия URI/контекста MUST NOT передаваться как версия глобальной меты
-- **THEN** отсутствие X-DS-Read-Context одной DS/публикации MUST NOT считаться ошибкой этого чтения
+- **WHEN** component_get получает componentId
+- **THEN** MCP MUST сохранить чтение меты через GET /components/{id} без выбора конфигурации и версии глобальной меты
+- **THEN** отсутствие X-DS-Read-Context одной DS MUST NOT считаться ошибкой этого чтения
 
 #### Scenario: Component styles and variations read model details
 
-- **WHEN** клиент вызывает component_styles_get с componentId и необязательным version
-- **THEN** MCP MUST использовать прежний маршрут оформлений DS и сохранить ID компонента и оформления
+- **WHEN** component_styles_get получает componentId и необязательный version
+- **THEN** результат MUST сохранить стабильные ID и поддержку name/limit/cursor по правилам первого Change
 - **WHEN** component_variations_get получает appearanceId и необязательный version
-- **THEN** MCP MUST читать оси указанной конфигурации через GET /appearances/{id}/variations и сохранять appearanceId и variationId
+- **THEN** MCP MUST сохранить чтение осей конкретной конфигурации и стабильные appearanceId и variationId по правилам первого Change
 
 #### Scenario: Вариации конкретной конфигурации
 
-- **WHEN** клиент вызывает component_variations_get с обязательным appearanceId и необязательным version
-- **THEN** MCP MUST вызвать GET /appearances/{id}/variations и вернуть существующие оси, values и defaultStyleId без include=values,defaults и локальной сборки конфигурации
-- **THEN** результат MUST сохранить id объявления оси, appearanceId, variationId, position, isRoot, isColorScheme, declaredType, даты и доступные поля значений
-- **THEN** фактическая DS и версия MUST определяться сервером по appearance и передаваться в контексте чтения
-- **THEN** MCP MUST NOT вызывать GET /components/{id}/variations или выбирать единственную/default-конфигурацию автоматически
+- **WHEN** component_variations_get получает appearanceId и необязательный version
+- **THEN** MCP MUST сохранить чтение GET /appearances/{id}/variations, существующие values/defaultStyleId и серверный контекст выбранной границы
+- **THEN** схема и результат MUST NOT требовать нового include=values,defaults, componentId вместо appearanceId или локальной сборки конфигурации
 
 #### Scenario: Аргументы и версия вариаций
 
-- **WHEN** appearanceId отсутствует либо вместо него передан прежний componentId
+- **WHEN** appearanceId отсутствует либо вместо него передан componentId
 - **THEN** MCP MUST вернуть INVALID_QUERY
 - **WHEN** version задан явно
-- **THEN** он MUST перекрыть версию URI/контекста; при отсутствии выбора MUST использоваться draft
-- **THEN** NOT_FOUND неизвестной, недоступной или отсутствующей на выбранной границе конфигурации либо чужой версии MUST NOT превращаться в чтение draft
+- **THEN** он MUST перекрыть версию URI/контекста; без выбора MUST использоваться draft
+- **THEN** NOT_FOUND MUST NOT превращаться в чтение draft
 
 #### Scenario: Ограниченное чтение оформлений
 
@@ -429,3 +435,34 @@ CLI и MCP launcher SHALL использовать `DSBUILDER_API_URL` для в
 - **WHEN** CLI auth и MCP запущены с одинаковой переменной окружения DSBUILDER_API_URL
 - **THEN** они MUST использовать одинаковый API URL и соответствующую ему сохранённую сессию
 - **THEN** переданный `--api-url` MUST отклоняться до сетевых запросов
+
+### Requirement: Четыре завершающих инструмента чтения
+
+MCP SHALL добавить component_properties_get, component_dependencies_get, component_configurations_list, component_tokens_get и documentation_publications_list к реестру первого этапа, используя серверные операции и общий runtime.
+
+#### Scenario: Детали и ссылки компонента
+
+- **WHEN** вызывается properties либо dependencies
+- **THEN** MCP MUST явно включить серверные платформенные параметры либо настройки переиспользования без клиентского обхода связей
+- **WHEN** component_tokens_get получает appearanceId и полный набор selectedValueIds
+- **THEN** результат MUST содержать проверенные tokenId, имена и пути использования без значений темы
+- **THEN** неполный набор выбранных осей MUST вернуть INVALID_QUERY
+
+#### Scenario: Список конфигураций
+
+- **WHEN** component_configurations_list получает componentId и необязательную версию
+- **THEN** MCP MUST вернуть доступные appearanceId, имена и признак конфигурации по умолчанию с серверной пагинацией
+- **THEN** инструмент MUST NOT выдавать стили каталога как конфигурации
+
+#### Scenario: Список публикаций
+
+- **WHEN** вызывается documentation_publications_list с необязательными version/platform и пагинацией
+- **THEN** MCP MUST вызвать новый список опубликованных выпусков, включая переиздания, без требования версии модели
+- **THEN** контекст MUST содержать фактические данные документации без выдуманного versionId модели
+
+#### Scenario: Один runtime и независимая авторизация
+
+- **WHEN** вызывается составной tool
+- **THEN** MCP MUST разрешить runtime один раз и сохранить actor/credential policy
+- **THEN** отказ MUST NOT переключать пользователя на ключ или наоборот
+- **THEN** доступность tools MUST NOT зависеть от готовности отдельного Change PKCE

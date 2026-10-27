@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GATEWAY_URL="${GATEWAY_URL:-http://localhost:8080}"
 DESIGN_SYSTEM_NAME="sdds_serv_local"
+DESIGN_SYSTEM_NAME_EXPLICIT=0
 THEME_NAME="sdds_serv_local"
 THEME_PROFILE="malachite"
 PACKAGE_DIR=""
@@ -68,6 +69,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --name)
       DESIGN_SYSTEM_NAME="${2:-}"
+      DESIGN_SYSTEM_NAME_EXPLICIT=1
       shift 2
       ;;
     --theme)
@@ -126,22 +128,56 @@ api() {
     --header "Authorization: Bearer $TOKEN" --header 'Content-Type: application/json' "$@"
 }
 
-PROJECT_ID="$(api GET /api/projects | json_get "(d if isinstance(d, list) else d.get('items', d))[0]['id']")" \
-  || fail "The user has no project. Run ./setup-local.sh first."
+USER_ID="$(printf '%s' "$TOKEN" | python3 -c '
+import base64, json, sys
+payload = sys.stdin.read().split(".")[1]
+payload += "=" * (-len(payload) % 4)
+print(json.loads(base64.urlsafe_b64decode(payload)).get("sub", ""))
+')"
+PROJECT_ID="$(api GET /api/projects | python3 -c '
+import json, sys
+items = json.load(sys.stdin)
+items = items if isinstance(items, list) else items.get("items", [])
+for item in items:
+    if item.get("ownerUserId") == sys.argv[1] and item.get("status") != "archived":
+        print(item["id"]); break
+' "$USER_ID")" || fail "Could not list the user's projects"
+[[ -n "$PROJECT_ID" ]] || fail "The user has no project. Run ./setup-local.sh first."
 PROJECT_NAME="$(api GET "/api/projects/$PROJECT_ID" | json_get "d['name']")"
 DS_BASE="/api/projects/$PROJECT_ID/ds"
 
-DESIGN_SYSTEM_ID="$(
-  api GET "$DS_BASE/design-systems" \
-    | json_get "next((x['id'] for x in d if x['name'] == '$DESIGN_SYSTEM_NAME'), '')"
-)"
+DESIGN_SYSTEM_ID=""
+existing="$(api GET "$DS_BASE/design-systems" | python3 -c '
+import json, sys
+items = json.load(sys.stdin)
+for name in sys.argv[1:]:
+    for item in items:
+        if item.get("name") == name:
+            print(item["id"], name); sys.exit(0)
+' "$DESIGN_SYSTEM_NAME" "sdds_serv_local-${PROJECT_ID:0:8}")"
+if [[ -n "$existing" ]]; then
+  read -r DESIGN_SYSTEM_ID DESIGN_SYSTEM_NAME <<< "$existing"
+fi
+
+post_design_system() {
+  curl --silent --show-error --request POST "$GATEWAY_URL$DS_BASE/design-systems" \
+    --header "Authorization: Bearer $TOKEN" --header 'Content-Type: application/json' \
+    --data "$(python3 -c 'import json,sys; print(json.dumps({"name":sys.argv[1],"projectName":sys.argv[2],"projectId":sys.argv[3]}))' \
+      "$DESIGN_SYSTEM_NAME" "$PROJECT_NAME" "$PROJECT_ID")" --write-out '\n%{http_code}'
+}
+
 if [[ -z "$DESIGN_SYSTEM_ID" ]]; then
   log "Creating the design system '$DESIGN_SYSTEM_NAME'"
-  DESIGN_SYSTEM_ID="$(
-    api POST "$DS_BASE/design-systems" \
-      --data "{\"name\":\"$DESIGN_SYSTEM_NAME\",\"projectName\":\"$PROJECT_NAME\",\"projectId\":\"$PROJECT_ID\"}" \
-      | json_get "d['id']"
-  )" || fail "The design system could not be created"
+  response="$(post_design_system)" || fail "The design system request failed"
+  status="${response##*$'\n'}"
+  if [[ "$status" == "409" && "$DESIGN_SYSTEM_NAME_EXPLICIT" == "0" ]]; then
+    DESIGN_SYSTEM_NAME="sdds_serv_local-${PROJECT_ID:0:8}"
+    log "Name 'sdds_serv_local' is already used in another project; creating '$DESIGN_SYSTEM_NAME'"
+    response="$(post_design_system)" || fail "The design system request failed"
+    status="${response##*$'\n'}"
+  fi
+  [[ "$status" == "201" ]] || fail "The design system could not be created: HTTP $status"
+  DESIGN_SYSTEM_ID="$(printf '%s' "${response%$'\n'*}" | json_get "d['id']")"
 else
   log "Reusing the design system '$DESIGN_SYSTEM_NAME'"
 fi
@@ -176,13 +212,29 @@ resolve_cli() {
 }
 CLI="$(resolve_cli)"
 
-# `components push` needs a user session: the same dev user signs in, the password goes through stdin.
-printf '%s\n' "$PASSWORD" | "$CLI" auth login --api-url "$GATEWAY_URL" --username "$USERNAME" >/dev/null 2>&1 \
-  || fail "The CLI could not sign in as $USERNAME"
+# `components push` uses a short-lived project key; no browser session is needed for local setup.
+KEY_ID=""
+revoke_setup_key() {
+  if [[ -n "$KEY_ID" ]]; then
+    api DELETE "/api/projects/$PROJECT_ID/access-keys/$KEY_ID" >/dev/null \
+      || log "Could not revoke temporary project key $KEY_ID"
+  fi
+}
+trap revoke_setup_key EXIT
+key_response="$(api POST "/api/projects/$PROJECT_ID/access-keys" \
+  --data '{"name":"local setup components push","scopes":["components:write"],"ttlSeconds":3600}')" \
+  || fail "Could not create a temporary project key"
+KEY_ID="$(printf '%s' "$key_response" | json_get "d['key']['id']")"
+KEY_SECRET="$(printf '%s' "$key_response" | json_get "d['secret']")"
 
 LINK="dsbuilder://projects/$PROJECT_ID/design-systems/$DESIGN_SYSTEM_ID?version=0.1.0&platform=compose"
 log "Loading the component configurations from $PACKAGE_DIR"
-"$CLI" components push --from "$PACKAGE_DIR" --platform compose --design-system "$LINK" \
-  --api-url "$GATEWAY_URL" --apply 2>&1 | grep -v SLF4J | grep -E "^(Created|Updated|Unchanged|Rejected|Status)|^  .*:" || true
+push_output="$(DSBUILDER_API_URL="$GATEWAY_URL" DSBUILDER_API_KEY="$KEY_SECRET" "$CLI" components push \
+  --from "$PACKAGE_DIR" --platform compose --design-system "$LINK" \
+  --project-key-env DSBUILDER_API_KEY --apply 2>&1)" || {
+    printf '%s\n' "$push_output" | grep -v SLF4J >&2 || true
+    fail "The component configurations could not be loaded"
+  }
+printf '%s\n' "$push_output" | grep -v SLF4J | grep -E "^(Created|Updated|Unchanged|Rejected|Status)|^  .*:" || true
 
 log "Done. Open the component editor: the Compose components are listed with their preview."

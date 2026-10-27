@@ -212,12 +212,13 @@ tasks.register("npmPackMcpNodeSmoke") {
             }
             val modelToolNames = Regex(""""name":"([a-z_]+)"""")
                 .findAll(toolsResponse).map { it.groupValues[1] }.toList()
-            check(modelToolNames.size == 22 && modelToolNames.toSet().size == 22) {
-                "Expected exactly 22 distinct tools: $modelToolNames"
+            check(modelToolNames.size == 27 && modelToolNames.toSet().size == 27) {
+                "Expected exactly 27 distinct tools: $modelToolNames"
             }
             listOf(
                 "design_system_versions_list", "design_system_version_get", "design_system_changes_list",
                 "tenants_list", "token_groups_list", "palette_get",
+                "documentation_publications_list", "component_configurations_list", "component_tokens_get",
             ).forEach { name -> check(name in modelToolNames) { "Missing tool: $name" } }
             check(toolsResponse.contains("appearanceId")) {
                 "Appearance variation schema is missing appearanceId"

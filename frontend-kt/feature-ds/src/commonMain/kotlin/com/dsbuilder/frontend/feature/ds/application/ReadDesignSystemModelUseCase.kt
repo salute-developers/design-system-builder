@@ -78,6 +78,7 @@ public class ReadDesignSystemModelUseCase internal constructor(
                         when (runtime.credential) {
                             is BackendCredential.ProjectKey -> "PROJECT_KEY"
                             is BackendCredential.Bearer -> "USER_SESSION"
+                            is BackendCredential.ServiceToken -> "SERVICE_TOKEN"
                         },
                     ),
                     "provenance" to JsonPrimitive(runtime.context.provenance.name.lowercase().replace('_', '-')),

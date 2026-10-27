@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.core.application.ContextSource
 import com.dsbuilder.frontend.core.application.ContextSourceResult
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.CredentialResult
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
@@ -109,18 +110,20 @@ class DocsReadUseCasesTest {
             selectedVersion = selectedVersion,
         )
         return DocsReadUseCases(
-            contextResolver = ContextResolver(listOf(ContextSource { ContextSourceResult.Found(context) })),
-            apiUrlResolver = ApiUrlResolver(EnvironmentReader { null }),
-            credentialProvider = object : CredentialProvider {
-                override suspend fun resolve(
-                    apiUrl: com.dsbuilder.frontend.core.domain.ProjectApiUrl,
-                    projectKeyOverride: String?,
-                    credentialEnvName: CredentialEnvName,
-                ): CredentialResult = CredentialResult.Selected(
-                    BackendCredential.ProjectKey("key"),
-                    BackendCredentialType.PROJECT_KEY,
-                )
-            },
+            runtimeResolver = RuntimeRequestResolver(
+                ContextResolver(listOf(ContextSource { ContextSourceResult.Found(context) })),
+                ApiUrlResolver(EnvironmentReader { null }),
+                object : CredentialProvider {
+                    override suspend fun resolve(
+                        apiUrl: com.dsbuilder.frontend.core.domain.ProjectApiUrl,
+                        projectKeyOverride: String?,
+                        credentialEnvName: CredentialEnvName,
+                    ): CredentialResult = CredentialResult.Selected(
+                        BackendCredential.ProjectKey("key"),
+                        BackendCredentialType.PROJECT_KEY,
+                    )
+                },
+            ),
             remoteSource = remote,
         )
     }

@@ -1,6 +1,67 @@
 package com.dsbuilder.frontend.mcpserver
 
+import com.dsbuilder.frontend.feature.ds.application.ModelReadCommand
 import com.dsbuilder.frontend.feature.ds.application.ModelReadOperation
+import com.dsbuilder.frontend.feature.ds.application.ModelReadResult
+import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+
+/** Выполняет чтение модели по схемам MCP-инструментов. */
+internal class ModelMcpTools(
+    private val useCase: ReadDesignSystemModelUseCase?,
+    private val context: McpReadToolContext,
+) {
+    suspend fun read(name: String, arguments: JsonObject): McpToolResult = with(context) {
+        val operation = modelToolOperations.getValue(name)
+        val schema = modelMcpTools().single { it.name == name }.inputSchema
+        val argumentError = modelArgumentError(arguments, schema)
+        if (argumentError != null) return@with toolError("INVALID_QUERY", argumentError)
+        val idName = modelResourceArgument(operation)
+        val id = idName?.let { arguments.required(it) }
+        if (idName != null && id == null) return@with toolError("INVALID_QUERY", "$idName is required")
+        val reader = useCase ?: return@with backendReaderUnavailable()
+        val filters = arguments.filterKeys { it !in setOf("designSystem", "version", "limit", "cursor", idName) }
+            .mapValues { (_, value) -> (value as JsonPrimitive).content }
+        when (
+            val result = reader.execute(
+                ModelReadCommand(
+                    operation,
+                    id,
+                    arguments.optional("version"),
+                    filters,
+                    arguments.optional("limit")?.toIntOrNull(),
+                    arguments.optional("cursor"),
+                ),
+                runtimeRequest(arguments),
+            )
+        ) {
+            is ModelReadResult.Success -> success(result.value.toString())
+            is ModelReadResult.Failed -> toolError(result.code, result.message)
+        }
+    }
+
+    private fun modelArgumentError(arguments: JsonObject, schema: Map<String, McpToolInputDefinition>): String? {
+        if (arguments.keys.any { it != "designSystem" && it !in schema }) {
+            return "Unsupported model read argument."
+        }
+        val invalid = arguments.entries.firstOrNull { (key, value) ->
+            val definition = schema[key]
+            definition != null && !validModelArgument(value, definition)
+        }
+        return invalid?.let { "Invalid model read argument: ${it.key}" }
+    }
+
+    private fun validModelArgument(value: JsonElement, definition: McpToolInputDefinition): Boolean {
+        val primitive = value as? JsonPrimitive ?: return false
+        return when (definition.type) {
+            "string" -> primitive.isString
+            "integer" -> !primitive.isString && primitive.content.toIntOrNull() != null
+            else -> false
+        }
+    }
+}
 
 internal val modelToolOperations = linkedMapOf(
     "design_system_get_context" to ModelReadOperation.CONTEXT,
@@ -17,6 +78,8 @@ internal val modelToolOperations = linkedMapOf(
     "component_get" to ModelReadOperation.COMPONENT,
     "component_styles_get" to ModelReadOperation.COMPONENT_STYLES,
     "component_variations_get" to ModelReadOperation.APPEARANCE_VARIATIONS,
+    "component_properties_get" to ModelReadOperation.COMPONENT_PROPERTIES,
+    "component_dependencies_get" to ModelReadOperation.COMPONENT_DEPENDENCIES,
 )
 
 internal fun modelMcpTools(): List<McpToolDefinition> = modelToolOperations.map { (name, operation) ->
@@ -111,6 +174,8 @@ private val modelResourceArguments = mapOf(
     ModelReadOperation.COMPONENT to "componentId",
     ModelReadOperation.COMPONENT_STYLES to "componentId",
     ModelReadOperation.APPEARANCE_VARIATIONS to "appearanceId",
+    ModelReadOperation.COMPONENT_PROPERTIES to "componentId",
+    ModelReadOperation.COMPONENT_DEPENDENCIES to "componentId",
 )
 
 internal fun modelResourceArgument(operation: ModelReadOperation): String? = modelResourceArguments[operation]

@@ -9,21 +9,7 @@ import com.dsbuilder.frontend.core.application.RuntimeResolution
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
-
-public data class ComponentConfigReadCommand(val identifier: String, val style: String?)
-
-public enum class ComponentConfigView { FULL, TOKEN_REFERENCES }
-
-public data class ComponentProjectedConfigReadCommand(
-    val config: ComponentConfigReadCommand,
-    val selection: Map<String, String> = emptyMap(),
-    val view: ComponentConfigView = ComponentConfigView.FULL,
-)
 
 public data class ComponentReadRuntime(
     val context: ProjectContext,
@@ -32,59 +18,93 @@ public data class ComponentReadRuntime(
 )
 
 public enum class ComponentReadErrorCode {
-    AUTH_REQUIRED,
-    FORBIDDEN,
-    NOT_FOUND,
-    BACKEND_UNAVAILABLE,
-    CONTEXT_NOT_FOUND,
-    CONTEXT_REQUIRED,
-    INVALID_CONTEXT,
-    INVALID_QUERY,
-    INVALID_SELECTION,
-    PROJECT_KEY_INVALID,
-    INVALID_AUTH_URL,
+    AUTH_REQUIRED, FORBIDDEN, NOT_FOUND, BACKEND_UNAVAILABLE, CONTEXT_NOT_FOUND,
+    CONTEXT_REQUIRED, INVALID_CONTEXT, INVALID_QUERY, INVALID_SELECTION,
+    PROJECT_KEY_INVALID, INVALID_AUTH_URL,
 }
 
 public sealed interface ComponentReadResult {
     public data class Success(val value: JsonElement) : ComponentReadResult
-
     public data class Failed(val code: ComponentReadErrorCode, val message: String) : ComponentReadResult
 }
 
+/** Только серверные операции чтения конфигураций, свойств и токен-ссылок. */
 public interface ComponentReadRemoteSource {
+    public suspend fun configurations(
+        runtime: ComponentReadRuntime,
+        componentId: String,
+        version: String,
+        limit: Int,
+        cursor: String?,
+    ): ComponentReadResult
 
-    public suspend fun config(runtime: ComponentReadRuntime, command: ComponentConfigReadCommand): ComponentReadResult
+    public suspend fun resolvedProperties(
+        runtime: ComponentReadRuntime,
+        appearanceId: String,
+        selectedValueIds: List<String>,
+        version: String,
+    ): ComponentReadResult
 
-    public suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult
+    public suspend fun tokenReferences(
+        runtime: ComponentReadRuntime,
+        appearanceId: String,
+        selectedValueIds: List<String>,
+        version: String,
+    ): ComponentReadResult
 }
 
 public class ComponentReadUseCases(
     private val runtimeResolver: RuntimeRequestResolver,
     private val remoteSource: ComponentReadRemoteSource,
 ) {
-    public suspend fun projectedConfig(
-        command: ComponentProjectedConfigReadCommand,
+    /** Делегирует выбор конфигураций серверу без поиска по имени. */
+    public suspend fun configurations(
+        componentId: String,
+        version: String?,
+        limit: Int,
+        cursor: String?,
         request: RuntimeRequest = RuntimeRequest(),
     ): ComponentReadResult = withRuntime(request) { runtime ->
-        if (command.view == ComponentConfigView.TOKEN_REFERENCES && command.selection.isEmpty()) {
-            return@withRuntime ComponentReadResult.Failed(
-                ComponentReadErrorCode.INVALID_SELECTION,
-                "selection is required for token-references projection",
-            )
-        }
-        val config = remoteSource.config(runtime, command.config)
-        if (config is ComponentReadResult.Failed) return@withRuntime config
-        if (command.selection.isEmpty() && command.view == ComponentConfigView.FULL) return@withRuntime config
-        val tokenNames = if (command.view == ComponentConfigView.TOKEN_REFERENCES) {
-            when (val catalog = remoteSource.tokens(runtime)) {
-                is ComponentReadResult.Failed -> return@withRuntime catalog
-                is ComponentReadResult.Success -> catalog.value.tokenNames()
-                    ?: return@withRuntime unreadable("token catalog")
-            }
-        } else {
-            null
-        }
-        projectConfig((config as ComponentReadResult.Success).value, command.selection, tokenNames)
+        if (componentId.isBlank() || limit !in 1..100) return@withRuntime invalidQuery()
+        remoteSource.configurations(
+            runtime,
+            componentId,
+            version ?: runtime.context.selectedVersion ?: "draft",
+            limit,
+            cursor,
+        )
+    }
+
+    /** Делегирует разрешение выбранных значений серверу. */
+    public suspend fun resolvedProperties(
+        appearanceId: String,
+        selectedValueIds: List<String>,
+        version: String?,
+        request: RuntimeRequest = RuntimeRequest(),
+    ): ComponentReadResult = withRuntime(request) { runtime ->
+        if (appearanceId.isBlank() || selectedValueIds.any(String::isBlank)) return@withRuntime invalidQuery()
+        remoteSource.resolvedProperties(
+            runtime,
+            appearanceId,
+            selectedValueIds,
+            version ?: runtime.context.selectedVersion ?: "draft",
+        )
+    }
+
+    /** Делегирует чтение токен-ссылок серверу. */
+    public suspend fun tokenReferences(
+        appearanceId: String,
+        selectedValueIds: List<String>,
+        version: String?,
+        request: RuntimeRequest = RuntimeRequest(),
+    ): ComponentReadResult = withRuntime(request) { runtime ->
+        if (appearanceId.isBlank() || selectedValueIds.any(String::isBlank)) return@withRuntime invalidQuery()
+        remoteSource.tokenReferences(
+            runtime,
+            appearanceId,
+            selectedValueIds,
+            version ?: runtime.context.selectedVersion ?: "draft",
+        )
     }
 
     private suspend fun withRuntime(
@@ -108,40 +128,5 @@ public class ComponentReadUseCases(
     }
 }
 
-private val projectionJson = Json {
-    ignoreUnknownKeys = true
-    encodeDefaults = false
-    explicitNulls = false
-}
-
-@Suppress("ReturnCount")
-private fun projectConfig(
-    value: JsonElement,
-    selection: Map<String, String>,
-    tokenNames: Set<String>?,
-): ComponentReadResult {
-    val envelope = value as? JsonObject ?: return unreadable("component config")
-    val data = envelope["data"] ?: return unreadable("component config")
-    val config = runCatching { projectionJson.decodeFromJsonElement(ConfigPackageDto.serializer(), data) }
-        .getOrNull() ?: return unreadable("component config")
-    return when (val projected = ComponentConfigProjector.project(config, selection, tokenNames)) {
-        is ComponentConfigProjection.InvalidSelection -> ComponentReadResult.Failed(
-            ComponentReadErrorCode.INVALID_SELECTION,
-            projected.reason,
-        )
-        is ComponentConfigProjection.Success -> {
-            val projectedData = projectionJson.encodeToJsonElement(ConfigPackageDto.serializer(), projected.value)
-            ComponentReadResult.Success(JsonObject(envelope + ("data" to projectedData)))
-        }
-    }
-}
-
-private fun JsonElement.tokenNames(): Set<String>? = runCatching {
-    val data = (this as JsonObject)["data"] as JsonArray
-    data.map { (it as JsonObject).getValue("name").jsonPrimitive.content }.toSet()
-}.getOrNull()
-
-private fun unreadable(subject: String): ComponentReadResult.Failed = ComponentReadResult.Failed(
-    ComponentReadErrorCode.BACKEND_UNAVAILABLE,
-    "Backend returned unreadable $subject.",
-)
+private fun invalidQuery(): ComponentReadResult.Failed =
+    ComponentReadResult.Failed(ComponentReadErrorCode.INVALID_QUERY, "Invalid component read parameters.")

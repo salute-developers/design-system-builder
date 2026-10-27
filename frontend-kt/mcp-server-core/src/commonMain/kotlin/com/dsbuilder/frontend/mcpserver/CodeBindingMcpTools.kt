@@ -5,6 +5,18 @@ import com.dsbuilder.frontend.feature.docs.application.CodeBindingSearchCommand
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
 import kotlinx.serialization.json.JsonObject
 
+/** Допустимая серверная проекция опубликованной привязки. */
+internal enum class CodeBindingDetail(val wireValue: String) {
+    SUMMARY("summary"),
+    VARIATIONS("variations"),
+    FULL("full"),
+    ;
+
+    internal companion object {
+        fun parse(value: String): CodeBindingDetail? = entries.singleOrNull { it.wireValue == value }
+    }
+}
+
 /** Адаптирует прикладные операции своего семейства к MCP. */
 internal class CodeBindingMcpTools(
     private val docsReadUseCases: DocsReadUseCases?,
@@ -21,9 +33,10 @@ internal class CodeBindingMcpTools(
                 cursor = arguments.optional("cursor"),
                 version = arguments.optional("version"),
                 platform = arguments.optional("platform"),
+                publicationId = arguments.optional("publicationId"),
             ),
             runtimeRequest(arguments),
-        ).toMcpResult().let { compactBindingSearch(json, it) }
+        ).toMcpResult()
     }
 
     @Suppress("ReturnCount")
@@ -52,10 +65,11 @@ internal class CodeBindingMcpTools(
                 publicationId = arguments.optional("publicationId"),
                 version = arguments.optional("version"),
                 platform = arguments.optional("platform"),
+                detail = detail.wireValue,
+                appearanceNames = appearanceNames,
+                variationNames = variationNames,
             ),
             runtimeRequest(arguments),
-        ).toMcpResult().let {
-            projectComponentBinding(it, json, appearanceNames.toSet(), variationNames.toSet(), detail)
-        }
+        ).toMcpResult()
     }
 }

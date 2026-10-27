@@ -58,6 +58,6 @@ internal class McpReadToolContext(
                 ?.contentOrNull
                 ?.takeIf(String::isNotBlank)
                 ?: return null
-        }.distinct()
+        }
     }
 }

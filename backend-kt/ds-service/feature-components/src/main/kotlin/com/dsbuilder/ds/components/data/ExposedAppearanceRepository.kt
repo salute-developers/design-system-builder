@@ -32,6 +32,30 @@ class ExposedAppearanceRepository : AppearanceRepository {
             )
         }.map(::appearance)
 
+    override suspend fun listByComponent(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID,
+        componentId: UUID,
+    ): List<Appearance>? {
+        if (!ComponentOwnership.canReadDesignSystem(projectId, systemAdmin, designSystemId) ||
+            componentId !in ComponentOwnership.readableComponentIds(projectId, systemAdmin)
+        ) {
+            return null
+        }
+        if (!DesignSystemComponentsTable.selectAll().where {
+                (DesignSystemComponentsTable.designSystemId eq designSystemId) and
+                    (DesignSystemComponentsTable.componentId eq componentId)
+            }.any()
+        ) {
+            return null
+        }
+        return ComponentAppearancesTable.selectAll().where {
+            (ComponentAppearancesTable.designSystemId eq designSystemId) and
+                (ComponentAppearancesTable.componentId eq componentId)
+        }.map(::appearance).sortedWith(compareBy({ it.name.orEmpty() }, { it.id.toString() }))
+    }
+
     override suspend fun find(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Appearance? =
         ComponentAppearancesTable.selectAll().where {
             (ComponentAppearancesTable.id eq id) and

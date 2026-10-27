@@ -25,7 +25,6 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
-import com.dsbuilder.frontend.feature.components.application.ComponentConfigReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRuntime
@@ -291,7 +290,7 @@ class DsBuilderMcpServerCoreTest {
 
         val tools = server.tools()
 
-        assertEquals(22, tools.size)
+        assertEquals(27, tools.size)
         assertEquals(
             setOf(
                 "design_system_get_context",
@@ -310,6 +309,11 @@ class DsBuilderMcpServerCoreTest {
                 "component_styles_get",
                 "component_variations_get",
                 "component_config_get",
+                "component_configurations_list",
+                "component_tokens_get",
+                "component_properties_get",
+                "component_dependencies_get",
+                "documentation_publications_list",
                 "documentation_search",
                 "documentation_fetch",
                 "documentation_get_navigation",
@@ -384,11 +388,11 @@ class DsBuilderMcpServerCoreTest {
         val componentVariations = tools.single { it.name == "component_variations_get" }
         val components = tools.single { it.name == "components_list" }
 
-        assertTrue(config.description.contains("BasicButton.S.Accent"))
-        assertTrue(config.inputSchema.getValue("subject").description!!.contains("components.basic-button"))
-        assertTrue(config.inputSchema.getValue("style").description!!.contains("S.Accent"))
-        assertTrue(config.inputSchema.getValue("selection").description!!.contains("size=s,view=accent"))
-        assertEquals(listOf("full", "token-references"), config.inputSchema.getValue("projection").allowedValues)
+        assertTrue(config.description.contains("selected axis value IDs"))
+        assertTrue(config.inputSchema.containsKey("appearanceId"))
+        assertEquals("array", config.inputSchema.getValue("selectedValueIds").type)
+        assertTrue(tools.single { it.name == "component_configurations_list" }.inputSchema.containsKey("componentId"))
+        assertTrue(tools.single { it.name == "component_tokens_get" }.inputSchema.containsKey("appearanceId"))
         assertEquals(listOf("light", "dark"), values.inputSchema.getValue("mode").allowedValues)
         assertEquals(listOf("web", "android", "ios"), values.inputSchema.getValue("platform").allowedValues)
         assertTrue(values.inputSchema.getValue("platform").description!!.contains("android for Compose"))
@@ -415,32 +419,51 @@ class DsBuilderMcpServerCoreTest {
     }
 
     @Test
-    fun componentConfigAcceptsCanonicalCodeBindingSubject() = runTest {
-        var captured: ComponentConfigReadCommand? = null
+    fun componentConfigForwardsAppearanceAndSelectedValueIdsUnchanged() = runTest {
+        var captured: Pair<String, List<String>>? = null
         val server = server(
             componentReadUseCases = componentReadUseCases(
                 object : ComponentReadRemoteSource {
-                    override suspend fun config(
+                    override suspend fun configurations(
                         runtime: ComponentReadRuntime,
-                        command: ComponentConfigReadCommand,
+                        componentId: String,
+                        version: String,
+                        limit: Int,
+                        cursor: String?,
+                    ): ComponentReadResult = error("Unexpected configuration listing")
+
+                    override suspend fun tokenReferences(
+                        runtime: ComponentReadRuntime,
+                        appearanceId: String,
+                        selectedValueIds: List<String>,
+                        version: String,
+                    ): ComponentReadResult = error("Unexpected token reference read")
+
+                    override suspend fun resolvedProperties(
+                        runtime: ComponentReadRuntime,
+                        appearanceId: String,
+                        selectedValueIds: List<String>,
+                        version: String,
                     ): ComponentReadResult {
-                        captured = command
+                        captured = appearanceId to selectedValueIds
                         return ComponentReadResult.Success(JsonObject(emptyMap()))
                     }
-
-                    override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult =
-                        error("Unexpected token catalog")
                 },
             ),
         )
 
         val result = server.callTool(
             "component_config_get",
-            JsonObject(mapOf("subject" to JsonPrimitive("components.basic-button"))),
+            JsonObject(
+                mapOf(
+                    "appearanceId" to JsonPrimitive("appearance-1"),
+                    "selectedValueIds" to JsonArray(listOf(JsonPrimitive("value-1"), JsonPrimitive("value-1"))),
+                ),
+            ),
         )
 
         assertFalse(result.isError)
-        assertEquals(ComponentConfigReadCommand("basic-button", null), captured)
+        assertEquals("appearance-1" to listOf("value-1", "value-1"), captured)
     }
 
     @Test
@@ -486,7 +509,7 @@ class DsBuilderMcpServerCoreTest {
                 CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Authentication required")
         }
         val core = server(modelReadUseCase = modelReader(provider = provider) { _, _, _ -> error("No backend call") })
-        assertEquals(22, core.tools().size)
+        assertEquals(27, core.tools().size)
         assertErrorCode("AUTH_REQUIRED", core.callTool("design_system_get_context"))
     }
 
@@ -732,7 +755,10 @@ class DsBuilderMcpServerCoreTest {
     }
 
     private fun docsReadUseCases(remoteSource: DocsReadRemoteSource): DocsReadUseCases =
-        DocsReadUseCases(contextResolver(), apiUrlResolver(), credentialProvider(), remoteSource)
+        DocsReadUseCases(
+            RuntimeRequestResolver(contextResolver(), apiUrlResolver(), credentialProvider()),
+            remoteSource,
+        )
 
     @Suppress("unused")
     private fun componentReadUseCases(remoteSource: ComponentReadRemoteSource): ComponentReadUseCases =

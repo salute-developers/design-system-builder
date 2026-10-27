@@ -3,6 +3,7 @@ package com.dsbuilder.frontend.cli
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
@@ -54,15 +55,14 @@ class McpCliLauncherContractTest {
             assertTrue(contextResponse.contains("AUTH_REQUIRED"), contextResponse)
             val registry = Json.parseToJsonElement(toolsListResponse).jsonObject
                 .getValue("result").jsonObject.getValue("tools").jsonArray
-            assertEquals(22, registry.size)
+            assertEquals(27, registry.size)
+            val names = registry.map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
+            assertTrue("component_configurations_list" in names)
+            assertTrue("component_tokens_get" in names)
+            assertTrue("documentation_publications_list" in names)
             assertTrue(toolsListResponse.contains("appearanceId"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("components.basic-button"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("component-style"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("The value component is not valid"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("\"enum\":[\"component-style\",\"token\"]"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("BasicButton.S.Accent"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("android for Compose"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("\"enum\":[\"light\",\"dark\"]"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("selectedValueIds"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("publicationId"), toolsListResponse)
             assertTrue(!initializeResponse.contains("Run DS Builder MCP tools."), initializeResponse)
             assertTrue(!toolsListResponse.contains("Run DS Builder MCP tools."), toolsListResponse)
             assertTrue(!toolsListResponse.contains("secret"), toolsListResponse)

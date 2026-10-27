@@ -1,5 +1,15 @@
 package com.dsbuilder.ds.app
 
+import com.dsbuilder.authorization.ProjectActorType
+import com.dsbuilder.authorization.ProjectPrincipal
+import com.dsbuilder.ds.components.data.ExposedAppearanceEditorRepository
+import com.dsbuilder.ds.components.data.ExposedStateRepository
+import com.dsbuilder.ds.components.domain.ComponentPropertyResolver
+import com.dsbuilder.ds.core.application.DsRequestContext
+import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
+import com.dsbuilder.ds.core.data.ExposedTransactionRunner
+import com.dsbuilder.ds.core.data.PostgresTransactionFailureMapper
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -22,10 +32,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.jetbrains.exposed.v1.jdbc.Database
 import java.sql.DriverManager
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -35,6 +47,209 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     // ── модель и переименование ────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `resolved properties inherit base and selected axes with position priority`() = withService {
+        val fixture = fixture()
+        val background = property("background", "color")
+        val height = property("height", "dimension")
+        val editor = model(fixture.appearance)
+        val viewStyle = styleOf(editor, "view", "default")
+        val sizeStyle = styleOf(editor, "size", "a")
+        val viewValue = valueOf(editor, "view", "default")
+        val sizeValue = valueOf(editor, "size", "a")
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, height, emptyList(), value = "24").status)
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, height, listOf(sizeStyle), value = "32").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, background, listOf(viewStyle), value = "red").status,
+        )
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, background, listOf(sizeStyle), value = "blue").status,
+        )
+
+        val list = get("/api/ds/appearances?designSystemId=${fixture.ds}&componentId=${fixture.component}")
+        assertEquals(HttpStatusCode.OK, list.status, list.bodyAsText())
+        assertEquals(
+            fixture.appearance,
+            json.parseToJsonElement(list.bodyAsText()).jsonObject
+                .getValue("items").jsonArray.single().jsonObject.string("id"),
+        )
+        val unfiltered = get("/api/ds/appearances")
+        assertEquals(HttpStatusCode.OK, unfiltered.status, unfiltered.bodyAsText())
+        assertTrue(json.parseToJsonElement(unfiltered.bodyAsText()).jsonArray.isNotEmpty())
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            get("/api/ds/appearances?componentId=${fixture.component}").status,
+        )
+
+        val url = "/api/ds/appearances/${fixture.appearance}/resolved-properties"
+        val base = get(url)
+        assertEquals(HttpStatusCode.OK, base.status, base.bodyAsText())
+        assertEquals("24", resolvedValue(base, height))
+        val both = get("$url?selectedValueId=$viewValue&selectedValueId=$sizeValue")
+        assertEquals(HttpStatusCode.OK, both.status, both.bodyAsText())
+        assertEquals("32", resolvedValue(both, height))
+        assertEquals("blue", resolvedValue(both, background))
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            get("$url?selectedValueId=$viewValue&selectedValueId=$viewValue").status,
+        )
+        assertEquals(HttpStatusCode.BadRequest, get("$url?selectedValueId=$MISSING_ID").status)
+        val otherAppearance = duplicate(fixture.appearance, "Button alternative")
+        val otherValue = valueOf(model(otherAppearance), "size", "a")
+        assertEquals(HttpStatusCode.BadRequest, get("$url?selectedValueId=$otherValue").status)
+
+        publish(fixture.ds)
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, height, listOf(sizeStyle), value = "40").status)
+        val historical = get("$url?version=2.0.0&selectedValueId=$viewValue&selectedValueId=$sizeValue")
+        assertEquals(HttpStatusCode.OK, historical.status, historical.bodyAsText())
+        assertEquals("32", resolvedValue(historical, height))
+        assertEquals("40", resolvedValue(get("$url?selectedValueId=$viewValue&selectedValueId=$sizeValue"), height))
+    }
+
+    @Test
+    fun `token references require every axis and preserve token and source ids`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val token = id(
+            post(
+                "/api/ds/tokens",
+                """{"designSystemId":"${fixture.ds}","name":"surface","type":"color"}""",
+            ).bodyAsText(),
+        )
+        val editor = model(fixture.appearance)
+        val style = styleOf(editor, "size", "a")
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, fill, listOf(style), token = token).status)
+        val viewValue = valueOf(editor, "view", "default")
+        val sizeValue = valueOf(editor, "size", "a")
+        val url = "/api/ds/appearances/${fixture.appearance}/token-references"
+        assertEquals(HttpStatusCode.BadRequest, get("$url?selectedValueId=$sizeValue").status)
+        val complete = get("$url?selectedValueId=$viewValue&selectedValueId=$sizeValue")
+        assertEquals(HttpStatusCode.OK, complete.status, complete.bodyAsText())
+        val item = json.parseToJsonElement(complete.bodyAsText()).jsonObject
+            .getValue("items").jsonArray.single().jsonObject
+        assertEquals(token, item.string("tokenId"))
+        assertEquals(fill, item.string("propertyId"))
+        assertTrue(item.string("sourceId").isNotEmpty())
+        assertTrue(item.string("usagePath").contains(fixture.appearance))
+
+        publish(fixture.ds)
+        val replacement = id(
+            post(
+                "/api/ds/tokens",
+                """{"designSystemId":"${fixture.ds}","name":"surface-new","type":"color"}""",
+            ).bodyAsText(),
+        )
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, fill, listOf(style), token = replacement).status)
+        val historical = get("$url?version=2.0.0&selectedValueId=$viewValue&selectedValueId=$sizeValue")
+        assertEquals(HttpStatusCode.OK, historical.status, historical.bodyAsText())
+        val oldToken = json.parseToJsonElement(historical.bodyAsText()).jsonObject
+            .getValue("items").jsonArray.single().jsonObject.string("tokenId")
+        assertEquals(token, oldToken)
+    }
+
+    @Test
+    fun `composite resolution keeps one snapshot during concurrent edit`() = withService {
+        val fixture = fixture()
+        val height = property("height", "dimension")
+        val background = property("background", "color")
+        val fill = property("fill", "color")
+        val oldToken =
+            id(
+                post(
+                    "/api/ds/tokens",
+                    """{"designSystemId":"${fixture.ds}","name":"old","type":"color"}""",
+                ).bodyAsText(),
+            )
+        val newToken =
+            id(
+                post(
+                    "/api/ds/tokens",
+                    """{"designSystemId":"${fixture.ds}","name":"new","type":"color"}""",
+                ).bodyAsText(),
+            )
+        val editor = model(fixture.appearance)
+        val viewStyle = styleOf(editor, "view", "default")
+        val sizeStyle = styleOf(editor, "size", "a")
+        val viewAxis = axisOf(editor, "view")
+        val sizeAxis = axisOf(editor, "size")
+        val selectedIds = listOf(valueOf(editor, "view", "default"), valueOf(editor, "size", "a"))
+            .map(UUID::fromString)
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, height, listOf(sizeStyle), value = "32").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, background, listOf(viewStyle), value = "red").status,
+        )
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, background, listOf(sizeStyle), value = "blue").status,
+        )
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, fill, listOf(sizeStyle), token = oldToken).status)
+
+        val postgres = service.postgres
+        val database = Database.connect(postgres.jdbcUrl, user = postgres.username, password = postgres.password)
+        val runner = ExposedTransactionRunner(database, PostgresTransactionFailureMapper())
+        val context = DsRequestContext(
+            ProjectPrincipal(ProjectActorType.USER, "integration-admin", "global", systemAdmin = true),
+            "composite-snapshot",
+        )
+        val result = runner.readOnly(
+            context,
+            ModelReadTarget(ModelReadTarget.Kind.APPEARANCE, UUID.fromString(fixture.appearance)),
+        ) { selected ->
+            assertEquals(
+                HttpStatusCode.OK,
+                setValue(fixture.appearance, height, listOf(sizeStyle), value = "40").status,
+            )
+            assertEquals(
+                HttpStatusCode.OK,
+                setValue(fixture.appearance, fill, listOf(sizeStyle), token = newToken).status,
+            )
+            assertEquals(
+                HttpStatusCode.OK,
+                post(
+                    "/api/ds/appearances/${fixture.appearance}/axis-order",
+                    """{"axisIds":["$sizeAxis","$viewAxis"]}""",
+                ).status,
+            )
+            val model = ExposedAppearanceEditorRepository(ExposedStateRepository()).model(
+                selected.projectId,
+                selected.principal.systemAdmin,
+                UUID.fromString(fixture.appearance),
+                selected.versionId,
+            )!!
+            assertEquals(fixture.appearance, model.appearance.id.toString())
+            assertEquals(listOf("view", "size"), model.axes.map { it.name })
+            assertEquals(listOf(0, 1), model.axes.map { it.position })
+            ComponentPropertyResolver.resolve(model, selectedIds).let { DsResult.Success(it) }
+        }
+        val snapshot = assertIs<ComponentPropertyResolver.Result.Success>(
+            assertIs<DsResult.Success<ComponentPropertyResolver.Result>>(result).value,
+        )
+        assertEquals("32", snapshot.values.single { it.propertyId.toString() == height }.value)
+        assertEquals("blue", snapshot.values.single { it.propertyId.toString() == background }.value)
+        assertEquals(oldToken, snapshot.values.single { it.propertyId.toString() == fill }.tokenId.toString())
+        val current = get(
+            "/api/ds/appearances/${fixture.appearance}/resolved-properties" +
+                "?selectedValueId=${selectedIds[0]}&selectedValueId=${selectedIds[1]}",
+        )
+        assertEquals("40", resolvedValue(current, height))
+        assertEquals("red", resolvedValue(current, background))
+        assertEquals(listOf("size", "view"), axisNames(model(fixture.appearance)))
+        val currentValues = json.parseToJsonElement(
+            current.bodyAsText(),
+        ).jsonObject.getValue("propertyValues").jsonArray
+        assertEquals(
+            newToken,
+            currentValues.map { it.jsonObject }.single { it.string("propertyId") == fill }.string("tokenId"),
+        )
+    }
+
+    private suspend fun resolvedValue(response: HttpResponse, propertyId: String): String =
+        json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("propertyValues").jsonArray
+            .map { it.jsonObject }.single { it.string("propertyId") == propertyId }.string("value")
 
     @Test
     fun `the editor model reports axes locks revisions and the default configuration`() = withService {

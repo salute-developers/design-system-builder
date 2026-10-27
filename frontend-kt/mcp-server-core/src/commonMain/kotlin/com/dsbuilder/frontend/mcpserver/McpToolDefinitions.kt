@@ -4,12 +4,15 @@ internal fun readOnlyMcpToolDefinitions(): List<McpToolDefinition> = (
     listOf(
         McpToolDefinition(name = "project_get_status", description = "Verify backend project access."),
         documentationSearchTool(),
+        documentationPublicationsListTool(),
         tool("documentation_fetch", "Fetch one published documentation knowledge chunk.", "kbUrl"),
-        tool("documentation_get_navigation", "Read active publication navigation.", "version", "platform"),
-        tool("documentation_get_page", "Read one active publication page.", "path", "version", "platform"),
+        tool("documentation_get_navigation", "Read publication navigation.", "publicationId", "version", "platform"),
+        tool("documentation_get_page", "Read one publication page.", "path", "publicationId", "version", "platform"),
         codeBindingSearchTool(),
         codeBindingGetTool(),
+        componentConfigurationsListTool(),
         componentConfigGetTool(),
+        componentTokensGetTool(),
     ) + modelMcpTools()
     ).map { definition ->
     definition.copy(
@@ -31,13 +34,26 @@ private fun documentationSearchTool(): McpToolDefinition = McpToolDefinition(
     description = "Search published DS Builder documentation. Use limit and subject to narrow results.",
     inputSchema = mapOf(
         "query" to stringInput("Search phrase or technical identifier."),
-        "subject" to stringInput("Optional canonical subject filter, for example components.basic-button."),
+        "subjects" to stringArrayInput("Optional canonical subject filters."),
+        "subject" to stringInput("Legacy single canonical subject filter."),
+        "publicationId" to stringInput("Exact published documentation ID for continuing a search."),
         "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of results."),
         "cursor" to stringInput("Opaque cursor from a previous search page."),
         "version" to stringInput(
             "Exact documentation version. Omit only when the resolved design-system context selects a version.",
         ),
         "platform" to stringInput("Exact publication platform, for example compose."),
+    ),
+)
+
+private fun documentationPublicationsListTool(): McpToolDefinition = McpToolDefinition(
+    name = "documentation_publications_list",
+    description = "List published documentation releases and republications for one design system.",
+    inputSchema = mapOf(
+        "version" to stringInput("Optional exact documentation version."),
+        "platform" to stringInput("Optional documentation platform."),
+        "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of publications."),
+        "cursor" to stringInput("Cursor from the previous publication page."),
     ),
 )
 
@@ -71,6 +87,7 @@ private fun codeBindingSearchTool(): McpToolDefinition = McpToolDefinition(
             description = "Maximum number of bindings to return.",
         ),
         "cursor" to stringInput("Opaque cursor returned by a previous search page."),
+        "publicationId" to stringInput("Exact published documentation ID; omit to resolve active publication."),
         "version" to stringInput(
             "Exact documentation version. Omit only when the resolved design-system context selects a version.",
         ),
@@ -111,39 +128,36 @@ private fun codeBindingGetTool(): McpToolDefinition = McpToolDefinition(
     ),
 )
 
+private fun componentConfigurationsListTool(): McpToolDefinition = McpToolDefinition(
+    name = "component_configurations_list",
+    description = "List configurations of one component by stable component ID.",
+    inputSchema = mapOf(
+        "componentId" to stringInput("Component ID returned by components_list."),
+        "version" to stringInput("Exact model version or draft."),
+        "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of configurations."),
+        "cursor" to stringInput("Cursor from the previous configuration page."),
+    ),
+)
+
 private fun componentConfigGetTool(): McpToolDefinition = McpToolDefinition(
     name = "component_config_get",
     description =
-    "Read the authoritative common component configuration containing token references. " +
-        "To continue from a component CodeBinding, pass its canonical subject, for example " +
-        "components.basic-button. A Compose reference such as BasicButton.S.Accent " +
-        "is not a component style name: " +
-        "S and Accent are variation values. Use selection=size=s,view=accent to narrow the response. " +
-        "Omit selection and projection to retrieve the unchanged full package.",
+    "Read effective properties of a component configuration for selected axis value IDs. " +
+        "Unselected axes do not contribute properties; an empty selection reads base properties.",
     inputSchema = mapOf(
-        "subject" to stringInput(
-            "Canonical component CodeBinding subject, for example components.basic-button. " +
-                "Preferred when continuing from code_binding_search or code_binding_get.",
-        ),
-        "name" to stringInput(
-            "Exact componentName from the exported common-config package, for example basic-button. " +
-                "This is not the Compose symbol BasicButton.",
-        ),
-        "style" to stringInput(
-            "Optional exact styleName (product appearance) from the exported package, for example basic-button. " +
-                "Do not pass a generated Compose reference or variation combination such as S.Accent; " +
-                "omit this filter when the styleName is unknown.",
-        ),
-        "selection" to stringInput(
-            "Comma-separated variation IDs and exact values, for example size=s,view=accent. " +
-                "Unknown IDs or values are errors. Unselected axes remain in the full projection.",
-        ),
-        "projection" to stringInput(
-            "full preserves selected config structure; token-references returns only names verified against the " +
-                "authoritative token catalog. It requires values for every variation axis " +
-                "and does not resolve token values.",
-            allowedValues = listOf("full", "token-references"),
-        ),
+        "appearanceId" to stringInput("Configuration ID returned by component_configurations_list."),
+        "selectedValueIds" to stringArrayInput("Axis value IDs returned by component_variations_get."),
+        "version" to stringInput("Exact model version or draft."),
+    ),
+)
+
+private fun componentTokensGetTool(): McpToolDefinition = McpToolDefinition(
+    name = "component_tokens_get",
+    description = "Read verified token references for one value on every axis of a configuration.",
+    inputSchema = mapOf(
+        "appearanceId" to stringInput("Configuration ID returned by component_configurations_list."),
+        "selectedValueIds" to stringArrayInput("One selected value ID for every axis."),
+        "version" to stringInput("Exact model version or draft."),
     ),
 )
 

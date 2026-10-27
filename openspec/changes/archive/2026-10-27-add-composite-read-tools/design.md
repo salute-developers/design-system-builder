@@ -21,11 +21,15 @@ flowchart LR
 
 ## Конфигурация и токен-ссылки
 
-Существующий `POST DS/component-config/export` расширяется альтернативным componentId и selection. При componentId designSystemId сохраняется, platform определяется по компоненту; явно несовместимая платформа отклоняется. Старые platform/components/styles продолжают работать. componentId и фильтр components вместе отклоняются. Необязательный style MCP передаёт как существующий styles=[style]. Новые ID-запросы применяют selection — JSON-объект ось→значение; существующий полный экспорт без selection не ограничивается. Тело успешного ответа остаётся прежним пакетом meta/components/underivedTypes, без обёрток и ограничений списка.
+Конфигурация компонента — `appearance` выбранной дизайн-системы. Существующий `GET /appearances` с фильтрами `designSystemId` и `componentId` возвращает доступные `appearanceId`, имена и признак конфигурации по умолчанию с серверной пагинацией. Вызов без фильтров сохраняет прежний массив. Существующий `GET /appearances/{id}/variations` возвращает объявления осей в порядке `position`, их значения и ID. `component_styles_get` читает каталог стилей и не заменяет список конфигураций.
 
-Выбор версии разрешается один раз, сборка и проверка осей выполняются в согласованной read-only транзакции подходящей изоляции. Частичный selection допустим: выбранные оси сужаются, остальные сохраняются. Неизвестные оси/значения и неоднозначность дают INVALID_QUERY. Существующий builder переиспользуется; полная конфигурация не собирается из каталогов на клиенте.
+Новая составная операция чтения параметров принимает `appearanceId` и необязательный набор `selectedValueIds`: ID объявлений значений осей этого оформления. Имена используются только для показа. Сервер проверяет принадлежность каждого значения выбранной версии оформления и отсутствие двух значений одной оси. Неизвестный ID, значение другого оформления и несовместимая выбранная версия отклоняются без поиска по имени. Пустой выбор запрашивает базовые свойства оформления.
 
-Новая операция `POST DS/component-config/tokens/query` принимает designSystemId, componentId, необязательные styles и обязательный selection. Требуется полный выбор осей всех выбранных оформлений. Ответ содержит items со стабильными tokenId, именами и путями использования; произвольные строки не объявляются токенами. Ссылки проверяются по каталогу той же версии, значения темы не вычисляются. Version остаётся query-параметром; фактическая граница передаётся X-DS-Read-Context.
+Параметры строятся из существующей модели редактора: базовые значения, значения отдельных выбранных осей и записи сочетаний, все участники которых выбраны. Для одного свойства и набора состояний записи применяются по возрастанию `position` осей: более поздняя ось переопределяет раннюю. Запись сочетания применяется на позиции последней участвующей оси и переопределяет одиночные записи на этой позиции. При нескольких применимых сочетаниях на одной позиции более конкретное сочетание имеет приоритет; при равной длине порядок определяется последовательностью `position` участвующих осей, начиная с наибольшей различающейся позиции. Ответ содержит итоговое значение, `propertyId`, `tokenId` при наличии и ID/техническую редакцию записи-источника. Порядок `position` в модели уже хранится, но это правило разрешения конфликтов вводится этим Change; существующий экспорт не объявляется реализацией этого правила.
+
+Выбор версии разрешается один раз, проверка ID и расчёт параметров выполняются в одной согласованной read-only транзакции подходящей изоляции. Действующий `GET /appearances/{id}/editor-model` остаётся источником структуры и ID для редактора; новая операция возвращает вычисленный результат для выбора значений. `POST DS/component-config/export` и его пакет meta/components/underivedTypes сохраняются для генераторов и CLI без новых параметров.
+
+Новая операция чтения токен-ссылок принимает `appearanceId` и `selectedValueIds` для полного выбора всех осей. Она использует те же итоговые параметры и возвращает items со стабильными `tokenId`, именами, `propertyId`, ID записи-источника и путями использования. Произвольные строки не объявляются токенами; значения темы не вычисляются. Version остаётся query-параметром; фактическая граница передаётся X-DS-Read-Context.
 
 ## Обогащение существующих чтений
 
@@ -50,7 +54,7 @@ X-DS-Read-Context для документации содержит designSystemI
 
 ## Поиск и совместимость cursor
 
-Существующий search принимает несколько повторяющихся subject, числовой offset cursor и возвращает items/nextCursor с прежним числовым типом. Добавляется явный publicationId. Первая страница по version/platform возвращает фактический ID в заголовке; следующие MCP-запросы передают этот ID и исходные query/subjects. Смена active pointer не переключает публикацию.
+Существующий search принимает несколько повторяющихся subject, числовой offset cursor и возвращает items/nextCursor с прежним числовым типом. Добавляется явный publicationId. Первая страница по version/platform возвращает фактический ID в заголовке; следующие MCP-запросы передают этот ID и исходные query/subjects. Сервер ищет по явному ID, только пока публикация доступна. Если после переиздания прежняя публикация недоступна, сервер возвращает NOT_FOUND без переключения на новый active pointer. Вызывающий клиент при необходимости начинает новый поиск; MCP не выполняет автоматический повтор. Жизненный цикл публикаций не меняется.
 
 Числовой cursor не объявляется непрозрачным привязанным ко всем фильтрам токеном: статической гарантии такой привязки при сохранении типа нет. Изменение фильтров начинает новый поиск. Ограничения candidate window, ранжирование, eval corpus и телеметрия без raw query сохраняются. Существующий HTTP без publicationId продолжает разрешать active publication как раньше.
 
@@ -64,7 +68,7 @@ Bindings listing получает `detail=summary|full`, без detail оста�
 
 ## Итоговый реестр и владельцы
 
-Все 26 tools имеют необязательный designSystem. V — модельная версия; P — publicationId либо точные version/platform; L — пагинация с правилами соответствующего сервиса. Идентификаторы обязательны, если не отмечено иное.
+Все 27 tools имеют необязательный designSystem. V — модельная версия; P — publicationId либо точные version/platform; L — пагинация с правилами соответствующего сервиса. Идентификаторы обязательны, если не отмечено иное.
 
 | № | Tool | Параметры сверх designSystem | Владелец |
 |---|---|---|---|
@@ -85,33 +89,34 @@ Bindings listing получает `detail=summary|full`, без detail оста�
 | 15 | component_variations_get | V, appearanceId | Первый Change: оси конфигурации с существующими значениями/defaults; без расширения |
 | 16 | component_properties_get | V, componentId | Этот Change, новый tool |
 | 17 | component_dependencies_get | V, componentId | Этот Change, новый tool |
-| 18 | component_config_get | V, componentId, style?, selection? | Этот Change, изменение прежнего tool |
-| 19 | component_tokens_get | V, componentId, style?, selection | Этот Change, новый tool |
-| 20 | documentation_publications_list | version?, platform?, L | Этот Change, новый tool |
-| 21 | documentation_search | P, query, subjects[]?, L | Этот Change, изменение прежнего tool |
-| 22 | documentation_fetch | kbUrl | Этот Change, изменение прежнего tool |
-| 23 | documentation_get_navigation | P | Этот Change, изменение прежнего tool |
-| 24 | documentation_get_page | P, path | Этот Change, изменение прежнего tool |
-| 25 | code_binding_search | P, subject?, kind?, name?, L | Этот Change, изменение прежнего tool |
-| 26 | code_binding_get | P, bindingId, detail?, appearanceNames[]?, variationNames[]? | Этот Change, изменение прежнего tool |
+| 18 | component_configurations_list | V, componentId, L | Этот Change, новый tool |
+| 19 | component_config_get | V, appearanceId, selectedValueIds? | Этот Change, изменение прежнего tool |
+| 20 | component_tokens_get | V, appearanceId, selectedValueIds | Этот Change, новый tool |
+| 21 | documentation_publications_list | version?, platform?, L | Этот Change, новый tool |
+| 22 | documentation_search | P, query, subjects[]?, L | Этот Change, изменение прежнего tool |
+| 23 | documentation_fetch | kbUrl | Этот Change, изменение прежнего tool |
+| 24 | documentation_get_navigation | P | Этот Change, изменение прежнего tool |
+| 25 | documentation_get_page | P, path | Этот Change, изменение прежнего tool |
+| 26 | code_binding_search | P, subject?, kind?, name?, L | Этот Change, изменение прежнего tool |
+| 27 | code_binding_get | P, bindingId, detail?, appearanceNames[]?, variationNames[]? | Этот Change, изменение прежнего tool |
 
-Name в code_binding_search сохраняет подстрочную семантику. Точные appearanceNames/variationNames принадлежат code_binding_get. Исходные 16 имён сохраняются, первый Change добавляет шесть, этот — четыре. Оба launcher имеют один реестр, все аннотации read-only; служебные auth-команды не являются tools.
+Name в code_binding_search сохраняет подстрочную семантику. Точные appearanceNames/variationNames принадлежат code_binding_get. Исходные 16 имён сохраняются, первый Change добавляет шесть, этот — пять. Оба launcher имеют один реестр из 27 tools, все аннотации read-only; служебные auth-команды не являются tools.
 
 ## Программное проектирование
 
 ```kotlin
-interface ComponentSelectionService {
-    fun select(config: ComponentConfig, selection: Map<String, String>): ComponentSelectionResult
+interface ComponentPropertyResolver {
+    fun resolve(model: AppearanceEditorModel, selectedValueIds: Set<UUID>): ComponentPropertyResult
 }
 interface TokenReferenceReader {
     suspend fun read(context: SelectedReadContext, query: ComponentTokenQuery): TokenReferenceResult
 }
 ```
 
-Прикладные операции имеют отдельные UseCase.execute. MCP не строит config из экспорта и каталога, не фильтрует platformPayload и не вычисляет значения темы. Простое разрешение publicationId остаётся HTTP-оркестрацией.
+Прикладные операции имеют отдельные UseCase.execute. MCP не вычисляет приоритеты свойств, не строит config из экспорта и каталога, не фильтрует platformPayload и не вычисляет значения темы. Простое разрешение publicationId остаётся HTTP-оркестрацией.
 
 ## Выпуск и проверки
 
 Сначала аддитивные API и OpenAPI, затем версия MCP с описанием несовместимых схем. Прежние HTTP-запросы, тела и полный экспорт остаются; rollback MCP не требует миграции БД. Проверяются прежние ответы без параметров и проекции по явному запросу, отсутствие новых enum платформ, конкурентное составное чтение, историческая модель, независимая документация и переиздания, отказ доступа без утечки и сохранение 401/403/503.
 
-FAST → независимое read-only review → FULL, граф shared MCP и npm tarball вне Gradle, затем внешние чтения всех 26 tools обоими launcher с scopes и переизданием документации. Недоступная инфраструктура не считается пройденной проверкой. Этот документ не разрешает реализацию, архивирование или публикацию в текущем запросе.
+FAST → независимое read-only review → FULL, граф shared MCP и npm tarball вне Gradle, затем внешние чтения всех 27 tools обоими launcher с scopes и переизданием документации. Недоступная инфраструктура не считается пройденной проверкой. Этот документ не разрешает реализацию, архивирование или публикацию в текущем запросе.

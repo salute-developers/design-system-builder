@@ -42,11 +42,13 @@ import com.dsbuilder.ds.components.application.GetAppearanceEditorModelUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationValueUseCase
+import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPropertyValueUseCase
 import com.dsbuilder.ds.components.application.GetPropertyPlatformParamUseCase
 import com.dsbuilder.ds.components.application.GetPropertyUseCase
 import com.dsbuilder.ds.components.application.GetPropertyVariationUseCase
+import com.dsbuilder.ds.components.application.GetResolvedComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.GetStateImpactUseCase
 import com.dsbuilder.ds.components.application.GetStateSetUseCase
 import com.dsbuilder.ds.components.application.GetStateUseCase
@@ -60,6 +62,7 @@ import com.dsbuilder.ds.components.application.ListAppearanceVariationAxesUseCas
 import com.dsbuilder.ds.components.application.ListAppearanceVariationValuesUseCase
 import com.dsbuilder.ds.components.application.ListAppearanceVariationsUseCase
 import com.dsbuilder.ds.components.application.ListAppearancesUseCase
+import com.dsbuilder.ds.components.application.ListComponentConfigurationsUseCase
 import com.dsbuilder.ds.components.application.ListInvariantPlatformParamAdjustmentsUseCase
 import com.dsbuilder.ds.components.application.ListInvariantPropertyValuesByComponentAndDesignSystemUseCase
 import com.dsbuilder.ds.components.application.ListInvariantPropertyValuesUseCase
@@ -136,6 +139,9 @@ val componentModelModule = module {
     single<AppearanceEditorRepository> { ExposedAppearanceEditorRepository(get()) }
     single<StyleCombinationRepository> { ExposedStyleCombinationRepository() }
     factory { GetAppearanceEditorModelUseCase(get(), get(), get()) }
+    factory { GetResolvedComponentPropertiesUseCase(get(), get(), get()) }
+    factory { GetComponentTokenReferencesUseCase(get(), get(), get()) }
+    factory { ListComponentConfigurationsUseCase(get(), get(), get()) }
     factory { AddAppearanceAxisUseCase(get(), get(), get(), get()) }
     factory { RemoveAppearanceAxisUseCase(get(), get(), get()) }
     factory { ReorderAppearanceAxesUseCase(get(), get(), get()) }

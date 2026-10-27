@@ -45,8 +45,11 @@ import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationValueUseCase
 import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
+import com.dsbuilder.ds.components.application.GetComponentDependenciesWithReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
+import com.dsbuilder.ds.components.application.GetComponentPropertiesWithPlatformParamsUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
+import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
@@ -55,6 +58,7 @@ import com.dsbuilder.ds.components.application.GetInvariantPropertyValueUseCase
 import com.dsbuilder.ds.components.application.GetPropertyPlatformParamUseCase
 import com.dsbuilder.ds.components.application.GetPropertyUseCase
 import com.dsbuilder.ds.components.application.GetPropertyVariationUseCase
+import com.dsbuilder.ds.components.application.GetResolvedComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.GetStateImpactUseCase
 import com.dsbuilder.ds.components.application.GetStateSetUseCase
 import com.dsbuilder.ds.components.application.GetStateUseCase
@@ -70,6 +74,7 @@ import com.dsbuilder.ds.components.application.ListAppearanceVariationAxesUseCas
 import com.dsbuilder.ds.components.application.ListAppearanceVariationValuesUseCase
 import com.dsbuilder.ds.components.application.ListAppearanceVariationsUseCase
 import com.dsbuilder.ds.components.application.ListAppearancesUseCase
+import com.dsbuilder.ds.components.application.ListComponentConfigurationsUseCase
 import com.dsbuilder.ds.components.application.ListComponentDependenciesUseCase
 import com.dsbuilder.ds.components.application.ListComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsByDependencyUseCase
@@ -428,6 +433,8 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<ListComponentVariationsUseCase>(),
         koin.get<ListComponentPropertiesUseCase>(),
         koin.get<ListDependenciesByComponentUseCase>(),
+        koin.get<GetComponentPropertiesWithPlatformParamsUseCase>(),
+        koin.get<GetComponentDependenciesWithReuseConfigUseCase>(),
         json,
     )
     designSystemComponentRoutes(
@@ -520,6 +527,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
     appearanceRoutes(
         runtime.evaluator,
         koin.get<ListAppearancesUseCase>(),
+        koin.get<ListComponentConfigurationsUseCase>(),
         koin.get<GetAppearanceUseCase>(),
         koin.get<CreateAppearanceUseCase>(),
         koin.get<UpdateAppearanceUseCase>(),
@@ -530,6 +538,8 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
     appearanceEditorRoutes(
         runtime.evaluator,
         koin.get<GetAppearanceEditorModelUseCase>(),
+        koin.get<GetResolvedComponentPropertiesUseCase>(),
+        koin.get<GetComponentTokenReferencesUseCase>(),
         koin.get<AddAppearanceAxisUseCase>(),
         koin.get<RemoveAppearanceAxisUseCase>(),
         koin.get<ReorderAppearanceAxesUseCase>(),

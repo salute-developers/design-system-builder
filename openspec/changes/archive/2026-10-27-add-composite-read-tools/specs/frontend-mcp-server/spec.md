@@ -2,7 +2,7 @@
 
 ### Requirement: Начальный набор MCP tools
 
-После второго этапа MCP SHALL предоставлять ровно 26 инструментов чтения из design.md add-composite-read-tools через общий прикладной слой обоих launcher. Четыре новых имени дополняют 22 инструмента первого этапа.
+После второго этапа MCP SHALL предоставлять 27 инструментов чтения из design.md add-composite-read-tools через общий прикладной слой обоих launcher. Пять новых имён дополняют 22 инструмента первого этапа.
 
 #### Scenario: design_system_get_context не раскрывает credential
 
@@ -15,10 +15,10 @@
 - **WHEN** клиент вызывает project_get_status
 - **THEN** инструмент MUST сохранить общий сценарий проверки проекта/DS без выбора версии и разбора CLI
 
-#### Scenario: Полный реестр
+#### Scenario: Реестр первого этапа
 
 - **WHEN** клиент вызывает tools/list любого launcher
-- **THEN** имена MUST быть design_system_get_context, project_get_status, design_system_versions_list, design_system_version_get, design_system_changes_list, tenants_list, tokens_list, token_get, token_values_get, token_groups_list, palette_get, components_list, component_get, component_styles_get, component_variations_get, component_properties_get, component_dependencies_get, component_config_get, component_tokens_get, documentation_publications_list, documentation_search, documentation_fetch, documentation_get_navigation, documentation_get_page, code_binding_search и code_binding_get
+- **THEN** имена MUST быть design_system_get_context, project_get_status, design_system_versions_list, design_system_version_get, design_system_changes_list, tenants_list, tokens_list, token_get, token_values_get, token_groups_list, palette_get, components_list, component_get, component_styles_get, component_variations_get, component_properties_get, component_dependencies_get, component_configurations_list, component_config_get, component_tokens_get, documentation_publications_list, documentation_search, documentation_fetch, documentation_get_navigation, documentation_get_page, code_binding_search и code_binding_get
 - **THEN** инструменты MUST оставаться read-only, а initialize/tools/list MUST работать без credentials и workspace
 
 ### Requirement: MCP component read tools
@@ -34,15 +34,16 @@ MCP SHALL читать авторитетную модель выбранной 
 
 #### Scenario: Component config get reads authoritative config
 
-- **WHEN** component_config_get получает componentId, необязательные style и объект selection
-- **THEN** MCP MUST вызвать расширенный существующий экспорт одной серверной предметной операцией
-- **THEN** результат MUST сохранить каноническую конфигурацию и доступные props/bindings/invariants/variations/ревизии
-- **THEN** subject/name и projection MUST NOT заменять componentId в новой схеме tool
+- **WHEN** component_config_get получает appearanceId и selectedValueIds
+- **THEN** MCP MUST вызвать серверное чтение итоговых параметров одной предметной операцией без локального расчёта приоритетов
+- **THEN** результат MUST сохранить значения свойств, tokenId и ID/технические редакции записей-источников
+- **THEN** subject/name и projection MUST NOT заменять appearanceId в новой схеме tool
 
-#### Scenario: Мета компонента сохраняет контракт первого Change
+#### Scenario: Мета компонента без выбора конфигурации
 
 - **WHEN** component_get получает componentId
 - **THEN** MCP MUST сохранить чтение меты через GET /components/{id} без выбора конфигурации и версии глобальной меты
+- **THEN** отсутствие X-DS-Read-Context одной DS MUST NOT считаться ошибкой этого чтения
 
 #### Scenario: Component styles and variations read model details
 
@@ -51,11 +52,24 @@ MCP SHALL читать авторитетную модель выбранной 
 - **WHEN** component_variations_get получает appearanceId и необязательный version
 - **THEN** MCP MUST сохранить чтение осей конкретной конфигурации и стабильные appearanceId и variationId по правилам первого Change
 
-#### Scenario: Вариации сохраняют контракт первого Change
+#### Scenario: Вариации конкретной конфигурации
 
 - **WHEN** component_variations_get получает appearanceId и необязательный version
 - **THEN** MCP MUST сохранить чтение GET /appearances/{id}/variations, существующие values/defaultStyleId и серверный контекст выбранной границы
 - **THEN** схема и результат MUST NOT требовать нового include=values,defaults, componentId вместо appearanceId или локальной сборки конфигурации
+
+#### Scenario: Аргументы и версия вариаций
+
+- **WHEN** appearanceId отсутствует либо вместо него передан componentId
+- **THEN** MCP MUST вернуть INVALID_QUERY
+- **WHEN** version задан явно
+- **THEN** он MUST перекрыть версию URI/контекста; без выбора MUST использоваться draft
+- **THEN** NOT_FOUND MUST NOT превращаться в чтение draft
+
+#### Scenario: Ограниченное чтение оформлений
+
+- **WHEN** component_styles_get получает name, limit или cursor
+- **THEN** MCP MUST передать их серверу и вернуть серверный nextCursor, используя limit=50 по умолчанию
 
 ### Requirement: MCP documentation read tools
 
@@ -139,15 +153,21 @@ MCP SHALL читать опубликованные CodeBinding через су�
 
 ### Requirement: Четыре завершающих инструмента чтения
 
-MCP SHALL добавить component_properties_get, component_dependencies_get, component_tokens_get и documentation_publications_list к реестру первого этапа, используя серверные операции и общий runtime.
+MCP SHALL добавить component_properties_get, component_dependencies_get, component_configurations_list, component_tokens_get и documentation_publications_list к реестру первого этапа, используя серверные операции и общий runtime.
 
 #### Scenario: Детали и ссылки компонента
 
 - **WHEN** вызывается properties либо dependencies
 - **THEN** MCP MUST явно включить серверные платформенные параметры либо настройки переиспользования без клиентского обхода связей
-- **WHEN** component_tokens_get получает componentId и полный объект selection
+- **WHEN** component_tokens_get получает appearanceId и полный набор selectedValueIds
 - **THEN** результат MUST содержать проверенные tokenId, имена и пути использования без значений темы
-- **THEN** неполный selection MUST вернуть INVALID_QUERY
+- **THEN** неполный набор выбранных осей MUST вернуть INVALID_QUERY
+
+#### Scenario: Список конфигураций
+
+- **WHEN** component_configurations_list получает componentId и необязательную версию
+- **THEN** MCP MUST вернуть доступные appearanceId, имена и признак конфигурации по умолчанию с серверной пагинацией
+- **THEN** инструмент MUST NOT выдавать стили каталога как конфигурации
 
 #### Scenario: Список публикаций
 
