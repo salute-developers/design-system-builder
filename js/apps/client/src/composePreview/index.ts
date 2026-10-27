@@ -10,6 +10,8 @@ export { BASIC_BUTTON_PREVIEW_FIXTURE, createBasicButtonPreviewPayload } from '.
 export { hasConfiguration, markComposeComponents, parseComponentRoute, toComponentRoute } from './composeComponents';
 export type { ComponentRoute } from './composeComponents';
 export { ComposePreviewFrame } from './ComposePreviewFrame';
+export { ComposePreviewHostProvider, ComposePreviewSlot, useComposePreviewHost } from './ComposePreviewHost';
+export type { ComposePreviewHost, ComposePreviewHostRequest } from './ComposePreviewHost';
 export { assembleComposePreviewPayload } from './assembler';
 export { createComponentPreviewDraft } from './draft';
 export { COMPOSE_HOST_DEFAULTS } from './hostDefaults';
