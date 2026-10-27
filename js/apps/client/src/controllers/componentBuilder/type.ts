@@ -157,6 +157,8 @@ export interface Meta {
     /** Платформа компонента; без значения — `web`. Проставляется клиентом при загрузке. */
     platform?: ComponentPlatform;
     deps?: ComponentDep[];
+    /** Родители по зависимости `compose` (`Tabs` у `TabItem`): их стили нужны превью вместе с компонентом. */
+    composeParents?: string[];
     preview?: {
         compose?: {
             componentId: string;
