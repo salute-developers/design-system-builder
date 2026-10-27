@@ -5,6 +5,12 @@ import type { Parameters } from '../types/other';
 import type { DesignSystemDto, TenantDto } from './contracts';
 import type { TokenChange } from '../utils/designSystemDraft';
 import type { ThemePalette } from '../modules/palette';
+import type {
+    ComponentDependencyDto,
+    PropertyPlatformParamDto,
+    PropertyVariationDto,
+    WebAdapterComponentDto,
+} from './componentModelEnrichment';
 
 export interface EditorContextKey {
     projectId: string;
@@ -133,6 +139,23 @@ export interface ComponentConfigDto {
 }
 export interface ComponentConfigExportDto {
     components: Array<{ componentName: string; styleName: string; config: ComponentConfigDto }>;
+}
+/**
+ * `GET /design-systems/{ds}/components/{id}/editor-bundle?platform=`: данные одного компонента из тех же DTO,
+ * что отдают списочные чтения, уже ограниченные этим компонентом.
+ */
+export interface ComponentEditorBundleDto {
+    component: ComponentDto;
+    appearances: AppearanceDto[];
+    export: ComponentConfigExportDto;
+    properties: ComponentPropertyDto[];
+    platformParams: PropertyPlatformParamDto[];
+    propertyVariations: PropertyVariationDto[];
+    variations: ComponentVariationDto[];
+    styles: ComponentStyleDto[];
+    webAdapter: WebAdapterComponentDto | null;
+    dependencies: ComponentDependencyDto[];
+    dependencyComponents: ComponentDto[];
 }
 export interface ThemeEditorTokenSnapshot {
     tenant: TenantDto;

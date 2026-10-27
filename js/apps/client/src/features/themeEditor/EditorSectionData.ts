@@ -30,6 +30,7 @@ export class EditorSectionData {
     private readonly componentTypes = new Map<string, TokenDefinitionDto['type'][]>();
     private chain: Promise<unknown> = Promise.resolve();
     private shellStale = false;
+    private shellRead?: Promise<void>;
 
     constructor(context: EditorContextKey, snapshot: ThemeEditorSnapshot, signal: AbortSignal) {
         this.context = context;
@@ -109,21 +110,9 @@ export class EditorSectionData {
         return read;
     }
 
-    private async read(selected: {
-        section: EditorSection;
-        component?: string;
-    }): Promise<SectionReadResult | undefined> {
-        if (this.signal.aborted) throw new Error('EDITOR_CLOSED');
-        const activityRevision = getDraftAutosaveRevision(this.context);
-        const { section, component } = selected;
-        const key = section === 'components' && component ? `components:${component}` : section;
-        const generation = this.invalidated.get(section) ?? 0;
-        const stale = this.loaded.get(key) !== generation;
-        let tokensChanged = false;
-        let componentsChanged = false;
-        let types = sectionTokenTypes[section] ?? this.componentTypes.get(key) ?? [];
-        if (section === 'palette' && paletteRepository.source === 'local') types = ['color', 'gradient'];
-        if (this.shellStale) {
+    /** Одновременные чтения разделов ждут одно чтение оболочки, а не запускают каждое своё. */
+    private readShell(): Promise<void> {
+        this.shellRead ??= (async () => {
             const shellGeneration = this.generation;
             const shell = await loadThemeShell(this.context, this.signal);
             this.snapshot = {
@@ -138,7 +127,27 @@ export class EditorSectionData {
                 },
             };
             this.shellStale = shellGeneration !== this.generation;
-        }
+        })().finally(() => {
+            this.shellRead = undefined;
+        });
+        return this.shellRead;
+    }
+
+    private async read(selected: {
+        section: EditorSection;
+        component?: string;
+    }): Promise<SectionReadResult | undefined> {
+        if (this.signal.aborted) throw new Error('EDITOR_CLOSED');
+        const activityRevision = getDraftAutosaveRevision(this.context);
+        const { section, component } = selected;
+        const key = section === 'components' && component ? `components:${component}` : section;
+        const generation = this.invalidated.get(section) ?? 0;
+        const stale = this.loaded.get(key) !== generation;
+        let tokensChanged = false;
+        let componentsChanged = false;
+        let types = sectionTokenTypes[section] ?? this.componentTypes.get(key) ?? [];
+        if (section === 'palette' && paletteRepository.source === 'local') types = ['color', 'gradient'];
+        if (this.shellStale) await this.readShell();
         if (stale) {
             if (sectionTokenTypes[section]) {
                 const paletteGeneration = this.invalidated.get('palette') ?? 0;
@@ -219,14 +228,34 @@ export class EditorSectionData {
         if (!component) return [];
         const route = parseComponentRoute(component);
         const field = route.platform === 'compose' ? 'composeComponentsData' : 'componentsData';
-        const entries = await this.readComponentDependencies(route.name, route.platform, field);
-        // Поля выбора токенов и превью требуют целых соответствующих наборов, не всех типов темы безусловно.
-        const propertyTypes = new Set(entries.flatMap((item) => item.sources.api.map((property) => property.type)));
-        const dependencies: EditorSection[] = ['typography']; // Общий шрифт превью body.
-        if (propertyTypes.has('color')) dependencies.push('colors');
-        if (['shape', 'dimension', 'shadow'].some((type) => propertyTypes.has(type as never)))
-            dependencies.push('shapes');
-        for (const section of dependencies) await this.read({ section });
+        // Разделы токенов читаются одновременно и начинаются, как только известны свойства выбранного компонента:
+        // их чтение идёт параллельно со связанными компонентами. Каждое чтение вливает токены в текущий снимок.
+        const sectionReads = new Map<EditorSection, Promise<unknown>>();
+        const startSections = async (entries: ThemeEditorSnapshot['componentsData']) => {
+            if (this.shellStale) await this.readShell();
+            for (const section of tokenSectionsOf(entries)) {
+                if (sectionReads.has(section)) continue;
+                const reading = this.read({ section });
+                reading.catch(() => undefined);
+                sectionReads.set(section, reading);
+            }
+        };
+        const settleSections = async () => {
+            const results = await Promise.allSettled(sectionReads.values());
+            const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+            if (failure) throw failure.reason;
+        };
+        let entries: ThemeEditorSnapshot['componentsData'];
+        try {
+            entries = await this.readComponentDependencies(route.name, route.platform, field, startSections);
+            await startSections(entries);
+        } catch (error) {
+            // Цепочка чтений остаётся последовательной: незавершённые разделы не переживают ошибку.
+            await Promise.allSettled(sectionReads.values());
+            throw error;
+        }
+        await settleSections();
+        const dependencies = tokenSectionsOf(entries);
         for (const entry of entries) {
             const prefix = entry.platform === 'compose' ? 'compose-' : '';
             this.loaded.set(`components:${prefix}${entry.name}`, generation);
@@ -238,52 +267,102 @@ export class EditorSectionData {
         return dependencies.flatMap((section) => sectionTokenTypes[section] ?? []);
     }
 
+    /**
+     * Обход ссылок по уровням: компоненты уровня читаются одновременно, вливаются в порядке ссылок. Для выбранного
+     * web-компонента первый уровень включает и связанные компоненты превью: зависимости (`deps`) и родителей по
+     * `compose` — web-плагину нужны их стили.
+     */
     private async readComponentDependencies(
         name: string,
         platform: 'web' | 'compose',
         field: 'componentsData' | 'composeComponentsData',
+        onSelectedLoaded?: (entries: ThemeEditorSnapshot['componentsData']) => Promise<void>,
     ) {
-        const pending = [name];
-        const visited = new Set<string>();
+        const visited = new Set([name]);
         const loaded = [] as ThemeEditorSnapshot['componentsData'];
-        while (pending.length) {
-            const selectedName = pending.shift()!;
-            if (visited.has(selectedName)) continue;
-            visited.add(selectedName);
-            const cacheKey = `components:${platform === 'compose' ? 'compose-' : ''}${selectedName}`;
-            const cached = this.snapshot[field]?.find((item) => item.name === selectedName);
-            const response =
-                cached && this.loaded.get(cacheKey) === (this.invalidated.get('components') ?? 0)
-                    ? [cached]
-                    : await componentRepository.loadComponentData(this.context, this.signal, platform, selectedName);
-            const entries = platform === 'compose' ? markComposeComponents(response) : response;
-            loaded.push(...entries);
-            this.snapshot = {
-                ...this.snapshot,
-                [field]: (this.snapshot[field] ?? []).map((item) => {
-                    const updated = entries.find(
-                        (current) => current.serverBinding?.componentId === item.serverBinding?.componentId,
-                    );
-                    return updated
-                        ? {
-                              ...updated,
-                              serverBinding: {
-                                  ...updated.serverBinding!,
-                                  appearanceNames: item.serverBinding?.appearanceNames,
-                              },
-                          }
-                        : item;
-                }),
-            };
-            for (const entry of entries) {
-                for (const reference of componentSectionReferences(entry)) {
-                    const target = this.snapshot[field]?.find((item) =>
-                        item.serverBinding?.appearanceNames?.includes(reference),
-                    );
-                    if (target) pending.push(target.name);
+        let level = [name];
+        for (let depth = 0; level.length; depth++) {
+            const responses = await Promise.all(
+                level.map((selectedName) => this.readComponent(selectedName, platform, field)),
+            );
+            const next: string[] = [];
+            for (const response of responses) {
+                const entries = platform === 'compose' ? markComposeComponents(response) : response;
+                loaded.push(...entries);
+                this.snapshot = {
+                    ...this.snapshot,
+                    [field]: (this.snapshot[field] ?? []).map((item) => {
+                        const updated = entries.find(
+                            (current) => current.serverBinding?.componentId === item.serverBinding?.componentId,
+                        );
+                        return updated
+                            ? {
+                                  ...updated,
+                                  serverBinding: {
+                                      ...updated.serverBinding!,
+                                      appearanceNames: item.serverBinding?.appearanceNames,
+                                  },
+                              }
+                            : item;
+                    }),
+                };
+                for (const entry of entries) {
+                    if (depth === 0 && platform === 'web' && entry.name === name) {
+                        for (const related of previewRelatedNames(entry)) {
+                            const known = this.snapshot[field]?.some((item) => item.name === related);
+                            if (known && !visited.has(related)) {
+                                visited.add(related);
+                                next.push(related);
+                            }
+                        }
+                    }
+                    for (const reference of componentSectionReferences(entry)) {
+                        const target = this.snapshot[field]?.find((item) =>
+                            item.serverBinding?.appearanceNames?.includes(reference),
+                        );
+                        if (target && !visited.has(target.name)) {
+                            visited.add(target.name);
+                            next.push(target.name);
+                        }
+                    }
                 }
             }
+            if (depth === 0) await onSelectedLoaded?.(loaded);
+            level = next;
         }
         return loaded;
     }
+
+    /** Актуальный кэш или одно чтение компонента по id из записи индекса. */
+    private async readComponent(
+        name: string,
+        platform: 'web' | 'compose',
+        field: 'componentsData' | 'composeComponentsData',
+    ) {
+        const cacheKey = `components:${platform === 'compose' ? 'compose-' : ''}${name}`;
+        const cached = this.snapshot[field]?.find((item) => item.name === name);
+        if (cached && this.loaded.get(cacheKey) === (this.invalidated.get('components') ?? 0)) return [cached];
+        return componentRepository.loadComponentData(
+            this.context,
+            this.signal,
+            platform,
+            name,
+            cached?.serverBinding?.componentId || undefined,
+        );
+    }
 }
+
+/** Связанные компоненты превью web-компонента: зависимости любого типа и родители по `compose`. */
+const previewRelatedNames = (entry: ThemeEditorSnapshot['componentsData'][number]): string[] => [
+    ...(entry.deps ?? []).flatMap((dep) => (dep.childName ? [dep.childName] : [])),
+    ...(entry.composeParents ?? []),
+];
+
+/** Поля выбора токенов и превью требуют целых соответствующих наборов, не всех типов темы безусловно. */
+const tokenSectionsOf = (entries: ThemeEditorSnapshot['componentsData']): EditorSection[] => {
+    const propertyTypes = new Set(entries.flatMap((item) => item.sources.api.map((property) => property.type)));
+    // Шрифт тела и фон области превью (цветовой токен) нужны любому компоненту, даже без цветовых свойств.
+    const sections: EditorSection[] = ['typography', 'colors'];
+    if (['shape', 'dimension', 'shadow'].some((type) => propertyTypes.has(type as never))) sections.push('shapes');
+    return sections;
+};
