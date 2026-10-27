@@ -1,0 +1,65 @@
+package com.dsbuilder.ds.themes.presentation.typography
+
+import com.dsbuilder.ds.themes.application.typography.UpdatedTypographyStyle
+import com.dsbuilder.ds.themes.application.typography.WrittenTypographyToken
+import com.dsbuilder.ds.themes.domain.typography.TypographyComponentUsage
+import com.dsbuilder.ds.themes.domain.typography.TypographyFamily
+import com.dsbuilder.ds.themes.domain.typography.TypographyScreenView
+import com.dsbuilder.ds.themes.domain.typography.TypographyStyleView
+import com.dsbuilder.ds.themes.domain.typography.TypographyStyles
+import com.dsbuilder.ds.themes.domain.typography.TypographyValueRevision
+
+/** Ответ чтения стилей. */
+internal fun TypographyStyles.toResponse() = TypographyStylesResponse(
+    canEdit = canEdit,
+    themeCount = themeCount,
+    families = families.map { it.toDto() },
+    screens = screens.map { it.toDto() },
+)
+
+/** Ответ изменения стиля. */
+internal fun UpdatedTypographyStyle.toResponse() = UpdatedTypographyStyleResponse(
+    style = style.toDto(),
+    tokens = tokens.map { it.toDto() },
+)
+
+private fun TypographyFamily.toDto() = TypographyFamilyDto(name, fontName)
+
+private fun TypographyScreenView.toDto() = TypographyScreenDto(screen.wireValue, styles.map { it.toDto() })
+
+private fun TypographyStyleView.toDto() = TypographyStyleDto(
+    screen = screen.wireValue,
+    group = key.group,
+    size = key.size,
+    sizePx = sizePx,
+    lineHeightPx = lineHeightPx,
+    letterSpacingEm = letterSpacingEm,
+    fontFamily = fontFamily,
+    variants = variants.entries.associate { (variant, view) ->
+        variant.wireValue to TypographyVariantDto(
+            view.tokenId.toString(),
+            view.weight,
+            view.valueRevisions.map { it.toDto() },
+        )
+    },
+    components = components.map { it.toDto() },
+    overrides = overrides.entries.associate { (platform, override) ->
+        platform.wireValue to TypographyOverrideDto(
+            sizePx = override.sizePx,
+            lineHeightPx = override.lineHeightPx,
+            letterSpacingEm = override.letterSpacingEm,
+            weights = override.weights.mapKeys { (variant, _) -> variant.wireValue },
+        )
+    },
+)
+
+private fun TypographyValueRevision.toDto() =
+    TypographyValueRevisionDto(platform.wireValue, valueId.toString(), revision)
+
+private fun TypographyComponentUsage.toDto() = TypographyComponentDto(name, count)
+
+private fun WrittenTypographyToken.toDto() = TypographyTokenValuesDto(
+    tokenId = tokenId.toString(),
+    name = name,
+    values = values.entries.map { (platform, value) -> TypographyPlatformValueDto(platform.wireValue, value) },
+)

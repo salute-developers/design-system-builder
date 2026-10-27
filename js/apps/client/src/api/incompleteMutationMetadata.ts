@@ -22,7 +22,9 @@ export const subscribeIncompleteMutationMetadata = (
     const listener = (path: string) => {
         if (!path.includes(prefix) || context.versionId) return;
         refresh(
-            /\/(?:color-tokens|palette|token-groups|token-values|tokens)(?:\/|$)/.test(path) ? 'theme-tokens' : 'all',
+            /\/(?:color-tokens|palette|token-groups|token-values|tokens|typography-styles)(?:\/|$)/.test(path)
+                ? 'theme-tokens'
+                : 'all',
         );
     };
     listeners.add(listener);

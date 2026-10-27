@@ -100,6 +100,17 @@
       ]
     },
     {
+      "name": "typography-styles",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/tenants/{tenantId}/typography-styles", null, "TypographyStyles", 200, "tenants:read", null],
+        ["PATCH", "/tenants/{tenantId}/typography-styles/{tokenId}", "UpdateTypographyStyleRequest", "UpdatedTypographyStyle", 200, "tenants:write", "tenant-edit-revision"]
+      ]
+    },
+    {
       "name": "token-groups",
       "origin": "ds-service",
       "router": "",

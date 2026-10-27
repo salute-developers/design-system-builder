@@ -1,0 +1,2269 @@
+/* Экран Typography: правила прототипа SDDS Portal (`kenymook/SDDS-Design-System`,
+ * portal/apps/portal-flow-prototype: styles.css и builder-ui-tokens.css) для классов экрана. Селекторы
+ * ограничены корнем раздела `.typography-screen`, переменные `:root` перенесены на него, как в
+ * `color-tokens.css`. Порядок правил сохранён: более поздние правила прототипа переопределяют ранние. Файл
+ * собран скриптом, правки — ниже отдельным блоком «Клиент». Предки оболочки прототипа
+ * `.builder-shell.theme-workspace` заменены классами корня `.ty-shell.ty-theme-workspace`. */
+
+.typography-screen {
+  --builder-ui-bg-primary: #27282c;
+  --builder-ui-bg-secondary: #212327;
+  --builder-ui-bg-tertiary: #0e1015;
+
+  --builder-ui-outline-primary: #3d3f42;
+  --builder-ui-outline-secondary: #56585c;
+  --builder-ui-outline-transparent-primary: #ffffff1a;
+  --builder-ui-outline-transparent-secondary: #ffffff08;
+  --builder-ui-outline-accent-transparent: #2b8ced33;
+
+  --builder-ui-surface-card: #27282c;
+  --builder-ui-surface-default: #212327;
+  --builder-ui-surface-primary: #3d3f42;
+  --builder-ui-surface-transparent-primary: #ffffff08;
+  --builder-ui-surface-transparent-secondary: #ffffff1a;
+
+  --builder-ui-text-primary: #f3f3f3;
+  --builder-ui-text-secondary: #dbdbdc;
+  --builder-ui-text-tertiary: #b6b7b9;
+  --builder-ui-text-paragraph: #9e9fa2;
+
+  --builder-ui-accent: #2b8ced;
+  --builder-ui-accent-minor: #2281e0;
+  --builder-ui-accent-transparent: #2b8ced33;
+  --builder-ui-rail-selection: #2b8ced1f;
+  --builder-ui-negative: #f31b31;
+  --builder-ui-positive: #0c9423;
+  --builder-ui-warning: #96800f;
+
+  --builder-ui-radius-xxs: 4px;
+  --builder-ui-radius-xs: 6px;
+  --builder-ui-radius-s: 8px;
+  --builder-ui-radius-m: 12px;
+
+  
+  --builder-bg-primary: var(--builder-ui-bg-primary);
+  --builder-panel: var(--builder-ui-bg-secondary);
+  --builder-surface-primary: var(--builder-ui-surface-primary);
+  --builder-outline-primary: var(--builder-ui-outline-primary);
+  --builder-outline-transparent: var(--builder-ui-outline-transparent-primary);
+  --builder-control: var(--builder-ui-surface-transparent-primary);
+  --builder-text-primary: var(--builder-ui-text-primary);
+  --builder-text-secondary: var(--builder-ui-text-secondary);
+  --builder-text-tertiary: var(--builder-ui-text-tertiary);
+  --builder-text-paragraph: var(--builder-ui-text-paragraph);
+  --builder-accent: var(--builder-ui-accent);
+  --builder-radius-xs: var(--builder-ui-radius-xs);
+  --builder-radius-m: var(--builder-ui-radius-m);
+
+  --shell-bg: var(--builder-ui-bg-tertiary);
+  --rail-bg: var(--builder-ui-bg-secondary);
+  --sidebar-bg: var(--builder-ui-bg-secondary);
+  --surface: var(--builder-ui-surface-default);
+  --surface-hover: var(--builder-ui-surface-transparent-primary);
+  --line: var(--builder-ui-outline-transparent-primary);
+  --text: var(--builder-ui-text-primary);
+  --muted: var(--builder-ui-text-paragraph);
+  --accent: var(--builder-ui-accent);
+
+  --ps-text: var(--builder-ui-text-primary);
+  --ps-secondary: var(--builder-ui-text-secondary);
+  --ps-tertiary: var(--builder-ui-text-tertiary);
+  --ps-paragraph: var(--builder-ui-text-paragraph);
+  --ps-accent: var(--builder-ui-accent);
+  --ps-line: var(--builder-ui-outline-transparent-primary);
+  --ps-control: var(--builder-ui-surface-transparent-primary);
+  --ps-control-line: var(--builder-ui-outline-transparent-primary);
+  --ps-card: var(--builder-ui-surface-card);
+  --ps-negative: var(--builder-ui-negative);
+
+    /* Действующие значения переменных оболочки прототипа (styles.css, переопределённые builder-ui-tokens.css). */
+    --shell-bg: #0e1015;
+    --rail-bg: #212327;
+    --surface: #212327;
+    --surface-hover: #ffffff08;
+    --line: #ffffff1a;
+    --text: #f3f3f3;
+    --muted: #9e9fa2;
+    --accent: #2b8ced;
+    --builder-ref-bg: var(--builder-ui-bg-primary);
+    --builder-ref-panel: var(--builder-ui-bg-secondary);
+    --builder-ref-canvas: var(--builder-ui-bg-primary);
+    --builder-ref-rail: var(--builder-ui-bg-secondary);
+    --builder-ref-line: var(--builder-ui-outline-transparent-primary);
+    --builder-ref-line-soft: var(--builder-ui-outline-transparent-secondary);
+    --builder-ref-selected: var(--builder-ui-accent-transparent);
+    --builder-ref-selected-line: var(--builder-ui-accent);
+    --builder-ref-text: var(--builder-ui-text-primary);
+    --builder-ref-muted: var(--builder-ui-text-tertiary);
+    --builder-ref-dim: var(--builder-ui-text-paragraph);
+
+    position: relative;
+    /* Корень — элемент flex-строки макета клиента: без растяжения ширина зависела бы от содержимого холста. */
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    font-family: Inter, Arial, sans-serif;
+    line-height: 1.45;
+    color: var(--text);
+    color-scheme: dark;
+    background: var(--builder-ref-bg);
+}
+
+/* Базовые правила прототипа (styles.css): ограничены разделом и не добавляют специфичности. */
+:where(.typography-screen) *,
+:where(.typography-screen) *::before,
+:where(.typography-screen) *::after {
+    box-sizing: border-box;
+}
+
+:where(.typography-screen) :where(button, input, select, textarea) {
+    font: inherit;
+}
+
+:where(.typography-screen) :where(button) {
+    cursor: pointer;
+    border: 1px solid #1b1d22;
+    background: #1b1d22;
+    color: white;
+    padding: 9px 14px;
+    border-radius: 6px;
+}
+
+:where(.typography-screen) :where(button:disabled) {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+:where(.typography-screen) :where(button.secondary) {
+    background: white;
+    color: #1b1d22;
+}
+
+:where(.typography-screen) :where(h2) {
+    margin: 0 0 8px;
+    font-size: 20px;
+}
+
+:where(.typography-screen) :where(p) {
+    margin-top: 0;
+}
+
+:where(.typography-screen) :where(label) {
+    display: grid;
+    gap: 6px;
+    font-weight: 600;
+}
+
+:where(.typography-screen) :where(input, select, textarea) {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid #444d59;
+    border-radius: 5px;
+    background: #20252c;
+    color: var(--text);
+}
+
+:where(.typography-screen) :where(footer) {
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--rail-bg);
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+}
+
+:where(.typography-screen) :where(.ui-glyph) {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* --- styles.css --- */
+
+.typography-screen .editor-workbench {
+    height:calc(100vh - 49px);
+    display:flex;
+    flex-direction:column;
+}
+.typography-screen .editor-toolbar {
+    min-height:52px;
+    padding:8px 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid var(--line);
+    background:#191f26;
+}
+.typography-screen .editor-toolbar>div {
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+.typography-screen .editor-toolbar span {
+    color:var(--muted);
+    font-size:12px;
+}
+.typography-screen .viewer-banner {
+    padding:8px 14px;
+    background:#3c3219;
+}
+.typography-screen .token-browser,
+.typography-screen .properties-panel {
+    overflow:auto;
+    background:#1a2027;
+}
+.typography-screen .token-browser {
+    border-right:1px solid var(--line);
+}
+.typography-screen .properties-panel {
+    border-left:1px solid var(--line);
+}
+.typography-screen .token-row {
+    width:100%;
+    padding:9px 10px;
+    display:grid;
+    gap:4px;
+    text-align:left;
+    border:0;
+    background:transparent;
+    color:var(--text);
+}
+.typography-screen .token-row code {
+    width:max-content;
+    padding:0;
+    background:none;
+    color:var(--muted);
+    font-size:11px;
+}
+.typography-screen .token-row:hover,
+.typography-screen .token-row.is-selected {
+    background:#343d48;
+}
+.typography-screen .preview-canvas {
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    background:#0c1015;
+}
+.typography-screen .canvas-toolbar {
+    height:36px;
+    padding:0 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    color:var(--muted);
+    font-size:11px;
+    border-bottom:1px solid var(--line);
+}
+@media(max-width:1000px) {
+    .typography-screen .properties-panel {
+        display:none;
+    }
+}
+.typography-screen.ty-shell.ty-theme-workspace .editor-workbench {
+    height:100vh;
+}
+.typography-screen .playground-workbench {
+    height:100vh;
+    display:grid;
+    grid-template-columns:280px 280px minmax(420px,1fr);
+    grid-template-rows:44px minmax(0,1fr);
+    background:#252a31;
+}
+.typography-screen .playground-workbench .token-browser {
+    grid-column:1;
+    grid-row:1/3;
+    border-right:1px solid #343a43;
+    background:#22272e;
+    overflow:auto;
+}
+.typography-screen .token-panel-header {
+    height:44px;
+    padding:0 8px 0 14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid #343a43;
+}
+.typography-screen .token-panel-header>div {
+    display:flex;
+}
+.typography-screen .token-panel-header button,
+.typography-screen .canvas-toolbar button {
+    border:0;
+    background:transparent;
+    color:#d6dbe3;
+    padding:6px;
+}
+.typography-screen .token-tree {
+    padding-top:4px;
+}
+.typography-screen .token-tree-group {
+    border-bottom:1px solid #30363f;
+    color:#8f99a8;
+    font-size:12px;
+}
+.typography-screen .token-tree-group>span {
+    display:block;
+    padding:10px 8px;
+}
+.typography-screen .token-tree-group.is-open {
+    padding-bottom:7px;
+}
+.typography-screen .token-row {
+    height:32px;
+    padding:0 12px 0 20px;
+    display:flex;
+    align-items:center;
+    gap:7px;
+}
+.typography-screen .token-row.is-selected {
+    background:#3b424d;
+    color:#fff;
+}
+.typography-screen .playground-workbench .editor-toolbar {
+    grid-column:2/4;
+    grid-row:1;
+    height:44px;
+    min-height:44px;
+    padding:0 10px;
+    display:grid;
+    grid-template-columns:240px 70px 1fr auto;
+    border-bottom:1px solid #343a43;
+    background:#22272e;
+}
+.typography-screen .playground-workbench .properties-panel {
+    grid-column:2;
+    grid-row:2;
+    border-right:1px solid #343a43;
+    border-left:0;
+    background:#252a31;
+    overflow:auto;
+}
+.typography-screen .inspector-section {
+    padding:12px 16px;
+    border-bottom:1px solid #343a43;
+    display:grid;
+    gap:8px;
+    font-size:12px;
+}
+.typography-screen .inspector-heading {
+    color:#929cab;
+    margin-bottom:3px;
+}
+.typography-screen .inspector-section label {
+    grid-template-columns:40px 1fr;
+    align-items:center;
+    font-weight:400;
+    color:#939dac;
+}
+.typography-screen .impact-line,
+.typography-screen .component-impact>div {
+    display:flex;
+    justify-content:space-between;
+    padding:5px 0;
+    color:#c8ced7;
+}
+.typography-screen .playground-workbench .preview-canvas {
+    grid-column:3;
+    grid-row:2;
+    min-width:0;
+    background:#282d34;
+    overflow:auto;
+}
+.typography-screen .playground-workbench .canvas-toolbar {
+    height:40px;
+    padding:0 8px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid #343a43;
+}
+@media(max-width:1100px) {
+    .typography-screen .playground-workbench {
+        grid-template-columns:250px 250px minmax(360px,1fr);
+    }
+}
+.typography-screen .playground-workbench .editor-toolbar {
+    grid-template-columns:280px minmax(0,1fr);
+    padding:0;
+}
+.typography-screen .preview-toolbar {
+    min-width:0;
+    height:44px;
+    padding:0 10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+}
+@media(max-width:1100px) {
+    .typography-screen .playground-workbench .editor-toolbar {
+        grid-template-columns:250px minmax(0,1fr);
+    }
+}
+.typography-screen .token-row small {
+    margin-left:auto;
+    color:var(--muted);
+    font-size:10px;
+}
+@media(max-width:900px) {
+    .typography-screen .playground-workbench {
+        height:auto;
+        min-height:100vh;
+        display:grid;
+        grid-template-columns:minmax(0,1fr);
+        grid-template-rows:44px auto auto minmax(500px,1fr);
+    }
+    .typography-screen .playground-workbench .editor-toolbar {
+        grid-column:1;
+        grid-row:1;
+        grid-template-columns:minmax(180px,250px) minmax(0,1fr);
+    }
+    .typography-screen .playground-workbench .token-browser {
+        display:block;
+        grid-column:1;
+        grid-row:2;
+        max-height:260px;
+        border-right:0;
+        border-bottom:1px solid var(--line);
+    }
+    .typography-screen .playground-workbench .properties-panel {
+        display:block;
+        grid-column:1;
+        grid-row:3;
+        max-height:360px;
+        border-right:0;
+        border-bottom:1px solid var(--line);
+    }
+    .typography-screen .playground-workbench .preview-canvas {
+        grid-column:1;
+        grid-row:4;
+        min-height:500px;
+    }
+}
+@media(max-width:560px) {
+    .typography-screen .playground-workbench .editor-toolbar {
+        height:auto;
+        min-height:80px;
+        grid-template-columns:1fr;
+        grid-template-rows:36px 44px;
+    }
+    .typography-screen .preview-toolbar {
+        height:44px;
+        overflow-x:auto;
+    }
+}
+.typography-screen.ty-shell.ty-theme-workspace .editor-workbench,
+.typography-screen.ty-theme-workspace .playground-workbench {
+    height:calc(100vh - 37px);
+}
+@media(max-width:900px) {
+    .typography-screen.ty-theme-workspace .playground-workbench {
+        height:auto;
+        min-height:calc(100vh - 37px);
+    }
+}
+.typography-screen .font-family-menu {
+    position:absolute;
+    top:31px;
+    left:56px;
+    right:0;
+    z-index:80;
+    padding:4px;
+    border:1px solid #474a51;
+    border-radius:7px;
+    background:#20252c;
+    box-shadow:0 16px 42px #000b;
+}
+.typography-screen .font-family-menu button {
+    width:100%;
+    height:28px;
+    padding:0 8px;
+    border:0;
+    border-radius:5px;
+    background:transparent;
+    color:#d7dde7;
+    font-size:12px;
+    font-weight:400;
+    text-align:left;
+}
+.typography-screen .font-family-menu button:hover,
+.typography-screen .font-family-menu button.is-selected {
+    background:#2d3f5f;
+    color:#fff;
+}
+.typography-screen .impact-component {
+    display:flex;
+    justify-content:space-between;
+    width:100%;
+    padding:5px 0;
+    border:0;
+    background:transparent;
+    color:#c8ced7;
+    text-align:left;
+    font-size:12px;
+}
+.typography-screen .impact-component:hover {
+    color:#fff;
+}
+.typography-screen .impact-component b {
+    color:#c8ced7;
+}
+.typography-screen .ui-glyph {
+    width:1em;
+    height:1em;
+    flex:none;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:1.8;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    vertical-align:-.14em;
+}
+.typography-screen .playground-workbench {
+    position:relative;
+}
+@media(min-width:901px) and (max-width:1100px) {
+    .typography-screen .playground-workbench {
+        grid-template-columns:220px 220px minmax(0,1fr);
+    }
+    .typography-screen .playground-workbench .editor-toolbar {
+        grid-template-columns:220px minmax(0,1fr);
+    }
+    .typography-screen .playground-workbench .properties-panel {
+        display:block;
+    }
+}
+.typography-screen .playground-workbench {
+    grid-template-columns:var(--panel-left,280px) minmax(320px,1fr) var(--panel-right,320px);
+    grid-template-rows:44px minmax(0,1fr);
+    background:#1d2025;
+    color:#edf1f7;
+}
+.typography-screen .playground-workbench .editor-toolbar {
+    grid-template-columns:minmax(0,1fr) var(--panel-right,320px);
+}
+.typography-screen .panel-resizer {
+    position:absolute;
+    top:0;
+    bottom:0;
+    width:9px;
+    z-index:6;
+    cursor:col-resize;
+    background:transparent;
+    border:0;
+    padding:0;
+}
+.typography-screen .panel-resizer::after {
+    content:'';
+    position:absolute;
+    top:0;
+    bottom:0;
+    left:4px;
+    width:1px;
+    background:transparent;
+    transition:background .15s;
+}
+.typography-screen .panel-resizer:hover::after {
+    background:#4d82ff;
+}
+.typography-screen .panel-resizer:focus-visible {
+    outline:2px solid #4d82ff;
+    outline-offset:-2px;
+}
+.typography-screen .playground-workbench {
+    position:relative;
+}
+.typography-screen .panel-resizer-left {
+    left:calc(var(--panel-left,280px) - 4px);
+}
+.typography-screen .panel-resizer-right {
+    right:calc(var(--panel-right,320px) - 5px);
+}
+.typography-screen .playground-workbench .token-browser {
+    grid-column:1;
+    grid-row:1/3;
+    background:#1f232a;
+    border-right-color:#343a43;
+}
+.typography-screen .playground-workbench .editor-toolbar {
+    grid-column:2/4;
+    grid-row:1;
+    grid-template-columns:minmax(0,1fr) var(--panel-right,320px);
+    background:#1f232a;
+    border-bottom-color:#343a43;
+}
+.typography-screen .playground-workbench .preview-canvas {
+    grid-column:2;
+    grid-row:2;
+    background:#27282c;
+    border-right:1px solid #343a43;
+}
+.typography-screen .playground-workbench .properties-panel {
+    grid-column:3;
+    grid-row:2;
+    background:#25272d;
+    border-left:0;
+    border-right:0;
+}
+.typography-screen .preview-toolbar {
+    grid-column:1;
+    grid-row:1;
+    border-right:1px solid #343a43;
+}
+.typography-screen .token-panel-header {
+    background:#1f232a;
+}
+.typography-screen .token-panel-header strong {
+    font-size:18px;
+    line-height:24px;
+}
+.typography-screen .token-tree-group {
+    border-bottom-color:#303640;
+    color:#9aa3b2;
+}
+.typography-screen .token-tree-group>span {
+    padding:12px 12px 9px;
+    font-size:13px;
+}
+.typography-screen .token-row {
+    height:34px;
+    margin:0 6px;
+    padding:0 12px 0 16px;
+    border-radius:7px;
+    color:#d9e0ea;
+}
+.typography-screen .token-row:hover {
+    background:#2b313a;
+}
+.typography-screen .token-row.is-selected {
+    background:#314055;
+    color:#fff;
+}
+.typography-screen .playground-workbench .canvas-toolbar {
+    height:36px;
+    background:#27282c;
+    border-bottom-color:#343a43;
+    color:#9aa3b2;
+}
+.typography-screen .token-canvas {
+    min-height:100%;
+    padding:24px 0;
+    box-sizing:border-box;
+}
+.typography-screen .inspector-section {
+    padding:14px 18px;
+    border-bottom-color:#343a43;
+}
+.typography-screen .inspector-heading {
+    color:#9aa3b2;
+    font-size:13px;
+}
+.typography-screen .playground-workbench .preview-toolbar {
+    padding:0 8px;
+    justify-content:space-between;
+}
+.typography-screen .playground-workbench .canvas-toolbar button:not([data-action]) {
+    font-size:0;
+}
+.typography-screen .playground-workbench .canvas-toolbar button:not([data-action])::before {
+    content:'Palette';
+    font-size:12px;
+    color:#c9d0da;
+}
+.typography-screen .playground-workbench .canvas-toolbar button:not([data-action])::after {
+    content:'';
+    display:inline-block;
+    width:5px;
+    height:5px;
+    margin:0 0 2px 5px;
+    border-right:1.5px solid #c9d0da;
+    border-bottom:1.5px solid #c9d0da;
+    border-radius:1px;
+    transform:rotate(45deg);
+}
+.typography-screen .playground-workbench .canvas-toolbar>div:not([class]) {
+    color:#aeb7c4;
+    font-size:13px;
+    letter-spacing:3px;
+}
+.typography-screen .playground-workbench .token-browser,
+.typography-screen .playground-workbench .properties-panel,
+.typography-screen .playground-workbench .preview-canvas {
+    height:100%;
+    max-height:100%;
+    overflow:auto;
+}
+.typography-screen .token-panel-header {
+    height:40px;
+    padding:0 8px 0 12px;
+}
+.typography-screen .token-panel-header strong {
+    font-size:14px;
+    font-weight:600;
+}
+.typography-screen .token-row {
+    height:32px;
+    border-radius:0;
+    margin:0;
+    padding-left:12px;
+}
+.typography-screen .token-row.is-selected {
+    background:#2d3d55;
+}
+.typography-screen .token-row-value {
+    margin-left:auto;
+    padding-left:8px;
+    color:#8f99a8;
+    font-size:11px;
+    font-weight:400;
+    white-space:nowrap;
+}
+.typography-screen .token-row.is-selected .token-row-value {
+    color:#c9d3e0;
+}
+.typography-screen .token-tree-group>span {
+    height:32px;
+    padding:8px 12px;
+    color:#a5aebb;
+}
+.typography-screen .inspector-section {
+    padding:10px 12px;
+}
+.typography-screen .inspector-section label {
+    min-height:32px;
+}
+@media(max-width:1100px) {
+    .typography-screen .playground-workbench {
+        grid-template-columns:240px minmax(360px,1fr) 280px;
+    }
+    .typography-screen .playground-workbench .editor-toolbar {
+        grid-template-columns:minmax(0,1fr) 280px;
+    }
+}
+@media(max-width:900px) {
+    .typography-screen .playground-workbench .preview-canvas {
+        grid-column:1;
+        grid-row:4;
+        border-right:0;
+    }
+    .typography-screen .playground-workbench .properties-panel {
+        grid-column:1;
+        grid-row:3;
+    }
+    .typography-screen .playground-workbench .editor-toolbar {
+        grid-column:1;
+        grid-row:1;
+        grid-template-columns:1fr;
+    }
+    .typography-screen .preview-toolbar {
+        display:none;
+    }
+    .typography-screen .token-canvas {
+        padding:24px;
+    }
+}
+.typography-screen .playground-workbench {
+    background:var(--builder-ref-bg);
+    color:var(--builder-ref-text);
+}
+.typography-screen .playground-workbench .token-browser,
+.typography-screen .playground-workbench .editor-toolbar,
+.typography-screen .playground-workbench .properties-panel {
+    background:var(--builder-ref-panel);
+}
+.typography-screen .playground-workbench .preview-canvas {
+    background:var(--builder-ref-canvas);
+}
+.typography-screen .playground-workbench .token-browser,
+.typography-screen .playground-workbench .preview-canvas,
+.typography-screen .playground-workbench .editor-toolbar,
+.typography-screen .token-panel-header,
+.typography-screen .playground-workbench .canvas-toolbar {
+    border-color:var(--builder-ref-line);
+}
+.typography-screen .token-panel-header strong {
+    color:var(--builder-ref-text);
+    font-size:12px;
+    font-weight:500;
+}
+.typography-screen .token-tree {
+    padding-top:4px;
+}
+.typography-screen .token-tree-group {
+    border-bottom:0;
+    color:var(--builder-ref-muted);
+}
+.typography-screen .token-tree-group>span {
+    color:#d5dae2;
+    font-size:12px;
+    font-weight:500;
+}
+.typography-screen .token-row {
+    height:32px;
+    margin:0 8px;
+    border-radius:5px;
+    color:var(--builder-ref-muted);
+    font-size:12px;
+}
+.typography-screen .token-row:hover {
+    background:#292d34;
+    color:#d9dee6;
+}
+.typography-screen .token-row.is-selected {
+    background:var(--builder-ref-selected);
+    color:#ffffff;
+    box-shadow:inset 0 0 0 1px #2d78ff;
+}
+.typography-screen .playground-workbench .preview-toolbar {
+    background:var(--builder-ref-panel);
+    border-right-color:var(--builder-ref-line);
+}
+.typography-screen .playground-workbench .preview-toolbar::after,
+.typography-screen .playground-workbench .canvas-toolbar div {
+    color:#d5dae2;
+}
+.typography-screen .playground-workbench .canvas-toolbar {
+    background:var(--builder-ref-canvas);
+    color:var(--builder-ref-muted);
+}
+.typography-screen .token-canvas {
+    background:var(--builder-ref-canvas);
+}
+.typography-screen .inspector-section {
+    border-bottom:0;
+    color:var(--builder-ref-muted);
+}
+.typography-screen .inspector-heading {
+    color:#f0f3f7;
+    font-size:12px;
+    font-weight:600;
+}
+.typography-screen .inspector-section label {
+    color:#b3bbc6;
+}
+.typography-screen .impact-line,
+.typography-screen .component-impact>div,
+.typography-screen .impact-component {
+    color:#b3bbc6;
+}
+.typography-screen .playground-workbench:not(.component-workbench) .preview-toolbar {
+    gap:16px;
+}
+.typography-screen .playground-workbench:not(.component-workbench) .preview-toolbar::after {
+    content:none;
+}
+.typography-screen .playground-workbench:not(.component-workbench) .canvas-toolbar {
+    display:none;
+}
+.typography-screen .typography-canvas {
+    padding:24px;
+}
+.typography-screen .typography-board {
+    width:880px;
+    max-width:100%;
+    margin:0 auto;
+    padding-bottom:40px;
+    color:#edf1f7;
+}
+.typography-screen .typography-board-header {
+    height:40px;
+    padding:0 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid #3a3e45;
+    color:#949da9;
+    font-size:11px;
+}
+.typography-screen .typography-board-header>div {
+    min-width:0;
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+}
+.typography-screen .typography-board-header strong {
+    overflow:hidden;
+    color:#edf1f7;
+    font-size:13px;
+    font-weight:600;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.typography-screen .typography-board-header span {
+    white-space:nowrap;
+}
+.typography-screen .typography-canvas-group {
+    display:grid;
+    gap:0;
+}
+.typography-screen .typography-canvas-group>h3 {
+    height:40px;
+    margin:0;
+    padding:0 12px;
+    display:flex;
+    align-items:center;
+    gap:7px;
+    border-bottom:1px solid #34383f;
+    color:#cdd3dc;
+    font-size:12px;
+    font-weight:600;
+}
+.typography-screen .typography-canvas-group>h3 span {
+    color:#7f8996;
+    font-size:10px;
+    font-weight:500;
+}
+.typography-screen .typography-canvas-list {
+    display:grid;
+}
+.typography-screen .typography-canvas-row {
+    width:100%;
+    min-height:var(--typography-row-height,72px);
+    padding:12px;
+    display:grid;
+    grid-template-columns:92px minmax(0,1fr) 90px;
+    align-items:center;
+    gap:16px;
+    overflow:hidden;
+    border:0;
+    border-bottom:1px solid #30343a;
+    border-radius:0;
+    background:transparent;
+    color:#edf1f7;
+    text-align:left;
+    transition:background-color .12s ease,box-shadow .12s ease;
+}
+.typography-screen .typography-canvas-row:hover {
+    background:#2d3035;
+}
+.typography-screen .typography-canvas-row.is-selected {
+    background:#303641;
+    box-shadow:inset 2px 0 #4284ff;
+}
+.typography-screen .typography-canvas-row:focus-visible {
+    outline:2px solid #4284ff;
+    outline-offset:-2px;
+}
+.typography-screen .typography-canvas-meta,
+.typography-screen .typography-canvas-value {
+    min-width:0;
+    display:grid;
+    gap:3px;
+    align-self:center;
+}
+.typography-screen .typography-canvas-meta strong,
+.typography-screen .typography-canvas-value strong {
+    overflow:hidden;
+    color:#dfe4eb;
+    font-size:11px;
+    font-weight:600;
+    line-height:16px;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.typography-screen .typography-canvas-meta small,
+.typography-screen .typography-canvas-value small {
+    overflow:hidden;
+    color:#828c99;
+    font-size:10px;
+    font-weight:400;
+    line-height:14px;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.typography-screen .typography-canvas-value {
+    text-align:right;
+}
+.typography-screen .typography-canvas-sample {
+    min-width:0;
+    display:block;
+    overflow-x:clip;
+    overflow-y:visible;
+    pointer-events:none;
+}
+@media(max-width:900px) {
+    .typography-screen .typography-canvas {
+        padding:16px;
+    }
+    .typography-screen .typography-canvas-row {
+        grid-template-columns:72px minmax(0,1fr) 76px;
+        gap:10px;
+        padding:10px 8px;
+    }
+}
+.typography-screen .playground-workbench .token-browser {
+    width:var(--panel-left,280px);
+    background:#202327;
+    border-right:1px solid #383b41;
+}
+.typography-screen .token-menu-header {
+    height:40px;
+    min-height:40px;
+    padding:8px 10px 8px 16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:0;
+    background:#202327;
+}
+.typography-screen .token-menu-header strong {
+    color:#dfe2e7;
+    font-size:12px;
+    font-weight:500;
+    line-height:16px;
+    letter-spacing:-.18px;
+}
+.typography-screen .token-tree {
+    padding:0;
+    background:#202327;
+}
+.typography-screen .token-tree-group {
+    margin:0;
+    border:0;
+    gap:0;
+    padding:0;
+}
+.typography-screen .playground-workbench .token-tree-group {
+    padding:0;
+}
+.typography-screen .token-tree-group>span {
+    height:32px;
+    padding:8px 12px;
+    display:flex;
+    align-items:center;
+    color:#dfe2e7;
+    font-size:12px;
+    font-weight:500;
+    line-height:16px;
+    letter-spacing:-.18px;
+}
+.typography-screen .token-tree-heading {
+    width:100%;
+    height:32px;
+    padding:8px 12px;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    border:0;
+    background:transparent;
+    color:#dfe2e7;
+    font-size:12px;
+    font-weight:500;
+    line-height:16px;
+    letter-spacing:-.18px;
+    text-align:left;
+    cursor:pointer;
+}
+.typography-screen .token-tree-heading:hover {
+    background:#2b333d;
+}
+.typography-screen .token-tree-heading:focus-visible {
+    outline:2px solid #4284ff;
+    outline-offset:-2px;
+}
+.typography-screen .token-tree-chevron {
+    width:12px;
+    display:inline-grid;
+    place-items:center;
+    color:#dfe2e7;
+}
+.typography-screen .token-tree-group {
+    position:relative;
+}
+.typography-screen .token-tree-group.is-collapsed>span {
+    color:#dfe2e7;
+}
+.typography-screen .token-tree-group.is-collapsed>.token-tree-heading {
+    color:#dfe2e7;
+}
+.typography-screen .typography-screen-control {
+    margin:0 12px 8px;
+    padding:2px;
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:2px;
+    border:1px solid #383b41;
+    border-radius:6px;
+    background:#191c20;
+}
+.typography-screen .typography-screen-control button {
+    height:26px;
+    min-width:0;
+    padding:0 4px;
+    border:0;
+    border-radius:4px;
+    background:transparent;
+    color:#929ba8;
+    font-size:11px;
+    font-weight:500;
+    line-height:16px;
+}
+.typography-screen .typography-screen-control button:hover {
+    background:#292e35;
+    color:#dfe2e7;
+}
+.typography-screen .typography-screen-control button.is-active {
+    background:#343a43;
+    color:#fff;
+}
+.typography-screen .typography-screen-control button:focus-visible {
+    outline:2px solid #4284ff;
+    outline-offset:0;
+}
+.typography-screen .token-row {
+    position:relative;
+    height:32px;
+    margin:0;
+    padding:2px 12px;
+    display:flex;
+    align-items:center;
+    gap:0;
+    border-radius:0;
+    background:transparent;
+    color:#aeb4bd;
+    font-size:12px;
+    line-height:16px;
+    letter-spacing:-.18px;
+}
+.typography-screen .token-row>span {
+    min-width:0;
+    flex:1;
+    padding:4px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-weight:400;
+    opacity:.8;
+}
+.typography-screen .token-row.is-selected {
+    background:transparent;
+    color:#dfe2e7;
+    box-shadow:none;
+}
+.typography-screen .token-row.is-selected::before {
+    content:'';
+    position:absolute;
+    left:12px;
+    right:12px;
+    height:28px;
+    border-radius:6px;
+    background:rgba(66,132,255,.15);
+    z-index:0;
+}
+.typography-screen .token-row>* {
+    position:relative;
+    z-index:1;
+}
+.typography-screen .typography-token-row {
+    gap:4px;
+}
+.typography-screen .typography-style-glyph {
+    width:20px;
+    min-width:20px;
+    height:20px;
+    display:grid;
+    place-items:center;
+    border:1px solid #3d434c;
+    border-radius:4px;
+    background:#292e35;
+    color:#c8ced7;
+    font-size:9px;
+    font-style:normal;
+    font-weight:600;
+    line-height:1;
+}
+.typography-screen .typography-style-glyph.is-error {
+    border-color:#a54751;
+    color:#ff9ca5;
+}
+.typography-screen .playground-workbench {
+    grid-template-columns:var(--panel-left,280px) minmax(320px,1fr) var(--panel-right,320px);
+}
+.typography-screen .playground-workbench .properties-panel {
+    width:var(--panel-right,320px);
+    background:#202327;
+    border-left:1px solid #383b41;
+    color:#d0d5dd;
+}
+.typography-screen .playground-workbench .properties-panel .viewer-banner {
+    margin:0;
+}
+.typography-screen .figma-inspector-group {
+    padding:4px 12px;
+    border-bottom:0;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+}
+.typography-screen .figma-inspector-group .inspector-heading {
+    height:32px;
+    padding:8px 4px;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    color:#f0f2f5;
+    font-size:12px;
+    font-weight:500;
+    line-height:16px;
+    letter-spacing:-.18px;
+}
+.typography-screen .figma-inspector-group .inspector-heading i {
+    font-style:normal;
+    color:#9aa2ad;
+    font-size:12px;
+}
+@media(max-width:1100px) {
+    .typography-screen .playground-workbench {
+        grid-template-columns:240px minmax(360px,1fr) 300px;
+    }
+    .typography-screen .playground-workbench .properties-panel {
+        width:300px;
+    }
+    .typography-screen .playground-workbench .editor-toolbar {
+        grid-template-columns:minmax(0,1fr) 300px;
+    }
+}
+.typography-screen .token-panel-header > strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.typography-screen .playground-workbench {
+    background:var(--builder-bg-primary);
+}
+.typography-screen .playground-workbench .token-browser,
+.typography-screen .playground-workbench .properties-panel,
+.typography-screen .playground-workbench .editor-toolbar {
+    background:var(--builder-panel);
+}
+.typography-screen .sidebar-header {
+    height:40px;
+    min-height:40px;
+    padding:4px 10px;
+    display:flex;
+    align-items:center;
+    gap:2px;
+    box-sizing:border-box;
+    border-bottom:1px solid var(--builder-outline-transparent);
+    background:var(--builder-panel);
+}
+.typography-screen .sidebar-header>strong {
+    min-width:0;
+    flex:1;
+    overflow:hidden;
+    color:var(--builder-text-primary);
+    font:400 12px/16px Inter,system-ui,sans-serif;
+    letter-spacing:0;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.typography-screen .sidebar-header-actions {
+    margin-left:auto;
+    display:flex;
+    align-items:center;
+    gap:2px;
+}
+.typography-screen .sidebar-header-actions>button {
+    width:24px;
+    height:24px;
+    padding:4px;
+    display:grid;
+    flex:none;
+    place-items:center;
+    box-sizing:border-box;
+    border:0;
+    border-radius:var(--builder-radius-xs);
+    background:transparent;
+    color:var(--builder-text-secondary);
+}
+.typography-screen .sidebar-header-actions>button:hover,
+.typography-screen .sidebar-header-actions>button.is-active {
+    background:var(--builder-control);
+    color:var(--builder-text-primary);
+}
+.typography-screen .sidebar-header-actions .ui-glyph,
+.typography-screen .sidebar-search-field .ui-glyph {
+    width:16px;
+    height:16px;
+}
+.typography-screen .sidebar-search-field {
+    width:208px;
+    height:24px;
+    padding:4px 6px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    box-sizing:border-box;
+    border:1px solid var(--builder-outline-primary);
+    border-radius:var(--builder-radius-xs);
+    background:var(--builder-control);
+    color:var(--builder-text-tertiary);
+}
+.typography-screen .sidebar-search-field:focus-within {
+    border-color:var(--builder-accent);
+}
+.typography-screen .sidebar-search-field input {
+    min-width:0;
+    width:auto;
+    height:16px;
+    padding:0;
+    flex:1;
+    border:0;
+    border-radius:0;
+    outline:0;
+    background:transparent;
+    color:var(--builder-text-secondary);
+    font:400 12px/16px Inter,system-ui,sans-serif;
+    letter-spacing:0;
+}
+.typography-screen .sidebar-search-field input::placeholder {
+    color:var(--builder-text-paragraph);
+    opacity:1;
+}
+
+/* --- builder-ui-tokens.css --- */
+
+.typography-screen .token-menu-header,
+.typography-screen .token-tree {
+    background: var(--builder-ui-bg-secondary);
+}
+.typography-screen .playground-workbench,
+.typography-screen .playground-workbench .token-browser,
+.typography-screen .playground-workbench .editor-toolbar,
+.typography-screen .playground-workbench .properties-panel,
+.typography-screen .token-canvas {
+    background: var(--builder-ui-bg-primary);
+}
+.typography-screen .playground-workbench .token-browser,
+.typography-screen .playground-workbench .editor-toolbar,
+.typography-screen .playground-workbench .properties-panel,
+.typography-screen .token-panel-header {
+    border-color: var(--builder-ui-outline-transparent-primary);
+}
+.typography-screen .token-row:hover {
+    background: var(--builder-ui-surface-transparent-primary);
+    color: var(--builder-ui-text-primary);
+}
+.typography-screen .token-row.is-selected {
+    background: var(--builder-ui-accent-transparent);
+    color: var(--builder-ui-text-primary);
+    box-shadow: inset 0 0 0 1px var(--builder-ui-accent);
+}
+.typography-screen.ty-shell.ty-theme-workspace .editor-workbench.playground-workbench {
+    height: calc(100vh - 40px);
+    min-height: 0;
+    grid-template-columns: clamp(220px, var(--panel-left, 280px), 320px) minmax(0, 1fr) clamp(280px, var(--panel-right, 320px), 400px);
+    grid-template-rows: 40px minmax(0, 1fr);
+    background: var(--builder-ui-bg-primary);
+}
+.typography-screen .playground-workbench .token-browser {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    width: clamp(220px, var(--panel-left, 280px), 320px);
+    min-width: 220px;
+    max-width: 320px;
+    height: 100%;
+    border-right: 1px solid var(--builder-ui-outline-primary);
+    border-bottom: 0;
+}
+.typography-screen .playground-workbench .editor-toolbar {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    height: 40px;
+    min-height: 40px;
+    border-bottom: 1px solid var(--builder-ui-outline-primary);
+}
+.typography-screen .playground-workbench .preview-canvas {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    min-height: 0;
+    background: var(--builder-ui-bg-primary);
+}
+.typography-screen .playground-workbench .properties-panel {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    width: 320px;
+    min-width: 320px;
+    height: 100%;
+    border-left: 1px solid var(--builder-ui-outline-primary);
+    border-right: 0;
+    border-bottom: 0;
+}
+.typography-screen.ty-shell.ty-theme-workspace .editor-workbench.playground-workbench,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .token-browser,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .token-menu-header,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .token-panel-header,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .token-tree,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .editor-toolbar,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .preview-toolbar,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .properties-panel,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .preview-canvas,
+.typography-screen.ty-shell.ty-theme-workspace .playground-workbench .token-canvas {
+    background: transparent;
+}
+.typography-screen.ty-shell.ty-theme-workspace .editor-workbench.playground-workbench:not(.component-workbench) {
+    grid-template-columns: clamp(220px, var(--panel-left, 280px), 320px) minmax(0, 1fr) clamp(280px, var(--panel-right, 320px), 400px);
+    grid-template-rows: 40px minmax(0, 1fr);
+}
+.typography-screen .playground-workbench:not(.component-workbench) .token-browser {
+    width: clamp(220px, var(--panel-left, 280px), 320px);
+    min-width: 220px;
+    max-width: 320px;
+}
+.typography-screen .playground-workbench:not(.component-workbench) .editor-toolbar {
+    grid-column: 2;
+    grid-row: 1;
+    display: block;
+    width: 100%;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+}
+.typography-screen .playground-workbench:not(.component-workbench) .preview-toolbar {
+    width: 100%;
+    height: 40px;
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-right: 0;
+}
+.typography-screen .editor-header-controls {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.typography-screen .editor-canvas-picker {
+    position: relative;
+    min-width: 0;
+}
+.typography-screen .editor-header-select {
+    height: 24px;
+    padding: 3px 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    border: 1px solid var(--builder-ui-outline-primary);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--builder-ui-text-primary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0;
+    cursor: pointer;
+}
+.typography-screen .editor-header-select {
+    width: 86px;
+}
+.typography-screen .editor-header-select > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.typography-screen .editor-header-select svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+}
+.typography-screen .playground-workbench:not(.component-workbench) .properties-panel {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    width: clamp(280px, var(--panel-right, 320px), 400px);
+    min-width: 280px;
+    max-width: 400px;
+}
+.typography-screen .token-panel-header.sidebar-header {
+    height: 40px;
+    min-height: 40px;
+    padding: 4px 10px;
+}
+.typography-screen .token-inspector-header {
+    min-height: 72px;
+    padding: 8px 12px;
+    display: grid;
+    align-content: start;
+    gap: 4px;
+    border-bottom: 1px solid var(--builder-ui-outline-primary);
+}
+.typography-screen .token-inspector-header > div {
+    min-width: 0;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.typography-screen .token-inspector-header strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--builder-ui-text-primary);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.typography-screen .token-inspector-header p {
+    margin: 0;
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--builder-ui-text-secondary);
+    font-size: 10px;
+    line-height: 14px;
+    letter-spacing: 0;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+.typography-screen .playground-workbench:not(.component-workbench) .figma-inspector-group {
+    padding: 4px 0;
+    gap: 0;
+    border-bottom: 1px solid var(--builder-ui-outline-primary);
+}
+.typography-screen .playground-workbench:not(.component-workbench) .figma-inspector-group > .inspector-heading {
+    height: 28px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    color: var(--builder-ui-text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 12px;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+.typography-screen .playground-workbench:not(.component-workbench) .token-canvas {
+    padding-top: 16px;
+}
+@media (max-width: 1050px) {
+    .typography-screen .playground-workbench:not(.component-workbench) .preview-toolbar {
+        padding-inline: 8px;
+    }
+}
+.typography-screen .editor-fonts-workbench .token-panel-context-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--builder-ui-text-primary);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.typography-screen .editor-fonts-workbench .preview-toolbar {
+    justify-content: flex-end;
+}
+.typography-screen .editor-fonts-workbench .editor-header-select {
+    width: auto;
+    min-width: 96px;
+    max-width: 180px;
+}
+.typography-screen .editor-fonts-workbench .typography-screen-control {
+    width: 206px;
+    height: 24px;
+    margin: 4px 8px 12px;
+    padding: 0;
+    gap: 4px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+}
+.typography-screen .editor-fonts-workbench .typography-screen-control button {
+    width: auto;
+    height: 24px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: var(--builder-ui-text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: -.24px;
+}
+.typography-screen .editor-fonts-workbench .typography-screen-control button.is-active {
+    background: var(--builder-ui-bg-secondary);
+    color: var(--builder-ui-text-primary);
+}
+.typography-screen .editor-fonts-workbench .typography-token-row {
+    height: 32px;
+    padding: 4px 12px;
+    background: transparent;
+}
+.typography-screen .editor-fonts-workbench .typography-style-glyph {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--builder-ui-text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 24px;
+}
+.typography-screen .editor-fonts-workbench .typography-token-row.is-selected,
+.typography-screen .editor-fonts-workbench .typography-token-row:hover {
+    background: transparent;
+}
+.typography-screen .editor-fonts-workbench .typography-token-row.is-selected::before {
+    background: var(--builder-ui-surface-primary, #3d3f42);
+}
+.typography-screen .editor-fonts-workbench .typography-token-row.is-selected {
+    box-shadow: none;
+}
+.typography-screen .playground-workbench.editor-fonts-workbench .typography-canvas {
+    padding: 24px 36px 40px 40px;
+}
+.typography-screen .editor-fonts-workbench .typography-board {
+    width: 719px;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+}
+.typography-screen .editor-fonts-workbench .typography-board-header {
+    height: 15px;
+    padding: 0;
+    border-bottom: 0;
+    color: var(--builder-ui-text-secondary);
+    font-size: 10px;
+    line-height: 14px;
+}
+.typography-screen .editor-fonts-workbench .typography-board-header strong {
+    color: var(--builder-ui-text-primary);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 16px;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-group > h3 {
+    height: 30px;
+    padding: 0;
+    border-top: 1px solid var(--builder-ui-outline-primary);
+    border-bottom: 0;
+    color: var(--builder-ui-text-primary);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 12px;
+    letter-spacing: -.2px;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-group:first-of-type > h3 {
+    height: 45px;
+    padding-top: 16px;
+    align-items: center;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-group > h3 span {
+    color: inherit;
+    font-size: 10px;
+    font-weight: 600;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-group:first-of-type .typography-canvas-list {
+    gap: 2px;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-group:nth-of-type(2) .typography-canvas-list {
+    height: 320px;
+    overflow: visible;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-row {
+    width: 723px;
+    height: var(--typography-row-height, 48px);
+    min-height: var(--typography-row-height, 48px);
+    padding: 0;
+    grid-template-columns: 64px minmax(0, 516px) 99px;
+    gap: 22px;
+    border-bottom: 0;
+    background: transparent;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-row:hover {
+    background: var(--builder-ui-bg-secondary);
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected {
+    background: var(--builder-ui-accent-transparent);
+    box-shadow: inset 2px 0 0 var(--builder-ui-accent);
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected .typography-canvas-sample {
+    background: transparent;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-meta,
+.typography-screen .editor-fonts-workbench .typography-canvas-value {
+    gap: 0;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-value {
+    text-align: left;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-meta strong,
+.typography-screen .editor-fonts-workbench .typography-canvas-value strong {
+    color: var(--builder-ui-text-primary);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 14px;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-meta small,
+.typography-screen .editor-fonts-workbench .typography-canvas-value small {
+    color: var(--builder-ui-text-secondary);
+    font-size: 9px;
+    line-height: 12px;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-sample {
+    min-width: 0;
+    height: var(--typography-sample-height, 100%);
+    margin-top: var(--typography-sample-offset, 0);
+    align-self: start;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    padding: 0 12px;
+    box-sizing: border-box;
+    background: var(--builder-ui-bg-primary);
+    color: var(--builder-ui-text-primary);
+}
+.typography-screen .editor-fonts-workbench .typography-visible-sample {
+    min-width: 0;
+    display: block;
+    overflow: hidden;
+    color: inherit;
+    text-overflow: clip;
+    white-space: nowrap;
+}
+.typography-screen .playground-workbench.editor-fonts-workbench .typography-style-inspector {
+    padding: 8px 0;
+}
+.typography-screen .playground-workbench.editor-fonts-workbench .typography-style-inspector > .inspector-heading {
+    margin-bottom: 0;
+}
+.typography-screen .editor-fonts-workbench .typography-family-control {
+    position: relative;
+    padding: 0 12px;
+    margin-top: 4px;
+}
+.typography-screen .editor-fonts-workbench .typography-family-control {
+    display: grid;
+    gap: 4px;
+}
+.typography-screen .editor-fonts-workbench .typography-field-row {
+    padding: 0 12px;
+    margin-top: 4px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+.typography-screen .editor-fonts-workbench .typography-property-field {
+    position: relative;
+    height: 24px;
+    min-width: 0;
+    margin: 4px 0;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    border: 1px solid var(--builder-ui-outline-transparent, rgba(255, 255, 255, 0.08));
+    border-radius: 6px;
+    background: var(--builder-ui-surface-transparent-primary, rgba(255, 255, 255, 0.06));
+}
+.typography-screen .editor-fonts-workbench .typography-property-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    display: grid;
+    place-items: center;
+    color: var(--builder-ui-text-secondary);
+}
+.typography-screen .editor-fonts-workbench .typography-property-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.typography-screen .editor-fonts-workbench .typography-property-letters {
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 12px;
+}
+.typography-screen .editor-fonts-workbench .typography-property-letters.is-weight {
+    font-size: 11px;
+    font-weight: 600;
+}
+.typography-screen .editor-fonts-workbench .typography-property-value {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+.typography-screen .editor-fonts-workbench .typography-property-value input,
+.typography-screen .editor-fonts-workbench .typography-property-value select,
+.typography-screen .editor-fonts-workbench .typography-family-trigger {
+    width: 100%;
+    min-width: 0;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--builder-ui-text-primary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0;
+}
+.typography-screen .editor-fonts-workbench .typography-property-value select {
+    appearance: none;
+    padding-right: 16px;
+}
+.typography-screen .editor-fonts-workbench .typography-property-chevron {
+    position: absolute;
+    right: 8px;
+    width: 12px;
+    height: 12px;
+    color: var(--builder-ui-text-secondary);
+    pointer-events: none;
+}
+.typography-screen .editor-fonts-workbench .typography-property-chevron .ui-glyph,
+.typography-screen .editor-fonts-workbench .typography-family-trigger .ui-glyph {
+    width: 12px;
+    height: 12px;
+}
+.typography-screen .editor-fonts-workbench .typography-family-trigger {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    text-align: left;
+}
+.typography-screen .editor-fonts-workbench .typography-family-trigger span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.typography-screen .editor-fonts-workbench .typography-family-trigger b {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 12px;
+    color: var(--builder-ui-text-secondary);
+}
+.typography-screen .editor-fonts-workbench .typography-family-menu {
+    top: 32px;
+    left: 12px;
+    right: 12px;
+}
+.typography-screen .editor-fonts-workbench .typography-impact {
+    padding: 8px 0;
+    display: grid;
+    gap: 0;
+    border-bottom: 1px solid var(--builder-ui-outline-primary);
+}
+.typography-screen .editor-fonts-workbench .token-inspector-header {
+    height: 56px;
+    min-height: 56px;
+    gap: 0;
+}
+.typography-screen .editor-fonts-workbench .token-inspector-header p {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: 1;
+}
+.typography-screen .editor-fonts-workbench .typography-impact > .inspector-heading {
+    height: 28px;
+    padding: 6px 12px;
+    color: var(--builder-ui-text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 12px;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+.typography-screen .editor-fonts-workbench .typography-canvas-group:not(:first-of-type) .typography-visible-sample {
+    text-transform: none;
+}
+.typography-screen .editor-fonts-workbench .typography-impact .impact-line,
+.typography-screen .editor-fonts-workbench .typography-impact .impact-component {
+    min-height: 32px;
+    padding: 8px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--builder-ui-text-primary);
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0;
+}
+.typography-screen .editor-fonts-workbench .typography-impact .impact-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.typography-screen .editor-fonts-workbench .typography-impact .impact-component {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-align: left;
+}
+.typography-screen .editor-fonts-workbench .typography-impact .impact-component b {
+    margin-left: auto;
+}
+.typography-screen .editor-fonts-workbench .typography-impact .impact-line b,
+.typography-screen .editor-fonts-workbench .typography-impact .impact-component b {
+    color: var(--builder-ui-text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+}
+@media (max-width: 1180px) {
+    .typography-screen .editor-fonts-workbench .typography-canvas {
+        padding-inline: 24px;
+    }
+    .typography-screen .editor-fonts-workbench .typography-canvas-row {
+        grid-template-columns: 60px minmax(0, 1fr) 82px;
+        gap: 12px;
+    }
+}
+.typography-screen .editor-fonts-workbench.playground-workbench:not(.component-workbench) .preview-toolbar {
+    justify-content: flex-end;
+}
+.typography-screen .editor-fonts-workbench.playground-workbench:not(.component-workbench) .editor-header-controls {
+    margin-left: auto;
+}
+@media (max-width: 900px) {
+    .typography-screen.ty-shell.ty-theme-workspace .editor-fonts-workbench.playground-workbench:not(.component-workbench) {
+        height: auto;
+        min-height: calc(100vh - 44px);
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 40px auto auto minmax(500px, 1fr);
+    }
+    .typography-screen .editor-fonts-workbench.playground-workbench:not(.component-workbench) .editor-toolbar {
+        grid-column: 1;
+        grid-row: 1;
+    }
+    .typography-screen .editor-fonts-workbench.playground-workbench:not(.component-workbench) .token-browser {
+        grid-column: 1;
+        grid-row: 2;
+        width: 100%;
+        min-width: 0;
+        max-height: 260px;
+        border-right: 0;
+        border-bottom: 1px solid var(--builder-ui-outline-primary);
+    }
+    .typography-screen .editor-fonts-workbench.playground-workbench:not(.component-workbench) .properties-panel {
+        grid-column: 1;
+        grid-row: 3;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        max-height: 360px;
+        border-left: 0;
+        border-bottom: 1px solid var(--builder-ui-outline-primary);
+    }
+    .typography-screen .editor-fonts-workbench.playground-workbench:not(.component-workbench) .preview-canvas {
+        grid-column: 1;
+        grid-row: 4;
+        min-height: 500px;
+        border-right: 0;
+    }
+    .typography-screen .editor-fonts-workbench .panel-resizer-right {
+        display: none;
+    }
+}
+
+/* --- Клиент --- */
+
+/* Меню семейства: в прототипе оно лежит внутри поля с `overflow: hidden` и обрезается. Здесь меню — потомок
+ * блока семейства и открывается под полем поверх полей инспектора. */
+.typography-screen .editor-fonts-workbench .typography-family-control > .typography-family-menu {
+    top: 34px;
+    left: 12px;
+    right: 12px;
+}
+
+.typography-screen .typography-family-trigger small,
+.typography-screen .typography-family-menu button small {
+    margin-left: 6px;
+    color: var(--builder-ui-text-paragraph);
+}
+
+/* Борд на всю ширину холста: в прототипе он фиксирован под окно 1440 px (719 px, строка 723 px, образец
+ * до 516 px) и на широком экране оставляет пустоту справа. Колонки названия и значений прежние, растёт образец. */
+.typography-screen .editor-fonts-workbench .typography-board {
+    width: auto;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row {
+    width: 100%;
+    grid-template-columns: 104px minmax(0, 1fr) 99px;
+}
+
+/* Имя шрифта на борде видно целиком: в прототипе колонка 64 px и «SB Sans Display» обрезается. Длинное имя
+ * переносится, а не обрезается. */
+.typography-screen .editor-fonts-workbench .typography-canvas-meta small {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Начертание выбирается под семейством, вес ниже относится к выбранному начертанию. */
+.typography-screen .editor-fonts-workbench .typography-variant-control {
+    display: grid;
+    gap: 4px;
+    padding: 0 12px;
+    margin-top: 4px;
+}
+
+/* Строка дерева: подложка выбранной строки отступает от краёв на 12 px, как в прототипе, а содержимое — ещё на
+ * 8 px внутрь, иначе «Aa» и значение стоят вплотную к скруглённым краям подложки. */
+.typography-screen .editor-fonts-workbench .typography-token-row {
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+/* Свои значения iOS и Android: «+» у поля открывает выбор платформы, под полем — строки «↳ iOS» с «×».
+ * Как значения платформ у цветовых токенов в add-color-token-gradients (#122). */
+.typography-screen .editor-fonts-workbench .typography-overridable {
+    position: relative;
+    min-width: 0;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-add {
+    position: absolute;
+    /* По центру поля: отступ поля 4 px + половина высоты 24 px − половина кнопки 18 px. */
+    top: 7px;
+    right: 6px;
+    z-index: 3;
+}
+
+.typography-screen .editor-fonts-workbench .typography-overridable.is-select > .typography-override-add {
+    right: 28px;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-add > button {
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: var(--builder-ui-surface-transparent-secondary);
+    color: var(--builder-ui-text-secondary);
+    opacity: 0;
+}
+
+/* Значок «+», а не символ шрифта: у символа плюс сидит выше или ниже центра строки. */
+.typography-screen .editor-fonts-workbench .typography-override-add > button .ui-glyph {
+    width: 12px;
+    height: 12px;
+}
+
+.typography-screen .editor-fonts-workbench .typography-overridable:hover > .typography-override-add > button,
+.typography-screen .editor-fonts-workbench .typography-override-add > button:focus-visible,
+.typography-screen .editor-fonts-workbench .typography-override-add > button[aria-expanded='true'] {
+    opacity: 1;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-add > .typography-override-menu {
+    top: 22px;
+    left: auto;
+    right: 0;
+    min-width: 112px;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-label {
+    flex: none;
+    color: var(--builder-ui-text-paragraph);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-remove {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--builder-ui-text-paragraph);
+}
+
+/* У списка «×» стоит слева от шеврона, в одной колонке с «+» строки выше; шевроны строк остаются на одном месте. */
+.typography-screen .editor-fonts-workbench .typography-property-field.has-trailing.is-select-field .typography-override-remove {
+    margin-right: 20px;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-remove .ui-glyph {
+    width: 12px;
+    height: 12px;
+}
+
+/* Ошибка значения у поля: сервер не сохранил значение. */
+.typography-screen .editor-fonts-workbench .typography-property-field.has-error {
+    border-color: var(--builder-ui-negative, #ff6b5f);
+}
+
+.typography-screen .typography-field-error {
+    margin: 0 0 4px;
+    color: var(--builder-ui-negative, #ff6b5f);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+/* Баннеры — как у раздела «Цвета». */
+.typography-screen .ty-inline-action {
+    padding: 2px 8px;
+    border: 1px solid var(--builder-ui-outline-primary);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--builder-ui-text-primary);
+    font-size: 12px;
+}
+
+.typography-screen .editor-header-controls .editor-canvas-picker {
+    flex: none;
+}
+
+.typography-screen .ty-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--builder-ui-outline-transparent-primary);
+    font-size: 12px;
+    color: var(--builder-ui-text-secondary);
+}
+
+.typography-screen .ty-loading {
+    padding: 24px;
+    color: var(--builder-ui-text-paragraph);
+    font-size: 12px;
+}
+
+/* Стрелка группы дерева — как в разделах «Палитра» и «Цвета»: уголок из двух границ по центру строки вместо
+ * символов «⌄» и «›», которые шрифт ставит ниже текста. */
+.typography-screen .token-tree-heading > .token-tree-chevron {
+    position: relative;
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    display: block;
+    font-size: 0;
+    color: transparent;
+}
+
+.typography-screen .token-tree-heading > .token-tree-chevron::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 1.5px;
+    width: 5px;
+    height: 5px;
+    border-right: 1.5px solid #8993a1;
+    border-bottom: 1.5px solid #8993a1;
+    transform: rotate(45deg);
+}
+
+.typography-screen .token-tree-heading[aria-expanded='false'] > .token-tree-chevron::before {
+    left: 2px;
+    top: 3px;
+    transform: rotate(-45deg);
+}
+
+.typography-screen .token-tree-heading:hover > .token-tree-chevron::before {
+    border-color: #d8dde5;
+}
+
+/* Списки начертания и веса — своё меню, как у семейства: нативный список `<select>` каждый браузер рисует
+ * по-своему. Кнопка списка выглядит как значение поля. */
+.typography-screen .editor-fonts-workbench .typography-select-control {
+    position: relative;
+    min-width: 0;
+}
+
+.typography-screen .editor-fonts-workbench .typography-property-value .typography-select-trigger {
+    width: 100%;
+    min-width: 0;
+    height: 16px;
+    padding: 0 16px 0 0;
+    overflow: hidden;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--builder-ui-text-primary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.typography-screen .editor-fonts-workbench .typography-select-control > .typography-select-menu {
+    /* Под полем: отступ поля 4 px + высота 24 px + зазор 2 px. */
+    top: 30px;
+    left: 0;
+    right: 0;
+}
+
+/* Поля без права правки приглушены целиком, как кнопка семейства; раньше приглушалась только она, а поля
+ * размера и веса выглядели доступными. */
+.typography-screen .editor-fonts-workbench .typography-property-field:has(:disabled) {
+    opacity: 0.45;
+}
+
+.typography-screen .editor-fonts-workbench .typography-property-field :disabled {
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+/* Выделение строки борда — по макету Figma и как у карточек раздела «Цвета» (`.token-swatch-card-split`):
+ * строка не заливается и не получает полосу слева, образец — карточка с фоном и рамкой. Фон карточки — тот же
+ * полупрозрачный слой, что в Figma (`#37393d` поверх `#212327`), поэтому контраст с бордом прежний. Наведение — серая рамка, выбранный
+ * стиль — синяя в 2 px, наведение на выбранный осветляет её внешний край. */
+.typography-screen .editor-fonts-workbench .typography-canvas-row:hover,
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected {
+    background: transparent;
+    box-shadow: none;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row:focus-visible {
+    outline: 0;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row .typography-canvas-sample,
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected .typography-canvas-sample {
+    border-radius: 8px;
+    background: var(--builder-ui-surface-transparent-secondary);
+    transition: box-shadow 0.12s ease;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row:hover .typography-canvas-sample,
+.typography-screen .editor-fonts-workbench .typography-canvas-row:focus-visible .typography-canvas-sample {
+    box-shadow: inset 0 0 0 1px #8f9aa8;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected .typography-canvas-sample {
+    box-shadow: inset 0 0 0 2px #2d78ff;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected:hover .typography-canvas-sample,
+.typography-screen .editor-fonts-workbench .typography-canvas-row.is-selected:focus-visible .typography-canvas-sample {
+    box-shadow: inset 0 0 0 1px #7fb0ff, inset 0 0 0 2px #2d78ff;
+}
