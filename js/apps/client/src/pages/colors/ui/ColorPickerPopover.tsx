@@ -20,6 +20,7 @@ import {
 } from '../../../modules/colorTokens';
 import { formatPaletteReference, parsePaletteReference, type ThemePalette } from '../../../modules/palette';
 import { ColorLibrary, type LibraryPick } from './ColorLibrary';
+import { useWrittenHsva } from './useWrittenHsva';
 import { ColorSvPanel } from './ColorSvPanel';
 import {
     hexToHsva,
@@ -43,7 +44,7 @@ interface PickerProps {
     value: ColorFieldValue;
     platform: PaintPlatform;
     palette: ThemePalette | null;
-    /** Имя определения темы с режимом: группа палитры для вкладки Library. */
+    /** Имя определения темы с режимом: группа палитры для вкладки «Палитра». */
     tokenName: string;
     /** HEX ссылки по палитре темы или `null`. */
     resolveColor: (color: string) => string | null;
@@ -273,7 +274,7 @@ const SolidPicker = ({
 }: PickerProps & { rootRef: React.RefObject<HTMLElement>; onKind?: (kind: ValueKind) => void }) => {
     const [tab, setTab] = useState<'custom' | 'library'>(value.paletteLabel ? 'library' : 'custom');
     const [format, setFormat] = useState<Format>('hex');
-    const committed = hexToHsva(value.resolved === 'transparent' ? '#000000' : value.resolved);
+    const [committed, remember] = useWrittenHsva(value.resolved === 'transparent' ? '#000000' : value.resolved);
     const [preview, setPreview] = useState<Hsva | null>(null);
     useEffect(() => setPreview(null), [value.resolved]);
     const hsva = preview ?? committed;
@@ -282,6 +283,7 @@ const SolidPicker = ({
     const hex = rgbaToHex(rgb);
     const reference = parsePaletteReference(value.value);
     const commitHsva = (next: Hsva) => {
+        remember(next);
         setPreview(next);
         onCommit({ kind: 'color', color: hsvaToHex(next) });
     };
@@ -309,14 +311,14 @@ const SolidPicker = ({
                         data-autofocus
                         onClick={() => setTab('custom')}
                     >
-                        Custom
+                        Свой
                     </button>
                     <button
                         type="button"
                         className={tab === 'library' ? 'is-active' : ''}
                         onClick={() => setTab('library')}
                     >
-                        Library
+                        Палитра
                     </button>
                 </div>
                 <button type="button" className="cp-close" aria-label="Закрыть" onClick={onClose}>
@@ -588,7 +590,8 @@ const GradientPicker = ({
     };
 
     const androidConic = platform === 'android' && model.type === 'conic';
-    const stopHsva = stopPreview ?? hexToHsva(activeStop ? resolved(activeStop.color) : '#000000');
+    const [stopColor, rememberStop] = useWrittenHsva(activeStop ? resolved(activeStop.color) : '#000000');
+    const stopHsva = stopPreview ?? stopColor;
 
     return (
         <section
@@ -612,7 +615,7 @@ const GradientPicker = ({
             <header>
                 <div className="cp-tabs">
                     <button type="button" className="is-active" data-autofocus>
-                        Custom
+                        Свой
                     </button>
                 </div>
                 <button type="button" className="cp-close" aria-label="Закрыть" onClick={onClose}>
@@ -746,7 +749,7 @@ const GradientPicker = ({
                 ))}
             </div>
             <div className="cp-gradient-stops-head">
-                <span>Stops</span>
+                <span>Стопы</span>
                 <button
                     type="button"
                     aria-label="Add gradient stop"
@@ -839,7 +842,7 @@ const GradientPicker = ({
                                 data-autofocus={stopWindow === 'custom' || undefined}
                                 onClick={() => setStopWindow('custom')}
                             >
-                                Custom
+                                Свой
                             </button>
                             <button
                                 type="button"
@@ -847,7 +850,7 @@ const GradientPicker = ({
                                 data-autofocus={stopWindow === 'library' || undefined}
                                 onClick={() => setStopWindow('library')}
                             >
-                                Library
+                                Палитра
                             </button>
                         </div>
                         <button type="button" aria-label="Закрыть окно цвета стопа" onClick={closeStopWindow}>
@@ -881,6 +884,7 @@ const GradientPicker = ({
                                 value={stopHsva}
                                 onPreview={setStopPreview}
                                 onCommit={(next) => {
+                                    rememberStop(next);
                                     setStopPreview(null);
                                     setStop(activeIndex, { color: hsvaToHex(next) });
                                 }}
@@ -888,7 +892,10 @@ const GradientPicker = ({
                             <FormatRow
                                 hsva={stopHsva}
                                 format={null}
-                                onCommit={(next) => setStop(activeIndex, { color: hsvaToHex(next) })}
+                                onCommit={(next) => {
+                                    rememberStop(next);
+                                    setStop(activeIndex, { color: hsvaToHex(next) });
+                                }}
                             />
                         </>
                     )}
