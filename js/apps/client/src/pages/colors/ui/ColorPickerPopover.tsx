@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 
 import {
     formatWebLayer,
+    GRADIENT_TYPE_LABELS,
     gradientColorAt,
     referenceLabel,
     stopOpacity,
@@ -514,12 +515,6 @@ const CenterPlane = ({
     );
 };
 
-const GRADIENT_TYPES: Array<{ id: GradientType; label: string }> = [
-    { id: 'linear', label: 'Linear' },
-    { id: 'radial', label: 'Radial' },
-    { id: 'conic', label: 'Conic' },
-];
-
 const GradientPicker = ({
     rootRef: ref,
     label,
@@ -630,9 +625,9 @@ const GradientPicker = ({
                     value={model.type}
                     onChange={(event) => commitModel(withGradientType(model, event.target.value as GradientType))}
                 >
-                    {GRADIENT_TYPES.map((type) => (
-                        <option key={type.id} value={type.id}>
-                            {type.label}
+                    {Object.entries(GRADIENT_TYPE_LABELS).map(([type, label]) => (
+                        <option key={type} value={type}>
+                            {label}
                         </option>
                     ))}
                 </select>

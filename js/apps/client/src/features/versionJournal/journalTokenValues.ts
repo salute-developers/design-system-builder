@@ -1,7 +1,14 @@
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 import { normalizedColorValue } from '../../api/colorValue';
 import type { VariationType } from '../../controllers/themeBuilder/types/token';
-import { colorField, fieldText, readPaint, type Paint, type PaintPlatform } from '../../modules/colorTokens/domain';
+import {
+    colorField,
+    fieldText,
+    GRADIENT_TYPE_LABELS,
+    readPaint,
+    type Paint,
+    type PaintPlatform,
+} from '../../modules/colorTokens/domain';
 import type { JournalChangedField, JournalValue } from './journalFields';
 
 const rounded = (value: number) => {
@@ -121,8 +128,6 @@ export interface JournalPaintSource {
     platform: PaintPlatform;
 }
 
-const gradientTypes = { linear: 'Linear', radial: 'Radial', conic: 'Conic' } as const;
-
 /** Параметры градиента под названиями редактора; геометрия другого типа не показывается. */
 const gradientParameters = ({ model }: Extract<Paint, { kind: 'gradient' }>) => {
     const [angle, from, centerX, centerY, radius] = [
@@ -139,7 +144,7 @@ const gradientParameters = ({ model }: Extract<Paint, { kind: 'gradient' }>) => 
         conic: [center, ['Начальный угол', `${from}°`]],
     };
     return new Map<string, JournalValue>([
-        ['Тип', gradientTypes[model.type]],
+        ['Тип', GRADIENT_TYPE_LABELS[model.type]],
         ...geometry[model.type],
         ...model.stops.flatMap(
             (stop, index): Array<[string, string]> => [
@@ -176,7 +181,7 @@ export const journalPaintStructureChanged = (previous?: JournalPaintSource, curr
 
 /**
  * Изменение значения цветового токена в терминах поля инспектора: цвет — ссылкой или HEX, градиент — подписью
- * «Linear · 45°» и свотчем, смена вида — «Вид значения», у двух градиентов — строки изменённых параметров и стопов.
+ * «Линейный · 45°» и свотчем, смена вида — «Вид значения», у двух градиентов — строки изменённых параметров и стопов.
  * Строка получает пути отмены из [valuePaths] — изменённых путей хранимого значения: единственная строка — все,
  * параметр слоя платформы — пути своих полей; у web слой — одна CSS-строка, и параметр без своего пути отменяется
  * только вместе с записью. `null` — одно из значений не цвет и не градиент.

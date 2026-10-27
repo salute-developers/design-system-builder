@@ -35,6 +35,13 @@ const STOP = new RegExp(
     String.raw`^(#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?|\[[^\]\s]+](?:\[[^\]\s]+])?)\s+(${UNSIGNED})%$`,
 );
 
+/** Названия типов градиента в интерфейсе. */
+export const GRADIENT_TYPE_LABELS: Record<GradientType, string> = {
+    linear: 'Линейный',
+    radial: 'Радиальный',
+    conic: 'Конический',
+};
+
 /** Значения геометрии по умолчанию: Linear 90°, центр 50 % / 50 %, радиус 50 %, начальный угол 0°. */
 export const GRADIENT_DEFAULTS = { angle: 90, from: 0, centerX: 50, centerY: 50, radius: 50 } as const;
 
@@ -207,13 +214,14 @@ export const gradientColorAt = (
         .toUpperCase()}`;
 };
 
-/** Подпись поля градиентного значения: «Linear · 45°», «Radial», «Conic · 90°» и «+ ещё N» при нескольких слоях. */
+/**
+ * Подпись поля градиентного значения: «Линейный · 45°», «Радиальный», «Конический · 90°» и «+ ещё N» при нескольких
+ * слоях.
+ */
 export const gradientLabel = (model: GradientModel, layers = 1) => {
-    const base = {
-        linear: `Linear · ${Number(model.angle.toFixed(3))}°`,
-        radial: 'Radial',
-        conic: `Conic · ${Number(model.from.toFixed(3))}°`,
-    }[model.type];
+    const angle = { linear: model.angle, radial: null, conic: model.from }[model.type];
+    const name = GRADIENT_TYPE_LABELS[model.type];
+    const base = angle === null ? name : `${name} · ${Number(angle.toFixed(3))}°`;
     return layers > 1 ? `${base} + ещё ${layers - 1}` : base;
 };
 

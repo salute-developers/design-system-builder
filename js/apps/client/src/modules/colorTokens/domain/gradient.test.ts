@@ -98,9 +98,9 @@ describe('web-градиент', () => {
 
     it('подписывает градиент типом и углом', () => {
         const model = parseWebLayer('conic-gradient(from 30deg at 50% 50%, #FFFFFF 0%, #000000 100%)')!;
-        expect(gradientLabel({ ...model, type: 'linear', angle: 45 })).toBe('Linear · 45°');
-        expect(gradientLabel({ ...model, type: 'radial' })).toBe('Radial');
-        expect(gradientLabel(model, 3)).toBe('Conic · 30° + ещё 2');
+        expect(gradientLabel({ ...model, type: 'linear', angle: 45 })).toBe('Линейный · 45°');
+        expect(gradientLabel({ ...model, type: 'radial' })).toBe('Радиальный');
+        expect(gradientLabel(model, 3)).toBe('Конический · 30° + ещё 2');
     });
 
     it('берёт цвет градиента в точке: стоп как есть, между стопами — интерполяция', () => {

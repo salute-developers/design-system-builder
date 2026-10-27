@@ -1058,7 +1058,7 @@ describe('ColorTokensScreen: градиенты', () => {
             false,
         );
 
-        expect(field('Dark')).toHaveValue('Linear · 90°');
+        expect(field('Dark')).toHaveValue('Линейный · 90°');
         expect(field('Light')).toHaveValue('118833');
         expect(
             within(screen.getByRole('dialog', { name: /^Color picker/ })).getByRole('combobox', {
@@ -1076,7 +1076,7 @@ describe('ColorTokensScreen: градиенты', () => {
         darkGradient();
         repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'color' });
         await renderScreen();
-        expect(field('Dark')).toHaveValue('Linear · 45°');
+        expect(field('Dark')).toHaveValue('Линейный · 45°');
 
         fireEvent.click(within(openPicker('Dark')).getByRole('button', { name: 'Solid' }));
 
@@ -1108,10 +1108,10 @@ describe('ColorTokensScreen: градиенты', () => {
         const type = within(picker).getByRole('combobox', { name: 'Gradient type' });
 
         commitNumber(picker, 'Угол', '30');
-        expect(field('Dark')).toHaveValue('Linear · 30°');
+        expect(field('Dark')).toHaveValue('Линейный · 30°');
 
         fireEvent.change(type, { target: { value: 'radial' } });
-        expect(field('Dark')).toHaveValue('Radial');
+        expect(field('Dark')).toHaveValue('Радиальный');
         expect(within(picker).getByRole('group', { name: 'Центр градиента' })).toBeInTheDocument();
         commitNumber(picker, 'X', '30');
         commitNumber(picker, 'Радиус', '70');
@@ -1134,7 +1134,7 @@ describe('ColorTokensScreen: градиенты', () => {
 
         fireEvent.change(type, { target: { value: 'conic' } });
         commitNumber(picker, 'Начальный угол', '90');
-        expect(field('Dark')).toHaveValue('Conic · 90°');
+        expect(field('Dark')).toHaveValue('Конический · 90°');
         expect(
             within(picker).getByText(
                 'На Android начальный угол 90° передаётся сдвигом стопов: в формате angular угла нет',
@@ -1208,7 +1208,7 @@ describe('ColorTokensScreen: градиенты', () => {
                 'linear-gradient(45deg, [general.green.500] 0%, [general.green.400] 100%)',
             ]),
         );
-        expect(field('Dark')).toHaveValue('Linear · 45°');
+        expect(field('Dark')).toHaveValue('Линейный · 45°');
     });
 
     it('строка iOS: «+» добавляет своё значение, правка web её не перестраивает, «×» убирает', async () => {
@@ -1279,7 +1279,7 @@ describe('ColorTokensScreen: градиенты', () => {
         const picker = screen.getByRole('dialog', { name: /^Color picker: .*, Android$/ });
         expect(within(picker).getByRole('group', { name: 'Центр градиента' })).toBeInTheDocument();
         expect(within(picker).queryByRole('slider', { name: 'Начальный угол' })).toBeNull();
-        expect(field('Dark, Android')).toHaveValue('Conic · 0°');
+        expect(field('Dark, Android')).toHaveValue('Конический · 0°');
     });
 
     it('переименовывает токен на месте в заголовке инспектора', async () => {
@@ -1354,7 +1354,7 @@ describe('ColorTokensScreen: градиенты', () => {
                 : gradientStored(name, platform, mode);
         await renderScreen('maintainer', [], [], { versionId: 'version-1' });
 
-        expect(field('Dark')).toHaveValue('Linear · 45°');
+        expect(field('Dark')).toHaveValue('Линейный · 45°');
         expect(field('Light, iOS')).toHaveValue('445566');
         expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(0);
         expect(within(inspector()).queryByRole('button', { name: /^Своё значение платформы/ })).toBeNull();

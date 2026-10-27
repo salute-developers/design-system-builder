@@ -83,7 +83,7 @@ describe('значения цветовых токенов в терминах �
         expect(field.label).toBe('Вид значения');
         expect(journalValueText(field.before)).toBe('Green 400');
         expect(journalColor(field.before)).toMatch(/^#/);
-        expect(journalValueText(field.after)).toBe('Conic · 0°');
+        expect(journalValueText(field.after)).toBe('Конический · 0°');
         expect(journalColor(field.after)).toMatch(/^conic-gradient\(from 0deg at 45% 50%, #/);
         expect(journalColor(field.after)).not.toContain('[');
     });
@@ -135,7 +135,7 @@ describe('значения цветовых токенов в терминах �
 
         expect(field.label).toBe('Вид значения');
         expect(journalValueText(field.before)).toBe('#2ACB47FF');
-        expect(journalValueText(field.after)).toBe('Conic · 0°');
+        expect(journalValueText(field.after)).toBe('Конический · 0°');
         expect(journalPaintChange(android('#2ACB47FF'), android('#2ACB47FF'))).toEqual([]);
         expect(rows(journalPaintChange(android('#2ACB47FF'), android('#000000FF'), ['/value/0']))).toEqual([
             ['Цвет', '#2ACB47FF', '#000000FF', ['/value/0']],

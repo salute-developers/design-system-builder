@@ -254,7 +254,7 @@ describe('DesignSystemChangesPage', () => {
         const inspector = () => screen.getByRole('complementary', { name: 'Подробности изменения' });
 
         for (const [index, expected] of [
-            ['iOS', 'Вид значения · Темный режим', 'Green 400', 'Conic · 0°'],
+            ['iOS', 'Вид значения · Темный режим', 'Green 400', 'Конический · 0°'],
             ['Web', 'Цвет · Темный режим', 'Green 600', 'Green 700'],
         ].entries()) {
             fireEvent.click(rows[index]);
