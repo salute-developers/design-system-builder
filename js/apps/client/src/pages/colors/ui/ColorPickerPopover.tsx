@@ -45,7 +45,7 @@ interface PickerProps {
     value: ColorFieldValue;
     platform: PaintPlatform;
     palette: ThemePalette | null;
-    /** Имя определения темы с режимом: группа палитры для вкладки «Палитра». */
+    /** Имя определения темы с режимом: группа палитры для вкладки «Библиотека». */
     tokenName: string;
     /** HEX ссылки по палитре темы или `null`. */
     resolveColor: (color: string) => string | null;
@@ -312,14 +312,14 @@ const SolidPicker = ({
                         data-autofocus
                         onClick={() => setTab('custom')}
                     >
-                        Свой
+                        Вручную
                     </button>
                     <button
                         type="button"
                         className={tab === 'library' ? 'is-active' : ''}
                         onClick={() => setTab('library')}
                     >
-                        Палитра
+                        Библиотека
                     </button>
                 </div>
                 <button type="button" className="cp-close" aria-label="Закрыть" onClick={onClose}>
@@ -610,7 +610,7 @@ const GradientPicker = ({
             <header>
                 <div className="cp-tabs">
                     <button type="button" className="is-active" data-autofocus>
-                        Свой
+                        Вручную
                     </button>
                 </div>
                 <button type="button" className="cp-close" aria-label="Закрыть" onClick={onClose}>
@@ -837,7 +837,7 @@ const GradientPicker = ({
                                 data-autofocus={stopWindow === 'custom' || undefined}
                                 onClick={() => setStopWindow('custom')}
                             >
-                                Свой
+                                Вручную
                             </button>
                             <button
                                 type="button"
@@ -845,7 +845,7 @@ const GradientPicker = ({
                                 data-autofocus={stopWindow === 'library' || undefined}
                                 onClick={() => setStopWindow('library')}
                             >
-                                Палитра
+                                Библиотека
                             </button>
                         </div>
                         <button type="button" aria-label="Закрыть окно цвета стопа" onClick={closeStopWindow}>

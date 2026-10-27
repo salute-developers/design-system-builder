@@ -1167,7 +1167,7 @@ describe('ColorTokensScreen: градиенты', () => {
 
         fireEvent.click(within(picker).getByRole('button', { name: 'Цвет стопа 1: Green 500' }));
         expect(stopWindow()).toBeInTheDocument();
-        fireEvent.keyDown(within(stopWindow()!).getByRole('button', { name: 'Палитра' }), { key: 'Escape' });
+        fireEvent.keyDown(within(stopWindow()!).getByRole('button', { name: 'Библиотека' }), { key: 'Escape' });
         expect(stopWindow()).toBeNull();
         expect(screen.getByRole('dialog', { name: /^Color picker/ })).toBeInTheDocument();
 
@@ -1181,7 +1181,7 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(screen.getByRole('dialog', { name: /^Color picker/ })).toBeInTheDocument();
     });
 
-    it('Вкладка «Палитра» пишет в стоп ссылку на ступень, клавиатура меняет только цвет стопа', async () => {
+    it('Вкладка «Библиотека» пишет в стоп ссылку на ступень, клавиатура меняет только цвет стопа', async () => {
         darkGradient();
         repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'gradient' });
         await renderScreen('maintainer', [], [], { palette: PALETTE });
@@ -1198,7 +1198,7 @@ describe('ColorTokensScreen: градиенты', () => {
         ]);
 
         fireEvent.click(
-            within(screen.getByRole('dialog', { name: 'Цвет стопа 2' })).getByRole('button', { name: 'Палитра' }),
+            within(screen.getByRole('dialog', { name: 'Цвет стопа 2' })).getByRole('button', { name: 'Библиотека' }),
         );
         fireEvent.click(screen.getByRole('button', { name: 'Green 400 #4FCB66' }));
 
