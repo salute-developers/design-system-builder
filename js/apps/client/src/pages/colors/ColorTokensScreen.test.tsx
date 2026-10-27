@@ -367,8 +367,10 @@ describe('ColorTokensScreen', () => {
         commitLight('#123456');
 
         const status = screen.getByTestId('color-tokens-save-status');
-        await waitFor(() => expect(status).toHaveTextContent('Не сохранено: Значение не прошло проверку'));
-        expect(status).toHaveTextContent('По умолчанию · web · Light');
+        await waitFor(() => expect(status).toHaveTextContent('Не сохранено'));
+        expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent(
+            'Не сохранено: Значение не прошло проверку (По умолчанию · web · Light)',
+        );
         expect(within(inspector()).queryByText(/Значение не прошло проверку/)).toBeNull();
         expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute('aria-invalid', 'true');
         expect(within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0]).toHaveAttribute('aria-invalid', 'false');
@@ -378,6 +380,19 @@ describe('ColorTokensScreen', () => {
 
         await waitFor(() => expect(status).toHaveTextContent('Сохранено'));
         expect(repository.updateValues).toHaveBeenCalledTimes(2);
+    });
+
+    it('не подсвечивает поле Web при ошибке значения другой платформы', async () => {
+        repository.updateValues.mockRejectedValueOnce(
+            new ColorTokenOperationError('invalid', 'Ошибка значения iOS', 'INVALID_TOKEN_VALUE', 'accent-0:ios:light'),
+        );
+        await renderScreen();
+
+        commitLight('#123456');
+
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Ошибка значения iOS'));
+        expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('По умолчанию · ios · Light');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute('aria-invalid', 'false');
     });
 
     it('не теряет неотправленную правку при перезагрузке темы', async () => {

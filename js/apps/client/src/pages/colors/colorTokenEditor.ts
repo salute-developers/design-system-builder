@@ -1,5 +1,5 @@
 import { colorTokenActions, gradientTokenActions } from '../../actions';
-import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
+import { getDraftAutosaveRevision, recordDraftSave, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { observeSubjectAddresses } from '../../api/subjectRevisions';
 import { authService } from '../../api/authService';
 import { getAdditionalColorValues } from '../../actions/colors';
@@ -177,6 +177,7 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
             );
             confirmedValues.set(session, confirmed);
         },
+        onSaved: () => recordDraftSave(context),
         onConflict: (error) => {
             // Тема изменена в другом месте: несохранённые значения запоминаются, тема перечитывается, повторная
             // отправка — только по «Повторить».

@@ -4410,3 +4410,21 @@
     border-color: var(--builder-ui-negative, #ff6b5f);
     box-shadow: 0 0 0 1px var(--builder-ui-negative, #ff6b5f) inset;
 }
+
+/* Подробная ошибка находится в общем тулбаре и занимает отдельную строку, чтобы её не обрезали селекторы. */
+.color-tokens-screen.ct-shell.ct-theme-workspace
+    .editor-workbench.playground-workbench:not(.component-workbench):has(.ct-toolbar-error) {
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.color-tokens-screen .playground-workbench:not(.component-workbench) .editor-toolbar:has(.ct-toolbar-error) {
+    height: auto;
+}
+
+.color-tokens-screen .ct-toolbar-error {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--builder-ui-outline-transparent-primary);
+    color: var(--builder-ui-negative, #ff6b5f);
+    font-size: 12px;
+    line-height: 16px;
+}
