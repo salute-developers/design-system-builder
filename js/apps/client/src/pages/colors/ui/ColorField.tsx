@@ -9,6 +9,7 @@ interface ColorFieldProps {
     type: ColorTokenType;
     editable: boolean;
     pickerOpen: boolean;
+    invalid: boolean;
     onOpenPicker: () => void;
     onCommit: (value: string) => void;
     onOpacity: (percent: number) => void;
@@ -45,6 +46,7 @@ export const ColorField = ({
     type,
     editable,
     pickerOpen,
+    invalid,
     onOpenPicker,
     onCommit,
     onOpacity,
@@ -71,7 +73,7 @@ export const ColorField = ({
     return (
         <div className="figma-inspector-field">
             <span className="figma-inspector-field-label">{label}</span>
-            <div className="figma-value-control">
+            <div className={`figma-value-control ${invalid ? 'is-invalid' : ''}`}>
                 <div className="figma-value-main">
                     <button
                         type="button"
@@ -86,6 +88,7 @@ export const ColorField = ({
                         <input
                             readOnly
                             aria-label={label}
+                            aria-invalid={invalid}
                             value={text}
                             onClick={editable ? onOpenPicker : undefined}
                             disabled={!editable}
@@ -93,6 +96,7 @@ export const ColorField = ({
                     ) : (
                         <input
                             aria-label={label}
+                            aria-invalid={invalid}
                             value={draft}
                             onChange={(event) => setDraft(event.target.value)}
                             onBlur={commitText}

@@ -4151,6 +4151,14 @@
     position: relative;
 }
 
+.color-tokens-screen .token-row-wrap > .token-row {
+    padding-right: 44px;
+}
+
+.color-tokens-screen .token-row-wrap .ct-row-flag {
+    flex: none;
+}
+
 .color-tokens-screen .token-tree-delete {
     position: absolute;
     /* Строки дерева из прототипа лежат в своём слое: без z-index клик попадает в строку, а не в удаление. */
@@ -4396,4 +4404,9 @@
 .color-tokens-screen .properties-panel .figma-value-control:has(input:focus-visible) {
     outline: 1px solid #4284ff;
     outline-offset: -1px;
+}
+
+.color-tokens-screen .properties-panel .figma-value-control.is-invalid {
+    border-color: var(--builder-ui-negative, #ff6b5f);
+    box-shadow: 0 0 0 1px var(--builder-ui-negative, #ff6b5f) inset;
 }

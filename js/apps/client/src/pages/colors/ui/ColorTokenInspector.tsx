@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 
-import { COLOR_CONTEXTS, type ColorContext, type ColorTokenView, type SaveStatus } from '../../../modules/colorTokens';
+import { COLOR_CONTEXTS, type ColorContext, type ColorTokenView } from '../../../modules/colorTokens';
 import type { FieldId } from '../colorTokenEditor';
 import { ColorField } from './ColorField';
 import { CtGlyph } from './CtGlyph';
@@ -17,7 +17,7 @@ interface InspectorProps {
     editable: boolean;
     canDelete: boolean;
     openField: FieldId | null;
-    save: SaveStatus;
+    invalidField: FieldId | null;
     onOpenPicker: (field: FieldId) => void;
     onCommit: (field: FieldId, value: string) => void;
     onOpacity: (field: FieldId, percent: number) => void;
@@ -25,9 +25,6 @@ interface InspectorProps {
     onResetContexts: () => void;
     onDelete: () => void;
     onFill: () => void;
-    onRetry: () => void;
-    /** Подпись адреса недопустимого значения `<токен>:<platform>:<mode>`: подтема, платформа и режим. */
-    addressLabel: (address: string) => string;
 }
 
 /** Описание токена (`colorTokenDescription`): своё или общее. */
@@ -37,7 +34,7 @@ const description = (view: ColorTokenView) =>
 
 /** Инспектор токена по `tokenInspector` прототипа. */
 export const ColorTokenInspector = (props: InspectorProps) => {
-    const { view, editable, canDelete, openField, save } = props;
+    const { view, editable, canDelete, openField, invalidField } = props;
     const field = (id: FieldId, label: string, value: ColorTokenView['modes']['light']) => (
         <ColorField
             key={id}
@@ -46,6 +43,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
             type={view.key.type}
             editable={editable}
             pickerOpen={openField === id}
+            invalid={invalidField === id}
             onOpenPicker={() => props.onOpenPicker(id)}
             onCommit={(next) => props.onCommit(id, next)}
             onOpacity={(percent) => props.onOpacity(id, percent)}
@@ -73,17 +71,6 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                 </div>
                 <p>{description(view)}</p>
             </header>
-            {save.state === 'error' && save.error && (
-                <div className="ct-banner" role="alert">
-                    <span>
-                        Не сохранено: {save.error.message}
-                        {save.error.address ? ` (${props.addressLabel(save.error.address)})` : ''}
-                    </span>
-                    <button type="button" className="ct-inline-action" onClick={props.onRetry}>
-                        Повторить
-                    </button>
-                </div>
-            )}
             {view.incomplete && (
                 <div className="ct-banner" role="status">
                     <span>Нет значений в этой теме</span>

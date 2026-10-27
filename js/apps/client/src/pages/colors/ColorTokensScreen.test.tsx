@@ -358,7 +358,7 @@ describe('ColorTokensScreen', () => {
                     'invalid',
                     'Значение не прошло проверку',
                     'INVALID_TOKEN_VALUE',
-                    'text.default.accent:web:light',
+                    'accent-0:web:light',
                 ),
             )
             .mockResolvedValueOnce({ editRevision: 4 });
@@ -367,7 +367,11 @@ describe('ColorTokensScreen', () => {
         commitLight('#123456');
 
         const status = screen.getByTestId('color-tokens-save-status');
-        await waitFor(() => expect(status).toHaveTextContent('Не сохранено'));
+        await waitFor(() => expect(status).toHaveTextContent('Не сохранено: Значение не прошло проверку'));
+        expect(status).toHaveTextContent('По умолчанию · web · Light');
+        expect(within(inspector()).queryByText(/Значение не прошло проверку/)).toBeNull();
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute('aria-invalid', 'true');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0]).toHaveAttribute('aria-invalid', 'false');
         expect(screen.getByTestId('color-token-row-color:text.accent')).toHaveTextContent('Не сохранено');
 
         fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));

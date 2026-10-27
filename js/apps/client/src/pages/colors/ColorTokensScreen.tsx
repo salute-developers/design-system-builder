@@ -499,10 +499,21 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         session.conflict !== null
             ? 'Тема изменена в другом месте'
             : status.state === 'error'
-              ? 'Не сохранено'
+              ? `Не сохранено: ${status.error?.message ?? 'Ошибка сохранения'}${status.error?.address ? ` (${addressLabel(status.error.address)})` : ''}`
               : status.state === 'saved'
                 ? 'Сохранено'
                 : 'Сохранение…';
+    const selectedSave = selected ? session.autosave.status(selected.id) : null;
+    const invalidAddress = selectedSave?.error?.kind === 'invalid' ? selectedSave.error.address : null;
+    const [invalidTokenId, , invalidMode] = invalidAddress?.split(':') ?? [];
+    const invalidName = [...session.definitions].find(([, definition]) => definition.id === invalidTokenId)?.[0];
+    const invalidContext = invalidName ? contextOfSubgroup(invalidName.split('.')[1] ?? '') : null;
+    const invalidField: FieldId | null =
+        invalidName && (invalidMode === 'light' || invalidMode === 'dark')
+            ? invalidContext
+                ? `${invalidContext}-${invalidMode}`
+                : invalidMode
+            : null;
 
     const canvasOptions = [
         { id: 'palette', label: 'Палитра' },
@@ -734,7 +745,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             editable={!readOnly}
                             canDelete={canDelete}
                             openField={picker}
-                            save={session.autosave.status(selected.id)}
+                            invalidField={invalidField}
                             onOpenPicker={(field) => setPicker((current) => (current === field ? null : field))}
                             onCommit={(field, value) => edit(() => editor.setField(selected, field, value))}
                             onOpacity={(field, percent) => edit(() => editor.setOpacity(selected, field, percent))}
@@ -742,8 +753,6 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             onResetContexts={() => edit(() => editor.resetContexts(selected))}
                             onDelete={() => requestDelete(selected)}
                             onFill={() => edit(() => editor.fill(selected, groupDefaults(selected.key.group)))}
-                            onRetry={() => editor.retry(selected.id)}
-                            addressLabel={addressLabel}
                         />
                     )}
                 </aside>
