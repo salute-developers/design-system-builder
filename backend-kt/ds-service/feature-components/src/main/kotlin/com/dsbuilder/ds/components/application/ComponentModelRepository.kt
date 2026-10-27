@@ -97,6 +97,13 @@ interface ComponentModelRepository {
     /** Performs the list platform params operation. */
     suspend fun listPlatformParams(projectId: ProjectId, systemAdmin: Boolean): List<PropertyPlatformParam>
 
+    /** Платформенные параметры только указанных свойств с теми же проверками владения, что у [listPlatformParams]. */
+    suspend fun listPlatformParamsByProperties(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        propertyIds: Collection<UUID>,
+    ): List<PropertyPlatformParam>
+
     /** Performs the find platform param operation. */
     suspend fun findPlatformParam(projectId: ProjectId, systemAdmin: Boolean, id: UUID): PropertyPlatformParam?
 
@@ -120,6 +127,13 @@ interface ComponentModelRepository {
 
     /** Performs the list property variations operation. */
     suspend fun listPropertyVariations(projectId: ProjectId, systemAdmin: Boolean): List<PropertyVariation>
+
+    /** Связи с вариациями только указанных свойств с теми же проверками владения, что у [listPropertyVariations]. */
+    suspend fun listPropertyVariationsByProperties(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        propertyIds: Collection<UUID>,
+    ): List<PropertyVariation>
 
     /** Performs the find property variation operation. */
     suspend fun findPropertyVariation(projectId: ProjectId, systemAdmin: Boolean, id: UUID): PropertyVariation?

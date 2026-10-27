@@ -47,6 +47,7 @@ import com.dsbuilder.ds.components.application.GetAppearanceVariationValueUseCas
 import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependenciesWithReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
+import com.dsbuilder.ds.components.application.GetComponentEditorBundleUseCase
 import com.dsbuilder.ds.components.application.GetComponentPropertiesWithPlatformParamsUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCase
@@ -139,6 +140,7 @@ import com.dsbuilder.ds.components.presentation.appearanceVariationRoutes
 import com.dsbuilder.ds.components.presentation.appearanceVariationValueRoutes
 import com.dsbuilder.ds.components.presentation.componentConfigRoutes
 import com.dsbuilder.ds.components.presentation.componentDependencyRoutes
+import com.dsbuilder.ds.components.presentation.componentEditorBundleRoutes
 import com.dsbuilder.ds.components.presentation.componentReuseConfigRoutes
 import com.dsbuilder.ds.components.presentation.componentRoutes
 import com.dsbuilder.ds.components.presentation.designSystemComponentRoutes
@@ -553,6 +555,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<DuplicateAppearanceConfigurationUseCase>(),
         json,
     )
+    componentEditorBundleRoutes(runtime.evaluator, koin.get<GetComponentEditorBundleUseCase>())
     appearanceVariationRoutes(
         runtime.evaluator,
         koin.get<ListAppearanceVariationsUseCase>(),
