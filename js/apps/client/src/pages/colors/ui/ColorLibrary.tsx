@@ -22,7 +22,7 @@ interface LibraryProps {
     onPick: (pick: LibraryPick) => void;
 }
 
-/** Вкладка Library по `colorPickerLibraryView`: растяжки палитры темы со ступенями группы токена. */
+/** Вкладка «Библиотека» по `colorPickerLibraryView`: растяжки палитры темы со ступенями группы токена. */
 export const ColorLibrary = ({ palette, tokenName, active, onPick }: LibraryProps) => {
     const [query, setQuery] = useState('');
     const rows = useMemo(() => {
@@ -59,7 +59,7 @@ export const ColorLibrary = ({ palette, tokenName, active, onPick }: LibraryProp
             <div className="cp-library-list">
                 {visible.map(({ ramp, name, steps }) => (
                     <section key={`${ramp.type}.${ramp.shade}`} className="cp-library-group">
-                        <h3>{`color/${name.replace(/\s+/g, '-').toLowerCase()}`}</h3>
+                        <h3>{name.replace(/\s+/g, '-').toLowerCase()}</h3>
                         <div className="cp-library-swatches">
                             {steps.map(({ step, hex }) =>
                                 hex ? (

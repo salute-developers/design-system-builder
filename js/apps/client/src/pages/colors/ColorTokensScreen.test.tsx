@@ -1200,6 +1200,8 @@ describe('ColorTokensScreen: градиенты', () => {
         fireEvent.click(
             within(screen.getByRole('dialog', { name: 'Цвет стопа 2' })).getByRole('button', { name: 'Библиотека' }),
         );
+        expect(screen.getByRole('heading', { name: 'green' })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: /^color\// })).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Green 400 #4FCB66' }));
 
         expect(within(picker).getByRole('button', { name: 'Цвет стопа 2: Green 400' })).toBeInTheDocument();
