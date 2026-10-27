@@ -425,7 +425,9 @@ const normalizeToken = (
             style: String(font.fontStyle ?? font.style ?? 'normal').toUpperCase() === 'ITALIC' ? 'ITALIC' : 'NORMAL',
         });
     }
-    return { type: 'fontFamily', faces, allowFallback: fonts.length === 0 };
+    // Шрифт, который браузер не скачал (CDN недоступен, блокировщик), не должен ронять весь render:
+    // плагин заменяет такую family на шрифт по умолчанию.
+    return { type: 'fontFamily', faces, allowFallback: true };
 };
 
 const objectsOf = (raw: JsonValue): Array<{ [key: string]: JsonValue }> =>
