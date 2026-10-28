@@ -118,7 +118,10 @@ describe('ComposePreviewFrame', () => {
         );
 
         await waitFor(() => expect(session.send).toHaveBeenCalledTimes(1));
-        screen.getByTitle('Compose component preview').dispatchEvent(new Event('load'));
+        const iframe = screen.getByTitle('Compose component preview');
+        // Первая загрузка после назначения `src` — обычный старт плагина, вторая — его перезагрузка.
+        iframe.dispatchEvent(new Event('load'));
+        iframe.dispatchEvent(new Event('load'));
 
         await waitFor(() => {
             expect(session.reload).toHaveBeenCalledTimes(1);
@@ -126,6 +129,91 @@ describe('ComposePreviewFrame', () => {
             expect(session.describeComponent).toHaveBeenCalledTimes(2);
             expect(session.send).toHaveBeenCalledTimes(2);
         });
+    });
+
+    it('describes the requested story and describes again when the story changes', async () => {
+        const session = {
+            waitUntilReady: vi.fn().mockResolvedValue(undefined),
+            send: vi.fn().mockReturnValue({
+                requestId: 'render',
+                result: Promise.resolve({ type: 'success', requestId: 'render' }),
+            }),
+            describeComponent: vi.fn((componentId: string, storyId?: string) => ({
+                requestId: `description:${storyId ?? 'default'}`,
+                result: Promise.resolve({
+                    protocolVersion: 1,
+                    componentId,
+                    storyId: storyId ?? 'Default',
+                    properties: [],
+                }),
+            })),
+            reload: vi.fn(),
+            dispose: vi.fn(),
+        };
+        const onDescription = vi.fn();
+        const loadManifest = vi.fn().mockResolvedValue(loadedManifest);
+        const createSession = vi.fn().mockReturnValue(session);
+        const frame = (storyId?: string) => (
+            <ComposePreviewFrame
+                pluginUrl="https://plugin.example/"
+                payload={BASIC_BUTTON_PREVIEW_FIXTURE}
+                storyId={storyId}
+                onDescription={onDescription}
+                loadManifest={loadManifest}
+                createSession={createSession}
+            />
+        );
+        const { rerender } = render(frame());
+
+        await waitFor(() => expect(session.describeComponent).toHaveBeenCalledTimes(1));
+        expect(session.describeComponent).toHaveBeenLastCalledWith('BasicButton');
+
+        rerender(frame('Secondary'));
+
+        await waitFor(() => expect(session.describeComponent).toHaveBeenCalledTimes(2));
+        expect(session.describeComponent).toHaveBeenLastCalledWith('BasicButton', 'Secondary');
+        await waitFor(() =>
+            expect(onDescription).toHaveBeenLastCalledWith(expect.objectContaining({ storyId: 'Secondary' })),
+        );
+    });
+
+    it('does not treat the first iframe load after ready as a plugin reload', async () => {
+        // Web-плагин шлёт ready при старте скрипта, раньше события load у iframe.
+        const session = {
+            waitUntilReady: vi.fn().mockResolvedValue(undefined),
+            send: vi.fn().mockReturnValue({
+                requestId: 'render',
+                result: Promise.resolve({ type: 'success', requestId: 'render' }),
+            }),
+            describeComponent: vi.fn().mockReturnValue({
+                requestId: 'description',
+                result: Promise.resolve({
+                    protocolVersion: 1,
+                    componentId: 'BasicButton',
+                    storyId: 'BasicButton',
+                    properties: [],
+                }),
+            }),
+            reload: vi.fn(),
+            dispose: vi.fn(),
+        };
+        render(
+            <ComposePreviewFrame
+                pluginUrl="https://plugin.example/"
+                payload={BASIC_BUTTON_PREVIEW_FIXTURE}
+                loadManifest={vi.fn().mockResolvedValue(loadedManifest)}
+                createSession={vi.fn().mockReturnValue(session)}
+            />,
+        );
+
+        await waitFor(() => expect(session.send).toHaveBeenCalledTimes(1));
+        await act(async () => {
+            screen.getByTitle('Compose component preview').dispatchEvent(new Event('load'));
+        });
+
+        expect(session.reload).not.toHaveBeenCalled();
+        expect(session.waitUntilReady).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText('Loading Compose preview…')).not.toBeInTheDocument();
     });
 
     const createSessionStub = (overrides: Record<string, unknown> = {}) => ({

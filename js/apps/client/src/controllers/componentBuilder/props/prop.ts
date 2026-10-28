@@ -1,4 +1,4 @@
-import type { PlatformTokens, PropConfig, PropType, State, WebToken, WebTokenValues } from '../type';
+import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
 
 export abstract class Prop {
     protected name = '';
@@ -121,54 +121,5 @@ export abstract class Prop {
 
     public getPlatformMappings(): Readonly<PlatformTokens> | undefined {
         return this.platformMappings;
-    }
-
-    protected getAdditionalTokens(token: string, getValue: (state: State) => string | number | undefined) {
-        if (!this.states?.length) {
-            return null;
-        }
-
-        const statesMap = {
-            hovered: 'Hover',
-            pressed: 'Active',
-        };
-
-        return this.states.reduce<WebTokenValues>((acc, item) => {
-            const state = item.state[0] as keyof typeof statesMap; // TODO поддержать работу с несколькими стейтами
-
-            const value = getValue(item);
-
-            if (value === undefined) {
-                return acc;
-            }
-
-            return {
-                ...acc,
-                [`${token}${statesMap[state]}`]: value.toString(),
-            };
-        }, {});
-    }
-
-    public createWebToken(value: string | number): WebTokenValues | null {
-        if (!this.webTokens || !this.webTokens.length || !value) {
-            return null;
-        }
-
-        const replaceAdjustmentPlaceholders = (template: string, values: string[]) => {
-            return template.replace(/\$(\d+)/g, (_, index) => {
-                return values[index - 1] !== undefined ? values[index - 1] : `$${index}`;
-            });
-        };
-
-        return this.webTokens.reduce<WebTokenValues>((acc, { name, adjustment }) => {
-            const newValue = adjustment
-                ? replaceAdjustmentPlaceholders(adjustment, [value.toString()])
-                : value.toString();
-
-            return {
-                ...acc,
-                [name]: newValue,
-            };
-        }, {});
     }
 }

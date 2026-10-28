@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { isComposePreviewEnvironmentSupported } from './environment';
+import { isComposePreviewEnvironmentSupported, isPreviewPluginEnvironmentSupported } from './environment';
 
 // Пробы проверяются в порядке: сначала WasmGC, затем exception handling.
 describe('isComposePreviewEnvironmentSupported', () => {
@@ -53,5 +53,20 @@ describe('isComposePreviewEnvironmentSupported', () => {
         };
 
         expect(isComposePreviewEnvironmentSupported(corrupting)).toBe(false);
+    });
+});
+
+describe('isPreviewPluginEnvironmentSupported', () => {
+    it('checks WebAssembly for the compose platform', () => {
+        expect(isPreviewPluginEnvironmentSupported('compose', null)).toBe(false);
+        expect(isPreviewPluginEnvironmentSupported('compose', { validate: vi.fn().mockReturnValue(true) })).toBe(true);
+    });
+
+    it('supports the web platform without WebAssembly and without probing it', () => {
+        const validate = vi.fn().mockReturnValue(false);
+
+        expect(isPreviewPluginEnvironmentSupported('web', null)).toBe(true);
+        expect(isPreviewPluginEnvironmentSupported('web', { validate })).toBe(true);
+        expect(validate).not.toHaveBeenCalled();
     });
 });

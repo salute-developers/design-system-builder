@@ -10,8 +10,6 @@ import type {
     ValueProp,
 } from './props';
 
-export const DEFAULT_FONT_SIZE = 16;
-
 // type ConfigTokenFields<T extends ConfigToken> = {
 //     [K in Exclude<keyof T, 'name'>]: T[K];
 // };
@@ -60,7 +58,6 @@ export type PropUnion =
 
 export interface WebToken {
     name: string;
-    adjustment: string | null;
 }
 
 export interface PlatformTokens {
@@ -175,8 +172,3 @@ export interface Meta {
     };
 }
 
-export interface ThemeValues {
-    getTokenValue(name: string, type: 'color' | 'shape' | 'shadow' | 'typography' | 'fontFamily', platform: 'web'): any;
-}
-
-export type WebTokenValues = Record<string, string>;

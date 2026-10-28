@@ -79,6 +79,7 @@ const Section = ({
     pluginUrl = 'https://plugin.example/',
     scope = 'project:ds:tenant',
     preload = true,
+    storyId,
     onDescription,
 }: {
     shown: Shown;
@@ -86,6 +87,7 @@ const Section = ({
     pluginUrl?: string;
     scope?: string;
     preload?: boolean;
+    storyId?: string;
     onDescription?: (description: PreviewComponentDescription) => void;
 }) => (
     <ComposePreviewHostProvider
@@ -102,6 +104,7 @@ const Section = ({
                 pluginUrl={pluginUrl}
                 owner={`compose:${shown.name}`}
                 payload={payloadFor(shown.name)}
+                storyId={storyId}
                 onDescription={onDescription}
             />
         ) : shown ? (
@@ -167,6 +170,19 @@ describe('ComposePreviewHostProvider', () => {
         await setup.succeed(1);
         await waitFor(() => expect(iframe()).toHaveAttribute('data-revealed', 'true'));
         expect(setup.sessions[0].dispose).not.toHaveBeenCalled();
+    });
+
+    it('passes the story of the preview area to describe and describes again when it changes', async () => {
+        const setup = setupSessions();
+        const view = render(<Section shown={{ platform: 'compose', name: 'Tooltip' }} setup={setup} />);
+        await waitFor(() => expect(setup.sessions[0]?.describeComponent).toHaveBeenCalledTimes(1));
+        expect(setup.sessions[0].describeComponent).toHaveBeenLastCalledWith('Tooltip');
+
+        view.rerender(<Section shown={{ platform: 'compose', name: 'Tooltip' }} setup={setup} storyId="Placement" />);
+
+        await waitFor(() => expect(setup.sessions[0].describeComponent).toHaveBeenCalledTimes(2));
+        expect(setup.sessions[0].describeComponent).toHaveBeenLastCalledWith('Tooltip', 'Placement');
+        expect(setup.createSession).toHaveBeenCalledTimes(1);
     });
 
     it('hides the iframe for a Web component and reuses the session when a Compose component returns', async () => {
@@ -255,5 +271,74 @@ describe('ComposePreviewHostProvider', () => {
         await waitFor(() => expect(setup.renders).toHaveLength(2));
         expect(setup.renders[1].sessionIndex).toBe(1);
         expect(setup.renders[1].payload.component.id).toBe('Badge');
+    });
+});
+
+describe('ComposePreviewHostProvider platforms', () => {
+    afterEach(cleanup);
+
+    const webPayload = {
+        protocolVersion: 1 as const,
+        platform: 'WEB' as const,
+        assets: [],
+        theme: {},
+        component: { id: 'Button', variations: { view: 'accent' }, properties: {} },
+        example: { id: 'Default', props: {} },
+        surface: { width: 360, height: 160, background: 'dark.background.default.primary' },
+    };
+
+    it('keeps an independent host, manifest and session per platform in nested providers', async () => {
+        const compose = setupSessions();
+        const web = setupSessions();
+        const Nested = ({ shown }: { shown: 'compose' | 'web' }) => (
+            <ComposePreviewHostProvider
+                pluginUrl="https://plugin.example/"
+                preload
+                loadManifest={compose.loadManifest}
+                createSession={compose.createSession as never}
+            >
+                <ComposePreviewHostProvider
+                    platform="web"
+                    pluginUrl="https://web-plugin.example/"
+                    loadManifest={web.loadManifest}
+                    createSession={web.createSession as never}
+                >
+                    {shown === 'web' ? (
+                        <ComposePreviewSlot
+                            platform="web"
+                            pluginUrl="https://web-plugin.example/"
+                            owner="web:Button"
+                            payload={webPayload}
+                        />
+                    ) : (
+                        <ComposePreviewSlot
+                            pluginUrl="https://plugin.example/"
+                            owner="compose:Avatar"
+                            payload={payloadFor('Avatar')}
+                        />
+                    )}
+                </ComposePreviewHostProvider>
+            </ComposePreviewHostProvider>
+        );
+
+        const view = render(<Nested shown="web" />);
+        await waitFor(() => expect(web.renders).toHaveLength(1));
+
+        expect(web.loadManifest).toHaveBeenCalledWith('https://web-plugin.example/', 'web');
+        expect(compose.loadManifest).toHaveBeenCalledWith('https://plugin.example/', 'compose');
+        expect(web.renders[0].payload).toEqual(webPayload);
+        expect(web.sessions[0].describeComponent).toHaveBeenLastCalledWith('Button');
+        expect(compose.sessions[0].send).not.toHaveBeenCalled();
+        expect(screen.getByTestId('web-preview-slot')).toBeInTheDocument();
+        expect(screen.getByTitle('Web component preview')).toBeInTheDocument();
+        expect(screen.getByTestId('compose-preview-host')).toHaveAttribute('aria-hidden', 'true');
+
+        view.rerender(<Nested shown="compose" />);
+        await waitFor(() => expect(compose.renders).toHaveLength(1));
+
+        expect(compose.renders[0].payload.component.id).toBe('Avatar');
+        expect(web.renders).toHaveLength(1);
+        expect(web.sessions[0].dispose).not.toHaveBeenCalled();
+        expect(screen.getByTestId('web-preview-host')).toHaveAttribute('aria-hidden', 'true');
     });
 });

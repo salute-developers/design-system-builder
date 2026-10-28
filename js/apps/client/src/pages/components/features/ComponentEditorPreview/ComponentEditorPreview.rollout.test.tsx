@@ -42,12 +42,6 @@ vi.mock('../../../../hooks', async (importOriginal) => {
     return { ...actual, useInputDynamicWidth: () => [100] };
 });
 
-const storyProps = vi.fn();
-const ReactStory = (props: unknown) => {
-    storyProps(props);
-    return <div>React story</div>;
-};
-
 const buttonConfig = {
     getName: () => 'Button',
     getVariations: () => [],
@@ -75,22 +69,13 @@ const previewElement = (config: unknown = buttonConfig, args: Record<string, unk
     <ComponentEditorPreview
         config={config as never}
         theme={theme as never}
-        args={{ reactOnly: 'story-value', ...args }}
-        storyArgs={[{ name: 'reactOnly', value: 'React' }] as never}
-        Story={ReactStory}
-        storyItems={[]}
-        selectedStory={{ label: '', value: '' }}
-        componentVars={{}}
-        themeVars={{}}
+        args={args as never}
         themeModeList={[{ label: 'Светлый', value: 'light' }]}
         themeMode={{ label: 'Светлый', value: 'light' }}
-        onStorySelect={vi.fn()}
         onUpdateThemeMode={vi.fn()}
         onChange={vi.fn()}
     />
 );
-
-const lastStoryProps = () => storyProps.mock.calls[storyProps.mock.calls.length - 1][0];
 
 describe('ComponentEditorPreview Compose rollout', () => {
     beforeEach(() => {
@@ -98,7 +83,6 @@ describe('ComponentEditorPreview Compose rollout', () => {
         pluginState.supported = true;
         pluginState.loadManifest = vi.fn().mockResolvedValue({ manifest: { components: ['BasicButton'] } });
         pluginState.framePayloads = [];
-        storyProps.mockClear();
     });
     afterEach(cleanup);
 
@@ -119,15 +103,16 @@ describe('ComponentEditorPreview Compose rollout', () => {
         render(previewElement());
 
         expect(await screen.findByText('Compose')).toBeInTheDocument();
-        expect(screen.getByText('React')).toBeInTheDocument();
+        expect(screen.getByText('Плагин')).toBeInTheDocument();
+        expect(screen.queryByText('React')).not.toBeInTheDocument();
     });
 
-    it('renders a Compose component with the plugin only, without a renderer switch or React story', async () => {
+    it('renders a Compose component with the plugin only, without a renderer switch', async () => {
         render(previewElement(composeConfig));
 
         expect(await screen.findByTestId('compose-frame')).toBeInTheDocument();
         expect(screen.queryByText('Renderer')).not.toBeInTheDocument();
-        expect(screen.queryByText('React story')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('preview-unavailable')).not.toBeInTheDocument();
     });
 
     it('opens a Compose component missing from the plugin manifest with a diagnostic and without a frame', async () => {
@@ -184,8 +169,8 @@ describe('ComponentEditorPreview Compose rollout', () => {
 
         render(previewElement());
 
-        expect(screen.getByText('React')).toBeInTheDocument();
         expect(screen.queryByText('Compose')).not.toBeInTheDocument();
+        expect(screen.queryByText('Renderer')).not.toBeInTheDocument();
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
@@ -197,7 +182,6 @@ describe('ComponentEditorPreview Compose rollout', () => {
 
         expect(await screen.findByRole('status')).toHaveTextContent('Compose-preview недоступен в этом браузере');
         expect(screen.queryByText('Compose')).not.toBeInTheDocument();
-        expect(screen.getByText('React story')).toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
 
@@ -207,17 +191,15 @@ describe('ComponentEditorPreview Compose rollout', () => {
         render(previewElement(textConfig));
 
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
-        expect(screen.getByText('React story')).toBeInTheDocument();
     });
 
-    it('keeps React preview when the manifest cannot be loaded', async () => {
+    it('does not offer Compose when the manifest cannot be loaded', async () => {
         pluginState.loadManifest = vi.fn().mockRejectedValue(new Error('HTTP 503'));
 
         render(previewElement());
 
         await waitFor(() => expect(pluginState.loadManifest).toHaveBeenCalled());
         expect(screen.queryByText('Compose')).not.toBeInTheDocument();
-        expect(screen.getByText('React story')).toBeInTheDocument();
     });
 
     it('does not offer Compose when the manifest lists only other components', async () => {
@@ -227,34 +209,31 @@ describe('ComponentEditorPreview Compose rollout', () => {
 
         await waitFor(() => expect(pluginState.loadManifest).toHaveBeenCalled());
         expect(screen.queryByText('Compose')).not.toBeInTheDocument();
-        expect(screen.getByText('React story')).toBeInTheDocument();
     });
 
-    it('returns to React preview and its controls when the user leaves Compose', async () => {
+    it('returns to the web plugin area when the user leaves Compose', async () => {
         render(previewElement());
 
         fireEvent.click(await screen.findByText('Compose'));
         expect(await screen.findByTestId('compose-frame')).toBeInTheDocument();
-        expect(screen.queryByText('React story')).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByText('React'));
+        fireEvent.click(screen.getByText('Плагин'));
 
-        expect(await screen.findByText('React story')).toBeInTheDocument();
+        // Адреса web-плагина в этом наборе нет: область показывает причину, Compose-кадра нет.
+        expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent('Превью недоступно');
         expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
-        expect(screen.getByText('ReactOnly')).toBeInTheDocument();
     });
 
-    it('falls back to React preview and its controls when the user moves from Compose to a component without it', async () => {
+    it('falls back to the web plugin when the user moves from Compose to a component without it', async () => {
         const { rerender } = render(previewElement());
         fireEvent.click(await screen.findByText('Compose'));
         expect(await screen.findByTestId('compose-frame')).toBeInTheDocument();
 
         rerender(previewElement(textConfig));
 
-        expect(await screen.findByText('React story')).toBeInTheDocument();
         await waitFor(() => expect(screen.queryByText('Compose')).not.toBeInTheDocument());
         expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
-        expect(screen.getByText('ReactOnly')).toBeInTheDocument();
+        expect(screen.getByTestId('preview-unavailable')).toBeInTheDocument();
     });
 
     it('does not switch back to Compose by itself when the user returns to the component', async () => {
@@ -267,28 +246,6 @@ describe('ComponentEditorPreview Compose rollout', () => {
         rerender(previewElement(buttonConfig));
 
         expect(await screen.findByText('Compose')).toBeInTheDocument();
-        expect(screen.getByText('React story')).toBeInTheDocument();
         expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
-    });
-
-    it('gives the React story the same props after using Compose as in a run without the plugin', async () => {
-        const argsAfterEdit = { text: 'Changed', disabled: true };
-
-        const { rerender } = render(previewElement(buttonConfig, { text: 'Initial', disabled: false }));
-        fireEvent.click(await screen.findByText('Compose'));
-        await screen.findByTestId('compose-frame');
-        rerender(previewElement(buttonConfig, argsAfterEdit));
-        fireEvent.click(screen.getByText('React'));
-        await screen.findByText('React story');
-        const afterCompose = lastStoryProps();
-        cleanup();
-
-        pluginState.url = undefined;
-        storyProps.mockClear();
-        render(previewElement(buttonConfig, argsAfterEdit));
-        await screen.findByText('React story');
-
-        expect(afterCompose).toEqual(lastStoryProps());
-        expect(afterCompose).toMatchObject(argsAfterEdit);
     });
 });

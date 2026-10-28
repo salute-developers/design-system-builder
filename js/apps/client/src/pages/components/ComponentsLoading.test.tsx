@@ -65,6 +65,7 @@ const renderPage = (state: { componentLoading?: boolean; componentError?: string
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
 });
 
 describe('Components: загрузка выбранного компонента', () => {
@@ -89,5 +90,14 @@ describe('Components: загрузка выбранного компонента
         renderPage({});
 
         expect(screen.getByText('настройка и превью')).toBeInTheDocument();
+    });
+
+    it('прогревает web-плагин при входе в раздел, если у ДС есть web-компоненты', () => {
+        vi.stubEnv('VITE_WEB_PREVIEW_PLUGIN_URL', 'http://localhost:3011/');
+        renderPage({ componentLoading: true });
+
+        // Компонент ещё грузится, области превью нет, а хост web-плагина уже смонтирован.
+        expect(screen.queryByText('настройка и превью')).not.toBeInTheDocument();
+        expect(screen.getByTestId('web-preview-host')).toBeInTheDocument();
     });
 });

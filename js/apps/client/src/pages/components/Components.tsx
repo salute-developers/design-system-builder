@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate, useOutletContext, useParams } from 
 import {
     ComposePreviewHostProvider,
     getComposePreviewPluginUrl,
+    getWebPreviewPluginUrl,
     isComposePreviewEnvironmentSupported,
     loadComposePreviewManifest,
     parseComponentRoute,
@@ -200,6 +201,9 @@ export const Components = () => {
     // при уходе из раздела, смене адреса плагина или контекста дизайн-системы.
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
     const composePluginUrl = composeEnvironmentSupported ? getComposePreviewPluginUrl() : undefined;
+    // Web-плагин превью — свой хост рядом с Compose: отдельные iframe и сессия, без проверки WebAssembly. Запускается
+    // при первой области превью web-компонента из манифеста плагина; без таких компонентов iframe не создаётся.
+    const webPluginUrl = getWebPreviewPluginUrl();
     const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId].join(':');
     const storagePrefix = editorContext
         ? `ds_pending_component:${editorContext.projectId}:${editorContext.designSystemId}:${editorContext.tenantId}`
@@ -434,7 +438,14 @@ export const Components = () => {
             scope={composeHostScope}
             preload={Boolean(composeComponents?.length)}
         >
-            {section}
+            <ComposePreviewHostProvider
+                platform="web"
+                pluginUrl={webPluginUrl}
+                scope={composeHostScope}
+                preload={Boolean(components?.length)}
+            >
+                {section}
+            </ComposePreviewHostProvider>
         </ComposePreviewHostProvider>
     );
 };

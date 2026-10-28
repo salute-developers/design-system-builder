@@ -14,7 +14,9 @@ export const PREVIEW_MESSAGE_TYPES = {
 } as const;
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
-export type PreviewPlatform = 'COMPOSE';
+export type PreviewPlatform = 'COMPOSE' | 'WEB';
+/** Платформа плагина превью в его манифесте `preview-plugin.json`. */
+export type PreviewPluginPlatform = 'compose' | 'web';
 export type PreviewPropertySource =
     | { type: 'literal'; value: JsonValue; alpha?: number }
     | { type: 'tokenRef'; tokenId: string; alpha?: number }
@@ -29,14 +31,22 @@ export interface PreviewPropertyValue {
     base: PreviewPropertySource;
     states?: PreviewStateEntry[];
 }
-/** Вложенный стиль, на который ссылается `styleRef`. */
+/**
+ * Стиль из словаря `styles`: вложенный стиль, на который ссылается `styleRef`, или стиль связанного компонента
+ * (`variation`/`name`, `default` у стиля вариации по умолчанию, `invariant` у инвариантов), из которых плагин
+ * собирает его полный конфиг.
+ */
 export interface PreviewStyle {
     component: string;
     properties: Record<string, PreviewPropertyValue>;
+    variation?: string;
+    name?: string;
+    default?: boolean;
+    invariant?: boolean;
 }
 export type PreviewAsset = {
     id: string;
-    type: 'TTF' | 'OTF' | 'SVG' | 'PNG';
+    type: 'TTF' | 'OTF' | 'WOFF' | 'WOFF2' | 'SVG' | 'PNG';
     url: string;
     digest?: string;
 };
@@ -74,6 +84,7 @@ export type PreviewThemeValue =
           lineHeight: number;
           letterSpacing: number;
           weight: number;
+          fontStyle?: 'NORMAL' | 'ITALIC';
       }
     | { type: 'fontFamily'; faces: PreviewFontFace[]; allowFallback: boolean };
 export interface PreviewComponent {
@@ -123,6 +134,12 @@ export interface PreviewComponentDescription {
     componentId: string;
     storyId: string;
     properties: PreviewExamplePropertyDescription[];
+    /** Story компонента; `storyId` — описанная. Нет у плагина без выбора story. */
+    stories?: PreviewStoryDescription[];
+}
+export interface PreviewStoryDescription {
+    id: string;
+    name: string;
 }
 export type PreviewComponentDescriptionResult =
     | { type: 'success'; requestId: string; description: PreviewComponentDescription }
@@ -136,7 +153,7 @@ export interface ComposePreviewComponentGroup {
 
 export interface ComposePreviewManifest {
     schemaVersion: 1;
-    platform: 'compose';
+    platform: PreviewPluginPlatform;
     protocolVersion: 1;
     entrypoint: string;
     payloadBridge: {
@@ -201,6 +218,8 @@ export interface PreviewDescribeEnvelope {
     protocolVersion: 1;
     requestId: string;
     componentId: string;
+    /** Story, которую нужно описать; без него — story по умолчанию. */
+    storyId?: string;
 }
 export interface PreviewDescriptionEnvelope {
     type: typeof PREVIEW_MESSAGE_TYPES.description;
