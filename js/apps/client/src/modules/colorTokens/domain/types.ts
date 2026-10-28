@@ -1,12 +1,18 @@
+import type { ValueKind } from './gradient';
+import type { NativePlatform } from './nativeGradient';
+import type { Paint } from './paint';
+
 /** Модель экрана Color Tokens: цветовой токен экрана — семейство определений с общими группой и именем. */
 
 export type ColorMode = 'light' | 'dark';
 export type ColorContext = 'ondark' | 'onlight' | 'inverse';
 export type ColorTokenType = 'color' | 'gradient';
 
-/** Ключ токена экрана: тип, группа (`text`) и имя без подгруппы и состояния (`accent-minor`). */
+/**
+ * Ключ токена экрана: группа (`text`) и имя без подгруппы и состояния (`accent-minor`). Тип семейства в ключ не
+ * входит: он следует из вида значений и меняется правкой значения.
+ */
 export interface ColorTokenKey {
-    type: ColorTokenType;
     group: string;
     name: string;
 }
@@ -24,14 +30,26 @@ export interface ParsedMemberName {
 }
 
 export interface ColorFieldValue {
-    /** Исходное значение: HEX, ссылка `[type.shade.step][opacity]` или CSS-градиент. */
+    /** Исходное значение: HEX, ссылка `[type.shade.step][opacity]` или слои CSS-градиента через запятую. */
     value: string;
-    /** Цвет для отображения по палитре темы; для градиента — CSS-градиент. */
+    /** Хранимое значение платформы. */
+    raw: unknown;
+    /** Цвет для отображения по палитре темы; для градиента — CSS-градиент с раскрытыми ссылками стопов. */
     resolved: string;
+    /** Цвет для подписи и контраста: сам цвет или первый стоп редактируемого слоя градиента по палитре темы. */
+    baseColor: string;
     /** Имя ступени палитры («Blue 500») для ссылки или `null`. */
     paletteLabel: string | null;
     /** Прозрачность 0..1. */
     opacity: number;
+    /** Вид значения или `null`, если значение не цвет и не градиент. */
+    kind: ValueKind | null;
+    /** Цвет или градиент для выбора цвета; `null` у значения, которое выбор цвета не меняет. */
+    paint: Paint | null;
+    /** Имя ступени палитры, которой нет в палитре темы, или `null`. */
+    missing: string | null;
+    /** Свои значения iOS и Android — строки платформ под полем; у значения платформы пусто. */
+    platforms: Partial<Record<NativePlatform, ColorFieldValue>>;
 }
 
 export interface ColorValueIssue {
@@ -42,8 +60,10 @@ export interface ColorValueIssue {
 
 export interface ColorTokenView {
     key: ColorTokenKey;
-    /** Ключ строки дерева: `color:text.accent`. */
+    /** Ключ строки дерева: `text.accent`. */
     id: string;
+    /** Тип семейства на сервере: `gradient`, если хотя бы одно значение где-либо — градиент. */
+    type: ColorTokenType;
     displayName: string;
     description: string;
     /** Группа или подгруппа токенов; `null` — токен без группы. */

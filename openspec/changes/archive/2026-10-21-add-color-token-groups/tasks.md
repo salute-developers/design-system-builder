@@ -66,9 +66,9 @@
 
 ## 9. Локальные проверки
 
-- [ ] 9.1 `cd backend-kt/ds-service && ./gradlew test detekt spotlessCheck build` (с `JAVA_TOOL_OPTIONS=-Dapi.version=1.44` локально)
+- [x] 9.1 `cd backend-kt/ds-service && ./gradlew test detekt spotlessCheck build` (с `JAVA_TOOL_OPTIONS=-Dapi.version=1.44` локально)
 - [x] 9.2 `cd js/apps/client && npm test && npm run build`
-- [ ] 9.3 `tools/verify fast --change add-color-token-groups` и `tools/verify full --change add-color-token-groups`
+- [x] 9.3 `tools/verify fast --change add-color-token-groups` и `tools/verify full --change add-color-token-groups`
 
 ## 10. Внешние проверки до архивирования
 

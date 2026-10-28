@@ -34,6 +34,12 @@ data class TenantTokenValueResponse(
     /** Исходная ссылка на палитру, если `value` вычислен по палитре темы. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val paletteRef: String? = null,
+    /** Своё значение iOS или Android, а не построенное клиентом из web. */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val overridden: Boolean = false,
+    /** Хранимое значение, если `value` отдан в другой форме: со ссылками, раскрытыми в HEX, или слоем `color`. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val sourceValue: JsonElement? = null,
 ) {
     companion object {
         /** Performs the from operation. */
@@ -49,6 +55,8 @@ data class TenantTokenValueResponse(
             value.createdAt.toString(),
             value.updatedAt.toString(),
             value.paletteRef,
+            value.overridden,
+            value.sourceValueJson?.let(Json::parseToJsonElement),
         )
     }
 }

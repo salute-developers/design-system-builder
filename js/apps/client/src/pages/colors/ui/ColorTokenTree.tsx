@@ -12,10 +12,11 @@ import {
     type TreeSubgroup,
 } from '../../../modules/colorTokens';
 import { CtGlyph } from './CtGlyph';
+import { InlineRename } from './InlineRename';
 import { alphaSwatchStyle, rowPreview } from './swatch';
 
 /** Подсказка у опубликованного токена, имя которого меняется. */
-const PublishedWarning = ({ version }: { version: string }) => {
+export const PublishedWarning = ({ version }: { version: string }) => {
     const text = `Токен опубликован в версии ${version}. Новое имя изменит переменную в пакете дизайн-системы`;
     return (
         <span className="ct-published-warning" role="img" aria-label={text} title={text}>
@@ -173,8 +174,8 @@ const stored = (tokens: ColorTokenView[], without?: ColorTokenView) =>
     [...tokens].filter((token) => token.id !== without?.id).sort((a, b) => a.position - b.position);
 
 /**
- * Дерево токенов по хранимым группам и подгруппам (`linkedColorTokenTree` прототипа): создание и переименование
- * строкой ввода, меню «+», удаление при наведении и перетаскивание токенов, подгрупп и групп.
+ * Дерево токенов по хранимым группам и подгруппам (`linkedColorTokenTree` прототипа): создание строкой ввода,
+ * переименование токена на месте, меню «+», удаление при наведении и перетаскивание токенов, подгрупп и групп.
  */
 export const ColorTokenTree = (props: TreeProps) => {
     const { tree, groups, selectedId, sort, query, searchOpen, issuesOnly, collapsed, editable, canDelete, status } =
@@ -374,25 +375,35 @@ export const ColorTokenTree = (props: TreeProps) => {
     });
 
     const tokenRow = (container: { group: TokenGroupDto; tokens: ColorTokenView[] }, token: ColorTokenView) => {
+        const save = status(token.id);
+        const severity = token.issues.length ? 'is-error' : save.state === 'error' ? 'is-warning' : '';
         if (editing?.kind === 'rename-token' && editing.id === token.id) {
+            // Переименование на месте, как в навигаторе Xcode: та же строка, тот же чип, имя без рамки и фона.
             return (
-                <div key={token.id} className="token-row-wrap is-editing">
-                    {input({
-                        label: `Новое имя ${token.displayName}`,
-                        initial: token.key.name,
-                        placeholder: 'Имя токена',
-                        warning: token.publishedIn,
-                        row: {
-                            className: 'token-row',
-                            leading: swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved)),
-                        },
-                        onSubmit: (value) => void submit(() => props.onRenameToken(token, value)),
-                    })}
+                <div key={token.id} className="token-row-wrap">
+                    <div
+                        className={`token-row is-renaming ${selectedId === token.id ? 'is-selected' : ''}`}
+                        data-testid={`color-token-row-${token.id}`}
+                    >
+                        {swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved), severity)}
+                        <InlineRename
+                            label={`Новое имя ${token.displayName}`}
+                            initial={token.displayName}
+                            busy={busy}
+                            error={error}
+                            onSubmit={(value) => void submit(() => props.onRenameToken(token, value))}
+                            onCancel={() => startEditing(null)}
+                        />
+                        {token.publishedIn && <PublishedWarning version={token.publishedIn} />}
+                    </div>
+                    {error && (
+                        <span className="token-tree-input-error ct-row-rename-error" role="alert">
+                            {error}
+                        </span>
+                    )}
                 </div>
             );
         }
-        const save = status(token.id);
-        const severity = token.issues.length ? 'is-error' : save.state === 'error' ? 'is-warning' : '';
         return (
             <div
                 key={token.id}

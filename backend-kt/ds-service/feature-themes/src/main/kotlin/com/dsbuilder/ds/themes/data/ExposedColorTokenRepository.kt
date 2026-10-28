@@ -2,7 +2,9 @@ package com.dsbuilder.ds.themes.data
 
 import com.dsbuilder.ds.core.application.TokenReferenceCleaner
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
+import com.dsbuilder.ds.core.data.entityEditRevisions
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
+import com.dsbuilder.ds.core.data.lockDraftSubjects
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenLock
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenLookup
@@ -13,6 +15,9 @@ import com.dsbuilder.ds.themes.application.colortokens.StoredColorTokenFamily
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenNaming
+import com.dsbuilder.ds.themes.domain.colortokens.ColorValueKind
+import com.dsbuilder.ds.themes.domain.colortokens.ColorValueShape
+import com.dsbuilder.ds.themes.domain.colortokens.FamilyValue
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -51,15 +56,84 @@ class ExposedColorTokenRepository(
 
     override suspend fun family(designSystemId: UUID, tokenId: UUID): ColorTokenLookup {
         val rows = currentThemeTokenRows(designSystemId)
-        val token = rows.firstOrNull { it[ThemeTokensTable.id] == tokenId } ?: return ColorTokenLookup.Missing
+        if (rows.none { it[ThemeTokensTable.id] == tokenId }) return ColorTokenLookup.Missing
+        return familyOf(rows, tokenId)?.let(ColorTokenLookup::Found) ?: ColorTokenLookup.OutsideFamily
+    }
+
+    override fun familyInDraft(designSystemId: UUID, tokenId: UUID): StoredColorTokenFamily? =
+        familyOf(currentThemeTokenRows(designSystemId), tokenId)
+
+    override fun familiesInDraft(designSystemId: UUID, tokenIds: Collection<UUID>): Map<UUID, StoredColorTokenFamily> {
+        if (tokenIds.isEmpty()) return emptyMap()
+        val rows = currentThemeTokenRows(designSystemId)
+        return tokenIds.distinct().mapNotNull { tokenId -> familyOf(rows, tokenId)?.let { tokenId to it } }.toMap()
+    }
+
+    override fun lockFamilyDefinitions(designSystemId: UUID, tokenIds: Collection<UUID>): Boolean =
+        lockDraftSubjects(designSystemId, TOKEN_ENTITY_TYPE, tokenIds)
+
+    override fun familyValuesInDraft(designSystemId: UUID, tokenIds: Collection<UUID>): List<FamilyValue> =
+        if (tokenIds.isEmpty()) {
+            emptyList()
+        } else {
+            currentThemeTokenValueRows(designSystemId, tokenIds = tokenIds.toSet()).mapNotNull { row ->
+                row[ThemeTokenValuesTable.platform]?.let { FamilyValue(it, row[ThemeTokenValueRevisionsTable.value]) }
+            }
+        }
+
+    override fun reviseFamilyType(tokenIds: Collection<UUID>, type: ThemeTokenType) {
+        val owner = currentThemeTokenRows(tokenIds = tokenIds.toSet()).firstOrNull()
+            ?.get(ThemeTokensTable.designSystemId) ?: return
+        val draft = requireNotNull(themeDraft(owner))[ThemeVersionBoundariesTable.id]
+        val revisions = entityEditRevisions(draft, TOKEN_ENTITY_TYPE, tokenIds.toSet())
+        tokenIds.sorted().forEach { token ->
+            // Тип производный: базой служит текущая техническая редакция под блокировкой, поэтому запись не
+            // конфликтует с правками пользователя, а её редакция попадает в X-DS-Mutation-Metadata.
+            reviseThemeToken(token, setOf("/type"), baseRevision = revisions[token] ?: 0) { it.copy(type = type) }
+        }
+    }
+
+    override fun designSystemOf(tokenId: UUID): UUID? =
+        currentThemeTokenRows(tokenIds = setOf(tokenId)).singleOrNull()?.get(ThemeTokensTable.designSystemId)
+
+    override fun familyTypeCandidates(designSystemId: UUID, tenantId: UUID): List<StoredColorTokenFamily> {
+        val rows = currentThemeTokenRows(designSystemId)
+        val gradients = rows
+            .filter { it[ThemeTokenRevisionsTable.type] == ThemeTokenType.GRADIENT }
+            .map { it[ThemeTokensTable.id] }
+        val withGradientValues = currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId))
+            .filter { row ->
+                val platform = row[ThemeTokenValuesTable.platform]
+                val value = row[ThemeTokenValueRevisionsTable.value]
+                platform != null && value != null && ColorValueShape.kind(platform, value) == ColorValueKind.GRADIENT
+            }
+            .map { it[ThemeTokenValuesTable.tokenId] }
+        // Семейства строятся в памяти по одному чтению определений; члены уже найденного семейства пропускаются.
+        val families = mutableListOf<StoredColorTokenFamily>()
+        val members = mutableSetOf<UUID>()
+        (gradients + withGradientValues).distinct().sorted().forEach { tokenId ->
+            if (tokenId in members) return@forEach
+            val family = familyOf(rows, tokenId) ?: return@forEach
+            families += family
+            members += family.members.values
+        }
+        return families
+    }
+
+    private fun familyOf(rows: List<ResultRow>, tokenId: UUID): StoredColorTokenFamily? {
+        val token = rows.firstOrNull { it[ThemeTokensTable.id] == tokenId } ?: return null
         val family = token[ThemeTokenRevisionsTable.type]?.let {
             ColorTokenFamily.of(it, token[ThemeTokenRevisionsTable.name])
-        } ?: return ColorTokenLookup.OutsideFamily
+        } ?: return null
+        // Члены — по правилу имени среди всех типов семейств: тип производный и может временно различаться.
         val members = rows.filter { row ->
-            row[ThemeTokenRevisionsTable.type] == family.type &&
-                family.memberOf(family.type, row[ThemeTokenRevisionsTable.name])
-        }.associate { it[ThemeTokenRevisionsTable.name] to it[ThemeTokensTable.id] }
-        return ColorTokenLookup.Found(StoredColorTokenFamily(family, members))
+            row[ThemeTokenRevisionsTable.type]?.let { family.memberOf(it, row[ThemeTokenRevisionsTable.name]) } == true
+        }
+        return StoredColorTokenFamily(
+            family,
+            members.associate { it[ThemeTokenRevisionsTable.name] to it[ThemeTokensTable.id] },
+            members.associate { it[ThemeTokensTable.id] to requireNotNull(it[ThemeTokenRevisionsTable.type]) },
+        )
     }
 
     override suspend fun takenNames(designSystemId: UUID, names: Collection<String>): Set<String> =
@@ -211,11 +285,30 @@ class ExposedColorTokenRepository(
                 }
             }
             val before = existing.firstOrNull { it[ThemeTokenValuesTable.id] == entity }
-            if (before == null || before[ThemeTokenValueRevisionsTable.paletteId] != item.paletteId ||
-                before[ThemeTokenValueRevisionsTable.value] != item.value
-            ) {
-                writeThemeValueRevision(entity, owner, item.paletteId, item.value, baseRevision = item.baseRevision)
+            val paths = changedValuePaths(before, item)
+            if (paths.isNotEmpty()) {
+                writeThemeValueRevision(
+                    entity,
+                    owner,
+                    item.paletteId,
+                    item.value,
+                    item.overridden,
+                    paths = paths,
+                    baseRevision = item.baseRevision,
+                )
             }
         }
+    }
+
+    /** Изменённые пути значения: `/palette_id` и `/value` вместе, как прежде, и `/overridden` отдельно. */
+    private fun changedValuePaths(before: ResultRow?, item: ColorTokenValue): Set<String> = buildSet {
+        val valueChanged = before == null || before[ThemeTokenValueRevisionsTable.paletteId] != item.paletteId ||
+            before[ThemeTokenValueRevisionsTable.value] != item.value
+        if (valueChanged) addAll(listOf("/palette_id", "/value"))
+        if (before == null || before[ThemeTokenValueRevisionsTable.overridden] != item.overridden) add("/overridden")
+    }
+
+    private companion object {
+        const val TOKEN_ENTITY_TYPE = "token"
     }
 }

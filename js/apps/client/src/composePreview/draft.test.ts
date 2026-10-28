@@ -6,6 +6,7 @@ import { buildMockTheme } from '../controllers/themeBuilder/themes/builders';
 import { createComponentPreviewDraft } from './draft';
 import { resolveStyleReference } from '../controllers/componentBuilder';
 import { buttonMeta, groupMeta } from './nestedStyleFixture';
+import { restorePaletteColor } from '../palette/activePalette';
 
 const componentMeta = (): Meta => ({
     name: 'Button',
@@ -124,6 +125,43 @@ describe('createComponentPreviewDraft', () => {
         if (!result.ok) return;
         const types = new Set(result.draft.themeTokens.map((token) => token.type));
         expect(types.has('gradient') || types.has('shadow')).toBe(true);
+    });
+
+    it('projects solid platform values and palette references of a gradient family', () => {
+        const theme = buildMockTheme();
+        const [token] = theme.getTokens().gradient as never as Array<{
+            getName(): string;
+            setValue(platform: string, value: unknown): void;
+        }>;
+        const resolved = (reference: string) => restorePaletteColor(reference, -1, token.getName());
+        token.setValue('android', [
+            { kind: 'linear', locations: [0, 1], colors: ['[general.red.500]', '#000000'], angle: 90 },
+            { kind: 'color', background: '[general.blue.300]' },
+        ]);
+        token.setValue('ios', '[general.red.500][0.5]');
+        token.setValue('web', ['#123456']);
+
+        const result = createComponentPreviewDraft({
+            config: new Config(componentMeta()),
+            theme,
+            args: {},
+            themeMode: 'light',
+            themeValuePlatform: 'android',
+            surface: { width: 360, height: 160, background: '#FFFFFFFF' },
+        });
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const values = result.draft.themeTokens.find((item) => item.id === token.getName())!.values;
+        expect(values).toEqual({
+            android: [
+                { kind: 'linear', locations: [0, 1], colors: [resolved('[general.red.500]'), '#000000'], angle: 90 },
+                { kind: 'color', background: resolved('[general.blue.300]') },
+            ],
+            ios: [{ kind: 'color', background: resolved('[general.red.500][0.5]') }],
+            web: [{ kind: 'color', background: '#123456' }],
+        });
+        expect(JSON.stringify(values)).not.toContain('[general.');
     });
 
     it('uses configured defaults and reports unavailable stable metadata', () => {

@@ -46,8 +46,8 @@ fun Route.colorTokenRoutes(evaluator: PolicyEvaluator, useCases: ColorTokenUseCa
             val tokenId = call.tokenId() ?: return@put
             val command = call.body<UpdateColorTokenValuesRequest>()?.toCommand()
                 ?: return@put call.respondFailure(BODY)
-            call.respondRevision(
-                useCases.updateValues.execute(call.revisionContext(context, command), tenantId, tokenId, command),
+            call.respondValues(
+                useCases.updateValues.execute(call.valuesContext(context, command), tenantId, tokenId, command),
             )
         }
         post("/{tokenId}/move") {
@@ -109,6 +109,7 @@ private fun List<ColorTokenValueItem>.toValues(): List<ColorTokenValue>? = map {
         paletteId = item.paletteId?.let { uuid(it) ?: return null },
         value = item.value,
         baseRevision = item.baseRevision,
+        overridden = item.overridden,
     )
 }
 
@@ -144,6 +145,12 @@ private suspend fun ApplicationCall.respondFamily(
     is DsResult.Failure -> respondFailure(result.error)
 }
 
+private suspend fun ApplicationCall.respondValues(result: DsResult<ColorTokenMutation<ThemeTokenType>>) =
+    when (result) {
+        is DsResult.Success -> respondSuccess(result, ColorTokenValuesResponse.from(result.value))
+        is DsResult.Failure -> respondFailure(result.error)
+    }
+
 private suspend fun ApplicationCall.respondRevision(result: DsResult<Int>) = when (result) {
     is DsResult.Success -> respondSuccess(result, ColorTokenRevisionResponse(result.value))
     is DsResult.Failure -> respondFailure(result.error)
@@ -157,6 +164,11 @@ private val BODY = DsFailure.InvalidRequest("invalid_body", message = "Неко�
 private fun ApplicationCall.familyContext(context: DsRequestContext, body: Any, status: Int = 200) =
     repeatableThemeMutation(context, body, status) { value: ColorTokenMutation<StoredColorTokenFamily> ->
         ColorTokenMutationResponse(0, ColorTokenFamilyDto.from(value.value))
+    }
+
+private fun ApplicationCall.valuesContext(context: DsRequestContext, body: Any) =
+    repeatableThemeMutation(context, body) { value: ColorTokenMutation<ThemeTokenType> ->
+        ColorTokenValuesResponse.from(value)
     }
 
 private fun ApplicationCall.revisionContext(context: DsRequestContext, body: Any) =

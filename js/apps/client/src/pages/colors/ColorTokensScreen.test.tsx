@@ -28,7 +28,8 @@ import {
     type TokenGroupRepository,
 } from '../../modules/colorTokens';
 import { colorTokenSession, refreshStructure, setColorTokenRepository } from './colorTokenEditor';
-import { subjectBaseRevision } from '../../api/subjectRevisions';
+import { observeTokenValueRevisions, subjectBaseRevision } from '../../api/subjectRevisions';
+import type { ThemePalette } from '../../modules/palette';
 import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { ColorTokensScreen } from './ColorTokensScreen';
 
@@ -38,12 +39,17 @@ let published: string | null = null;
 let extraTokens: { name: string; groupId: string; position: number }[] = [];
 /** Токены, значения которых не проходят проверку: их показывает фильтр «Только токены с ошибками». */
 let invalidTokens: string[] = [];
+/** Тип семейства на сервере. */
+let familyType = 'color';
+/** Значение `token-values` вместо значения по умолчанию: имя определения, платформа, режим. */
+let storedValue: (name: string, platform: string, mode: string) => Record<string, unknown> | undefined = () =>
+    undefined;
 const family = (name: string, groupId: string, position: number) =>
     SUBGROUPS.map((subgroup, index) => ({
         id: `${name}-${index}`,
         designSystemId: 'ds-1',
         name: `text.${subgroup}.${name}`,
-        type: 'color',
+        type: familyType,
         displayName: null,
         description: null,
         enabled: true,
@@ -95,6 +101,7 @@ const reply =
                     .flatMap((token) =>
                         ['web', 'ios', 'android'].flatMap((platform) =>
                             ['light', 'dark'].map((mode) => ({
+                                id: `${token.id}:${platform}:${mode}`,
                                 tokenId: token.id,
                                 tenantId: 'tenant-1',
                                 platform,
@@ -102,6 +109,7 @@ const reply =
                                 value: invalidTokens.includes(token.name.split('.')[2])
                                     ? 'not-a-color'
                                     : INHERITED[token.name.split('.')[1]][mode],
+                                ...storedValue(token.name, platform, mode),
                             })),
                         ),
                     ),
@@ -158,10 +166,11 @@ const renderScreen = async (
     role = 'maintainer',
     missing: string[] = [],
     components: Config[] = [],
-    cachedGroups = false,
+    options: { palette?: ThemePalette; versionId?: string; cachedGroups?: boolean } = {},
 ) => {
     get.mockImplementation((url: string) => Promise.resolve(reply(role, missing)(url)));
-    const snapshot = await loadThemeEditor(context);
+    const loadContext = { ...context, ...(options.versionId ? { versionId: options.versionId } : {}) };
+    const snapshot = await loadThemeEditor(loadContext);
     const designSystem = DesignSystem.fromSnapshot({
         name: snapshot.designSystem.name,
         parameters: snapshot.parameters,
@@ -170,11 +179,15 @@ const renderScreen = async (
     });
     const theme = designSystem.createThemeInstance({ includeExtraTokens: true });
     // Отдельная тема на каждый тест: сессии автосохранения хранятся по контексту темы.
-    const screenContext = { ...context, tenantId: `tenant-${++tenantSeq}` };
+    const screenContext = { ...loadContext, tenantId: `tenant-${++tenantSeq}` };
+    // Признаки своего значения платформы из прочитанного состояния, как при загрузке темы в `useDesignSystem`.
+    observeTokenValueRevisions(screenContext, snapshot);
     let swapTheme: (change?: (theme: Theme) => void) => void = () => undefined;
+    let shown = theme;
     const Host = () => {
         const [updated, rerender] = useReducer((value: number) => value + 1, 0);
         const [current, setCurrent] = useState(theme);
+        shown = current;
         swapTheme = (change) => {
             const next = designSystem.createThemeInstance({ includeExtraTokens: true });
             change?.(next);
@@ -186,8 +199,8 @@ const renderScreen = async (
                 designSystem={designSystem}
                 theme={current}
                 components={components}
-                palette={null}
-                colorTokenGroups={cachedGroups ? GROUPS : undefined}
+                palette={options.palette ?? null}
+                colorTokenGroups={options.cachedGroups ? GROUPS : undefined}
                 tokenDefinitions={Object.values(snapshot.tokenDefinitionsByName)}
                 incompleteTokenIds={snapshot.incompleteTokenIds}
                 updated={{ updated }}
@@ -201,7 +214,11 @@ const renderScreen = async (
             <Host />
         </MemoryRouter>,
     );
-    return { designSystem, reloadTheme: (change?: (theme: Theme) => void) => act(() => swapTheme(change)) };
+    return {
+        designSystem,
+        theme: () => shown,
+        reloadTheme: (change?: (theme: Theme) => void) => act(() => swapTheme(change)),
+    };
 };
 
 const inspector = () => document.querySelector('.properties-panel') as HTMLElement;
@@ -214,6 +231,8 @@ const commitLight = (value: string) => {
 beforeEach(() => {
     localStorage.clear();
     published = null;
+    familyType = 'color';
+    storedValue = () => undefined;
     post.mockImplementation(async () => ({ data: { components: [] } }));
     extraTokens = [];
     invalidTokens = [];
@@ -240,7 +259,7 @@ describe('ColorTokensScreen', () => {
     it('использует группы раздела без повторного чтения групп и определений', async () => {
         const groupReads = groupRepository.list.mock.calls.length;
         const definitionReads = groupRepository.definitions.mock.calls.length;
-        await renderScreen('maintainer', [], [], true);
+        await renderScreen('maintainer', [], [], { cachedGroups: true });
         expect(await screen.findByTestId('token-subgroup-Status')).toBeInTheDocument();
         expect(groupRepository.list.mock.calls.length).toBe(groupReads);
         expect(groupRepository.definitions.mock.calls.length).toBe(definitionReads);
@@ -296,7 +315,7 @@ describe('ColorTokensScreen', () => {
 
     it('показывает токен в дереве и инспекторе с наследованием подтем', async () => {
         await renderScreen();
-        expect(screen.getByTestId('color-token-row-color:text.accent')).toHaveTextContent('textAccent');
+        expect(screen.getByTestId('color-token-row-text.accent')).toHaveTextContent('textAccent');
         expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveValue('118833');
         expect(screen.getAllByRole('button', { name: 'Связь с Modes включена' })).toHaveLength(3);
     });
@@ -337,7 +356,7 @@ describe('ColorTokensScreen', () => {
 
         const status = screen.getByTestId('color-tokens-save-status');
         await waitFor(() => expect(status).toHaveTextContent('Не сохранено'));
-        expect(screen.getByTestId('color-token-row-color:text.accent')).toHaveTextContent('Не сохранено');
+        expect(screen.getByTestId('color-token-row-text.accent')).toHaveTextContent('Не сохранено');
 
         fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
 
@@ -431,7 +450,7 @@ describe('ColorTokensScreen', () => {
         await renderScreen();
 
         const accent = await screen.findByTestId('token-subgroup-Accent');
-        expect(within(accent).getByTestId('color-token-row-color:text.accent')).toBeInTheDocument();
+        expect(within(accent).getByTestId('color-token-row-text.accent')).toBeInTheDocument();
         expect(screen.getByTestId('token-subgroup-Status')).toBeInTheDocument();
         expect(screen.getByTestId('token-group-Text & Icons')).toBeInTheDocument();
     });
@@ -536,7 +555,7 @@ describe('ColorTokensScreen', () => {
         expect(input.members[0].values.find((value) => value.mode === 'light')?.value).toEqual([LIGHT]);
         await waitFor(() =>
             expect(
-                within(screen.getByTestId('token-subgroup-Status')).getByTestId('color-token-row-color:text.highlight'),
+                within(screen.getByTestId('token-subgroup-Status')).getByTestId('color-token-row-text.highlight'),
             ).toBeInTheDocument(),
         );
     });
@@ -560,7 +579,7 @@ describe('ColorTokensScreen', () => {
         await renderScreen();
         await screen.findByTestId('token-subgroup-Accent');
 
-        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-text.accent'));
         const field = screen.getByRole('textbox', { name: 'Новое имя textAccent' });
         expect(screen.queryByRole('img', { name: /опубликован/ })).toBeNull();
         fireEvent.change(field, { target: { value: 'Brand' } });
@@ -574,10 +593,8 @@ describe('ColorTokensScreen', () => {
                 3,
             ),
         );
-        await waitFor(() =>
-            expect(screen.getByTestId('color-token-row-color:text.brand')).toHaveTextContent('textBrand'),
-        );
-        expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
+        await waitFor(() => expect(screen.getByTestId('color-token-row-text.brand')).toHaveTextContent('textBrand'));
+        expect(within(inspector()).getByRole('heading', { level: 1 })).toHaveTextContent('textBrand');
     });
 
     it('уход фокуса из строки переименования сохраняет изменённое имя, а без изменений закрывает строку', async () => {
@@ -588,37 +605,45 @@ describe('ColorTokensScreen', () => {
         await renderScreen();
         await screen.findByTestId('token-subgroup-Accent');
 
-        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-text.accent'));
         fireEvent.blur(screen.getByRole('textbox', { name: 'Новое имя textAccent' }));
         expect(screen.queryByRole('textbox', { name: 'Новое имя textAccent' })).toBeNull();
         expect(repository.move).not.toHaveBeenCalled();
 
-        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-text.accent'));
         const field = screen.getByRole('textbox', { name: 'Новое имя textAccent' }) as HTMLInputElement;
         expect(field.selectionStart).toBe(0);
-        expect(field.selectionEnd).toBe('accent'.length);
+        expect(field.selectionEnd).toBe('textAccent'.length);
         fireEvent.change(field, { target: { value: 'Glow' } });
         fireEvent.blur(field);
 
-        await waitFor(() => expect(screen.getByTestId('color-token-row-color:text.glow')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByTestId('color-token-row-text.glow')).toBeInTheDocument());
         expect(repository.move).toHaveBeenCalledTimes(1);
         expect(repository.move.mock.calls[0][2]).toEqual({ groupId: 'g-accent', position: 0, name: 'glow' });
         expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
     });
 
-    it('у опубликованного токена показывает предупреждение в строке переименования, поля имени в инспекторе нет', async () => {
+    it('у опубликованного токена показывает предупреждение при переименовании в дереве и в инспекторе, поля имени нет', async () => {
         published = '1.2.0';
         definitionState = definitions();
         await renderScreen();
         await screen.findByTestId('token-subgroup-Accent');
         expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
 
-        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
-        const row = screen.getByRole('textbox', { name: 'Новое имя textAccent' }).closest('.token-tree-input');
-        expect(row).toHaveClass('is-row');
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-text.accent'));
+        const row = screen.getByRole('textbox', { name: 'Новое имя textAccent' }).closest('.token-row');
+        expect(row).toHaveClass('is-renaming');
         expect(row?.querySelector('.token-color-preview')).not.toBeNull();
         expect(
             within(row as HTMLElement).getByRole('img', {
+                name: 'Токен опубликован в версии 1.2.0. Новое имя изменит переменную в пакете дизайн-системы',
+            }),
+        ).toBeInTheDocument();
+
+        fireEvent.keyDown(screen.getByRole('textbox', { name: 'Новое имя textAccent' }), { key: 'Escape' });
+        fireEvent.doubleClick(within(inspector()).getByRole('heading', { level: 1 }));
+        expect(
+            await within(inspector()).findByRole('img', {
                 name: 'Токен опубликован в версии 1.2.0. Новое имя изменит переменную в пакете дизайн-системы',
             }),
         ).toBeInTheDocument();
@@ -661,7 +686,7 @@ describe('ColorTokensScreen', () => {
         await renderScreen();
 
         const accent = await screen.findByTestId('token-subgroup-Accent');
-        expect(within(accent).getByTestId('color-token-row-color:text.accent')).toBeInTheDocument();
+        expect(within(accent).getByTestId('color-token-row-text.accent')).toBeInTheDocument();
         expect(screen.queryByText('Без группы')).toBeNull();
     });
 
@@ -674,7 +699,7 @@ describe('ColorTokensScreen', () => {
             });
         await renderScreen();
         const status = await screen.findByTestId('token-subgroup-Status');
-        const row = screen.getByTestId('color-token-row-color:text.accent');
+        const row = screen.getByTestId('color-token-row-text.accent');
         const target = status.querySelector('.token-tree-subgroup-row') as HTMLElement;
         const dataTransfer = { setData: vi.fn() };
 
@@ -682,14 +707,14 @@ describe('ColorTokensScreen', () => {
         fireEvent.dragOver(target, { dataTransfer });
         fireEvent.drop(target, { dataTransfer });
         expect(await screen.findByText('Не удалось перенести токен: Имя занято')).toBeInTheDocument();
-        expect(within(screen.getByTestId('token-subgroup-Accent')).getByTestId('color-token-row-color:text.accent'));
+        expect(within(screen.getByTestId('token-subgroup-Accent')).getByTestId('color-token-row-text.accent'));
 
         fireEvent.dragStart(row, { dataTransfer });
         fireEvent.dragOver(target, { dataTransfer });
         fireEvent.drop(target, { dataTransfer });
         await waitFor(() =>
             expect(
-                within(screen.getByTestId('token-subgroup-Status')).getByTestId('color-token-row-color:text.accent'),
+                within(screen.getByTestId('token-subgroup-Status')).getByTestId('color-token-row-text.accent'),
             ).toBeInTheDocument(),
         );
         expect(repository.move).toHaveBeenLastCalledWith(
@@ -716,7 +741,7 @@ describe('ColorTokensScreen', () => {
             await renderScreen();
             await screen.findByTestId('token-subgroup-Status');
         };
-        const row = (name: string) => screen.getByTestId(`color-token-row-color:text.${name}`);
+        const row = (name: string) => screen.getByTestId(`color-token-row-text.${name}`);
         const wrap = (name: string) => row(name).parentElement as HTMLElement;
         const statusHeading = () =>
             screen.getByTestId('token-subgroup-Status').querySelector('.token-tree-subgroup-row') as HTMLElement;
@@ -763,7 +788,7 @@ describe('ColorTokensScreen', () => {
             invalidTokens = ['accent', 'zeta', 'beta'];
             await renderWithStatus([...STATUS, { name: 'mint', groupId: 'g-status', position: 2 }]);
             fireEvent.click(screen.getByRole('button', { name: 'Только токены с ошибками' }));
-            await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.mint')).toBeNull());
+            await waitFor(() => expect(screen.queryByTestId('color-token-row-text.mint')).toBeNull());
 
             fireEvent.dragStart(row('accent'), { dataTransfer });
             fireEvent.dragOver(wrap('beta'), { dataTransfer });
@@ -902,7 +927,7 @@ describe('ColorTokensScreen', () => {
         expect(within(dialog).getByTestId('delete-token-components')).toHaveTextContent('Button');
         fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить группу' }));
 
-        await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.accent')).toBeNull());
+        await waitFor(() => expect(screen.queryByTestId('color-token-row-text.accent')).toBeNull());
         expect(groupRepository.remove).toHaveBeenLastCalledWith(expect.anything(), 'g-text', 4);
     });
 
@@ -914,7 +939,7 @@ describe('ColorTokensScreen', () => {
 
         expect(screen.queryByRole('dialog')).toBeNull();
         await waitFor(() => expect(repository.delete).toHaveBeenCalledWith(expect.anything(), 'accent-0', 3));
-        await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.accent')).toBeNull());
+        await waitFor(() => expect(screen.queryByTestId('color-token-row-text.accent')).toBeNull());
     });
 
     it('удаляет токен, используемый в компонентах, после подтверждения со списком компонентов', async () => {
@@ -928,7 +953,7 @@ describe('ColorTokensScreen', () => {
         fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
 
         await waitFor(() => expect(repository.delete).toHaveBeenCalledWith(expect.anything(), 'accent-0', 3));
-        await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.accent')).toBeNull());
+        await waitFor(() => expect(screen.queryByTestId('color-token-row-text.accent')).toBeNull());
     });
 
     it('в режиме просмотра закрывает инспектор и не даёт добавлять и удалять токены', async () => {
@@ -939,13 +964,404 @@ describe('ColorTokensScreen', () => {
         expect(screen.queryByRole('button', { name: 'Добавить группу' })).toBeNull();
         expect(screen.queryByRole('button', { name: /^Добавить/ })).toBeNull();
         expect(screen.queryByRole('button', { name: /^Удалить/ })).toBeNull();
-        expect(screen.getByTestId('color-token-row-color:text.accent')).toHaveAttribute('draggable', 'false');
-        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        expect(screen.getByTestId('color-token-row-text.accent')).toHaveAttribute('draggable', 'false');
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-text.accent'));
         expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
         expect(screen.getByText('Read-only access')).toBeInTheDocument();
 
         // Вкладка «Доступность» пока скрыта по решению команды.
         expect(screen.queryByRole('button', { name: 'Доступность' })).toBeNull();
         expect(repository.updateValues).not.toHaveBeenCalled();
+    });
+});
+
+const GRADIENT = 'linear-gradient(45deg, [general.green.500] 0%, #FFFFFF 100%)';
+const nativeLinear = (colors: string[], angle = 45) => [{ kind: 'linear', locations: [0, 1], colors, angle }];
+const PALETTE: ThemePalette = {
+    tenantId: 'tenant-1',
+    editRevision: 1,
+    canEdit: true,
+    offBrand: false,
+    groups: [{ id: 'g-accent-palette', kind: 'system', systemKey: 'accent', label: 'Accent', ramps: [] }],
+    tokens: [],
+    template: [
+        {
+            type: 'general',
+            shade: 'green',
+            steps: [
+                { step: 500, value: '#1A9E32' },
+                { step: 400, value: '#4FCB66' },
+            ],
+        },
+    ],
+};
+
+/** Dark токена — градиент: web со ссылкой в стопе, iOS и Android построены из web. */
+const darkGradient = () => {
+    familyType = 'gradient';
+    storedValue = (name, platform, mode) => {
+        if (mode !== 'dark' || !['text.default.accent', 'text.on-dark.accent'].includes(name)) return undefined;
+        if (platform === 'web')
+            return { value: [GRADIENT.replace('[general.green.500]', '#1A9E32FF')], sourceValue: [GRADIENT] };
+        return {
+            value: nativeLinear(['#1A9E32FF', '#FFFFFFFF']),
+            sourceValue: nativeLinear(['[general.green.500]', '#FFFFFFFF']),
+        };
+    };
+};
+
+/** Значения последнего изменения значений по члену, платформе и режиму. */
+const lastUpdate = () => {
+    const members = repository.updateValues.mock.calls.at(-1)![2].members;
+    return (tokenId: string, platform: string, mode: string) =>
+        members
+            .find((member) => member.tokenId === tokenId)
+            ?.values.find((value) => value.platform === platform && value.mode === mode);
+};
+
+const openPicker = (name: string) => {
+    fireEvent.click(within(inspector()).getAllByRole('button', { name: `Выбор цвета: ${name}` })[0]);
+    return screen.getByRole('dialog', { name: /^Color picker/ });
+};
+
+const field = (name: string) => within(inspector()).getAllByRole('textbox', { name })[0];
+
+const commitNumber = (container: HTMLElement, name: string, value: string) => {
+    const input = within(container).getByRole('textbox', { name });
+    fireEvent.change(input, { target: { value } });
+    fireEvent.blur(input);
+};
+
+describe('ColorTokensScreen: градиенты', () => {
+    it('Dark становится градиентом при Light-цвете, тип семейства приходит из ответа без перезагрузки', async () => {
+        repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'gradient' });
+        const { theme } = await renderScreen();
+        expect(screen.queryByRole('button', { name: 'Платформа' })).toBeNull();
+
+        const picker = openPicker('Dark');
+        fireEvent.click(within(picker).getByRole('button', { name: 'Gradient' }));
+
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
+        const value = lastUpdate();
+        const gradient = ['linear-gradient(90deg, #22AA44 0%, #F5F5F5 100%)'];
+        expect(value('accent-0', 'web', 'dark')).toMatchObject({ value: gradient, overridden: false });
+        expect(value('accent-0', 'ios', 'dark')).toMatchObject({
+            value: nativeLinear(['#22AA44FF', '#F5F5F5FF'], 90),
+            overridden: false,
+        });
+        expect(value('accent-0', 'web', 'light')).toBeUndefined();
+        // Связанные с Dark подтемы: OnDark — оба режима, Inverse — Light; OnLight не меняется.
+        expect(value('accent-1', 'web', 'light')?.value).toEqual(gradient);
+        expect(value('accent-3', 'web', 'light')?.value).toEqual(gradient);
+        expect(value('accent-3', 'web', 'dark')).toBeUndefined();
+        expect(repository.updateValues.mock.calls[0][2].members.some((member) => member.tokenId === 'accent-2')).toBe(
+            false,
+        );
+
+        expect(field('Dark')).toHaveValue('Линейный · 90°');
+        expect(field('Light')).toHaveValue('118833');
+        expect(
+            within(screen.getByRole('dialog', { name: /^Color picker/ })).getByRole('combobox', {
+                name: 'Gradient type',
+            }),
+        ).toHaveValue('linear');
+        await waitFor(() => expect(theme().getToken('dark.text.default.accent', 'gradient')).toBeDefined());
+        expect(theme().getToken('dark.text.default.accent', 'color')).toBeUndefined();
+        // Ключ токена не зависит от типа: строка, выбор и открытый выбор цвета сохраняются.
+        expect(screen.getByTestId('color-token-row-text.accent')).toHaveTextContent('textAccent');
+        expect(screen.getByRole('dialog', { name: /^Color picker/ })).toBeInTheDocument();
+    });
+
+    it('▣ возвращает цвет первого стопа со ссылкой на палитру', async () => {
+        darkGradient();
+        repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'color' });
+        await renderScreen();
+        expect(field('Dark')).toHaveValue('Линейный · 45°');
+
+        fireEvent.click(within(openPicker('Dark')).getByRole('button', { name: 'Solid' }));
+
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
+        const value = lastUpdate();
+        expect(value('accent-0', 'web', 'dark')?.value).toEqual(['[general.green.500]']);
+        expect(value('accent-0', 'android', 'dark')?.value).toEqual(['[general.green.500]']);
+        expect(field('Dark')).toHaveValue('Green 500');
+    });
+
+    it('строка и карточка градиента: чип залит градиентом, меток вида нет', async () => {
+        darkGradient();
+        await renderScreen();
+
+        const row = screen.getByTestId('color-token-row-text.accent');
+        expect(row).toHaveTextContent(/^textAccent$/);
+        const chip = row.querySelector('.token-color-preview') as HTMLElement;
+        expect(chip.style.getPropertyValue('--swatch-color')).toContain('top / 100% 50% no-repeat');
+        expect(chip.style.getPropertyValue('--swatch-color')).toContain('linear-gradient(45deg');
+        const card = document.querySelector('[data-token-id="text.accent"] .token-swatch-dark-mode') as HTMLElement;
+        expect(card.style.getPropertyValue('--swatch-color')).toContain('linear-gradient(45deg');
+    });
+
+    it('редактор меняет тип, геометрию и стопы первого слоя', async () => {
+        darkGradient();
+        repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'gradient' });
+        await renderScreen();
+        const picker = openPicker('Dark');
+        const type = within(picker).getByRole('combobox', { name: 'Gradient type' });
+
+        commitNumber(picker, 'Угол', '30');
+        expect(field('Dark')).toHaveValue('Линейный · 30°');
+
+        fireEvent.change(type, { target: { value: 'radial' } });
+        expect(field('Dark')).toHaveValue('Радиальный');
+        expect(within(picker).getByRole('group', { name: 'Центр градиента' })).toBeInTheDocument();
+        commitNumber(picker, 'X', '30');
+        commitNumber(picker, 'Радиус', '70');
+
+        await waitFor(() =>
+            expect(lastUpdate()('accent-0', 'web', 'dark')?.value).toEqual([
+                'radial-gradient(70% 70% at 30% 50%, [general.green.500] 0%, #FFFFFF 100%)',
+            ]),
+        );
+        expect(lastUpdate()('accent-0', 'android', 'dark')?.value).toEqual([
+            {
+                kind: 'radial',
+                locations: [0, 1],
+                colors: ['[general.green.500]', '#FFFFFFFF'],
+                centerX: 0.3,
+                centerY: 0.5,
+                radius: 0.7,
+            },
+        ]);
+
+        fireEvent.change(type, { target: { value: 'conic' } });
+        commitNumber(picker, 'Начальный угол', '90');
+        expect(field('Dark')).toHaveValue('Конический · 90°');
+        expect(
+            within(picker).getByText(
+                'На Android начальный угол 90° передаётся сдвигом стопов: в формате angular угла нет',
+            ),
+        ).toBeInTheDocument();
+
+        expect(within(picker).getByRole('button', { name: 'Удалить стоп 1' })).toBeDisabled();
+        fireEvent.click(within(picker).getByRole('button', { name: 'Add gradient stop' }));
+        expect(within(picker).getByRole('textbox', { name: 'Позиция стопа 2' })).toHaveValue('50');
+        expect(within(picker).getByRole('button', { name: 'Удалить стоп 1' })).toBeEnabled();
+        commitNumber(picker, 'Позиция стопа 2', '80');
+
+        await waitFor(() =>
+            expect(lastUpdate()('accent-0', 'web', 'dark')?.value).toEqual([
+                expect.stringMatching(
+                    /^conic-gradient\(from 90deg at 30% 50%, \[general\.green\.500\] 0%, #[0-9A-F]{8} 80%, #FFFFFF 100%\)$/,
+                ),
+            ]),
+        );
+        const ios = lastUpdate()('accent-0', 'ios', 'dark')?.value as Array<Record<string, unknown>>;
+        expect(ios[0]).toMatchObject({ kind: 'angular', startAngle: 90, endAngle: 450 });
+    });
+
+    it('цвет стопа выбирается в отдельном окне, окно градиента остаётся открытым', async () => {
+        darkGradient();
+        repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'gradient' });
+        await renderScreen('maintainer', [], [], { palette: PALETTE });
+        const picker = openPicker('Dark');
+        const stopWindow = () => screen.queryByRole('dialog', { name: /^Цвет стопа/ });
+
+        fireEvent.click(within(picker).getByRole('button', { name: 'Цвет стопа 1: Green 500' }));
+        expect(stopWindow()).toBeInTheDocument();
+        fireEvent.keyDown(within(stopWindow()!).getByRole('button', { name: 'Библиотека' }), { key: 'Escape' });
+        expect(stopWindow()).toBeNull();
+        expect(screen.getByRole('dialog', { name: /^Color picker/ })).toBeInTheDocument();
+
+        fireEvent.click(within(picker).getByRole('button', { name: 'Цвет стопа 1: Green 500' }));
+        fireEvent.click(within(stopWindow()!).getByRole('button', { name: 'Закрыть окно цвета стопа' }));
+        expect(stopWindow()).toBeNull();
+
+        fireEvent.click(within(picker).getByRole('button', { name: 'Цвет стопа 1: Green 500' }));
+        fireEvent.mouseDown(within(picker).getByRole('combobox', { name: 'Gradient type' }));
+        expect(stopWindow()).toBeNull();
+        expect(screen.getByRole('dialog', { name: /^Color picker/ })).toBeInTheDocument();
+    });
+
+    it('Вкладка «Библиотека» пишет в стоп ссылку на ступень, клавиатура меняет только цвет стопа', async () => {
+        darkGradient();
+        repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'gradient' });
+        await renderScreen('maintainer', [], [], { palette: PALETTE });
+        const picker = openPicker('Dark');
+
+        fireEvent.click(within(picker).getByRole('button', { name: 'Цвет стопа 2: FFFFFF' }));
+        const stopWindow = screen.getByRole('dialog', { name: 'Цвет стопа 2' });
+        fireEvent.keyDown(within(stopWindow).getByRole('slider', { name: 'Насыщенность и яркость' }), {
+            key: 'ArrowDown',
+        });
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
+        expect(lastUpdate()('accent-0', 'web', 'dark')?.value).toEqual([
+            expect.stringMatching(/^linear-gradient\(45deg, \[general\.green\.500\] 0%, #[0-9A-F]{6} 100%\)$/),
+        ]);
+
+        fireEvent.click(
+            within(screen.getByRole('dialog', { name: 'Цвет стопа 2' })).getByRole('button', { name: 'Библиотека' }),
+        );
+        expect(screen.getByRole('heading', { name: 'green' })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: /^color\// })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Green 400 #4FCB66' }));
+
+        expect(within(picker).getByRole('button', { name: 'Цвет стопа 2: Green 400' })).toBeInTheDocument();
+        await waitFor(() =>
+            expect(lastUpdate()('accent-0', 'web', 'dark')?.value).toEqual([
+                'linear-gradient(45deg, [general.green.500] 0%, [general.green.400] 100%)',
+            ]),
+        );
+        expect(field('Dark')).toHaveValue('Линейный · 45°');
+    });
+
+    it('строка iOS: «+» добавляет своё значение, правка web её не перестраивает, «×» убирает', async () => {
+        repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'color' });
+        await renderScreen();
+
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0]);
+        fireEvent.click(screen.getByRole('menuitem', { name: 'iOS' }));
+
+        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(0);
+        expect(field('Light, iOS')).toHaveValue('118833');
+        // Добавление строки не открывает выбор цвета: он открывается щелчком по строке платформы.
+        expect(screen.queryByRole('dialog', { name: /^Color picker:/ })).toBeNull();
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Light, iOS' })[0]);
+        const picker = screen.getByRole('dialog', { name: /^Color picker: .*, iOS$/ });
+        expect(within(picker).getByText('своё значение: правки меняют только iOS')).toBeInTheDocument();
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
+        expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#118833'], overridden: true });
+        expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
+        // OnLight наследует Light вместе со строкой платформы; у подтем «+» нет, строка в них только унаследована.
+        expect(lastUpdate()('accent-2', 'ios', 'light')).toMatchObject({ overridden: true });
+        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(1);
+        expect(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })).toHaveLength(1);
+        expect(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Dark' })).toHaveLength(1);
+        // Связанные подтемы показывают унаследованную строку без «×»: убрать её можно только у режима.
+        expect(within(inspector()).getAllByRole('button', { name: 'Убрать своё значение iOS: Light' })).toHaveLength(1);
+
+        fireEvent.change(field('Light, iOS'), { target: { value: '#445566' } });
+        fireEvent.keyDown(field('Light, iOS'), { key: 'Enter' });
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
+        expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#445566'], overridden: true });
+        expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
+        expect(field('Light')).toHaveValue('118833');
+
+        commitLight('#123456');
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(3));
+        expect(lastUpdate()('accent-0', 'web', 'light')?.value).toEqual(['#123456']);
+        expect(lastUpdate()('accent-0', 'android', 'light')).toMatchObject({ value: ['#123456'], overridden: false });
+        expect(lastUpdate()('accent-0', 'ios', 'light')).toBeUndefined();
+        expect(field('Light, iOS')).toHaveValue('445566');
+
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0]);
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Android' }));
+        expect(
+            within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0],
+        ).toBeDisabled();
+
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Убрать своё значение iOS: Light' })[0]);
+        expect(within(inspector()).queryAllByRole('textbox', { name: 'Light, iOS' })).toHaveLength(0);
+        await waitFor(() =>
+            expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#123456'], overridden: false }),
+        );
+    });
+
+    it('своё значение Android у Conic — без начального угла', async () => {
+        familyType = 'gradient';
+        storedValue = (name, platform, mode) =>
+            name === 'text.default.accent' && mode === 'dark' && platform === 'web'
+                ? { value: ['conic-gradient(from 30deg at 50% 50%, #1A9E32 0%, #FFFFFF 100%)'] }
+                : undefined;
+        await renderScreen();
+
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Dark' })[0]);
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Android' }));
+        expect(screen.queryByRole('dialog', { name: /^Color picker:/ })).toBeNull();
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark, Android' })[0]);
+
+        const picker = screen.getByRole('dialog', { name: /^Color picker: .*, Android$/ });
+        expect(within(picker).getByRole('group', { name: 'Центр градиента' })).toBeInTheDocument();
+        expect(within(picker).queryByRole('slider', { name: 'Начальный угол' })).toBeNull();
+        expect(field('Dark, Android')).toHaveValue('Конический · 0°');
+    });
+
+    it('переименовывает токен на месте в заголовке инспектора', async () => {
+        repository.move.mockImplementation(async () => {
+            definitionState = definitionState.map((item) => ({ ...item, name: item.name.replace('.accent', '.glow') }));
+            return { editRevision: 4, value: { type: 'color', group: 'text', name: 'glow', members: [] } };
+        });
+        await renderScreen();
+        await screen.findByTestId('token-subgroup-Accent');
+        expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
+        const heading = within(inspector()).getByRole('heading', { level: 1 });
+
+        fireEvent.doubleClick(heading);
+        const name = within(heading).getByRole('textbox', { name: 'Новое имя textAccent' }) as HTMLInputElement;
+        expect(name).toHaveValue('textAccent');
+        expect([name.selectionStart, name.selectionEnd]).toEqual([0, 'textAccent'.length]);
+        fireEvent.change(name, { target: { value: 'textBrand' } });
+        fireEvent.keyDown(name, { key: 'Escape' });
+        expect(within(heading).queryByRole('textbox')).toBeNull();
+        expect(repository.move).not.toHaveBeenCalled();
+
+        fireEvent.doubleClick(heading);
+        const again = within(heading).getByRole('textbox', { name: 'Новое имя textAccent' });
+        fireEvent.change(again, { target: { value: 'textGlow' } });
+        fireEvent.keyDown(again, { key: 'Enter' });
+
+        await waitFor(() =>
+            expect(repository.move).toHaveBeenCalledWith(
+                expect.anything(),
+                'accent-0',
+                { groupId: 'g-accent', position: 0, name: 'glow' },
+                3,
+            ),
+        );
+        await waitFor(() =>
+            expect(within(inspector()).getByRole('heading', { level: 1 })).toHaveTextContent('textGlow'),
+        );
+    });
+
+    it('выбор цвета выравнивается по полю и следует за прокруткой панели свойств и изменением окна', async () => {
+        await renderScreen();
+        const container = inspector().parentElement!;
+        vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({ top: 100 } as DOMRect);
+        Object.defineProperty(container, 'clientHeight', { configurable: true, value: 1000 });
+        const swatch = within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark' })[0];
+        let anchorTop = 300;
+        vi.spyOn(swatch, 'getBoundingClientRect').mockImplementation(() => ({ top: anchorTop }) as DOMRect);
+
+        const picker = openPicker('Dark');
+        expect(picker.parentElement).toBe(container);
+        expect(picker.style.top).toBe('192px');
+
+        anchorTop = 150;
+        fireEvent.scroll(inspector());
+        expect(picker.style.top).toBe('42px');
+
+        anchorTop = 2000;
+        fireEvent(window, new Event('resize'));
+        expect(picker.style.top).toBe('992px');
+
+        anchorTop = 50;
+        fireEvent.scroll(inspector());
+        expect(picker.style.top).toBe('8px');
+    });
+
+    it('в опубликованной версии показывает градиент и строки платформ без «+», «×» и выбора цвета', async () => {
+        darkGradient();
+        const gradientStored = storedValue;
+        storedValue = (name, platform, mode) =>
+            name === 'text.default.accent' && platform === 'ios' && mode === 'light'
+                ? { value: ['#445566'], overridden: true }
+                : gradientStored(name, platform, mode);
+        await renderScreen('maintainer', [], [], { versionId: 'version-1' });
+
+        expect(field('Dark')).toHaveValue('Линейный · 45°');
+        expect(field('Light, iOS')).toHaveValue('445566');
+        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(0);
+        expect(within(inspector()).queryByRole('button', { name: /^Своё значение платформы/ })).toBeNull();
+        expect(within(inspector()).queryByRole('button', { name: /^Убрать своё значение/ })).toBeNull();
+        expect(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark' })[0]).toBeDisabled();
+        expect(screen.queryByRole('dialog', { name: /^Color picker/ })).toBeNull();
     });
 });

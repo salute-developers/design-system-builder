@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import type { ColorTokenView, TreeGroup } from '../../../modules/colorTokens';
+import { fieldText, type ColorTokenView, type TreeGroup } from '../../../modules/colorTokens';
 import { alphaSwatchStyle, swatchLabel } from './swatch';
 
 interface BoardProps {
@@ -46,15 +46,16 @@ export const ColorTokenBoard = ({ tree, selectedId, onSelect }: BoardProps) => {
                                         {entries.map((token: ColorTokenView) => {
                                             const light = token.modes.light.resolved;
                                             const dark = token.modes.dark.resolved;
-                                            const lightLabel = swatchLabel(light);
-                                            const darkLabel = swatchLabel(dark);
+                                            // У градиента нет одного цвета: подпись — по контрасту с первым стопом.
+                                            const lightLabel = swatchLabel(token.modes.light.baseColor);
+                                            const darkLabel = swatchLabel(token.modes.dark.baseColor);
                                             return (
                                                 <button
                                                     key={token.id}
                                                     type="button"
                                                     data-token-id={token.id}
                                                     className={`token-swatch-card token-swatch-card-split ${selectedId === token.id ? 'is-selected' : ''}`}
-                                                    title={`${token.displayName} - Light ${token.modes.light.value} / Dark ${token.modes.dark.value}`}
+                                                    title={`${token.displayName} - Light ${fieldText(token.modes.light)} / Dark ${fieldText(token.modes.dark)}`}
                                                     onClick={() => onSelect(token)}
                                                 >
                                                     <span

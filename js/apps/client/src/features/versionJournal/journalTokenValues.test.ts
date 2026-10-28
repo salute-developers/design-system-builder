@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { journalTokenValue, journalValueStructureChanged } from './journalTokenValues';
+import { deriveNative } from '../../modules/colorTokens/domain';
+import { journalValueText } from './journalFields';
+import {
+    journalColor,
+    journalPaintChange,
+    journalPaintStructureChanged,
+    journalTokenValue,
+    journalValueStructureChanged,
+} from './journalTokenValues';
 
 describe('представление значений токенов', () => {
     it('преобразует только известные параметры типографики, не меняя исходное значение', () => {
@@ -56,5 +64,86 @@ describe('структура слоёв', () => {
         expect(journalValueStructureChanged(['red', 'blue'], ['blue', 'blue'])).toBe(false);
         expect(journalValueStructureChanged(['red', 'red'], ['red', 'red'])).toBe(false);
         expect(journalValueStructureChanged(null, { blur: 1 })).toBe(true);
+    });
+});
+
+describe('значения цветовых токенов в терминах редактора', () => {
+    const conic = 'conic-gradient(from 0deg at 45% 50%, [general.green.400] 0%, [general.blue.500] 100%)';
+    const linear = 'linear-gradient(45deg, #FFFFFF 0%, [general.teal.400] 100%)';
+    const changed = 'linear-gradient(90deg, #FFFFFF 0%, [general.blue.500] 100%)';
+    const web = (value: unknown) => ({ value, platform: 'web' as const });
+    const ios = (value: unknown) => ({ value: deriveNative([value], 'ios'), platform: 'ios' as const });
+    const rows = (fields: ReturnType<typeof journalPaintChange>) =>
+        fields!.map(({ label, before, after, revertPaths }) => [label, before, after, revertPaths]);
+
+    it('смену цвета на градиент показывает видом значения со свотчами без CSS и ссылок', () => {
+        const [field, ...rest] = journalPaintChange(web(['[general.green.400]']), web([conic]))!;
+
+        expect(rest).toEqual([]);
+        expect(field.label).toBe('Вид значения');
+        expect(journalValueText(field.before)).toBe('Green 400');
+        expect(journalColor(field.before)).toMatch(/^#/);
+        expect(journalValueText(field.after)).toBe('Конический · 0°');
+        expect(journalColor(field.after)).toMatch(/^conic-gradient\(from 0deg at 45% 50%, #/);
+        expect(journalColor(field.after)).not.toContain('[');
+    });
+
+    it('у двух градиентов показывает строки изменённых параметров и стопов под названиями редактора', () => {
+        const fields = journalPaintChange(web([linear]), web([changed]), ['/value/0']);
+
+        // У web слой — одна CSS-строка: параметр без своего пути отменяется только вместе с записью.
+        expect(rows(fields)).toEqual([
+            ['Угол', '45°', '90°', []],
+            ['Стоп 2 · цвет', '[general.teal.400]', '[general.blue.500]', []],
+        ]);
+        expect(`${journalValueText(fields![1].before)} → ${journalValueText(fields![1].after)}`).toBe(
+            'Teal 400 → Blue 500',
+        );
+        expect(rows(journalPaintChange(web([linear]), web([linear.replace('45deg', '90deg')]), ['/value/0']))).toEqual([
+            ['Угол', '45°', '90°', ['/value/0']],
+        ]);
+    });
+
+    it('параметр слоя платформы отменяется путями своих полей', () => {
+        const fields = journalPaintChange(ios(linear), ios(changed), ['/value/0/angle', '/value/0/colors/1']);
+
+        expect(rows(fields)).toEqual([
+            ['Угол', '45°', '90°', ['/value/0/angle']],
+            ['Стоп 2 · цвет', '[general.teal.400]', '[general.blue.500]', ['/value/0/colors/1']],
+        ]);
+    });
+
+    it('смена вида, типа градиента или числа стопов меняет структуру значения', () => {
+        const radial = 'radial-gradient(30% 30% at 45% 50%, [general.green.400] 0%, [general.blue.500] 100%)';
+        const threeStops = 'linear-gradient(45deg, #FFFFFF 0%, #000000 50%, [general.teal.400] 100%)';
+
+        expect(journalPaintStructureChanged(web(['[general.green.400]']), web([conic]))).toBe(true);
+        expect(journalPaintStructureChanged(web([conic]), web([radial]))).toBe(true);
+        expect(journalPaintStructureChanged(web([linear]), web([threeStops]))).toBe(true);
+        expect(journalPaintStructureChanged(web([linear]), web([changed]))).toBe(false);
+        expect(journalPaintStructureChanged(web(['#FFFFFF']), web(['[general.green.400]']))).toBe(false);
+        expect(journalPaintStructureChanged(undefined, web([conic]))).toBe(false);
+    });
+
+    it('значение платформы показывает так же, как web, а не слоями хранимого значения', () => {
+        const android = (value: unknown) => ({ value: [value].flat(), platform: 'android' as const });
+
+        const [field] = journalPaintChange(
+            android(deriveNative(['#2ACB47FF'], 'android')),
+            android(deriveNative([conic], 'android')),
+        )!;
+
+        expect(field.label).toBe('Вид значения');
+        expect(journalValueText(field.before)).toBe('#2ACB47FF');
+        expect(journalValueText(field.after)).toBe('Конический · 0°');
+        expect(journalPaintChange(android('#2ACB47FF'), android('#2ACB47FF'))).toEqual([]);
+        expect(rows(journalPaintChange(android('#2ACB47FF'), android('#000000FF'), ['/value/0']))).toEqual([
+            ['Цвет', '#2ACB47FF', '#000000FF', ['/value/0']],
+        ]);
+    });
+
+    it('не цвет и не градиент оставляет представлению по параметрам хранимого значения', () => {
+        expect(journalPaintChange(web(['red', 'blue']), web([conic]))).toBeNull();
+        expect(journalPaintChange(web(null), web(['[general.green.600]']))).toBeNull();
     });
 });

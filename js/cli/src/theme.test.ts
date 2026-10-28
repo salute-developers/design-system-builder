@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { generateThemes } from './generate-theme.ts';
+import { generateThemes, toGeneratorThemeSource } from './generate-theme.ts';
 import { resolveLocalThemes } from './local-theme-source.ts';
 import { readThemeSetSource, toThemeIdentifier } from './theme-source.ts';
 
@@ -527,4 +527,62 @@ describe('breakpoints', () => {
             assert.equal(await read('css/brand_night.module.css'), before);
         });
     }
+});
+
+describe('градиентный токен из выгрузки theme fetch', () => {
+    const output = () => join(root, 'theme');
+    const gradientToken = (name: string) => ({ ...colorToken(name), type: 'gradient', displayName: 'surfaceAccentGradient' });
+    /** Значения web после раскрытия ссылок ds-service: стоп ссылки уже HEX, сплошной член — массив из строки. */
+    const WEB_GRADIENT = {
+        'dark.surface.default.accent-gradient': ['linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 99.688%)'],
+        'light.surface.default.accent-gradient': ['#1A9E32FF'],
+    };
+    /** Сплошное значение iOS градиентного семейства приходит слоем color. */
+    const IOS_GRADIENT = {
+        'dark.surface.default.accent-gradient': [
+            { kind: 'linear', locations: [0, 0.99688], colors: ['#1A9E32FF', '#04C6C9FF'], angle: 45 },
+        ],
+        'light.surface.default.accent-gradient': [{ kind: 'color', background: '#1A9E32FF' }],
+    };
+
+    it('toGeneratorThemeSource не меняет вариации градиента, в том числе слой color', () => {
+        const variations = {
+            color: { 'dark.text.default.primary': '#000000FF' },
+            gradient: { ...WEB_GRADIENT, 'dark.surface.on-dark.accent-gradient': IOS_GRADIENT['light.surface.default.accent-gradient'] },
+        };
+        const source = { meta: { name: 'brand', version: 'latest', tokens: [] }, variations } as never;
+
+        const result = toGeneratorThemeSource(source, { gray: { '1000': '#000000' } });
+
+        assert.equal(result.variations.gradient, variations.gradient);
+        assert.deepEqual(result.variations.gradient, {
+            ...WEB_GRADIENT,
+            'dark.surface.on-dark.accent-gradient': [{ kind: 'color', background: '#1A9E32FF' }],
+        });
+    });
+
+    it('генерирует градиент и сплошной член семейства без изменения значений', async () => {
+        const directory = themeDirectory('brand_night');
+        await writeJson(join(directory, 'meta.json'), {
+            name: 'brand_night',
+            version: 'latest',
+            tokens: [
+                colorToken('dark.text.default.primary'),
+                colorToken('light.text.default.primary'),
+                gradientToken('dark.surface.default.accent-gradient'),
+                gradientToken('light.surface.default.accent-gradient'),
+            ],
+        });
+        await writeJson(join(directory, 'web', 'web_gradient.json'), WEB_GRADIENT);
+        await writeJson(join(directory, 'ios', 'ios_gradient.json'), IOS_GRADIENT);
+
+        const source = await readThemes({ tenant: 'brand_night' });
+        assert.deepEqual(source.themes[0].variations.gradient, WEB_GRADIENT);
+        await generateThemes(source, output());
+
+        const dark = await readFile(join(output(), 'css', 'brand_night__dark.css'), 'utf8');
+        const light = await readFile(join(output(), 'css', 'brand_night__light.css'), 'utf8');
+        assert.match(dark, /--surface-accent-gradient: linear-gradient\(45deg, #1A9E32FF 0%, #04C6C9FF 99\.688%\);/);
+        assert.match(light, /--surface-accent-gradient: #1A9E32FF;/);
+    });
 });

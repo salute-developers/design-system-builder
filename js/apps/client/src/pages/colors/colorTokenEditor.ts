@@ -1,29 +1,47 @@
-import { colorTokenActions, gradientTokenActions } from '../../actions';
 import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
-import { observeSubjectAddresses } from '../../api/subjectRevisions';
+import { acceptTokenValueOverridden, observeSubjectAddresses, tokenValueOverridden } from '../../api/subjectRevisions';
 import { authService } from '../../api/authService';
 import { getAdditionalColorValues } from '../../actions/colors';
-import { AndroidColor, ColorToken, IOSColor, WebColor } from '../../controllers';
-import type { DesignSystem, GradientToken, Theme } from '../../controllers';
+import {
+    AndroidColor,
+    AndroidGradient,
+    ColorToken,
+    GradientToken,
+    IOSColor,
+    IOSGradient,
+    WebColor,
+    WebGradient,
+} from '../../controllers';
+import type { DesignSystem, Theme, Token } from '../../controllers';
 import {
     COLOR_CONTEXTS,
     COLOR_MODES,
     ColorTokenOperationError,
+    NATIVE_PLATFORMS,
     camelTokenName,
     contextSubgroup,
     createColorTokenAutosave,
     createHttpColorTokenRepository,
     createHttpTokenGroupRepository,
+    deriveNative,
     familyCreateMembers,
     familyTokens,
     familyUpdate,
     fieldsInheritingFrom,
+    findColorToken,
     inheritedMode,
+    isColorString,
+    keyOfId,
     legacyDraftFamilies,
     newTokenMembers,
     parseMemberName,
-    splitTopLevel,
+    readPaint,
+    stopOpacity,
     tokenId,
+    valueKind,
+    webLayers,
+    withStopOpacity,
+    writePaint,
     type ColorContext,
     type ColorMode,
     type ColorTokenAutosave,
@@ -31,17 +49,24 @@ import {
     type ColorTokenFamilyDto,
     type ColorTokenKey,
     type ColorTokenRepository,
+    type ColorTokenType,
     type ColorTokenView,
+    type NativePlatform,
+    type Paint,
+    type PaintPlatform,
     type PlacedDefinition,
     type StateValue,
+    type StopColorResolver,
     type TokenDefinitions,
     type TokenGroupDto,
     type TokenGroupRepository,
     type TokenPlacement,
     type UpdateTokenGroupInput,
 } from '../../modules/colorTokens';
-import { formatPaletteReference, parsePaletteReference } from '../../modules/palette';
+import { restorePaletteColor } from '../../palette/activePalette';
 import { draftEntriesOfTypes, removeDraftEntries } from '../../utils/designSystemDraft';
+
+export { keyOfId };
 
 /** Поле значения: `light`, `dark` или `<context>-<mode>`. */
 export type FieldId = ColorMode | `${ColorContext}-${ColorMode}`;
@@ -66,9 +91,31 @@ const camel = camelTokenName;
 
 /** Значения состояний нового токена: тот же расчёт, что при правке существующего. */
 export const stateValue: StateValue = (value, group, subgroup, mode, state) => {
-    if (state === 'brightness') return value;
+    // Состояния градиента получают то же значение.
+    if (state === 'brightness' || valueKind(webLayers(value)) === 'gradient') return value;
     const values = getAdditionalColorValues(value, mode, group, subgroup);
     return values ? values[state === 'active' ? 0 : 1] : value;
+};
+
+/** Цвет стопа в HEX по палитре темы: для цвета шва Conic на Android и нового стопа. */
+export const stopResolver =
+    (tokenName: string): StopColorResolver =>
+    (color) => {
+        if (color.startsWith('#')) return color;
+        const resolved = restorePaletteColor(color, -1, tokenName);
+        return /^#[0-9a-f]{6,8}$/i.test(resolved) ? resolved : null;
+    };
+
+/**
+ * Хранимое значение из ввода: градиент — массив слоёв; цвет — в форме редактора: ссылка — `[type.shade.step][o]`
+ * с прозрачностью до сотых, HEX — `#RRGGBB` с альфой, если она меньше 1. Не цвет возвращается как есть.
+ */
+const webValue = (value: string): unknown => {
+    const layers = webLayers(value);
+    const trimmed = value.trim();
+    if (valueKind(layers) === 'gradient') return layers;
+    if (!isColorString(trimmed)) return trimmed;
+    return withStopOpacity(trimmed, Math.round(stopOpacity(trimmed) * 100) / 100);
 };
 
 /** Сессия цветовых токенов темы: живёт дольше экрана, чтобы пережить перезагрузку темы после конфликта. */
@@ -80,8 +127,8 @@ export interface ColorTokenSession {
     designSystem: DesignSystem | null;
     /** Конфликт ревизии, после которого тема перезагружена; сбрасывается «Повторить». */
     conflict: ColorTokenOperationError | null;
-    /** Значения несохранённых токенов на момент перезагрузки темы: имя → тип и значения платформ. */
-    overlay: Map<string, { type: ColorTokenKey['type']; values: Record<string, unknown> }> | null;
+    /** Значения несохранённых определений на момент перезагрузки темы: имя → значения платформ. */
+    overlay: Map<string, { values: Record<string, unknown> }> | null;
     /** Имена определений из последней загрузки темы: определения, пропавшие из новой загрузки, удаляются. */
     loadedNames: Set<string>;
     /**
@@ -89,6 +136,11 @@ export interface ColorTokenSession {
      * перезагрузки темы накладываются только они: правки того же токена из другого места не затираются.
      */
     edited: Map<string, Set<string>>;
+    /**
+     * Признаки своего значения платформы, заданные на экране и ещё не подтверждённые сервером: `<имя с
+     * режимом>:<платформа>` → признак. Подтверждённые признаки берутся из прочитанного состояния.
+     */
+    overrides: Map<string, boolean>;
     /** Группы и подгруппы токенов дизайн-системы. */
     groups: TokenGroupDto[];
     /** Место определения (имя без режима) в группах и признак публикации. */
@@ -125,6 +177,50 @@ export const colorTokenRepository = () => repository;
 
 const notify = (session: ColorTokenSession) => session.listeners.forEach((listener) => listener());
 
+/**
+ * Своё ли значение у платформы определения темы [themeName]: неподтверждённый признак экрана, иначе признак из
+ * прочитанного или подтверждённого состояния.
+ */
+export const isOverridden = (session: ColorTokenSession, themeName: string, platform: NativePlatform) => {
+    const local = session.overrides.get(`${themeName}:${platform}`);
+    if (local !== undefined) return local;
+    const [mode, ...member] = themeName.split('.');
+    const definition = session.definitions.get(member.join('.'));
+    return definition ? tokenValueOverridden(session.context, definition.id, platform, mode) : false;
+};
+
+/** Значения платформ определения в классе своего типа: при смене типа семейства определение переносится. */
+const retyped = (token: Token, type: ColorTokenType): Token => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- тип задаёт класс определения
+    const { type: _previous, ...meta } = token.getTokenData();
+    const [web, ios, android] = PLATFORMS.map((platform) => token.getValue(platform as never) as never);
+    return type === 'gradient'
+        ? new GradientToken(meta, {
+              web: new WebGradient(web),
+              ios: new IOSGradient(ios),
+              android: new AndroidGradient(android),
+          })
+        : new ColorToken(meta, { web: new WebColor(web), ios: new IOSColor(ios), android: new AndroidColor(android) });
+};
+
+/**
+ * Тип семейства из ответа сервера без перезагрузки: определения темы переносятся в список своего типа со
+ * значениями, ключ токена при этом не меняется.
+ */
+export const adoptFamilyType = (session: ColorTokenSession, key: ColorTokenKey, type: ColorTokenType) => {
+    const theme = session.theme;
+    if (!theme) return;
+    const moved = familyTokens(theme, key).filter((token) => token.getType() !== type);
+    moved.forEach((token) => {
+        theme.removeToken(token.getName(), token.getType() as ColorTokenType);
+        theme.addToken(type, retyped(token, type) as never);
+    });
+    session.definitions.forEach((definition, name) => {
+        const parsed = parseMemberName(name);
+        if (parsed?.group === key.group && parsed.name === key.name) definition.type = type;
+    });
+};
+
 /** Сессия темы; создаётся при первом открытии раздела и переиспользуется до смены темы. */
 export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession => {
     const key = sessionKey(context);
@@ -139,6 +235,7 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
         overlay: null,
         loadedNames: new Set(),
         edited: new Map(),
+        overrides: new Map(),
         groups: [],
         placements: new Map(),
         reload: () => undefined,
@@ -166,16 +263,26 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
             [...session.edited.keys()].forEach((key) => unsaved.has(key) || session.edited.delete(key));
             notify(session);
         },
-        onConfirmed: (payload) => {
+        onConfirmed: (payload, result) => {
             const confirmed = confirmedValues.get(session) ?? new Map<string, string>();
             const names = new Map([...session.definitions].map(([name, definition]) => [definition.id, name]));
             payload.update.members.forEach((member) =>
                 member.values.forEach((value) => {
                     const name = names.get(member.tokenId);
                     if (name) confirmed.set(`${value.mode}.${name}:${value.platform}`, JSON.stringify(value.value));
+                    if (value.platform === 'web') return;
+                    const overridden = value.overridden === true;
+                    acceptTokenValueOverridden(context, member.tokenId, value.platform, value.mode, overridden);
+                    // Признак подтверждён: дальше он читается из подтверждённого состояния, если его не меняли снова.
+                    const local = name ? `${value.mode}.${name}:${value.platform}` : null;
+                    if (local && session.overrides.get(local) === overridden) session.overrides.delete(local);
                 }),
             );
             confirmedValues.set(session, confirmed);
+            const name = names.get(payload.tokenId);
+            const parsed = name ? parseMemberName(name) : null;
+            if (result.type && parsed)
+                adoptFamilyType(session, { group: parsed.group, name: parsed.name }, result.type);
         },
         onConflict: (error) => {
             // Тема изменена в другом месте: несохранённые значения запоминаются, тема перечитывается, повторная
@@ -206,17 +313,23 @@ const syncTheme = (session: ColorTokenSession, definitions: PlacedDefinition[]) 
     const byId = new Map(definitions.map((definition) => [definition.id, definition]));
     for (const [name, definition] of [...session.definitions]) {
         const next = byId.get(definition.id);
-        const type = definition.type as ColorTokenKey['type'];
         for (const mode of COLOR_MODES) {
-            const token = theme?.getToken(`${mode}.${name}`, type);
+            const token = theme ? findColorToken(theme, `${mode}.${name}`) : undefined;
             if (!token) continue;
             if (!next) {
-                theme?.removeToken(token.getName(), type);
+                theme?.removeToken(token.getName(), token.getType() as ColorTokenType);
                 continue;
             }
             if (next.name === name) continue;
             const renamed = `${mode}.${next.name}`;
             const parsed = parseMemberName(renamed);
+            // Неподтверждённые признаки своего значения переходят к новому имени вместе с определением.
+            for (const platform of NATIVE_PLATFORMS) {
+                const local = session.overrides.get(`${token.getName()}:${platform}`);
+                if (local === undefined) continue;
+                session.overrides.delete(`${token.getName()}:${platform}`);
+                session.overrides.set(`${renamed}:${platform}`, local);
+            }
             token.setName(renamed);
             token.setTags(renamed.split('.'));
             if (parsed && parsed.subgroup === 'default' && !parsed.state)
@@ -278,7 +391,6 @@ const captureUnsaved = (session: ColorTokenSession) => {
         for (const token of familyTokens(theme, key)) {
             if (!isEdited(token.getName())) continue;
             overlay.set(token.getName(), {
-                type: key.type,
                 values: Object.fromEntries(PLATFORMS.map((platform) => [platform, token.getValue(platform as never)])),
             });
         }
@@ -289,8 +401,8 @@ const captureUnsaved = (session: ColorTokenSession) => {
 /** Наложение несохранённых значений на перезагруженную тему. */
 export const applyOverlay = (session: ColorTokenSession, theme: Theme) => {
     if (!session.overlay) return;
-    for (const [name, { type, values }] of session.overlay) {
-        const token = theme.getToken(name, type);
+    for (const [name, { values }] of session.overlay) {
+        const token = findColorToken(theme, name);
         if (!token) continue;
         Object.entries(values).forEach(([platform, value]) => token.setValue(platform as never, value as never));
     }
@@ -308,12 +420,9 @@ export const adoptTheme = (session: ColorTokenSession, theme: Theme) => {
     const confirmed = new Map<string, string>();
     for (const type of ['color', 'gradient'] as const)
         for (const token of theme.getTokens(type))
-            for (const platform of ['web', 'ios', 'android'] as const) {
+            for (const platform of PLATFORMS) {
                 const value = token.getValue(platform as never);
-                confirmed.set(
-                    `${token.getName()}:${platform}`,
-                    JSON.stringify(type === 'gradient' || Array.isArray(value) ? value : [value]),
-                );
+                confirmed.set(`${token.getName()}:${platform}`, JSON.stringify(Array.isArray(value) ? value : [value]));
             }
     confirmedValues.set(session, confirmed);
     applyOverlay(session, theme);
@@ -322,15 +431,15 @@ export const adoptTheme = (session: ColorTokenSession, theme: Theme) => {
 /** Отображаемое имя токена из черновика: имя определения Light, если оно задано, иначе имя по ключу. */
 const draftDisplayName = (theme: Theme, key: ColorTokenKey) => {
     const name = `light.${key.group}.default.${key.name}`;
-    const displayName = theme.getToken(name, key.type)?.getDisplayName();
+    const displayName = findColorToken(theme, name)?.getDisplayName();
     return displayName && displayName !== name ? displayName : camel(key);
 };
 
-/** Ключ токена по ключу строки дерева `color:text.accent`. */
-export const keyOfId = (id: string): ColorTokenKey | null => {
-    const match = /^(color|gradient):([^.]+)\.(.+)$/.exec(id);
-    return match ? { type: match[1] as ColorTokenKey['type'], group: match[2], name: match[3] } : null;
-};
+/** Значения платформ определения: web и свои значения iOS и Android (без построенных из web). */
+interface MemberPaint {
+    web: unknown;
+    own: Partial<Record<NativePlatform, unknown>>;
+}
 
 /** Редактор цветовых токенов открытой темы: правки меняют `Theme` и ставятся в очередь автосохранения. */
 export const createColorTokenEditor = (session: ColorTokenSession) => {
@@ -342,10 +451,13 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
     const schedule = (key: ColorTokenKey, restoreLegacy = false) =>
         session.autosave.schedule(tokenId(key), () => {
             if (!session.theme || session.context.versionId) return null;
-            const payload = familyUpdate(session.theme, key, session.definitions);
+            const payload = familyUpdate(session.theme, key, session.definitions, (name, platform) =>
+                isOverridden(session, name, platform),
+            );
             if (!payload) return null;
             const names = new Map([...session.definitions].map(([name, definition]) => [definition.id, name]));
             const confirmed = confirmedValues.get(session);
+            // В очередь идут значения и признаки своего значения, которые отличаются от подтверждённых.
             const members = payload.update.members
                 .map((member) => ({
                     ...member,
@@ -353,7 +465,10 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                         (value) =>
                             restoreLegacy ||
                             confirmed?.get(`${value.mode}.${names.get(member.tokenId)}:${value.platform}`) !==
-                                JSON.stringify(value.value),
+                                JSON.stringify(value.value) ||
+                            (value.platform !== 'web' &&
+                                (value.overridden === true) !==
+                                    tokenValueOverridden(session.context, member.tokenId, value.platform, value.mode)),
                     ),
                 }))
                 .filter((member) => member.values.length > 0);
@@ -362,81 +477,155 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
 
     const memberToken = (key: ColorTokenKey, mode: ColorMode, context: ColorContext | null) => {
         const subgroup = context ? contextSubgroup(key.group, context) : 'default';
-        return theme().theme.getToken(`${mode}.${key.group}.${subgroup}.${key.name}`, key.type);
+        return findColorToken(theme().theme, `${mode}.${key.group}.${subgroup}.${key.name}`);
     };
 
-    /** Записывает значение определения и пересчитывает его состояния, как старый редактор. */
     const markEdited = (key: ColorTokenKey, name: string) => {
         const id = tokenId(key);
         session.edited.set(id, (session.edited.get(id) ?? new Set()).add(name));
     };
 
-    const write = (key: ColorTokenKey, mode: ColorMode, context: ColorContext | null, value: string) => {
-        const { theme: current, designSystem } = theme();
-        const token = memberToken(key, mode, context);
+    /** Своё значение и web определения. */
+    const paintOf = (token: Token): MemberPaint => ({
+        web: token.getValue('web' as never),
+        own: Object.fromEntries(
+            NATIVE_PLATFORMS.filter((platform) => isOverridden(session, token.getName(), platform)).map((platform) => [
+                platform,
+                token.getValue(platform as never),
+            ]),
+        ),
+    });
+
+    /** Значения платформ определения: свои значения как есть, остальные — построенные из web. */
+    const applyPaint = (token: Token, { web, own }: MemberPaint) => {
+        token.setValue('web' as never, web as never);
+        for (const platform of NATIVE_PLATFORMS) {
+            const ownValue = own[platform];
+            const value = ownValue ?? deriveNative(web, platform, stopResolver(token.getName()));
+            token.setValue(platform as never, value as never);
+            // Неподтверждённым остаётся только признак, который отличается от прочитанного состояния: без
+            // неподтверждённого признака `isOverridden` возвращает прочитанный.
+            const flag = ownValue !== undefined;
+            const local = `${token.getName()}:${platform}`;
+            session.overrides.delete(local);
+            if (flag !== isOverridden(session, token.getName(), platform)) session.overrides.set(local, flag);
+        }
+    };
+
+    /**
+     * Значение определения и его состояния `-hover` и `-active`: у цвета состояние — расчёт редактора от значения
+     * платформы, у градиента — то же значение. Без новой web-основы состояние сохраняет своё web-значение, и
+     * платформы без своей строки строятся из него, а не из основного цвета. Признак своего значения у состояний —
+     * как у определения.
+     */
+    const writeField = (key: ColorTokenKey, mode: ColorMode, token: Token | undefined, paint: MemberPaint) => {
         if (!token) return;
         markEdited(key, token.getName());
-        const persist = () => schedule(key);
-        if (key.type === 'gradient') {
-            const layers = splitTopLevel(value);
-            gradientTokenActions.updateToken({
-                gradient: layers,
-                token: token as GradientToken,
-                theme: current,
-                designSystem,
-                persist,
-            });
-            return;
-        }
-        const reference = parsePaletteReference(value);
-        const hex = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(value.trim());
-        const color = reference ? `${reference.type}.${reference.shade}.${reference.step}` : hex ? `#${hex[1]}` : value;
-        const opacity = reference ? (reference.opacity ?? 1) : hex?.[2] ? parseInt(hex[2], 16) / 255 : 1;
-        colorTokenActions.updateToken({
-            color,
-            opacity: Math.round(opacity * 100) / 100,
-            token: token as ColorToken,
-            theme: current,
-            designSystem,
-            persist,
+        const webChanged = JSON.stringify(token.getValue('web' as never)) !== JSON.stringify(paint.web);
+        applyPaint(token, paint);
+        const parsed = parseMemberName(token.getName());
+        if (!parsed) return;
+        (['active', 'hover'] as const).forEach((state, index) => {
+            const target = findColorToken(theme().theme, `${token.getName()}-${state}`);
+            if (!target) return;
+            // Без формулы состояния web-цвет состояния не пересчитывается.
+            const { web, ...own } = Object.fromEntries(
+                Object.entries<unknown>({ web: paint.web, ...paint.own }).map(([platform, value]) => {
+                    const current = readPaint(value, platform as PaintPlatform);
+                    if (current?.kind !== 'color') return [platform, value];
+                    const values = getAdditionalColorValues(
+                        current.color,
+                        mode,
+                        parsed.group,
+                        parsed.subgroup,
+                        token.getName(),
+                    );
+                    // Без формулы своё значение состояния остаётся своим, как и его web-цвет.
+                    return [
+                        platform,
+                        values ? values[index] : platform === 'web' ? undefined : target.getValue(platform as never),
+                    ];
+                }),
+            );
+            const stateWeb = webChanged ? web : target.getValue('web' as never);
+            if (stateWeb === undefined) return;
+            applyPaint(target, { web: stateWeb, own });
         });
     };
 
     return {
-        /** Правка поля: значение режима переносится в связанные подтемы, правка подтемы снимает её связь. */
-        setField(view: ColorTokenView, field: FieldId, value: string) {
+        /**
+         * Хранимое значение платформы поля: web — общее значение (iOS и Android без своих строк перестраиваются),
+         * iOS или Android — своё значение этой платформы, `undefined` — своё значение снова строится из web. Новое
+         * значение определения переносится в связанные подтемы вместе со своими значениями платформ, правка подтемы
+         * снимает её связь.
+         */
+        setValue(view: ColorTokenView, field: FieldId, platform: PaintPlatform, value: unknown) {
             const { context, mode } = parseField(field);
-            write(view.key, mode, context, value);
-            if (context) return;
-            for (const target of fieldsInheritingFrom(mode)) {
-                if (view.contexts[target.context].linked) write(view.key, target.mode, target.context, value);
-            }
+            const token = memberToken(view.key, mode, context);
+            if (!token) return;
+            // `undefined` у платформы — своего значения нет, оно строится из web.
+            const { web, own } = paintOf(token);
+            const next = platform === 'web' ? { web: value, own } : { web, own: { ...own, [platform]: value } };
+            writeField(view.key, mode, token, next);
+            if (!context)
+                for (const target of fieldsInheritingFrom(mode)) {
+                    if (view.contexts[target.context].linked)
+                        writeField(view.key, target.mode, memberToken(view.key, target.mode, target.context), next);
+                }
+            schedule(view.key);
+        },
+
+        /** Правка значения поля строкой: HEX, ссылка или слои градиента. */
+        setField(view: ColorTokenView, field: FieldId, value: string) {
+            this.setValue(view, field, 'web', webValue(value));
+        },
+
+        /** Значение выбора цвета для платформы. */
+        setPaint(view: ColorTokenView, field: FieldId, platform: PaintPlatform, paint: Paint) {
+            const value = writePaint(paint, platform);
+            this.setValue(view, field, platform, typeof value === 'string' ? webValue(value) : value);
+        },
+
+        /**
+         * Строка своего значения платформы: копия значения, построенного из web. Только у полей режимов: подтема
+         * получает строки платформ наследованием от режима.
+         */
+        addPlatform(view: ColorTokenView, field: FieldId, platform: NativePlatform) {
+            const { context, mode } = parseField(field);
+            const token = context ? undefined : memberToken(view.key, mode, null);
+            if (!token) return;
+            const web = token.getValue('web' as never);
+            this.setValue(view, field, platform, deriveNative(web, platform, stopResolver(token.getName())));
+        },
+
+        /**
+         * «×» у строки платформы: значение снова строится из web. У связанной подтемы строка наследуется от режима и
+         * убирается только у поля режима, поэтому вызов в обход интерфейса ничего не меняет.
+         */
+        removePlatform(view: ColorTokenView, field: FieldId, platform: NativePlatform) {
+            const { context } = parseField(field);
+            if (context && view.contexts[context].linked) return;
+            this.setValue(view, field, platform, undefined);
         },
 
         /** Новая прозрачность значения: у ссылки — прозрачность ссылки, у HEX — альфа-канал. */
-        setOpacity(view: ColorTokenView, field: FieldId, percent: number) {
+        setOpacity(view: ColorTokenView, field: FieldId, percent: number, platform: PaintPlatform = 'web') {
             const { context, mode } = parseField(field);
-            const current = context ? view.contexts[context].values[mode] : view.modes[mode];
+            const base = context ? view.contexts[context].values[mode] : view.modes[mode];
+            const current = platform === 'web' ? base : base.platforms[platform];
+            if (!current) return;
             const opacity = Math.max(0, Math.min(100, Math.round(percent))) / 100;
-            const reference = parsePaletteReference(current.value);
-            const alpha =
-                opacity === 1
-                    ? ''
-                    : Math.round(opacity * 255)
-                          .toString(16)
-                          .padStart(2, '0')
-                          .toUpperCase();
-            const next = reference
-                ? formatPaletteReference({ ...reference, opacity: opacity === 1 ? null : opacity })
-                : `${rgbHex(current.value)}${alpha}`;
-            this.setField(view, field, next);
+            this.setValue(view, field, platform, webValue(withStopOpacity(current.value, opacity)));
         },
 
-        /** Восстанавливает наследование подтемы от значений режимов. */
+        /** Восстанавливает наследование подтемы от значений режимов вместе со своими значениями платформ. */
         relink(view: ColorTokenView, context: ColorContext) {
             for (const mode of COLOR_MODES) {
-                write(view.key, mode, context, view.modes[inheritedMode(context, mode)].value);
+                const source = memberToken(view.key, inheritedMode(context, mode), null);
+                if (source) writeField(view.key, mode, memberToken(view.key, mode, context), paintOf(source));
             }
+            schedule(view.key);
         },
 
         resetContexts(view: ColorTokenView) {
@@ -445,7 +634,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
 
         /**
          * Заполняет пустые значения неполного токена: уже заданные не меняются, основа — заданные Light и Dark,
-         * а при их отсутствии — значения раздела.
+         * а при их отсутствии — значения раздела. Пустые значения iOS и Android строятся из web.
          */
         fill(view: ColorTokenView, defaults: Record<ColorMode, string>) {
             const { theme: current } = theme();
@@ -457,23 +646,19 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                 value === '' || value == null || (Array.isArray(value) && !value.length);
             for (const member of newTokenMembers(view.key, base, stateValue)) {
                 for (const { mode, value } of member.values) {
-                    const token = current.getToken(`${mode}.${member.name}`, view.key.type);
+                    const token = findColorToken(current, `${mode}.${member.name}`);
                     if (!token) continue;
                     const empty = PLATFORMS.filter((platform) => isEmpty(token.getValue(platform as never)));
                     if (!empty.length) continue;
                     markEdited(view.key, token.getName());
-                    if (view.key.type === 'gradient') {
-                        // Нативные значения градиента строятся из слоёв web, как при правке.
-                        gradientTokenActions.updateToken({
-                            gradient: splitTopLevel(value),
-                            token: token as GradientToken,
-                            theme: current,
-                            designSystem: theme().designSystem,
-                            persist: () => undefined,
-                        });
-                        continue;
-                    }
-                    empty.forEach((platform) => token.setValue(platform as never, value as never));
+                    if (empty.includes('web')) token.setValue('web' as never, webValue(value) as never);
+                    const web = token.getValue('web' as never);
+                    for (const platform of NATIVE_PLATFORMS)
+                        if (empty.includes(platform))
+                            token.setValue(
+                                platform as never,
+                                deriveNative(web, platform, stopResolver(token.getName())) as never,
+                            );
                 }
             }
             schedule(view.key);
@@ -491,7 +676,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                 repository.create(
                     session.context,
                     {
-                        type: key.type,
+                        type: 'color',
                         group: key.group,
                         name: key.name,
                         displayName,
@@ -507,23 +692,22 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                 ),
             );
             const { theme: current } = theme();
+            const type: ColorTokenType = family.type ?? 'color';
             for (const member of members) {
                 const id = family.members.find((item) => item.name === member.name)?.tokenId;
-                if (id) session.definitions.set(member.name, { id, type: key.type });
+                if (id) session.definitions.set(member.name, { id, type });
                 for (const { mode, value } of member.values) {
                     const name = `${mode}.${member.name}`;
-                    current.addToken(
-                        'color',
-                        new ColorToken(
-                            {
-                                name,
-                                tags: name.split('.'),
-                                displayName: member.name === `${key.group}.default.${key.name}` ? displayName : name,
-                                enabled: true,
-                            },
-                            { web: new WebColor(value), ios: new IOSColor(value), android: new AndroidColor(value) },
-                        ),
+                    const token = new ColorToken(
+                        {
+                            name,
+                            tags: name.split('.'),
+                            displayName: member.name === `${key.group}.default.${key.name}` ? displayName : name,
+                            enabled: true,
+                        },
+                        { web: new WebColor(value), ios: new IOSColor(value), android: new AndroidColor(value) },
                     );
+                    current.addToken(type, retyped(token, type) as never);
                 }
             }
             await refreshStructure(session).catch(() => notify(session));
@@ -575,7 +759,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             );
             session.autosave.forget(tokenId(view.key));
             await refreshStructure(session, true);
-            return tokenId({ type: view.key.type, group: family.group, name: family.name });
+            return tokenId({ group: family.group, name: family.name });
         },
 
         /** Удаляет токен на сервере и убирает его определения из темы. */
@@ -590,7 +774,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             session.autosave.forget(tokenId(view.key));
             const { theme: current } = theme();
             for (const token of familyTokens(current, view.key)) {
-                current.removeToken(token.getName(), view.key.type);
+                current.removeToken(token.getName(), token.getType() as ColorTokenType);
                 const parsed = parseMemberName(token.getName());
                 if (parsed?.mode) session.definitions.delete(token.getName().slice(parsed.mode.length + 1));
             }
@@ -619,7 +803,9 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                     repository.create(
                         session.context,
                         {
-                            type: key.type,
+                            type: familyTokens(current, key).some((token) => token.getType() === 'gradient')
+                                ? 'gradient'
+                                : 'color',
                             group: key.group,
                             name: key.name,
                             displayName: draftDisplayName(current, key),
@@ -630,7 +816,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                     ),
                 );
                 family.members.forEach((member) =>
-                    session.definitions.set(member.name, { id: member.tokenId, type: key.type }),
+                    session.definitions.set(member.name, { id: member.tokenId, type: family.type }),
                 );
             }
             await session.autosave.flush();

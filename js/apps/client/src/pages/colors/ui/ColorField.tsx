@@ -1,27 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
-import type { ColorFieldValue, ColorTokenType } from '../../../modules/colorTokens';
+import { fieldText, type ColorFieldValue } from '../../../modules/colorTokens';
 import { alphaSwatchStyle } from './swatch';
 
 interface ColorFieldProps {
+    /** Подпись в колонке подписей: «Light» или строка платформы «↳ iOS». */
     label: string;
+    /** Доступное имя поля; по умолчанию — подпись. */
+    name?: string;
     value: ColorFieldValue;
-    type: ColorTokenType;
     editable: boolean;
     pickerOpen: boolean;
+    /** Получает кнопку цвета, пока у поля открыт выбор цвета: к ней привязывается окно выбора. */
+    pickerAnchor?: (node: HTMLButtonElement | null) => void;
+    /** Строка своего значения платформы под полем. */
+    platformRow?: boolean;
     onOpenPicker: () => void;
     onCommit: (value: string) => void;
     onOpacity: (percent: number) => void;
+    /** Кнопка справа от значения: «+» платформ или «×» строки платформы. */
+    trailing?: ReactNode;
 }
-
-/** Текст поля значения (`colorFieldDisplayValue`): метка ступени, градиент или HEX без `#`. */
-const displayValue = (value: ColorFieldValue, type: ColorTokenType) => {
-    if (type === 'gradient') return 'Linear gradient';
-    if (value.paletteLabel) return value.paletteLabel;
-    // Некорректное значение (например, ссылка со ступенью NaN) показывается как есть, чтобы его было видно.
-    if (!/^#[0-9a-f]{3,8}$/i.test(value.value)) return value.value;
-    return value.value.replace('#', '').slice(0, 6).toUpperCase();
-};
 
 /** HEX из ввода с сохранением текущей альфы, если не введены 8 цифр (`colorWithRgbPreservingAlpha`). */
 const withAlpha = (input: string, current: ColorFieldValue) => {
@@ -41,22 +40,26 @@ const withAlpha = (input: string, current: ColorFieldValue) => {
 /** Поле значения инспектора по `colorInspectorField` прототипа. */
 export const ColorField = ({
     label,
+    name = label,
     value,
-    type,
     editable,
     pickerOpen,
+    pickerAnchor,
+    platformRow = false,
     onOpenPicker,
     onCommit,
     onOpacity,
+    trailing,
 }: ColorFieldProps) => {
-    const linked = Boolean(value.paletteLabel) || type === 'gradient';
-    const text = displayValue(value, type);
+    const gradient = value.kind === 'gradient';
+    const linked = Boolean(value.paletteLabel) || gradient;
+    const text = fieldText(value);
     const percent = Math.round(value.opacity * 100);
     const [draft, setDraft] = useState(text);
     const [alpha, setAlpha] = useState(String(percent));
     useEffect(() => setDraft(text), [text]);
     useEffect(() => setAlpha(String(percent)), [percent]);
-    const showAlpha = type !== 'gradient' && (!value.paletteLabel || percent < 100);
+    const showAlpha = !gradient && (!value.paletteLabel || percent < 100);
 
     const commitText = () => {
         if (draft === text) return;
@@ -69,51 +72,55 @@ export const ColorField = ({
     };
 
     return (
-        <div className="figma-inspector-field">
-            <span className="figma-inspector-field-label">{label}</span>
-            <div className="figma-value-control">
-                <div className="figma-value-main">
-                    <button
-                        type="button"
-                        className={`swatch-button alpha-swatch ${pickerOpen ? 'is-open' : ''}`}
-                        aria-label={`Выбор цвета: ${label}`}
-                        aria-expanded={pickerOpen}
-                        style={alphaSwatchStyle(value.resolved)}
-                        disabled={!editable}
-                        onClick={onOpenPicker}
-                    />
-                    {linked || !editable ? (
-                        <input
-                            readOnly
-                            aria-label={label}
-                            value={text}
-                            onClick={editable ? onOpenPicker : undefined}
+        <div className={`figma-inspector-field ${platformRow ? 'ct-platform-field' : ''}`}>
+            <span className={`figma-inspector-field-label ${platformRow ? 'ct-platform-label' : ''}`}>{label}</span>
+            <div className="ct-value-line">
+                <div className="figma-value-control">
+                    <div className="figma-value-main">
+                        <button
+                            ref={pickerOpen ? pickerAnchor : undefined}
+                            type="button"
+                            className={`swatch-button alpha-swatch ${pickerOpen ? 'is-open' : ''}`}
+                            aria-label={`Выбор цвета: ${name}`}
+                            aria-expanded={pickerOpen}
+                            style={alphaSwatchStyle(value.resolved)}
                             disabled={!editable}
+                            onClick={onOpenPicker}
                         />
-                    ) : (
-                        <input
-                            aria-label={label}
-                            value={draft}
-                            onChange={(event) => setDraft(event.target.value)}
-                            onBlur={commitText}
-                            onKeyDown={(event) => event.key === 'Enter' && commitText()}
-                        />
+                        {linked || !editable ? (
+                            <input
+                                readOnly
+                                aria-label={name}
+                                value={text}
+                                onClick={editable ? onOpenPicker : undefined}
+                                disabled={!editable}
+                            />
+                        ) : (
+                            <input
+                                aria-label={name}
+                                value={draft}
+                                onChange={(event) => setDraft(event.target.value)}
+                                onBlur={commitText}
+                                onKeyDown={(event) => event.key === 'Enter' && commitText()}
+                            />
+                        )}
+                    </div>
+                    {showAlpha && (
+                        <div className="figma-value-alpha">
+                            <input
+                                aria-label={`${name}, прозрачность в процентах`}
+                                value={alpha}
+                                readOnly={!editable}
+                                disabled={!editable}
+                                onChange={(event) => setAlpha(event.target.value)}
+                                onBlur={commitAlpha}
+                                onKeyDown={(event) => event.key === 'Enter' && commitAlpha()}
+                            />
+                            <i>%</i>
+                        </div>
                     )}
                 </div>
-                {showAlpha && (
-                    <div className="figma-value-alpha">
-                        <input
-                            aria-label={`${label}, прозрачность в процентах`}
-                            value={alpha}
-                            readOnly={!editable}
-                            disabled={!editable}
-                            onChange={(event) => setAlpha(event.target.value)}
-                            onBlur={commitAlpha}
-                            onKeyDown={(event) => event.key === 'Enter' && commitAlpha()}
-                        />
-                        <i>%</i>
-                    </div>
-                )}
+                {trailing}
             </div>
         </div>
     );

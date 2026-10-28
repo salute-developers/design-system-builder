@@ -179,7 +179,7 @@ describe('автосохранение цветовых токенов', () => {
         autosave.schedule('a', () => first);
         finish({ editRevision: 1 });
         await waiting;
-        expect(onConfirmed).toHaveBeenCalledWith(payload('a', '#111'));
+        expect(onConfirmed).toHaveBeenCalledWith(payload('a', '#111'), { editRevision: 1 });
         expect(autosave.status('a').state).toBe('pending');
         autosave.dispose();
     });
