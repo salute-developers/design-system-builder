@@ -4,6 +4,7 @@ import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.themes.application.TenantTokenValueInitializer
 import com.dsbuilder.ds.themes.domain.ColorConfiguration
 import com.dsbuilder.ds.themes.domain.Tenant
+import com.dsbuilder.ds.themes.domain.TenantTokenValueInput
 import com.dsbuilder.ds.themes.domain.ThemePaletteType
 import com.dsbuilder.ds.themes.domain.ThemeProfile
 import com.dsbuilder.ds.themes.domain.ThemeTokenMode
@@ -30,11 +31,16 @@ import java.util.UUID
 
 /** Записывает эталонные значения токенов из канонического ресурса ds-service. */
 internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitializer {
-    override suspend fun initialize(tenant: Tenant) {
-        initialize(tenant.id, tenant.designSystemId, tenant.colorConfiguration)
-    }
+    override suspend fun initialize(tenant: Tenant, values: List<TenantTokenValueInput>): Boolean =
+        initialize(tenant.id, tenant.designSystemId, tenant.colorConfiguration, values)
 
-    private fun initialize(tenantId: UUID, designSystemId: UUID, configuration: ColorConfiguration) {
+    @Suppress("ReturnCount")
+    private fun initialize(
+        tenantId: UUID,
+        designSystemId: UUID,
+        configuration: ColorConfiguration,
+        values: List<TenantTokenValueInput>,
+    ): Boolean {
         ensurePaletteRows()
         val draft = themeDraft(designSystemId) ?: error("Active draft is missing")
         val tokens = currentThemeTokenRows(designSystemId)
@@ -47,6 +53,8 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
             PaletteKey(row[ThemePaletteTable.type], row[ThemePaletteTable.shade], row[ThemePaletteTable.saturation]) to
                 row[ThemePaletteTable.id]
         }
+        val tokenIds = tokens.values.mapTo(hashSetOf(), Token::id)
+        if (values.any { it.tokenId !in tokenIds }) return false
         if (!ThemeTokenValuesTable.selectAll().where { ThemeTokenValuesTable.tenantId eq tenantId }.limit(1).any()) {
             SubjectMutationPaths.withoutBaseComparison {
                 insertInitialTenantValues(
@@ -54,11 +62,12 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
                     designSystemId,
                     draft[ThemeVersionBoundariesTable.id],
                     draft[ThemeVersionBoundariesTable.sequenceNumber],
-                    initialValues(tokens, palettes, configuration),
+                    initialValues(tokens, palettes, configuration) + passedValues(values),
                 )
             }
-            return
+            return true
         }
+        check(values.isEmpty()) { "Initial values are accepted only for a theme without values" }
         currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId))
             .forEach { row ->
                 saveValue(
@@ -88,6 +97,12 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
         insertMissingColorValues(tenantId, designSystemId, tokens, draft)
         overrideProfileAnchors(tenantId, tokens, configuration, draft)
         captureCreationBaselines(tenantId, designSystemId, draft)
+        return true
+    }
+
+    /** Переданные значения входят в карту до записи и вместе с ней становятся базовыми значениями создания. */
+    private fun passedValues(values: List<TenantTokenValueInput>) = values.associate { value ->
+        InitialValueKey(value.tokenId, value.platform, value.mode) to InitialValuePayload(value.paletteId, value.value)
     }
 
     private fun initialValues(

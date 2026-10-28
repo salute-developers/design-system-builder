@@ -96,6 +96,7 @@ val themesModule = module {
             ),
             get(),
             get(),
+            get(),
         )
     }
     factory { UpdateTenantUseCase(get(), get(), get(), get()) }

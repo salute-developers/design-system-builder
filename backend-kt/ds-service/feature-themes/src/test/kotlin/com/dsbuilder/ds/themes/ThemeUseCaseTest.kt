@@ -64,23 +64,81 @@ class ThemeUseCaseTest {
 
         val initializer = RecordingTokenValueInitializer()
         val palette = FakeTenantPaletteRepository(null)
-        val result = CreateTenantUseCase(
-            policy,
-            transactions,
-            repository,
-            initializer,
-            palette,
-            IdempotentCreateExecutor(NoopIdempotentRequestRepository()),
-            NoopUniqueKeyLockRepository(),
-            com.dsbuilder.ds.themes.application.tokengroups.FakeTokenGroupRepository(command.designSystemId),
-        ).execute(ownerContext(), command)
+        val result = createTenant(repository, initializer, palette, command.designSystemId)
+            .execute(ownerContext(), command)
 
         assertIs<DsResult.Success<Tenant>>(result)
         assertEquals(ProjectId("project-1"), repository.createProject)
         assertEquals(command, repository.createCommand)
         assertEquals(command.designSystemId, initializer.tenant?.designSystemId)
+        assertEquals(emptyList(), initializer.values)
         assertEquals(initializer.tenant?.id, palette.initializedTenant)
     }
+
+    @Test
+    fun `create tenant rejects repeated value combination before creating`() = runBlocking {
+        val repository = RecordingTenantRepository()
+        val value = initialValue(UUID.randomUUID())
+        val command = CreateTenant(UUID.randomUUID(), "dark", null, ColorConfiguration(), listOf(value, value))
+        val initializer = RecordingTokenValueInitializer()
+
+        val result = createTenant(repository, initializer, FakeTenantPaletteRepository(null), command.designSystemId)
+            .execute(ownerContext(), command)
+
+        assertEquals(DsFailure.InvalidRequest("invalid_body"), assertIs<DsResult.Failure>(result).error)
+        assertEquals(null, repository.createCommand)
+        assertEquals(null, initializer.tenant)
+    }
+
+    @Test
+    fun `create tenant fails when initializer rejects a foreign token`() = runBlocking {
+        val repository = RecordingTenantRepository()
+        val command = CreateTenant(
+            UUID.randomUUID(),
+            "dark",
+            null,
+            ColorConfiguration(),
+            listOf(initialValue(UUID.randomUUID())),
+        )
+        val palette = FakeTenantPaletteRepository(null)
+
+        val result = createTenant(
+            repository,
+            RecordingTokenValueInitializer(accepts = false),
+            palette,
+            command.designSystemId,
+        )
+            .execute(ownerContext(), command)
+
+        assertEquals(DsFailure.InvalidRequest("invalid_tenant_token"), assertIs<DsResult.Failure>(result).error)
+        assertEquals(null, palette.initializedTenant)
+    }
+
+    private fun createTenant(
+        repository: TenantRepository,
+        initializer: TenantTokenValueInitializer,
+        palette: FakeTenantPaletteRepository,
+        designSystemId: UUID,
+    ) = CreateTenantUseCase(
+        policy,
+        transactions,
+        repository,
+        initializer,
+        palette,
+        IdempotentCreateExecutor(NoopIdempotentRequestRepository()),
+        NoopUniqueKeyLockRepository(),
+        com.dsbuilder.ds.themes.application.tokengroups.FakeTokenGroupRepository(designSystemId),
+        FakeColorTokenRepository(designSystemId),
+    )
+
+    private fun initialValue(tokenId: UUID) = TenantTokenValueInput(
+        tokenId,
+        ThemeTokenPlatform.WEB,
+        ThemeTokenMode.LIGHT,
+        null,
+        JsonPrimitive("1rem"),
+        baseRevision = 0,
+    )
 
     @Test
     fun `update tenant requires write permission before repository access`() = runBlocking {
@@ -222,11 +280,14 @@ private class RecordingTenantRepository : TenantRepository {
     }
 }
 
-private class RecordingTokenValueInitializer : TenantTokenValueInitializer {
+private class RecordingTokenValueInitializer(private val accepts: Boolean = true) : TenantTokenValueInitializer {
     var tenant: Tenant? = null
+    var values: List<TenantTokenValueInput>? = null
 
-    override suspend fun initialize(tenant: Tenant) {
+    override suspend fun initialize(tenant: Tenant, values: List<TenantTokenValueInput>): Boolean {
         this.tenant = tenant
+        this.values = values
+        return accepts
     }
 }
 

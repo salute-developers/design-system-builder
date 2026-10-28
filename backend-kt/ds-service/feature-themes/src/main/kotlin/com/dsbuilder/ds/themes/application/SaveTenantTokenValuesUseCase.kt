@@ -7,12 +7,7 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRepository
-import com.dsbuilder.ds.themes.application.colortokens.invalidTokenValue
-import com.dsbuilder.ds.themes.application.colortokens.valueRule
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
-import com.dsbuilder.ds.themes.domain.TenantTokenValueInput
-import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
-import com.dsbuilder.ds.themes.domain.colortokens.ColorValueShape
 import java.util.UUID
 
 /** Атомарно сохраняет полный набор platform-specific значений темы. */
@@ -20,9 +15,11 @@ class SaveTenantTokenValuesUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
     private val repository: TenantRepository,
-    private val tokens: ColorTokenRepository,
-    private val palette: TenantPaletteRepository,
+    tokens: ColorTokenRepository,
+    palette: TenantPaletteRepository,
 ) {
+    private val checks = TenantTokenValueChecks(tokens, palette)
+
     /** Выполняет сохранение для trusted project. */
     suspend fun execute(
         context: DsRequestContext,
@@ -35,13 +32,14 @@ class SaveTenantTokenValuesUseCase(
         )
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> if (command.values.duplicateKey()) {
+        is DsResult.Success -> if (command.values.hasDuplicateKey()) {
             DsResult.Failure(DsFailure.InvalidRequest("invalid_body"))
         } else {
             transactions.required(context) {
-                when (val outcome = repository.saveTokenValues(context.projectId, id, storedForm(command))) {
+                val stored = command.copy(values = checks.storedForm(command.values))
+                when (val outcome = repository.saveTokenValues(context.projectId, id, stored)) {
                     // Тема уже заблокирована сохранением; отказ проверки откатывает транзакцию целиком.
-                    is TenantTokenValuesSaveOutcome.Saved -> colorViolation(context, id, command.values)
+                    is TenantTokenValuesSaveOutcome.Saved -> checks.colorViolation(id, command.values)
                         ?.let { DsResult.Failure(it) }
                         ?: DsResult.Success(outcome)
                     is TenantTokenValuesSaveOutcome.RevisionConflict -> DsResult.Failure(
@@ -55,46 +53,4 @@ class SaveTenantTokenValuesUseCase(
             }
         }
     }
-
-    /**
-     * Сплошные значения iOS и Android цветовых и градиентных токенов хранятся строкой: слой `color` из запроса
-     * записывается как `[<цвет>]`. Тип токенов пакетная запись не меняет.
-     */
-    private suspend fun storedForm(command: SaveTenantTokenValues): SaveTenantTokenValues {
-        val colorTokens = tokens.tokenTypes(command.values.map { it.tokenId }.distinct())
-            .filterValues { it in ColorTokenFamily.TYPES }.keys
-        if (colorTokens.isEmpty()) return command
-        return command.copy(
-            values = command.values.map { value ->
-                if (value.tokenId in colorTokens) {
-                    value.copy(value = ColorValueShape.storedForm(value.platform, value.value))
-                } else {
-                    value
-                }
-            },
-        )
-    }
-
-    /** Первое недопустимое значение цветового или градиентного токена или `null`. */
-    private suspend fun colorViolation(
-        context: DsRequestContext,
-        tenantId: UUID,
-        values: List<TenantTokenValueInput>,
-    ): DsFailure? {
-        val types = tokens.tokenTypes(values.map { it.tokenId }.distinct())
-            .filterValues { it in ColorTokenFamily.TYPES }
-        val checked = values.filter { it.tokenId in types }
-        if (checked.isEmpty()) return null
-        val rule = palette.valueRule(tenantId)
-        return checked.firstNotNullOfOrNull { value ->
-            rule.validate(types.getValue(value.tokenId), value.platform, value.paletteId != null, value.value)
-                ?.let { reason ->
-                    val mode = value.mode?.wireValue.orEmpty()
-                    invalidTokenValue("${value.tokenId}:${value.platform.wireValue}:$mode", reason)
-                }
-        }
-    }
 }
-
-private fun List<TenantTokenValueInput>.duplicateKey(): Boolean =
-    map { "${it.tokenId}:${it.platform.wireValue}:${it.mode?.wireValue}" }.let { it.size != it.toSet().size }

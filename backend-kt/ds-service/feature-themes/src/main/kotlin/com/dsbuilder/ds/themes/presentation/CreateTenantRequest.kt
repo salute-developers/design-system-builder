@@ -15,4 +15,9 @@ data class CreateTenantRequest(
     val profile: String = "malachite",
     /** Палитра для профиля custom. */
     val customPalette: ColorConfigurationDto.CustomPaletteDto? = null,
+    /**
+     * Значения, которые заменяют начальные значения профиля для своих комбинаций `tokenId + platform + mode`, в форме
+     * значений `PUT /tenants/{id}/token-values`; `baseRevision` при создании не используется.
+     */
+    val values: List<BatchSaveTenantTokenValuesRequest.Value> = emptyList(),
 )

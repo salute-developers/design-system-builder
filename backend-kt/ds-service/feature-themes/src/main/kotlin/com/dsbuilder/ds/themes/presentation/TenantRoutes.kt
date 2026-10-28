@@ -141,11 +141,15 @@ fun Route.tenantRoutes(
             if (!request.valid() || (profile == ThemeProfile.CUSTOM && request.customPalette == null)) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
+            val initialValues = request.values.map { value ->
+                value.toInput() ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            }
             val command = CreateTenant(
                 designSystemId,
                 request.name.trim().replace(Regex("\\s+"), " "),
                 request.description?.trim(),
                 ColorConfiguration(profile = profile, customPalette = request.customPalette?.toDomain()),
+                initialValues,
             )
             val createContext = context.withIdempotentResponse<Tenant> {
                 json.encodeToString(TenantResponse.serializer(), TenantResponse.from(it))
@@ -214,18 +218,20 @@ private fun CreateTenantRequest.valid() = name.trim().isNotEmpty() && name.trim(
 private fun UpdateTenantRequest.valid() = (name?.trim()?.length ?: 0) <= 255 &&
     (description?.trim()?.length ?: 0) <= 1000
 
-@Suppress("ReturnCount")
 private fun BatchSaveTenantTokenValuesRequest.toCommand(): SaveTenantTokenValues? {
     if (editRevision < 0) return null
-    val inputs = values.map { value ->
-        val tokenId = value.tokenId.toUuid() ?: return null
-        val paletteId = value.paletteId?.toUuid() ?: if (value.paletteId == null) null else return null
-        val platform = ThemeTokenPlatform.fromWire(value.platform) ?: return null
-        val mode = value.mode?.let(ThemeTokenMode::fromWire) ?: if (value.mode == null) null else return null
-        if (value.baseRevision < 0) return null
-        TenantTokenValueInput(tokenId, platform, mode, paletteId, value.value, value.baseRevision)
-    }
+    val inputs = values.map { value -> value.toInput() ?: return null }
     return SaveTenantTokenValues(editRevision, inputs)
+}
+
+@Suppress("ReturnCount")
+private fun BatchSaveTenantTokenValuesRequest.Value.toInput(): TenantTokenValueInput? {
+    val tokenId = tokenId.toUuid() ?: return null
+    val paletteId = paletteId?.toUuid() ?: if (paletteId == null) null else return null
+    val platform = ThemeTokenPlatform.fromWire(platform) ?: return null
+    val mode = mode?.let(ThemeTokenMode::fromWire) ?: if (mode == null) null else return null
+    if (baseRevision < 0) return null
+    return TenantTokenValueInput(tokenId, platform, mode, paletteId, value, baseRevision)
 }
 
 private fun String.toUuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
