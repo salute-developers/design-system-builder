@@ -381,6 +381,24 @@ it('вместе с web-компонентом читает его зависи�
     expect(tabs?.deps?.[0]?.childName).toBe('TabItem');
 });
 
+it('канвас «Цвета» загружает компонент со связанными, не меняя активный раздел, и не читает его повторно', async () => {
+    reads.index.mockResolvedValue(['Tabs', 'TabItem', 'Other'].map(component));
+    reads.component.mockImplementation(async (_context, _signal, _platform, name) => [
+        name === 'TabItem' ? { ...component(name), composeParents: ['Tabs'] } : component(name),
+    ]);
+    const data = create();
+    await data.activate('colors');
+    expect(await data.loadComponent()).toMatchObject({ componentsChanged: true });
+    expect(data.currentSnapshot.componentsData.map((item) => item.name)).toEqual(['Tabs', 'TabItem', 'Other']);
+    expect(reads.component).not.toHaveBeenCalled();
+
+    await data.loadComponent('TabItem');
+    expect(reads.component.mock.calls.map((call) => call[3])).toEqual(['TabItem', 'Tabs']);
+    expect(data.activeSection).toBe('colors');
+    expect(await data.loadComponent('TabItem')).toBeUndefined();
+    expect(reads.component).toHaveBeenCalledTimes(2);
+});
+
 describe('параллельная загрузка выбранного компонента', () => {
     /** A ссылается на стили B и C, оба — на D; D ни на что не ссылается. */
     const references: Record<string, string[]> = { A: ['b.small', 'c.large'], B: ['d.small'], C: ['d.large'], D: [] };

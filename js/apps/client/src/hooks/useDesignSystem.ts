@@ -357,6 +357,11 @@ export const useDesignSystem = (
         },
         [designSystemProjectId],
     );
+    /** Загружает компонент (без имени — индекс компонентов) вне раздела компонентов: канвас «Цвета». */
+    const loadComponent = useCallback(
+        (name?: string) => autosaveSession.current?.loadComponent(name) ?? Promise.resolve(),
+        [],
+    );
     const refreshChanges = useCallback((changes: DraftChangeDto[]) => {
         const session = autosaveSession.current;
         if (!session) return Promise.reject(new Error('Редактор черновика недоступен'));
@@ -388,5 +393,6 @@ export const useDesignSystem = (
         lastSavedAt: lastSave?.key === autosaveContextKey ? lastSave.time : undefined,
         retryAutosave,
         refreshChanges,
+        loadComponent,
     };
 };

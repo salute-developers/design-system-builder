@@ -110,6 +110,35 @@ export class EditorSectionData {
         return read;
     }
 
+    /**
+     * Индекс компонентов, а с `component` — и данные компонента со связанными компонентами превью, не меняя активный
+     * раздел: так канвас раздела «Цвета» получает компонент, не открывая раздел компонентов. Уже загруженное не читается.
+     */
+    loadComponent(component?: string): Promise<SectionReadResult | undefined> {
+        const read = this.chain.catch(() => undefined).then(() => this.readComponentOutsideSection(component));
+        this.chain = read;
+        return read;
+    }
+
+    private async readComponentOutsideSection(component?: string): Promise<SectionReadResult | undefined> {
+        if (this.signal.aborted) throw new Error('EDITOR_CLOSED');
+        const activityRevision = getDraftAutosaveRevision(this.context);
+        if (this.shellStale) await this.readShell();
+        const generation = this.invalidated.get('components') ?? 0;
+        const key = component ? `components:${component}` : 'components';
+        if (this.loaded.get(key) === generation) return undefined;
+        const types = await this.readComponents(component, generation);
+        if (component) this.componentTypes.set(key, types);
+        if (this.signal.aborted) throw new Error('EDITOR_CLOSED');
+        return {
+            snapshot: this.snapshot,
+            tokensChanged: types.length > 0,
+            componentsChanged: true,
+            tokenTypes: types,
+            activityRevision,
+        };
+    }
+
     /** Одновременные чтения разделов ждут одно чтение оболочки, а не запускают каждое своё. */
     private readShell(): Promise<void> {
         this.shellRead ??= (async () => {
