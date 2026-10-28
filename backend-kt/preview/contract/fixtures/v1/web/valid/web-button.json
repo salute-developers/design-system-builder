@@ -1,0 +1,308 @@
+{
+  "protocolVersion": 1,
+  "requestId": "fixture-web-button",
+  "platform": "WEB",
+  "assets": [
+    {
+      "id": "body:4",
+      "type": "WOFF2",
+      "url": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansText.0.2.0/SBSansText-Regular.woff2"
+    },
+    {
+      "id": "body:5",
+      "type": "WOFF2",
+      "url": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansText.0.2.0/SBSansText-Semibold.woff2"
+    }
+  ],
+  "theme": {
+    "body.l.bold": {
+      "type": "typography",
+      "fontFamilyTokenId": "fontFamily.body",
+      "fontSize": 18,
+      "lineHeight": 22,
+      "letterSpacing": -0.36,
+      "weight": 600,
+      "fontStyle": "NORMAL"
+    },
+    "dark.background.default.primary": {
+      "type": "color",
+      "value": "#080808FF"
+    },
+    "dark.text.default.primary": {
+      "type": "color",
+      "value": "#F2F8F4FF"
+    },
+    "fontFamily.body": {
+      "type": "fontFamily",
+      "faces": [
+        {
+          "assetId": "body:4",
+          "weight": 400,
+          "style": "NORMAL"
+        },
+        {
+          "assetId": "body:5",
+          "weight": 600,
+          "style": "NORMAL"
+        }
+      ],
+      "allowFallback": true
+    },
+    "round.circle": {
+      "type": "shape",
+      "cornerRadii": [
+        10000,
+        10000,
+        10000,
+        10000
+      ]
+    },
+    "round.l@adjust(-2)": {
+      "type": "shape",
+      "cornerRadii": [
+        14,
+        14,
+        14,
+        14
+      ]
+    },
+    "surface.default.accent": {
+      "type": "color",
+      "value": "#19B9A5FF"
+    },
+    "surface.default.accent-active": {
+      "type": "color",
+      "value": "#18952FFF"
+    },
+    "surface.default.accent-hover": {
+      "type": "color",
+      "value": "#1DAF37FF"
+    },
+    "surface.default.transparent-secondary": {
+      "type": "color",
+      "value": "#FFFFFF1F"
+    },
+    "surface.default.transparent-secondary-active": {
+      "type": "color",
+      "value": "#FFFFFF0F"
+    },
+    "surface.default.transparent-secondary-hover": {
+      "type": "color",
+      "value": "#FFFFFF3D"
+    },
+    "text.default.primary": {
+      "type": "color",
+      "value": "#F2F8F4FF"
+    },
+    "text.on-dark.primary": {
+      "type": "color",
+      "value": "#FFFFFFFF"
+    }
+  },
+  "component": {
+    "id": "Button",
+    "variations": {
+      "view": "accent",
+      "size": "l",
+      "shape": "pilled"
+    },
+    "properties": {
+      "backgroundColor": {
+        "base": {
+          "type": "tokenRef",
+          "tokenId": "surface.default.accent"
+        },
+        "states": [
+          {
+            "when": [
+              "hovered"
+            ],
+            "source": {
+              "type": "tokenRef",
+              "tokenId": "surface.default.accent-hover"
+            }
+          },
+          {
+            "when": [
+              "pressed"
+            ],
+            "source": {
+              "type": "tokenRef",
+              "tokenId": "surface.default.accent-active"
+            }
+          }
+        ]
+      },
+      "labelColor": {
+        "base": {
+          "type": "tokenRef",
+          "tokenId": "text.on-dark.primary"
+        }
+      },
+      "height": {
+        "base": {
+          "type": "literal",
+          "value": 56
+        }
+      },
+      "labelStyle": {
+        "base": {
+          "type": "tokenRef",
+          "tokenId": "body.l.bold"
+        }
+      },
+      "paddingEnd": {
+        "base": {
+          "type": "literal",
+          "value": 24
+        }
+      },
+      "shape": {
+        "base": {
+          "type": "tokenRef",
+          "tokenId": "round.circle"
+        }
+      },
+      "disableAlpha": {
+        "base": {
+          "type": "literal",
+          "value": 0.4
+        }
+      }
+    }
+  },
+  "styles": {
+    "Button/view/accent": {
+      "component": "Button",
+      "variation": "view",
+      "name": "accent",
+      "properties": {
+        "backgroundColor": {
+          "base": {
+            "type": "tokenRef",
+            "tokenId": "surface.default.accent"
+          },
+          "states": [
+            {
+              "when": [
+                "hovered"
+              ],
+              "source": {
+                "type": "tokenRef",
+                "tokenId": "surface.default.accent-hover"
+              }
+            },
+            {
+              "when": [
+                "pressed"
+              ],
+              "source": {
+                "type": "tokenRef",
+                "tokenId": "surface.default.accent-active"
+              }
+            }
+          ]
+        },
+        "labelColor": {
+          "base": {
+            "type": "tokenRef",
+            "tokenId": "text.on-dark.primary"
+          }
+        }
+      }
+    },
+    "Button/view/secondary": {
+      "component": "Button",
+      "variation": "view",
+      "name": "secondary",
+      "properties": {
+        "backgroundColor": {
+          "base": {
+            "type": "tokenRef",
+            "tokenId": "surface.default.transparent-secondary"
+          },
+          "states": [
+            {
+              "when": [
+                "pressed"
+              ],
+              "source": {
+                "type": "tokenRef",
+                "tokenId": "surface.default.transparent-secondary-active"
+              }
+            },
+            {
+              "when": [
+                "hovered"
+              ],
+              "source": {
+                "type": "tokenRef",
+                "tokenId": "surface.default.transparent-secondary-hover"
+              }
+            }
+          ]
+        },
+        "labelColor": {
+          "base": {
+            "type": "tokenRef",
+            "tokenId": "text.default.primary"
+          }
+        }
+      }
+    },
+    "Button/size/l": {
+      "component": "Button",
+      "variation": "size",
+      "name": "l",
+      "properties": {
+        "height": {
+          "base": {
+            "type": "literal",
+            "value": 56
+          }
+        },
+        "labelStyle": {
+          "base": {
+            "type": "tokenRef",
+            "tokenId": "body.l.bold"
+          }
+        },
+        "paddingEnd": {
+          "base": {
+            "type": "literal",
+            "value": 24
+          }
+        },
+        "shape": {
+          "base": {
+            "type": "tokenRef",
+            "tokenId": "round.l@adjust(-2)"
+          }
+        }
+      }
+    },
+    "Button/invariants": {
+      "component": "Button",
+      "invariant": true,
+      "properties": {
+        "disableAlpha": {
+          "base": {
+            "type": "literal",
+            "value": 0.4
+          }
+        }
+      }
+    }
+  },
+  "example": {
+    "id": "Default",
+    "props": {
+      "text": "Купить"
+    }
+  },
+  "surface": {
+    "width": 360,
+    "height": 160,
+    "background": "dark.background.default.primary"
+  }
+}
