@@ -821,9 +821,10 @@
     background: var(--builder-ui-surface-transparent-primary,#ffffff08);
 }
 
-/* Выбранный радиус обведён, как выбранный отступ и выбранная тень. */
+/* Выбранный радиус обведён со скруглением, как выбранный отступ и выбранная тень. */
 .size-tokens-screen .radius-overview-row.is-selected,
 .size-tokens-screen .radius-overview-row:focus-visible {
+    border-radius: 12px;
     outline: 2px solid var(--builder-accent,#2b8ced);
     outline-offset: -2px;
 }
@@ -3720,7 +3721,17 @@
     background-color: transparent;
 }
 
-/* Без собственной подложки у полей значения фокус отмечается рамкой всего поля. */
+/* Фокус полей инспектора — синяя рамка, как у HEX, вместо кольца фокуса браузера: оно светлое и в Safari
+ * рисуется белой рамкой. У полей значения рамка у всего поля, у самого поля внутри её нет. */
+.size-tokens-screen .properties-panel input:focus-visible {
+    outline: 1px solid #4284ff;
+    outline-offset: -1px;
+}
+
+.size-tokens-screen .properties-panel .figma-value-control input:focus-visible {
+    outline: 0;
+}
+
 .size-tokens-screen .properties-panel .figma-value-control:has(input:focus-visible) {
     outline: 1px solid #4284ff;
     outline-offset: -1px;
