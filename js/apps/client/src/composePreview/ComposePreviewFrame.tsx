@@ -4,13 +4,15 @@ import { loadComposePreviewManifest } from './manifest';
 import { ComposePreviewResultError, ComposePreviewSession, ComposePreviewTimeoutError } from './session';
 import { isDebugMode } from '../utils/debugMode';
 
-import { PreviewComponentDescription, PreviewFailureDetails, PreviewPayloadInput } from './types';
+import { PreviewPayloadInput, PreviewComponentDescription, PreviewFailureDetails, PreviewPluginPlatform } from './types';
 import type { LoadedComposePreviewManifest } from './types';
 import { ComposeFailureDetails } from './ComposeFailureDetails';
 import { FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
 
 export interface ComposePreviewFrameProps {
     pluginUrl: string;
+    /** Платформа плагина: манифест другой платформы отклоняется. По умолчанию `compose`. */
+    platform?: PreviewPluginPlatform;
     /** Без payload плагин только загружается и ждёт `ready`: так хост раздела прогревает его до выбора компонента. */
     payload?: PreviewPayloadInput;
     /**
@@ -18,10 +20,12 @@ export interface ComposePreviewFrameProps {
      * нового payload, а описание компонента запрашивается заново.
      */
     subscriber?: string;
+    /** Story, которую описывает `describe`; при смене описание запрашивается заново. Без него — story по умолчанию. */
+    storyId?: string;
     timeoutMs?: number;
     onDescription?: (description: PreviewComponentDescription) => void;
     onDescriptionError?: (error: Error) => void;
-    loadManifest?: (pluginUrl: string) => Promise<LoadedComposePreviewManifest>;
+    loadManifest?: (pluginUrl: string, platform: PreviewPluginPlatform) => Promise<LoadedComposePreviewManifest>;
     createSession?: (
         plugin: LoadedComposePreviewManifest,
         targetWindow: Window,
@@ -49,13 +53,24 @@ const isPluginCrash = (error: unknown) =>
 const failureDetails = (error: unknown): PreviewFailureDetails | undefined =>
     error instanceof ComposePreviewResultError && error.result.type === 'failure' ? error.result.details : undefined;
 
+const FRAME_LABELS: Record<PreviewPluginPlatform, { title: string; loading: string; rendering: string }> = {
+    compose: {
+        title: 'Compose component preview',
+        loading: 'Loading Compose preview…',
+        rendering: 'Rendering Compose preview…',
+    },
+    web: { title: 'Web component preview', loading: 'Loading web preview…', rendering: 'Rendering web preview…' },
+};
+
 const defaultCreateSession: NonNullable<ComposePreviewFrameProps['createSession']> = (plugin, targetWindow, timeoutMs) =>
     new ComposePreviewSession(plugin, { targetWindow, timeoutMs });
 
 export const ComposePreviewFrame = ({
     pluginUrl,
+    platform = 'compose',
     payload,
     subscriber = '',
+    storyId,
     timeoutMs,
     onDescription,
     onDescriptionError,
@@ -88,6 +103,10 @@ export const ComposePreviewFrame = ({
     // У скрытой страницы браузер останавливает кадры, и плагин не может подтвердить отрисовку: это не сбой.
     const stalledWhileHiddenRef = useRef(false);
     const [resendTick, setResendTick] = useState(0);
+    // Первое событие `load` после того, как хост сам назначил `src`, — обычная загрузка, а не перезапуск плагина.
+    // Плагин может прислать `ready` раньше `load` (web-плагин шлёт его сразу при старте скрипта); без этого флага
+    // `onLoad` сбросил бы уже готовую сессию и ждал второго `ready` до таймаута.
+    const initialLoadPendingRef = useRef(false);
     const [crashNotice, setCrashNotice] = useState<{ key: string; message: string; details?: PreviewFailureDetails }>();
 
     useEffect(() => {
@@ -100,11 +119,12 @@ export const ComposePreviewFrame = ({
         setFailure(undefined);
         resetReveal();
 
-        void loadManifest(pluginUrl)
+        void loadManifest(pluginUrl, platform)
             .then((plugin) => {
                 if (cancelled || !iframe.contentWindow) return;
                 const session = createSession(plugin, iframe.contentWindow, timeoutMs);
                 sessionRef.current = session;
+                initialLoadPendingRef.current = true;
                 iframe.src = plugin.entrypointUrl.href;
                 return session.waitUntilReady();
             })
@@ -127,14 +147,17 @@ export const ComposePreviewFrame = ({
             latestRequestRef.current = undefined;
             latestDescriptionRef.current = undefined;
         };
-    }, [pluginUrl, timeoutMs, loadManifest, createSession, generation]);
+    }, [pluginUrl, platform, timeoutMs, loadManifest, createSession, generation]);
 
     const componentId = payload?.component.id;
     useEffect(() => {
         const session = sessionRef.current;
         if (!session || !readyVersion || !sessionReadyRef.current || !componentId) return;
 
-        const { requestId, result } = session.describeComponent(componentId);
+        const { requestId, result } =
+            storyId === undefined
+                ? session.describeComponent(componentId)
+                : session.describeComponent(componentId, storyId);
         latestDescriptionRef.current = requestId;
         void result
             .then((description) => {
@@ -144,7 +167,7 @@ export const ComposePreviewFrame = ({
                 if (latestDescriptionRef.current !== requestId) return;
                 onDescriptionError?.(error instanceof Error ? error : new Error(String(error)));
             });
-    }, [componentId, subscriber, readyVersion, onDescription, onDescriptionError]);
+    }, [componentId, storyId, subscriber, readyVersion, onDescription, onDescriptionError]);
 
     useEffect(() => {
         const onVisible = () => {
@@ -226,17 +249,22 @@ export const ComposePreviewFrame = ({
     // Уведомление о сбое относится к payload, который остановил плагин; без payload его нет.
     const activeCrash = crashNotice && payload && crashNotice.key === payloadKey ? crashNotice : undefined;
     const cause = failure ? failureCause : activeCrash?.details;
+    const labels = FRAME_LABELS[platform];
 
     return (
         <FrameRoot data-status={status}>
             <PreviewIframe
                 ref={iframeRef}
-                title="Compose component preview"
+                title={labels.title}
                 // Отказ показывает iframe как раньше, но не кадр, открытый для другого получателя.
                 $hidden={!revealed && (status !== 'failure' || revealedFor !== undefined)}
                 data-revealed={revealed}
                 sandbox="allow-scripts allow-same-origin"
                 onLoad={() => {
+                    if (initialLoadPendingRef.current) {
+                        initialLoadPendingRef.current = false;
+                        return;
+                    }
                     const session = sessionRef.current;
                     if (!session || status === 'loading') return;
 
@@ -263,9 +291,9 @@ export const ComposePreviewFrame = ({
                 }}
             />
             {(status === 'loading' || (status === 'ready' && !payload && subscriber)) && (
-                <Status>Loading Compose preview…</Status>
+                <Status>{labels.loading}</Status>
             )}
-            {status === 'rendering' && <Status>Rendering Compose preview…</Status>}
+            {status === 'rendering' && <Status>{labels.rendering}</Status>}
             {(failure ?? activeCrash?.message) && <Status role="alert">{failure ?? activeCrash?.message}</Status>}
             {isDebugMode() && cause && <ComposeFailureDetails details={cause} />}
         </FrameRoot>

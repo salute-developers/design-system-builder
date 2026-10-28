@@ -1,8 +1,18 @@
-import { createContext, ReactNode, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+    Context,
+    createContext,
+    ReactNode,
+    useCallback,
+    useContext,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 
 import { ComposePreviewFrame, ComposePreviewFrameProps } from './ComposePreviewFrame';
 import { HostLayer, SlotRoot } from './ComposePreviewHost.styles';
-import type { PreviewComponentDescription, PreviewPayloadInput } from './types';
+import type { PreviewPayloadInput, PreviewComponentDescription, PreviewPluginPlatform } from './types';
 
 /** Что область превью просит показать в общем iframe плагина. */
 export interface ComposePreviewHostRequest {
@@ -10,12 +20,14 @@ export interface ComposePreviewHostRequest {
     owner: string;
     /** Без payload область показывает состояние загрузки. */
     payload?: PreviewPayloadInput;
+    /** Story, которую описывает `describe`; без него — story по умолчанию. */
+    storyId?: string;
     onDescription?: (description: PreviewComponentDescription) => void;
     onDescriptionError?: (error: Error) => void;
 }
 
 /**
- * Хост Compose-плагина раздела компонентов: одна сессия и один iframe на раздел. Область превью отдаёт ему свой узел,
+ * Хост плагина превью одной платформы в разделе компонентов: одна сессия и один iframe на раздел и платформу. Область превью отдаёт ему свой узел,
  * и iframe позиционируется над ним; сам iframe в DOM не переносится, иначе браузер загрузил бы плагин заново.
  */
 export interface ComposePreviewHost {
@@ -25,14 +37,22 @@ export interface ComposePreviewHost {
     hide(owner: string): void;
 }
 
-const ComposePreviewHostContext = createContext<ComposePreviewHost | undefined>(undefined);
+// Своё значение контекста у каждой платформы: провайдеры вложены друг в друга, и хост web-платформы не перекрывает
+// хост Compose.
+const hostContexts: Record<PreviewPluginPlatform, Context<ComposePreviewHost | undefined>> = {
+    compose: createContext<ComposePreviewHost | undefined>(undefined),
+    web: createContext<ComposePreviewHost | undefined>(undefined),
+};
 
-/** Хост раздела; `undefined` вне раздела или когда адреса плагина нет. */
-export const useComposePreviewHost = () => useContext(ComposePreviewHostContext);
+/** Хост раздела для платформы; `undefined` вне раздела или когда адреса плагина этой платформы нет. */
+export const useComposePreviewHost = (platform: PreviewPluginPlatform = 'compose') =>
+    useContext(hostContexts[platform]);
 
 type FrameOptions = Pick<ComposePreviewFrameProps, 'timeoutMs' | 'loadManifest' | 'createSession'>;
 
 interface ComposePreviewHostProviderProps extends FrameOptions {
+    /** Платформа плагина: `compose` (по умолчанию) или `web`. У каждой платформы свой хост, сессия и iframe. */
+    platform?: PreviewPluginPlatform;
     /** Адрес плагина; без него хоста нет. Смена адреса уничтожает сессию и iframe. */
     pluginUrl?: string;
     /** Контекст дизайн-системы: при смене сессия и iframe создаются заново. */
@@ -48,6 +68,7 @@ interface ActiveRequest {
 }
 
 export const ComposePreviewHostProvider = ({
+    platform = 'compose',
     pluginUrl,
     scope = '',
     preload = false,
@@ -72,22 +93,31 @@ export const ComposePreviewHostProvider = ({
         [],
     );
 
+    const HostContext = hostContexts[platform];
+
     return (
-        <ComposePreviewHostContext.Provider value={pluginUrl ? host : undefined}>
+        <HostContext.Provider value={pluginUrl ? host : undefined}>
             {children}
             {pluginUrl && (preload || requestedKey === layerKey) && (
-                <ComposePreviewHostFrame key={layerKey} pluginUrl={pluginUrl} active={active} {...frameOptions} />
+                <ComposePreviewHostFrame
+                    key={layerKey}
+                    platform={platform}
+                    pluginUrl={pluginUrl}
+                    active={active}
+                    {...frameOptions}
+                />
             )}
-        </ComposePreviewHostContext.Provider>
+        </HostContext.Provider>
     );
 };
 
 interface ComposePreviewHostFrameProps extends FrameOptions {
+    platform: PreviewPluginPlatform;
     pluginUrl: string;
     active?: ActiveRequest;
 }
 
-const ComposePreviewHostFrame = ({ pluginUrl, active, ...frameOptions }: ComposePreviewHostFrameProps) => {
+const ComposePreviewHostFrame = ({ platform, pluginUrl, active, ...frameOptions }: ComposePreviewHostFrameProps) => {
     const layerRef = useRef<HTMLDivElement>(null);
     const activeRef = useRef(active);
     activeRef.current = active;
@@ -115,11 +145,13 @@ const ComposePreviewHostFrame = ({ pluginUrl, active, ...frameOptions }: Compose
     }, [slot]);
 
     return (
-        <HostLayer ref={layerRef} data-testid="compose-preview-host" $visible={Boolean(slot)} aria-hidden={!slot}>
+        <HostLayer ref={layerRef} data-testid={`${platform}-preview-host`} $visible={Boolean(slot)} aria-hidden={!slot}>
             <ComposePreviewFrame
+                platform={platform}
                 pluginUrl={pluginUrl}
                 payload={active?.request.payload}
                 subscriber={active?.request.owner}
+                storyId={active?.request.storyId}
                 onDescription={onDescription}
                 onDescriptionError={onDescriptionError}
                 {...frameOptions}
@@ -194,27 +226,33 @@ const followSlot = (layer: HTMLElement, slot: HTMLElement) => {
 let nextSlotId = 0;
 
 interface ComposePreviewSlotProps {
+    /** Платформа плагина: область показывает iframe хоста этой платформы. По умолчанию `compose`. */
+    platform?: PreviewPluginPlatform;
     pluginUrl: string;
     /** Компонент редактора, чей кадр показывает область. */
     owner: string;
     /** Пока payload нет, область показывает состояние загрузки. */
     payload?: PreviewPayloadInput;
+    /** Story, которую описывает `describe`; при смене описание запрашивается заново. */
+    storyId?: string;
     onDescription?: (description: PreviewComponentDescription) => void;
     onDescriptionError?: (error: Error) => void;
 }
 
 /**
- * Область Compose-превью. В разделе компонентов показывает общий iframe хоста; вне хоста (нет провайдера) рисует
+ * Область превью плагина. В разделе компонентов показывает общий iframe хоста своей платформы; вне хоста (нет провайдера) рисует
  * собственный ComposePreviewFrame, как раньше.
  */
 export const ComposePreviewSlot = ({
+    platform = 'compose',
     pluginUrl,
     owner,
     payload,
+    storyId,
     onDescription,
     onDescriptionError,
 }: ComposePreviewSlotProps) => {
-    const host = useComposePreviewHost();
+    const host = useComposePreviewHost(platform);
     const slotRef = useRef<HTMLDivElement>(null);
     // Каждая область — новый получатель, даже для того же компонента: её состояние описания пустое.
     const [slotId] = useState(() => ++nextSlotId);
@@ -223,8 +261,8 @@ export const ComposePreviewSlot = ({
     useLayoutEffect(() => {
         const slot = slotRef.current;
         if (!host || !slot) return;
-        host.render({ owner: subscriber, payload, onDescription, onDescriptionError }, slot);
-    }, [host, subscriber, payload, onDescription, onDescriptionError]);
+        host.render({ owner: subscriber, payload, storyId, onDescription, onDescriptionError }, slot);
+    }, [host, subscriber, payload, storyId, onDescription, onDescriptionError]);
 
     useLayoutEffect(() => {
         if (!host) return;
@@ -234,14 +272,16 @@ export const ComposePreviewSlot = ({
     if (!host) {
         return (
             <ComposePreviewFrame
+                platform={platform}
                 pluginUrl={pluginUrl}
                 payload={payload}
                 subscriber={subscriber}
+                storyId={storyId}
                 onDescription={onDescription}
                 onDescriptionError={onDescriptionError}
             />
         );
     }
 
-    return <SlotRoot ref={slotRef} data-testid="compose-preview-slot" />;
+    return <SlotRoot ref={slotRef} data-testid={`${platform}-preview-slot`} />;
 };

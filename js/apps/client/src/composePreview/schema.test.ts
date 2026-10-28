@@ -42,6 +42,23 @@ describe('Preview Protocol v1 shared fixtures', () => {
     });
 });
 
+// Фикстуры платформы web лежат отдельно от общих (`fixtures/v1/web`): общие копируются в plasma-android,
+// а web-payload Android-репозиторию не нужен. Схема у них общая.
+const webFixtures = () =>
+    readdirSync(`${contractRoot}fixtures/v1/web/valid`)
+        .filter((name) => name.endsWith('.json'))
+        .sort()
+        .map((name) => [name, readJson(`fixtures/v1/web/valid/${name}`)] as const);
+
+describe('Preview Protocol v1 web fixtures', () => {
+    it('has web fixtures', () => {
+        expect(webFixtures().length).toBeGreaterThan(0);
+    });
+    it.each(webFixtures())('accepts web fixture %s', (_name, payload) => {
+        expect(validate(payload), ajv.errorsText(validate.errors)).toBe(true);
+    });
+});
+
 describe('Preview Protocol v1 schema', () => {
     it('accepts the assembled wire payload after the session adds requestId', () => {
         const controllerDraft = createControllerDraftFixture();

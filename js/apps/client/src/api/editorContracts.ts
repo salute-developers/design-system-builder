@@ -9,7 +9,6 @@ import type {
     ComponentDependencyDto,
     PropertyPlatformParamDto,
     PropertyVariationDto,
-    WebAdapterComponentDto,
 } from './componentModelEnrichment';
 
 export interface EditorContextKey {
@@ -153,7 +152,6 @@ export interface ComponentEditorBundleDto {
     propertyVariations: PropertyVariationDto[];
     variations: ComponentVariationDto[];
     styles: ComponentStyleDto[];
-    webAdapter: WebAdapterComponentDto | null;
     dependencies: ComponentDependencyDto[];
     dependencyComponents: ComponentDto[];
 }

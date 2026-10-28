@@ -22,7 +22,7 @@ type CopyState = 'idle' | 'copied' | 'failed';
 const format = (payload: PreviewPayloadInput) => JSON.stringify(payload, null, 2);
 
 /**
- * Отладочный блок под Compose-превью: JSON последнего собранного payload (без `requestId`, его добавляет сессия при
+ * Отладочный блок под превью плагина: JSON последнего собранного payload (без `requestId`, его добавляет сессия при
  * отправке). Показывается только в debug-режиме; форматирование откладывается до разворачивания блока.
  */
 export const ComposePayloadDebug = ({ payload }: ComposePayloadDebugProps) => {

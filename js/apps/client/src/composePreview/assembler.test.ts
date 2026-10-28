@@ -34,6 +34,26 @@ describe('assembleComposePreviewPayload', () => {
         expect(family.type === 'fontFamily' && family.faces.length).toBeGreaterThan(0);
     });
 
+    it('does not derive web state tokens: a state without a value is left to the web plugin', () => {
+        const web = draft();
+        web.rendererPlatform = 'WEB';
+        web.themeValuePlatform = 'web';
+        for (const property of [...web.invariantProperties, ...web.selectedStyleProperties]) {
+            property.webParameters = property.composeParameters;
+        }
+        const background = [...web.invariantProperties, ...web.selectedStyleProperties].find(
+            (property) => property.name === 'backgroundColor',
+        )!;
+        background.states = [{ names: ['hovered'] }, { names: ['pressed'], value: 'color.pressed' }];
+        const result = assembleComposePreviewPayload(web);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.payload.component.properties.backgroundColor.states).toEqual([
+            { when: ['pressed'], source: { type: 'tokenRef', tokenId: 'color.pressed' } },
+        ]);
+        expect(Object.keys(result.payload.theme).some((id) => id.endsWith('-hover'))).toBe(false);
+    });
+
     it('rejects missing mappings, conflicts, cycles and unavailable platform values', () => {
         const missingMapping = draft();
         missingMapping.invariantProperties[0].composeParameters = [];

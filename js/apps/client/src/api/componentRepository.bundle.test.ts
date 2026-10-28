@@ -12,7 +12,6 @@ import type {
     ComponentDependencyDto,
     PropertyPlatformParamDto,
     PropertyVariationDto,
-    WebAdapterComponentDto,
 } from './componentModelEnrichment';
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
@@ -92,14 +91,6 @@ const propertyVariations: PropertyVariationDto[] = [
     { propertyId: 'p-height', variationId: 'v-size' },
     { propertyId: 'p-color', variationId: 'v-view' },
     { propertyId: 'p-other', variationId: 'v-other' },
-];
-const webAdapter: WebAdapterComponentDto[] = [
-    {
-        componentName: 'button',
-        name: 'Button',
-        styles: { default: { templates: { height: { buttonMinHeight: '$1 1rem' } } } },
-    },
-    { componentName: 'link', name: 'Link', styles: null },
 ];
 const dependencies: ComponentDependencyDto[] = [
     { parentId: 'c-button', childId: 'c-icon', type: 'reuse', order: 2 },
@@ -202,7 +193,6 @@ const bundle = (componentId: string, platform: 'web' | 'compose'): ComponentEdit
             platform === 'web' ? propertyVariations.filter((item) => propertyIds.has(item.propertyId)) : [],
         variations: variations[componentId],
         styles: styles[componentId],
-        webAdapter: platform === 'web' ? (webAdapter.find((item) => item.name === component.name) ?? null) : null,
         dependencies: related,
         dependencyComponents: catalog.filter(
             (item) =>
@@ -231,7 +221,6 @@ beforeEach(() => {
                     ),
                 },
             });
-        if (url.endsWith('/component-config/web-adapter')) return Promise.resolve({ data: webAdapter });
         throw new Error(`Unexpected POST ${url}`);
     });
 });

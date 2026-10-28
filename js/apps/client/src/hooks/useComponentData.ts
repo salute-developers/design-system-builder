@@ -53,10 +53,8 @@ const getDefaults = (config?: Config, args?: Record<string, string | boolean>) =
     return { variationID, styleID: value };
 };
 
-const getStoryDefaults = (storyArgs: Record<string, any>[]) =>
-    storyArgs.reduce<Record<string, any>>((acc, { name, value }) => ({ ...acc, [name]: value }), {});
-
-export const useComponentData = (config?: Config, storyArgs: Record<string, any>[] = []) => {
+/** Выбор вариаций редактора: стили по умолчанию при открытии компонента. Аргументы story описывает плагин превью. */
+export const useComponentData = (config?: Config) => {
     const [componentProps, setComponentProps] = useState<Record<string, string | boolean>>({});
     const { variationID, styleID } = getDefaults(config, componentProps);
 
@@ -69,12 +67,12 @@ export const useComponentData = (config?: Config, storyArgs: Record<string, any>
         }
 
         const defaults = getDefaultProps(config);
-        setComponentProps({ ...getStoryDefaults(storyArgs), ...defaults });
+        setComponentProps(defaults);
 
         const newDefaults = getDefaults(config, defaults);
         setSelectedVariation(newDefaults.variationID);
         setSelectedStyle(newDefaults.styleID);
-    }, [config, storyArgs]);
+    }, [config]);
 
     return [
         selectedVariation,

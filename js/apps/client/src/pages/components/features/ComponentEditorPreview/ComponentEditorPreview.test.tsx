@@ -60,10 +60,6 @@ vi.mock('../../../../hooks', async (importOriginal) => {
     return {
         ...actual,
         useInputDynamicWidth: () => [100],
-        useStory: () => ({
-            storyArgs: [{ name: 'reactOnly', value: 'React' }],
-            Story: () => <div>React story</div>,
-        }),
     };
 });
 
@@ -85,14 +81,8 @@ const renderPreview = () =>
             config={config as never}
             theme={theme as never}
             args={{ reactOnly: 'React', variant: 'variation-value' }}
-            storyArgs={[]}
-            storyItems={[]}
-            selectedStory={{ label: '', value: '' }}
-            componentVars={{}}
-            themeVars={{}}
             themeModeList={[{ label: 'Светлый', value: 'light' }]}
             themeMode={{ label: 'Светлый', value: 'light' }}
-            onStorySelect={vi.fn()}
             onUpdateThemeMode={vi.fn()}
             onChange={vi.fn()}
         />,
@@ -106,7 +96,7 @@ describe('ComponentEditorPreview Compose controls', () => {
     });
     afterEach(cleanup);
 
-    it('renders exactly the BasicButton descriptor controls and excludes React/variation props', async () => {
+    it('renders exactly the BasicButton descriptor controls and excludes non-variation editor args', async () => {
         renderPreview();
         fireEvent.click(await screen.findByText('Compose'));
         await screen.findByTestId('compose-frame');
@@ -126,7 +116,7 @@ describe('ComponentEditorPreview Compose controls', () => {
         });
     });
 
-    it('updates typed Compose state without calling React or variation callbacks', async () => {
+    it('updates typed Compose state without calling variation callbacks', async () => {
         const view = renderPreview();
         fireEvent.click(await screen.findByText('Compose'));
         const labelInput = await screen.findByDisplayValue('label');
