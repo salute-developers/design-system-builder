@@ -13,7 +13,13 @@
         "lint": "eslint .",
         "preview": "vite preview",
         "dev:compose-plugin": "node scripts/serve-compose-plugin.mjs",
-        "test:browser-smoke": "playwright test"
+        "test:browser-smoke": "playwright test",
+        "test:e2e:types": "tsc --project tsconfig.e2e.json",
+        "test:e2e:check": "npm run test:e2e:types && node scripts/e2e.mjs --list",
+        "test:e2e": "node scripts/e2e.mjs",
+        "test:e2e:headed": "node scripts/e2e.mjs --headed",
+        "test:e2e:debug": "node scripts/e2e.mjs --debug",
+        "test:e2e:install-browser": "playwright install chromium"
     },
     "dependencies": {
         "@salutejs/plasma-b2c": "latest",
