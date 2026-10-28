@@ -67,6 +67,8 @@ export interface ColorTokensScreenProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
+    /** Загрузка компонента для канваса (без имени — список компонентов); без неё канвас берёт уже загруженные. */
+    loadComponent?: (name?: string) => Promise<void>;
 }
 
 /** Вкладка «Доступность» пока скрыта по решению команды; панель и расчёт пар контраста остаются в коде. */
@@ -145,6 +147,22 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [workspace, setWorkspace] = useState<'overview' | 'accessibility'>('overview');
     const [canvas, setCanvas] = useState<string>('palette');
     const [canvasMenu, setCanvasMenu] = useState(false);
+    // Компонент канваса читается при выборе: раздел «Цвета» знает компоненты только по индексу.
+    const [canvasLoad, setCanvasLoad] = useState<{ name: string; error?: string } | null>(null);
+    const { loadComponent } = props;
+    const openCanvas = (id: string) => {
+        setCanvas(id);
+        setCanvasMenu(false);
+        if (id === 'palette' || !loadComponent) {
+            setCanvasLoad(null);
+            return;
+        }
+        setCanvasLoad({ name: id });
+        loadComponent(id).then(
+            () => setCanvasLoad((current) => (current?.name === id ? null : current)),
+            (error) => setCanvasLoad((current) => (current?.name === id ? { name: id, error: errorText(error) } : current)),
+        );
+    };
     const canvasMenuRef = useRef<HTMLDivElement>(null);
     const selectionKey = `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
     const [selectedId, setSelectedId] = useState<string | null>(() => lastSelection.get(selectionKey) ?? null);
@@ -657,7 +675,10 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                                     className="editor-header-select"
                                     aria-expanded={canvasMenu}
                                     title="Представление рабочей области"
-                                    onClick={() => setCanvasMenu((open) => !open)}
+                                    onClick={() => {
+                                        if (!canvasMenu) void loadComponent?.().catch(() => undefined);
+                                        setCanvasMenu((open) => !open);
+                                    }}
                                 >
                                     <span>{canvasOptions.find((item) => item.id === canvas)?.label ?? 'Палитра'}</span>
                                     <CtGlyph name="chevron-down" />
@@ -669,10 +690,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                                                 key={item.id}
                                                 type="button"
                                                 className={canvas === item.id ? 'is-selected' : ''}
-                                                onClick={() => {
-                                                    setCanvas(item.id);
-                                                    setCanvasMenu(false);
-                                                }}
+                                                onClick={() => openCanvas(item.id)}
                                             >
                                                 {item.label}
                                             </button>
@@ -807,6 +825,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             displayName={tokenLabel}
                             onOpenComponent={openComponent}
                         />
+                    ) : canvasLoad?.name === canvas ? (
+                        <div className="ct-tree-empty" role="status" data-testid="color-tokens-canvas-loading">
+                            {canvasLoad.error
+                                ? `Не удалось загрузить компонент: ${canvasLoad.error}`
+                                : 'Загружаем компонент…'}
+                        </div>
                     ) : canvasConfig ? (
                         <ComponentCanvas
                             designSystem={designSystem}

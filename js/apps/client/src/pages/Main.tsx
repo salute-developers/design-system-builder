@@ -104,6 +104,7 @@ export const Main = () => {
         lastSavedAt,
         retryAutosave,
         refreshChanges,
+        loadComponent,
     } = useDesignSystem(editorContext, true, sectionSelection);
 
     // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
@@ -406,6 +407,7 @@ export const Main = () => {
                                 editorJournal: { ...editorJournal, reloadChecked: reloadJournalAfterRevert },
                                 changedTokenNames,
                                 refreshChanges,
+                                loadComponent,
                             }}
                         />
                     )}
