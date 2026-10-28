@@ -35,6 +35,7 @@ interface InspectorProps {
     editable: boolean;
     canDelete: boolean;
     openPicker: PickerTarget | null;
+    invalidField: PickerTarget | null;
     /** Получает кнопку цвета поля с открытым выбором цвета. */
     pickerAnchor?: (node: HTMLElement | null) => void;
     save: SaveStatus;
@@ -220,6 +221,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     value={value}
                     editable={editable}
                     pickerOpen={openPicker?.field === id && openPicker.platform === 'web'}
+                    invalid={props.invalidField?.field === id && props.invalidField.platform === 'web'}
                     pickerAnchor={props.pickerAnchor}
                     onOpenPicker={() => props.onOpenPicker(web)}
                     onCommit={(next) => props.onCommit(web, next)}
@@ -246,6 +248,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                             value={value.platforms[platform]!}
                             editable={editable}
                             pickerOpen={openPicker?.field === id && openPicker.platform === platform}
+                            invalid={props.invalidField?.field === id && props.invalidField.platform === platform}
                             pickerAnchor={props.pickerAnchor}
                             onOpenPicker={() => props.onOpenPicker(target)}
                             onCommit={(next) => props.onCommit(target, next)}
@@ -290,17 +293,6 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                 </div>
                 <p>{description(view)}</p>
             </header>
-            {save.state === 'error' && save.error && (
-                <div className="ct-banner" role="alert">
-                    <span>
-                        Не сохранено: {save.error.message}
-                        {save.error.address ? ` (${props.addressLabel(save.error.address)})` : ''}
-                    </span>
-                    <button type="button" className="ct-inline-action" onClick={props.onRetry}>
-                        Повторить
-                    </button>
-                </div>
-            )}
             {view.incomplete && (
                 <div className="ct-banner" role="status">
                     <span>Нет значений в этой теме</span>

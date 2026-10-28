@@ -5,7 +5,7 @@ import { lowerFirstLetter } from '@salutejs/plasma-tokens-utils';
 import { Data } from '../../types';
 import { Config, Token } from '../../controllers';
 import { IconButton, TextField, Tooltip } from '../../components';
-import { canShowTooltip, getDefaultDisabledGroups, isGroupChanged, isTokenChanged } from './MenuOld.utils';
+import { canShowTooltip, getDefaultDisabledGroups, isTokenChanged } from './MenuOld.utils';
 import {
     Header,
     HeaderContent,
@@ -32,6 +32,7 @@ import {
 } from './MenuOld.styles';
 
 export interface MenuProps {
+    changedTokenNames?: Set<string>;
     header?: string;
     subheader?: string;
     data: Data;
@@ -50,6 +51,7 @@ export interface MenuProps {
 export const MenuOld = (props: MenuProps) => {
     const {
         header,
+        changedTokenNames,
         subheader,
         data,
         selectedItemIndexes,
@@ -75,9 +77,19 @@ export const MenuOld = (props: MenuProps) => {
     const [groupNameWithItemCreating, setGroupNameWithItemCreating] = useState<string | undefined>(undefined);
     const [creatingItemName, setCreatingItemName] = useState<string>('NewItem');
 
+    const tokenChanged = (items: (Token | Config)[]) =>
+        isTokenChanged(items) ||
+        items.some((item) => {
+            if (item instanceof Config) return false;
+            const name = item.getName().replace(/^(light|dark)\./, '');
+            return changedTokenNames?.has(name);
+        });
     const changedGroups = useMemo(
-        () => new Set(groupsData.filter(({ items }) => isGroupChanged(items)).map(({ name }) => name)),
-        [groupsData],
+        () =>
+            new Set(
+                groupsData.filter(({ items }) => items.some(({ data }) => tokenChanged(data))).map(({ name }) => name),
+            ),
+        [groupsData, changedTokenNames],
     );
 
     const getNewTokenNamePrefix = (groupName: string) => {
@@ -353,7 +365,7 @@ export const MenuOld = (props: MenuProps) => {
                                                             </Fragment>
                                                         ))}
                                                     </ListItemPreviewWrapper>
-                                                    {isTokenChanged(data) && <ListItemChangedIndicator />}
+                                                    {tokenChanged(data) && <ListItemChangedIndicator />}
                                                 </ListItemWrapper>
                                                 <ListItemContentRight>
                                                     {canDisable && (

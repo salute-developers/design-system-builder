@@ -16,10 +16,12 @@ interface ShapesOutletContextProps {
     updated: object;
     rerender: () => void;
     editorContext?: EditorContextKey;
+    changedTokenNames?: Set<string>;
 }
 
 export const Shapes = () => {
-    const { designSystem, theme, updated, rerender, editorContext } = useOutletContext<ShapesOutletContextProps>();
+    const { designSystem, theme, updated, rerender, editorContext, changedTokenNames } =
+        useOutletContext<ShapesOutletContextProps>();
 
     const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu();
 
@@ -75,6 +77,7 @@ export const Shapes = () => {
                     header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
+                    changedTokenNames={changedTokenNames}
                     selectedItemIndexes={selectedItemIndexes}
                     onItemSelect={(groupIndex, itemIndex) => {
                         onItemSelect(groupIndex, itemIndex);

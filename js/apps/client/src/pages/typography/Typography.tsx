@@ -8,6 +8,7 @@ interface TypographyOutletContextProps {
     designSystem?: DesignSystem | null;
     theme?: Theme | null;
     rerender: () => void;
+    changedTokenNames?: Set<string>;
 }
 
 /** Раздел «Типографика» темы: экран Typography по прототипу SDDS Portal с автосохранением правок. */
@@ -38,6 +39,7 @@ export const Typography = () => {
             designSystem={outlet.designSystem}
             theme={outlet.theme}
             rerender={outlet.rerender}
+            changedTokenNames={outlet.changedTokenNames}
         />
     );
 };

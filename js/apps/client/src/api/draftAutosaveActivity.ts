@@ -92,7 +92,7 @@ export const getDraftAutosaveSourceStatus = (context: EditorContextKey, source: 
 /** Фиксирует только подтверждённое сервером сохранение, не завершение неуспешного запроса. */
 export const recordDraftSave = (context: EditorContextKey) => {
     const key = contextKey(context);
-    savedAtByContext.set(key, Date.now());
+    savedAtByContext.set(key, Math.max(Date.now(), (savedAtByContext.get(key) ?? 0) + 1));
     notifyStatus(key);
 };
 

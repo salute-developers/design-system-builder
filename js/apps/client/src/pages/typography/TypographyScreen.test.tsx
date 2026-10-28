@@ -3,7 +3,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DesignSystem, Theme } from '../../controllers';
-import { getDraftAutosaveStatus } from '../../api/draftAutosaveActivity';
+import { getDraftAutosaveStatus, subscribeDraftAutosaveStatus } from '../../api/draftAutosaveActivity';
 import {
     TypographyOperationError,
     type TypographyContext,
@@ -40,6 +40,7 @@ interface MountOptions {
     context?: TypographyContext;
     route?: string;
     readOnly?: boolean;
+    changedTokenNames?: Set<string>;
 }
 
 const setup = (styles: TypographyStyles = typographyStyles(), update?: TypographyStyleRepository['update']) =>
@@ -72,7 +73,13 @@ const mount = (styles: TypographyStyles, options: MountOptions = {}) => {
     const screenContext = options.context ?? context;
     const view = (theme: Theme) => (
         <MemoryRouter initialEntries={[options.route ?? '/']}>
-            <TypographyScreen context={screenContext} designSystem={designSystem} theme={theme} rerender={rerender} />
+            <TypographyScreen
+                context={screenContext}
+                designSystem={designSystem}
+                theme={theme}
+                rerender={rerender}
+                changedTokenNames={options.changedTokenNames}
+            />
             <LocationProbe />
         </MemoryRouter>
     );
@@ -92,6 +99,13 @@ describe('экран «Типографика»', () => {
     afterEach(() => {
         cleanup();
         vi.useRealTimers();
+    });
+
+    it('помечает изменённый стиль в дереве', async () => {
+        mount(typographyStyles(), { changedTokenNames: new Set(['screen-l.body.m.bold']) });
+        expect(await screen.findByRole('heading', { name: 'Body / Body M' })).toBeTruthy();
+        const row = tree().getByRole('button', { name: /Body M/ });
+        expect(within(row).getByLabelText('Есть изменения')).toBeTruthy();
     });
 
     it('открывается на «Крупных» с выбранным Body M: дерево, борд и инспектор', async () => {
@@ -134,6 +148,11 @@ describe('экран «Типографика»', () => {
     });
 
     it('сохраняет размер выбранного экрана с базовыми редакциями значений стиля и обновляет модель темы', async () => {
+        let savedAt: number | undefined;
+        const unsubscribe = subscribeDraftAutosaveStatus(context, (_status, timestamp) => {
+            savedAt = timestamp;
+        });
+        const beforeSave = savedAt ?? 0;
         const { repository, setValue, rerender } = setup();
         await screen.findByRole('heading', { name: 'Body / Body M' });
         const size = inspector().getByLabelText('Size');
@@ -149,9 +168,11 @@ describe('экран «Типографика»', () => {
         expect(values).toHaveLength(27);
         expect(values).toContainEqual({ tokenId: 'screen-s.body.m.bold', platform: 'android' });
         await waitFor(() => expect(getDraftAutosaveStatus(context)).toBe('saved'));
+        expect(savedAt).toBeGreaterThan(beforeSave);
         expect(setValue).toHaveBeenCalledWith('web', { fontSize: '1.125rem' });
         expect(rerender).toHaveBeenCalled();
         expect(tree().getByText('Body M').closest('button')?.textContent).toContain('18/20');
+        unsubscribe();
     });
 
     it('выбирает семейство из семейств дизайн-системы и меняет вес начертания', async () => {
@@ -319,7 +340,7 @@ describe('экран «Типографика»', () => {
     it('в режиме просмотра поля недоступны, а дерево и экраны работают', async () => {
         const { repository } = setup(typographyStyles({ canEdit: false }));
         await screen.findByRole('heading', { name: 'Body / Body M' });
-        expect(screen.getByText('Read-only access')).toBeTruthy();
+        expect(screen.getByText('Только просмотр')).toBeTruthy();
         expect((inspector().getByLabelText('Size') as HTMLInputElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Семейство шрифта') as HTMLButtonElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Weight Regular') as HTMLButtonElement).disabled).toBe(true);
@@ -349,7 +370,7 @@ describe('экран «Типографика»', () => {
         const { repository } = mount(typographyStyles({ canEdit: false }), { context: historical, readOnly: true });
         await screen.findByRole('heading', { name: 'Body / Body M' });
         expect(vi.mocked(repository.load).mock.calls[0][0]).toEqual(historical);
-        expect(screen.getByText('Read-only access')).toBeTruthy();
+        expect(screen.getByText('Только просмотр')).toBeTruthy();
         expect((inspector().getByLabelText('Size') as HTMLInputElement).disabled).toBe(true);
         expect(repository.update).not.toHaveBeenCalled();
         expect(getDraftAutosaveStatus(historical)).toBe('saved');

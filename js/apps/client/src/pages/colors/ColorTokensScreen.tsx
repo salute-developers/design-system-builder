@@ -8,7 +8,7 @@ import {
     type KeyboardEvent,
     type PointerEvent,
 } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import '../../styles/palette.css';
 import '../../styles/color-tokens.css';
@@ -36,13 +36,14 @@ import {
     type ColorTokenView,
     type ContrastPair,
     type TokenGroupDto,
+    type TokenDefinitions,
     type TreeSort,
 } from '../../modules/colorTokens';
 import { ColorTokenOperationError } from '../../modules/colorTokens';
 import { groupRampName, resolveTokenGroupId, type ThemePalette } from '../../modules/palette';
 import { restorePaletteColor } from '../../palette/activePalette';
 import { paletteRepository } from '../../palette/paletteSession';
-import { parseField, rgbHex } from './colorTokenEditor';
+import { parseField, rgbHex, type FieldId } from './colorTokenEditor';
 import { useColorTokenEditor } from './useColorTokenEditor';
 import { AccessibilityPanel } from './ui/AccessibilityPanel';
 import { ColorPickerPopover } from './ui/ColorPickerPopover';
@@ -100,12 +101,33 @@ const clampWidth = (value: number, { min, max }: { min: number; max: number }) =
     Math.min(max, Math.max(min, Math.round(value)));
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const ADDRESS_CONTEXT_LABELS = {
+    ondark: 'OnDark',
+    onlight: 'OnLight',
+    inverse: 'Inverse',
+    default: 'По умолчанию',
+} as const;
+const ADDRESS_MODE_LABELS: Record<string, string> = { dark: 'Dark', light: 'Light' };
+
+const definitionRowId = (definition: TokenDefinitionDto) => {
+    const parsed = parseMemberName(definition.name);
+    return parsed ? `${parsed.group}.${parsed.name}` : null;
+};
+
+const invalidFieldOf = (error: ColorTokenOperationError | null, definitions: TokenDefinitions): PickerTarget | null => {
+    const [tokenId, platform, mode] = (error?.address ?? '').split(':');
+    const name = [...definitions].find(([, definition]) => definition.id === tokenId)?.[0];
+    if (!name || !['web', 'ios', 'android'].includes(platform)) return null;
+    const context = contextOfSubgroup(parseMemberName(name)?.subgroup ?? '');
+    return { field: (context ? `${context}-${mode}` : mode) as FieldId, platform: platform as PickerTarget['platform'] };
+};
 
 /** Экран Color Tokens темы по ветке `editorTab === 'colors'` функции `editor` прототипа. */
 export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const { context, designSystem, theme, components, palette, setPalette, rerender } = props;
     const navigate = useNavigate();
     const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { session, editor, views, groups, groupsError, status } = useColorTokenEditor(props);
     const parameters = designSystem.getParameters();
     const readOnly = parameters?.readOnly === true;
@@ -160,13 +182,37 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const selected = views.find((view) => view.id === selectedId) ?? tree.flatMap(treeTokens)[0] ?? views[0] ?? null;
 
     // Переход из инспектора палитры: выбрать токен, имя определения которого передано в state маршрута.
-    const requested = (location.state as { tokenName?: string } | null)?.tokenName;
+    const requestedTokenId = searchParams.get('tokenId');
+    const appliedAddress = useRef<string | null>(null);
+    const requestedDefinition = props.tokenDefinitions.find((token) => token.id === requestedTokenId);
+    const clearDeletedTokenAddress = (removed: ColorTokenView[]) => {
+        if (!requestedDefinition || !removed.some((view) => view.id === definitionRowId(requestedDefinition))) return;
+        setSearchParams(
+            (current) => {
+                const next = new URLSearchParams(current);
+                next.delete('tokenId');
+                return next;
+            },
+            { replace: true },
+        );
+    };
+    const requested = requestedTokenId
+        ? requestedDefinition?.name
+        : (location.state as { tokenName?: string } | null)?.tokenName;
     useEffect(() => {
-        if (!requested) return;
+        if (!requested) {
+            appliedAddress.current = null;
+            return;
+        }
+        if (appliedAddress.current === `${requestedTokenId ?? 'palette'}:${requested}`) return;
         const parsed = parseMemberName(requested);
-        const match = parsed && views.find((view) => view.key.group === parsed.group && view.key.name === parsed.name);
-        if (match) setSelectedId(match.id);
-    }, [requested, views]);
+        const rowId = parsed && `${parsed.group}.${parsed.name}`;
+        const match = views.find((view) => view.id === rowId);
+        if (match) {
+            appliedAddress.current = `${requestedTokenId ?? 'palette'}:${requested}`;
+            setSelectedId(match.id);
+        }
+    }, [requested, requestedTokenId, requestedDefinition?.type, views]);
 
     useEffect(() => writeStorage(PANELS_KEY, panels), [panels]);
     useEffect(() => writeStorage(COLLAPSED_KEY, collapsed), [collapsed]);
@@ -205,6 +251,13 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
 
     const select = (view: ColorTokenView) => {
         setSelectedId(view.id);
+        if (requestedTokenId) {
+            const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === view.id);
+            const next = new URLSearchParams(searchParams);
+            if (definition) next.set('tokenId', definition.id);
+            else next.delete('tokenId');
+            setSearchParams(next, { replace: true });
+        }
         if (picker) setPicker(null);
     };
 
@@ -259,6 +312,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
         await refreshPalette();
         setSelectedId(tokenId(key));
+        if (requestedTokenId) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('tokenId');
+            setSearchParams(next, { replace: true });
+        }
         rerender();
     };
 
@@ -321,10 +379,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
 
     const removeGroup = async (group: TokenGroupDto, confirmed: boolean) => {
         if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
+        const removed = groupTokens(group);
         try {
             await editor.removeGroup(group.id);
             await refreshPalette();
             setDeleting(null);
+            clearDeletedTokenAddress(removed);
             rerender();
         } catch (error) {
             if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
@@ -345,6 +405,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             await refreshPalette();
             setDeleting(null);
             setSelectedId(null);
+            clearDeletedTokenAddress([view]);
             rerender();
         } catch (error) {
             if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
@@ -366,9 +427,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const addressLabel = (address: string) => {
         const [token, platform, mode] = address.split(':');
         const name = [...session.definitions].find(([, definition]) => definition.id === token)?.[0] ?? token;
-        const context = contextOfSubgroup(name.split('.')[1] ?? '');
-        const label = context ? { ondark: 'OnDark', onlight: 'OnLight', inverse: 'Inverse' }[context] : 'По умолчанию';
-        return [label, platform, mode === 'dark' ? 'Dark' : mode === 'light' ? 'Light' : mode]
+        const context = contextOfSubgroup(parseMemberName(name)?.subgroup ?? '');
+        return [ADDRESS_CONTEXT_LABELS[context ?? 'default'], platform, ADDRESS_MODE_LABELS[mode] ?? mode]
             .filter(Boolean)
             .join(' · ');
     };
@@ -458,6 +518,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
               : status.state === 'saved'
                 ? 'Сохранено'
                 : 'Сохранение…';
+    const invalidField = invalidFieldOf(session.autosave.status(selected?.id ?? '').error, session.definitions);
+    const saveError = status.error;
 
     const canvasOptions = [
         { id: 'palette', label: 'Палитра' },
@@ -619,12 +681,23 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             </div>
                         </div>
                     </div>
+                    {saveError && (
+                        <div className="ct-toolbar-error" role="alert" data-testid="color-tokens-save-error">
+                            Не сохранено: {saveError.message}
+                            {saveError.address ? ` (${addressLabel(saveError.address)})` : ''}
+                        </div>
+                    )}
                 </header>
                 <aside className="properties-panel" ref={propertiesRef}>
                     {session.conflict && (
                         <div className="ct-banner" role="alert">
                             Тема изменена в другом месте и перезагружена. Ваши несохранённые правки сохранены в
                             редакторе — нажмите «Повторить», чтобы отправить их.
+                        </div>
+                    )}
+                    {requestedTokenId && !requestedDefinition && (
+                        <div className="ct-banner" role="status">
+                            Точный источник токена недоступен.
                         </div>
                     )}
                     {groupsError && (
@@ -639,7 +712,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     )}
                     {readOnly && (
                         <div className="viewer-banner">
-                            <span>Read-only access</span>
+                            <span>Только просмотр</span>
                         </div>
                     )}
                     {legacyFamilies > 0 && !readOnly && (
@@ -684,6 +757,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             editable={!readOnly}
                             canDelete={canDelete}
                             openPicker={picker}
+                            invalidField={invalidField}
                             pickerAnchor={setPickerAnchor}
                             save={session.autosave.status(selected.id)}
                             onOpenPicker={(target) =>
