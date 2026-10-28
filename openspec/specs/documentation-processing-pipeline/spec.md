@@ -1,6 +1,7 @@
 # documentation-processing-pipeline Specification
 ## Purpose
-TBD - created by archiving change add-documentation-ingestion-pipeline. Update Purpose after archive.
+Обработка принятой документации через задания PostgreSQL: безопасное извлечение, проверка, повторные попытки и атомарная публикация.
+
 ## Requirements
 ### Requirement: PostgreSQL-backed обработка accepted job
 Documentation service MUST асинхронно claim-ить eligible `accepted` job через PostgreSQL lease без удержания database transaction на время обработки.
@@ -94,7 +95,13 @@ Pipeline MUST разбирать markdown через AST, создавать `Kn
 - **AND** каждая полученная часть MUST иметь UTF-8 размер не больше `maxBytes`
 
 ### Requirement: Атомарное переключение active publication
-Конвейер MUST публиковать проверенную документацию как новый полный снимок для ключа `(projectId, designSystemId, version, platform)` и MUST атомарно переключать `active_documentation_publications` на этот снимок. Если активная публикация для ключа уже существовала, та же транзакция MUST перевести её в `superseded` и MUST создать связанное задание очистки с защитной задержкой. До успешного завершения транзакции прежняя публикация MUST оставаться активной и не должна быть доступна обработчику очистки.
+
+Конвейер MUST публиковать проверенную документацию как новый полный снимок для ключа `(projectId, designSystemId, version, platform)` и MUST атомарно переключать `active_documentation_publications` на этот снимок.
+
+#### Scenario: Замена существующей публикации одной транзакцией
+
+- **WHEN** для ключа публикации уже существует активный снимок
+- **THEN** Если активная публикация для ключа уже существовала, та же транзакция MUST перевести её в `superseded` и MUST создать связанное задание очистки с защитной задержкой. До успешного завершения транзакции прежняя публикация MUST оставаться активной и не должна быть доступна обработчику очистки.
 
 #### Scenario: Первая публикация ключа
 - **WHEN** проверенный пакет публикуется для ключа, у которого нет активной публикации

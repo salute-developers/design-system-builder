@@ -4,6 +4,7 @@ import com.dsbuilder.ds.themes.domain.ThemePaletteType
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.palette.PaletteRampRef
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -33,7 +34,9 @@ class ColorTokenRulesTest {
         assertEquals("text.default.accent", accent.defaultMember())
         assertFalse(accent.memberOf(ThemeTokenType.COLOR, "text.default.accent-minor"))
         assertFalse(accent.memberOf(ThemeTokenType.COLOR, "surface.default.accent"))
-        assertFalse(accent.memberOf(ThemeTokenType.GRADIENT, "text.default.accent"))
+        // Членство по правилу имени: производный тип члена может временно отличаться от типа семейства.
+        assertTrue(accent.memberOf(ThemeTokenType.GRADIENT, "text.default.accent"))
+        assertFalse(accent.memberOf(ThemeTokenType.SHADOW, "text.default.accent"))
     }
 
     @Test
@@ -97,15 +100,48 @@ class ColorTokenRulesTest {
     }
 
     @Test
-    fun `gradient values check web layers only`() {
+    fun `color token operations accept colors and gradients on any member`() {
+        val rule = TokenValueRule(mapOf(PaletteRampRef(ThemePaletteType.GENERAL, "green") to mapOf(500 to "#00FF00")))
+        fun web(value: JsonElement) = rule.validateColorToken(ThemeTokenPlatform.WEB, false, value)
+        fun native(platform: ThemeTokenPlatform, value: String) =
+            rule.validateColorToken(platform, false, Json.parseToJsonElement(value))
+
+        assertNull(web(array("#FFFFFF")))
+        assertNull(web(array("conic-gradient(from 90deg at 50% 50%, [general.green.500] 0%, #04C6C9FF 100%)")))
+        assertNull(web(array("linear-gradient(45.00deg, #1A9E32FF 0%, #04C6C9FF 99.688%)", "#FFFFFF")))
+        assertNotNull(web(array("conic-gradient(from 90deg at 50% 50%, [general.green.400] 0%, #04C6C9FF 100%)")))
+        assertNotNull(web(array("linear-gradient(to right, #FFFFFF 0%, #000000 100%)")))
+        assertNotNull(web(array("#FFFFFF", "#000000")))
+        assertNotNull(web(JsonArray(emptyList())))
+        assertNull(native(ThemeTokenPlatform.IOS, """[{"kind":"color","background":"[general.green.500]"}]"""))
+        assertNotNull(native(ThemeTokenPlatform.IOS, """[{"kind":"color","background":"[general.green.400]"}]"""))
+        assertNull(
+            native(
+                ThemeTokenPlatform.ANDROID,
+                """[{"kind":"radial","locations":[0,1],"colors":["[general.green.500][0.5]","#FFF"],""" +
+                    """"centerX":0.5,"centerY":0.5,"radius":0.5}]""",
+            ),
+        )
+        assertNotNull(
+            native(
+                ThemeTokenPlatform.ANDROID,
+                """[{"kind":"linear","locations":[0,1],"colors":["[general.green.400]","#FFF"],"angle":90}]""",
+            ),
+        )
+        assertNotNull(native(ThemeTokenPlatform.ANDROID, "\"x\""))
+        assertNotNull(rule.validateColorToken(ThemeTokenPlatform.WEB, true, array("#FFF")))
+    }
+
+    @Test
+    fun `batch write accepts only the kind allowed by the token type`() {
         val rule = TokenValueRule(emptyMap())
-        assertNull(gradient(rule, ThemeTokenPlatform.WEB, array("linear-gradient(90deg, #FFFFFF 0%, #000000 100%)")))
-        assertNull(gradient(rule, ThemeTokenPlatform.WEB, array("radial-gradient(#fff, #000)", "#FFFFFF")))
-        assertNotNull(gradient(rule, ThemeTokenPlatform.WEB, array("[general.green.500]")))
-        assertNotNull(gradient(rule, ThemeTokenPlatform.WEB, JsonArray(emptyList())))
-        assertNotNull(gradient(rule, ThemeTokenPlatform.WEB, string("linear-gradient(#fff, #000)")))
-        assertNull(gradient(rule, ThemeTokenPlatform.IOS, JsonArray(listOf(JsonObject(emptyMap())))))
-        assertNotNull(gradient(rule, ThemeTokenPlatform.ANDROID, string("x")))
+        val gradient = array("linear-gradient(90deg, #FFFFFF 0%, #000000 100%)")
+        val layer = Json.parseToJsonElement("""[{"kind":"color","background":"#1A9E32FF"}]""")
+        assertNotNull(rule.validate(ThemeTokenType.COLOR, ThemeTokenPlatform.WEB, false, gradient))
+        assertNull(rule.validate(ThemeTokenType.GRADIENT, ThemeTokenPlatform.WEB, false, gradient))
+        assertNull(rule.validate(ThemeTokenType.GRADIENT, ThemeTokenPlatform.WEB, false, array("#FFFFFF")))
+        assertNull(rule.validate(ThemeTokenType.COLOR, ThemeTokenPlatform.IOS, false, layer))
+        assertNotNull(rule.validate(ThemeTokenType.COLOR, ThemeTokenPlatform.WEB, false, layer))
     }
 
     @Test
@@ -119,9 +155,6 @@ class ColorTokenRulesTest {
 
     private fun paletteId(rule: TokenValueRule, value: JsonElement) =
         rule.validate(ThemeTokenType.COLOR, ThemeTokenPlatform.WEB, true, value)
-
-    private fun gradient(rule: TokenValueRule, platform: ThemeTokenPlatform, value: JsonElement) =
-        rule.validate(ThemeTokenType.GRADIENT, platform, false, value)
 
     private fun string(value: String) = JsonPrimitive(value)
 

@@ -848,8 +848,14 @@ paths:
         - Tenants
       summary: All token values for a tenant
       description: >-
-        Ссылки цветовых значений заменены HEX по палитре темы и группе токена (paletteId = null), исходная
-        ссылка — в paletteRef. Ссылка, которую палитра темы не раскрывает, возвращается как есть.
+        Значения на границе выбранной версии (versionId). Ссылки цветовых значений, в том числе цвета стопов
+        web-градиента и элементы colors и background слоёв ios и android, заменены HEX по палитре темы и группе
+        токена (paletteId = null); исходная ссылка на всё значение — в paletteRef. Сплошные значения ios и android
+        токена типа gradient отдаются слоем [{ "kind": "color", "background": <HEX> }], типа color — строкой.
+        Ссылки цветов слоёв тени заменены #RRGGBBAA на своём месте.
+        Если value отличается от хранимого значения, хранимое значение — в sourceValue; при ссылке на всё значение
+        (paletteRef) sourceValue не отдаётся. overridden — своё значение платформы. Ссылка, которую палитра темы не
+        раскрывает, остаётся в значении без paletteRef; форма значения по типу токена применяется всегда.
         Необязательный types ограничивает чтение типами текущего раздела; без него сохраняется полный ответ.
       parameters:
         - $ref: '#/components/parameters/VersionId'
@@ -1840,7 +1846,12 @@ paths:
       tags:
         - Color tokens
       summary: Replace values of color token family members in the theme
-      description: Требует tenants:write. Передаются только изменённые пары платформы и режима; остальные сохраняются. Повтор пары запрещён. editRevision оставлен для совместимости и равен 0.
+      description: >-
+        Требует tenants:write. Передаются только изменённые пары платформы и режима; остальные сохраняются. Повтор
+        пары запрещён. Каждое значение — цвет или градиент; в той же транзакции тип семейства вычисляется по
+        значениям всех тем и при смене записывается редакциями определений с путём /type, значения других тем не
+        меняются. Сплошной слой color ios и android сохраняется строкой. Технические редакции изменённых значений
+        и определений — в X-DS-Mutation-Metadata. editRevision оставлен для совместимости и равен 0.
       parameters:
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
@@ -1863,7 +1874,7 @@ paths:
               $ref: '#/components/schemas/UpdateColorTokenValuesRequest'
       responses:
         '200':
-          description: New theme revision
+          description: Compatibility revision and the family type after the change
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
@@ -1872,7 +1883,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ColorTokenRevision'
+                $ref: '#/components/schemas/ColorTokenValues'
         '400':
           description: >-
             Invalid request, token family (INVALID_TOKEN_FAMILY), token value (INVALID_TOKEN_VALUE) or unknown
@@ -2257,6 +2268,136 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/typography-styles:
+    get:
+      tags:
+        - Typography styles
+      summary: Typography styles of the theme by screen in px
+      description: >-
+        Requires tenants:read. Returns styles of screen-l, screen-m and screen-s with variant tokens and
+        technical revisions of their values, font families of the design system and components that use each
+        style, resolved on the selected published version (versionId) or the active draft. canEdit reflects
+        tenants:write and is false for a published version.
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      responses:
+        "200":
+          description: Typography styles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TypographyStyles"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or published version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:read
+  /api/ds/tenants/{tenantId}/typography-styles/{tokenId}:
+    patch:
+      tags:
+        - Typography styles
+      summary: Change a typography style in the theme
+      description: >-
+        Requires tenants:write. tokenId is any of the nine style tokens. size, lineHeight and letterSpacing are
+        written to the three style tokens on the token screen, weights to the variant token on every screen,
+        fontFamily to every style token. Values of other themes are not changed. Every changed value of the
+        active draft gets its own subject revision of path /value; the base revision of a value comes from
+        baseRevisions, otherwise from X-DS-Base-Revision. A concurrent write of the same path is applied (last
+        write wins) and reported in warnings of X-DS-Mutation-Metadata; the operation never answers 409.
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTypographyStyleRequest"
+      responses:
+        "200":
+          description: >-
+            Changed style and written token values. The style has an empty components list: usage in components does
+            not change with a style edit, and the client keeps it from the read.
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdatedTypographyStyle"
+        "400":
+          description: >-
+            Invalid request, negative base revision (invalid_base_revision), published version selected
+            (historical_version_read_only), token outside the style rule (INVALID_TYPOGRAPHY_STYLE) or style value
+            (INVALID_TYPOGRAPHY_VALUE, details.field)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The theme has no values for the style tokens the edit concerns (TYPOGRAPHY_VALUES_MISSING)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
       x-permission: tenants:write
   /api/ds/tenants/{tenantId}/size-tokens:
     get:
@@ -2774,6 +2915,13 @@ paths:
       tags:
         - Token Values
       summary: List all token values
+      description: >-
+        Значения отдаются в той же форме, что и GET /api/ds/tenants/{tenantId}/token-values, на границе выбранной
+        версии: ссылки на палитру в значениях цветовых и градиентных токенов раскрываются в HEX по палитре темы
+        значения, сплошные значения ios и android токена типа gradient отдаются слоем
+        [{ "kind": "color", "background": <цвет> }], а у токена типа color — строкой. Если value отличается от
+        хранимого, хранимое значение возвращается в sourceValue; при ссылке на всё значение вместо него —
+        paletteRef, а paletteId равен null.
       parameters:
         - $ref: '#/components/parameters/VersionId'
       responses:
@@ -3148,6 +3296,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:read
+  /api/ds/compose-preview/plugin:
+    get:
+      tags:
+        - Compose Preview
+      summary: Get the active Compose preview plugin build
+      description: >-
+        Returns the public address and version of the plugin build that is active in this environment.
+        The answer does not depend on the selected design system version.
+      responses:
+        '200':
+          description: Active plugin build
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivePluginBuild'
+        '404':
+          description: No plugin build is published or the plugin storage is not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
   /api/ds/components:
     get:
       tags:
@@ -3295,6 +3471,14 @@ paths:
           required: true
           name: id
           in: path
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: false
+          name: designSystemId
+          in: query
+          description: Return only variation axes owned by this design system.
       responses:
         '200':
           description: List of items
@@ -3867,6 +4051,14 @@ paths:
       summary: List all variations
       parameters:
         - $ref: '#/components/parameters/VersionId'
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: false
+          name: designSystemId
+          in: query
+          description: Return only variation axes owned by this design system.
       responses:
         '200':
           description: List of items
@@ -3904,6 +4096,12 @@ paths:
                 $ref: '#/components/schemas/Variation'
         '400':
           description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A variation with this name already exists in the design system
           content:
             application/json:
               schema:
@@ -3982,6 +4180,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A variation with this name already exists in the design system
           content:
             application/json:
               schema:
@@ -8225,6 +8429,31 @@ components:
         - version
         - changelog
         - publishedAt
+    ActivePluginBuild:
+      type: object
+      required:
+        - buildId
+        - uikitComposeVersion
+        - metaSha256
+        - protocolVersion
+        - pluginUrl
+        - publishedAt
+      properties:
+        buildId:
+          type: string
+          description: Build identifier, the first 12 characters of the commit
+        uikitComposeVersion:
+          type: string
+        metaSha256:
+          type: string
+        protocolVersion:
+          type: integer
+        pluginUrl:
+          type: string
+          description: Public address of the build directory, ends with a slash
+        publishedAt:
+          type: string
+          format: date-time
     Component:
       type: object
       properties:
@@ -8293,6 +8522,9 @@ components:
         componentId:
           type: string
           format: uuid
+        designSystemId:
+          type: string
+          format: uuid
         name:
           type: string
         description:
@@ -8309,6 +8541,7 @@ components:
       required:
         - id
         - componentId
+        - designSystemId
         - name
         - description
         - createdAt
@@ -9103,8 +9336,15 @@ components:
         paletteRef:
           type: string
           description: >-
-            Исходная ссылка на палитру, если value вычислен по палитре темы (GET
-            /api/ds/tenants/{id}/token-values)
+            Исходная ссылка на палитру, если value целиком вычислен по палитре темы (GET
+            /api/ds/tenants/{id}/token-values и общий GET /api/ds/token-values). Тогда sourceValue не отдаётся.
+        sourceValue:
+          nullable: true
+          description: >-
+            Хранимое значение, если value отдан в другой форме: со ссылками на палитру в стопах градиента,
+            раскрытыми в HEX, или сплошное значение ios и android градиентного токена слоем color, или значение тени
+            со ссылками цветов слоёв, раскрытыми в #RRGGBBAA. Отсутствует,
+            если формы совпадают или значение целиком задано ссылкой (тогда исходная ссылка — в paletteRef).
         id:
           type: string
           format: uuid
@@ -9729,6 +9969,9 @@ components:
     CreateVariation:
       type: object
       properties:
+        designSystemId:
+          type: string
+          format: uuid
         componentId:
           type: string
           format: uuid
@@ -9740,6 +9983,7 @@ components:
           type: string
           maxLength: 1000
       required:
+        - designSystemId
         - componentId
         - name
     UpdateVariation:
@@ -11067,15 +11311,82 @@ components:
           nullable: true
         value:
           nullable: true
+          description: >-
+            Цвет или градиент. Цвет — HEX (#RGB, #RRGGBB, #RRGGBBAA) или ссылка [type.shade.step][o] строкой либо
+            массивом из одной строки; у ios и android также [{ "kind": "color", "background": <цвет> }], такое
+            значение сохраняется строкой. С paletteId — null, [] или [<прозрачность 0–1>]. Web-градиент — массив
+            строк-слоёв, хотя бы один слой — linear-gradient(<a>deg, …), radial-gradient(<r>% <r>% at <x>% <y>%, …)
+            или conic-gradient(from <a>deg at <x>% <y>%, …), остальные — цвет; стопы — #RRGGBB, #RRGGBBAA или ссылка
+            с позицией N%, не меньше двух, позиции не убывают от 0 до 100. Градиент ios и android — массив слоёв
+            NativeColorLayer формата своей платформы, хотя бы один слой не color.
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+            - type: array
+              items:
+                $ref: '#/components/schemas/NativeColorLayer'
         baseRevision:
           type: integer
           format: int64
           minimum: 0
           description: Базовая предметная редакция конкретной пары платформа/режим. Если не передана, используется X-DS-Base-Revision.
+        overridden:
+          type: boolean
+          default: false
+          description: >-
+            Своё значение ios или android, а не построенное клиентом из web; хранится путём /overridden редакции
+            значения. Для web допустимо только false, иначе 400 INVALID_TOKEN_VALUE.
       required:
         - platform
         - mode
         - value
+    NativeColorLayer:
+      type: object
+      description: >-
+        Слой значения ios или android. ios: linear { locations, colors, angle }, radial { locations, colors,
+        centerX, centerY, startRadius, endRadius }, angular { locations, colors, startAngle, endAngle, centerX,
+        centerY }, color { background }. android: linear { locations, colors, angle }, radial { locations, colors,
+        centerX, centerY, radius }, angular { locations, colors, centerX, centerY }, color { background }. colors и
+        locations одной длины не меньше двух, locations не убывают от 0 до 1, центр от 0 до 1, радиусы не меньше 0,
+        цвета — HEX или ссылки на ступени палитры темы.
+      properties:
+        kind:
+          type: string
+          enum:
+            - linear
+            - radial
+            - angular
+            - color
+        locations:
+          type: array
+          items:
+            type: number
+        colors:
+          type: array
+          items:
+            type: string
+        angle:
+          type: number
+        centerX:
+          type: number
+        centerY:
+          type: number
+        startRadius:
+          type: number
+        endRadius:
+          type: number
+        radius:
+          type: number
+        startAngle:
+          type: number
+        endAngle:
+          type: number
+        background:
+          type: string
+      required:
+        - kind
     ColorTokenMemberValues:
       type: object
       properties:
@@ -11114,6 +11425,9 @@ components:
           enum:
             - color
             - gradient
+          description: >-
+            Запрошенный тип. Итоговый тип семейства вычисляется по значениям: gradient, если хотя бы одно значение —
+            градиент, иначе color; он возвращается в value.type.
         group:
           type: string
         name:
@@ -11216,6 +11530,22 @@ components:
           minimum: 0
       required:
         - editRevision
+    ColorTokenValues:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+          description: Совместимое поле прежнего счётчика темы, всегда 0; редакции — в X-DS-Mutation-Metadata.
+        type:
+          type: string
+          enum:
+            - color
+            - gradient
+          description: Тип семейства после изменения, вычисленный по значениям всех тем.
+      required:
+        - editRevision
+        - type
     MoveColorTokenRequest:
       type: object
       properties:
@@ -11511,12 +11841,12 @@ components:
               type: integer
               format: int64
               minimum: 0
-            sourceValue:
-              description: >-
-                Исходное значение тени со ссылками цветов слоёв на ступени палитры, если в value они заменены
-                раскрытым по палитре темы #RRGGBBAA; у остальных значений отсутствует
+            overridden:
+              type: boolean
+              description: Своё значение ios или android, а не построенное клиентом из web.
           required:
             - editRevision
+            - overridden
     DraftChange:
       type: object
       properties:
@@ -11604,6 +11934,264 @@ components:
             pattern: ^/value(?:/|$)
           example:
             - /value/fontSize
+    TypographyStyles:
+      type: object
+      properties:
+        canEdit:
+          type: boolean
+        themeCount:
+          type: integer
+          minimum: 0
+        families:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyFamily"
+        screens:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyScreen"
+      required:
+        - canEdit
+        - themeCount
+        - families
+        - screens
+    TypographyFamily:
+      type: object
+      properties:
+        name:
+          type: string
+        fontName:
+          type: string
+      required:
+        - name
+        - fontName
+    TypographyScreen:
+      type: object
+      properties:
+        screen:
+          type: string
+          enum:
+            - screen-l
+            - screen-m
+            - screen-s
+        styles:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyStyle"
+      required:
+        - screen
+        - styles
+    TypographyStyle:
+      type: object
+      properties:
+        screen:
+          type: string
+          enum:
+            - screen-l
+            - screen-m
+            - screen-s
+        group:
+          type: string
+        size:
+          type: string
+        sizePx:
+          type: number
+        lineHeightPx:
+          type: number
+        letterSpacingEm:
+          type: number
+        fontFamily:
+          type: string
+        variants:
+          type: object
+          properties:
+            normal:
+              $ref: "#/components/schemas/TypographyVariant"
+            medium:
+              $ref: "#/components/schemas/TypographyVariant"
+            bold:
+              $ref: "#/components/schemas/TypographyVariant"
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyComponentUsage"
+        overrides:
+          type: object
+          description: Own iOS and Android values; only fields that differ from web
+          additionalProperties:
+            $ref: "#/components/schemas/TypographyOverride"
+      required:
+        - screen
+        - group
+        - size
+        - sizePx
+        - lineHeightPx
+        - letterSpacingEm
+        - fontFamily
+        - variants
+        - components
+        - overrides
+    TypographyOverride:
+      type: object
+      properties:
+        sizePx:
+          type: number
+        lineHeightPx:
+          type: number
+        letterSpacingEm:
+          type: number
+        weights:
+          type: object
+          additionalProperties:
+            type: integer
+    TypographyVariant:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        weight:
+          type: integer
+        valueRevisions:
+          type: array
+          description: Technical revisions of the token values of the theme by platform
+          items:
+            $ref: "#/components/schemas/TypographyValueRevision"
+      required:
+        - tokenId
+        - weight
+        - valueRevisions
+    TypographyValueRevision:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum:
+            - web
+            - ios
+            - android
+        valueId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Technical revision of the value on the selected boundary; base revision of the next change
+      required:
+        - platform
+        - valueId
+        - revision
+    TypographyBaseRevision:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum:
+            - web
+            - ios
+            - android
+        baseRevision:
+          type: integer
+          format: int64
+          minimum: 0
+      required:
+        - tokenId
+        - platform
+        - baseRevision
+    TypographyComponentUsage:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+      required:
+        - name
+        - count
+    UpdateTypographyStyleRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        size:
+          type: number
+          description: Size in px on the token screen; greater than 0
+        lineHeight:
+          type: number
+          description: Line height in px on the token screen; greater than 0
+        letterSpacing:
+          type: number
+          description: Letter spacing in em on the token screen; from -0.2 to 1
+        weights:
+          type: object
+          description: Variant weights on every screen; 100 to 900 in steps of 100
+          properties:
+            normal:
+              type: integer
+            medium:
+              type: integer
+            bold:
+              type: integer
+          additionalProperties: false
+        platform:
+          type: string
+          enum:
+            - ios
+            - android
+          description: >-
+            Own value of the platform. With it size, line height, letter spacing and weights are written only to
+            this platform; without it they go to web and to platforms whose field is not overridden
+        fontFamily:
+          type: string
+          description: Name of a fontFamily token of the design system
+        baseRevisions:
+          type: array
+          description: Base revisions of style token values; take precedence over X-DS-Base-Revision
+          items:
+            $ref: "#/components/schemas/TypographyBaseRevision"
+    UpdatedTypographyStyle:
+      type: object
+      properties:
+        style:
+          $ref: "#/components/schemas/TypographyStyle"
+        tokens:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyTokenValues"
+      required:
+        - style
+        - tokens
+    TypographyTokenValues:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        values:
+          type: array
+          items:
+            type: object
+            properties:
+              platform:
+                type: string
+                enum:
+                  - web
+                  - ios
+                  - android
+              value: {}
+            required:
+              - platform
+              - value
+      required:
+        - tokenId
+        - name
+        - values
     SizeComponentUsage:
       type: object
       properties:

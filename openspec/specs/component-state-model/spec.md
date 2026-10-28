@@ -1,11 +1,11 @@
 # component-state-model Specification
 
 ## Purpose
-Определяет модель состояний `db-service`: единый словарь состояний `states` для состояний взаимодействия и состояний компонента, набор состояний `state_sets` как самостоятельную сущность, на которую ссылаются значения свойств, а также политику удаления, целостность наборов через триггеры и единую точку построения набора `POST /ds/state-sets/resolve`.
+Определяет модель состояний `ds-service`: единый словарь состояний `states` для состояний взаимодействия и состояний компонента, набор состояний `state_sets` как самостоятельную сущность, на которую ссылаются значения свойств, а также политику удаления, целостность наборов через триггеры и единую точку построения набора `POST /ds/state-sets/resolve`.
 ## Requirements
 ### Requirement: State vocabulary is a table
 
-`db-service` SHALL store the whole state vocabulary in a single table `states`, covering both
+`ds-service` SHALL store the whole state vocabulary in a single table `states`, covering both
 interaction states and states declared by component code. The enum type `state` SHALL NOT exist.
 
 #### Scenario: Состояние взаимодействия не принадлежит компоненту
@@ -29,7 +29,7 @@ interaction states and states declared by component code. The enum type `state` 
 
 ### Requirement: State set is a first-class entity
 
-`db-service` SHALL store a set of states as a row in `state_sets` holding a canonicalized array of
+`ds-service` SHALL store a set of states as a row in `state_sets` holding a canonicalized array of
 state identifiers. Two sets with the same members SHALL be the same row.
 
 #### Scenario: Массив канонизируется при записи
@@ -115,7 +115,7 @@ table `property_value_states` and column `style_combinations.states` SHALL NOT e
 
 ### Requirement: Deleting a state deletes dependent values
 
-`db-service` SHALL delete every property value whose state set contains the deleted state, together
+`ds-service` SHALL delete every property value whose state set contains the deleted state, together
 with the sets themselves. Sets SHALL NOT be silently shrunk.
 
 #### Scenario: Значения с удаляемым состоянием удаляются
@@ -141,7 +141,7 @@ with the sets themselves. Sets SHALL NOT be silently shrunk.
 
 ### Requirement: Array integrity is enforced by triggers
 
-Because a `uuid[]` column cannot carry foreign keys, `db-service` SHALL enforce the integrity of
+Because a `uuid[]` column cannot carry foreign keys, `ds-service` SHALL enforce the integrity of
 `state_sets.state_ids` with three triggers. Their absence SHALL be treated as a defect, not as an
 optimisation.
 
@@ -166,39 +166,9 @@ optimisation.
 - **WHEN** an operator needs to verify that no set holds a dangling identifier
 - **THEN** the repository MUST provide an audit query reporting sets whose `state_ids` contain an identifier absent from `states`
 
-### Requirement: State sets are constructed in one place
-
-`db-service` SHALL expose a single endpoint that resolves a list of state identifiers into a set
-identifier, creating the set when it does not exist. Clients SHALL NOT assemble the array
-themselves.
-
-#### Scenario: Resolve возвращает существующий набор
-
-- **WHEN** `POST /ds/state-sets/resolve` receives a list of state identifiers matching an existing set
-- **THEN** it MUST return the identifier of that set
-- **THEN** it MUST NOT create a new row
-
-#### Scenario: Resolve создаёт отсутствующий набор
-
-- **WHEN** the list matches no existing set
-- **THEN** the endpoint MUST create the set and return its identifier
-- **THEN** the stored array MUST be canonicalized
-
-#### Scenario: Неизвестное состояние отклоняется
-
-- **WHEN** the list contains an identifier absent from `states`
-- **THEN** the endpoint MUST fail with `400`
-- **THEN** it MUST NOT create a set
-
-#### Scenario: Импорт и админка используют одну точку
-
-- **WHEN** component configuration import or the admin application needs a set
-- **THEN** it MUST obtain it through the resolve endpoint
-- **THEN** it MUST NOT write `state_sets` directly
-
 ### Requirement: Deletion impact is observable before deletion
 
-`db-service` SHALL expose the blast radius of deleting a state before the deletion is performed,
+`ds-service` SHALL expose the blast radius of deleting a state before the deletion is performed,
 because a shared set can carry hundreds of values across many components.
 
 #### Scenario: Предпросмотр называет объём удаления
@@ -264,4 +234,34 @@ The copy SHALL NOT rebuild the set from names or from a denormalized key.
 
 - **WHEN** выполняется любая операция оформления
 - **THEN** таблица состояний MUST остаться без изменений
+
+### Requirement: State sets are resolved through a single endpoint
+
+`ds-service` SHALL expose a single endpoint that resolves a list of state identifiers into a set
+identifier, creating the set when it does not exist. Clients SHALL NOT assemble the array
+themselves.
+
+#### Scenario: Resolve возвращает существующий набор
+
+- **WHEN** `POST /ds/state-sets/resolve` receives a list of state identifiers matching an existing set
+- **THEN** it MUST return the identifier of that set
+- **THEN** it MUST NOT create a new row
+
+#### Scenario: Resolve создаёт отсутствующий набор
+
+- **WHEN** the list matches no existing set
+- **THEN** the endpoint MUST create the set and return its identifier
+- **THEN** the stored array MUST be canonicalized
+
+#### Scenario: Неизвестное состояние отклоняется
+
+- **WHEN** the list contains an identifier absent from `states`
+- **THEN** the endpoint MUST fail with `400`
+- **THEN** it MUST NOT create a set
+
+#### Scenario: Импорт использует одну точку
+
+- **WHEN** component configuration import needs a set
+- **THEN** it MUST obtain it through the resolve endpoint
+- **THEN** it MUST NOT write `state_sets` directly
 

@@ -100,10 +100,7 @@ describe('assembleComposePreviewPayload', () => {
         const composed = draft();
         const shape = composed.invariantProperties.find((property) => property.id === 'shape')!;
         composed.invariantProperties = composed.invariantProperties.filter((property) => property.id !== 'shape');
-        composed.selectedStyleProperties.push(
-            { ...shape, value: 'shape.size' },
-            { ...shape, value: 'shape.pilled' },
-        );
+        composed.selectedStyleProperties.push({ ...shape, value: 'shape.size' }, { ...shape, value: 'shape.pilled' });
         composed.themeTokens.push(
             { id: 'shape.size', type: 'shape', enabled: true, values: {} },
             { id: 'shape.pilled', type: 'shape', enabled: true, values: { web: 999 } },
@@ -125,6 +122,64 @@ describe('assembleComposePreviewPayload', () => {
             },
         });
         if (result.ok) expect(result.payload.theme['shape.size']).toBeUndefined();
+    });
+
+    it('applies the adjustment of a shape token through a derived theme token', () => {
+        const adjusted = draft();
+        const shape = adjusted.invariantProperties.find((property) => property.id === 'shape')!;
+        shape.adjustment = -2;
+        shape.states = [{ names: ['pressed'], value: 'shape.button' }];
+
+        const result = assembleComposePreviewPayload(adjusted);
+
+        expect(result).toMatchObject({
+            ok: true,
+            payload: {
+                component: {
+                    properties: {
+                        shape: {
+                            base: { type: 'tokenRef', tokenId: 'shape.button@adjust(-2)' },
+                            states: [
+                                { when: ['pressed'], source: { type: 'tokenRef', tokenId: 'shape.button@adjust(-2)' } },
+                            ],
+                        },
+                    },
+                },
+                theme: {
+                    'shape.button': { type: 'shape', cornerRadii: [12, 12, 12, 12] },
+                    'shape.button@adjust(-2)': { type: 'shape', cornerRadii: [10, 10, 10, 10] },
+                },
+            },
+        });
+    });
+
+    it('never lets an adjusted shape radius go below zero and keeps a zero adjustment plain', () => {
+        const clamped = draft();
+        clamped.invariantProperties.find((property) => property.id === 'shape')!.adjustment = -20;
+        const clampedResult = assembleComposePreviewPayload(clamped);
+        expect(clampedResult.ok && clampedResult.payload.theme['shape.button@adjust(-20)']).toEqual({
+            type: 'shape',
+            cornerRadii: [0, 0, 0, 0],
+        });
+
+        const plain = draft();
+        plain.invariantProperties.find((property) => property.id === 'shape')!.adjustment = 0;
+        const plainResult = assembleComposePreviewPayload(plain);
+        expect(plainResult).toMatchObject({
+            ok: true,
+            payload: { component: { properties: { shape: { base: { type: 'tokenRef', tokenId: 'shape.button' } } } } },
+        });
+    });
+
+    it('still reports an adjustment that cannot be applied to a token', () => {
+        const color = draft();
+        color.invariantProperties.find((property) => property.id === 'shape')!.type = 'color';
+        color.invariantProperties.find((property) => property.id === 'shape')!.adjustment = -2;
+
+        expect(assembleComposePreviewPayload(color)).toMatchObject({
+            ok: false,
+            diagnostics: [{ code: 'incompatible_value' }],
+        });
     });
 
     it('reports the property IDs behind a real Compose parameter conflict', () => {
@@ -291,7 +346,9 @@ describe('assembleComposePreviewPayload', () => {
                 enabled: true,
                 values: { web: '#112233', android: '#112233' },
             });
-            d.invariantProperties.push(prop({ name: 'thumbColor', value: 'surface.on-dark.solid.default', type: 'color' }));
+            d.invariantProperties.push(
+                prop({ name: 'thumbColor', value: 'surface.on-dark.solid.default', type: 'color' }),
+            );
 
             expect(assembled(d).theme['surface.on-dark.solid.default']).toEqual({ type: 'color', value: '#112233FF' });
         });
@@ -304,7 +361,10 @@ describe('assembleComposePreviewPayload', () => {
             );
             d.invariantProperties.push(prop({ name: 'thumbColor', value: 'a.b.c', type: 'color' }));
 
-            expect(assembleComposePreviewPayload(d)).toMatchObject({ ok: false, diagnostics: [{ code: 'missing_token' }] });
+            expect(assembleComposePreviewPayload(d)).toMatchObject({
+                ok: false,
+                diagnostics: [{ code: 'missing_token' }],
+            });
         });
 
         it('sends a value-typed property as a literal instead of a token reference', () => {
@@ -426,12 +486,34 @@ describe('assembleComposePreviewPayload', () => {
             expect(assembled(d).theme['color.nested.only']).toEqual({ type: 'color', value: '#010203FF' });
         });
 
+        it('passes a solid platform value of a gradient family as a single-colour linear layer', () => {
+            for (const value of ['#112233', ['#112233'], [{ kind: 'color', background: '#112233' }]]) {
+                const d = draft();
+                d.invariantProperties.push(prop({ name: 'brush', value: 'gradient.solid' }));
+                d.themeTokens.push({ id: 'gradient.solid', type: 'gradient', enabled: true, values: { web: value } });
+                expect(assembled(d).theme['gradient.solid']).toEqual({
+                    type: 'gradient',
+                    layers: [
+                        {
+                            kind: 'linear',
+                            angle: 0,
+                            stops: [
+                                { color: '#112233FF', position: 0 },
+                                { color: '#112233FF', position: 1 },
+                            ],
+                        },
+                    ],
+                });
+            }
+        });
+
         it.each([
             ['radial gradient', { kind: 'radial', colors: ['#FFFFFF', '#000000'], locations: [0, 1] }],
             ['single stop', { kind: 'linear', colors: ['#FFFFFF'], locations: [0], angle: 0 }],
             ['location out of range', { kind: 'linear', colors: ['#FFFFFF', '#000000'], locations: [0, 2], angle: 0 }],
             ['mismatched lengths', { kind: 'linear', colors: ['#FFFFFF', '#000000'], locations: [0], angle: 0 }],
             ['invalid colour', { kind: 'linear', colors: ['#FFFFFF', 'red'], locations: [0, 1], angle: 0 }],
+            ['invalid solid layer', { kind: 'color', background: '[general.red.500]' }],
         ])('rejects an unsupported gradient token: %s', (_name, layer) => {
             const d = draft();
             d.invariantProperties.push(prop({ name: 'brush', value: 'gradient.bad' }));

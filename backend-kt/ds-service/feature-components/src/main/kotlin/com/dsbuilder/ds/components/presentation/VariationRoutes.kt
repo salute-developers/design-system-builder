@@ -47,7 +47,11 @@ fun Route.variationRoutes(
                 call.request.queryParameters["versionId"],
             )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
-            when (val result = list.execute(context)) {
+            val designSystemId = call.request.queryParameters["designSystemId"]?.let {
+                it.toUuidOrNull()
+                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
+            }
+            when (val result = list.execute(context, designSystemId)) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
                     result.value.map(ComponentVariationSummaryResponse::from),
@@ -77,12 +81,15 @@ fun Route.variationRoutes(
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateVariationRequest>()
+            val designSystemId = request.designSystemId.toUuidOrNull()
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val componentId = request.componentId.toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             if (!request.name.validName() || !request.description.validDescription()) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             val command = ComponentModelRepository.VariationCreate(
+                designSystemId,
                 componentId,
                 request.name.trim(),
                 request.description?.trim(),

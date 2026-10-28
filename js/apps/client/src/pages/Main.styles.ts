@@ -2,10 +2,10 @@ import styled from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 
 import { GrayTone } from '../types';
-import { Popup, BasicButton, IconButton } from '../components';
+import { BasicButton, IconButton } from '../components';
 import { getGrayTokens } from './Main.utils';
 
-export const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode; isPopupOpen?: boolean }>`
+export const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode }>`
     display: flex;
     width: 100%;
     min-width: 0;
@@ -53,10 +53,6 @@ export const BuilderExpandedItems = styled.div`
     flex-direction: column;
 `;
 
-export const StyledPopup = styled(Popup)`
-    left: 4rem;
-    padding: 3.75rem 5rem 0 22.5rem;
-`;
 
 export const StyledIconButton = styled.button.withConfig({ shouldForwardProp: (prop: string | number) => prop !== 'selected' }).attrs({ type: 'button' })<{ selected?: boolean }>`
     box-sizing: border-box;

@@ -1,104 +1,43 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
-import { getOldMenuItems } from '../../utils';
-import { locateLegacyToken, useAddressedToken, useSelectItemInMenu } from '../../hooks';
-import { DesignSystem, Theme, Token } from '../../controllers';
-import { MenuOld, Workspace } from '../../layouts';
-import { typographyTokenActions } from '../../actions';
-
-import { TokenTypographyEditor } from './features/TokenTypographyEditor';
-import type { EditorContextKey } from '../../api/editorContracts';
+import type { DesignSystem, Theme } from '../../controllers';
+import { TypographyScreen } from './TypographyScreen';
 
 interface TypographyOutletContextProps {
-    designSystem?: DesignSystem;
-    theme?: Theme;
-    updated: object;
+    designSystem?: DesignSystem | null;
+    theme?: Theme | null;
     rerender: () => void;
-    editorContext?: EditorContextKey;
 }
 
+/** Раздел «Типографика» темы: экран Typography по прототипу SDDS Portal с автосохранением правок. */
 export const Typography = () => {
-    const { designSystem, theme, updated, rerender, editorContext } =
-        useOutletContext<TypographyOutletContextProps>();
+    const outlet = useOutletContext<TypographyOutletContextProps>();
+    const { projectId, designSystemId, tenantId } = useParams();
+    const [searchParams] = useSearchParams();
+    const versionId = searchParams.get('versionId') ?? undefined;
+    const context = useMemo(
+        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId, versionId } : null),
+        [projectId, designSystemId, tenantId, versionId],
+    );
 
-    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu([0, 1, 0]);
-
-    const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    const data = useMemo(() => getOldMenuItems(theme, 'typography'), [theme, updated]);
-    const addressedToken = useAddressedToken(editorContext, (name) => Boolean(data && locateLegacyToken(data, name)));
-
-    useEffect(() => {
-        if (!data || !addressedToken.requestedTokenName) return;
-        const located = locateLegacyToken(data, addressedToken.requestedTokenName);
-        if (located) {
-            onTabSelect(located.tabIndex);
-            onItemSelect(located.groupIndex, located.itemIndex);
-        }
-    }, [addressedToken.requestedTokenName, data]);
-
-    const onTokenAdd = (groupName: string, tokenName: string, _?: string, tokens?: (Token | unknown)[]) => {
-        typographyTokenActions.addToken({ groupName, tokenName, tokens, theme, designSystem });
-
-        rerender();
-    };
-
-    const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
-        typographyTokenActions.disableToken({ disabled, tokens, designSystem });
-
-        rerender();
-    };
-
-    useEffect(() => {
-        if (!data) {
-            return;
-        }
-
-        const [tabIndex, groupIndex, tokenIndex] = selectedItemIndexes;
-        const selectedTokens = data.groups?.[tabIndex]?.data?.[groupIndex]?.items?.[tokenIndex]?.data as
-            | Token[]
-            | undefined;
-
-        setTokens(selectedTokens);
-    }, [data, selectedItemIndexes]);
-
-    if (!data || !designSystem || !theme) {
-        return null;
+    if (!context || !outlet.designSystem || !outlet.theme) {
+        return (
+            <div className="typography-screen" data-testid="typography-loading">
+                <div className="ty-loading" role="status">
+                    Загружаем стили типографии…
+                </div>
+            </div>
+        );
     }
 
     return (
-        <Workspace
-            section="typography"
-            readOnly={designSystem.getParameters()?.readOnly}
-            menuBackground={'transparent'}
-            menu={
-                <MenuOld
-                    header={designSystem.getParameters()?.projectName}
-                    subheader={designSystem.getParameters()?.packagesName}
-                    data={data}
-                    selectedItemIndexes={selectedItemIndexes}
-                    onItemSelect={(groupIndex, itemIndex) => {
-                        onItemSelect(groupIndex, itemIndex);
-                        const token = data.groups?.[selectedItemIndexes[0]]?.data?.[groupIndex]?.items?.[itemIndex]
-                            ?.data?.[0] as Token | undefined;
-                        if (token) addressedToken.selectTokenName(token.getName());
-                    }}
-                    onItemAdd={onTokenAdd}
-                    onItemDisable={onTokenDisable}
-                />
-            }
-            content={
-                addressedToken.unavailable ? (
-                    <div role="status">Точный источник токена недоступен.</div>
-                ) : (
-                    <TokenTypographyEditor
-                        designSystem={designSystem}
-                        theme={theme}
-                        tokens={tokens}
-                        rerender={rerender}
-                    />
-                )
-            }
+        <TypographyScreen
+            key={`${context.projectId}:${context.designSystemId}:${context.tenantId}:${context.versionId ?? ''}`}
+            context={context}
+            designSystem={outlet.designSystem}
+            theme={outlet.theme}
+            rerender={outlet.rerender}
         />
     );
 };

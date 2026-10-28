@@ -16,10 +16,14 @@ class ListComponentVariationsUseCase(
     private val repository: ComponentRepository,
 ) {
     /** Performs the execute operation. */
-    suspend fun execute(context: DsRequestContext, id: UUID): DsResult<List<ComponentVariationSummary>> =
+    suspend fun execute(
+        context: DsRequestContext,
+        id: UUID,
+        designSystemId: UUID? = null,
+    ): DsResult<List<ComponentVariationSummary>> =
         policy.read(context, ProjectScope.COMPONENT_VARIATIONS_READ) {
             transactions.readOnly(context) {
-                repository.variations(context.projectId, context.principal.systemAdmin, id)
+                repository.variations(context.projectId, context.principal.systemAdmin, id, designSystemId)
                     ?.let { DsResult.Success(it) } ?: if (context.principal.systemAdmin) {
                     DsResult.Success(emptyList())
                 } else {

@@ -1,7 +1,7 @@
 # project-membership-rbac Specification
 
 ## Purpose
-TBD - created by archiving change plasmabldr-137-add-projects-core. Update Purpose after archive.
+Роли участников проекта, управление составом согласно роли и полномочия системного администратора.
 
 ## Requirements
 ### Requirement: Project member roles

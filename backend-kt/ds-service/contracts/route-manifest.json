@@ -100,6 +100,17 @@
       ]
     },
     {
+      "name": "typography-styles",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/tenants/{tenantId}/typography-styles", null, "TypographyStyles", 200, "tenants:read", null],
+        ["PATCH", "/tenants/{tenantId}/typography-styles/{tokenId}", "UpdateTypographyStyleRequest", "UpdatedTypographyStyle", 200, "tenants:write", "tenant-edit-revision"]
+      ]
+    },
+    {
       "name": "token-groups",
       "origin": "ds-service",
       "router": "",
@@ -225,7 +236,7 @@
       "name": "variations",
       "router": "src/routes/api/variations.ts",
       "included": true,
-      "ownership": "via-component-design-system",
+      "ownership": "via-design-system",
       "operations": [
         ["GET", "/variations", null, "Variation[]", 200, "components:variations:read", null],
         ["GET", "/variations/{id}", null, "Variation", 200, "components:variations:read", null],
@@ -266,7 +277,7 @@
       "name": "property-variations",
       "router": "src/routes/api/property-variations.ts",
       "included": true,
-      "ownership": "via-property-and-variation-component-design-system",
+      "ownership": "via-property-and-variation-design-system",
       "operations": [
         ["GET", "/property-variations", null, "PropertyVariation[]", 200, "components:variations:read", null],
         ["GET", "/property-variations/{id}", null, "PropertyVariation", 200, "components:variations:read", null],
@@ -466,6 +477,16 @@
         ["POST", "/component-config/import", "ImportComponentConfigRequest", "ComponentConfigImportReport", 200, "components:write", null],
         ["POST", "/component-config/export", "ExportComponentConfigRequest", "ComponentConfigPackage", 200, "components:read", null],
         ["POST", "/component-config/web-adapter", "ComponentWebAdapterRequest", "ComponentWebAdapter", 200, "components:read", null]
+      ]
+    },
+    {
+      "name": "compose-preview",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "global-read-system-admin-write",
+      "operations": [
+        ["GET", "/compose-preview/plugin", null, "ActivePluginBuild", 200, "components:read", null]
       ]
     }
   ]

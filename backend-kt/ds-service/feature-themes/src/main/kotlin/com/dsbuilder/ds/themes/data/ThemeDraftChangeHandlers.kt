@@ -6,21 +6,30 @@ import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.DraftSubjectChange
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
 import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenFamilyTypeSync
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
-/** Предметные обработчики журнала тем. */
-fun themeDraftChangeHandlers(): List<DraftChangeHandler> =
-    listOf(themeDraftChangeHandler()) + paletteDraftChangeHandlers()
+/**
+ * Предметные обработчики журнала тем. После отката создания или удаления темы [familyTypes] пересчитывает тип
+ * семейств цветовых токенов: значения темы перестают или снова начинают в нём участвовать. Откат изменения темы
+ * тип не пересчитывает.
+ */
+fun themeDraftChangeHandlers(
+    familyTypes: ColorTokenFamilyTypeSync = ColorTokenFamilyTypeSync(ExposedColorTokenRepository()),
+): List<DraftChangeHandler> = listOf(tenantDraftChangeHandler(familyTypes)) + paletteDraftChangeHandlers()
 
 /** Скрывает технические создания начальных значений новой темы за одной записью tenant. */
 fun themeDraftChangePolicy(): DraftChangePolicy = object : DraftChangePolicy {
@@ -103,9 +112,10 @@ private fun UUID?.json(): JsonElement = this?.let { JsonPrimitive(it.toString())
 
 private data class InitialTokenValue(val paletteId: UUID?, val value: JsonElement?, val overridden: Boolean)
 
-private fun themeDraftChangeHandler(): DraftChangeHandler {
+/** Обработчик журнала темы ([TENANT_ENTITY_TYPE]) с пересчётом типа семейств [familyTypes] после отката. */
+internal fun tenantDraftChangeHandler(familyTypes: ColorTokenFamilyTypeSync): DraftChangeHandler {
     val delegate = ExposedDraftChangeHandler(
-        entityType = "tenant",
+        entityType = TENANT_ENTITY_TYPE,
         stableTable = TenantsTable,
         stableId = TenantsTable.id,
         stableDesignSystemId = TenantsTable.designSystemId,
@@ -122,10 +132,34 @@ private fun themeDraftChangeHandler(): DraftChangeHandler {
     )
     return object : DraftChangeHandler by delegate {
         override fun revert(versionId: UUID, entityId: UUID, removeStableEntity: Boolean): Boolean {
+            val designSystemId = TenantsTable.selectAll().where { TenantsTable.id eq entityId }
+                .singleOrNull()?.get(TenantsTable.designSystemId)
+            // Тип семейств зависит только от набора тем: пересчёт нужен при откате создания или удаления темы.
+            val membershipChanges = removeStableEntity || tenantExistenceChanges(versionId, entityId)
             if (removeStableEntity) removeDraftOnlyTokenValues(versionId, entityId)
-            return delegate.revert(versionId, entityId, removeStableEntity)
+            val reverted = delegate.revert(versionId, entityId, removeStableEntity)
+            if (reverted && membershipChanges && designSystemId != null) {
+                familyTypes.syncTenantFamilies(designSystemId, entityId)
+            }
+            return reverted
         }
     }
+}
+
+/**
+ * Меняет ли черновая редакция темы [tenantId] её существование относительно предыдущей границы: создание или
+ * удаление (путь `/deleted`). Правки имени, описания и цветовой конфигурации набор тем не меняют.
+ */
+private fun tenantExistenceChanges(versionId: UUID, tenantId: UUID): Boolean {
+    val draft = TenantRevisionsTable.selectAll().where {
+        (TenantRevisionsTable.tenantId eq tenantId) and (TenantRevisionsTable.designSystemVersionId eq versionId)
+    }.singleOrNull() ?: return false
+    val previous = TenantRevisionsTable.selectAll().where {
+        (TenantRevisionsTable.tenantId eq tenantId) and (TenantRevisionsTable.designSystemVersionId neq versionId) and
+            (TenantRevisionsTable.versionSequenceNumber less draft[TenantRevisionsTable.versionSequenceNumber])
+    }.orderBy(TenantRevisionsTable.versionSequenceNumber, SortOrder.DESC).limit(1).singleOrNull()
+    val existedBefore = previous?.get(TenantRevisionsTable.deleted) == false
+    return existedBefore == draft[TenantRevisionsTable.deleted]
 }
 
 private fun removeDraftOnlyTokenValues(versionId: UUID, tenantId: UUID) {
@@ -143,5 +177,6 @@ private fun removeDraftOnlyTokenValues(versionId: UUID, tenantId: UUID) {
     ThemeTokenValuesTable.deleteWhere { ThemeTokenValuesTable.id inList valueIds }
 }
 
-private const val TENANT_ENTITY_TYPE = "tenant"
+/** Тип сущности журнала темы. */
+internal const val TENANT_ENTITY_TYPE = "tenant"
 private const val TOKEN_VALUE_ENTITY_TYPE = "token-value"

@@ -39,6 +39,11 @@ const platformItems: Record<Platform, SegmentButtonItem> = {
     web: { label: 'Web', value: 'web' },
     compose: { label: 'Compose', value: 'compose' },
 };
+const platformOrder: Platform[] = ['web', 'compose'];
+
+/** Вкладки платформ показываются всегда; платформа, для которой у дизайн-системы нет компонентов, отключена. */
+export const platformSwitchItems = (available: Platform[]): SegmentButtonItem[] =>
+    platformOrder.map((platform) => ({ ...platformItems[platform], disabled: !available.includes(platform) }));
 type PendingComponentSave = PendingComponentMutation &
     AutosaveOperation & {
         metadataKey: string;
@@ -72,7 +77,7 @@ export const Components = () => {
         };
     }, [composeComponents]);
 
-    // Платформы показываем только те, для которых у дизайн-системы есть компоненты.
+    // В меню попадают только платформы, для которых у дизайн-системы есть компоненты; остальные вкладки отключены.
     const menus = useMemo<Partial<Record<Platform, Data | undefined>>>(
         () => ({
             ...(components?.length ? { web: getOldMenuItems(components, 'components') } : {}),
@@ -366,16 +371,14 @@ export const Components = () => {
                     selectedItemIndexes={selectedItemIndexes}
                     onItemSelect={onItemSelect}
                     toolbar={
-                        platforms.length > 1 && (
-                            <PlatformSwitch>
-                                <SegmentButton
-                                    label="Платформа"
-                                    items={platforms.map((item) => platformItems[item])}
-                                    selected={platformItems[platform]}
-                                    onSelect={onPlatformSelect}
-                                />
-                            </PlatformSwitch>
-                        )
+                        <PlatformSwitch>
+                            <SegmentButton
+                                label="Платформа"
+                                items={platformSwitchItems(platforms)}
+                                selected={platformItems[platform]}
+                                onSelect={onPlatformSelect}
+                            />
+                        </PlatformSwitch>
                     }
                 />
             }

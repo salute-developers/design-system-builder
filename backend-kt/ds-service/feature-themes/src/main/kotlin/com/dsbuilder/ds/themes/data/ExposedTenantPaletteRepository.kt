@@ -6,6 +6,8 @@ import com.dsbuilder.ds.themes.application.palette.TenantPaletteLock
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
+import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.domain.colortokens.ValuePaletteReferences
 import com.dsbuilder.ds.themes.domain.palette.PaletteAnchor
 import com.dsbuilder.ds.themes.domain.palette.PaletteGroupKind
 import com.dsbuilder.ds.themes.domain.palette.PaletteRampRef
@@ -133,13 +135,16 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
             val payload = if (row[ThemeTokenValuesTable.tokenId] in shadows) {
                 rewrittenLayers(row, rewrite, resolveHex)
             } else {
-                val reference = reference(row, paletteRows) ?: return@mapNotNull null
-                val next = rewrite.rewrite(reference, resolveHex) ?: return@mapNotNull null
-                ThemeValuePayload(
-                    null,
-                    JsonArray(listOf(JsonPrimitive(next))),
-                    row[ThemeTokenValueRevisionsTable.overridden],
-                )
+                val whole = reference(row, paletteRows)
+                val next = if (whole != null) {
+                    rewrite.rewrite(whole, resolveHex)?.let { JsonArray(listOf(JsonPrimitive(it))) }
+                } else {
+                    // Ссылки в стопах градиента и в слоях iOS и Android: меняются только сами ссылки.
+                    row[ThemeTokenValueRevisionsTable.value]?.let { value ->
+                        ValuePaletteReferences.rewrite(value) { rewrite.rewrite(it, resolveHex) }.takeIf { it != value }
+                    }
+                }
+                next?.let { ThemeValuePayload(null, it, row[ThemeTokenValueRevisionsTable.overridden]) }
             }
             payload?.let { row[ThemeTokenValuesTable.id] to it }
         }.toMap()
@@ -198,7 +203,7 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
     }
 
     private fun colorTokens(designSystemId: UUID): List<PaletteTokenRef> = currentThemeTokenRows(designSystemId)
-        .filter { it[ThemeTokenRevisionsTable.type] == ThemeTokenType.COLOR }
+        .filter { it[ThemeTokenRevisionsTable.type] in ColorTokenFamily.TYPES }
         .map { row ->
             val id = row[ThemeTokensTable.id].toString()
             PaletteTokenRef(id, row[ThemeTokenRevisionsTable.name], row[ThemeTokenRevisionsTable.displayName])
@@ -208,15 +213,20 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         val paletteRows = paletteRows()
         if (tokenIds.isEmpty()) return emptyList()
         return currentThemeTokenValueRows(tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
-            .mapNotNull { row ->
-                val platform = row[ThemeTokenValuesTable.platform] ?: return@mapNotNull null
-                PaletteTokenValue(
-                    tokenId = row[ThemeTokenValuesTable.tokenId].toString(),
-                    mode = row[ThemeTokenValuesTable.mode]?.wireValue,
-                    platform = platform.wireValue,
-                    reference = reference(row, paletteRows),
-                    valueId = row[ThemeTokenValuesTable.id].toString(),
-                )
+            .flatMap { row ->
+                val platform = row[ThemeTokenValuesTable.platform] ?: return@flatMap emptyList()
+                // У градиента ссылок может быть несколько: по записи на каждую различную ссылку значения.
+                val references = reference(row, paletteRows)?.let(::listOf)
+                    ?: ValuePaletteReferences.find(row[ThemeTokenValueRevisionsTable.value]).distinct()
+                references.ifEmpty { listOf(null) }.map { reference ->
+                    PaletteTokenValue(
+                        tokenId = row[ThemeTokenValuesTable.tokenId].toString(),
+                        mode = row[ThemeTokenValuesTable.mode]?.wireValue,
+                        platform = platform.wireValue,
+                        reference = reference,
+                        valueId = row[ThemeTokenValuesTable.id].toString(),
+                    )
+                }
             }
     }
 

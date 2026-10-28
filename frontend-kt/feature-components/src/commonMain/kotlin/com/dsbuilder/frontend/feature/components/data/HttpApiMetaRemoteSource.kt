@@ -6,6 +6,7 @@ import com.dsbuilder.frontend.feature.components.application.ApiMetaRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaRemoteCommand
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaRemoteResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaRejection
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -25,31 +26,7 @@ internal class HttpApiMetaRemoteSource(
     override suspend fun import(command: ImportApiMetaRemoteCommand): ImportApiMetaRemoteResult {
         val body = json.encodeToString(
             ApiMetaImportRequest.serializer(),
-            ApiMetaImportRequest(
-                platform = command.platform,
-                meta = ApiMetaImportMeta(source = command.source),
-                dryRun = command.dryRun,
-                components = command.manifest.components.map { component ->
-                    ApiMetaImportComponent(
-                        name = component.name,
-                        properties = component.properties.map { property ->
-                            ApiMetaImportProperty(
-                                name = property.name,
-                                type = property.type,
-                                platformNames = property.platformNames.map { name ->
-                                    ApiMetaImportAlias(
-                                        name = name,
-                                        deprecated = property.deprecations[name]
-                                            ?.let { ApiMetaImportDeprecation(it.message) },
-                                    )
-                                },
-                                description = property.description,
-                            )
-                        },
-                        states = component.states,
-                    )
-                },
-            ),
+            command.manifest.toImportRequest(command.platform, command.source, command.dryRun),
         )
 
         val path = "/api/admin/component-config/import-api-meta"
@@ -86,7 +63,7 @@ internal class HttpApiMetaRemoteSource(
  * @property components компоненты манифеста.
  */
 @Serializable
-private data class ApiMetaImportRequest(
+internal data class ApiMetaImportRequest(
     val platform: String,
     val meta: ApiMetaImportMeta,
     val dryRun: Boolean,
@@ -94,19 +71,19 @@ private data class ApiMetaImportRequest(
 )
 
 @Serializable
-private data class ApiMetaImportMeta(
+internal data class ApiMetaImportMeta(
     val source: String,
 )
 
 @Serializable
-private data class ApiMetaImportComponent(
+internal data class ApiMetaImportComponent(
     val name: String,
     val properties: List<ApiMetaImportProperty>,
     val states: List<String>,
 )
 
 @Serializable
-private data class ApiMetaImportProperty(
+internal data class ApiMetaImportProperty(
     val name: String,
     val type: String,
     val platformNames: List<ApiMetaImportAlias>,
@@ -115,13 +92,13 @@ private data class ApiMetaImportProperty(
 
 /** Платформенное имя объектом: объект без `deprecated` явно говорит «не устарело». */
 @Serializable
-private data class ApiMetaImportAlias(
+internal data class ApiMetaImportAlias(
     val name: String,
     val deprecated: ApiMetaImportDeprecation? = null,
 )
 
 @Serializable
-private data class ApiMetaImportDeprecation(
+internal data class ApiMetaImportDeprecation(
     val message: String,
 )
 
@@ -129,7 +106,7 @@ private data class ApiMetaImportDeprecation(
  * Отчёт импорта в ответе backend. Все поля необязательны и по умолчанию нулевые.
  */
 @Serializable
-private data class ApiMetaImportReportResponse(
+internal data class ApiMetaImportReportResponse(
     val createdComponents: Int = 0,
     val createdProperties: Int = 0,
     val createdStates: Int = 0,
@@ -158,8 +135,35 @@ private data class ApiMetaImportReportResponse(
 }
 
 @Serializable
-private data class ApiMetaRejectionResponse(
+internal data class ApiMetaRejectionResponse(
     val component: String = "",
     val property: String = "",
     val reason: String = "",
 )
+
+/** Строит тело запроса импорта по манифесту: общее для импорта меты и публикации плагина. */
+internal fun ApiMetaManifest.toImportRequest(platform: String, source: String, dryRun: Boolean): ApiMetaImportRequest =
+    ApiMetaImportRequest(
+        platform = platform,
+        meta = ApiMetaImportMeta(source = source),
+        dryRun = dryRun,
+        components = components.map { component ->
+            ApiMetaImportComponent(
+                name = component.name,
+                properties = component.properties.map { property ->
+                    ApiMetaImportProperty(
+                        name = property.name,
+                        type = property.type,
+                        platformNames = property.platformNames.map { name ->
+                            ApiMetaImportAlias(
+                                name = name,
+                                deprecated = property.deprecations[name]?.let { ApiMetaImportDeprecation(it.message) },
+                            )
+                        },
+                        description = property.description,
+                    )
+                },
+                states = component.states,
+            )
+        },
+    )

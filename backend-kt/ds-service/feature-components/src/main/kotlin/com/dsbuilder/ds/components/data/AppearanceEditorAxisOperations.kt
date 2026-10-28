@@ -10,7 +10,6 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
@@ -39,7 +38,7 @@ internal object AppearanceEditorAxisOperations {
         val existing = orderedAxes(appearanceId)
         lockAxes(designSystemId, existing)
         val position = (command.position ?: existing.size).coerceIn(0, existing.size)
-        val variationId = newVariation(appearance[ComponentAppearancesTable.componentId], name)
+        val variationId = newVariation(designSystemId, appearance[ComponentAppearancesTable.componentId], name)
         val styles = valueNames.associateWith { EditorWrites.newStyle(designSystemId, variationId, it) }
         val defaultStyle = command.defaultValue?.let { wanted ->
             styles.entries.firstOrNull { it.key.equals(wanted.trim(), ignoreCase = true) }?.value
@@ -244,16 +243,13 @@ internal object AppearanceEditorAxisOperations {
         check(lockDraftSubjects(designSystemId, "appearance-variation", axes.map { it[AppearanceVariationsTable.id] }))
     }
 
-    /** Создаёт вариацию каталога с технической уникальной в компоненте именем. */
-    private fun newVariation(componentId: UUID, name: String): UUID {
-        val taken = VariationsTable.selectAll().where { VariationsTable.componentId eq componentId }
-            .map { it[VariationsTable.name].lowercase() }.toSet()
+    /** Создаёт ось дизайн-системы с технической именем, уникальным в компоненте этой системы. */
+    private fun newVariation(designSystemId: UUID, componentId: UUID, name: String): UUID {
+        val taken = VariationsTable.selectAll().where {
+            (VariationsTable.designSystemId eq designSystemId) and (VariationsTable.componentId eq componentId)
+        }.map { it[VariationsTable.name].lowercase() }.toSet()
         val technical = if (name.lowercase() in taken) uniqueSuffix(name) else name
-        return VariationsTable.insertReturning {
-            it[VariationsTable.componentId] = componentId
-            it[VariationsTable.name] = technical
-            it[description] = null
-        }.single()[VariationsTable.id]
+        return VariationWrites.create(designSystemId, componentId, technical, null)
     }
 
     /** Стиль дизайн-системы с таким именем, ещё не объявленный в этой оси, либо `null`. */

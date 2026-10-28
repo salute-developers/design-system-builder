@@ -121,7 +121,7 @@ private fun ImportApiMetaResult.Imported.render(): String = buildString {
     append(if (dryRun) "Status: dry run, no changes were applied" else "Status: API meta imported")
 }
 
-private fun ApiMetaImportReport.render(): String = buildString {
+internal fun ApiMetaImportReport.render(): String = buildString {
     appendLine("Created components: $createdComponents")
     appendLine("Created properties: $createdProperties")
     appendLine("Created states: $createdStates")

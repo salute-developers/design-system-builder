@@ -224,7 +224,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
             `../components/${encodeURIComponent(name)}${context.versionId ? `?versionId=${encodeURIComponent(context.versionId)}` : ''}`,
         );
 
-    /** Имя растяжки палитры в группе, к которой палитра относит токен тени, как во вкладке Library. */
+    /** Имя растяжки палитры в группе, к которой палитра относит токен тени, как во вкладке «Библиотека». */
     const rampName = (tokenName: string) => (reference: PaletteRampRef) =>
         palette ? groupRampName(palette, resolveTokenGroupId(palette, tokenName), reference) : undefined;
 
@@ -333,27 +333,39 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                         // Состояние выбора цвета принадлежит слою: другой слой открывает новый выбор.
                         key={`${selected.tokenId}:${openPicker.scope}:${openPicker.index}`}
                         label={`${selected.name}, слой ${openPicker.index + 1}`}
-                        type="color"
+                        // Цвет слоя тени — только сплошной цвет: без `paint` выбор цвета не предлагает градиент.
                         value={{
                             value: pickerLayer.colorRef ?? pickerLayer.color,
+                            raw: pickerLayer.colorRef ?? pickerLayer.color,
                             resolved: pickerLayer.color,
+                            baseColor: pickerLayer.color,
                             paletteLabel: layerColorLabel(pickerLayer, rampName(selected.name)),
                             opacity: layerOpacity(pickerLayer) / 100,
+                            kind: 'color',
+                            paint: null,
+                            missing: null,
+                            platforms: {},
                         }}
+                        platform={openPicker.scope}
                         palette={palette}
                         tokenName={selected.name}
-                        // Ступень Library отправляется ссылкой `[type.shade.step][opacity]`, цвет Custom — HEX.
-                        onCommit={(value) =>
+                        resolveColor={(color) =>
+                            (palette ? resolvePaletteStep(palette, color, selected.name)?.hex : null) ??
+                            (color.startsWith('#') ? color : null)
+                        }
+                        // Ступень из вкладки «Библиотека» отправляется ссылкой `[type.shade.step][opacity]`, цвет «Вручную» — HEX.
+                        onCommit={(paint) => {
+                            if (paint.kind !== 'color') return;
                             editor.update(selected.tokenId, (current) =>
                                 withLayer(current, openPicker.scope, openPicker.index, (layer) =>
                                     layerWithColor(
                                         layer,
-                                        value,
-                                        palette ? resolvePaletteStep(palette, value, selected.name)?.hex : null,
+                                        paint.color,
+                                        palette ? resolvePaletteStep(palette, paint.color, selected.name)?.hex : null,
                                     ),
                                 ),
-                            )
-                        }
+                            );
+                        }}
                         onClose={() => setPicker(null)}
                     />
                 )}

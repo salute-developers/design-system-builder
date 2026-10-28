@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 
 import { ComposePreviewFrame } from './ComposePreviewFrame';
 import { assembleComposePreviewPayload } from './assembler';
-import { getComposePreviewPluginUrl } from './config';
+import { getComposePreviewPluginOverride } from './config';
 import { createPreviewDraftFixture } from './testDraftFixture';
 import type { PreviewComponentDescription } from './types';
 
@@ -33,7 +33,7 @@ const SmokeApp = () => {
         draft.example.props = { ...draft.example.props, ...exampleProps };
         return assembleComposePreviewPayload(draft);
     }, [revision, exampleProps]);
-    const pluginUrl = getComposePreviewPluginUrl();
+    const pluginUrl = getComposePreviewPluginOverride();
     const onDescription = useCallback((nextDescription: PreviewComponentDescription) => {
         setDescription(nextDescription);
         setExampleProps(Object.fromEntries(

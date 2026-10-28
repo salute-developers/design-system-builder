@@ -41,6 +41,8 @@ dependencies {
     implementation(libs.ktor.server.config.yaml)
     implementation(libs.snakeyaml)
     implementation(libs.koin.ktor)
+    implementation(libs.aws.s3)
+    implementation(libs.aws.url.connection.client)
     implementation(libs.koin.logger.slf4j)
     implementation(libs.logback.classic)
     implementation(libs.exposed.jdbc)

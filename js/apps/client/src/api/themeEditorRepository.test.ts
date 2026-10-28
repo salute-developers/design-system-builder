@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { pluginUrl, get, put, post, patch, remove } = vi.hoisted(() => ({
+const { pluginUrl, platformParams, get, put, post, patch, remove } = vi.hoisted(() => ({
     pluginUrl: { value: undefined as string | undefined },
+    platformParams: { value: false },
     get: vi.fn(),
     put: vi.fn(),
     post: vi.fn(),
@@ -12,13 +13,22 @@ vi.mock('./index', () => ({ http: { get, put, post, patch, delete: remove }, PRO
 vi.mock('../composePreview', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../composePreview')>()),
     getComposePreviewPluginUrl: () => pluginUrl.value,
+    resolveComposePreviewPluginUrl: async () => pluginUrl.value,
 }));
 vi.mock('./http', () => ({ http: { get, put, post, patch, delete: remove } }));
 // Контракты репозиториев не зависят от реального времени сетевого планировщика;
 // его интервалы, отмена, объединение и повторы проверяются отдельно в editorReads.test.ts.
 vi.mock('./editorReads', () => ({
     readEditor: (url: string, request: unknown, body?: unknown) =>
-        body === undefined ? get(url, request) : post(url, body, request),
+        // Дополнения модели компонентов (web-параметры, вариации свойств, шаблоны, связи) — пустые списки; параметры
+        // платформ тест может подменить сам: `property-platform-params` читается и для Compose.
+        ['/property-platform-params', '/property-variations', '/component-config/web-adapter', '/component-deps'].some(
+            (suffix) => url.endsWith(suffix) && !(suffix === '/property-platform-params' && platformParams.value),
+        )
+            ? Promise.resolve({ data: [] })
+            : body === undefined
+              ? get(url, request)
+              : post(url, body, request),
     invalidateEditorReads: vi.fn(),
 }));
 
@@ -69,6 +79,7 @@ const reply = (tenantId: string, color: string) => (url: string) => {
     if (url.endsWith('/design-system-components')) return { data: [] };
     if (url.endsWith('/components')) return { data: [] };
     if (url.endsWith('/appearances')) return { data: [] };
+    if (url.endsWith('/property-platform-params')) return { data: [] };
     if (url.endsWith('/design-system-versions/by-design-system/ds-1'))
         return {
             data: [
@@ -88,6 +99,7 @@ const reply = (tenantId: string, color: string) => (url: string) => {
 
 beforeEach(() => {
     pluginUrl.value = undefined;
+    platformParams.value = false;
     get.mockReset();
     put.mockReset();
     post.mockReset();
@@ -104,15 +116,17 @@ describe('ThemeEditorRepository with the component editor disabled', () => {
         vi.unstubAllEnvs();
     });
 
-    it('does not request component configs and still loads the theme', async () => {
+    it('loads web components for the colour screen but not Compose ones', async () => {
         vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'false');
         pluginUrl.value = 'http://plugin.example/';
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
 
         const snapshot = await loadThemeEditor(context);
 
-        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'))).toHaveLength(0);
-        expect(snapshot.componentsData).toEqual([]);
+        // «Цвета» берут из модели web-компонентов связи токенов, пары контраста и канвас: флаг их не отключает.
+        const exports = post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'));
+        expect(exports).toHaveLength(1);
+        expect(exports[0][1]).toMatchObject({ platform: 'web' });
         expect(snapshot.composeComponentsData).toEqual([]);
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#111111');
     });
@@ -431,6 +445,56 @@ describe('Editor repositories', () => {
             },
         });
         expect(get.mock.calls.some(([url]) => String(url).includes('/legacy/'))).toBe(false);
+    });
+
+    it('maps Compose parameters of a property from property-platform-params', async () => {
+        platformParams.value = true;
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/design-system-components'))
+                return Promise.resolve({
+                    data: [{ id: 'link-1', designSystemId: 'ds-1', componentId: 'component-1' }],
+                });
+            if (url.endsWith('/components'))
+                return Promise.resolve({
+                    data: [{ id: 'component-1', name: 'Button', description: null, platform: 'compose' }],
+                });
+            if (url.endsWith('/appearances')) return Promise.resolve({ data: [] });
+            if (url.endsWith('/property-platform-params'))
+                return Promise.resolve({
+                    data: [
+                        { id: 'p-1', propertyId: 'property-1', platform: 'compose', name: 'color' },
+                        { id: 'p-2', propertyId: 'property-1', platform: 'compose', name: 'alpha' },
+                        { id: 'p-3', propertyId: 'property-1', platform: 'xml', name: 'sd_color' },
+                    ],
+                });
+            if (url.endsWith('/components/component-1/properties'))
+                return Promise.resolve({
+                    data: [
+                        { id: 'property-1', name: 'background', type: 'color', description: null },
+                        { id: 'property-2', name: 'shape', type: 'shape', description: null },
+                    ],
+                });
+            if (url.endsWith('/components/component-1/variations')) return Promise.resolve({ data: [] });
+            throw new Error(`Unexpected GET ${url}`);
+        });
+        post.mockResolvedValue({
+            data: {
+                components: [
+                    {
+                        componentName: 'button',
+                        styleName: 'default',
+                        config: { invariants: {}, defaults: [], variations: [] },
+                    },
+                ],
+            },
+        });
+
+        const [meta] = await componentRepository.loadComponentData(context, undefined, 'compose');
+
+        expect(meta.sources.api.map((property) => property.platformMappings)).toEqual([
+            { xml: null, compose: 'color,alpha', ios: null, web: null },
+            { xml: null, compose: null, ios: null, web: null },
+        ]);
     });
 
     it('loads only values of the selected tenant and keeps tenant snapshots independent', async () => {

@@ -70,18 +70,24 @@ separately. Each command SHALL replace only its own part of the output directory
 #### Scenario: Пакет части с --package
 
 - **WHEN** developer runs either command with `--package`
-- **THEN** CLI MUST build a package of that part only with pacote, which runs only `prepare` (`npm run build` of the package) with tools resolved from `js/cli/node_modules`
+- **THEN** CLI MUST write the whole package of that part to the output directory without building or packing it: `package.json`, the build configuration files, `scripts` and `src`
+- **THEN** CLI MUST replace `src` entirely and MUST keep other existing content of the output directory, such as `node_modules`
+- **THEN** CLI MUST NOT write a `.tgz` archive
 - **THEN** the package name MUST be given by `--name`; without `--name` CLI MUST fail before generating anything
 - **WHEN** a command runs without `--package`
 - **THEN** `--name` MUST NOT be required, because the package name does not affect `src`
-- **THEN** the archive MUST be written as `<scope>-<name>-<version>-theme.tgz` or `…-components.tgz`, so that archives of the parts do not overwrite each other
-- **THEN** the temporary build directory MUST be removed, also when the build fails
+- **THEN** the temporary directory MUST be removed, also when generation fails
 
 #### Scenario: Пакет без темы
 
 - **WHEN** the package has no theme
-- **THEN** the build MUST skip copying theme CSS and MUST NOT export the theme
-- **THEN** the full package built by `generate:ds --package` MUST build as before
+- **THEN** the package build MUST skip copying theme CSS and MUST NOT export the theme
+
+#### Scenario: Пакет без компонентов
+
+- **WHEN** a package without components (`generate:theme --package`) is built from a terminal, for example with `npm pack`
+- **THEN** `scripts/copy-linaria-components.sh` MUST finish without reading stdin and with exit code 0
+- **THEN** it MUST NOT search `src/components` when the directory is missing
 
 ### Requirement: Local web design system generation
 
@@ -97,8 +103,7 @@ separately. Each command SHALL replace only its own part of the output directory
 #### Scenario: Полный пакет с --package
 
 - **WHEN** developer runs `generate:ds --package`
-- **THEN** CLI MUST build one package with the theme and the components with pacote, the same way as a part package
-- **THEN** the archive MUST be written as `<scope>-<name>-<version>.tgz` without a part suffix
+- **THEN** CLI MUST write one package directory with the theme and the components, the same way as a part package
 
 ### Requirement: Local web generation includes every theme
 
@@ -252,4 +257,108 @@ CLI SHALL проверять имена тем из их `meta.json` до зап
 - **WHEN** CLI собирает пакет
 - **THEN** временный каталог MUST создаваться внутри `js/cli` и MUST NOT попадать в Git
 - **THEN** скрипт `lint` пакета MUST находить `eslint` в `js/cli/node_modules`
+
+### Requirement: Брейкпоинты типографики из project config
+
+`npm run generate:theme` и `npm run generate:ds` SHALL брать брейкпоинты медиазапросов адаптивной
+типографики из необязательного массива `breakpoints` в `.sdds/config.json`. Элемент массива SHALL
+быть объектом с полем `name` — одним из `screenS`, `screenM`, `screenL` — и необязательными целыми
+неотрицательными границами `from` и `to` в пикселях, где отсутствующий ключ и `null` означают
+отсутствие границы. `from` SHALL означать минимальную ширину экрана, `to` — максимальную. Медиазапрос
+SHALL строиться так: только `to` — `@media (max-width: <to>px)`, `from` и `to` —
+`@media (min-width: <from>px) and (max-width: <to>px)`, только `from` — `@media (min-width: <from>px)`.
+В темах SHALL выводиться типографика только описанных в массиве экранов, в порядке массива.
+
+#### Scenario: Брейкпоинты заданы
+
+- **WHEN** в `.sdds/config.json` задано `"breakpoints": [{ "name": "screenS", "to": 959 }, { "name": "screenM", "from": 960, "to": 1280 }, { "name": "screenL", "from": 1281 }]` и разработчик запускает `generate:theme`
+- **THEN** типографика `screenS` MUST быть обёрнута в `@media (max-width: 959px)`
+- **THEN** типографика `screenM` MUST быть обёрнута в `@media (min-width: 960px) and (max-width: 1280px)`
+- **THEN** типографика `screenL` MUST быть обёрнута в `@media (min-width: 1281px)`
+- **THEN** это MUST выполняться в `themes/<имя>__dark|light.ts`, `css/<имя>__dark|light.css` и `css/<имя>.module.css` каждой сгенерированной темы
+
+#### Scenario: Брейкпоинты не заданы
+
+- **WHEN** `config.json` отсутствует или в нём нет `breakpoints`
+- **THEN** содержимое `src/theme` MUST быть таким же, как до изменения: ≤559, 560–959 и ≥960 px
+
+#### Scenario: Описана часть экранов
+
+- **WHEN** в `breakpoints` описаны только `{ "name": "screenS", "to": 767 }` и `{ "name": "screenL", "from": 768 }`
+- **THEN** в темах MUST быть медиазапросы только для `screenS` и `screenL`
+- **THEN** типографика `screenM` MUST NOT выводиться в файлах темы
+
+#### Scenario: Один экран
+
+- **WHEN** в `breakpoints` описан один экран без границ
+- **THEN** его типографика MUST выводиться в селекторе темы без медиазапроса
+
+#### Scenario: Нулевые границы
+
+- **WHEN** в `breakpoints` задано `[{ "name": "screenS", "to": 0 }, { "name": "screenM", "from": 0, "to": 959 }, { "name": "screenL", "from": 960 }]`
+- **THEN** типографика `screenS` MUST быть обёрнута в `@media (max-width: 0px)`
+- **THEN** типографика `screenM` MUST быть обёрнута в `@media (min-width: 0px) and (max-width: 959px)`
+- **THEN** граница `0` MUST NOT теряться и MUST NOT давать блок без медиазапроса
+
+#### Scenario: Одна тема
+
+- **WHEN** брейкпоинты заданы и разработчик передаёт `--tenant <name>`
+- **THEN** CLI MUST применить те же брейкпоинты к этой теме
+
+### Requirement: Согласованность брейкпоинтов
+
+CLI SHALL проверять, что у сетки `breakpoints` есть начало и конец, а у промежуточных экранов
+заданы обе границы, и SHALL завершаться ошибкой, называющей путь к `config.json` и номер элемента,
+до изменения каталога результата.
+
+#### Scenario: Сетка согласована
+
+- **WHEN** у первого экрана задан только `to`, у последнего только `from`, у остальных обе границы с `from ≤ to`
+- **THEN** генерация MUST завершиться успешно
+
+#### Scenario: Нет начала или конца сетки
+
+- **WHEN** у первого экрана задан `from` или у последнего задан `to`
+- **THEN** CLI MUST завершиться ошибкой
+
+#### Scenario: Промежуточный экран без границы
+
+- **WHEN** у экрана между первым и последним не задана одна из границ или `from > to`
+- **THEN** CLI MUST завершиться ошибкой
+
+#### Scenario: Соседние экраны не стыкуются
+
+- **WHEN** начало экрана не равно концу предыдущего плюс 1, например `{ "name": "screenS", "to": 700 }` и `{ "name": "screenM", "from": 960, "to": 1280 }`
+- **THEN** CLI MUST NOT считать это ошибкой и MUST сгенерировать медиазапросы по заданным границам
+
+#### Scenario: Неверный состав массива
+
+- **WHEN** `breakpoints` не массив или пустой, элемент не объект, `name` не из `screenS`, `screenM`, `screenL`, имя повторяется или нарушен порядок `screenS`, `screenM`, `screenL`, либо граница не целое неотрицательное число
+- **THEN** CLI MUST завершиться ошибкой
+- **THEN** CLI MUST NOT изменять каталог результата
+
+### Requirement: Сборка пакета не меняет исходники
+
+Сборка пакета, сгенерированного с `--package`, SHALL NOT запускать eslint и SHALL NOT изменять `src`.
+Заготовка пакета SHALL NOT содержать конфигов eslint, а `package.json` пакета — скрипта `lint`.
+
+#### Scenario: Сборка вне репозитория
+
+- **WHEN** пакет из одной темы сгенерирован с `--package` в каталог вне `js/cli` и в нём выполнены `npm install` и `npm pack`
+- **THEN** сборка MUST завершиться успешно без eslint в `PATH`
+- **THEN** содержимое `src` после сборки MUST совпадать с содержимым до неё
+
+#### Scenario: Очистка после npm pack
+
+- **WHEN** папка пакета лежит в git-репозитории, сама не игнорируется, и в ней выполнен `npm pack`
+- **THEN** скрипт `postpack` MUST удалить игнорируемые файлы папки, кроме `.tgz`
+- **THEN** отслеживаемые файлы и `src/theme` MUST остаться
+- **WHEN** папка не в git-репозитории или игнорируется
+- **THEN** `postpack` MUST ничего не удалять и MUST завершиться с кодом 0
+
+#### Scenario: Состав заготовки
+
+- **WHEN** CLI пишет папку пакета
+- **THEN** в ней MUST NOT быть `eslint.config.mjs` и `.eslintrc.js`
+- **THEN** `package.json` MUST NOT содержать скрипт `lint`, а скрипт `build` MUST NOT вызывать `npm run lint`
 

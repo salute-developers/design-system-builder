@@ -7,7 +7,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
-import com.dsbuilder.ds.themes.domain.ThemeTokenType
+import com.dsbuilder.ds.themes.domain.colortokens.ColorValueShape
 import com.dsbuilder.ds.themes.domain.colortokens.TokenValueRule
 import java.util.UUID
 
@@ -56,7 +56,8 @@ internal fun List<ColorTokenValue>.hasDuplicateKey(): Boolean =
 
 /**
  * Правило значений по копии шаблона палитры темы; тема, созданная в обход `ds-service`, получает копию здесь же.
- * Тема уже заблокирована и проверена на доступ вызывающей операцией.
+ * Доступ к теме проверен вызывающей операцией; копия создаётся идемпотентно и не конфликтует с параллельной
+ * инициализацией той же темы.
  */
 internal suspend fun TenantPaletteRepository.valueRule(tenantId: UUID): TokenValueRule {
     val template = template(tenantId).ifEmpty { initialize(tenantId).let { template(tenantId) } }
@@ -67,14 +68,24 @@ internal suspend fun TenantPaletteRepository.valueRule(tenantId: UUID): TokenVal
 internal fun List<ColorTokenValue>.isIncomplete(): Boolean =
     hasDuplicateKey() || map { it.platform to it.mode }.toSet() != REQUIRED_VALUE_KEYS
 
-/** Первое недопустимое значение токенов типа [type]; ключ [values] — адрес токена в сообщении об ошибке. */
-internal fun TokenValueRule.firstViolation(
-    type: ThemeTokenType,
-    values: Map<String, List<ColorTokenValue>>,
-): DsFailure.InvalidRequest? = values.firstNotNullOfOrNull { (token, items) ->
-    items.firstNotNullOfOrNull { item ->
-        validate(type, item.platform, item.paletteId != null, item.value)?.let { reason ->
-            invalidTokenValue("$token:${item.platform.wireValue}:${item.mode.wireValue}", reason)
+/**
+ * Первое недопустимое значение операции цветового токена: цвет или градиент у любого члена семейства, признак
+ * `overridden` только у iOS и Android. Ключ [values] — адрес токена в сообщении об ошибке.
+ */
+internal fun TokenValueRule.firstViolation(values: Map<String, List<ColorTokenValue>>): DsFailure.InvalidRequest? =
+    values.firstNotNullOfOrNull { (token, items) ->
+        items.firstNotNullOfOrNull { item ->
+            val reason = if (item.overridden && item.platform == ThemeTokenPlatform.WEB) {
+                "Своё значение задаётся только для ios и android"
+            } else {
+                validateColorToken(item.platform, item.paletteId != null, item.value)
+            }
+            reason?.let { invalidTokenValue("$token:${item.platform.wireValue}:${item.mode.wireValue}", it) }
         }
     }
-}
+
+/** Значения в хранимой форме: сплошной слой `color` iOS и Android становится строкой. */
+internal fun <K> Map<K, List<ColorTokenValue>>.storedForm(): Map<K, List<ColorTokenValue>> =
+    mapValues { (_, items) ->
+        items.map { item -> item.copy(value = ColorValueShape.storedForm(item.platform, item.value)) }
+    }

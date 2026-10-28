@@ -29,9 +29,10 @@ context: |
   - backend-kt/project-publisher/feature-publish contains the publish feature split into presentation,
     application, domain, data, and di packages.
   - backend-kt/project-publisher/core contains shared infrastructure for the service.
-  - backend-kt/documentation-service/ is the documentation microservice. It reads the JS db-service.
+  - backend-kt/documentation-service/ is the documentation microservice. It verifies design-system
+    ownership through ds-service.
   - backend-kt/preview/ contains the component preview contract and its tooling.
-  - The global component layer of db-service (components, properties, states, platform names) is
+  - The global component layer of ds-service (components, properties, states, platform names) is
     written by `dsbuilder components import-api` (frontend-kt) through the admin-only import-api-meta endpoint served by ds-service (system administrator, meta read from a file).
   - backend-kt/build-system/ is an included composite build with Gradle convention plugins,
     Detekt/Spotless configuration, and custom Detekt rules.
@@ -41,15 +42,13 @@ context: |
     domain, data, and di. Additional rules live in frontend-kt/cli/AGENTS.md.
   - frontend-kt/build-system/ holds the convention plugins of the frontend build.
   - js/ is the JavaScript/TypeScript implementation. Conventions and gotchas live in js/CLAUDE.md.
-  - js/services/db-service is the source of truth of the design-system and component configuration
-    model: src/db/schema.ts is authoritative, drizzle/ holds migrations, src/routes/api/ the Express
-    routers, src/openapi/spec.ts the OpenAPI description.
-  - js/services/db-service is the only remaining Node.js service.
+  - backend-kt/ds-service is the source of truth of the design-system and component configuration
+    model: the schema lives in its Flyway migrations, the data of the design system `base` in its
+    resources (token-definitions.json, token-initial-values.json, component-seeds.json). There is no
+    Node.js service in js/.
   - js/cli generates the React design-system package locally; the generator code lives in
     js/cli/src/generator.
-  - js/apps/client and js/apps/admin are the React/Vite applications; js/apps/admin/src/api is
-    generated from the OpenAPI spec.
-  - js/docs/db-schema.dbml is a hand-maintained mirror of the DB schema; drizzle does not generate it.
+  - js/apps/client is the only React/Vite application.
   - openspec/ holds ADRs and spec-driven artifacts for the whole product, across all three parts.
 
   Tech stack:
@@ -61,12 +60,9 @@ context: |
   - kotlin.test/JUnit and Ktor test host for tests.
   - Detekt and Spotless/ktlint are configured by build-system conventions.
   - Kotlin Multiplatform with jvm and macos targets for the CLI.
-  - Node.js with TypeScript, Express and Drizzle ORM over PostgreSQL in db-service, React 18 with
-    Vite in the apps, tsx-run ES modules in js/cli.
+  - React 18 with Vite in the client, tsx-run ES modules in js/cli.
   - ESLint and Prettier for the JS part. There is no npm workspace: every app and service carries its
     own package.json and node_modules.
-  - js/services/db-service currently has no test runner. Adding tests there means standing one up in
-    the same change, as an explicit task.
 
   Architecture conventions:
   - Preserve boundaries in Kotlin code: presentation -> application -> domain. Infrastructure
@@ -86,10 +82,10 @@ context: |
     structure with app and feature-* modules, adding core only when shared infrastructure actually
     appears.
   - Before large Gradle or static-analysis changes, inspect build-system conventions.
-  - In db-service, schema.ts is the source of truth. Schema changes go through a new drizzle migration;
-    existing migrations are never rewritten once other changes depend on them.
+  - In ds-service, Flyway migrations are the source of truth of the schema; existing migrations are
+    never rewritten once other changes depend on them.
   - Changes crossing the Kotlin and JS parts must name both sides in the same change: the CLI or
-    service that calls, and the db-service endpoint, schema and migration that answer.
+    client that calls, and the ds-service endpoint, schema and migration that answer.
 
   Development conventions:
   - Use existing Gradle convention plugins where possible: convention.core-module,
@@ -112,16 +108,14 @@ context: |
     cd backend-kt/build-system && ./gradlew build.
   - frontend-kt build command: cd frontend-kt && ./gradlew build.
   - js build command: cd js && npm run build.
-  - js local run command: ./js/setup-docker.sh. It recreates the JS dev volumes, so local JS data is
-    reset by it.
+  - js local run: the client only, docker compose -f js/docker-compose.dev.yml up -d client.
   - Whole local contour: ./setup-local.sh from the repository root, ./setup-local.sh --down to stop.
-  - After changing js/services/db-service/src/db/schema.ts or src/routes/api/, run npm run db:generate
-    for a new migration where the schema changed, then the /sync-all skill once, at the end of the
-    edits, and update js/docs/db-schema.dbml by hand.
+  - After changing the ds-service schema or routes, add a Flyway migration and update
+    documentation.yaml and the route manifest in the same change, at the end of the edits.
   - For every new production microservice, proposals/tasks must call out Dockerfile,
   docker-compose/local runtime configuration, ports, env variables, and healthcheck.
   - Include verification tasks for every part the change touches: Gradle build, detekt, spotlessCheck
-    and tests for backend-kt and frontend-kt; npm run build, /sync-all and migration run for js.
+    and tests for backend-kt and frontend-kt; npm run build and the cli tests for js.
   - If spotlessCheck fails only for changed files, run spotlessApply for the affected build and re-run checks.
 
 rules:

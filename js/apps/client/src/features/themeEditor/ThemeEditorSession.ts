@@ -28,6 +28,13 @@ import {
 import { confirmDraftToken, pendingDraftTokens, setPendingMutationListener } from '../../utils/designSystemDraft';
 import { restorePendingSizeTokenCommands } from '../../modules/sizeTokens/sessions';
 
+type DefinitionPatch = {
+    name?: string;
+    displayName?: string;
+    description?: string | null;
+    enabled?: boolean;
+};
+
 type PendingTokenSave = AutosaveOperation & {
     /** Устойчивая идентичность предметной сущности; tokenKey используется только для порядка очереди. */
     entityKey: string;
@@ -35,12 +42,12 @@ type PendingTokenSave = AutosaveOperation & {
     previousTokenName?: string;
     change: NonNullable<ReturnType<typeof pendingDraftTokens>[string]>;
     kind: 'create' | 'update' | 'rename' | 'delete';
-    definitionPatch?: {
-        name?: string;
-        displayName?: string;
-        description?: string | null;
-        enabled?: boolean;
-    };
+    /**
+     * Желаемое определение токена. Patch к подтверждённому определению вычисляется перед первой отправкой:
+     * при постановке в очередь предыдущее сохранение той же сущности может быть ещё не подтверждено.
+     */
+    desiredDefinition: DefinitionPatch;
+    definitionKeys: ReadonlyArray<keyof DefinitionPatch>;
     fingerprint: string;
     idempotencyKey: string;
     editRevision: number;
@@ -53,7 +60,7 @@ type PendingTokenSave = AutosaveOperation & {
         editRevision: number;
         tokenBaseRevision: number;
         valueBaseRevisions: Record<string, number>;
-        definitionPatch?: PendingTokenSave['definitionPatch'];
+        definitionPatch?: DefinitionPatch;
     };
 };
 
@@ -291,7 +298,12 @@ export class ThemeEditorSession {
     }
 
     private persistMetadata(operation: PendingTokenSave) {
-        const { change: _change, definitionPatch: _definitionPatch, ...metadata } = operation;
+        const {
+            change: _change,
+            desiredDefinition: _desiredDefinition,
+            definitionKeys: _definitionKeys,
+            ...metadata
+        } = operation;
         try {
             localStorage.setItem(operation.metadataKey, JSON.stringify(metadata));
         } catch (error) {
@@ -322,7 +334,6 @@ export class ThemeEditorSession {
             if (kind === 'rename') this.renamedAwayNames.set(previousBaseName, queueKey);
         }
         if ([knownTokenId, !renameQueueKey].every(Boolean)) this.tokenIdByLogicalKey.set(entityKey, knownTokenId!);
-        const confirmedDefinition = this.definitionByLogicalKey.get(entityKey);
         const desiredDefinition = {
             name: baseName,
             displayName: change.meta?.displayName,
@@ -332,13 +343,6 @@ export class ThemeEditorSession {
         const definitionKeys = change.meta
             ? (['name', 'displayName', 'description', 'enabled'] as const)
             : (['description', 'enabled'] as const);
-        const definitionPatch = confirmedDefinition
-            ? Object.fromEntries(
-                  definitionKeys
-                      .filter((key) => desiredDefinition[key] !== confirmedDefinition[key])
-                      .map((key) => [key, desiredDefinition[key]]),
-              )
-            : undefined;
         const operationKey = kind === 'delete' ? baseName : tokenName;
         const requestMetadataKey = this.metadataKey(operationKey);
         const fingerprint = operationFingerprint({ tokenName, previousTokenName, change, kind });
@@ -366,7 +370,8 @@ export class ThemeEditorSession {
                 previousTokenName,
                 change: structuredClone(change),
                 kind,
-                definitionPatch,
+                desiredDefinition,
+                definitionKeys,
                 fingerprint,
                 metadataKey: requestMetadataKey,
                 valueBaseRevisions: this.relevantValueRevisions(knownTokenId, tokenName),
@@ -523,6 +528,17 @@ export class ThemeEditorSession {
         return refresh;
     }
 
+    /** Patch относительно определения, подтверждённого к моменту отправки; без подтверждённого — не нужен. */
+    private definitionPatch(operation: PendingTokenSave): DefinitionPatch | undefined {
+        const confirmedDefinition = this.definitionByLogicalKey.get(operation.entityKey);
+        if (!confirmedDefinition) return undefined;
+        return Object.fromEntries(
+            operation.definitionKeys
+                .filter((key) => operation.desiredDefinition[key] !== confirmedDefinition[key])
+                .map((key) => [key, operation.desiredDefinition[key]]),
+        );
+    }
+
     private send(operation: PendingTokenSave, keepalive: boolean) {
         if (!this.mounted || this.signal.aborted) throw new Error('EDITOR_CLOSED');
         const baseName = operation.tokenName.replace(/^(light|dark)\./, '');
@@ -548,7 +564,7 @@ export class ThemeEditorSession {
                 ...operation.valueBaseRevisions,
                 ...this.relevantValueRevisions(tokenId, operation.tokenName),
             },
-            definitionPatch: structuredClone(operation.definitionPatch),
+            definitionPatch: this.definitionPatch(operation),
         };
         if (this.latestGenerationByMetadataKey.get(operation.metadataKey) === operation.generation)
             this.persistMetadata(operation);
@@ -603,7 +619,7 @@ export class ThemeEditorSession {
                     description: operation.change.description ?? null,
                     enabled: operation.change.enabled,
                 }),
-                ...operation.definitionPatch,
+                ...operation.request?.definitionPatch,
                 id: result.tokenId,
             });
         }

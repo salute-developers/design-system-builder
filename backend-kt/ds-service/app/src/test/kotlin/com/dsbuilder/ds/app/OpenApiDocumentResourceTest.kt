@@ -84,6 +84,31 @@ class OpenApiDocumentResourceTest {
         assertTrue("colorRef" in schemas.getValue("SizeShadowLayer").jsonObject.getValue("properties").jsonObject)
     }
 
+    /** Вид значения цветового токена: признак своего значения, тип в ответе и исходное значение при чтении. */
+    @Test
+    fun `color token values document value kinds overridden type and source value`() {
+        val schemas = document.getValue("components").jsonObject.getValue("schemas").jsonObject
+        val item = schemas.getValue("ColorTokenValueItem").jsonObject
+        assertTrue("overridden" in item.getValue("properties").jsonObject)
+        assertFalse(item.getValue("required").jsonArray.any { it.jsonPrimitive.content == "overridden" })
+        assertTrue("NativeColorLayer" in item.getValue("properties").jsonObject.getValue("value").toString())
+        val values = schemas.getValue("ColorTokenValues").jsonObject
+        assertEquals(
+            setOf("editRevision", "type"),
+            values.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet(),
+        )
+        val response = paths.getValue("/api/ds/tenants/{tenantId}/color-tokens/{tokenId}/values").jsonObject
+            .getValue("put").jsonObject.getValue("responses").jsonObject.getValue("200").toString()
+        assertTrue("ColorTokenValues" in response)
+        val tenantValue = schemas.getValue("TenantTokenValue").toString()
+        assertTrue("overridden" in tenantValue && "#/components/schemas/TokenValue" in tenantValue)
+        // sourceValue и paletteRef — в общей схеме: общий GET /api/ds/token-values отдаёт ту же форму, что чтение темы.
+        val tokenValue = schemas.getValue("TokenValue").jsonObject.getValue("properties").jsonObject
+        assertTrue("sourceValue" in tokenValue && "paletteRef" in tokenValue)
+        val list = paths.getValue("/api/ds/token-values").jsonObject.getValue("get").jsonObject
+        assertTrue("sourceValue" in list.getValue("description").jsonPrimitive.content)
+    }
+
     /** Отмена параметра расширяет существующий маршрут, не меняя смысл пустого запроса. */
     @Test
     fun `revert accepts optional parameter paths without adding a route`() {
@@ -130,7 +155,7 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        assertEquals(183, operationCount) // Добавлены сводка журнала и 4 операции токенов размеров.
+        assertEquals(186, operationCount) // Сводка журнала, +2 типографии, +4 токенов размеров.
         assertTrue("/api/ds/design-systems/{id}/changes/summary" in paths)
         assertTrue("/api/ds/design-systems" in paths)
         assertTrue("/api/ds/component-config/import" in paths)

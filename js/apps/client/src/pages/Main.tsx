@@ -1,16 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ThemeMode } from '@salutejs/plasma-tokens-utils';
-import { general } from '@salutejs/plasma-colors';
-import { IconArrowLeft, IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
+import { IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
-import { transliterateToSnakeCase, isDebugMode, isComponentEditorEnabled } from '../utils';
+import { isDebugMode, isComponentEditorEnabled } from '../utils';
 import { useDesignSystem, useForceRerender } from '../hooks';
-import { GrayTone, Parameters } from '../types';
-import { CreateFirstName, SetupParameters, CreationProgress } from '../popup';
 import { Debug } from './Debug';
-import { defaultParameters, popupContentPages } from './Main.utils';
-import { EditorBody, EditorCanvas, MainItems, Root, Separator, StyledIconButton, StyledPopup } from './Main.styles';
+import { EditorBody, EditorCanvas, MainItems, Root, Separator, StyledIconButton } from './Main.styles';
 import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
 import { Visible } from '../components/rendering';
 import { IconColorSwatchOutline } from '../icons';
@@ -51,16 +46,7 @@ export const Main = () => {
 
     // TODO: Временное решение для обновления
     const [updated, rerender] = useForceRerender();
-    const [isPopupOpen, setIsPopupOpen] = useState(false);
-    const [popupContentPage, setPopupContentPage] = useState<keyof typeof popupContentPages | null>(
-        popupContentPages.CREATE_FIRST_NAME,
-    );
-    const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
-    const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
-    const [parameters, setParameters] = useState<Parameters>(defaultParameters);
-    const { accentColor, darkFillSaturation } = parameters;
-    const { designSystemProjectId, designSystemName, designSystemVersion, projectId, designSystemId, tenantId } =
-        useParams();
+    const { designSystemProjectId, projectId, designSystemId, tenantId } = useParams();
     const editorContext = useMemo(
         () =>
             Boolean(projectId && designSystemId && tenantId)
@@ -108,21 +94,15 @@ export const Main = () => {
         lastSavedAt,
         retryAutosave,
         refreshChanges,
-    } = useDesignSystem(
-        Boolean(editorContext) ? editorContext! : designSystemProjectId,
-        designSystemName,
-        designSystemVersion,
-        true,
-        sectionSelection,
-    );
+    } = useDesignSystem(editorContext, true, sectionSelection);
 
-    // Режим редактирования ДС — когда в URL выбрана конкретная дизайн-система (есть name + version)
-    const isEditingDesignSystem = Boolean(editorContext || Boolean(designSystemName && designSystemVersion));
+    // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
+    const isEditingDesignSystem = Boolean(editorContext);
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
     // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
     const hasComponents = isComponentEditorEnabled() && hasConfiguredComponents;
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
-    const isHome = Boolean(!isPopupOpen && !isEditingDesignSystem);
+    const isHome = !isEditingDesignSystem;
     const isEditorLoading = Boolean(editorContext && !designSystem && !loadError);
     const journalComponents = useMemo(() => designSystem?.getComponentsData() ?? [], [designSystem]);
     const editorJournal = useJournal(
@@ -136,48 +116,6 @@ export const Main = () => {
     const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}`;
     const journalSummary = useJournalSummary(editorContext, summaryCursor, Boolean(designSystem));
     useReloadAfterAutosave(autosaveStatus, journalSummary.reload);
-    const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
-        setParameters((prev) => ({
-            ...prev,
-            [name]: value,
-        }));
-    };
-    const onDesignSystemCreate = () => {
-        setIsPopupOpen(true);
-        setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
-    };
-    const onPopupClose = () => {
-        setGrayTone('warmGray');
-        setThemeMode('dark');
-        setIsPopupOpen(false);
-    };
-    const onResetParameters = () => {
-        setParameters(defaultParameters);
-        setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
-    };
-    const onChangeGrayTone = (grayTone: string) => {
-        setGrayTone(grayTone as GrayTone);
-    };
-    const onChangeThemeMode = (themeMode: ThemeMode) => {
-        setThemeMode(themeMode);
-    };
-    const onNextPageCreateFirstName = (value: string) => {
-        onChangeParameters('projectName', value);
-        const transliteratedValue = transliterateToSnakeCase(value);
-        onChangeParameters('packagesName', transliteratedValue);
-        setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
-    };
-    const onNextPageCreateSetupParameters = () => {
-        setPopupContentPage(popupContentPages.CREATION_PROGRESS);
-    };
-    const onCreateComplete = (designSystemName: string, createdProjectId?: string) => {
-        onPopupClose();
-        const targetProjectId = createdProjectId ?? designSystemProjectId;
-        if (targetProjectId) {
-            navigate(`/${targetProjectId}/${designSystemName}/0.1.0/colors`);
-        }
-        onResetParameters();
-    };
     const onClickPanelButton = (path: string) => {
         if (path === '') {
             navigate('/', {
@@ -189,9 +127,7 @@ export const Main = () => {
         // Раздел идёт сразу после версии, а у разделов могут быть вложенные сегменты
         // (например выбранный компонент в /components/:componentName) — строим путь от версии,
         // чтобы при переключении раздела они сбрасывались.
-        const newPath = Boolean(editorContext)
-            ? `/projects/${editorContext?.projectId}/design-systems/${editorContext?.designSystemId}/themes/${editorContext?.tenantId}/${path}`
-            : `/${designSystemProjectId}/${designSystemName}/${designSystemVersion}/${path}`;
+        const newPath = `/projects/${editorContext?.projectId}/design-systems/${editorContext?.designSystemId}/themes/${editorContext?.tenantId}/${path}`;
         const versionQuery = editorContext?.versionId
             ? `?${new URLSearchParams({
                   versionId: editorContext.versionId,
@@ -206,7 +142,6 @@ export const Main = () => {
         if (isHome) {
             return;
         }
-        onPopupClose();
         if (editorContext) {
             navigate(`/projects/${editorContext.projectId}/design-systems/${editorContext.designSystemId}`, {
                 replace: true,
@@ -219,17 +154,8 @@ export const Main = () => {
         rerender(null);
     };
 
-    // TODO: Временное решение для получения projectId после создания дизайн-системы, придумать что-то получше
-    useEffect(() => {
-        if (designSystemProjectId) {
-            setParameters((prev) => ({
-                ...prev,
-                projectId: designSystemProjectId,
-            }));
-        }
-    }, [designSystemProjectId, projectId]);
     return (
-        <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
+        <Root className={styles.dark} grayTone="warmGray" themeMode="dark">
             <div className="builder-shell-gradient" aria-hidden="true" />
             <BuilderIconRail
                 testId="editor-rail"
@@ -243,12 +169,7 @@ export const Main = () => {
                                     selected={isHome}
                                     onClick={onHomeClick}
                                 >
-                                    {
-                                        [
-                                            <IconFolderOutline size="xs" color="inherit" />,
-                                            <IconArrowLeft size="xs" color="inherit" />,
-                                        ][Number(isPopupOpen)]
-                                    }
+                                    <IconFolderOutline size="xs" color="inherit" />
                                 </StyledIconButton>
                             </>
                         ) : null}
@@ -449,7 +370,7 @@ export const Main = () => {
                     ) : (
                         <Outlet
                             context={{
-                                projectName: designSystem?.getParameters()?.projectName ?? designSystemName,
+                                projectName: designSystem?.getParameters()?.projectName ?? designSystem?.getName(),
                                 projectId: projectId ?? designSystemProjectId,
                                 designSystem,
                                 theme,
@@ -468,7 +389,6 @@ export const Main = () => {
                                 autosaveStatus,
                                 editorJournal,
                                 refreshChanges,
-                                onDesignSystemCreate,
                             }}
                         />
                     )}
@@ -496,41 +416,6 @@ export const Main = () => {
                         rerender={rerender}
                         reload={reload}
                     />
-                </>
-            ) : null}
-            {isPopupOpen ? (
-                <>
-                    <StyledPopup>
-                        {popupContentPage === popupContentPages.CREATE_FIRST_NAME ? (
-                            <>
-                                <CreateFirstName onPrevPage={onPopupClose} onNextPage={onNextPageCreateFirstName} />
-                            </>
-                        ) : null}
-                        {popupContentPage === popupContentPages.SETUP_PARAMETERS ? (
-                            <>
-                                <SetupParameters
-                                    parameters={parameters}
-                                    themeMode={themeMode}
-                                    onChangeParameters={onChangeParameters}
-                                    onPrevPage={onPopupClose}
-                                    onResetParameters={onResetParameters}
-                                    onChangeGrayTone={onChangeGrayTone}
-                                    onChangeThemeMode={onChangeThemeMode}
-                                    onNextPage={onNextPageCreateSetupParameters}
-                                />
-                            </>
-                        ) : null}
-                        {popupContentPage === popupContentPages.CREATION_PROGRESS ? (
-                            <>
-                                <CreationProgress
-                                    parameters={parameters}
-                                    accentColor={general[accentColor][darkFillSaturation]}
-                                    onPrevPage={onPopupClose}
-                                    onNextPage={onCreateComplete}
-                                />
-                            </>
-                        ) : null}
-                    </StyledPopup>
                 </>
             ) : null}
         </Root>

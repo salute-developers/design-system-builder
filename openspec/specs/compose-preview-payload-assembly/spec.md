@@ -1,7 +1,8 @@
 # compose-preview-payload-assembly Specification
 
 ## Purpose
-TBD - created by archiving change connect-component-editor-to-compose-preview-payload. Update Purpose after archive.
+Сборка нейтральной модели превью в запрос Compose с разрешением темы, вариаций, свойств и состояний.
+
 ## Requirements
 ### Requirement: Client формирует нейтральный preview draft
 

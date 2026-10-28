@@ -53,9 +53,23 @@ internal object AggregateTokensTable : AggregateResolvedRevisionTable(
     val position = integer("position")
 }
 
-internal object AggregateVariationsTable : Table("variations") {
+internal object AggregateVariationsTable : AggregateResolvedRevisionTable(
+    "variations",
+    aggregateRevisionSql(
+        "variations",
+        "variation_revisions",
+        "variation_id",
+        listOf("id", "design_system_id", "component_id", "created_at"),
+        listOf("name", "description"),
+    ),
+) {
     val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
     val componentId = uuid("component_id")
+    val name = text("name")
+    val description = text("description").nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
 }
 
 internal object AggregateStylesTable : AggregateResolvedRevisionTable(

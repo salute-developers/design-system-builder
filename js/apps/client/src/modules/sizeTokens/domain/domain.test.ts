@@ -312,7 +312,7 @@ describe('цвет слоя тени', () => {
         expect(layerOpacity(hex)).toBe(16);
     });
 
-    it('ступень из Library становится ссылкой, HEX и Custom заменяют ссылку', () => {
+    it('ступень из вкладки «Библиотека» становится ссылкой, HEX и вкладка «Вручную» заменяют ссылку', () => {
         expect(layerWithColor(hex, '[general.gray.900][0.16]', '#1A1A1A')).toEqual(linked);
         expect(layerWithColor(linked, '#000000')).toEqual({ ...hex, color: '#000000FF' });
         expect(layerWithColor(linked, '#0000003D')).toEqual({ ...hex, color: '#0000003D' });

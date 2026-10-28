@@ -1,119 +1,60 @@
-# Claude context — Design System Builder
+# Claude context — Design System Builder (js)
 
-This file is auto-loaded at the start of every session. It exists so you can orient yourself instantly without having to re-derive the repository layout, ports, or conventions.
+This file is auto-loaded at the start of every session. It exists so you can orient yourself instantly without having to re-derive the layout, ports, or conventions of the JavaScript part.
 
 For a public-facing overview see [README.md](README.md). **This file is for things that are not obvious from the code** — conventions, gotchas, and rules that prior sessions established.
 
-## Services at a glance
+## At a glance
 
-| Service | Path | Port (host) | Stack |
+| Part | Path | Port (host) | Stack |
 |---|---|---|---|
-| DB Service | [services/db-service](services/db-service/) | 3008 | Express + Drizzle + Postgres |
 | Client | [apps/client](apps/client/) | 3002 | React 18 + Vite + `@salutejs/plasma-*` |
-| Admin | [apps/admin](apps/admin/) | 3004 | React 18 + Vite + OpenAPI-typed client |
-| Postgres (db-service) | — | 5433 | postgres:16-alpine, DB `ds_registry` |
+| CLI generator | [cli](cli/) | — | tsx, `@salutejs/plasma-new-hope` |
 
-**Data flow (the important one):** `Client` → `DB Service` (source of truth). The npm package is generated locally by [cli](cli/) from downloaded data; the generator code lives in [cli/src/generator](cli/src/generator/). The `Admin` app talks to `DB Service` directly through an OpenAPI-typed fetch client.
+**Data flow:** `Client` → gateway (`http://localhost:8080`) → Kotlin `ds-service` (source of truth, [../backend-kt/ds-service](../backend-kt/ds-service/)). There is no Node.js service in `js/`: `db-service` was removed, its schema is owned by Flyway in `ds-service`. The npm package is generated locally by [cli](cli/) from `.sdds` data downloaded with `dsbuilder ds fetch`; the generator code lives in [cli/src/generator](cli/src/generator/).
 
 ## How to run things
 
-**Recommended**: `./setup-docker.sh` — one-shot dev setup via [docker-compose.dev.yml](docker-compose.dev.yml). Brings up the full stack, runs migrations, seeds dev data, prints a health summary.
-
-Without Docker: `npm run dev` from the repo root. Use the granular `dev:*` scripts in the root [package.json](package.json) to start individual services. These scripts are **only** used for manual local dev — CI, Docker, and hooks don't touch them.
+**Recommended**: `../setup-local.sh` from the repository root — starts the Kotlin backend with its Postgres, fills the design system `base` through the gateway (`backend-kt/bootstrap-base.sh`) and starts the client from [docker-compose.dev.yml](docker-compose.dev.yml). Without Docker: `npm run dev` here (the client only) against a running gateway.
 
 ## Repository conventions
 
 ### Not a monorepo in the npm sense
-- **No npm workspaces.** Each app and service has its own `node_modules` and its own `package.json`. That's why `install:all` exists — it just walks every directory.
-- Root `package.json` scripts are thin wrappers that `cd` into each package and call its own `npm run`. Don't "simplify" them into workspace commands.
+- **No npm workspaces.** `apps/client` and `cli` have their own `node_modules` and `package.json`. Root `package.json` scripts are thin wrappers that `cd` into a package and call its own `npm run`. Don't "simplify" them into workspace commands.
+- Root `npm run dev` / `npm run build` are only used for manual local dev. CI builds the client directly from `js/apps/client` (`working-directory`) and runs `cli` tests from `js/cli`.
 
-### Source of truth for the DB schema
-- **[services/db-service/src/db/schema.ts](services/db-service/src/db/schema.ts)** is the single source of truth.
-- [docs/db-schema.dbml](docs/db-schema.dbml) is a hand-maintained mirror for visualization. If you change `schema.ts`, update the DBML to match. If they disagree, trust `schema.ts`.
-- Enums are declared as Postgres `pgEnum`s, not as text + CHECK. Don't recommend adding CHECKs for things already covered by an enum.
+### Tests
+- `cli`: `npm run typecheck && npm test` in [cli](cli/) (`node:test`).
+- `apps/client`: `npm test` (vitest). Tests that need a real component as an example use fixtures under `__fixtures__` (for example `modules/colorTokens/domain/__fixtures__/buttonSeed.ts`), never data from a service.
 
-### Триггеры живут в миграции, а не в схеме
-
-`state_sets.state_ids` — массив `uuid[]`, и внешних ключей внутрь массива в PostgreSQL нет.
-Целостность модели состояний держат **8 триггеров**, объявленных в
-[drizzle/0004_component_import.sql](services/db-service/drizzle/0004_component_import.sql):
-канонизация массива и вычисление `owner_component_id`, удаление зависимых наборов при удалении
-состояния, запрет `TRUNCATE` на `states` и `state_sets`, защита строки-сентинела пустого набора
-и проверка того, что значение не ссылается на набор чужого компонента.
-
-Ни `schema.ts`, ни `docs/db-schema.dbml` их не выражают — drizzle триггеры не описывает. Отсюда
-два следствия:
-
-- при пересоздании или правке миграции триггеры нужно переносить руками, иначе они молча
-  исчезнут, а висячий идентификатор в массиве не обнаруживается ничем;
-- инвариант перепроверяется аудит-запросами, а не повторным добавлением ограничения. Их тексты —
-  в `openspec` change `refactor-component-state-sets`, раздел 6 файла `backend-contract.md`.
-
-Отказы этих триггеров приходят из БД, и drizzle заворачивает их: текст сообщения лежит в цепочке
-`cause`, а не в `message` верхнего уровня. Ручка, переводящая отказ в `400`, обязана разворачивать
-причину, иначе отдаст `500` с сырым SQL.
-
-### Tests: db-service needs a database
-
-`db-service` runs [vitest](services/db-service/vitest.config.ts): `cd services/db-service && npm test`.
-Of the services only db-service has tests; `cli` and `apps/client` have their own.
-
-- Tests talk to a **real** Postgres, not a mock: the import logic is mostly SQL, and a mock would
-  assert the mock. `TEST_DATABASE_URL` defaults to `postgresql://postgres:postgres@localhost:5433/db_service_test`
-  and is deliberately a separate variable from `DATABASE_URL` — tests must never point at the dev DB.
-- The global setup creates that database if missing and runs `drizzle/` migrations against it, so the
-  tests see the same schema the running service gets, triggers included.
-- Every test body runs inside `withRollback` from [services/db-service/src/test/database.ts](services/db-service/src/test/database.ts)
-  and is rolled back, so the database is never cleaned by hand and test order does not matter.
-- The global layer (components, properties, tokens) is **not** created by the config import — it comes
-  from the platform API meta file (`uikit-compose-api-meta.json`, `uikit-api-meta.json`) through
-  `dsbuilder components import-api --from <file> --platform <p>` and the admin-only
-  `POST /api/admin/component-config/import-api-meta` endpoint (needs `X-System-Admin: true`; served by `ds-service`, not by db-service). A test that loads a configuration must seed that layer inside its
-  own transaction first.
-
-### Sync rules — VERY IMPORTANT
-Whenever you touch certain files in `db-service`, generated artifacts must be regenerated via the `/sync-*` skills. These skills exist specifically for this and you should use them proactively — do not hand-edit the generated files.
-
-- **After editing [services/db-service/src/db/schema.ts](services/db-service/src/db/schema.ts)** (add/remove tables or columns):
-  1. Run `npm run db:generate` in `services/db-service` to create a SQL migration.
-  2. Run `/sync-all` — it updates `validation/schema.ts`, `routes/api/*`, `openapi/spec.ts`, and regenerates `apps/admin/src/api/{openapi.json,types.gen.ts}`.
-- **After editing files under [services/db-service/src/routes/api/](services/db-service/src/routes/api/)** (adding/removing routes): run `/sync-spec` and `/sync-api-types` (or just `/sync-all`).
-- **Batch first, sync last.** If you're making a series of related edits to schema/routes, finish them all before running `/sync-all` — don't regenerate after each individual edit, it's wasteful.
-- The individual skills (`/sync-validation`, `/sync-routes`, `/sync-spec`, `/sync-api-types`) exist for when you know exactly what needs syncing. `/sync-all` runs them in the correct order.
-
-### Scripts that look important but aren't
-- Root `npm run dev` / `npm run build` / `install:all` — only used for manual local dev. CI builds apps directly via `npm run build --prefix="./apps/<name>"` and doesn't touch root scripts.
+### Components and the global layer
+- The global component layer (components, properties, platform names) comes from the web API meta: `npm run generate:api-meta -- --package @salutejs/plasma-new-hope` in [cli](cli/) writes `.sdds/web/web-api-meta.json`, `dsbuilder components import-api --platform react` loads it (system administrator only, served by `ds-service` under `POST /api/admin/component-config/import-api-meta`).
+- A plasma component is added with `npm run import:plasma -- --component=<X>` in [cli](cli/) (writes the `.sdds/components` package and the generator manifest) and `dsbuilder components push --platform react --from .sdds/components --apply`. The rules and checks are in `.claude/skills/add-component/SKILL.md`.
+- Web parameter templates of multi-value CSS properties live in the generator manifests `cli/src/generator/templates/<X>/component.json` (`webTemplates`), not in `ds-service`.
 
 ### Removed services — don't resurrect
 These were deleted intentionally. If you see stale references to them in code/docs, clean them up — do not reintroduce them:
 - `services/client-proxy`
-- `apps/frontend` (replaced by `apps/client` and `apps/admin`)
+- `apps/frontend` (replaced by `apps/client`)
 - `generate-ds` (old CLI)
 - `services/generator` (HTTP generation service; the generator code moved to `cli/src/generator`)
 - `services/publisher` (npm publishing service)
 - `services/documentation-generator` (Docusaurus documentation service; documentation now lives in Kotlin `documentation-service` and `dsbuilder docs`)
-
-### Admin app gotchas
-- Admin pages registered in [apps/admin/src/App.tsx](apps/admin/src/App.tsx): `/tables`, `/queries`, `/schema`, `/docs`, `/settings`. That's all of them.
-- The admin API client is **OpenAPI-typed**. When adding new routes to `db-service`, run `/sync-api-types` so `apps/admin/src/api/types.gen.ts` stays in sync.
+- `apps/admin` (registry inspector) together with the `/api/admin/tables|queries|schema` routes; the only `/api/admin/*` route left is `import-api-meta` in `ds-service`
+- `services/db-service` (Express + Drizzle registry) together with its seeds, Drizzle migrations, `setup-docker.sh`, the `/ds/legacy` gateway route and the `/sync-*` skills; `ds-service` owns the schema (Flyway) and the data
 
 ### CI / deployment
-- [production workflow](../.github/workflows/deploy-front-apps-prom.yml) — on push to `master`, builds `apps/client` + `apps/admin` and syncs them to S3.
-- [.github/workflows/design-system-builder-pr.yml](.github/workflows/design-system-builder-pr.yml) — same for PRs.
-- `db-service` is published by [publish-backend-images](../.github/workflows/publish-backend-images.yml) and runs from the root [docker-compose.prod.yml](../docker-compose.prod.yml).
+- [production workflow](../.github/workflows/deploy-front-apps-prom.yml) — on push to `master`, builds `apps/client` and syncs it to S3.
+- [deploy-front-apps-dev.yml](../.github/workflows/deploy-front-apps-dev.yml) — the same flow for the dev stand.
+- [validate-js.yml](../.github/workflows/validate-js.yml) — ESLint, `cli` tests and the client build on PRs.
 
 ## Key files to remember
 
-- [services/db-service/src/db/schema.ts](services/db-service/src/db/schema.ts) — DB schema (source of truth)
-- [services/db-service/src/routes/api/](services/db-service/src/routes/api/) — CRUD routes (one file per table)
-- [services/db-service/src/routes/misc/](services/db-service/src/routes/misc/) — tables/queries/schema auxiliary routes
-- [services/db-service/src/openapi/spec.ts](services/db-service/src/openapi/spec.ts) — OpenAPI spec (generated via `/sync-spec`)
-- [services/db-service/src/validation/schema.ts](services/db-service/src/validation/schema.ts) — Zod validators (generated via `/sync-validation`)
-- [apps/admin/src/api/types.gen.ts](apps/admin/src/api/types.gen.ts) — admin's API types (generated via `/sync-api-types`)
-- [docker-compose.dev.yml](docker-compose.dev.yml) — full dev stack
-- [setup-docker.sh](setup-docker.sh) — one-shot dev setup
-- [docs/db-schema.dbml](docs/db-schema.dbml) — DBML mirror of the DB schema (hand-maintained)
-- [services/db-service/drizzle/0004_component_import.sql](services/db-service/drizzle/0004_component_import.sql) — триггеры модели состояний, которых нет ни в `schema.ts`, ни в DBML
+- [apps/client/src/api/componentRepository.ts](apps/client/src/api/componentRepository.ts) and [componentModelEnrichment.ts](apps/client/src/api/componentModelEnrichment.ts) — load the theme-editor component model from `ds-service` and fill web params, property variations, templates and dependencies
+- [apps/client/src/modules/designSystems/application/importThemeFile.ts](apps/client/src/modules/designSystems/application/importThemeFile.ts) and [exportDesignSystemFile.ts](apps/client/src/modules/designSystems/application/exportDesignSystemFile.ts) — design-system import and export through `ds-service`
+- [cli/src/generator](cli/src/generator/) — theme and component generators, templates and manifests
+- [cli/src/import-plasma-component.ts](cli/src/import-plasma-component.ts) — plasma component import
+- [docker-compose.dev.yml](docker-compose.dev.yml) — the client container
 
 ## Communication
 

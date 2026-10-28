@@ -4,8 +4,7 @@ import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
-import com.dsbuilder.ds.themes.domain.palette.PaletteReference
-import com.dsbuilder.ds.themes.domain.palette.ThemePalette
+import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -43,44 +42,38 @@ class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
         return snapshot?.let { validPaletteReferences(it, tenantId, entityId, tokenName) } ?: false
     }
 
-    /** Ссылки восстановленного значения: цвет токена или цвета слоёв тени. */
+    /** Ссылки восстановленного значения: на всё значение, в стопах градиента или в цветах слоёв тени. */
     private fun validPaletteReferences(
         snapshot: TenantPaletteSnapshot,
         tenantId: UUID,
         entityId: UUID,
         tokenName: String,
     ): Boolean {
+        // Ссылка на всё значение, ссылки в стопах градиента и в цветах слоёв тени: каждая должна указывать
+        // на доступную растяжку.
         val references = (snapshot.values + snapshot.layerValues)
             .filter { it.valueId == entityId.toString() }
             .mapNotNull { it.reference }
         if (references.isEmpty()) return true
         val palette = snapshot.palette(tenantId.toString(), false)
         val groupId = ThemePaletteResolver.groupOf(palette, tokenName) ?: return false
-        return references.all { reference -> validPaletteReference(snapshot, palette, groupId, tokenName, reference) }
-    }
-
-    private fun validPaletteReference(
-        snapshot: TenantPaletteSnapshot,
-        palette: ThemePalette,
-        groupId: String,
-        tokenName: String,
-        reference: PaletteReference,
-    ): Boolean {
-        val previouslyStoredRamp = StablePaletteRamps.selectAll().where {
-            (StablePaletteRamps.groupId eq UUID.fromString(groupId)) and
-                (StablePaletteRamps.slotType eq reference.ramp.type) and
-                (StablePaletteRamps.slotShade eq reference.ramp.shade)
-        }.limit(1).any()
-        // Нет предметной растяжки вообще — допустим исходный слот неизменяемого шаблона.
-        // Предметная растяжка существовала и удалена — сначала требуется восстановить именно её.
-        val rampAvailable = !previouslyStoredRamp || snapshot.state.ramps.any {
-            it.groupId == groupId && it.slot == reference.ramp
+        return references.distinct().all { reference ->
+            val previouslyStoredRamp = StablePaletteRamps.selectAll().where {
+                (StablePaletteRamps.groupId eq UUID.fromString(groupId)) and
+                    (StablePaletteRamps.slotType eq reference.ramp.type) and
+                    (StablePaletteRamps.slotShade eq reference.ramp.shade)
+            }.limit(1).any()
+            // Нет предметной растяжки вообще — допустим исходный слот неизменяемого шаблона.
+            // Предметная растяжка существовала и удалена — сначала требуется восстановить именно её.
+            val rampAvailable = !previouslyStoredRamp || snapshot.state.ramps.any {
+                it.groupId == groupId && it.slot == reference.ramp
+            }
+            rampAvailable && ThemePaletteResolver.resolve(palette, tokenName, reference) != null
         }
-        return rampAvailable && ThemePaletteResolver.resolve(palette, tokenName, reference) != null
     }
 
     private companion object {
-        /** Типы токенов, значения которых ссылаются на ступени палитры: цвет и слои тени. */
-        val REFERENCING_TYPES = setOf(ThemeTokenType.COLOR, ThemeTokenType.SHADOW)
+        /** Типы токенов, значения которых ссылаются на ступени палитры: цвет, градиент и слои тени. */
+        val REFERENCING_TYPES = ColorTokenFamily.TYPES + ThemeTokenType.SHADOW
     }
 }

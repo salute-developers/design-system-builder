@@ -83,8 +83,18 @@ internal object DesignSystemComponentsTable : ResolvedRevisionTable(
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object VariationsTable : Table("variations") {
+internal object VariationsTable : ResolvedRevisionTable(
+    "variations",
+    resolvedRevisionSql(
+        "variations",
+        "variation_revisions",
+        "variation_id",
+        listOf("id", "design_system_id", "component_id", "created_at"),
+        listOf("name", "description"),
+    ),
+) {
     val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
     val componentId = reference("component_id", ComponentsTable.id)
     val name = text("name")
     val description = text("description").nullable()
@@ -250,6 +260,7 @@ internal object PropertyVariationsTable : Table("property_variations") {
     val id = uuid("id")
     val propertyId = reference("property_id", PropertiesTable.id)
     val variationId = reference("variation_id", VariationsTable.id)
+    val designSystemId = uuid("design_system_id")
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
@@ -579,4 +590,25 @@ internal enum class RelationTypeDb(val wireValue: String) {
     companion object {
         fun fromWire(value: String) = entries.firstOrNull { it.wireValue == value }
     }
+}
+
+internal object PluginBuildsTable : Table("compose_preview_plugin_builds") {
+    val buildId = text("build_id")
+    val platform = postgresEnum(
+        "platform",
+        "component_platform",
+        ComponentPlatformDb::fromWire,
+        ComponentPlatformDb::wireValue,
+    )
+    val uikitComposeVersion = text("uikit_compose_version")
+    val metaSha256 = text("meta_sha256")
+    val commitSha = text("commit_sha")
+    val protocolVersion = integer("protocol_version")
+    val zipSha256 = text("zip_sha256")
+    val sizeBytes = long("size_bytes")
+    val fileCount = integer("file_count")
+    val publishedBy = text("published_by")
+    val publishedAt = timestamp("published_at")
+    val active = bool("active")
+    override val primaryKey = PrimaryKey(buildId)
 }

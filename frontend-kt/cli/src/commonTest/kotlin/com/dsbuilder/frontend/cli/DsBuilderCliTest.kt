@@ -1602,6 +1602,7 @@ private class FakeAuthenticatedHttpClientFactory(
         return when (credential) {
             is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
             is BackendCredential.Bearer -> create(apiUrl, "")
+            is BackendCredential.ServiceToken -> create(apiUrl, "")
         }
     }
     override fun create(

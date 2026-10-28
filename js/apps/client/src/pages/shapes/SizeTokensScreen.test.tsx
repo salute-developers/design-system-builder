@@ -599,7 +599,7 @@ describe('SizeTokensScreen', () => {
         fireEvent.click(row('down.hard.m'));
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Веб, слой 1, выбор цвета' }));
         const picker = screen.getByRole('dialog', { name: 'Color picker: down.hard.m, слой 1' });
-        fireEvent.click(within(picker).getByRole('button', { name: 'Library' }));
+        fireEvent.click(within(picker).getByRole('button', { name: 'Библиотека' }));
         fireEvent.click(within(picker).getByRole('button', { name: 'Gray 900 #1A1A1A' }));
         // Прозрачность слоя (16 %) сохраняется в ссылке.
         expect(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, HEX' })).toHaveValue('Gray 900');

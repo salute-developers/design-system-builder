@@ -322,12 +322,7 @@ export const createDraftToken = (dsName: string, dsVersion: string, token: Token
 };
 
 /** Удаляет только подтверждённый сервером запрос, не меняя предметные данные редактора. */
-export const confirmDraftToken = (
-    dsName: string,
-    dsVersion: string,
-    tokenName: string,
-    context?: DraftContext,
-) => {
+export const confirmDraftToken = (dsName: string, dsVersion: string, tokenName: string, context?: DraftContext) => {
     const changes = loadDraftChanges(dsName, dsVersion, context);
     delete changes[tokenName];
     saveDraftChanges(dsName, dsVersion, changes, context);

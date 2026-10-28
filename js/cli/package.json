@@ -7,7 +7,8 @@
         "generate:ds": "tsx --env-file-if-exists=../.env src/ds.ts",
         "generate:api-meta": "tsx src/generate-api-meta.ts",
         "test": "tsx --test src/*.test.ts",
-        "typecheck": "tsc -p ."
+        "typecheck": "tsc -p .",
+        "import:plasma": "tsx src/import-plasma-component.ts"
     },
     "devDependencies": {
         "@babel/cli": "^7.29.7",
@@ -16,7 +17,6 @@
         "@babel/preset-env": "^7.29.7",
         "@babel/preset-react": "^7.29.7",
         "@babel/preset-typescript": "^7.29.7",
-        "@eslint/js": "9.30.1",
         "@ironkinoko/rollup-plugin-styles": "^4.0.4",
         "@linaria/rollup": "^5.0.4",
         "@rollup/plugin-babel": "^6.1.0",
@@ -26,23 +26,16 @@
         "@salutejs/plasma-tokens-utils": "0.61.0",
         "@types/fs-extra": "^11.0.4",
         "@types/node": "^22.20.5",
-        "@types/pacote": "^11.1.8",
         "@types/react": "18.0.28",
         "babel-plugin-annotate-pure-calls": "^0.4.0",
         "babel-plugin-styled-components": "1.13.2",
-        "eslint": "9.30.1",
-        "eslint-plugin-react-hooks": "^5.2.0",
-        "eslint-plugin-react-refresh": "^0.4.23",
         "fs-extra": "^11.4.1",
-        "globals": "^16.5.0",
-        "pacote": "^11.3.5",
         "react": "18.2.0",
         "react-dom": "18.2.0",
         "rollup": "^3.30.0",
         "styled-components": "5.3.1",
         "tsx": "^4.23.15",
-        "typescript": "^5.9.3",
-        "typescript-eslint": "^8.71.2"
+        "typescript": "^5.9.3"
     },
     "overrides": {
         "@salutejs/plasma-tokens-utils": {

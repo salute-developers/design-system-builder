@@ -93,6 +93,59 @@ class KtorTokenClientTest {
         assertEquals("/auth/logout", path)
     }
 
+    @Test
+    fun clientCredentialsPostsTheGrantAndAcceptsAnAnswerWithoutRefreshToken() = runTest {
+        var request: HttpRequestData? = null
+        val client = tokenClient {
+            request = it
+            respond("""{"access_token":"service-access","expires_in":60,"token_type":"Bearer"}""")
+        }
+
+        val result = client.clientCredentials("https://api.example.com", "preview-publisher", "s3cret")
+
+        val token = assertIs<AuthResult.Success<com.dsbuilder.frontend.core.auth.AccessTokenResponse>>(result)
+        assertEquals("service-access", token.value.accessToken)
+        assertEquals("/auth/token", request!!.url.encodedPath)
+        assertEquals(HttpMethod.Post, request!!.method)
+        val body = request!!.body.toByteArray().decodeToString()
+        assertTrue(body.contains("grant_type=client_credentials"), body)
+        assertTrue(body.contains("client_id=preview-publisher"), body)
+        assertTrue(body.contains("client_secret=s3cret"), body)
+        assertTrue(!body.contains("password"), body)
+    }
+
+    @Test
+    fun clientCredentialsRejectsPlainHttpExceptLoopbackAndDoesNotSendTheSecret() = runTest {
+        var sent = 0
+        val client = tokenClient {
+            sent++
+            respond("""{"access_token":"a"}""")
+        }
+
+        val rejected = client.clientCredentials("http://api.example.com", "id", "secret")
+        val accepted = client.clientCredentials("http://127.0.0.1:8080", "id", "secret")
+
+        assertEquals(AuthErrorCode.INVALID_AUTH_URL, assertIs<AuthResult.Failed>(rejected).code)
+        assertIs<AuthResult.Success<com.dsbuilder.frontend.core.auth.AccessTokenResponse>>(accepted)
+        assertEquals(1, sent)
+    }
+
+    @Test
+    fun clientCredentialsMapsRefusalsWithoutLeakingTheSecret() = runTest {
+        val unauthorized = tokenClient { respond("{}", HttpStatusCode.Unauthorized) }
+            .clientCredentials("https://api.example.com", "id", "top-secret")
+        val badRequest = tokenClient { respond("""{"error":"unauthorized_client"}""", HttpStatusCode.BadRequest) }
+            .clientCredentials("https://api.example.com", "id", "top-secret")
+        val unreadable = tokenClient { respond("not json") }
+            .clientCredentials("https://api.example.com", "id", "top-secret")
+
+        listOf(unauthorized, badRequest, unreadable).forEach { result ->
+            val failed = assertIs<AuthResult.Failed>(result)
+            assertTrue(!failed.message.contains("top-secret"), failed.message)
+        }
+        assertEquals(AuthErrorCode.AUTH_REQUIRED, assertIs<AuthResult.Failed>(unauthorized).code)
+    }
+
     private fun tokenClient(
         handler: suspend TokenMockEngineHandlerScope.(HttpRequestData) -> io.ktor.client.request.HttpResponseData,
     ): KtorTokenClient =

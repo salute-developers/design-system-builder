@@ -9,6 +9,7 @@ import com.dsbuilder.ds.themes.domain.ThemeProfile
 import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
+import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -104,7 +105,8 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
                 InitialValuePayload(paletteId, definition.value),
             )
         }
-        tokens.filter { (name, token) -> token.type == ThemeTokenType.COLOR && name !in baseColorTokenNames }
+        // Несидовые цветовые и градиентные токены получают сплошной цвет: вид значения тема меняет сама.
+        tokens.filter { (name, token) -> token.type in ColorTokenFamily.TYPES && name !in baseColorTokenNames }
             .forEach { (name, token) ->
                 ThemeTokenMode.entries.forEach { mode ->
                     ThemeTokenPlatform.entries.forEach { platform ->
@@ -148,7 +150,7 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
         tokens: Map<String, Token>,
         draft: org.jetbrains.exposed.v1.core.ResultRow,
     ) {
-        tokens.filter { (_, token) -> token.type == ThemeTokenType.COLOR }
+        tokens.filter { (_, token) -> token.type in ColorTokenFamily.TYPES }
             .filterKeys { name -> name !in baseColorTokenNames }
             .forEach { (name, token) ->
                 listOf(ThemeTokenMode.LIGHT, ThemeTokenMode.DARK).forEach { mode ->
@@ -322,13 +324,14 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
                 mode = value["mode"]?.jsonPrimitive?.content?.let(ThemeTokenMode::fromWire),
                 value = value["value"] ?: Json.parseToJsonElement("null"),
                 palette = palette,
-                isColor = value.getValue("type").jsonPrimitive.content == "color",
+                isColorFamily = ThemeTokenType.fromWire(value.getValue("type").jsonPrimitive.content) in
+                    ColorTokenFamily.TYPES,
             )
         }
     }
 
     private val baseColorTokenNames: Set<String> by lazy {
-        definitions.asSequence().filter(Definition::isColor).map(Definition::name).toSet()
+        definitions.asSequence().filter(Definition::isColorFamily).map(Definition::name).toSet()
     }
 
     private fun ensurePaletteRows() {
@@ -372,7 +375,7 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
         val mode: ThemeTokenMode?,
         val value: JsonElement,
         val palette: PaletteKey?,
-        val isColor: Boolean,
+        val isColorFamily: Boolean,
     )
     private data class ProfileValues(
         val accentLight: String,

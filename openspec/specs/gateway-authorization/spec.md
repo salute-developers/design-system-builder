@@ -1,7 +1,8 @@
 # gateway-authorization Specification
 
 ## Purpose
-TBD - created by archiving change plasmabldr-137-add-identity-gateway-foundation. Update Purpose after archive.
+Защита проектных маршрутов на Gateway, формирование доверенного контекста и изоляция внутренних маршрутов сервисов.
+
 ## Requirements
 ### Requirement: Gateway protects project routes
 
@@ -70,13 +71,13 @@ Gateway SHALL направлять согласованный набор `/api/p
 
 #### Scenario: Исключённый маршрут временно остаётся в db-service
 
-- **WHEN** конфигурация совместного существования содержит более специфичное правило для исключённого маршрута
-- **THEN** Gateway MUST направить только этот маршрут в `db-service`
+- **WHEN** клиент вызывает исключённый маршрут `/api/projects/{projectId}/ds/legacy/**`
+- **THEN** Gateway MUST ответить `404`: upstream db-service удалён
 - **AND** общее правило `/ds/**` MUST направлять разрешённый набор в `ds-service`
 
 #### Scenario: Атомарный откат
 
-- **WHEN** оператор активирует проверенную конфигурацию отката
-- **THEN** Gateway MUST вернуть весь перенесённый набор на upstream `db-service`
-- **AND** MUST сохранить прежний публичный путь и trusted context
+- **WHEN** оператор откатывает предметный API
+- **THEN** откат выполняется версией образа `ds-service`
+- **AND** конфигурация Gateway MUST остаться прежней: единственный upstream предметного API — `ds-service`
 

@@ -1,17 +1,33 @@
 import type { DraftChangeDto } from '../../api/editorContracts';
 import type { VariationType } from '../../controllers/themeBuilder/types/token';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 import { templateRampName } from '../../modules/palette/domain/names';
 import { normalizedColorValue } from '../../api/colorValue';
-import { journalObject, journalTokenValue, journalValueStructureChanged } from './journalTokenValues';
+import {
+    journalObject,
+    journalPaintChange,
+    journalPaintStructureChanged,
+    journalTokenValue,
+    journalValueStructureChanged,
+    type JournalPaintSource,
+} from './journalTokenValues';
 
-export type JournalValue = string | number | boolean | null | undefined;
+export { journalColor } from './journalTokenValues';
+
+/** Градиент цветового токена: подпись поля инспектора и CSS свотча. */
+export interface JournalPaint {
+    text: string;
+    swatch: string;
+}
+
+export type JournalValue = string | number | boolean | null | undefined | JournalPaint;
 
 export interface JournalChangedField {
     path: string;
     label: string;
     before: JournalValue;
     after: JournalValue;
+    /** Пути отмены параметра, если они отличаются от [path]; пустой список — параметр отменяется с записью. */
+    revertPaths?: string[];
 }
 
 const fieldLabels: Record<string, string> = {
@@ -90,6 +106,7 @@ const fieldLabels: Record<string, string> = {
     dark: 'Темный режим',
     strokesaturation: 'Насыщенность границ',
     fillsaturation: 'Насыщенность заливки',
+    overridden: 'Своё значение платформы',
     label: 'Название',
     code: 'Код группы',
     groupid: 'Группа',
@@ -212,12 +229,35 @@ const referenceLabel = (value: JournalValue, namesById: Map<string, string>): Jo
     return isIdentifier(value) ? 'Связанный элемент' : value;
 };
 
-/** Определяет структурное изменение значения в тех же понятиях, что и список параметров. */
+/** Тип цветового токена: его значения показываются в терминах выбора цвета. */
+const isColorTokenType = (type?: VariationType) => type === 'color' || type === 'gradient';
+
+/** Значение цветового токена из записи: ссылка формы `palette_id` — ступенью палитры с прозрачностью из значения. */
+const paintSource = (
+    state: Record<string, unknown> | null,
+    namesById: Map<string, string>,
+): JournalPaintSource | undefined => {
+    if (!state) return undefined;
+    const reference = namesById.get(String(state.palette_id));
+    const opacity = parseFloat(String([state.value].flat()[0]));
+    const value = reference ? `${reference}${opacity >= 0 && opacity < 1 ? `[${opacity}]` : ''}` : state.value;
+    return { value, platform: (state.platform ?? 'web') as JournalPaintSource['platform'] };
+};
+
+/**
+ * Определяет структурное изменение значения в тех же понятиях, что и список параметров: у цветового токена —
+ * также смену вида значения, типа градиента или числа стопов.
+ */
 export const tokenValueHasStructuralChanges = (change: DraftChangeDto, tokenType?: VariationType) =>
     journalValueStructureChanged(
         journalTokenValue(decoded(change.previousValue?.value), tokenType),
         journalTokenValue(decoded(change.currentValue?.value), tokenType),
-    );
+    ) ||
+    (isColorTokenType(tokenType) &&
+        journalPaintStructureChanged(
+            paintSource(change.previousValue, new Map()),
+            paintSource(change.currentValue, new Map()),
+        ));
 
 /** Превращает предметные состояния в отдельные изменённые значения без JSON и служебных полей. */
 export const presentChangedFields = (
@@ -237,18 +277,30 @@ export const presentChangedFields = (
                 ? change.changedPaths
                 : [...new Set([...Object.keys(change.previousValue ?? {}), ...Object.keys(change.currentValue ?? {})])];
             const mode = (change.currentValue ?? change.previousValue)?.mode;
-            return paths
-                .flatMap((path) => {
-                    const parts = segments(path);
-                    return flattenChange(parts, atPath(previous, parts), atPath(current, parts), tokenType);
-                })
-                .map((entry) => ({
+            const fields = paths.flatMap((path) => {
+                const parts = segments(path);
+                return flattenChange(parts, atPath(previous, parts), atPath(current, parts), tokenType);
+            });
+            // Значение цвета или градиента — строками параметров редактора; пути хранимого значения — для их отмены.
+            const valuePaths = fields.map(({ path }) => path).filter((path) => /^\/value(?:\/|$)/.test(path));
+            const paint =
+                change.entityType === 'token-value' && isColorTokenType(tokenType)
+                    ? journalPaintChange(
+                          paintSource(change.previousValue, namesById),
+                          paintSource(change.currentValue, namesById),
+                          // Смена формы ссылки `palette_id` не отменяется путями значения: только записью целиком.
+                          change.previousValue?.palette_id === change.currentValue?.palette_id ? valuePaths : [],
+                      )
+                    : null;
+            return [...(paint ?? []), ...fields.filter(({ path }) => !paint || !valuePaths.includes(path))].map(
+                (entry) => ({
                     ...entry,
                     label:
                         change.entityType === 'token-value' && (mode === 'light' || mode === 'dark')
                             ? `${entry.label} · ${mode === 'light' ? 'Светлый режим' : 'Темный режим'}`
                             : entry.label,
-                }));
+                }),
+            );
         })
         .map((entry) => ({
             ...entry,
@@ -259,7 +311,8 @@ export const presentChangedFields = (
 
 /** Подписи значений соответствуют понятиям редактора, а не сериализации предметной модели. */
 export const journalValueText = (value: JournalValue, label = '') => {
-    value = normalizedColorValue(value) as JournalValue;
+    if (value && typeof value === 'object') return value.text;
+    value = normalizedColorValue(value);
     if (value === null || value === undefined || value === '') return 'Не задано';
     if (typeof value === 'string') {
         const palette = /^\[(general|additional)\.([a-zA-Z0-9]+)\.(\d+)\](?:\[(\d+(?:\.\d+)?)\])?$/.exec(value);
@@ -298,19 +351,4 @@ export const journalValueText = (value: JournalValue, label = '') => {
         return weight ? `${weight} (${value})` : String(value);
     }
     return String(value);
-};
-
-export const journalColor = (value: JournalValue): string | undefined => {
-    value = normalizedColorValue(value) as JournalValue;
-    if (typeof value !== 'string') return undefined;
-    const color = value.trim();
-    if (/^(?:#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})|(?:rgba?|hsla?)\([\d\s.,%/+\-]+\))$/i.test(color)) return color;
-    if (/^\[(?:general|additional)\.[a-zA-Z]+\.\d+\](?:\[\d+(?:\.\d+)?\])?$/.test(color)) {
-        try {
-            return getRestoredColorFromPalette(color);
-        } catch {
-            return undefined;
-        }
-    }
-    return undefined;
 };

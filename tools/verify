@@ -253,6 +253,8 @@ check_forbidden_files() {
   local file basename value
   while IFS= read -r file; do
     [[ -n "$file" ]] || continue
+    # A deleted file cannot leak a local or generated artifact: only files present in the tree count.
+    [[ -e "$ROOT/$file" ]] || continue
     basename="${file##*/}"
     for value in "${FORBIDDEN_PATH_SEGMENTS[@]}"; do
       case "/$file/" in

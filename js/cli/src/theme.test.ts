@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { generateThemes } from './generate-theme.ts';
+import { generateThemes, toGeneratorThemeSource } from './generate-theme.ts';
 import { resolveLocalThemes } from './local-theme-source.ts';
 import { readThemeSetSource, toThemeIdentifier } from './theme-source.ts';
 
@@ -330,5 +330,259 @@ describe('generateThemes', () => {
 
         await assert.rejects(readThemes().then((source) => generateThemes(source, output())), /missing from the local palette/);
         assert.equal(await read('themes/index.ts'), before);
+    });
+});
+
+describe('breakpoints', () => {
+    const output = () => join(root, 'output');
+    const read = (path: string) => readFile(join(output(), path), 'utf8');
+    const themeFiles = ['themes/brand_night__dark.ts', 'css/brand_night__light.css', 'css/brand_night.module.css'];
+
+    const typographyToken = (screen: string, size: string) => ({
+        type: 'typography',
+        name: `${screen}.body.${size}.normal`,
+        tags: [screen, 'body', size, 'normal'],
+        displayName: `body${size}`,
+        description: 'Основной текст',
+        enabled: true,
+    });
+
+    /** Тема с типографикой: размер шрифта у каждого экрана свой, чтобы различать блоки. */
+    beforeEach(async () => {
+        const directory = themeDirectory('brand_night');
+        const fontSizes: Record<string, string> = { 'screen-s': '14px', 'screen-m': '16px', 'screen-l': '18px' };
+        const tokens = Object.keys(fontSizes).map((screen) => typographyToken(screen, 'm'));
+        const meta = JSON.parse(await readFile(join(directory, 'meta.json'), 'utf8'));
+        await writeJson(join(directory, 'meta.json'), { ...meta, tokens: [...meta.tokens, ...tokens] });
+        await writeJson(
+            join(directory, 'web', 'web_typography.json'),
+            Object.fromEntries(
+                tokens.map((token) => [
+                    token.name,
+                    {
+                        fontFamilyRef: 'fontFamily.body',
+                        fontSize: fontSizes[token.tags[0]],
+                        fontWeight: '400',
+                        lineHeight: '20px',
+                        letterSpacing: '0',
+                        fontStyle: 'normal',
+                    },
+                ]),
+            ),
+        );
+        await writeJson(join(directory, 'web', 'web_fontFamily.json'), { body: { name: 'SB Sans Text' } });
+    });
+
+    const writeBreakpoints = (breakpoints: unknown) => writeJson(join(sdds, 'config.json'), { breakpoints });
+
+    /** Медиазапросы файла и размер шрифта под каждым из них. */
+    const mediaBlocks = (content: string) =>
+        [...content.matchAll(/(@media[^{]*)\{[^@]*?font-size: (\d+px)/g)].map(([, query, size]) => [query.trim(), size]);
+
+    const generate = () => readThemes({ tenant: 'brand_night' }).then((source) => generateThemes(source, output()));
+
+    it('без config.json оставляет прежние брейкпоинты', async () => {
+        await generate();
+
+        for (const file of themeFiles) {
+            assert.deepEqual(mediaBlocks(await read(file)), [
+                ['@media (max-width: 559px)', '14px'],
+                ['@media (min-width: 560px) and (max-width: 959px)', '16px'],
+                ['@media (min-width: 960px)', '18px'],
+            ]);
+        }
+    });
+
+    it('применяет брейкпоинты из config.json во всех файлах темы', async () => {
+        await writeBreakpoints([
+            { name: 'screenS', from: null, to: 959 },
+            { name: 'screenM', from: 960, to: 1280 },
+            { name: 'screenL', from: 1281 },
+        ]);
+
+        await generate();
+
+        for (const file of themeFiles) {
+            assert.deepEqual(mediaBlocks(await read(file)), [
+                ['@media (max-width: 959px)', '14px'],
+                ['@media (min-width: 960px) and (max-width: 1280px)', '16px'],
+                ['@media (min-width: 1281px)', '18px'],
+            ]);
+        }
+    });
+
+    it('генерирует только описанные экраны', async () => {
+        await writeBreakpoints([
+            { name: 'screenS', to: 767 },
+            { name: 'screenL', from: 768 },
+        ]);
+
+        await generate();
+
+        for (const file of themeFiles) {
+            assert.deepEqual(mediaBlocks(await read(file)), [
+                ['@media (max-width: 767px)', '14px'],
+                ['@media (min-width: 768px)', '18px'],
+            ]);
+        }
+    });
+
+    it('выводит единственный экран без медиазапроса', async () => {
+        await writeBreakpoints([{ name: 'screenM' }]);
+
+        await generate();
+
+        for (const file of themeFiles) {
+            const content = await read(file);
+            assert.doesNotMatch(content, /@media/);
+            assert.match(content, /font-size: 16px/);
+            assert.doesNotMatch(content, /font-size: 1[48]px/);
+        }
+    });
+
+    it('не проверяет стыковку соседних экранов', async () => {
+        await writeBreakpoints([
+            { name: 'screenS', to: 700 },
+            { name: 'screenM', from: 960, to: 1280 },
+            { name: 'screenL', from: 1200 },
+        ]);
+
+        await generate();
+
+        assert.deepEqual(mediaBlocks(await read('css/brand_night.module.css')), [
+            ['@media (max-width: 700px)', '14px'],
+            ['@media (min-width: 960px) and (max-width: 1280px)', '16px'],
+            ['@media (min-width: 1200px)', '18px'],
+        ]);
+    });
+
+    it('сохраняет нулевые границы во всех файлах темы', async () => {
+        await writeBreakpoints([
+            { name: 'screenS', to: 0 },
+            { name: 'screenM', from: 0, to: 959 },
+            { name: 'screenL', from: 960 },
+        ]);
+
+        await generate();
+
+        for (const file of themeFiles) {
+            assert.deepEqual(mediaBlocks(await read(file)), [
+                ['@media (max-width: 0px)', '14px'],
+                ['@media (min-width: 0px) and (max-width: 959px)', '16px'],
+                ['@media (min-width: 960px)', '18px'],
+            ]);
+        }
+    });
+
+    it('сохраняет нулевую нижнюю границу последнего экрана', async () => {
+        await writeBreakpoints([
+            { name: 'screenS', to: 0 },
+            { name: 'screenL', from: 0 },
+        ]);
+
+        await generate();
+
+        const content = await read('css/brand_night.module.css');
+        assert.deepEqual(mediaBlocks(content), [
+            ['@media (max-width: 0px)', '14px'],
+            ['@media (min-width: 0px)', '18px'],
+        ]);
+        // Блок без медиазапроса здесь — это голые фигурные скобки, то есть невалидный CSS.
+        assert.doesNotMatch(content, /^\s*\{/m);
+    });
+
+    const invalid: [string, unknown, RegExp][] = [
+        ['не массив', { screenS: { to: 959 } }, /non-empty array/],
+        ['пустой массив', [], /non-empty array/],
+        ['элемент не объект', ['screenS'], /breakpoints\[0\] must be an object/],
+        ['неизвестный экран', [{ name: 'screenXL', from: 1 }], /breakpoints\[0\]\.name must be one of/],
+        ['дробная граница', [{ name: 'screenS', to: 9.5 }, { name: 'screenL', from: 10 }], /non-negative integers/],
+        [
+            'нарушен порядок экранов',
+            [{ name: 'screenM', to: 959 }, { name: 'screenS', from: 960 }],
+            /breakpoints\[1\] "screenS" must follow "screenM"/,
+        ],
+        ['повтор экрана', [{ name: 'screenS', to: 959 }, { name: 'screenS', from: 960 }], /must follow/],
+        ['у первого нет конца', [{ name: 'screenS', from: 959 }, { name: 'screenL', from: 960 }], /first screen/],
+        ['у последнего нет начала', [{ name: 'screenS', to: 959 }, { name: 'screenL', to: 960 }], /last screen/],
+        [
+            'у промежуточного нет границы',
+            [{ name: 'screenS', to: 959 }, { name: 'screenM', from: 960 }, { name: 'screenL', from: 1281 }],
+            /"screenM" must have both "from" and "to"/,
+        ],
+        ['единственный экран с границей', [{ name: 'screenS', to: 959 }], /only screen/],
+    ];
+
+    for (const [title, breakpoints, error] of invalid) {
+        it(`отклоняет брейкпоинты: ${title}`, async () => {
+            await generate();
+            const before = await read('css/brand_night.module.css');
+            await writeBreakpoints(breakpoints);
+
+            await assert.rejects(generate(), (thrown: Error) => {
+                assert.match(thrown.message, new RegExp(`Invalid breakpoints in ${join(sdds, 'config.json')}`.replace(/[/.]/g, '\\$&')));
+                assert.match(thrown.message, error);
+                return true;
+            });
+            assert.equal(await read('css/brand_night.module.css'), before);
+        });
+    }
+});
+
+describe('градиентный токен из выгрузки theme fetch', () => {
+    const output = () => join(root, 'theme');
+    const gradientToken = (name: string) => ({ ...colorToken(name), type: 'gradient', displayName: 'surfaceAccentGradient' });
+    /** Значения web после раскрытия ссылок ds-service: стоп ссылки уже HEX, сплошной член — массив из строки. */
+    const WEB_GRADIENT = {
+        'dark.surface.default.accent-gradient': ['linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 99.688%)'],
+        'light.surface.default.accent-gradient': ['#1A9E32FF'],
+    };
+    /** Сплошное значение iOS градиентного семейства приходит слоем color. */
+    const IOS_GRADIENT = {
+        'dark.surface.default.accent-gradient': [
+            { kind: 'linear', locations: [0, 0.99688], colors: ['#1A9E32FF', '#04C6C9FF'], angle: 45 },
+        ],
+        'light.surface.default.accent-gradient': [{ kind: 'color', background: '#1A9E32FF' }],
+    };
+
+    it('toGeneratorThemeSource не меняет вариации градиента, в том числе слой color', () => {
+        const variations = {
+            color: { 'dark.text.default.primary': '#000000FF' },
+            gradient: { ...WEB_GRADIENT, 'dark.surface.on-dark.accent-gradient': IOS_GRADIENT['light.surface.default.accent-gradient'] },
+        };
+        const source = { meta: { name: 'brand', version: 'latest', tokens: [] }, variations } as never;
+
+        const result = toGeneratorThemeSource(source, { gray: { '1000': '#000000' } });
+
+        assert.equal(result.variations.gradient, variations.gradient);
+        assert.deepEqual(result.variations.gradient, {
+            ...WEB_GRADIENT,
+            'dark.surface.on-dark.accent-gradient': [{ kind: 'color', background: '#1A9E32FF' }],
+        });
+    });
+
+    it('генерирует градиент и сплошной член семейства без изменения значений', async () => {
+        const directory = themeDirectory('brand_night');
+        await writeJson(join(directory, 'meta.json'), {
+            name: 'brand_night',
+            version: 'latest',
+            tokens: [
+                colorToken('dark.text.default.primary'),
+                colorToken('light.text.default.primary'),
+                gradientToken('dark.surface.default.accent-gradient'),
+                gradientToken('light.surface.default.accent-gradient'),
+            ],
+        });
+        await writeJson(join(directory, 'web', 'web_gradient.json'), WEB_GRADIENT);
+        await writeJson(join(directory, 'ios', 'ios_gradient.json'), IOS_GRADIENT);
+
+        const source = await readThemes({ tenant: 'brand_night' });
+        assert.deepEqual(source.themes[0].variations.gradient, WEB_GRADIENT);
+        await generateThemes(source, output());
+
+        const dark = await readFile(join(output(), 'css', 'brand_night__dark.css'), 'utf8');
+        const light = await readFile(join(output(), 'css', 'brand_night__light.css'), 'utf8');
+        assert.match(dark, /--surface-accent-gradient: linear-gradient\(45deg, #1A9E32FF 0%, #04C6C9FF 99\.688%\);/);
+        assert.match(light, /--surface-accent-gradient: #1A9E32FF;/);
     });
 });

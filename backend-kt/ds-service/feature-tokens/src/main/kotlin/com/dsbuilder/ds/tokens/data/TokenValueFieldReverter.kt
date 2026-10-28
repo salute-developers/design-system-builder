@@ -5,6 +5,8 @@ import com.dsbuilder.ds.tokens.domain.TokenParameterRestore
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -16,6 +18,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /** Записывает частичный откат в существующую черновую редакцию под уже полученной предметной блокировкой. */
+@Suppress("ReturnCount")
 internal fun revertTokenValueFields(
     versionId: UUID,
     entityId: UUID,
@@ -35,24 +38,45 @@ internal fun revertTokenValueFields(
             (TokenRevisionsTable.versionSequenceNumber lessEq sequence)
     }.orderBy(TokenRevisionsTable.versionSequenceNumber, SortOrder.DESC).limit(1).singleOrNull()
         ?.get(TokenRevisionsTable.type)
-    val restored = TokenParameterRestore.restore(
-        previous["value"] ?: JsonNull,
-        current["value"] ?: JsonNull,
-        paths,
-        type,
-    )
-    return restored?.let {
-        replaceDraftRevision(versionId, entityId, revision, it)
-        true
-    } ?: false
+    // Признак своего значения платформы откатывается отдельным путём, параметры значения — путями под `/value`.
+    val overridden = if (OVERRIDDEN_PATH in paths) {
+        if (previous["overridden"] == current["overridden"]) return false
+        (previous["overridden"] as? JsonPrimitive)?.booleanOrNull ?: return false
+    } else {
+        revision[TokenValueRevisionsTable.overridden]
+    }
+    val valuePaths = paths - OVERRIDDEN_PATH
+    val restored = if (valuePaths.isEmpty()) {
+        revision[TokenValueRevisionsTable.value] ?: JsonNull
+    } else {
+        TokenParameterRestore.restore(
+            previous["value"] ?: JsonNull,
+            current["value"] ?: JsonNull,
+            valuePaths,
+            type,
+        ) ?: return false
+    }
+    val changedPaths = buildSet {
+        if (valuePaths.isNotEmpty()) add("/value")
+        if (OVERRIDDEN_PATH in paths) add(OVERRIDDEN_PATH)
+    }
+    replaceDraftRevision(versionId, entityId, revision, restored, overridden, changedPaths)
+    return true
 }
 
-private fun replaceDraftRevision(versionId: UUID, entityId: UUID, revision: ResultRow, restored: JsonElement) {
+private fun replaceDraftRevision(
+    versionId: UUID,
+    entityId: UUID,
+    revision: ResultRow,
+    restored: JsonElement,
+    overridden: Boolean,
+    paths: Set<String>,
+) {
     TokenValueRevisionsTable.deleteWhere {
         (TokenValueRevisionsTable.tokenValueId eq entityId) and
             (TokenValueRevisionsTable.designSystemVersionId eq versionId)
     }
-    SubjectMutationPaths.with(setOf("/value")) {
+    SubjectMutationPaths.with(paths) {
         TokenValueRevisionsTable.insert {
             it[tokenValueId] = entityId
             it[designSystemId] = revision[TokenValueRevisionsTable.designSystemId]
@@ -60,9 +84,10 @@ private fun replaceDraftRevision(versionId: UUID, entityId: UUID, revision: Resu
             it[versionSequenceNumber] = revision[TokenValueRevisionsTable.versionSequenceNumber]
             it[paletteId] = revision[TokenValueRevisionsTable.paletteId]
             it[value] = restored.takeUnless { value -> value == JsonNull }
-            // Частичный откат меняет только поле значения; признак своего значения платформы сохраняется.
-            it[overridden] = revision[TokenValueRevisionsTable.overridden]
+            it[TokenValueRevisionsTable.overridden] = overridden
             it[deleted] = false
         }
     }
 }
+
+private const val OVERRIDDEN_PATH = "/overridden"

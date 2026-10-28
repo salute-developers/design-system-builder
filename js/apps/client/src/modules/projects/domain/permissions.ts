@@ -6,6 +6,8 @@ export type ProjectPermission =
     | 'members:manage'
     | 'designSystems:write'
     | 'designSystems:delete'
+    | 'designSystems:import'
+    | 'designSystems:export'
     | 'tenants:write'
     | 'tenants:delete';
 
@@ -26,6 +28,8 @@ const grants: Record<ProjectRole, ReadonlySet<ProjectPermission>> = {
         'members:manage',
         'designSystems:write',
         'designSystems:delete',
+        'designSystems:import',
+        'designSystems:export',
         'tenants:write',
         'tenants:delete',
     ]),

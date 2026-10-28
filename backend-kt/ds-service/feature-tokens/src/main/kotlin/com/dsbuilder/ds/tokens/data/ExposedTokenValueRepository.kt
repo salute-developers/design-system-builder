@@ -36,17 +36,20 @@ class ExposedTokenValueRepository : TokenValueRepository {
         .singleOrNull()
         ?.let(TokenValueRowMapper::map)
 
-    override suspend fun createOwned(projectId: ProjectId, command: CreateTokenValue): TokenValue? {
-        val tokenId = command.tokenId
-        val designSystemId = tokenId?.let { ownedTokenDesignSystem(projectId, it) }
-        val referencesValid = designSystemId?.let {
-            validTenant(command.tenantId, it) && validPalette(command.paletteId)
-        } == true
-        if (tokenId == null || !referencesValid) {
-            return null
-        }
-        return insert(command)
+    override suspend fun createAllowed(projectId: ProjectId, command: CreateTokenValue): Boolean {
+        val designSystemId = command.tokenId?.let { ownedTokenDesignSystem(projectId, it) } ?: return false
+        return validTenant(command.tenantId, designSystemId) && validPalette(command.paletteId)
     }
+
+    override suspend fun lockOwned(projectId: ProjectId, id: UUID): Boolean {
+        val current = currentRows(projectId = projectId, id = id).singleOrNull()
+            ?.takeIf { it[TokenDesignSystemsTable.projectId] == projectId.value }
+            ?: return false
+        return lockDraftSubject(current[TokenValuesTable.designSystemId], "token-value", id)
+    }
+
+    override suspend fun createOwned(projectId: ProjectId, command: CreateTokenValue): TokenValue? =
+        if (createAllowed(projectId, command)) insert(command) else null
 
     override suspend fun createSystemAdmin(command: CreateTokenValue): TokenValue = insert(command)
 
@@ -130,7 +133,6 @@ class ExposedTokenValueRepository : TokenValueRepository {
                     current[TokenValueRevisionsTable.paletteId]
                 }
                 it[value] = if (command.valuePresent) command.value else current[TokenValueRevisionsTable.value]
-                // Общая запись значения не знает о своём значении платформы и сохраняет признак.
                 it[overridden] = current[TokenValueRevisionsTable.overridden]
                 it[deleted] = false
             }

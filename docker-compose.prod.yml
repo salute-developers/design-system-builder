@@ -63,6 +63,8 @@ services:
       OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
       PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID}
       PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET}
+      PREVIEW_PUBLISHER_CLIENT_ID: ${PREVIEW_PUBLISHER_CLIENT_ID:-dsbuilder-preview-publisher}
+      PREVIEW_PUBLISHER_CLIENT_SECRET: ${PREVIEW_PUBLISHER_CLIENT_SECRET:-}
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
     entrypoint:
@@ -118,23 +120,6 @@ services:
       start_period: 20s
       retries: 5
 
-  db-service:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/db-service:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: 3008
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
-    expose:
-      - "3008"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3008/api/health >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 5s
-      start_period: 15s
-      retries: 5
-
   ds-service:
     image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/ds-service:${IMAGE_TAG:?Set IMAGE_TAG}
     pull_policy: always
@@ -149,6 +134,14 @@ services:
       DS_FLYWAY_ENABLED: "true"
       DS_FLYWAY_ADOPT_EXISTING: ${DS_FLYWAY_ADOPT_EXISTING:-false}
       DS_EXPECTED_SCHEMA_SHA256: ${DS_EXPECTED_SCHEMA_SHA256:-}
+      DS_PLUGIN_S3_ENDPOINT: ${DS_PLUGIN_S3_ENDPOINT:-}
+      DS_PLUGIN_S3_REGION: ${DS_PLUGIN_S3_REGION:-us-east-1}
+      DS_PLUGIN_S3_BUCKET: ${DS_PLUGIN_S3_BUCKET:-}
+      DS_PLUGIN_S3_ACCESS_KEY: ${DS_PLUGIN_S3_ACCESS_KEY:-}
+      DS_PLUGIN_S3_SECRET_KEY: ${DS_PLUGIN_S3_SECRET_KEY:-}
+      DS_PLUGIN_S3_PATH_STYLE: ${DS_PLUGIN_S3_PATH_STYLE:-false}
+      DS_PLUGIN_S3_PREFIX: ${DS_PLUGIN_S3_PREFIX:-}
+      DS_PLUGIN_PUBLIC_BASE_URL: ${DS_PLUGIN_PUBLIC_BASE_URL:-}
     expose:
       - "8085"
     healthcheck:
@@ -238,9 +231,6 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID}
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?Set OIDC_REDIRECT_URI}
       OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
-      DB_SERVICE_UPSTREAM_SCHEME: http
-      DB_SERVICE_UPSTREAM_HOST: db-service
-      DB_SERVICE_UPSTREAM_PORT: 3008
       DS_SERVICE_UPSTREAM_SCHEME: http
       DS_SERVICE_UPSTREAM_HOST: ds-service
       DS_SERVICE_UPSTREAM_PORT: 8085
@@ -252,15 +242,13 @@ services:
     command:
       - /bin/sh
       - -c
-      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DS_SERVICE_UPSTREAM_SCHEME $$DS_SERVICE_UPSTREAM_HOST $$DS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DS_SERVICE_UPSTREAM_SCHEME $$DS_SERVICE_UPSTREAM_HOST $$DS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
     expose:
       - "8080"
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
       auth-helper:
-        condition: service_healthy
-      db-service:
         condition: service_healthy
       projects-service:
         condition: service_healthy

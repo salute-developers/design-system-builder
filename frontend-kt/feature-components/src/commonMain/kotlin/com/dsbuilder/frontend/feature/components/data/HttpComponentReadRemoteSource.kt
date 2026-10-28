@@ -53,7 +53,10 @@ public class HttpComponentReadRemoteSource(
         runtime: ComponentReadRuntime,
         command: ComponentGetReadCommand,
     ): ComponentReadResult =
-        runtime.get(runtime.projectModelPath("components/${encodePath(command.componentId)}/variations"))
+        runtime.get(
+            runtime.projectModelPath("components/${encodePath(command.componentId)}/variations") +
+                "?designSystemId=${encode(runtime.context.designSystemId.value)}",
+        )
 
     override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult =
         runtime.get(runtime.designSystemModelPath("tokens"))

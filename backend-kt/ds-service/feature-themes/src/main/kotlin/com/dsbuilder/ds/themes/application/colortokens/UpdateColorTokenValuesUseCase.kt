@@ -7,23 +7,28 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
+import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import java.util.UUID
 
-/** Заменяет значения переданных членов семейства цветового токена только в текущей теме. */
+/**
+ * Заменяет значения переданных членов семейства цветового токена только в текущей теме и в той же транзакции
+ * вычисляет тип семейства по значениям всех тем; значения других тем не переписываются.
+ */
 class UpdateColorTokenValuesUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
     private val tokens: ColorTokenRepository,
     private val palette: TenantPaletteRepository,
+    private val typeSync: ColorTokenFamilyTypeSync = ColorTokenFamilyTypeSync(tokens),
 ) {
-    /** Замена значений семейства токена [tokenId] в теме [tenantId]; результат — новая ревизия темы. */
+    /** Замена значений семейства токена [tokenId] в теме [tenantId]; результат — ревизия темы и тип семейства. */
     @Suppress("ReturnCount")
     suspend fun execute(
         context: DsRequestContext,
         tenantId: UUID,
         tokenId: UUID,
         command: UpdateColorTokenValues,
-    ): DsResult<Int> {
+    ): DsResult<ColorTokenMutation<ThemeTokenType>> {
         val allowed = policy.require(context, ProjectScope.TENANTS_WRITE)
         if (allowed is DsResult.Failure) return allowed
         if (command.members.isEmpty()) {
@@ -53,7 +58,7 @@ class UpdateColorTokenValuesUseCase(
         tokenId: UUID,
         lock: ColorTokenLock.Locked,
         command: UpdateColorTokenValues,
-    ): DsResult<Int> {
+    ): DsResult<ColorTokenMutation<ThemeTokenType>> {
         val stored = when (val found = tokens.family(lock.designSystemId, tokenId).storedOrFailure(tokenId)) {
             is DsResult.Failure -> return found
             is DsResult.Success -> found.value
@@ -63,8 +68,9 @@ class UpdateColorTokenValuesUseCase(
             return DsResult.Failure(invalidTokenFamily("Определение $foreign не входит в семейство токена $tokenId"))
         }
         val addressed = command.members.mapKeys { (id, _) -> id.toString() }
-        palette.valueRule(tenantId).firstViolation(stored.family.type, addressed)?.let { return DsResult.Failure(it) }
-        tokens.replaceValues(tenantId, command.members)
-        return DsResult.Success(tokens.bumpRevisions(listOf(tenantId)).getValue(tenantId))
+        palette.valueRule(tenantId).firstViolation(addressed)?.let { return DsResult.Failure(it) }
+        tokens.replaceValues(tenantId, command.members.storedForm())
+        val type = typeSync.sync(lock.designSystemId, tokenId) ?: stored.family.type
+        return DsResult.Success(ColorTokenMutation(tokens.bumpRevisions(listOf(tenantId)).getValue(tenantId), type))
     }
 }

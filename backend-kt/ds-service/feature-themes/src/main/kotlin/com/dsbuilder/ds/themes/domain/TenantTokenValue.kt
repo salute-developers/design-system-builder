@@ -27,8 +27,10 @@ data class TenantTokenValue(
     val updatedAt: Instant,
     /** Исходная ссылка на палитру, если [valueJson] вычислен по палитре темы. */
     val paletteRef: String? = null,
-    /**
-     * Исходное значение JSON, если в [valueJson] ссылки цветов слоёв тени заменены раскрытым по палитре темы HEX.
-     */
-    val sourceValue: String? = null,
+    /** Своё значение платформы iOS или Android, а не построенное клиентом из web. */
+    val overridden: Boolean = false,
+    /** Хранимое значение, если [valueJson] отдаётся в другой форме: со ссылками, раскрытыми в HEX, или слоем. */
+    val sourceValueJson: String? = null,
+    /** Тип токена на выбранной границе версии; задаёт форму сплошных значений платформ. */
+    val tokenType: ThemeTokenType? = null,
 )

@@ -93,9 +93,6 @@ jobs:
           - image: documentation-service
             context: .
             file: backend-kt/documentation-service/app/Dockerfile
-          - image: db-service
-            context: js/services/db-service
-            file: js/services/db-service/Dockerfile
     env:
       IMAGE_REF: ghcr.io/${{ needs.prepare.outputs.image_namespace }}/${{ matrix.image }}
       DEPLOYMENT_TAG: ${{ needs.prepare.outputs.deployment_tag }}

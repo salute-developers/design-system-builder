@@ -1,11 +1,12 @@
 # component-appearance-model Specification
 
 ## Purpose
-TBD - created by archiving change add-cli-components-fetch. Update Purpose after archive.
+Модель оформления компонента: объявленные оси и значения вариаций, свойства, состояния и правила целостности конфигурации.
+
 ## Requirements
 ### Requirement: Variation axis declaration belongs to the appearance
 
-`db-service` SHALL store the declaration of variation axes — which axes a component style exposes,
+`ds-service` SHALL store the declaration of variation axes — which axes a component style exposes,
 in which order, with which declared values and which default — as a fact of the appearance, not
 of the component and not of the design system.
 
@@ -36,7 +37,7 @@ of the component and not of the design system.
 
 ### Requirement: Declared axis values are stored, not derived
 
-`db-service` SHALL store every declared value of an axis, including values for which the appearance
+`ds-service` SHALL store every declared value of an axis, including values for which the appearance
 carries no property override.
 
 #### Scenario: Значение без переопределений сохраняется
@@ -60,7 +61,7 @@ carries no property override.
 
 ### Requirement: Property value completeness
 
-`db-service` SHALL store every field a property value carries in a component configuration, so that
+`ds-service` SHALL store every field a property value carries in a component configuration, so that
 the value can be returned in the form it was received.
 
 #### Scenario: Alpha сохраняется
@@ -97,7 +98,7 @@ the value can be returned in the form it was received.
 
 ### Requirement: Property type describes the API slot
 
-`db-service` SHALL treat `properties.type` as the type of the component API slot, imported from
+`ds-service` SHALL treat `properties.type` as the type of the component API slot, imported from
 component code. A paint slot SHALL be stored as `color`, which denotes the family of values that
 covers both a solid colour and a gradient. `gradient` SHALL NOT be stored as the type of a paint
 slot: it discriminates a value, not a slot.
@@ -129,7 +130,7 @@ slot: it discriminates a value, not a slot.
 
 ### Requirement: Value type is derived per value
 
-`db-service` SHALL NOT store the type of a property value. The type SHALL be derived separately for
+`ds-service` SHALL NOT store the type of a property value. The type SHALL be derived separately for
 every stored value — an invariant value, a variation value, a cross-axis combination and a state
 override alike — from the token that value refers to, falling back to the type of the property.
 
@@ -204,7 +205,7 @@ override alike — from the token that value refers to, falling back to the type
 
 ### Requirement: Component name belongs to the component code
 
-`db-service` SHALL treat the stored component name as the name used by component code, imported
+`ds-service` SHALL treat the stored component name as the name used by component code, imported
 from `uikit-compose-api-meta.json`. Appearance configurations SHALL NOT rewrite it.
 
 #### Scenario: Имя пишет только импорт метаинформации кода
@@ -228,7 +229,7 @@ from `uikit-compose-api-meta.json`. Appearance configurations SHALL NOT rewrite 
 
 ### Requirement: Component configuration export
 
-`db-service` SHALL provide an endpoint that returns every component configuration of a design system
+`ds-service` SHALL provide an endpoint that returns every component configuration of a design system
 in one response, mirroring the import endpoint.
 
 #### Scenario: Export адресует дизайн-систему телом запроса
@@ -259,7 +260,7 @@ in one response, mirroring the import endpoint.
 
 #### Scenario: Правило типа общее для всех читающих ручек
 
-- **WHEN** any endpoint of `db-service` returns a component configuration
+- **WHEN** any endpoint of `ds-service` returns a component configuration
 - **THEN** it MUST report the type derived for each value
 - **THEN** two endpoints MUST NOT report different types for the same stored value
 
@@ -335,7 +336,7 @@ the same appearance.
 
 ### Requirement: View entry key is stored apart from the axis value
 
-`db-service` SHALL treat the key of a `view` entry as an authored label of that entry and the value named
+`ds-service` SHALL treat the key of a `view` entry as an authored label of that entry and the value named
 by the entry's own `binding` as the axis value. The two coincide in some design systems and differ in
 others, so the key MUST NOT be used to identify the axis value.
 
@@ -364,7 +365,7 @@ others, so the key MUST NOT be used to identify the axis value.
 
 ### Requirement: Variation parent is derived, not stored
 
-`db-service` SHALL NOT store the parent of an axis value. The parent is recoverable from the stored
+`ds-service` SHALL NOT store the parent of an axis value. The parent is recoverable from the stored
 authored identifiers, and storing it duplicates a fact the model already holds.
 
 #### Scenario: Родитель не хранится
@@ -392,7 +393,7 @@ configuration that the model cannot compute.
 
 ### Requirement: Import reports identifiers it cannot derive
 
-`db-service` SHALL report configurations whose variation identifiers do not follow from the values of
+`ds-service` SHALL report configurations whose variation identifiers do not follow from the values of
 their axes, so that the need to store them stays measurable instead of silent.
 
 #### Scenario: Невыводимый идентификатор попадает в отчёт
@@ -408,7 +409,7 @@ their axes, so that the need to store them stays measurable instead of silent.
 
 ### Requirement: Declared axis type is stored beside the role
 
-`db-service` SHALL store the axis type declared by the configuration separately from the colour
+`ds-service` SHALL store the axis type declared by the configuration separately from the colour
 scheme role, because the two are independent: the role says where the values of the axis go, the
 declared type says how the axis is announced in `bindings`.
 
@@ -432,7 +433,7 @@ declared type says how the axis is announced in `bindings`.
 
 ### Requirement: Flag variation is a single style named true
 
-`db-service` SHALL хранить вариацию-флаг (`pilled`, `stretch`) как вариацию с единственным стилем `true`
+`ds-service` SHALL хранить вариацию-флаг (`pilled`, `stretch`) как вариацию с единственным стилем `true`
 без дефолта, как в конфиге ядра. Стиль `false` SHALL NOT существовать: выключенное состояние — отсутствие
 дефолта и отсутствие ключа в `defaults` конфига.
 
@@ -485,22 +486,6 @@ declared type says how the axis is announced in `bindings`.
 
 - **WHEN** любой читающий endpoint возвращает значение свойства `value`
 - **THEN** он MUST вернуть сохранённую строку без нормализации
-
-### Requirement: Legacy component configs follow appearance declarations
-
-Endpoint `GET /:name/component-configs` SHALL строить состав и порядок вариаций каждого appearance по
-объявлениям этого appearance, а не по всем вариациям компонента.
-
-#### Scenario: Appearance без части вариаций
-
-- **WHEN** appearance объявляет подмножество вариаций компонента
-- **THEN** ответ MUST содержать для него только объявленные вариации в порядке `position`
-- **THEN** дефолты MUST браться из объявлений этого appearance
-
-#### Scenario: Appearance без объявлений
-
-- **WHEN** у appearance нет ни одного объявления вариации
-- **THEN** ответ MUST содержать все вариации компонента в порядке их объявления
 
 ### Requirement: Style combinations are seedable
 
@@ -629,7 +614,7 @@ be stored independently of that reference.
 
 Existing appearances SHALL receive the new references from the data already stored: the colour scheme axis
 from the axis flagged as colour scheme, and the root axis by the fallback order. The previous colour scheme
-flag SHALL remain equal to the new reference for as long as `db-service` is kept as an HTTP rollback.
+flag SHALL remain equal to the new reference while the column exists.
 
 #### Scenario: Роль схемы переносится из флага
 
@@ -649,7 +634,7 @@ flag SHALL remain equal to the new reference for as long as `db-service` is kept
 
 ### Requirement: Действующее имя оси и значения принадлежит оформлению
 
-`db-service` SHALL хранить необязательное отображаемое имя оси и значения оси в объявлении оформления. Действующим именем SHALL считаться отображаемое имя, а при его отсутствии — `variations.name` либо `styles.name`.
+`ds-service` SHALL хранить необязательное отображаемое имя оси и значения оси в объявлении оформления. Действующим именем SHALL считаться отображаемое имя, а при его отсутствии — `variations.name` либо `styles.name`.
 
 #### Scenario: Два оформления называют ось по-разному
 
@@ -696,7 +681,7 @@ flag SHALL remain equal to the new reference for as long as `db-service` is kept
 
 ### Requirement: Признак конфигурации по умолчанию
 
-`db-service` SHALL хранить у оформления признак `isDefault` как изменяемое поле модели редакций (`appearance_revisions`). Для пары (дизайн-система, компонент) на любой границе версии ровно одно действующее оформление MUST иметь `isDefault = true`.
+`ds-service` SHALL хранить у оформления признак `isDefault` как изменяемое поле модели редакций (`appearance_revisions`). Для пары (дизайн-система, компонент) на любой границе версии ровно одно действующее оформление MUST иметь `isDefault = true`.
 
 #### Scenario: Чтение опубликованной версии
 
@@ -707,4 +692,14 @@ flag SHALL remain equal to the new reference for as long as `db-service` is kept
 
 - **WHEN** оформление создано в черновике
 - **THEN** журнал MUST содержать запись `CREATE` с признаком
+
+### Requirement: Объявление оси ссылается на ось своей системы
+
+Объявление оси в оформлении SHALL ссылаться на ось вариации той же дизайн-системы и того же компонента, что и само оформление.
+
+#### Scenario: Ось другой системы
+
+- **WHEN** запись объявляет в оформлении системы A ось системы B
+- **THEN** `ds-service` MUST отклонить запись
+- **THEN** объявления остальных осей оформления MUST NOT измениться
 

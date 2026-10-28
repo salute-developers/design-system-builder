@@ -1,5 +1,5 @@
 import { readEditor } from './editorReads';
-import { apiRoot, readRequest } from './editorHttp';
+import { apiRoot, readRequest, variationReadRequest } from './editorHttp';
 import type { AppearanceDto, ComponentDto, EditorContextKey } from './editorContracts';
 
 export interface JournalComponentMetadata {
@@ -20,7 +20,7 @@ export async function loadJournalComponentMetadata(
         readEditor<ComponentDto[]>(`${root}/components`, request),
         readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
         readEditor<NamedOwner[]>(`${root}/properties`, request),
-        readEditor<NamedOwner[]>(`${root}/variations`, request),
+        readEditor<NamedOwner[]>(`${root}/variations`, variationReadRequest(context, signal)),
         readEditor<NamedStyle[]>(`${root}/styles`, request),
     ]);
     const componentNames = Object.fromEntries(components.data.map((item) => [item.id, item.name]));

@@ -21,10 +21,23 @@ import type {
     ComponentConfigExportDto,
     PendingComponentMutation,
 } from './editorContracts';
-import { apiRoot, parseMutationMetadata, readRequest } from './editorHttp';
+import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
-import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
+import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
+import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
 import { camelToKebab } from '../utils/text';
+import {
+    collectDependencies,
+    enrichApi,
+    templateLookup,
+    variationNamesByProperty,
+    composeParamsByProperty,
+    webParamsByProperty,
+    type ComponentDependencyDto,
+    type PropertyPlatformParamDto,
+    type PropertyVariationDto,
+    type WebAdapterComponentDto,
+} from './componentModelEnrichment';
 
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
 
@@ -113,12 +126,21 @@ export const componentRepository = {
             readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
         ]);
         const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
+        // Без активного билда (и без прямого адреса) Compose-компоненты в навигации не показываются; адрес плагина
+        // запрашивается только когда в каталоге есть настроенные Compose-компоненты.
+        const hasCompose = catalog.data.some(
+            (component) => component.platform === 'compose' && configured.has(component.id),
+        );
+        const pluginUrl = hasCompose
+            ? await resolveComposePreviewPluginUrl(context.projectId, fetchComposePreviewPluginDescriptor).catch(
+                  () => undefined,
+              )
+            : undefined;
         return catalog.data
             .filter(
                 (component) =>
                     configured.has(component.id) &&
-                    (component.platform === 'web' ||
-                        (component.platform === 'compose' && getComposePreviewPluginUrl())),
+                    (component.platform === 'web' || (component.platform === 'compose' && Boolean(pluginUrl))),
             )
             .map(
                 (component) =>
@@ -146,23 +168,45 @@ export const componentRepository = {
         platform: ComponentDto['platform'] = 'web',
         componentName?: string,
     ): Promise<Meta[]> {
-        if (!isComponentEditorEnabled()) return [];
+        // Модель web-компонентов нужна не только разделу «Компоненты»: «Цвета» берут из неё связи токенов,
+        // пары контраста и канвас. Флаг прячет раздел, а не данные, поэтому здесь не проверяется.
         const root = apiRoot(context.projectId);
         const request = readRequest(context, signal);
-        const [links, catalog, appearances, exported] = await Promise.all([
-            readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-            readEditor<ComponentDto[]>(`${root}/components`, request),
-            readEditor<AppearanceDto[]>(`${root}/appearances`, request),
-            Promise.all(
-                [platform].map((platform) =>
-                    readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-                        designSystemId: context.designSystemId,
-                        platform,
-                        ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
-                    }),
+        // Web-параметры, панели вариаций и шаблоны нужны только web-превью; Compose-превью нужны только имена
+        // Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
+        const isWeb = platform === 'web';
+        const isCompose = platform === 'compose';
+        const empty = <T>() => Promise.resolve({ data: [] as T[] });
+        const [links, catalog, appearances, exported, params, propertyVariations, adapter, dependencies] =
+            await Promise.all([
+                readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+                readEditor<ComponentDto[]>(`${root}/components`, request),
+                readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+                Promise.all(
+                    [platform].map((platform) =>
+                        readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
+                            designSystemId: context.designSystemId,
+                            platform,
+                            ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
+                        }),
+                    ),
                 ),
-            ),
-        ]);
+                isWeb || isCompose
+                    ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
+                    : empty<PropertyPlatformParamDto>(),
+                isWeb
+                    ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request)
+                    : empty<PropertyVariationDto>(),
+                isWeb
+                    ? readEditor<WebAdapterComponentDto[]>(`${root}/component-config/web-adapter`, request, {
+                          designSystemId: context.designSystemId,
+                      })
+                    : empty<WebAdapterComponentDto>(),
+                readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request),
+            ]);
+        const webParams = webParamsByProperty(params.data);
+        const composeParams = composeParamsByProperty(params.data);
+        const adapterByName = new Map(adapter.data.map((entry) => [entry.name, entry]));
         const linkedIds = new Set(
             links.data.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
         );
@@ -175,6 +219,14 @@ export const componentRepository = {
                 (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
                 configuredNames.has(normalizeComponentName(component.name)),
         );
+        const depsByParent = collectDependencies(
+            dependencies.data,
+            new Map(
+                catalog.data
+                    .filter((component) => linkedIds.has(component.id) && component.platform === platform)
+                    .map((component) => [component.id, component.name]),
+            ),
+        );
         const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
         return Promise.all(
             components.map(async (component) => {
@@ -183,7 +235,10 @@ export const componentRepository = {
                         readEditor<ComponentPropertyDto[]>(`${root}/components/${component.id}/properties`, request),
                     ),
                     limitedRequest(() =>
-                        readEditor<ComponentVariationDto[]>(`${root}/components/${component.id}/variations`, request),
+                        readEditor<ComponentVariationDto[]>(
+                            `${root}/components/${component.id}/variations`,
+                            variationReadRequest(context, signal),
+                        ),
                     ),
                 ]);
                 const styles = componentName
@@ -228,19 +283,36 @@ export const componentRepository = {
                     name: component.name,
                     description: component.description ?? '',
                     platform: component.platform,
+                    deps: depsByParent.get(component.name) ?? [],
                     serverBinding: {
                         componentId: component.id,
                         appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
                     },
                     sources: {
-                        api: properties.data.map((property) => ({
-                            id: property.id,
-                            name: property.name,
-                            type: property.type as Meta['sources']['api'][number]['type'],
-                            description: property.description ?? undefined,
-                            variations: null,
-                            platformMappings: { xml: null, compose: null, ios: null, web: null },
-                        })),
+                        api: enrichApi(
+                            properties.data.map((property) => ({
+                                id: property.id,
+                                name: property.name,
+                                type: property.type as Meta['sources']['api'][number]['type'],
+                                description: property.description ?? undefined,
+                                variations: null,
+                                platformMappings: {
+                                    xml: null,
+                                    compose: composeParams.get(property.id)?.join(',') ?? null,
+                                    ios: null,
+                                    web: null,
+                                },
+                            })),
+                            webParams,
+                            variationNamesByProperty(
+                                propertyVariations.data,
+                                new Map(variations.data.map((variation) => [variation.id, variation.name])),
+                            ),
+                            templateLookup(
+                                adapterByName.get(component.name),
+                                componentEntries.map((entry) => entry.styleName),
+                            ),
+                        ),
                         variations: variations.data,
                         configs: componentEntries.map((entry) => {
                             const appearance = componentAppearances.find(
@@ -264,8 +336,15 @@ export const componentRepository = {
     },
 
     async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
-        if (!isComponentEditorEnabled() || !getComposePreviewPluginUrl()) return [];
+        if (!isComponentEditorEnabled()) return [];
         try {
+            // Без активного билда (и без прямого адреса) Compose-preview не предлагается: React-preview не меняется.
+            const pluginUrl = await resolveComposePreviewPluginUrl(
+                context.projectId,
+                fetchComposePreviewPluginDescriptor,
+            );
+            if (!pluginUrl) return [];
+
             return markComposeComponents(
                 (await this.loadComponentData(context, signal, 'compose')).filter(hasConfiguration),
             );

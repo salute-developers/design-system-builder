@@ -85,8 +85,6 @@ internal object ThemeTokenValueRevisionsTable : Table("token_value_revisions") {
     val versionSequenceNumber = long("version_sequence_number")
     val paletteId = uuid("palette_id").nullable()
     val value = jsonb<JsonElement>("value", Json.Default).nullable()
-
-    /** Своё значение платформы: не перестраивается из значения web (миграция V13). */
     val overridden = bool("overridden").default(false)
     val deleted = bool("deleted")
     val updatedAt = timestamp("updated_at")
@@ -98,8 +96,6 @@ internal object ThemeTokenValueCreationBaselinesTable : Table("token_value_creat
     val designSystemId = uuid("design_system_id")
     val paletteId = uuid("palette_id").nullable()
     val value = jsonb<JsonElement>("value", Json.Default).nullable()
-
-    /** Признак своего значения платформы в исходной точке начального значения. */
     val overridden = bool("overridden").default(false)
     override val primaryKey = PrimaryKey(designSystemVersionId, tokenValueId)
 }

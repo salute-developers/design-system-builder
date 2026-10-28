@@ -1,9 +1,11 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type DesignSystemDto, type ProjectDto } from '../../api';
 import { CardMenu } from '../../components/Catalog/Catalog';
-import { choose, Visible } from '../../components/rendering';
+import { all, choose, Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
+import { exportDesignSystemFile } from '../../modules/designSystems/application/exportDesignSystemFile';
 import { formatThemeCount } from '../../modules/designSystems/domain/designSystem';
 
 export const DesignSystemCard = ({
@@ -17,6 +19,19 @@ export const DesignSystemCard = ({
 }) => {
     const themePreviews = system.themePreviews ?? [];
     const tenantCount = system.tenantCount ?? 0;
+    const [exportState, setExportState] = useState<'idle' | 'busy' | 'failed'>('idle');
+    const exportLabel = { idle: 'Экспортировать', busy: 'Экспортируем…', failed: 'Ошибка, повторить' }[exportState];
+    const exportFile = async () => {
+        setExportState('busy');
+        try {
+            await exportDesignSystemFile(projectId, system);
+            setExportState('idle');
+            return true;
+        } catch {
+            setExportState('failed');
+            return false;
+        }
+    };
 
     return (
         <article className="catalog-card clickable-card">
@@ -57,6 +72,11 @@ export const DesignSystemCard = ({
                     label={system.name}
                     settingsTo={`/projects/${projectId}/design-systems/${system.id}/settings`}
                     canDelete
+                    actions={choose(
+                        all(can(role, 'designSystems:export'), tenantCount > 0),
+                        [],
+                        [{ label: exportLabel, onSelect: exportFile, disabled: exportState === 'busy' }],
+                    )}
                 />
             </Visible>
         </article>

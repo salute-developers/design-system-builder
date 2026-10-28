@@ -1,6 +1,6 @@
 import type { Meta } from '../../controllers/componentBuilder/type';
 import type { VariationType } from '../../controllers/themeBuilder/types/token';
-import type { DraftChangeDto, EditorContextKey, TokenDefinitionDto } from '../../api/editorContracts';
+import type { DraftChangeDto, EditorContextKey, PaletteDto, TokenDefinitionDto } from '../../api/editorContracts';
 import { presentChangedFields, tokenValueHasStructuralChanges, type JournalChangedField } from './journalFields';
 import { presentPaletteChange, type JournalPaletteStep } from './paletteJournalPresentation';
 export type JournalSection = 'themes' | 'tokens' | 'components';
@@ -75,6 +75,8 @@ export interface JournalPresenterInput {
     actorLabels: Record<string, string>;
     context: EditorContextKey;
     readOnly?: boolean;
+    /** Ступени палитры для значений цветовых токенов, записанных ссылкой `palette_id`. */
+    palette?: PaletteDto[];
 }
 const operationLabels: Record<DraftChangeDto['operation'], string> = {
     created: 'Создание',
@@ -113,6 +115,7 @@ const componentEntityTypes = new Set([
     'style',
     'style-combination',
     'style-combination-member',
+    'variation',
     'variation-platform-param-adjustment',
     'variation-property-value',
 ]);
@@ -319,6 +322,7 @@ export const presentJournal = ({
     context,
     readOnly = false,
     componentMetadata,
+    palette = [],
 }: JournalPresenterInput): JournalActionViewModel[] => {
     const tokensById = new Map(tokens.map((token) => [token.id, token]));
     const componentIndex = buildComponentEntityIndex(components);
@@ -332,6 +336,8 @@ export const presentJournal = ({
             if (typeof label === 'string') namesById.set(change.entityId, label);
         });
     components.forEach((component) => collectReferenceNames(component.sources, namesById));
+    // Ступень `palette_id` записывается ссылкой: журнал показывает её как значение, записанное строкой-ссылкой.
+    palette.forEach((entry) => namesById.set(entry.id, `[${entry.type}.${entry.shade}.${entry.saturation}]`));
     return changes
         .flatMap((first) => {
             const key = first.changeId;
@@ -387,13 +393,17 @@ export const presentJournal = ({
                 ];
             if (action.changedFields.some(({ path }) => path !== '/value' && !path.startsWith('/value/')))
                 return [action];
-            return action.changedFields.map((parameter) => ({
-                ...action,
-                key: `${key}:${parameter.path}`,
-                changedFields: [parameter],
-                revertPaths: [parameter.path],
-                canRevert: action.canRevert && first.parameterRevertSupported === true,
-            }));
+            // Параметр без своего пути отмены (например, в CSS-строке web-градиента) отменяется вместе с записью.
+            return action.changedFields.map((parameter) => {
+                const revertPaths = parameter.revertPaths ?? [parameter.path];
+                return {
+                    ...action,
+                    key: `${key}:${parameter.path}`,
+                    changedFields: [parameter],
+                    revertPaths: revertPaths.length ? revertPaths : undefined,
+                    canRevert: action.canRevert && (!revertPaths.length || first.parameterRevertSupported === true),
+                };
+            });
         })
         .sort((left, right) => right.changedAt.localeCompare(left.changedAt));
 };

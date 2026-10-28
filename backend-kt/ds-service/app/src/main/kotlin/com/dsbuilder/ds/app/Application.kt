@@ -39,6 +39,7 @@ import com.dsbuilder.ds.components.application.DeleteVariationPlatformParamAdjus
 import com.dsbuilder.ds.components.application.DeleteVariationPropertyValueUseCase
 import com.dsbuilder.ds.components.application.DuplicateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
+import com.dsbuilder.ds.components.application.GetActivePluginBuildUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceEditorModelUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
@@ -96,6 +97,9 @@ import com.dsbuilder.ds.components.application.ListVariationPropertyValuesByStyl
 import com.dsbuilder.ds.components.application.ListVariationPropertyValuesUseCase
 import com.dsbuilder.ds.components.application.ListVariationStylesUseCase
 import com.dsbuilder.ds.components.application.ListVariationsUseCase
+import com.dsbuilder.ds.components.application.PluginBuildSettings
+import com.dsbuilder.ds.components.application.PluginBuildStorage
+import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisValueUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearancePropertyValueUseCase
@@ -122,6 +126,7 @@ import com.dsbuilder.ds.components.application.UpdateVariationPropertyValueUseCa
 import com.dsbuilder.ds.components.application.UpdateVariationUseCase
 import com.dsbuilder.ds.components.di.componentModelModule
 import com.dsbuilder.ds.components.di.componentsModule
+import com.dsbuilder.ds.components.presentation.activePluginBuildRoutes
 import com.dsbuilder.ds.components.presentation.apiMetaImportRoutes
 import com.dsbuilder.ds.components.presentation.appearanceEditorRoutes
 import com.dsbuilder.ds.components.presentation.appearanceRoutes
@@ -134,6 +139,7 @@ import com.dsbuilder.ds.components.presentation.componentRoutes
 import com.dsbuilder.ds.components.presentation.designSystemComponentRoutes
 import com.dsbuilder.ds.components.presentation.invariantPlatformParamAdjustmentRoutes
 import com.dsbuilder.ds.components.presentation.invariantPropertyValueRoutes
+import com.dsbuilder.ds.components.presentation.pluginBuildPublishRoutes
 import com.dsbuilder.ds.components.presentation.propertyPlatformParamRoutes
 import com.dsbuilder.ds.components.presentation.propertyRoutes
 import com.dsbuilder.ds.components.presentation.propertyVariationRoutes
@@ -200,12 +206,14 @@ import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteUseCases
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUseCases
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupUseCases
+import com.dsbuilder.ds.themes.application.typography.TypographyStyleUseCases
 import com.dsbuilder.ds.themes.di.themesModule
 import com.dsbuilder.ds.themes.presentation.colortokens.colorTokenRoutes
 import com.dsbuilder.ds.themes.presentation.palette.tenantPaletteRoutes
 import com.dsbuilder.ds.themes.presentation.sizetokens.sizeTokenRoutes
 import com.dsbuilder.ds.themes.presentation.tenantRoutes
 import com.dsbuilder.ds.themes.presentation.tokengroups.tokenGroupRoutes
+import com.dsbuilder.ds.themes.presentation.typography.typographyStyleRoutes
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntryUseCase
 import com.dsbuilder.ds.tokens.application.CreateTokenUseCase
 import com.dsbuilder.ds.tokens.application.CreateTokenValueUseCase
@@ -272,7 +280,10 @@ fun main() {
 }
 
 /** Installs the DS runtime and HTTP endpoints. */
-fun Application.module(configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment()) {
+fun Application.module(
+    configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment(),
+    pluginStorage: PluginBuildStorage? = null,
+) {
     val runtime = createRuntime(configuration)
     monitor.subscribe(ApplicationStopped) {
         runtime.draftInvalidationResource.close()
@@ -282,17 +293,23 @@ fun Application.module(configuration: DsServiceConfiguration = DsServiceConfigur
         ignoreUnknownKeys = false
         explicitNulls = true
     }
-    installDependencyGraph(configuration, runtime)
+    installDependencyGraph(configuration, runtime, pluginStorage)
     installHttpPlugins(json, runtime.metrics)
     installServiceRoutes(runtime, json)
 }
 
-private fun Application.installDependencyGraph(configuration: DsServiceConfiguration, runtime: DsRuntime) {
+private fun Application.installDependencyGraph(
+    configuration: DsServiceConfiguration,
+    runtime: DsRuntime,
+    pluginStorage: PluginBuildStorage?,
+) {
     install(Koin) {
         slf4jLogger()
         modules(
             module {
                 single { configuration }
+                single<PluginBuildStorage> { pluginStorage ?: configuration.composePreviewPlugin.createStorage() }
+                single<PluginBuildSettings> { configuration.composePreviewPlugin.settings() }
                 single { runtime.database }
                 single { runtime.evaluator }
                 single { runtime.accessPolicy }
@@ -388,6 +405,12 @@ private fun Application.installServiceRoutes(runtime: DsRuntime, json: Json) {
 @Suppress("LongMethod")
 private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin: Koin) {
     apiMetaImportRoutes(runtime.evaluator, koin.get<ImportApiMetaUseCase>(), json)
+    pluginBuildPublishRoutes(
+        runtime.evaluator,
+        koin.get<PublishPluginBuildUseCase>(),
+        koin.get<PluginBuildSettings>().limits.maxCompressedBytes,
+    )
+    activePluginBuildRoutes(runtime.evaluator, koin.get<GetActivePluginBuildUseCase>())
     componentConfigRoutes(
         runtime.evaluator,
         koin.get<GetComponentConfigUseCase>(),
@@ -668,6 +691,7 @@ private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Ko
     colorTokenRoutes(runtime.evaluator, koin.get<ColorTokenUseCases>())
     tokenGroupRoutes(runtime.evaluator, koin.get<TokenGroupUseCases>())
     sizeTokenRoutes(runtime.evaluator, koin.get<SizeTokenUseCases>())
+    typographyStyleRoutes(runtime.evaluator, koin.get<TypographyStyleUseCases>())
 }
 
 private fun Route.registerTokensFeature(runtime: DsRuntime, json: Json, koin: Koin) {

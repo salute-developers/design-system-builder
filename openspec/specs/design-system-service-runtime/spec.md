@@ -1,7 +1,7 @@
 # design-system-service-runtime Specification
 
 ## Purpose
-TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Update Purpose after archive.
+Определяет runtime ds-service: модульную архитектуру, владение схемой через Flyway, контейнерный и локальный запуск, readiness и наблюдаемость.
 ## Requirements
 ### Requirement: Модульная архитектура ds-service
 
@@ -49,13 +49,13 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 
 ### Requirement: Flyway управляет схемой предметной БД
 
-`ds-service` SHALL использовать Flyway как единственное средство применения будущих миграций предметной схемы и SHALL воспроизводить текущее состояние `schema.ts`, применённых Drizzle-миграций, ограничений, индексов, функций и триггеров.
+`ds-service` SHALL использовать Flyway как единственное средство применения миграций предметной схемы; baseline `V1` воспроизводит состояние схемы, унаследованной от прежнего db-service (ограничения, индексы, функции и триггеры).
 
 #### Scenario: Инициализация пустой БД
 
 - **WHEN** `ds-service` запускается с пустой поддерживаемой PostgreSQL-базой
 - **THEN** Flyway MUST создать всю предметную схему
-- **AND** итоговая схема и поведение триггеров MUST пройти автоматическое сравнение с эталоном `db-service`
+- **AND** итоговая схема и поведение триггеров MUST соответствовать контракту `contracts/schema-fingerprint.json` и интеграционным тестам ds-service
 
 #### Scenario: Принятие существующей БД
 
@@ -74,62 +74,40 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 
 - **WHEN** Flyway принял предметную схему
 - **THEN** Drizzle migration runner MUST быть отключён для этой БД
-- **AND** `db-service` MAY использовать схему для чтения, записи или отката runtime, но MUST NOT применять миграции
-
-### Requirement: Совместное существование и атомарное переключение
-
-`ds-service` SHALL разворачиваться рядом с `db-service` до cutover, SHALL запрещать двойную запись и SHALL поддерживать возврат всего перенесённого набора на прежний upstream.
-
-#### Scenario: Проверка чтений до переключения
-
-- **WHEN** `ds-service` развёрнут, но ещё не является основным upstream
-- **THEN** безопасные запросы чтения MAY сравниваться с `db-service`
-- **AND** теневой запрос MUST NOT изменять данные
-
-#### Scenario: Переключение предметного набора
-
-- **WHEN** контрактные, миграционные и эксплуатационные проверки завершены успешно
-- **THEN** Gateway MUST переключить весь разрешённый предметный набор на `ds-service` одной управляемой конфигурацией
-- **AND** production-трафик MUST NOT делиться между реализациями по сущностям
-
-#### Scenario: Откат runtime
-
-- **WHEN** после переключения обнаруживается критическое несовпадение
-- **THEN** Gateway MUST позволять вернуть весь перенесённый набор в `db-service`
-- **AND** откат MUST NOT требовать удаления данных или Flyway history
+- **AND** никакой другой сервис MUST NOT применять миграции к этой БД
 
 ### Requirement: Контейнерный и локальный запуск
 
-`ds-service` SHALL иметь production `Dockerfile`, конфигурацию Docker Compose и общего локального контура, внутренний порт `8085` через `DS_SERVICE_PORT`, конфигурацию через окружение и автоматический healthcheck.
+`ds-service` SHALL запускаться в контейнере и в общем локальном контуре `backend-kt` вместе со своей базой `ds_registry`, без JS-стека.
 
 #### Scenario: Запуск контейнера
 
-- **WHEN** образ `ds-service` запускается с JDBC URL, credentials БД, путём к policy, портом и параметрами пула
-- **THEN** приложение MUST запуститься без встроенных секретов
-- **AND** контейнер MUST объявлять тот же порт, который используют compose и Gateway
+- **WHEN** образ `ds-service` запускается с переменными окружения БД и policy
+- **THEN** сервис MUST стартовать, применить Flyway-миграции и открыть readiness только после успешной проверки зависимостей
 
 #### Scenario: Запуск общего локального контура
 
 - **WHEN** разработчик запускает корневой `./setup-local.sh`
-- **THEN** `ds-service` MUST запускаться вместе с необходимой БД и Gateway
+- **THEN** `ds-service` MUST запускаться вместе с базой `ds-db` из `backend-kt/docker-compose.local.yml` и Gateway
 - **AND** healthcheck MUST отражать состояние приложения без ручной настройки внутри контейнера
+- **AND** из `js/docker-compose.dev.yml` поднимается клиент
 
 #### Scenario: Схему общей базы создаёт Flyway
 
-- **WHEN** `./setup-local.sh` готовит общую базу `ds_registry`
-- **THEN** Drizzle-миграции MUST NOT запускаться, а `ds-service` MUST создать схему Flyway-миграциями `V1`–`V3` в пустой базе без принятия существующей
-- **AND** seed и привязка дизайн-системы `base` к проекту MUST выполняться после того, как `ds-service` создал схему
+- **WHEN** `./setup-local.sh` готовит базу `ds_registry`
+- **THEN** `ds-service` MUST создать схему Flyway-миграциями в пустой базе `ds-db` без принятия существующей
+- **AND** наполнение дизайн-системой `base` MUST выполняться `backend-kt/bootstrap-base.sh` после того, как `ds-service` создал схему и Gateway готов
 
 #### Scenario: Данные удаляются только явно
 
 - **WHEN** разработчик запускает `./setup-local.sh` без опций
-- **THEN** локальные данные обоих контуров MUST сохраняться
+- **THEN** локальные данные обоих стеков MUST сохраняться
 - **AND** удаление volumes MUST выполняться только опцией `--reset`
 
 #### Scenario: База со схемой Drizzle
 
 - **WHEN** в `ds_registry` есть таблицы, а истории Flyway нет
-- **THEN** `./setup-local.sh` MUST остановиться до запуска `ds-service` с указанием выполнить `./setup-local.sh --reset`
+- **THEN** `ds-service` с `DS_FLYWAY_ADOPT_EXISTING=false` MUST остановиться на проверке Flyway, а разработчик пересоздаёт базу `./setup-local.sh --reset`
 
 ### Requirement: Раздельные проверки жизнеспособности и готовности
 
@@ -171,7 +149,12 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 
 ### Requirement: Разделение платформ применяется миграцией поверх baseline
 
-Контрактный отпечаток схемы (`contracts/schema-fingerprint.json`) и ожидаемый отпечаток локального контура SHALL описывать схему замороженного baseline Flyway (версия `1`), то есть состояние до разделения платформ компонентов. Разделение платформ и пометка устаревших алиасов (`component_platform`, `components.platform`, `deprecated`, `deprecated_message`) SHALL применяться Flyway-миграцией `V3__component_platform_split_and_axis_roles.sql` поверх baseline и не менять отпечаток baseline. Миграция MUST NOT опираться на временные таблицы, удаляемые при commit, и MUST останавливаться, если находит нативные данные, которые нельзя потерять.
+Контрактный отпечаток схемы (`contracts/schema-fingerprint.json`) и ожидаемый отпечаток локального контура SHALL описывать схему замороженного baseline Flyway (версия `1`), то есть состояние до разделения платформ компонентов.
+
+#### Scenario: Миграция поверх замороженного исходного состояния
+
+- **WHEN** Flyway применяет разделение платформ к исходной схеме
+- **THEN** Разделение платформ и пометка устаревших алиасов (`component_platform`, `components.platform`, `deprecated`, `deprecated_message`) SHALL применяться Flyway-миграцией `V3__component_platform_split_and_axis_roles.sql` поверх baseline и не менять отпечаток baseline. Миграция MUST NOT опираться на временные таблицы, удаляемые при commit, и MUST останавливаться, если находит нативные данные, которые нельзя потерять.
 
 #### Scenario: Пустая база
 

@@ -2,12 +2,16 @@ import path from 'path';
 import { writeGeneratedToFS } from '@salutejs/plasma-tokens-utils';
 import { generateCommonFile } from '@salutejs/plasma-tokens-utils/lib/generators/generateFile.js';
 
-import { GENERATE_MESSAGE_FOR_CSS, ThemeContent, webBreakpoints } from '../types/index.ts';
-import { getBreakpointSelector, getSelector } from '../utils/index.ts';
+import { Breakpoint, GENERATE_MESSAGE_FOR_CSS, ThemeContent } from '../types/index.ts';
+import { getSelector, getTypographyBreakpoints } from '../utils/index.ts';
 
-export const generateCSSModuleThemes = (srcDir: string, themeName: string, themeContent: ThemeContent) => {
+export const generateCSSModuleThemes = (
+    srcDir: string,
+    themeName: string,
+    themeContent: ThemeContent,
+    breakpoints: Breakpoint[],
+) => {
     const themesDir = path.join(srcDir, 'css');
-    const { screenS, screenM, screenL } = webBreakpoints;
 
     const darkSelector = '.dark';
     const lightSelector = '.light';
@@ -28,9 +32,7 @@ export const generateCSSModuleThemes = (srcDir: string, themeName: string, theme
         getSelector(themeContent.dark.shapeTokens, groupSelector),
         getSelector(themeContent.dark.spacingTokens, groupSelector),
         getSelector(themeContent.dark.typographyTokens.root, groupSelector),
-        getBreakpointSelector(themeContent.dark.typographyTokens.screenS, screenS.from, screenS.to, groupSelector),
-        getBreakpointSelector(themeContent.dark.typographyTokens.screenM, screenM.from, screenM.to, groupSelector),
-        getBreakpointSelector(themeContent.dark.typographyTokens.screenL, screenL.from, screenL.to, groupSelector),
+        ...getTypographyBreakpoints(themeContent.dark.typographyTokens, breakpoints, groupSelector),
     ].join('\n');
 
     const file = generateCommonFile(

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import type { Meta } from '../../controllers/componentBuilder/type';
-import type { DraftChangeDto, EditorContextKey, TokenDefinitionDto } from '../../api/editorContracts';
+import type { DraftChangeDto, EditorContextKey, PaletteDto, TokenDefinitionDto } from '../../api/editorContracts';
 import { versionJournalRepository as repository } from '../../api/versionJournalRepository';
 import { tokenRepository } from '../../api/tokenRepository';
 import type { AutosaveStatus } from '../../api/tokenAutosaveQueue';
@@ -13,9 +13,10 @@ interface JournalData {
     tokens: TokenDefinitionDto[];
     actorLabels: Record<string, string>;
     componentMetadata?: JournalComponentMetadata;
+    palette: PaletteDto[];
 }
 
-const emptyJournal: JournalData = { changes: [], tokens: [], actorLabels: {} };
+const emptyJournal: JournalData = { changes: [], tokens: [], actorLabels: {}, palette: [] };
 export const errorCode = (error: unknown) => {
     let result: string | undefined;
     if (isAxiosError(error)) {
@@ -39,7 +40,11 @@ const loadJournal = async (context: EditorContextKey, signal?: AbortSignal): Pro
     const componentMetadata = changes.some(isComponentJournalChange)
         ? await loadJournalComponentMetadata(context, signal)
         : undefined;
-    return { changes, tokens, actorLabels, componentMetadata };
+    // Палитра нужна только значениям, записанным ссылкой `palette_id`.
+    const palette = changes.some((change) => change.previousValue?.palette_id || change.currentValue?.palette_id)
+        ? await tokenRepository.listPalette(context, signal)
+        : [];
+    return { changes, tokens, actorLabels, componentMetadata, palette };
 };
 
 export const useJournal = (

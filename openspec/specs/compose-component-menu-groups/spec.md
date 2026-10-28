@@ -1,7 +1,8 @@
 # compose-component-menu-groups Specification
 
 ## Purpose
-TBD - created by archiving change use-plugin-component-groups. Update Purpose after archive.
+Построение групп меню Compose-компонентов по данным плагина с обработкой некорректных групп и независимой загрузкой.
+
 ## Requirements
 ### Requirement: Группы Compose-компонентов берутся из плагина
 

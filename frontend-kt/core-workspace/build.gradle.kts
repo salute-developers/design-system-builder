@@ -9,7 +9,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.kotlinx.serialization.json)
+            // ProjectConfig.breakpoints публично отдаёт JsonArray.
+            api(libs.kotlinx.serialization.json)
             api(libs.okio)
         }
     }

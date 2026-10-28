@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { ThemeSource } from './types/index.ts';
+import { Breakpoint, ThemeSource, webBreakpoints } from './types/index.ts';
 import {
     createGradientTokens,
     createShadowTokens,
@@ -90,15 +90,15 @@ const createThemeVariables = (themeName: string, { meta, variations }: ThemeSour
  * Индекс `themes/index.ts` пишется вместе с файлами темы: запись в существующий файл дописывает его,
  * поэтому у нескольких тем в одном каталоге индекс накапливает экспорты в порядке генерации.
  */
-const writeThemeFiles = (themeDir: string, themeName: string, themeSource: ThemeSource) => {
+const writeThemeFiles = (themeDir: string, themeName: string, themeSource: ThemeSource, breakpoints: Breakpoint[]) => {
     const { css, tokens } = createThemeVariables(themeName, themeSource);
     const { name } = themeSource.meta;
 
-    generateThemes(themeDir, name, css);
+    generateThemes(themeDir, name, css, breakpoints);
 
-    generateCSSThemes(themeDir, name, css);
+    generateCSSThemes(themeDir, name, css, breakpoints);
 
-    generateCSSModuleThemes(themeDir, name, css);
+    generateCSSModuleThemes(themeDir, name, css, breakpoints);
 
     return tokens;
 };
@@ -110,11 +110,12 @@ const writeThemeFiles = (themeDir: string, themeName: string, themeSource: Theme
  * Имена переменных у тем одной дизайн-системы совпадают, различаются значения. Запасное значение
  * в файле токенов одно, поэтому оно берётся из темы по умолчанию: `defaultThemeName` или первой.
  * Порядок экспортов в индексе совпадает с порядком `themeSources`.
+ * Медиазапросы типографики строятся по `breakpoints` в их порядке; без них — по `webBreakpoints`.
  */
 export const generateThemeSet = async (
     themeSources: ThemeSource[],
     srcDir = 'src',
-    { defaultThemeName }: { defaultThemeName?: string } = {},
+    { defaultThemeName, breakpoints = webBreakpoints }: { defaultThemeName?: string; breakpoints?: Breakpoint[] } = {},
 ) => {
     const names = themeSources.map(({ meta }) => meta.name);
     if (names.length === 0) {
@@ -134,7 +135,7 @@ export const generateThemeSet = async (
     fs.mkdirSync(srcDir, { recursive: true });
 
     for (const themeSource of themeSources) {
-        const tokens = writeThemeFiles(srcDir, themeSource.meta.name, themeSource);
+        const tokens = writeThemeFiles(srcDir, themeSource.meta.name, themeSource, breakpoints);
         if (themeSource.meta.name === defaultName) {
             generateTokens(srcDir, defaultName, tokens);
         }

@@ -1,7 +1,8 @@
 # component-editor-operations Specification
 
 ## Purpose
-TBD - created by archiving change component-editor-model-api. Update Purpose after archive.
+Операции редактора оформления, согласование параллельных правок и их связь с журналом, публикацией и откатом.
+
 ## Requirements
 ### Requirement: Модель оформления для редактора
 
@@ -21,7 +22,12 @@ TBD - created by archiving change component-editor-model-api. Update Purpose aft
 
 ### Requirement: Операции редактора используют согласование правок многопользовательского редактирования
 
-Операции изменения оформления SHALL выполняться по правилам change `add-versioned-multi-user-editing`: принимать `X-DS-Base-Revision`, сохранять только изменённые поля в активный `DRAFT`, блокировать затронутые логические сущности в устойчивом порядке и фиксировать всё одной транзакцией. Общая ревизия на оформление или компонент SHALL NOT вводиться: техническая редакция принадлежит каждой затронутой сущности (`appearance-variation`, `appearance-variation-value`, `style`, `invariant-property-value`, `variation-property-value`, `style-combination`, `component-style-reference` и т. д.).
+Операции изменения оформления SHALL выполняться по правилам change `add-versioned-multi-user-editing`: принимать `X-DS-Base-Revision`, сохранять только изменённые поля в активный `DRAFT`, блокировать затронутые логические сущности в устойчивом порядке и фиксировать всё одной транзакцией.
+
+#### Scenario: Независимые технические редакции сущностей
+
+- **WHEN** операция меняет несколько сущностей одного оформления
+- **THEN** Общая ревизия на оформление или компонент SHALL NOT вводиться: техническая редакция принадлежит каждой затронутой сущности (`appearance-variation`, `appearance-variation-value`, `style`, `invariant-property-value`, `variation-property-value`, `style-combination`, `component-style-reference` и т. д.).
 
 #### Scenario: Операция меняет несколько сущностей
 
@@ -85,7 +91,7 @@ TBD - created by archiving change component-editor-model-api. Update Purpose aft
 
 ### Requirement: Прежние маршруты не обходят согласование правок
 
-Прежние маршруты изменения оси, значения оси, стиля и значений свойств SHALL подчиняться тем же правилам согласования правок, что и операции редактора. Изменение технического имени записи общего каталога `variations` через `PATCH /api/ds/variations/{id}` SHALL быть доступно только системному администратору, потому что оно затрагивает все дизайн-системы. Редактор SHALL переименовывать ось и значение только через `displayName` оформления.
+Прежние маршруты изменения оси, значения оси, стиля и значений свойств SHALL подчиняться тем же правилам согласования правок, что и операции редактора. Изменение технического имени и описания оси через `PATCH /api/ds/variations/{id}` SHALL быть доступно участнику проекта, владеющего дизайн-системой оси, потому что ось принадлежит одной дизайн-системе, и SHALL записываться в активный черновик. Редактор SHALL переименовывать ось и значение только через `displayName` оформления.
 
 #### Scenario: Прежний маршрут меняет значение свойства
 
@@ -94,8 +100,14 @@ TBD - created by archiving change component-editor-model-api. Update Purpose aft
 
 #### Scenario: Участник проекта переименовывает вариацию общего каталога
 
-- **WHEN** участник проекта без роли системного администратора вызывает `PATCH /api/ds/variations/{id}` с новым `name`
-- **THEN** `ds-service` MUST ответить `403` и MUST NOT менять данные
+- **WHEN** участник проекта без роли системного администратора вызывает `PATCH /api/ds/variations/{id}` с новым `name` для оси дизайн-системы, к которой имеет право записи
+- **THEN** `ds-service` MUST записать новую ревизию оси в активный черновик этой дизайн-системы
+- **THEN** опубликованные версии MUST NOT измениться
+
+#### Scenario: Участник проекта меняет ось чужой системы
+
+- **WHEN** участник проекта вызывает `PATCH /api/ds/variations/{id}` для оси дизайн-системы без права записи
+- **THEN** `ds-service` MUST ответить `403` или `404` и MUST NOT менять данные
 
 #### Scenario: Переименование через оформление
 

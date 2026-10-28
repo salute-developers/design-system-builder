@@ -4,6 +4,8 @@
 /node_modules
 /index.*
 /_virtual
+/*.tgz
+/theme
 src-sc
 src-linaria
 src-css

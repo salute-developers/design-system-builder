@@ -140,7 +140,11 @@ fun Route.componentRoutes(
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = variations.execute(context, id)) {
+            val designSystemId = call.request.queryParameters["designSystemId"]?.let {
+                it.toUuidOrNull()
+                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
+            }
+            when (val result = variations.execute(context, id, designSystemId)) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
                     result.value.map(ComponentVariationSummaryResponse::from),

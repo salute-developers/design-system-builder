@@ -446,7 +446,9 @@ class SizeTokenHttpPostgresIntegrationTest {
         val resolvedWeb = json.parseToJsonElement("""["0rem 0.125rem 0.5rem 0rem $expected"]""")
         assertEquals(resolvedWeb, resolved.jsonObject.getValue("value"))
         assertEquals(json.parseToJsonElement(web), resolved.jsonObject.getValue("sourceValue"))
-        assertTrue(values.filter { it.text("tokenId") != softXlId }.none { "sourceValue" in it })
+        // Варианты размера без ссылки цвета отдаются как хранятся, без sourceValue.
+        val plainVariants = tokens.map { it.text("tokenId") }.filter { it != softXlId }.toSet()
+        assertTrue(values.filter { it.text("tokenId") in plainVariants }.none { "sourceValue" in it })
 
         // Связи растяжки учитывают тень; ступень вне палитры при правке — отказ без записи.
         val linksPath = "/api/ds/tenants/${scope.tenantA}/palette/links?type=general&shade=${step.shade}"

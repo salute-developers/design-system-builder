@@ -1,7 +1,8 @@
 # compose-preview-icons Specification
 
 ## Purpose
-TBD - created by archiving change add-compose-preview-icons. Update Purpose after archive.
+Передача иконок из конфигурации компонента в Compose-превью по имени с ограничениями редактирования.
+
 ## Requirements
 ### Requirement: Свойство иконки входит в модель конфигурации
 

@@ -8,6 +8,7 @@ internal enum class ActorType(val headerValue: String) {
 internal enum class GlobalRole(val tokenValue: String) {
     USER("user"),
     SYSTEM_ADMIN("system_admin"),
+    COMPOSE_PREVIEW_PUBLISHER("compose_preview_publisher"),
 }
 
 internal enum class ProjectRole(val headerValue: String) {
@@ -24,6 +25,7 @@ internal data class AuthenticatedActor(
     val globalRoles: Set<GlobalRole>,
 ) {
     val isSystemAdmin: Boolean = GlobalRole.SYSTEM_ADMIN in globalRoles
+    val isComposePreviewPublisher: Boolean = GlobalRole.COMPOSE_PREVIEW_PUBLISHER in globalRoles
 }
 
 internal data class ProjectContext(
@@ -39,6 +41,7 @@ internal data class TrustedHeaders(
     val projectKeyId: String? = null,
     val projectScopes: String? = null,
     val systemAdmin: String,
+    val composePreviewPublisher: String = false.toString(),
 ) {
     fun asMap(): Map<String, String> =
         buildMap {
@@ -49,6 +52,7 @@ internal data class TrustedHeaders(
             projectKeyId?.let { put(HEADER_PROJECT_KEY_ID, it) }
             projectScopes?.let { put(HEADER_PROJECT_SCOPES, it) }
             put(HEADER_SYSTEM_ADMIN, systemAdmin)
+            put(HEADER_COMPOSE_PREVIEW_PUBLISHER, composePreviewPublisher)
         }
 
     companion object {
@@ -59,5 +63,6 @@ internal data class TrustedHeaders(
         const val HEADER_PROJECT_KEY_ID = "X-Project-Key-Id"
         const val HEADER_PROJECT_SCOPES = "X-Project-Scopes"
         const val HEADER_SYSTEM_ADMIN = "X-System-Admin"
+        const val HEADER_COMPOSE_PREVIEW_PUBLISHER = "X-Compose-Preview-Publisher"
     }
 }

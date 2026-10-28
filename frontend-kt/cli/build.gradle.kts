@@ -150,6 +150,19 @@ registerMacosCliPackage(
     linkTaskName = "linkReleaseExecutableMacosX64",
 )
 
+// JVM-дистрибутив (bin/dsbuilder + lib/*.jar) под стабильным именем для релиза CLI: CI других репозиториев
+// скачивает его и запускает на Linux с Java 17.
+tasks.register<Copy>("packageJvmCli") {
+    group = "distribution"
+    description = "Copies the JVM distribution of dsbuilder CLI under a stable name for the CLI release."
+
+    val distribution = tasks.named<Zip>("jvmDistZip")
+    dependsOn(distribution)
+    from(distribution.flatMap { it.archiveFile })
+    into(layout.buildDirectory.dir("distributions"))
+    rename { "dsbuilder-cli-jvm.zip" }
+}
+
 tasks.register("packageMacosCli") {
     group = "distribution"
     description = "Packages dsbuilder CLI for the current macOS architecture."

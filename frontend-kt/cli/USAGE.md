@@ -449,6 +449,49 @@ Absent from meta (informational, nothing was removed): 2
 Параметры: `--map-type from:to` (заменить тип свойства до отправки, можно повторять), `--strict`
 (завершиться с кодом 1, если что-то отклонено).
 
+## Публикация Compose preview plugin
+
+Команда отправляет билд плагина Compose-превью на бэкенд: архив `preview-compose-plugin.zip`, собранный в
+`plasma-android`, и мета компонентов из него. Бэкенд за один шаг кладёт файлы в хранилище, импортирует мету и
+делает билд активным; клиент редактора берёт адрес плагина у бэкенда.
+
+```bash
+# Пробная отправка: бэкенд проверяет архив и мету и ничего не записывает.
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com
+
+# Запись билда.
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com --apply
+```
+
+Перед отправкой CLI проверяет архив локально: в нём должны быть `preview-plugin.json` и `api-meta.json`, а sha256
+файла меты обязан совпасть с `apiMetaSha256` manifest. Мета нормализуется так же, как в `components import-api`.
+Платформа поддерживается только `compose`, а `--api-url` обязателен, потому что команда пишет на бэкенд.
+
+Итог: `published` (новый билд записан и активен), `activated` (ранее опубликованный билд снова активен: так
+выполняется откат повторной публикацией старого билда) или `unchanged` (билд уже опубликован и активен). Если
+билд с тем же идентификатором опубликован с другим содержимым архива, команда завершается ошибкой и ничего не
+меняет.
+
+### Авторизация
+
+В CI команда входит служебной учёткой Keycloak с ролью публикации (без прав системного администратора):
+
+```bash
+export DSBUILDER_CLIENT_ID=dsbuilder-preview-publisher
+export DSBUILDER_CLIENT_SECRET=...   # секрет передаётся только через окружение
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com --apply
+```
+
+CLI получает короткоживущий токен (`client_credentials`) через `/auth/token` и не сохраняет его на диск. Секрет
+нельзя передать аргументом (`--client-secret` отклоняется). Задать нужно обе переменные: одна из двух считается
+ошибкой, а не поводом перейти на сессию. Если переменных нет, используется сохранённая сессия системного
+администратора (`dsbuilder auth login`), поэтому ту же команду можно выполнить вручную.
+
+### CLI в CI
+
+Релиз `cli-vX.Y.Z` репозитория содержит `dsbuilder-cli-jvm.zip`: распакуйте архив и запустите
+`cli-jvm/bin/dsbuilder` с Java 17. Закрепите версию релиза в workflow.
+
 ## Выгрузка конфигов компонентов
 
 ```bash
@@ -505,7 +548,8 @@ dsbuilder theme generate -- --standalone --components
 Web-генератор — npm-пакет `js/cli` внутри репозитория DS Builder, установщика у него нет. Путь к
 каталогу задаётся переменной `DSBUILDER_WEB_TOOL` или `--tool`; нужны Node.js и `npm` в `PATH`.
 Тема и компоненты генерируются раздельно (`npm run generate:theme` и `npm run generate:components`),
-`--output` становится `--out` генератора, остальное после `--` передаётся как есть:
+`--output` становится `--out` генератора, остальное после `--` передаётся как есть. Без `--output`
+результат пишется в `output` рядом с `.sdds` проекта:
 
 ```bash
 export DSBUILDER_WEB_TOOL=<путь к репозиторию>/design-system-builder/js/cli
@@ -514,8 +558,10 @@ dsbuilder components generate --platform react --output ./web
 dsbuilder components generate --platform react -- --package --name base
 ```
 
-Без `--package` каждая команда заменяет только свою часть `src`; с `--package` собирается архив
-одной части. Подробности — в README `js/cli`.
+Без `--package` каждая команда заменяет только свою часть `src`. С `--package` в `--output` пишется
+папка пакета одной части без сборки и архива: `package.json`, конфиги сборки, `scripts` и `src`;
+`src` заменяется целиком, `node_modules` и остальное содержимое каталога остаются. Собрать и
+упаковать папку — `npm install && npm pack` в ней. Подробности — в README `js/cli`.
 
 ### Дизайн-система целиком
 
@@ -530,7 +576,7 @@ dsbuilder ds generate --platform react -- --package --name base
 загрузилась, компоненты не загружаются, код возврата 1.
 
 `ds generate` одним вызовом делегата генерирует дизайн-систему целиком: тему и компоненты. Для React это `npm run generate:ds` — с `--package` он
-собирает один пакет с темой и компонентами; имя пакета задаёт `--name` (обязательно с `--package`). Для Android запускаются таски темы и компонентов одним
+пишет папку одного пакета с темой и компонентами; имя пакета задаёт `--name` (обязательно с `--package`). Для Android запускаются таски темы и компонентов одним
 вызовом `gradlew`, для iOS — `theme generate`, затем `components generate`: общей команды у
 инструмента нет, при неудаче темы компоненты не запускаются.
 

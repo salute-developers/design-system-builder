@@ -1,7 +1,8 @@
 # web-projects-workflow Specification
 
 ## Purpose
-TBD - created by archiving change add-projects-workflow. Update Purpose after archive.
+Управление проектами и участниками в веб-клиенте с отображением доступных действий согласно итоговой роли пользователя.
+
 ## Requirements
 ### Requirement: Пользователь видит доступные проекты
 
@@ -27,13 +28,19 @@ TBD - created by archiving change add-projects-workflow. Update Purpose after ar
 
 ### Requirement: Пользователь создаёт проект
 
-Веб-клиент SHALL позволять вошедшему пользователю создать проект с обязательным названием и необязательным описанием.
+Веб-клиент SHALL позволять вошедшему пользователю создать проект с обязательным названием и необязательным описанием. Маршрут `/projects/new` MUST открывать окно создания поверх каталога проектов как его дочерний маршрут, а не отдельную страницу с копией каталога.
 
 #### Scenario: Проект успешно создан
 
 - **WHEN** пользователь отправляет валидную форму создания проекта
 - **THEN** клиент MUST вызвать `POST /projects`
 - **THEN** клиент MUST открыть обзор созданного проекта по возвращённому `projectId`
+
+#### Scenario: Окно открыто поверх каталога проектов
+
+- **WHEN** пользователь открывает `/projects/new`
+- **THEN** клиент MUST показать каталог проектов с одной шапкой и одним набором карточек
+- **THEN** поверх него MUST быть открыто окно создания проекта
 
 #### Scenario: Название проекта не заполнено
 
@@ -133,3 +140,4 @@ TBD - created by archiving change add-projects-workflow. Update Purpose after ar
 - **WHEN** Owner восстанавливает архивный проект
 - **THEN** клиент MUST вызвать `POST /projects/{projectId}/restore`
 - **THEN** клиент MUST снова разрешить действия согласно `effectiveRole`
+

@@ -81,14 +81,27 @@ environment. To turn the section off in the local dev server, set the variable i
 
 ## Compose preview plugin
 
-Compose preview is an optional pilot renderer for the `Button` component. The plugin is **not part
-of the client build and is not linked with it**. The client loads it at runtime, in an `iframe`,
-from the URL set in `VITE_COMPOSE_PREVIEW_PLUGIN_URL`, and the two communicate only through
-`postMessage` and the Preview Protocol. The plugin is built in `plasma-android` and hosted
-separately; do not copy it into `public` or commit the archive to Git.
+Compose preview renders Compose components with a Kotlin/Wasm plugin. The plugin is **not part of
+the client build and is not linked with it**. The client loads it at runtime, in an `iframe`, and
+the two communicate only through `postMessage` and the Preview Protocol. The plugin is built in
+`plasma-android` and published to the backend (`dsbuilder preview-plugin publish`); do not copy it
+into `public` or commit the archive to Git.
 
-Without `VITE_COMPOSE_PREVIEW_PLUGIN_URL` the client behaves exactly as before: Compose preview is
-not offered anywhere. There is no default URL in the client code.
+### Where the client gets the plugin address
+
+There are two sources, and the first one that applies wins:
+
+1. **Direct address** `VITE_COMPOSE_PREVIEW_PLUGIN_URL`. Meant for local development (the local server below, or
+   a plugin built from a feature branch). The client does not ask the backend anything. `js/docker-compose.dev.yml`
+   defaults it to `http://localhost:8081/`; set it to an empty value to use the backend instead.
+2. **The active build of the backend.** Without the variable the client requests
+   `GET /api/projects/{projectId}/ds/compose-preview/plugin` once per page and project and loads the plugin from
+   the returned `pluginUrl`. The answer does not depend on the design system version you are viewing. The build
+   and the component API meta it was built from are published together, so they match.
+
+Compose preview is offered only when one of the sources gives an address. If the backend answers `404` (nothing is
+published) or fails, Compose components are not requested, the reason is written to the console and React preview
+works as before. There is no default address in the client code.
 
 ### Build the plugin
 
@@ -121,10 +134,10 @@ Then create `.env.local` (it is not committed) and set:
 VITE_COMPOSE_PREVIEW_PLUGIN_URL=http://127.0.0.1:8081/
 ```
 
-Start the client with `npm run dev`. The component editor offers `React / Compose` only for
-`Button`, and only when the URL is configured and the plugin manifest is compatible. An
-unavailable or incompatible plugin reports a failure inside the Compose viewport while React mode
-remains available.
+Start the client with `npm run dev`. The component editor offers `React / Compose` for a Compose
+component only when an address is available and the plugin manifest is compatible. An unavailable
+or incompatible plugin reports a failure inside the Compose viewport while React mode remains
+available.
 
 ### Hosting requirements
 
@@ -156,9 +169,14 @@ the client rejects a manifest whose entrypoint points elsewhere. The plugin has 
 
 ### Security
 
-If the plugin is served from the **same origin as the client**, that sandbox does not isolate it:
-the plugin code can read the client's `localStorage`, where the access and refresh tokens live.
-Serve the plugin from a separate origin. The local server above already does (another port).
+The plugin runs in an `iframe` with `sandbox="allow-scripts allow-same-origin"`. If it is served from the **same
+origin as the client**, that sandbox does not isolate it: the plugin code could read the client's `localStorage`,
+where the access and refresh tokens live. The plugin of the shared environments lives in the same bucket as the
+client, so the origins can coincide; this risk is accepted while only the SDDS team can publish plugins, and a
+separate host for the plugin remains a future improvement. Mitigations in place: only a plugin published by the
+team's service account or a system administrator is served; the plugin prefix is separate from the client prefix;
+the write key of the plugin storage is limited to that prefix. The local server above runs on another port, so
+the origins differ locally.
 
 Only a plugin built by the SDDS team from `plasma-android` is supported. Loading plugins from other
 sources, including user-provided ones, is not supported.
