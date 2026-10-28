@@ -3,12 +3,14 @@ package com.dsbuilder.ds.themes.application
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
+import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import com.dsbuilder.ds.themes.domain.colortokens.ColorValueShape
 import com.dsbuilder.ds.themes.domain.colortokens.ValuePaletteReferences
 import com.dsbuilder.ds.themes.domain.palette.PaletteReference
-import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
+import com.dsbuilder.ds.themes.domain.palette.ShadowLayerColors
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
+import com.dsbuilder.ds.themes.domain.sizetokens.SizePlatformValues
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -17,13 +19,14 @@ import java.util.UUID
 
 /**
  * Форма значений `token-values` для потребителей пакета: ссылки на палитру раскрыты по палитре темы [snapshot] на
- * границе выбранной версии, сплошные значения iOS и Android градиентного семейства — слоем `color`.
+ * границе выбранной версии, сплошные значения iOS и Android градиентного семейства — слоем `color`, цвета слоёв
+ * тени — `#RRGGBBAA` на своём месте.
  */
 internal class TokenValuePublisher(tenantId: UUID, private val snapshot: TenantPaletteSnapshot?) {
-    private val palette = snapshot?.let {
-        ThemePaletteBuilder.build(tenantId.toString(), false, it.state, it.tokens, it.values)
-    }
+    // Палитра со слоями теней: имя тени определяет группу палитры, по которой раскрываются ссылки её слоёв.
+    private val palette = snapshot?.palette(tenantId.toString(), false)
     private val tokenNames = snapshot?.tokens?.associate { it.id to it.name }.orEmpty()
+    private val shadowNames = snapshot?.layerTokens?.associate { it.id to it.name }.orEmpty()
     private val paletteIdReferences = snapshot?.values
         ?.filter { it.valueId != null && it.reference != null }
         ?.associate { it.valueId to it.reference }
@@ -34,6 +37,7 @@ internal class TokenValuePublisher(tenantId: UUID, private val snapshot: TenantP
 
     @Suppress("ReturnCount")
     private fun publish(value: TenantTokenValue): TenantTokenValue {
+        if (value.tokenType == ThemeTokenType.SHADOW) return publishedShadow(value)
         val type = value.tokenType?.takeIf { it in ColorTokenFamily.TYPES } ?: return value
         val platform = ThemeTokenPlatform.fromWire(value.platform) ?: return value
         val stored = value.valueJson?.let(Json::parseToJsonElement)
@@ -66,6 +70,23 @@ internal class TokenValuePublisher(tenantId: UUID, private val snapshot: TenantP
             paletteRef = whole?.format(),
             sourceValueJson = stored.toString().takeIf { whole == null },
         )
+    }
+
+    /** Значение тени с цветами слоёв, раскрытыми по палитре темы; нераскрываемая ссылка остаётся как есть. */
+    private fun publishedShadow(value: TenantTokenValue): TenantTokenValue {
+        val stored = value.valueJson?.let(Json::parseToJsonElement) ?: return value
+        val tokenName = value.tokenId?.toString()?.let(shadowNames::get) ?: return value
+        val resolved = ShadowLayerColors.mapReferences(stored) { reference ->
+            resolve(tokenName, reference)?.let(SizePlatformValues::normalizedColor)
+        }
+        return if (resolved == stored) {
+            value
+        } else {
+            value.copy(
+                valueJson = resolved.toString(),
+                sourceValueJson = value.valueJson,
+            )
+        }
     }
 
     private fun resolve(tokenName: String?, reference: PaletteReference): String? {

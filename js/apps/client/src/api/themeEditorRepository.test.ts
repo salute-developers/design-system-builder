@@ -40,7 +40,7 @@ import type { PendingComponentMutation } from './editorContracts';
 
 import { AndroidGradient, GradientToken, IOSGradient, Theme, WebGradient } from '../controllers';
 import { getMenuItems } from '../utils';
-import { getTokenValue } from '../pages/shapes/features/TokenShapeEditor/TokenShapeEditor.utils';
+import { parseCssLayer } from '../modules/sizeTokens';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 const reply = (tenantId: string, color: string) => (url: string) => {
@@ -627,8 +627,8 @@ describe('Editor repositories', () => {
 
         expect(single).toEqual(['0rem 1rem 2rem -0.5rem #0000003D']);
         expect(multi).toHaveLength(2);
-        expect(getTokenValue(single)).toEqual([
-            expect.objectContaining({ offsetY: '16', blur: '32', spread: '-8', color: '#000000' }),
+        expect(single.map(parseCssLayer)).toEqual([
+            { offsetX: 0, offsetY: 16, blur: 32, spread: -8, color: '#0000003D' },
         ]);
     });
 

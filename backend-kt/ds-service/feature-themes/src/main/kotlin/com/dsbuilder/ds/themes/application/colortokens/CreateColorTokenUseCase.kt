@@ -18,7 +18,6 @@ import com.dsbuilder.ds.themes.domain.colortokens.FamilyValue
 import com.dsbuilder.ds.themes.domain.colortokens.TokenNameRule
 import com.dsbuilder.ds.themes.domain.palette.PaletteOperationResult
 import com.dsbuilder.ds.themes.domain.palette.PaletteOperations
-import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import com.dsbuilder.ds.themes.domain.tokengroups.Ordering
 import com.dsbuilder.ds.themes.domain.tokengroups.TokenGroupKind
 import java.util.UUID
@@ -127,8 +126,7 @@ class CreateColorTokenUseCase(
         groupId: String,
     ): DsResult<Int> {
         val snapshot = palette.snapshot(context.projectId, tenantId) ?: return DsResult.Failure(DsFailure.NotFound)
-        val built =
-            ThemePaletteBuilder.build(tenantId.toString(), true, snapshot.state, snapshot.tokens, snapshot.values)
+        val built = snapshot.palette(tenantId.toString(), true)
         var state = snapshot.state
         tokenIds.forEach { tokenId ->
             when (val result = PaletteOperations.assignTokenGroup(state, tokenId.toString(), groupId, built)) {

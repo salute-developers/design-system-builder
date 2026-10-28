@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteLock
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
+import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import com.dsbuilder.ds.themes.domain.colortokens.ValuePaletteReferences
 import com.dsbuilder.ds.themes.domain.palette.PaletteAnchor
@@ -13,11 +14,13 @@ import com.dsbuilder.ds.themes.domain.palette.PaletteRampRef
 import com.dsbuilder.ds.themes.domain.palette.PaletteReference
 import com.dsbuilder.ds.themes.domain.palette.PaletteTokenRef
 import com.dsbuilder.ds.themes.domain.palette.PaletteTokenValue
+import com.dsbuilder.ds.themes.domain.palette.ShadowLayerColors
 import com.dsbuilder.ds.themes.domain.palette.StoredPaletteGroup
 import com.dsbuilder.ds.themes.domain.palette.StoredPaletteRamp
 import com.dsbuilder.ds.themes.domain.palette.SystemPaletteGroup
 import com.dsbuilder.ds.themes.domain.palette.TenantPaletteState
 import com.dsbuilder.ds.themes.domain.palette.TokenReferenceRewrite
+import com.dsbuilder.ds.themes.domain.sizetokens.SizePlatformValues
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -99,12 +102,15 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         )
         val values = colorValues(tenantId, tokens.map { UUID.fromString(it.id) })
         val owned = tenant[ThemeDesignSystemsTable.projectId] == projectId.value
+        val shadows = shadowTokens(tenant[TenantsTable.designSystemId])
         return TenantPaletteSnapshot(
             state,
             tokens,
             values,
             owned,
             if (includeSubjectRevisions) paletteSubjectRevisions(tenantId) else emptyMap(),
+            layerTokens = shadows,
+            layerValues = layerValues(tenantId, shadows.map { UUID.fromString(it.id) }),
         )
     }
 
@@ -122,23 +128,78 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         val paletteRows = paletteRows()
         if (tokenIds.isEmpty()) return 0
         val rows = currentThemeTokenValueRows(tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
+        val shadows = currentThemeTokenRows(tokenIds = tokenIds.toSet())
+            .filter { it[ThemeTokenRevisionsTable.type] == ThemeTokenType.SHADOW }
+            .mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
         val updates = rows.mapNotNull { row ->
-            val whole = reference(row, paletteRows)
-            val next = if (whole != null) {
-                rewrite.rewrite(whole, resolveHex)?.let { JsonArray(listOf(JsonPrimitive(it))) }
+            val payload = if (row[ThemeTokenValuesTable.tokenId] in shadows) {
+                rewrittenLayers(row, rewrite, resolveHex)
             } else {
-                // Ссылки в стопах градиента и в слоях iOS и Android: меняются только сами ссылки.
-                row[ThemeTokenValueRevisionsTable.value]?.let { value ->
-                    ValuePaletteReferences.rewrite(value) { rewrite.rewrite(it, resolveHex) }.takeIf { it != value }
+                val whole = reference(row, paletteRows)
+                val next = if (whole != null) {
+                    rewrite.rewrite(whole, resolveHex)?.let { JsonArray(listOf(JsonPrimitive(it))) }
+                } else {
+                    // Ссылки в стопах градиента и в слоях iOS и Android: меняются только сами ссылки.
+                    row[ThemeTokenValueRevisionsTable.value]?.let { value ->
+                        ValuePaletteReferences.rewrite(value) { rewrite.rewrite(it, resolveHex) }.takeIf { it != value }
+                    }
                 }
-            } ?: return@mapNotNull null
-            row[ThemeTokenValuesTable.id] to
-                ThemeValuePayload(null, next, row[ThemeTokenValueRevisionsTable.overridden])
+                next?.let { ThemeValuePayload(null, it, row[ThemeTokenValueRevisionsTable.overridden]) }
+            }
+            payload?.let { row[ThemeTokenValuesTable.id] to it }
         }.toMap()
         if (updates.isNotEmpty()) {
             writeThemeValueRevisions(rows.first()[ThemeTokenValuesTable.designSystemId], updates)
         }
         return updates.size
+    }
+
+    /**
+     * Ссылки цветов слоёв тени на убираемый слот переписываются в каждом слое на своём месте; остальные части слоя и
+     * признак своего значения платформы не меняются. `null` — в значении нечего переписывать.
+     */
+    private fun rewrittenLayers(
+        row: ResultRow,
+        rewrite: TokenReferenceRewrite,
+        resolveHex: (Int) -> String?,
+    ): ThemeValuePayload? {
+        val value = row[ThemeTokenValueRevisionsTable.value] ?: return null
+        // Цвет слоя тени — `#RRGGBBAA`, как его пишет операция токенов размеров.
+        val next = ShadowLayerColors.mapReferences(value) { reference ->
+            rewrite.rewrite(reference, resolveHex)?.let(SizePlatformValues::normalizedColor)
+        }
+        if (next == value) return null
+        return ThemeValuePayload(
+            row[ThemeTokenValueRevisionsTable.paletteId],
+            next,
+            row[ThemeTokenValueRevisionsTable.overridden],
+        )
+    }
+
+    /** Тени дизайн-системы: их слои могут ссылаться на ступени палитры. */
+    private fun shadowTokens(designSystemId: UUID): List<PaletteTokenRef> = currentThemeTokenRows(designSystemId)
+        .filter { it[ThemeTokenRevisionsTable.type] == ThemeTokenType.SHADOW }
+        .map { row ->
+            val id = row[ThemeTokensTable.id].toString()
+            PaletteTokenRef(id, row[ThemeTokenRevisionsTable.name], row[ThemeTokenRevisionsTable.displayName])
+        }
+
+    /** Ссылки цветов слоёв теней [tokenIds] темы: по одной на слой со ссылкой. */
+    private fun layerValues(tenantId: UUID, tokenIds: List<UUID>): List<PaletteTokenValue> {
+        if (tokenIds.isEmpty()) return emptyList()
+        return currentThemeTokenValueRows(tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
+            .flatMap { row ->
+                val platform = row[ThemeTokenValuesTable.platform] ?: return@flatMap emptyList()
+                ShadowLayerColors.references(row[ThemeTokenValueRevisionsTable.value]).map { reference ->
+                    PaletteTokenValue(
+                        tokenId = row[ThemeTokenValuesTable.tokenId].toString(),
+                        mode = row[ThemeTokenValuesTable.mode]?.wireValue,
+                        platform = platform.wireValue,
+                        reference = reference,
+                        valueId = row[ThemeTokenValuesTable.id].toString(),
+                    )
+                }
+            }
     }
 
     private fun colorTokens(designSystemId: UUID): List<PaletteTokenRef> = currentThemeTokenRows(designSystemId)

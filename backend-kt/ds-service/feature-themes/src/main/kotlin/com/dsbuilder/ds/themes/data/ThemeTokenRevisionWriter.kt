@@ -4,12 +4,14 @@ import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.lockDraftSubjects
 import kotlinx.serialization.json.JsonElement
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.time.Instant
 import java.util.UUID
 
@@ -132,3 +134,11 @@ internal fun deleteThemeValues(tokenIds: Set<UUID>) {
         }
     }
 }
+
+/** Признак своего значения платформы в последней редакции значения [entity]; у нового значения — `false`. */
+internal fun latestThemeValueOverridden(entity: UUID): Boolean = ThemeTokenValueRevisionsTable.selectAll()
+    .where { ThemeTokenValueRevisionsTable.tokenValueId eq entity }
+    .orderBy(ThemeTokenValueRevisionsTable.versionSequenceNumber, SortOrder.DESC)
+    .limit(1)
+    .singleOrNull()
+    ?.get(ThemeTokenValueRevisionsTable.overridden) ?: false

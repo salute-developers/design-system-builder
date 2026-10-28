@@ -24,7 +24,8 @@ class GetTenantTokenValuesUseCase(
      * градиента и в слоях iOS и Android, заменяются HEX по палитре темы и группе токена. У ссылки на всё значение
      * `paletteId` убирается, а исходная ссылка возвращается в `paletteRef`. Сплошные значения iOS и Android
      * градиентного семейства отдаются слоем `color`. Если отданное значение отличается от хранимого, хранимое
-     * возвращается в `sourceValue`. Значение со ссылкой, которую палитра темы не раскрывает, остаётся как есть.
+     * возвращается в `sourceValue`. Ссылки цветов слоёв тени заменяются `#RRGGBBAA` на своём месте. Значение со
+     * ссылкой, которую палитра темы не раскрывает, остаётся как есть.
      * Ревью PR #101: раскрытие по общей палитре давало неверные цвета, поэтому другого режима нет.
      */
     suspend fun execute(
@@ -35,7 +36,7 @@ class GetTenantTokenValuesUseCase(
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
             is DsResult.Success -> transactions.readOnly(context) {
-                val needsPalette = types.isEmpty() || ThemeTokenType.COLOR in types || ThemeTokenType.GRADIENT in types
+                val needsPalette = types.isEmpty() || types.any { it in PALETTE_TYPES }
                 val snapshot = if (needsPalette) {
                     paletteRepository.snapshot(context.projectId, id)?.takeIf { it.hasSystemGroups() }
                 } else {
@@ -58,4 +59,9 @@ class GetTenantTokenValuesUseCase(
         } else {
             DsResult.Failure(DsFailure.NotFound)
         }
+
+    private companion object {
+        /** Типы, значения которых ссылаются на палитру темы: цвета, градиенты и цвета слоёв теней. */
+        val PALETTE_TYPES = setOf(ThemeTokenType.COLOR, ThemeTokenType.GRADIENT, ThemeTokenType.SHADOW)
+    }
 }
