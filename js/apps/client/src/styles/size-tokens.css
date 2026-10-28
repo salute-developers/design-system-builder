@@ -821,6 +821,8 @@
     background: var(--builder-ui-surface-transparent-primary,#ffffff08);
 }
 
+/* Выбранный радиус обведён, как выбранный отступ и выбранная тень. */
+.size-tokens-screen .radius-overview-row.is-selected,
 .size-tokens-screen .radius-overview-row:focus-visible {
     outline: 2px solid var(--builder-accent,#2b8ced);
     outline-offset: -2px;
@@ -2351,8 +2353,10 @@
     flex: none;
 }
 
+/* Тень чипа обрезается у его края: крупная тень не расползается по дереву. */
 .size-tokens-screen .st-row-chip.is-shadow {
     background: #f3f3f3;
+    clip-path: inset(-3px round 7px);
 }
 
 .size-tokens-screen .st-scale-items {
@@ -3704,4 +3708,30 @@
     color: #ff8a8a;
     font-size: 11px;
     line-height: 14px;
+}
+
+/* Поля значения в инспекторе: фон и скругление задаёт общий контейнер `.figma-value-control`, а общее правило
+ * полей экрана рисовало у значения, HEX и прозрачности вторую подложку внутри него (как в «Цветах», #120). */
+.size-tokens-screen.st-theme-workspace
+    .properties-panel
+    .figma-value-control
+    input:not([type='checkbox']):not([type='radio']):not([type='range']) {
+    border-radius: 0;
+    background-color: transparent;
+}
+
+/* Без собственной подложки у полей значения фокус отмечается рамкой всего поля. */
+.size-tokens-screen .properties-panel .figma-value-control:has(input:focus-visible) {
+    outline: 1px solid #4284ff;
+    outline-offset: -1px;
+}
+
+/* Формат цвета в выборе цвета: в Safari нативная стрелка списка занимает место, и «Hex» в колонке 44px
+ * обрезался. Колонка формата — по ширине содержимого, как в «Цветах». */
+.size-tokens-screen .cp-format-row:has(.cp-hex-field) {
+    grid-template-columns: max-content 1fr 50px;
+}
+
+.size-tokens-screen .cp-format-row select {
+    width: max-content;
 }
