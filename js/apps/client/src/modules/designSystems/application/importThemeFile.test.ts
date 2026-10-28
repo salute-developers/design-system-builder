@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { themeFileValues } from './importThemeFile';
 
 describe('themeFileValues', () => {
-    it('maps file values to one batch, skips placeholders and reports unknown tokens', () => {
+    it('maps file values for theme creation, skips placeholders and reports unknown tokens', () => {
         const { values, skipped } = themeFileValues(
             {
                 meta: { name: 'brand', tokens: [] },
