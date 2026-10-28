@@ -26,3 +26,6 @@ include(
     ":feature-tokens",
     ":feature-components",
 )
+
+include(":runtime")
+includeBuild("../runtime-contracts")

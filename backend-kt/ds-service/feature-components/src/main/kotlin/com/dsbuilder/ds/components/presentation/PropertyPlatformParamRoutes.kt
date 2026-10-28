@@ -10,6 +10,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -33,10 +35,10 @@ fun Route.propertyPlatformParamRoutes(
     update: UpdatePropertyPlatformParamUseCase,
     json: Json,
 ) {
-    route("/api/ds/property-platform-params") {
+    route(dsRoutePath("/api/ds/property-platform-params")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -51,7 +53,7 @@ fun Route.propertyPlatformParamRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -65,7 +67,7 @@ fun Route.propertyPlatformParamRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -101,7 +103,7 @@ fun Route.propertyPlatformParamRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

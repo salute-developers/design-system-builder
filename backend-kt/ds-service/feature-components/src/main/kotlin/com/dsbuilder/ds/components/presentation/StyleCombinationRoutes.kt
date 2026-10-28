@@ -16,6 +16,8 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -43,10 +45,10 @@ fun Route.styleCombinationRoutes(
     addMember: AddStyleCombinationMemberUseCase,
     json: Json,
 ) {
-    route("/api/ds/style-combinations") {
+    route(dsRoutePath("/api/ds/style-combinations")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -58,7 +60,7 @@ fun Route.styleCombinationRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -72,7 +74,7 @@ fun Route.styleCombinationRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -100,7 +102,7 @@ fun Route.styleCombinationRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -129,7 +131,7 @@ fun Route.styleCombinationRoutes(
         }
         delete("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -144,7 +146,7 @@ fun Route.styleCombinationRoutes(
         }
         get("/{id}/members") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -161,7 +163,7 @@ fun Route.styleCombinationRoutes(
         }
         post("/{id}/members") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

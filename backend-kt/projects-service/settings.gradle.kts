@@ -21,3 +21,6 @@ includeBuild("../authorization-core")
 include(":app")
 include(":core")
 include(":feature-projects")
+
+include(":runtime")
+includeBuild("../runtime-contracts")

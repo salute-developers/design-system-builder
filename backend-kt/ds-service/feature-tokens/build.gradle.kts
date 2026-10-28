@@ -13,3 +13,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.kotlin.test.junit)
 }
+
+tasks.processResources {
+    eachFile { path = "dsbuilder/ds/seeds/$path" }
+    includeEmptyDirs = false
+}

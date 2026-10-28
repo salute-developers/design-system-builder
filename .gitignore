@@ -165,3 +165,6 @@ local.properties
 # Local E2E reports and isolated CLI state
 e2e/artifacts/
 .codex/config.toml
+
+# Legacy local migration inventories (no longer used by startup).
+backend-kt/.monolith-infrastructure-*.json

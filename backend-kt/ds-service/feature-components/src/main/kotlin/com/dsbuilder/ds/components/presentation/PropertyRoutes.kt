@@ -11,6 +11,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -35,10 +37,10 @@ fun Route.propertyRoutes(
     update: UpdatePropertyUseCase,
     json: Json,
 ) {
-    route("/api/ds/properties") {
+    route(dsRoutePath("/api/ds/properties")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -53,7 +55,7 @@ fun Route.propertyRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -67,7 +69,7 @@ fun Route.propertyRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -110,7 +112,7 @@ fun Route.propertyRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

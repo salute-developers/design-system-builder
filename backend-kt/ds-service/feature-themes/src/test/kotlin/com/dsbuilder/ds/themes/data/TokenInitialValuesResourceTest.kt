@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 class TokenInitialValuesResourceTest {
     @Test
     fun `canonical token values and palettes are complete and valid`() {
-        val bytes = requireNotNull(javaClass.getResourceAsStream("/token-initial-values.json"))
+        val bytes = requireNotNull(javaClass.getResourceAsStream("/dsbuilder/ds/seeds/token-initial-values.json"))
             .use { it.readBytes() }
         val root = Json.parseToJsonElement(bytes.decodeToString()).jsonObject
         val values = root.getValue("values").jsonArray

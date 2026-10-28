@@ -10,6 +10,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 /** JDBC transaction manager для атомарной записи bundle/job. */
 class JdbcTransactionManager(private val database: Database) : TransactionManager {
     override suspend fun <T> transaction(block: suspend () -> T): T = withContext(Dispatchers.IO) {
-        transaction(database) { runBlocking { block() } }
+        transaction(db = database) { runBlocking { block() } }
     }
 }

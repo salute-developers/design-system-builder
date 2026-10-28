@@ -251,7 +251,7 @@ class ExposedPublicationCleanupRepository(
     )
 
     private suspend fun <T> dbTransaction(block: JdbcTransaction.() -> T): T =
-        withContext(Dispatchers.IO) { transaction(database, block) }
+        withContext(Dispatchers.IO) { transaction(db = database, statement = block) }
 }
 
 private fun ResultSet.toCleanupClaim() = PublicationCleanupClaim(

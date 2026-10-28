@@ -15,25 +15,32 @@ import io.ktor.server.config.ApplicationConfig
 import org.koin.dsl.module
 
 /** Собирает dependency graph Auth Helper. */
-fun authModule(applicationConfig: ApplicationConfig) = module {
+fun authModule(applicationConfig: ApplicationConfig, externalProjectAccess: Boolean = false) = module {
     val configuration = applicationConfig.authConfiguration()
 
+    single<com.dsbuilder.identity.auth.application.GatewayAuthorizer> {
+        com.dsbuilder.identity.auth.application.usecase.DefaultGatewayAuthorizer(get(), get())
+    }
     single<JwtVerifier> { KeycloakJwtVerifier(get()) }
     single { configuration }
-    single<ProjectContextResolver> {
-        when (val projectAccess = configuration.projectAccess) {
-            is ProjectAccessConfiguration.AllowAuthenticated -> {
-                AllowAuthenticatedProjectContextResolver(projectAccess.role)
+    if (!externalProjectAccess) {
+        single<ProjectContextResolver> {
+            when (val projectAccess = configuration.projectAccess) {
+                is ProjectAccessConfiguration.AllowAuthenticated -> {
+                    AllowAuthenticatedProjectContextResolver(projectAccess.role)
+                }
+                is ProjectAccessConfiguration.Http -> HttpProjectContextResolver(projectAccess)
             }
-            is ProjectAccessConfiguration.Http -> HttpProjectContextResolver(projectAccess)
         }
     }
-    single<ProjectAccessKeyVerifier> {
-        when (val projectAccess = configuration.projectAccess) {
-            is ProjectAccessConfiguration.AllowAuthenticated -> {
-                error("Project access key verifier is unavailable in allow-authenticated mode")
+    if (!externalProjectAccess) {
+        single<ProjectAccessKeyVerifier> {
+            when (val projectAccess = configuration.projectAccess) {
+                is ProjectAccessConfiguration.AllowAuthenticated -> {
+                    error("Project access key verifier is unavailable in allow-authenticated mode")
+                }
+                is ProjectAccessConfiguration.Http -> HttpProjectAccessKeyVerifier(projectAccess)
             }
-            is ProjectAccessConfiguration.Http -> HttpProjectAccessKeyVerifier(projectAccess)
         }
     }
     single {

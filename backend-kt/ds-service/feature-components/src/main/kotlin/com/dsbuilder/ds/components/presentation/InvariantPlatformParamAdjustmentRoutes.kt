@@ -13,6 +13,8 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -38,10 +40,10 @@ fun Route.invariantPlatformParamAdjustmentRoutes(
     delete: DeleteInvariantPlatformParamAdjustmentUseCase,
     json: Json,
 ) {
-    route("/api/ds/invariant-platform-param-adjustments") {
+    route(dsRoutePath("/api/ds/invariant-platform-param-adjustments")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -56,7 +58,7 @@ fun Route.invariantPlatformParamAdjustmentRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -73,7 +75,7 @@ fun Route.invariantPlatformParamAdjustmentRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -110,7 +112,7 @@ fun Route.invariantPlatformParamAdjustmentRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -146,7 +148,7 @@ fun Route.invariantPlatformParamAdjustmentRoutes(
         }
         delete("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

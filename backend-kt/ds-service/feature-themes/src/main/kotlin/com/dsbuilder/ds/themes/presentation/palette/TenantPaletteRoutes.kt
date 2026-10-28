@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.presentation.palette
 
+import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -37,7 +38,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /** Регистрирует маршруты палитры темы `/api/ds/tenants/{tenantId}/palette`. */
 fun Route.tenantPaletteRoutes(evaluator: PolicyEvaluator, useCases: TenantPaletteUseCases) {
-    route("/api/ds/tenants/{tenantId}/palette") {
+    route(dsRoutePath("/api/ds/tenants/{tenantId}/palette")) {
         paletteReadRoutes(evaluator, useCases)
         paletteGroupRoutes(evaluator, useCases)
         route("/groups/{groupId}/ramps") {

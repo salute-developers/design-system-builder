@@ -35,23 +35,29 @@ import com.dsbuilder.projects.feature.projects.data.local.db.ProjectsTable
 import io.ktor.server.config.ApplicationConfig
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.koin.dsl.module
+import org.koin.dsl.onClose
 import java.time.Clock
 
 /** Описывает dependency graph для feature-модуля Projects. */
 object ProjectsModule {
     /** Регистрирует Koin bindings для use case'ов проектов, участников и access-check. */
-    val beans = module {
+    val beans get() = create()
+
+    /** Создаёт зависимости с конфигурацией своей подсистемы. */
+    fun create(configuration: ApplicationConfig? = null, sharedEvaluator: PolicyEvaluator? = null) = module {
         single<Clock> { Clock.systemUTC() }
-        single {
-            AuthorizationPolicyLoader.load(
-                get<ApplicationConfig>().propertyOrNull("authorization.policyPath")?.getString(),
-            )
+        if (sharedEvaluator == null) {
+            single {
+                AuthorizationPolicyLoader.load(
+                    (configuration ?: get<ApplicationConfig>()).propertyOrNull("authorization.policyPath")?.getString(),
+                )
+            }
         }
-        single { PolicyEvaluator(get()) }
+        if (sharedEvaluator == null) single { PolicyEvaluator(get()) }
         single { ProjectAccessPolicy(get()) }
-        single { get<ApplicationConfig>().keycloakIdentityLookupConfiguration() }
-        single { get<ApplicationConfig>().accessKeyConfiguration(get()) }
-        single<IdentityUserLookup> { KeycloakIdentityUserLookup(get()) }
+        single { (configuration ?: get<ApplicationConfig>()).keycloakIdentityLookupConfiguration() }
+        single { (configuration ?: get<ApplicationConfig>()).accessKeyConfiguration(get()) }
+        single<IdentityUserLookup> { KeycloakIdentityUserLookup(get()) } onClose { (it as? AutoCloseable)?.close() }
         single<AccessKeySecretManager> { Pbkdf2AccessKeySecretManager(get()) }
         single<ProjectRepository> { ExposedProjectRepository() }
         single<TransactionManager> { JdbcTransactionManager(get()) }
@@ -71,6 +77,9 @@ object ProjectsModule {
         single { RevokeProjectAccessKeyUseCase(get(), get(), get(), get()) }
         single { VerifyProjectAccessKeyUseCase(get(), get(), get(), get(), get(), get()) }
         single { GetEffectiveProjectRoleUseCase(get(), get(), get()) }
+        single<com.dsbuilder.projects.feature.projects.application.ProjectAuthorization> {
+            com.dsbuilder.projects.feature.projects.application.usecase.DefaultProjectAuthorization(get(), get())
+        }
     }
 
     /** Создает или обновляет схему базы данных, необходимую для feature Projects. */

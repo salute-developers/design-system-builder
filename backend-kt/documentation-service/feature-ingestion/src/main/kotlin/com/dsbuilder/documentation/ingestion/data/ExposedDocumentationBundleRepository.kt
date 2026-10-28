@@ -34,7 +34,7 @@ class ExposedDocumentationBundleRepository(private val database: Database) : Doc
     }
 
     override suspend fun exists(bundleId: String): Boolean = withContext(Dispatchers.IO) {
-        transaction(database) {
+        transaction(db = database) {
             DocumentationBundlesTable
                 .select(DocumentationBundlesTable.id)
                 .where { DocumentationBundlesTable.id eq bundleId }

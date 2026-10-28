@@ -24,7 +24,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 class ExposedCandidateIndexer(private val database: Database) : CandidateIndexer {
     override suspend fun index(claim: ClaimedIngestionJob, candidate: ChunkedCandidate): Boolean =
         withContext(Dispatchers.IO) {
-            transaction(database) { persist(claim, candidate) }
+            transaction(db = database) { persist(claim, candidate) }
         }
 
     @Suppress("LongMethod")

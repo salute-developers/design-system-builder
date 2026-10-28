@@ -31,13 +31,13 @@ fun Route.publicationReadRoutes(
     assets: AssetContentReader? = null,
     evaluator: PolicyEvaluator = PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded()),
 ) {
-    get("/documentation/ingestion-jobs/{jobId}") {
+    get(publicationRoutePath("/documentation/ingestion-jobs/{jobId}")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val jobId = call.parameters["jobId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
         repository.ingestionJob(projectId, jobId)?.let { call.respond(it) }
             ?: call.respond(HttpStatusCode.NotFound)
     }
-    get("/documentation/publications/active") {
+    get(publicationRoutePath("/documentation/publications/active")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val designSystemId = call.request.queryParameters["designSystemId"]
             ?: return@get call.respond(HttpStatusCode.BadRequest)
@@ -49,7 +49,7 @@ fun Route.publicationReadRoutes(
         }
             ?: call.respond(HttpStatusCode.NotFound)
     }
-    get("/documentation/publications") {
+    get(publicationRoutePath("/documentation/publications")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val parameters = call.request.queryParameters
         val designSystemId = parameters["designSystemId"]?.takeIf(String::isNotBlank)
@@ -76,7 +76,7 @@ fun Route.publicationReadRoutes(
         }
             ?: call.respond(HttpStatusCode.BadRequest)
     }
-    get("/documentation/publications/{publicationId}/navigation") {
+    get(publicationRoutePath("/documentation/publications/{publicationId}/navigation")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val publicationId = call.parameters["publicationId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
         val publication = repository.publication(projectId, publicationId)
@@ -85,7 +85,7 @@ fun Route.publicationReadRoutes(
         repository.navigation(projectId, publicationId)?.let { call.respond(it) }
             ?: call.respond(HttpStatusCode.NotFound)
     }
-    get("/documentation/publications/{publicationId}/pages/{path...}") {
+    get(publicationRoutePath("/documentation/publications/{publicationId}/pages/{path...}")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val publicationId = call.parameters["publicationId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
         val publication = repository.publication(projectId, publicationId)
@@ -96,7 +96,7 @@ fun Route.publicationReadRoutes(
         repository.page(projectId, publicationId, path)?.let { call.respond(it) }
             ?: call.respond(HttpStatusCode.NotFound)
     }
-    get("/documentation/publications/{publicationId}/bindings/{bindingId}") {
+    get(publicationRoutePath("/documentation/publications/{publicationId}/bindings/{bindingId}")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val publicationId = call.parameters["publicationId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
         val publication = repository.publication(projectId, publicationId)
@@ -118,7 +118,7 @@ fun Route.publicationReadRoutes(
         }
             ?: call.respond(HttpStatusCode.NotFound)
     }
-    get("/documentation/publications/{publicationId}/bindings") {
+    get(publicationRoutePath("/documentation/publications/{publicationId}/bindings")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val publicationId = call.parameters["publicationId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
         val publication = repository.publication(projectId, publicationId)
@@ -152,7 +152,7 @@ fun Route.publicationReadRoutes(
         }
             ?: call.respond(HttpStatusCode.BadRequest)
     }
-    get("/documentation/publications/{publicationId}/assets/{assetId}") {
+    get(publicationRoutePath("/documentation/publications/{publicationId}/assets/{assetId}")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val publicationId = call.parameters["publicationId"] ?: return@get call.respond(HttpStatusCode.BadRequest)
         val publication = repository.publication(projectId, publicationId)
