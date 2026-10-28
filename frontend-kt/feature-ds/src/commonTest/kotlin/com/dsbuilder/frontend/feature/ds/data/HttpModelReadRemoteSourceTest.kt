@@ -107,7 +107,7 @@ class HttpModelReadRemoteSourceTest {
                 runtime(),
                 ModelReadCommand(ModelReadOperation.TOKENS, version = "draft"),
             )
-            assertEquals("BACKEND_UNAVAILABLE", assertIs<ModelReadResult.Failed>(result).code)
+            assertEquals("INVALID_BACKEND_RESPONSE", assertIs<ModelReadResult.Failed>(result).code)
         }
     }
 
@@ -146,6 +146,7 @@ class HttpModelReadRemoteSourceTest {
                 val failure = assertIs<ModelReadResult.Failed>(result)
                 assertEquals(code, failure.code)
                 assertFalse(failure.message.contains("secret-value"))
+                if (status == 401) assertTrue(failure.message.contains("dsbuilder auth login"))
             }
     }
 

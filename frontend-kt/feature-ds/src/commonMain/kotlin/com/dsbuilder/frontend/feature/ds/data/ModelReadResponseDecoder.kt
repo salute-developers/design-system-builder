@@ -97,8 +97,8 @@ internal object ModelReadResponseDecoder {
     }
 
     private fun unreadable() = ModelReadResult.Failed(
-        "BACKEND_UNAVAILABLE",
-        "Backend read metadata is missing or invalid.",
+        "INVALID_BACKEND_RESPONSE",
+        "Backend returned invalid model read data or metadata.",
     )
 
     private val UUID_PATTERN = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")

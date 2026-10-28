@@ -27,13 +27,19 @@ internal fun readOnlyMcpToolDefinitions(): List<McpToolDefinition> = (
 }
 
 private fun tool(name: String, description: String, vararg inputs: String): McpToolDefinition =
-    McpToolDefinition(name = name, description = description, inputSchema = inputs.associateWith { stringInput() })
+    McpToolDefinition(
+        name = name,
+        description = description,
+        inputSchema = inputs.associateWith { input ->
+            if (input == "kbUrl" || input == "path") requiredStringInput() else stringInput()
+        },
+    )
 
 private fun documentationSearchTool(): McpToolDefinition = McpToolDefinition(
     name = "documentation_search",
     description = "Search published DS Builder documentation. Use limit and subject to narrow results.",
     inputSchema = mapOf(
-        "query" to stringInput("Search phrase or technical identifier."),
+        "query" to requiredStringInput("Search phrase or technical identifier."),
         "subjects" to stringArrayInput("Optional canonical subject filters."),
         "subject" to stringInput("Legacy single canonical subject filter."),
         "publicationId" to stringInput("Exact published documentation ID for continuing a search."),
@@ -107,7 +113,7 @@ private fun codeBindingGetTool(): McpToolDefinition = McpToolDefinition(
         "Use detail=variations for concrete code references and detail=full only when the complete " +
         "style API is needed.",
     inputSchema = mapOf(
-        "bindingId" to stringInput("Exact binding ID returned by code_binding_search."),
+        "bindingId" to requiredStringInput("Exact binding ID returned by code_binding_search."),
         "publicationId" to stringInput("Exact publication ID. Omit to resolve the active publication."),
         "version" to stringInput(
             "Exact documentation version. Omit only when the resolved design-system context selects a version.",
@@ -130,10 +136,11 @@ private fun codeBindingGetTool(): McpToolDefinition = McpToolDefinition(
 
 private fun componentConfigurationsListTool(): McpToolDefinition = McpToolDefinition(
     name = "component_configurations_list",
-    description = "List configurations of one component by stable component ID.",
+    description = "After components_list, list configurations by stable component ID. Then call " +
+        "component_variations_get with an appearanceId from this list to inspect axes and value IDs.",
     inputSchema = mapOf(
-        "componentId" to stringInput("Component ID returned by components_list."),
-        "version" to stringInput("Exact model version or draft."),
+        "componentId" to requiredStringInput("Component ID returned by components_list."),
+        "version" to modelVersionInput(),
         "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of configurations."),
         "cursor" to stringInput("Cursor from the previous configuration page."),
     ),
@@ -143,11 +150,12 @@ private fun componentConfigGetTool(): McpToolDefinition = McpToolDefinition(
     name = "component_config_get",
     description =
     "Read effective properties of a component configuration for selected axis value IDs. " +
+        "Use appearanceId from component_configurations_list and value IDs from component_variations_get. " +
         "Unselected axes do not contribute properties; an empty selection reads base properties.",
     inputSchema = mapOf(
-        "appearanceId" to stringInput("Configuration ID returned by component_configurations_list."),
+        "appearanceId" to requiredStringInput("Configuration ID returned by component_configurations_list."),
         "selectedValueIds" to stringArrayInput("Axis value IDs returned by component_variations_get."),
-        "version" to stringInput("Exact model version or draft."),
+        "version" to modelVersionInput(),
     ),
 )
 
@@ -155,9 +163,9 @@ private fun componentTokensGetTool(): McpToolDefinition = McpToolDefinition(
     name = "component_tokens_get",
     description = "Read verified token references for one value on every axis of a configuration.",
     inputSchema = mapOf(
-        "appearanceId" to stringInput("Configuration ID returned by component_configurations_list."),
+        "appearanceId" to requiredStringInput("Configuration ID returned by component_configurations_list."),
         "selectedValueIds" to stringArrayInput("One selected value ID for every axis."),
-        "version" to stringInput("Exact model version or draft."),
+        "version" to modelVersionInput(),
     ),
 )
 
@@ -165,6 +173,14 @@ private fun stringInput(
     description: String? = null,
     allowedValues: List<String> = emptyList(),
 ): McpToolInputDefinition = McpToolInputDefinition(description = description, allowedValues = allowedValues)
+
+private fun requiredStringInput(description: String? = null): McpToolInputDefinition =
+    McpToolInputDefinition(description = description, required = true)
+
+private fun modelVersionInput(): McpToolInputDefinition = stringInput(
+    "Exact model version or draft. Explicit value overrides the selected context version; " +
+        "without either, reads the draft.",
+)
 
 private fun stringArrayInput(description: String): McpToolInputDefinition =
     McpToolInputDefinition(type = "array", description = description, itemType = "string")

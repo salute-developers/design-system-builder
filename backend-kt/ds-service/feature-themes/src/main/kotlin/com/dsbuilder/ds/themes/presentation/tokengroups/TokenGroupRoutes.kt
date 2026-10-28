@@ -99,11 +99,16 @@ private suspend fun ApplicationCall.tenantTarget(evaluator: PolicyEvaluator): Pa
 }
 
 /** Вид групп из запроса (по умолчанию цветовые); `null`, если ответ с ошибкой уже отправлен. */
-private suspend fun ApplicationCall.groupKind(): TokenGroupKind? =
-    TokenGroupKind.fromWire(request.queryParameters["kind"] ?: TokenGroupKind.COLOR.wireValue)
+private suspend fun ApplicationCall.groupKind(): TokenGroupKind? {
+    if (request.queryParameters["name"] != null || request.queryParameters["query"] != null) {
+        respondFailure(DsFailure.InvalidRequest("INVALID_QUERY"))
+        return null
+    }
+    return TokenGroupKind.fromWire(request.queryParameters["kind"] ?: TokenGroupKind.COLOR.wireValue)
         ?: null.also {
             respondFailure(DsFailure.InvalidRequest("invalid_kind", message = "Неизвестный вид групп"))
         }
+}
 
 /** Группа из пути; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.groupId(): UUID? =

@@ -60,6 +60,14 @@ class McpCliLauncherContractTest {
             assertTrue("component_configurations_list" in names)
             assertTrue("component_tokens_get" in names)
             assertTrue("documentation_publications_list" in names)
+            val byName = registry.associateBy { it.jsonObject.getValue("name").jsonPrimitive.content }
+            fun required(tool: String): List<String> = byName.getValue(tool).jsonObject
+                .getValue("inputSchema").jsonObject.getValue("required").jsonArray
+                .map { it.jsonPrimitive.content }
+            assertEquals(listOf("appearanceId"), required("component_config_get"))
+            assertEquals(listOf("componentId"), required("component_configurations_list"))
+            assertEquals(listOf("bindingId"), required("code_binding_get"))
+            assertEquals(listOf("path"), required("documentation_get_page"))
             assertTrue(toolsListResponse.contains("appearanceId"), toolsListResponse)
             assertTrue(toolsListResponse.contains("selectedValueIds"), toolsListResponse)
             assertTrue(toolsListResponse.contains("publicationId"), toolsListResponse)

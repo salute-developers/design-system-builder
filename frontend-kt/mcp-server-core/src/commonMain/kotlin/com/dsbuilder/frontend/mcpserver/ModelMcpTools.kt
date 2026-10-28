@@ -43,9 +43,8 @@ internal class ModelMcpTools(
     }
 
     private fun modelArgumentError(arguments: JsonObject, schema: Map<String, McpToolInputDefinition>): String? {
-        if (arguments.keys.any { it != "designSystem" && it !in schema }) {
-            return "Unsupported model read argument."
-        }
+        arguments.keys.firstOrNull { it != "designSystem" && it !in schema }
+            ?.let { return "Unsupported model read argument: $it" }
         val invalid = arguments.entries.firstOrNull { (key, value) ->
             val definition = schema[key]
             definition != null && !validModelArgument(value, definition)
@@ -86,8 +85,8 @@ internal fun modelMcpTools(): List<McpToolDefinition> = modelToolOperations.map 
     val properties = linkedMapOf<String, McpToolInputDefinition>()
     if (operation != ModelReadOperation.COMPONENT && operation != ModelReadOperation.VERSIONS) {
         properties["version"] = McpToolInputDefinition(
-            description = "Exact major.minor.patch or " +
-                "draft; overrides URI version.",
+            description = "Exact major.minor.patch or draft. Explicit value overrides the selected context version; " +
+                "without either, reads the draft. The result reports the actual selected version.",
         )
     }
     val id = modelResourceArgument(operation)
@@ -120,41 +119,79 @@ private fun addModelFilters(
     properties: MutableMap<String, McpToolInputDefinition>,
 ) {
     modelFilters[operation].orEmpty().forEach {
-        properties[it] = McpToolInputDefinition(description = "Optional server filter: $it.")
+        val description = when (it) {
+            "name" -> "Exact case-sensitive resource name; cannot be combined with query."
+            "query" -> "Case-insensitive substring search; cannot be combined with name."
+            "groupId" -> "Stable token-group ID returned by token_groups_list."
+            "parentId" -> "Return only immediate children of this token-group ID."
+            "tenantId" -> "Stable theme ID returned by tenants_list."
+            "shade" -> "Exact palette shade filter."
+            else -> "Optional server filter: $it."
+        }
+        properties[it] = McpToolInputDefinition(description = description)
     }
     if (operation == ModelReadOperation.TOKEN_VALUES) {
-        properties["mode"] = McpToolInputDefinition(allowedValues = listOf("light", "dark"))
+        properties["mode"] = McpToolInputDefinition(
+            description = "Exact theme mode: light or dark. Omit to return both modes.",
+            allowedValues = listOf("light", "dark"),
+        )
         properties["platform"] = McpToolInputDefinition(
             description = "Model platform; use android for Compose. Omit to return all platforms.",
             allowedValues = listOf("web", "android", "ios"),
         )
     }
     if (operation == ModelReadOperation.COMPONENTS) {
-        properties["platform"] = McpToolInputDefinition(allowedValues = listOf("web", "compose", "xml", "ios"))
+        properties["platform"] = McpToolInputDefinition(
+            description = "Component implementation platform; compose and xml are separate Android targets.",
+            allowedValues = listOf("web", "compose", "xml", "ios"),
+        )
     }
     if (operation == ModelReadOperation.TOKENS) {
         properties["type"] = McpToolInputDefinition(
+            description = "Exact token family; use color or gradient for palette-related tokens.",
             allowedValues = listOf("color", "gradient", "typography", "fontFamily", "spacing", "shape", "shadow"),
         )
     }
     if (operation == ModelReadOperation.TOKEN_GROUPS) {
-        properties["kind"] = McpToolInputDefinition(allowedValues = listOf("color"))
+        properties["kind"] = McpToolInputDefinition(
+            description = "Token-group tree kind; currently only color is available.",
+            allowedValues = listOf("color"),
+        )
     }
     if (operation == ModelReadOperation.PALETTE) {
-        properties["type"] = McpToolInputDefinition(allowedValues = listOf("general", "additional"))
+        properties["type"] = McpToolInputDefinition(
+            description = "Palette ramp type: general or additional.",
+            allowedValues = listOf("general", "additional"),
+        )
     }
 }
 
 private fun modelDescription(name: String, operation: ModelReadOperation): String = when (operation) {
+    ModelReadOperation.VERSIONS ->
+        "List published design-system model versions with server cursor pagination."
+    ModelReadOperation.TOKEN_GROUPS ->
+        "List token groups and subgroups in tree position order with server cursor pagination. " +
+            "Use a group ID to filter tokens_list or palette_get."
+    ModelReadOperation.CHANGES, ModelReadOperation.TENANTS, ModelReadOperation.TOKENS,
+    ModelReadOperation.COMPONENTS, ModelReadOperation.COMPONENT_STYLES,
+    ->
+        "List authoritative model data through $name. Filters and cursor pagination are applied by the server. " +
+            "An explicit version overrides the selected context version; without either, reads the draft."
+    ModelReadOperation.TOKEN, ModelReadOperation.TOKEN_VALUES, ModelReadOperation.PALETTE,
+    ModelReadOperation.COMPONENT_PROPERTIES, ModelReadOperation.COMPONENT_DEPENDENCIES,
+    ->
+        "Read authoritative model data through $name. This is one resource read, not a paged list. " +
+            "An explicit version overrides the selected context version; without either, reads the draft."
     ModelReadOperation.COMPONENT ->
         "Read current component metadata by " +
             "componentId without selecting a configuration."
     ModelReadOperation.APPEARANCE_VARIATIONS ->
         "Read axes, declared values and defaults of one versioned configuration by appearanceId. " +
-            "No default configuration is selected. For published " +
+            "First call components_list, then component_configurations_list; pass this tool's value IDs to " +
+            "component_config_get. No default configuration is selected. For published " +
             "code variations use code_binding_search and code_binding_get."
     ModelReadOperation.CONTEXT -> "Read actual design-system context and safe local connection settings."
-    else -> "Read authoritative model data through $name; filtering and pagination are performed by the server."
+    ModelReadOperation.VERSION -> "Read one exact published model version or the draft; this is not a paged list."
 }
 
 internal val pagedModelOperations = setOf(

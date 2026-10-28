@@ -35,5 +35,9 @@ private fun modelReadFailure(status: Int?): ModelReadResult.Failed = ModelReadRe
         404 -> "NOT_FOUND"
         else -> "BACKEND_UNAVAILABLE"
     },
-    "Model read failed${status?.let { " (HTTP $it)" }.orEmpty()}.",
+    if (status == 401) {
+        "Authentication required (HTTP 401). Run dsbuilder auth login and retry."
+    } else {
+        "Model read failed${status?.let { " (HTTP $it)" }.orEmpty()}."
+    },
 )

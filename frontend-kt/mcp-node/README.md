@@ -63,7 +63,8 @@ List tools send `limit=50` by default (range 1..200), `cursor` and filters to th
 `context`, `items` and an optional `nextCursor`; callers must continue with the same filters and selection.
 Changing page size is supported. Draft edits can change results between pages; publishing a new draft makes
 an old draft cursor invalid. Use a publication for an unchanged model boundary. Missing or invalid required
-read/page metadata is reported as `BACKEND_UNAVAILABLE`, never as a successful final page.
+read/page metadata is reported as `INVALID_BACKEND_RESPONSE`, never as a successful final page.
+Connection failures and HTTP 5xx remain `BACKEND_UNAVAILABLE`.
 
 This changes the previous MCP list shape and appearance argument. HTTP clients omitting `limit/cursor` retain
 full arrays, and CLI `theme fetch` and `components fetch` retain their full download formats.

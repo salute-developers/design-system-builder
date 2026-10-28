@@ -329,6 +329,29 @@ class DsBuilderMcpServerCoreTest {
     }
 
     @Test
+    fun readToolSchemasExposeRequiredInputsAndVersionFallback() {
+        val tools = server().tools().associateBy(McpToolDefinition::name)
+        val required = mapOf(
+            "documentation_search" to "query",
+            "documentation_fetch" to "kbUrl",
+            "documentation_get_page" to "path",
+            "code_binding_get" to "bindingId",
+            "component_configurations_list" to "componentId",
+            "component_config_get" to "appearanceId",
+            "component_tokens_get" to "appearanceId",
+        )
+        required.forEach { (name, argument) ->
+            assertTrue(tools.getValue(name).inputSchema.getValue(argument).required, "$name.$argument")
+        }
+        assertFalse(tools.getValue("component_config_get").inputSchema.getValue("selectedValueIds").required)
+        assertFalse(tools.getValue("documentation_get_page").inputSchema.getValue("version").required)
+        assertTrue(tools.getValue("tokens_list").inputSchema.getValue("version").description!!.contains("draft"))
+        assertTrue(tools.getValue("component_configurations_list").description.contains("components_list"))
+        assertTrue(tools.getValue("component_config_get").description.contains("component_variations_get"))
+        assertTrue(tools.getValue("token_get").description.contains("not a paged list"))
+    }
+
+    @Test
     fun codeBindingSearchContractDistinguishesCanonicalSubjectFromCodeName() {
         val tool = server().tools().single { it.name == "code_binding_search" }
 
@@ -564,6 +587,13 @@ class DsBuilderMcpServerCoreTest {
         assertErrorCode("INVALID_QUERY", server().callTool("token_get"))
         assertErrorCode("INVALID_QUERY", server().callTool("component_get"))
         assertErrorCode("INVALID_ARGUMENT", server().callTool("documentation_search"))
+    }
+
+    @Test
+    fun unsupportedModelArgumentIsNamed() = runTest {
+        val result = server().callTool("tokens_list", JsonObject(mapOf("unknown" to JsonPrimitive("x"))))
+        assertErrorCode("INVALID_QUERY", result)
+        assertTrue(result.body.contains("unknown"))
     }
 
     @Test

@@ -272,7 +272,10 @@ paths:
       tags:
         - Token groups
       summary: List token groups and subgroups of a design system
-      description: Includes empty groups. Ordered by level, parent and position.
+      description: >-
+        Includes empty groups. Full and paged reads use the same tree order: each root by position and ID,
+        immediately followed by its children by position and ID. parentId selects immediate children.
+        name and query are unsupported and return INVALID_QUERY.
       parameters:
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/PageLimit'
@@ -309,7 +312,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/TokenGroup'
         '400':
-          description: Invalid id or kind
+          description: Invalid id, kind, cursor, name or query
           content:
             application/json:
               schema:

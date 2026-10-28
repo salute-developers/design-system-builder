@@ -64,6 +64,17 @@ class VersionedReadHttpPostgresIntegrationTest {
                 assertEquals(allStyles.take(1), stylesPage.array())
                 val groups = api(client, "GET", "$base/token-groups?kind=color").array()
                 assertTrue(groups.isNotEmpty())
+                val pagedGroups = mutableListOf<kotlinx.serialization.json.JsonElement>()
+                var groupCursor: String? = null
+                do {
+                    val cursorQuery = groupCursor?.let { "&cursor=$it" }.orEmpty()
+                    val page = api(client, "GET", "$base/token-groups?kind=color&limit=1$cursorQuery")
+                    pagedGroups.addAll(page.array())
+                    groupCursor = page.headers["X-DS-Next-Cursor"]
+                } while (groupCursor != null)
+                assertEquals(groups, JsonArray(pagedGroups))
+                assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$base/token-groups?name=Text").status)
+                assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$base/token-groups?query=Text").status)
                 val group = groups.first { it.jsonObject["parentId"]?.jsonPrimitive?.content == "null" }.jsonObject
                 val children = api(client, "GET", "$base/token-groups?kind=color&parentId=${group.field("id")}&limit=1")
                 assertEquals("1", children.headers["X-DS-Page-Limit"])
