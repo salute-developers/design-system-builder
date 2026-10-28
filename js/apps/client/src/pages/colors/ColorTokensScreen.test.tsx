@@ -413,6 +413,22 @@ describe('ColorTokensScreen', () => {
         expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute('aria-invalid', 'false');
     });
 
+    it('указывает поле и подтему при ошибке сохранения значения OnDark', async () => {
+        repository.updateValues.mockRejectedValueOnce(
+            new ColorTokenOperationError('invalid', 'Неверный цвет', 'INVALID_TOKEN_VALUE', 'accent-1:web:light'),
+        );
+        await renderScreen();
+
+        const fields = within(inspector()).getAllByRole('textbox', { name: 'Light' });
+        fireEvent.change(fields[1], { target: { value: '#123456' } });
+        fireEvent.keyDown(fields[1], { key: 'Enter' });
+
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Неверный цвет'));
+        expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('OnDark · web · Light');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute('aria-invalid', 'false');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[1]).toHaveAttribute('aria-invalid', 'true');
+    });
+
     it('не теряет неотправленную правку при перезагрузке темы', async () => {
         repository.updateValues
             .mockRejectedValueOnce(new ColorTokenOperationError('network', 'Сервис недоступен'))

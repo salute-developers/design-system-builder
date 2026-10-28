@@ -118,7 +118,7 @@ const invalidFieldOf = (error: ColorTokenOperationError | null, definitions: Tok
     const [tokenId, platform, mode] = (error?.address ?? '').split(':');
     const name = [...definitions].find(([, definition]) => definition.id === tokenId)?.[0];
     if (!name || !['web', 'ios', 'android'].includes(platform)) return null;
-    const context = contextOfSubgroup(name.split('.')[1] ?? '');
+    const context = contextOfSubgroup(parseMemberName(name)?.subgroup ?? '');
     return { field: (context ? `${context}-${mode}` : mode) as FieldId, platform: platform as PickerTarget['platform'] };
 };
 
@@ -427,7 +427,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const addressLabel = (address: string) => {
         const [token, platform, mode] = address.split(':');
         const name = [...session.definitions].find(([, definition]) => definition.id === token)?.[0] ?? token;
-        const context = contextOfSubgroup(name.split('.')[1] ?? '');
+        const context = contextOfSubgroup(parseMemberName(name)?.subgroup ?? '');
         return [ADDRESS_CONTEXT_LABELS[context ?? 'default'], platform, ADDRESS_MODE_LABELS[mode] ?? mode]
             .filter(Boolean)
             .join(' · ');
