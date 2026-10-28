@@ -32,6 +32,10 @@ For a public-facing overview see [README.md](README.md). **This file is for thin
 - A plasma component is added with `npm run import:plasma -- --component=<X>` in [cli](cli/) (writes the `.sdds/components` package and the generator manifest) and `dsbuilder components push --platform react --from .sdds/components --apply`. The rules and checks are in `.claude/skills/add-component/SKILL.md`.
 - Web parameter templates of multi-value CSS properties live in the generator manifests `cli/src/generator/templates/<X>/component.json` (`webTemplates`), not in `ds-service`.
 
+### Icons and images in the client
+- A new icon comes from `@salutejs/sdds-icons` (`@salutejs/sdds-icons/16|24|36`), never as a new SVG or other file. Check that the package icon matches the design (shape, size, `Outline`/`Fill`/`OutlineBold` variant); if it differs or is missing, ask the user to go to the designer instead of picking a look-alike.
+- Other images go to `apps/client/src/assets` and are imported as modules. Never reference them by a root path (`src="/catalog/..."`): stands serve the client under a `BASE_URL` subpath. Details are in [apps/client/README.md](apps/client/README.md#иконки-и-картинки).
+
 ### Removed services — don't resurrect
 These were deleted intentionally. If you see stale references to them in code/docs, clean them up — do not reintroduce them:
 - `services/client-proxy`

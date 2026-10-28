@@ -7,6 +7,8 @@ import { projectsApi } from '../../modules/projects/data/projectsApi';
 import { useLoad } from '../../shared/data/useLoad';
 import '../../styles/workflow.css';
 import { choose, Visible } from '../rendering';
+import railBrandItemIcon from '../../assets/catalog/icons/rail-brand-item.svg';
+import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg';
 
 export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление';
 export type BreadcrumbSegment = { label: string; to: string };
@@ -39,7 +41,7 @@ const ProjectRail = ({ selectedProjectId }: { selectedProjectId?: string }) => {
                 </Link>
             ))}
             <Link className="builder-rail-button builder-add-entity" to="/projects/new" aria-label="Create Project">
-                <img className="builder-rail-icon" src="/catalog/icons/rail-project-add.svg" alt="" />
+                <img className="builder-rail-icon" src={railProjectAddIcon} alt="" />
             </Link>
         </div>
     );
@@ -122,7 +124,7 @@ export const BuilderIconRail = ({
     >
         <div className="builder-rail-section builder-rail-section-head">
             <Link className="builder-rail-logo" to="/projects" aria-label="DS Builder">
-                <img src="/catalog/icons/rail-brand-item.svg" alt="" />
+                <img src={railBrandItemIcon} alt="" />
             </Link>
         </div>
         <nav>

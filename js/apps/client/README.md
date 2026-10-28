@@ -62,6 +62,18 @@ export default tseslint.config({
 ```
 # DS Builder client
 
+## Иконки и картинки
+
+- Новую иконку бери из пакета [`@salutejs/sdds-icons`](https://www.npmjs.com/package/@salutejs/sdds-icons)
+  (`import { HistoryOutline } from '@salutejs/sdds-icons/16'`), а не добавляй SVG или другой файл.
+- Перед заменой сверь иконку из пакета с макетом: форма, размер и вариант (`Outline`, `Fill`, `OutlineBold`)
+  должны совпадать. Если иконка отличается или её нет в пакете, обратись к дизайнеру, не подбирай похожую сам.
+- Картинки, которых нет в пакете (иллюстрации, заглушки), клади в `src/assets` и подключай через `import`.
+  Не ссылайся на них путём от корня (`src="/catalog/..."`): на стендах клиент открывается по подпути `BASE_URL`,
+  и такие картинки не загрузятся.
+- Иконки в `src/assets/catalog/icons` добавлены до этого правила. Пять из них есть в `sdds-icons`
+  (`HistoryOutline`, `PlusOutline`, `TypographyOutline`, `ShapeOutline`, `FileStackOutline`), но пока не заменены.
+
 ## Feature flags
 
 The component editor section ("Компоненты") is switched at build time by `VITE_COMPONENT_EDITOR_ENABLED`:

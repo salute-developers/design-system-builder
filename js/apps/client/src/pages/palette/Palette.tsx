@@ -15,6 +15,7 @@ import { displaySteps, isChanged, middleStep } from './Palette.utils';
 import { usePaletteEditor } from './usePaletteEditor';
 import { EditorLoading } from '../../components';
 import type { DraftChangeDto } from '../../api/editorContracts';
+import railColorsIcon from '../../assets/catalog/icons/rail-colors.svg';
 
 export interface PaletteOutletContext {
     designSystem: DesignSystem | null;
@@ -220,7 +221,7 @@ const PaletteScreen = ({
                                 aria-label={editor.inspectorCollapsed ? 'Показать Inspector' : 'Скрыть Inspector'}
                                 onClick={() => editor.setInspectorCollapsed(!editor.inspectorCollapsed)}
                             >
-                                <img src="/catalog/icons/rail-colors.svg" alt="" />
+                                <img src={railColorsIcon} alt="" />
                                 <span>{changedCount}</span>
                             </button>
                         </div>
