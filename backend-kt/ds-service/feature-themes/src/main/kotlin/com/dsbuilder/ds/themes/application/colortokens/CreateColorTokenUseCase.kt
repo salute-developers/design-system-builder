@@ -13,6 +13,8 @@ import com.dsbuilder.ds.themes.application.tokengroups.codeOf
 import com.dsbuilder.ds.themes.application.tokengroups.invalidTokenGroup
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamilyType
+import com.dsbuilder.ds.themes.domain.colortokens.FamilyValue
 import com.dsbuilder.ds.themes.domain.colortokens.TokenNameRule
 import com.dsbuilder.ds.themes.domain.palette.PaletteOperationResult
 import com.dsbuilder.ds.themes.domain.palette.PaletteOperations
@@ -31,6 +33,7 @@ class CreateColorTokenUseCase(
     private val tokens: ColorTokenRepository,
     private val palette: TenantPaletteRepository,
     private val groups: TokenGroupRepository,
+    private val typeSync: ColorTokenFamilyTypeSync = ColorTokenFamilyTypeSync(tokens),
 ) {
     /** Создание токена [command] в теме [tenantId]. */
     suspend fun execute(
@@ -58,7 +61,12 @@ class CreateColorTokenUseCase(
         command: CreateColorToken,
     ): DsResult<ColorTokenMutation<StoredColorTokenFamily>> {
         val rule = palette.valueRule(tenantId)
-        rule.firstViolation(command.family.type, command.members)?.let { return DsResult.Failure(it) }
+        rule.firstViolation(command.members)?.let { return DsResult.Failure(it) }
+        val members = command.members.storedForm()
+        // Тип выбирают значения, а не запрос: градиент хотя бы у одного члена делает семейство градиентным.
+        val family = command.family.copy(
+            type = ColorTokenFamilyType.of(members.values.flatten().map { FamilyValue(it.platform, it.value) }),
+        )
         val names = command.members.keys.sortedWith(compareBy({ it != command.family.defaultMember() }, { it }))
         tokens.takenNames(lock.designSystemId, names).sorted().firstOrNull()?.let { taken ->
             return DsResult.Failure(
@@ -69,7 +77,7 @@ class CreateColorTokenUseCase(
         val slots = command.groupId?.let { tokens.placedIn(lock.designSystemId, listOf(it)).slots() }.orEmpty()
         val ids = tokens.insertDefinitions(
             lock.designSystemId,
-            command.family,
+            family,
             names,
             command.displayName,
             command.description,
@@ -79,7 +87,8 @@ class CreateColorTokenUseCase(
         command.groupId?.let { groupId ->
             tokens.arrange(groupId, Ordering.place(slots, ids.values.toList(), command.position))
         }
-        tokens.insertValues(lock.tenantIds, command.members.mapKeys { (name, _) -> ids.getValue(name) })
+        tokens.insertValues(lock.tenantIds, members.mapKeys { (name, _) -> ids.getValue(name) })
+        val type = typeSync.sync(lock.designSystemId, ids.getValue(family.defaultMember())) ?: family.type
         val groupId = command.paletteGroupId
         val revision = if (groupId == null) {
             tokens.bumpRevisions(lock.tenantIds).getValue(tenantId)
@@ -89,7 +98,7 @@ class CreateColorTokenUseCase(
                 is DsResult.Success -> tokens.bumpRevisions(lock.tenantIds - tenantId).let { assigned.value }
             }
         }
-        return DsResult.Success(ColorTokenMutation(revision, StoredColorTokenFamily(command.family, ids)))
+        return DsResult.Success(ColorTokenMutation(revision, StoredColorTokenFamily(family.copy(type = type), ids)))
     }
 
     /** `404` — группы нет в дизайн-системе, `400` — группа другого вида или её код не совпадает с группой имени. */

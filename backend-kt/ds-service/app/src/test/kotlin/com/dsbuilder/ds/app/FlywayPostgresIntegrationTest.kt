@@ -231,6 +231,6 @@ class FlywayPostgresIntegrationTest {
 
     private companion object {
         const val BASELINE_SCHEMA_FINGERPRINT = "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
-        const val MIGRATION_COUNT = 14
+        const val MIGRATION_COUNT = 15
     }
 }

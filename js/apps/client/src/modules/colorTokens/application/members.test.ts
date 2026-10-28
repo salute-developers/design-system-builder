@@ -17,11 +17,10 @@ describe('члены семейства для создания из темы', 
             token('dark.text.default.accent', '#222'),
             token('light.text.on-dark.accent', '#333'),
         ];
-        const members = familyCreateMembers({ getTokens: () => tokens } as never, {
-            type: 'color',
-            group: 'text',
-            name: 'accent',
-        });
+        const members = familyCreateMembers(
+            { getTokens: (type: string) => (type === 'color' ? tokens : []) } as never,
+            { group: 'text', name: 'accent' },
+        );
         expect(members.map((member) => member.name)).toEqual(['text.default.accent']);
         expect(members[0].values).toHaveLength(6);
         expect(members[0].values.find((item) => item.mode === 'dark' && item.platform === 'android')?.value).toEqual([
@@ -41,13 +40,13 @@ describe('тело операции изменения значений', () => 
             token('light.text.default.primary', '#555'),
             token('dark.text.default.primary', '#666'),
         ];
-        const theme = { getTokens: () => tokens } as never;
+        const theme = { getTokens: (type: string) => (type === 'color' ? tokens : []) } as never;
         const definitions = new Map([
             ['text.default.accent', { id: 'id-accent', type: 'color' }],
             ['text.default.accent-hover', { id: 'id-hover', type: 'color' }],
             ['text.on-dark.accent', { id: 'id-on-dark', type: 'color' }],
         ]);
-        const update = familyUpdate(theme, { type: 'color', group: 'text', name: 'accent' }, definitions);
+        const update = familyUpdate(theme, { group: 'text', name: 'accent' }, definitions);
         expect(update?.tokenId).toBe('id-accent');
         expect(update?.update.members.map((member) => member.tokenId)).toEqual(['id-accent', 'id-hover']);
         const accent = update!.update.members[0].values;
@@ -61,7 +60,7 @@ describe('тело операции изменения значений', () => 
         const theme = {
             getTokens: () => [token('light.text.default.x', '#1'), token('dark.text.default.x', '#2')],
         } as never;
-        expect(familyUpdate(theme, { type: 'color', group: 'text', name: 'x' }, new Map())).toBeNull();
+        expect(familyUpdate(theme, { group: 'text', name: 'x' }, new Map())).toBeNull();
     });
 });
 
@@ -75,8 +74,8 @@ describe('семейства прежнего черновика', () => {
                 { name: 'screen-s.body.m', type: 'typography' },
             ]),
         ).toEqual([
-            { type: 'color', group: 'text', name: 'accent' },
-            { type: 'gradient', group: 'surface', name: 'accent-gradient' },
+            { group: 'text', name: 'accent' },
+            { group: 'surface', name: 'accent-gradient' },
         ]);
     });
 });

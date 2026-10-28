@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const operations = vi.hoisted(() => ({
     listChanges: vi.fn(),
     listJournalTokens: vi.fn(),
+    listPalette: vi.fn(),
     listProjectActorLabels: vi.fn(),
     listVersions: vi.fn(),
     getDesignSystem: vi.fn(),
@@ -17,13 +18,16 @@ const operations = vi.hoisted(() => ({
 }));
 
 vi.mock('../../api/versionJournalRepository', () => ({ versionJournalRepository: operations }));
-vi.mock('../../api/tokenRepository', () => ({ tokenRepository: { listDefinitions: operations.listJournalTokens } }));
+vi.mock('../../api/tokenRepository', () => ({
+    tokenRepository: { listDefinitions: operations.listJournalTokens, listPalette: operations.listPalette },
+}));
 
 vi.mock('../../api/draftAutosaveActivity', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../api/draftAutosaveActivity')>();
     return { ...actual, waitForDraftAutosaveIdle: operations.waitForDraftAutosaveIdle };
 });
 
+import { deriveNative } from '../../modules/colorTokens/domain';
 import { DesignSystemChangesPage, DesignSystemVersionsPage } from './VersionJournalPages';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
@@ -214,6 +218,83 @@ describe('DesignSystemChangesPage', () => {
         );
         await waitFor(() => expect(operations.revertChange).toHaveBeenCalledTimes(1));
         expect(operations.revertChange).toHaveBeenCalledWith(context, ios, ['/value']);
+    });
+
+    it('показывает значения цветового токена свотчами и подписями редактора, а не CSS и путями слоёв', async () => {
+        const color = { ...token, id: 'color-1', name: 'text.default.accent', type: 'gradient' as const };
+        color.displayName = 'Акцент';
+        const conic = 'conic-gradient(from 0deg at 45% 50%, [general.green.400] 0%, [general.blue.500] 100%)';
+        const value = (changeId: string, previousValue: object, currentValue: object) => ({
+            ...change,
+            changeId,
+            entityId: `${changeId}-value`,
+            entityType: 'token-value',
+            changedPaths: ['/palette_id', '/value'],
+            previousValue: { token_id: color.id, mode: 'dark', palette_id: null, ...previousValue },
+            currentValue: { token_id: color.id, mode: 'dark', palette_id: null, ...currentValue },
+        });
+        operations.listJournalTokens.mockResolvedValue([color]);
+        operations.listPalette.mockResolvedValue([
+            { id: 'palette-1', type: 'general', shade: 'green', saturation: 600 },
+        ]);
+        operations.listChanges.mockResolvedValue([
+            value(
+                'ios',
+                { platform: 'ios', value: ['[general.green.400]'] },
+                { platform: 'ios', value: deriveNative([conic], 'ios') },
+            ),
+            value(
+                'web',
+                { platform: 'web', palette_id: 'palette-1', value: null },
+                { platform: 'web', value: ['[general.green.700]'] },
+            ),
+        ]);
+        renderPage('changes');
+        const rows = await screen.findAllByRole('button', { name: /^Градиент: Акцент/ });
+        const inspector = () => screen.getByRole('complementary', { name: 'Подробности изменения' });
+
+        for (const [index, expected] of [
+            ['iOS', 'Вид значения · Темный режим', 'Green 400', 'Конический · 0°'],
+            ['Web', 'Цвет · Темный режим', 'Green 600', 'Green 700'],
+        ].entries()) {
+            fireEvent.click(rows[index]);
+            expected.forEach((text) => expect(inspector()).toHaveTextContent(text));
+        }
+        // Свотч градиента — CSS-градиент со ссылками стопов, раскрытыми по палитре.
+        fireEvent.click(rows[0]);
+        expect(inspector().innerHTML).toContain('background: conic-gradient(from 0deg at 45% 50%, rgb(36, 178, 62) 0%');
+        expect(document.body.textContent).not.toMatch(/\[general|gradient\(|Слой|Параметр|Не задано/);
+        expect(operations.listPalette).toHaveBeenCalledWith(context, expect.anything());
+    });
+
+    it('отменяет стоп градиента платформы его путём, а смену вида — только записью целиком', async () => {
+        const color = { ...token, id: 'color-1', name: 'text.default.accent', type: 'gradient' as const };
+        color.displayName = 'Акцент';
+        const linear = 'linear-gradient(45deg, #FFFFFF 0%, [general.teal.400] 100%)';
+        const record = (changeId: string, platform: string, previous: string, current: string) => ({
+            ...change,
+            changeId,
+            entityId: `${changeId}-value`,
+            entityType: 'token-value',
+            changedPaths: ['/value'],
+            previousValue: { token_id: color.id, mode: 'dark', platform, value: deriveNative([previous], 'ios') },
+            currentValue: { token_id: color.id, mode: 'dark', platform, value: deriveNative([current], 'ios') },
+        });
+        const stop = record('stop', 'ios', linear, linear.replace('[general.teal.400]', '[general.blue.500]'));
+        const kind = record('kind', 'android', '[general.green.400]', linear);
+        operations.listJournalTokens.mockResolvedValue([color]);
+        operations.listChanges.mockResolvedValue([stop, kind]);
+        renderPage('changes');
+
+        fireEvent.click(
+            await screen.findByRole('button', {
+                name: 'Отменить изменение: Градиент: Акцент · Стоп 2 · цвет · Темный режим · iOS',
+            }),
+        );
+        await waitFor(() => expect(operations.revertChange).toHaveBeenCalledWith(context, stop, ['/value/0/colors/1']));
+        fireEvent.click(await screen.findByRole('button', { name: 'Отменить изменение: Градиент: Акцент · Android' }));
+        await waitFor(() => expect(operations.revertChange).toHaveBeenCalledWith(context, kind));
+        expect(operations.revertChange).toHaveBeenCalledTimes(2);
     });
 
     it('отменяет выбранный параметр типографики отдельным запросом', async () => {

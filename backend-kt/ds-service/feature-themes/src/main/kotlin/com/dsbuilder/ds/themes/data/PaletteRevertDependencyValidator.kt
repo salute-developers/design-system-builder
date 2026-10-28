@@ -3,7 +3,7 @@ package com.dsbuilder.ds.themes.data
 import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
-import com.dsbuilder.ds.themes.domain.ThemeTokenType
+import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -28,7 +28,7 @@ class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
         val value = currentThemeTokenValueRows(
             designSystemId, setOf(stable[ThemeTokenValuesTable.tenantId]), setOf(tokenId),
         ).firstOrNull { it[ThemeTokenValuesTable.id] == entityId } ?: return true
-        return tokenRow[ThemeTokenRevisionsTable.type] != ThemeTokenType.COLOR ||
+        return tokenRow[ThemeTokenRevisionsTable.type] !in ColorTokenFamily.TYPES ||
             validColorReference(
                 entityId, value[ThemeTokenValuesTable.tenantId], tokenRow[ThemeTokenRevisionsTable.name],
             )
@@ -46,7 +46,9 @@ class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
         entityId: UUID,
         tokenName: String,
     ): Boolean {
-        val reference = snapshot.values.singleOrNull { it.valueId == entityId.toString() }?.reference ?: return true
+        // Ссылка на всё значение или ссылки в стопах градиента: каждая должна указывать на доступную растяжку.
+        val references = snapshot.values.filter { it.valueId == entityId.toString() }.mapNotNull { it.reference }
+        if (references.isEmpty()) return true
         val palette = ThemePaletteBuilder.build(
             tenantId.toString(),
             false,
@@ -55,16 +57,18 @@ class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
             snapshot.values,
         )
         val groupId = ThemePaletteResolver.groupOf(palette, tokenName) ?: return false
-        val previouslyStoredRamp = StablePaletteRamps.selectAll().where {
-            (StablePaletteRamps.groupId eq UUID.fromString(groupId)) and
-                (StablePaletteRamps.slotType eq reference.ramp.type) and
-                (StablePaletteRamps.slotShade eq reference.ramp.shade)
-        }.limit(1).any()
-        // Нет предметной растяжки вообще — допустим исходный слот неизменяемого шаблона.
-        // Предметная растяжка существовала и удалена — сначала требуется восстановить именно её.
-        val rampAvailable = !previouslyStoredRamp || snapshot.state.ramps.any {
-            it.groupId == groupId && it.slot == reference.ramp
+        return references.distinct().all { reference ->
+            val previouslyStoredRamp = StablePaletteRamps.selectAll().where {
+                (StablePaletteRamps.groupId eq UUID.fromString(groupId)) and
+                    (StablePaletteRamps.slotType eq reference.ramp.type) and
+                    (StablePaletteRamps.slotShade eq reference.ramp.shade)
+            }.limit(1).any()
+            // Нет предметной растяжки вообще — допустим исходный слот неизменяемого шаблона.
+            // Предметная растяжка существовала и удалена — сначала требуется восстановить именно её.
+            val rampAvailable = !previouslyStoredRamp || snapshot.state.ramps.any {
+                it.groupId == groupId && it.slot == reference.ramp
+            }
+            rampAvailable && ThemePaletteResolver.resolve(palette, tokenName, reference) != null
         }
-        return rampAvailable && ThemePaletteResolver.resolve(palette, tokenName, reference) != null
     }
 }

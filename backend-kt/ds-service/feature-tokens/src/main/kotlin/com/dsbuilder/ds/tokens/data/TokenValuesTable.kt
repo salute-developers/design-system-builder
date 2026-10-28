@@ -28,6 +28,7 @@ internal object TokenValueRevisionsTable : Table("token_value_revisions") {
     val versionSequenceNumber = long("version_sequence_number")
     val paletteId = uuid("palette_id").nullable()
     val value = jsonb<JsonElement>("value", Json.Default).nullable()
+    val overridden = bool("overridden").default(false)
     val deleted = bool("deleted")
     val updatedAt = timestamp("updated_at")
 }
@@ -38,5 +39,6 @@ internal object TokenValueCreationBaselinesTable : Table("token_value_creation_b
     val designSystemId = uuid("design_system_id")
     val paletteId = uuid("palette_id").nullable()
     val value = jsonb<JsonElement>("value", Json.Default).nullable()
+    val overridden = bool("overridden").default(false)
     override val primaryKey = PrimaryKey(designSystemVersionId, tokenValueId)
 }

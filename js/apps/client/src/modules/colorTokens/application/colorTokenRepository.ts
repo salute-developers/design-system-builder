@@ -16,9 +16,12 @@ export interface ColorTokenValueItem {
     paletteId?: string | null;
     value: unknown;
     baseRevision?: number;
+    /** Своё значение `ios` или `android`, а не построенное из web; у web всегда `false`. */
+    overridden?: boolean;
 }
 
 export interface CreateColorTokenInput {
+    /** Запрошенный тип; итоговый сервер вычисляет по значениям и возвращает в ответе. */
     type: ColorTokenType;
     group: string;
     name: string;
@@ -57,12 +60,13 @@ export interface ColorTokenRepository {
         input: CreateColorTokenInput,
         editRevision: number,
     ): Promise<{ editRevision: number; value: ColorTokenFamilyDto }>;
+    /** Возвращает тип семейства после изменения: сервер вычисляет его по значениям всех тем. */
     updateValues(
         context: ColorTokenContext,
         tokenId: string,
         update: ColorTokenMembersUpdate,
         editRevision: number,
-    ): Promise<{ editRevision: number }>;
+    ): Promise<{ editRevision: number; type?: ColorTokenType }>;
     delete(context: ColorTokenContext, tokenId: string, editRevision: number): Promise<{ editRevision: number }>;
     /** Переносит семейство в группу и на позицию, при `name` — переименовывает; идентификаторы сохраняются. */
     move(

@@ -19,7 +19,7 @@ class TokenDefinitionsResourceTest {
             .use { it.readBytes() }
         val definitions = Json.parseToJsonElement(bytes.decodeToString()).jsonArray
 
-        assertEquals("f1a4fd131f7977d98f51797f3f1aed6357fca9b00533a1ccda7e697b5d33f6a6", bytes.sha256())
+        assertEquals("f903bb82952b8458bc0ff4c37fed0b794c4fab6b1d17c59e29f39fd97d4a253c", bytes.sha256())
         assertEquals(2_469, definitions.size)
         val names = definitions.map { definition ->
             val value = definition.jsonObject

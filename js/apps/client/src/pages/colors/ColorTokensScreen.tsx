@@ -19,6 +19,7 @@ import {
     buildTree,
     camelTokenName,
     collectContrastPairs,
+    findColorToken,
     groupCode,
     tokenNameFromLabel,
     treeTokens,
@@ -30,6 +31,7 @@ import {
     parseMemberName,
     tokenId,
     type ColorContext,
+    type ColorFieldValue,
     type ColorTokenContext,
     type ColorTokenView,
     type ContrastPair,
@@ -38,7 +40,7 @@ import {
     type TreeSort,
 } from '../../modules/colorTokens';
 import { ColorTokenOperationError } from '../../modules/colorTokens';
-import type { ThemePalette } from '../../modules/palette';
+import { groupRampName, resolveTokenGroupId, type ThemePalette } from '../../modules/palette';
 import { restorePaletteColor } from '../../palette/activePalette';
 import { paletteRepository } from '../../palette/paletteSession';
 import { parseField, rgbHex, type FieldId } from './colorTokenEditor';
@@ -46,7 +48,7 @@ import { useColorTokenEditor } from './useColorTokenEditor';
 import { AccessibilityPanel } from './ui/AccessibilityPanel';
 import { ColorPickerPopover } from './ui/ColorPickerPopover';
 import { ColorTokenBoard } from './ui/ColorTokenBoard';
-import { ColorTokenInspector } from './ui/ColorTokenInspector';
+import { ColorTokenInspector, PLATFORM_LABELS, type PickerTarget } from './ui/ColorTokenInspector';
 import { ColorTokenTree } from './ui/ColorTokenTree';
 import { ComponentCanvas } from './ui/ComponentCanvas';
 import { CtGlyph } from './ui/CtGlyph';
@@ -109,15 +111,15 @@ const ADDRESS_MODE_LABELS: Record<string, string> = { dark: 'Dark', light: 'Ligh
 
 const definitionRowId = (definition: TokenDefinitionDto) => {
     const parsed = parseMemberName(definition.name);
-    return parsed ? `${definition.type}:${parsed.group}.${parsed.name}` : null;
+    return parsed ? `${parsed.group}.${parsed.name}` : null;
 };
 
-const invalidFieldOf = (error: ColorTokenOperationError | null, definitions: TokenDefinitions): FieldId | null => {
+const invalidFieldOf = (error: ColorTokenOperationError | null, definitions: TokenDefinitions): PickerTarget | null => {
     const [tokenId, platform, mode] = (error?.address ?? '').split(':');
     const name = [...definitions].find(([, definition]) => definition.id === tokenId)?.[0];
-    if (!name || platform !== 'web') return null;
+    if (!name || !['web', 'ios', 'android'].includes(platform)) return null;
     const context = contextOfSubgroup(name.split('.')[1] ?? '');
-    return (context ? `${context}-${mode}` : mode) as FieldId;
+    return { field: (context ? `${context}-${mode}` : mode) as FieldId, platform: platform as PickerTarget['platform'] };
 };
 
 /** Экран Color Tokens темы по ветке `editorTab === 'colors'` функции `editor` прототипа. */
@@ -144,7 +146,18 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const selectionKey = `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
     const [selectedId, setSelectedId] = useState<string | null>(() => lastSelection.get(selectionKey) ?? null);
     useEffect(() => void lastSelection.set(selectionKey, selectedId), [selectionKey, selectedId]);
-    const [picker, setPicker] = useState<FieldId | null>(null);
+    const [picker, setPicker] = useState<PickerTarget | null>(null);
+    // Кнопка цвета поля с открытым выбором и панель свойств: выбор цвета выравнивается по полю и следует за прокруткой.
+    const [pickerAnchor, setPickerAnchor] = useState<HTMLElement | null>(null);
+    const [propertiesPanel, setPropertiesPanel] = useState<HTMLElement | null>(null);
+    const propertiesRef = useCallback(
+        (node: HTMLElement | null) => {
+            // INFO: React 18 не передаёт `inert` атрибутом; дерево и борд остаются доступны.
+            if (node) (node as HTMLElement & { inert: boolean }).inert = readOnly;
+            setPropertiesPanel(node);
+        },
+        [readOnly],
+    );
     const [deleting, setDeleting] = useState<{
         view: ColorTokenView | null;
         group: TokenGroupDto | null;
@@ -193,7 +206,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
         if (appliedAddress.current === `${requestedTokenId ?? 'palette'}:${requested}`) return;
         const parsed = parseMemberName(requested);
-        const rowId = parsed && `${requestedDefinition?.type ?? 'color'}:${parsed.group}.${parsed.name}`;
+        const rowId = parsed && `${parsed.group}.${parsed.name}`;
         const match = views.find((view) => view.id === rowId);
         if (match) {
             appliedAddress.current = `${requestedTokenId ?? 'palette'}:${requested}`;
@@ -251,7 +264,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     /** Начальные значения нового токена: выбранный токен той же группы, иначе значения прототипа. */
     const groupDefaults = (code: string | null) => {
         const source =
-            selected && !selected.incomplete && selected.key.type === 'color' && selected.key.group === code
+            selected &&
+            !selected.incomplete &&
+            selected.modes.light.kind === 'color' &&
+            selected.modes.dark.kind === 'color' &&
+            selected.key.group === code
                 ? selected
                 : undefined;
         const hex = (value: string | undefined, fallback: string) =>
@@ -287,7 +304,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         if (!code) throw new Error('Группа не найдена');
         const parsed = tokenNameFromLabel(label, code, takenNames());
         if ('error' in parsed) throw new Error(parsed.error);
-        const key = { type: 'color' as const, group: code, name: parsed.name };
+        const key = { group: code, name: parsed.name };
         try {
             await editor.create(key, camelTokenName(key), groupDefaults(code), groupId);
         } catch (error) {
@@ -312,9 +329,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
     };
 
-    /** Переименование — перенос токена на его же место с новым именем. */
+    /**
+     * Переименование — перенос токена на его же место с новым именем. Имя редактируется на месте отображаемым
+     * именем, поэтому префикс группы во вводе отбрасывается.
+     */
     const renameToken = async (view: ColorTokenView, label: string) => {
-        const parsed = tokenNameFromLabel(label, view.key.group, takenNames(view));
+        const parsed = tokenNameFromLabel(label, view.key.group, takenNames(view), true);
         if ('error' in parsed) throw new Error(parsed.error);
         const groupId =
             view.groupId && groups.some((group) => group.id === view.groupId)
@@ -415,7 +435,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
 
     const colorOf = useCallback(
         (themeName: string) => {
-            const value = theme.getTokenValue(themeName, 'color', 'web');
+            const value = findColorToken(theme, themeName)?.getValue('web' as never);
             return value ? restorePaletteColor(String(value), -1, themeName) : 'transparent';
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps -- тема меняется на месте
@@ -506,13 +526,27 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         ...components.map((config) => ({ id: config.getName(), label: config.getName() })),
     ];
     const canvasConfig = components.find((config) => config.getName() === canvas);
-    const pickerField = picker ? parseField(picker) : null;
-    const pickerValue =
+    const pickerField = picker ? parseField(picker.field) : null;
+    const pickerBase: ColorFieldValue | null =
         selected && pickerField
             ? pickerField.context
                 ? selected.contexts[pickerField.context].values[pickerField.mode]
                 : selected.modes[pickerField.mode]
             : null;
+    const pickerValue =
+        picker && pickerBase ? (picker.platform === 'web' ? pickerBase : pickerBase.platforms[picker.platform]) : null;
+    /** Пояснения выбора цвета: своё значение платформы и начальный угол Conic на Android. */
+    const pickerNotes = (() => {
+        if (!picker || !pickerBase || !pickerValue) return [];
+        if (picker.platform !== 'web')
+            return [`своё значение: правки меняют только ${PLATFORM_LABELS[picker.platform]}`];
+        const paint = pickerValue.paint;
+        if (paint?.kind === 'gradient' && paint.model.type === 'conic' && !pickerBase.platforms.android)
+            return [
+                `На Android начальный угол ${Number(paint.model.from.toFixed(2))}° передаётся сдвигом стопов: в формате angular угла нет`,
+            ];
+        return [];
+    })();
     const pickerTokenName =
         selected && pickerField
             ? `${pickerField.mode}.${selected.key.group}.${pickerField.context ? contextSubgroup(selected.key.group, pickerField.context) : 'default'}.${selected.key.name}`
@@ -645,14 +679,6 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                                     </div>
                                 )}
                             </div>
-                            <button
-                                className="editor-header-select editor-platform-select"
-                                type="button"
-                                aria-label="Платформа"
-                            >
-                                <span>Web</span>
-                                <CtGlyph name="chevron-down" />
-                            </button>
                         </div>
                     </div>
                     {saveError && (
@@ -662,13 +688,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                         </div>
                     )}
                 </header>
-                <aside
-                    className="properties-panel"
-                    ref={(node) => {
-                        // INFO: React 18 не передаёт `inert` атрибутом; дерево и борд остаются доступны.
-                        if (node) (node as HTMLElement & { inert: boolean }).inert = readOnly;
-                    }}
-                >
+                <aside className="properties-panel" ref={propertiesRef}>
                     {session.conflict && (
                         <div className="ct-banner" role="alert">
                             Тема изменена в другом месте и перезагружена. Ваши несохранённые правки сохранены в
@@ -736,15 +756,44 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             view={selected}
                             editable={!readOnly}
                             canDelete={canDelete}
-                            openField={picker}
+                            openPicker={picker}
                             invalidField={invalidField}
-                            onOpenPicker={(field) => setPicker((current) => (current === field ? null : field))}
-                            onCommit={(field, value) => edit(() => editor.setField(selected, field, value))}
-                            onOpacity={(field, percent) => edit(() => editor.setOpacity(selected, field, percent))}
+                            pickerAnchor={setPickerAnchor}
+                            save={session.autosave.status(selected.id)}
+                            onOpenPicker={(target) =>
+                                setPicker((current) =>
+                                    current?.field === target.field && current.platform === target.platform
+                                        ? null
+                                        : target,
+                                )
+                            }
+                            onCommit={(target, value) =>
+                                edit(() =>
+                                    target.platform === 'web'
+                                        ? editor.setField(selected, target.field, value)
+                                        : editor.setPaint(selected, target.field, target.platform, {
+                                              kind: 'color',
+                                              color: value,
+                                          }),
+                                )
+                            }
+                            onOpacity={(target, percent) =>
+                                edit(() => editor.setOpacity(selected, target.field, percent, target.platform))
+                            }
+                            onAddPlatform={(field, platform) =>
+                                edit(() => editor.addPlatform(selected, field, platform))
+                            }
+                            onRemovePlatform={(field, platform) => {
+                                if (picker?.field === field && picker.platform === platform) setPicker(null);
+                                edit(() => editor.removePlatform(selected, field, platform));
+                            }}
                             onRelink={(context: ColorContext) => edit(() => editor.relink(selected, context))}
                             onResetContexts={() => edit(() => editor.resetContexts(selected))}
                             onDelete={() => requestDelete(selected)}
                             onFill={() => edit(() => editor.fill(selected, groupDefaults(selected.key.group)))}
+                            onRetry={() => editor.retry(selected.id)}
+                            onRename={(label) => renameToken(selected, label)}
+                            addressLabel={addressLabel}
                         />
                     )}
                 </aside>
@@ -770,14 +819,30 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 </main>
                 {selected && picker && pickerValue && !readOnly && (
                     <ColorPickerPopover
-                        // Состояние выбора цвета принадлежит полю: другое поле открывает новый выбор.
-                        key={`${selected.id}:${picker}`}
-                        label={`${selected.displayName}, ${picker}`}
-                        type={selected.key.type}
+                        // Состояние выбора цвета принадлежит полю и платформе: другое поле открывает новый выбор.
+                        key={`${selected.id}:${picker.field}:${picker.platform}`}
+                        label={`${selected.displayName}, ${picker.field}${picker.platform === 'web' ? '' : `, ${PLATFORM_LABELS[picker.platform]}`}`}
                         value={pickerValue}
+                        platform={picker.platform}
+                        anchor={pickerAnchor}
+                        scrollParent={propertiesPanel}
                         palette={palette}
                         tokenName={pickerTokenName}
-                        onCommit={(value) => edit(() => editor.setField(selected, picker, value))}
+                        resolveColor={(color) => {
+                            if (color.startsWith('#')) return color;
+                            const resolved = restorePaletteColor(color, -1, pickerTokenName);
+                            return /^#[0-9a-f]{6,8}$/i.test(resolved) ? resolved : null;
+                        }}
+                        rampName={
+                            palette
+                                ? (reference, tokenName) =>
+                                      groupRampName(palette, resolveTokenGroupId(palette, tokenName), reference)
+                                : undefined
+                        }
+                        notes={pickerNotes}
+                        onCommit={(paint) =>
+                            edit(() => editor.setPaint(selected, picker.field, picker.platform, paint))
+                        }
                         onClose={() => setPicker(null)}
                     />
                 )}

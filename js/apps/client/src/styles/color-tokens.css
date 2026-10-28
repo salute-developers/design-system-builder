@@ -1308,10 +1308,12 @@
 }
 .color-tokens-screen .cp-gradient-kind-row select {
     height:32px;
-    padding:0 28px 0 12px;
+    padding:0 36px 0 12px;
     border:1px solid #3d4651;
     border-radius:8px;
-    background:#303741;
+    /* Своя стрелка с отступом от края: системная прижата к границе поля. */
+    appearance:none;
+    background:#303741 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239aa3b2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
     color:#dfe4ec;
     font-size:16px;
     line-height:24px;
@@ -4406,12 +4408,259 @@
     outline-offset: -1px;
 }
 
+
+/* Переименование токена на месте, как в навигаторе Xcode: тот же шрифт, без рамки и фона, имя выделено. */
+.color-tokens-screen .ct-inline-rename {
+    min-width: 0;
+    flex: 1;
+    height: auto;
+    margin: 0;
+    padding: 4px;
+    border: 0;
+    border-radius: 0;
+    outline: none;
+    box-shadow: none;
+    /* Общее правило полей рабочей области задаёт фон с большей специфичностью; имя правится без фона. */
+    background: transparent !important;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+    caret-color: #fff;
+}
+
+.color-tokens-screen .ct-inline-rename::selection {
+    background: #2f6fde;
+    color: #fff;
+}
+
+.color-tokens-screen .ct-inline-rename.is-error {
+    text-decoration: underline wavy #ff6b6b;
+}
+
+.color-tokens-screen .token-row.is-renaming {
+    cursor: text;
+}
+
+.color-tokens-screen .token-row.is-renaming .ct-published-warning {
+    position: static;
+    flex: none;
+}
+
+.color-tokens-screen .ct-row-rename-error {
+    display: block;
+    padding: 0 16px 4px 40px;
+}
+
+.color-tokens-screen .token-inspector-header strong.is-renaming {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: visible;
+}
+
+.color-tokens-screen .token-inspector-header strong .ct-inline-rename {
+    padding: 0;
+    font-weight: inherit;
+}
+
+.color-tokens-screen .token-inspector-header strong .ct-published-warning {
+    position: static;
+    flex: none;
+}
+
+/* Значение с «+» платформ и строки своих значений iOS и Android. */
+.color-tokens-screen .ct-value-line {
+    position: relative;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.color-tokens-screen .ct-value-line > .figma-value-control {
+    flex: 1;
+}
+
+.color-tokens-screen .ct-platform-add {
+    position: relative;
+    flex: none;
+}
+
+.color-tokens-screen .ct-platform-button {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #474a51;
+    border-radius: 6px;
+    background: transparent;
+    color: #c7ced8;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.color-tokens-screen .ct-platform-button:hover:not(:disabled),
+.color-tokens-screen .ct-platform-button[aria-expanded='true'] {
+    background: #343a44;
+    color: #fff;
+}
+
+.color-tokens-screen .ct-platform-button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.color-tokens-screen .ct-platform-menu {
+    width: 140px;
+}
+
+.color-tokens-screen .ct-platform-menu button {
+    text-align: left;
+}
+
+.color-tokens-screen .figma-inspector-field-label.ct-platform-label {
+    padding-left: 6px;
+    overflow: visible;
+    color: #f5a623;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+/* Пояснения и геометрия редактора градиента. */
+.color-tokens-screen .cp-platform-notes {
+    margin: 8px 10px 0;
+    display: grid;
+    gap: 4px;
+}
+
+.color-tokens-screen .cp-platform-note {
+    margin: 0;
+    padding: 6px 8px;
+    border: 1px solid #3a414c;
+    border-radius: 8px;
+    background: #252a31;
+    color: #dfe3ea;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.color-tokens-screen .cp-gradient-geometry {
+    margin: 0 10px 12px;
+    display: grid;
+    gap: 8px;
+}
+
+.color-tokens-screen .cp-geometry-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #9aa3b2;
+    font-size: 12px;
+}
+
+.color-tokens-screen .cp-number-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.color-tokens-screen .cp-number-field input {
+    width: 52px;
+    height: 24px;
+    padding: 0 6px;
+    border: 1px solid #3a414c;
+    border-radius: 6px;
+    background: #1f2329;
+    color: #fff;
+    font: inherit;
+}
+
+.color-tokens-screen .cp-number-field i {
+    font-style: normal;
+}
+
+.color-tokens-screen .cp-angle-dial {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    flex: none;
+    border: 1px solid #4a5260;
+    border-radius: 50%;
+    cursor: grab;
+}
+
+.color-tokens-screen .cp-angle-dial:focus-visible {
+    outline: 2px solid #4284ff;
+}
+
+.color-tokens-screen .cp-angle-dial i {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2px;
+    height: 13px;
+    margin-left: -1px;
+    background: #fff;
+    transform-origin: 50% 0;
+}
+
+.color-tokens-screen .cp-radius-slider {
+    min-width: 0;
+    flex: 1;
+    accent-color: #4284ff;
+}
+
+.color-tokens-screen .cp-gradient-plane {
+    position: relative;
+    height: 132px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+.color-tokens-screen .cp-gradient-center {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+.color-tokens-screen .cp-gradient-radius {
+    position: absolute;
+    border: 1px dashed rgba(255, 255, 255, 0.67);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.color-tokens-screen .cp-gradient-preview {
+    touch-action: none;
+}
+
+.color-tokens-screen .cp-stop-title {
+    padding: 6px 10px 0;
+    color: #9aa3b2;
+    font-size: 11px;
+}
+
 .color-tokens-screen .properties-panel .figma-value-control.is-invalid {
     border-color: var(--builder-ui-negative, #ff6b5f);
     box-shadow: 0 0 0 1px var(--builder-ui-negative, #ff6b5f) inset;
 }
 
-/* Подробная ошибка находится в общем тулбаре и занимает отдельную строку, чтобы её не обрезали селекторы. */
+/* Подробная ошибка находится в общем тулбаре и занимает отдельную строку. */
 .color-tokens-screen.ct-shell.ct-theme-workspace
     .editor-workbench.playground-workbench:not(.component-workbench):has(.ct-toolbar-error) {
     grid-template-rows: auto minmax(0, 1fr);

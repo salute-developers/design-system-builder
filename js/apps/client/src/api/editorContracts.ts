@@ -33,6 +33,13 @@ export interface TenantTokenValueDto {
     paletteId?: string | null;
     paletteRef?: string | null;
     value: unknown;
+    /**
+     * Хранимое значение, если `value` отдан в другой форме: ссылки раскрыты в HEX или сплошное значение iOS и
+     * Android градиентного токена отдано слоем `color`. Редактор работает с хранимым значением.
+     */
+    sourceValue?: unknown;
+    /** Своё значение iOS или Android, а не построенное из web. */
+    overridden?: boolean;
     editRevision: number;
 }
 export type TenantTokenValueInputDto = Pick<
@@ -136,6 +143,8 @@ export interface ThemeEditorTokenSnapshot {
     tokenDefinitionsByName?: Record<string, TokenDefinitionDto>;
     tokenValueRevisionsByKey: Record<string, number>;
     tokenValueEntityIdsByKey?: Record<string, string>;
+    /** Признак своего значения платформы по ключу `tokenValueKey`; отсутствующий ключ — `false`. */
+    tokenValueOverriddenByKey?: Record<string, boolean>;
     publicationVersion: string;
     palette?: ThemePalette;
     paletteError?: Error;

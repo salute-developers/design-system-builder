@@ -10,8 +10,10 @@ import {
     adoptGroups,
     colorTokenSession,
     createColorTokenEditor,
+    isOverridden,
     refreshStructure,
     setPlacements,
+    type ColorTokenSession,
 } from './colorTokenEditor';
 
 interface EditorInput {
@@ -27,7 +29,7 @@ interface EditorInput {
     reload: () => void;
 }
 
-const themeTokens = (theme: Theme): ThemeTokenSource[] =>
+const themeTokens = (theme: Theme, session: ColorTokenSession): ThemeTokenSource[] =>
     (['color', 'gradient'] as const).flatMap((type) =>
         theme.getTokens(type).map((token) => ({
             name: token.getName(),
@@ -36,6 +38,12 @@ const themeTokens = (theme: Theme): ThemeTokenSource[] =>
             description: token.getDescription(),
             enabled: token.getEnabled(),
             web: token.getValue('web' as never),
+            ios: token.getValue('ios' as never),
+            android: token.getValue('android' as never),
+            overridden: {
+                ios: isOverridden(session, token.getName(), 'ios'),
+                android: isOverridden(session, token.getName(), 'android'),
+            },
         })),
     );
 
@@ -132,7 +140,7 @@ export const useColorTokenEditor = (input: EditorInput) => {
 
     const views = useMemo(
         () =>
-            buildColorTokenViews(themeTokens(theme), {
+            buildColorTokenViews(themeTokens(theme, session), {
                 resolve: (value, tokenName) => {
                     const color = restorePaletteColor(value, -1, tokenName);
                     return /^#[0-9a-f]{6,8}$/i.test(color) ? color : null;

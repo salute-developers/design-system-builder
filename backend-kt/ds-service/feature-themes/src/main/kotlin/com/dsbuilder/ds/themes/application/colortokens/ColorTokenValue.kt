@@ -17,4 +17,6 @@ data class ColorTokenValue(
     val value: JsonElement,
     /** Базовая предметная редакция конкретной пары платформа/режим; null использует заголовок запроса. */
     val baseRevision: Long? = null,
+    /** Своё значение платформы iOS или Android, а не построенное клиентом из web; у web всегда `false`. */
+    val overridden: Boolean = false,
 )

@@ -6,4 +6,6 @@ export * from './tree';
 export * from './newToken';
 export * from './contrast';
 export * from './gradient';
+export * from './nativeGradient';
+export * from './paint';
 export { buildColorTokenViews, type ThemeTokenSource, type ViewDeps } from './view';

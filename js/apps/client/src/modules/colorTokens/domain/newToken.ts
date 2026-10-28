@@ -26,14 +26,20 @@ const words = (value: string) =>
 
 /**
  * Имя токена (сегмент без группы и состояния) из ввода в строке дерева: «Brand Hover 2» → `brand-hover-2`.
- * [taken] — имена `<группа>.<имя>` токенов дизайн-системы.
+ * [taken] — имена `<группа>.<имя>` токенов дизайн-системы. При переименовании на месте [rename] поле показывает
+ * отображаемое имя (`textAccent`), поэтому префикс группы в начале ввода отбрасывается — `textBrand` и `Brand`
+ * дают `brand`.
  */
 export const tokenNameFromLabel = (
     label: string,
     group: string,
     taken: ReadonlySet<string>,
+    rename = false,
 ): { name: string } | { error: string } => {
-    const name = words(label).join('-');
+    const parts = words(label);
+    const prefix = words(group);
+    const prefixed = rename && parts.length > prefix.length && prefix.every((word, index) => parts[index] === word);
+    const name = (prefixed ? parts.slice(prefix.length) : parts).join('-');
     if (!name) return { error: NEW_TOKEN_MESSAGES.name };
     if (/-(hover|active|brightness)$/.test(name)) return { error: NEW_TOKEN_MESSAGES.state };
     if (taken.has(`${group}.${name}`)) return { error: NEW_TOKEN_MESSAGES.exists(name) };

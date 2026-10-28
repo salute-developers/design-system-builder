@@ -18,7 +18,7 @@ import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -209,7 +209,13 @@ class ExposedTenantRepository : TenantRepository {
                 rows.mapTo(mutableSetOf()) { it[ThemeTokenValuesTable.id] },
             )
         }.orEmpty()
-        return rows.map { row -> toTokenValue(row, revisions[row[ThemeTokenValuesTable.id]] ?: 0) }
+        // Тип на той же выбранной границе версии задаёт форму сплошных значений платформ при чтении.
+        val types = currentThemeTokenRows(tenant[TenantsTable.designSystemId])
+            .associate { it[ThemeTokensTable.id] to it[ThemeTokenRevisionsTable.type] }
+        return rows.map { row ->
+            toTokenValue(row, revisions[row[ThemeTokenValuesTable.id]] ?: 0)
+                .copy(tokenType = types[row[ThemeTokenValuesTable.tokenId]])
+        }
     }
 
     @Suppress("ReturnCount")
@@ -229,6 +235,9 @@ class ExposedTenantRepository : TenantRepository {
         if (validTokenCount != tokenIds.size.toLong()) return TenantTokenValuesSaveOutcome.ForeignToken
         val orderedValues = orderedTokenValues(command.values)
         val existingEntities = lockTokenValueEntities(id, orderedValues)
+        // Пакетная запись не передаёт признак своего значения платформы и сохраняет действующий.
+        val overridden = currentThemeTokenValueRows(designSystemId, setOf(id), tokenIds.toSet())
+            .associate { it[ThemeTokenValuesTable.id] to it[ThemeTokenValueRevisionsTable.overridden] }
         orderedValues.forEach { value ->
             val key = Triple(value.tokenId, value.platform, value.mode)
             val entity = existingEntities[key] ?: ThemeTokenValuesTable.insertReturning {
@@ -243,6 +252,7 @@ class ExposedTenantRepository : TenantRepository {
                 designSystemId = tenant[TenantsTable.designSystemId],
                 paletteId = value.paletteId,
                 value = value.value,
+                overridden = overridden[entity[ThemeTokenValuesTable.id]] ?: false,
                 deleted = false,
                 paths = setOf("/palette_id", "/value"),
                 baseRevision = value.baseRevision,
@@ -353,6 +363,7 @@ class ExposedTenantRepository : TenantRepository {
         mode = row[ThemeTokenValuesTable.mode]?.wireValue,
         valueJson = row[ThemeTokenValueRevisionsTable.value]?.toString(),
         editRevision = editRevision,
+        overridden = row[ThemeTokenValueRevisionsTable.overridden],
         createdAt = row[ThemeTokenValuesTable.createdAt],
         updatedAt = row[ThemeTokenValueRevisionsTable.updatedAt],
     )
@@ -394,9 +405,11 @@ class ExposedTenantRepository : TenantRepository {
 
     private fun preview(tenant: Tenant, values: List<PreviewValue>): ThemePreview {
         val fallback = ThemePreviewResolver.resolve(tenant.colorConfiguration)
-        fun resolve(mode: ThemeTokenMode, names: Set<String>): String? = values.firstOrNull { value ->
+
+        // Цвет берётся только из сплошного значения-строки: слои градиента и iOS/Android в превью не участвуют.
+        fun resolve(mode: ThemeTokenMode, names: Set<String>): String? = values.filter { value ->
             value.tenantId == tenant.id && value.mode == mode && value.tokenName.lowercase() in names
-        }?.let { value -> color(value.paletteValue) ?: color(value.value) }
+        }.firstNotNullOfOrNull { value -> color(value.paletteValue) ?: color(value.value) }
         return ThemePreview(
             accentLight = resolve(ThemeTokenMode.LIGHT, ACCENT_NAMES) ?: fallback.accentLight,
             onAccentLight = resolve(ThemeTokenMode.LIGHT, ON_ACCENT_NAMES) ?: fallback.onAccentLight,
@@ -455,6 +468,7 @@ class ExposedTenantRepository : TenantRepository {
         designSystemId = current[ThemeTokenValuesTable.designSystemId],
         paletteId = current[ThemeTokenValueRevisionsTable.paletteId],
         value = current[ThemeTokenValueRevisionsTable.value],
+        overridden = current[ThemeTokenValueRevisionsTable.overridden],
         deleted = deleted,
         paths = setOf("/deleted"),
         baseRevision = null,
@@ -465,6 +479,7 @@ class ExposedTenantRepository : TenantRepository {
         designSystemId: UUID,
         paletteId: UUID?,
         value: kotlinx.serialization.json.JsonElement?,
+        overridden: Boolean,
         deleted: Boolean,
         paths: Set<String>,
         baseRevision: Long?,
@@ -482,13 +497,14 @@ class ExposedTenantRepository : TenantRepository {
                 it[versionSequenceNumber] = draft[ThemeVersionBoundariesTable.sequenceNumber]
                 it[ThemeTokenValueRevisionsTable.paletteId] = paletteId
                 it[ThemeTokenValueRevisionsTable.value] = value
+                it[ThemeTokenValueRevisionsTable.overridden] = overridden
                 it[ThemeTokenValueRevisionsTable.deleted] = deleted
             }
         }
     }
 
     private fun color(value: kotlinx.serialization.json.JsonElement?): String? = (value as? JsonArray)
-        ?.firstOrNull()?.jsonPrimitive?.content
+        ?.singleOrNull()?.let { it as? JsonPrimitive }?.takeIf { it.isString }?.content
         ?.takeIf { candidate -> COLOR.matches(candidate) }
         ?.uppercase()
 
