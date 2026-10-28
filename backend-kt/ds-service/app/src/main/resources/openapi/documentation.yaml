@@ -10125,6 +10125,40 @@ components:
             - onPrimary
             - background
             - text
+        values:
+          type: array
+          description: >-
+            Значения, которые заменяют начальные значения профиля для своих комбинаций tokenId + platform + mode и
+            записываются в той же транзакции создания. Проверяются так же, как в PUT /api/ds/tenants/{id}/token-values.
+          items:
+            type: object
+            properties:
+              tokenId:
+                type: string
+                format: uuid
+              platform:
+                type: string
+                enum:
+                  - web
+                  - android
+                  - ios
+              mode:
+                type: string
+                nullable: true
+                enum:
+                  - light
+                  - dark
+                  - null
+              paletteId:
+                type: string
+                nullable: true
+                format: uuid
+              value:
+                nullable: true
+            required:
+              - tokenId
+              - platform
+              - value
       required:
         - designSystemId
         - name

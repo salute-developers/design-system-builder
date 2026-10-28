@@ -334,7 +334,7 @@ export const useDesignSystem = (
         setPalette,
         incompleteTokenIds,
         loadError,
-        sectionLoading: Boolean(selection && sectionState?.key !== sectionKey),
+        sectionLoading: Boolean(designSystemProjectId && selection && sectionState?.key !== sectionKey),
         sectionError: sectionState?.key === sectionKey ? sectionState.error : undefined,
         reload,
         autosaveStatus,

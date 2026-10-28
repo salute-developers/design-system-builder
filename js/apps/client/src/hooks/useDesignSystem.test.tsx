@@ -99,6 +99,13 @@ import type { EditorSection } from '../features/themeEditor/editorSections';
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 
 describe('согласованная загрузка целых разделов', () => {
+    it('без открытой темы не считает раздел загружающимся', () => {
+        const { result } = renderHook(() => useDesignSystem(undefined, true, { section: 'colors' }));
+
+        expect(result.current.sectionLoading).toBe(false);
+        expect(load).not.toHaveBeenCalled();
+    });
+
     it('первое чтение не застревает из-за цветовой очереди, оставшейся с ошибкой', async () => {
         setDraftAutosaveActivity(context, 'color-tokens', 'error');
         try {

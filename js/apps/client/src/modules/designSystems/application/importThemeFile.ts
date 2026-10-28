@@ -15,7 +15,7 @@ const isPlaceholder = (value: unknown) =>
     value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0);
 
 /**
- * Значения файла в форме пакета `PUT tenants/{id}/token-values`. Значения токенов, которых нет в наборе
+ * Значения файла в форме `values` создания темы `POST tenants`. Значения токенов, которых нет в наборе
  * дизайн-системы, не записываются: их имена возвращаются в `skipped`.
  */
 export const themeFileValues = (file: ThemeFile, definitions: DesignSystemTokenDefinition[]) => {
@@ -47,9 +47,9 @@ export const themeFileValues = (file: ThemeFile, definitions: DesignSystemTokenD
 };
 
 /**
- * Импорт дизайн-системы из файла темы в проект существующими ручками ds-service: дизайн-система, тема
- * `<имя>_default` и все значения файла одним пакетным запросом поверх значений по умолчанию. Ошибка после создания
- * дизайн-системы откатывается её удалением, чтобы в проекте не осталась система с дефолтной темой.
+ * Импорт дизайн-системы из файла темы в проект: дизайн-система и тема `<имя>_default`, созданная сразу со значениями
+ * файла вместо значений профиля. Ошибка после создания дизайн-системы откатывается её удалением, чтобы в проекте не
+ * осталась система без темы.
  */
 export const importThemeFile = async (
     projectId: string,
@@ -59,10 +59,13 @@ export const importThemeFile = async (
 ): Promise<ImportedDesignSystem> => {
     const system = await designSystemsApi.create(projectId, { name, projectName });
     try {
-        const tenant = await themesApi.create(projectId, { designSystemId: system.id, name: `${name}_default` });
         const definitions = await designSystemsApi.tokens(projectId, system.id);
         const { values, skipped } = themeFileValues(file, definitions);
-        await themesApi.saveTokenValues(projectId, tenant.id, { editRevision: tenant.editRevision, values });
+        const tenant = await themesApi.create(projectId, {
+            designSystemId: system.id,
+            name: `${name}_default`,
+            values,
+        });
         return { designSystemId: system.id, tenantId: tenant.id, skippedTokens: skipped };
     } catch (error) {
         await designSystemsApi.remove(projectId, system.id).catch(() => undefined);

@@ -84,7 +84,7 @@ describe('design system import and export', () => {
         else expect(link).not.toBeInTheDocument();
     });
 
-    it('imports a theme file with one batch of values and opens the design system', { timeout: 20_000 }, async () => {
+    it('imports a theme file by creating the theme with its values', { timeout: 20_000 }, async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
         const create = vi.spyOn(designSystemsData, 'create').mockResolvedValue({
             id: 'ds-new',
@@ -100,7 +100,6 @@ describe('design system import and export', () => {
             editRevision: 3,
         } as never);
         vi.spyOn(designSystemsData, 'tokens').mockResolvedValue([{ id: 'tok-1', name: 'text.primary', type: 'color' }]);
-        const save = vi.spyOn(themesApi, 'saveTokenValues').mockResolvedValue({ editRevision: 4 });
         renderAt('/projects/project-1/design-systems/new?mode=import');
 
         expect(await screen.findByRole('link', { name: 'Отмена' })).toHaveAttribute('href', '/projects/project-1');
@@ -118,15 +117,15 @@ describe('design system import and export', () => {
 
         expect(await screen.findByText('Обзор системы')).toBeInTheDocument();
         expect(create).toHaveBeenCalledWith('project-1', { name: 'brand', projectName: 'Platform' });
-        expect(createTenant).toHaveBeenCalledWith('project-1', { designSystemId: 'ds-new', name: 'brand_default' });
-        expect(save).toHaveBeenCalledTimes(1);
-        expect(save).toHaveBeenCalledWith('project-1', 't-1', {
-            editRevision: 3,
+        expect(createTenant).toHaveBeenCalledTimes(1);
+        expect(createTenant).toHaveBeenCalledWith('project-1', {
+            designSystemId: 'ds-new',
+            name: 'brand_default',
             values: [{ tokenId: 'tok-1', platform: 'web', mode: 'light', paletteId: null, value: '#FFFFFF' }],
         });
     });
 
-    it('rolls the design system back when the batch is rejected', { timeout: 20_000 }, async () => {
+    it('rolls the design system back when the theme is rejected', { timeout: 20_000 }, async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
         const create = vi.spyOn(designSystemsData, 'create').mockResolvedValue({
             id: 'ds-new',
@@ -135,9 +134,8 @@ describe('design system import and export', () => {
             tenantCount: 0,
             themePreviews: [],
         });
-        vi.spyOn(themesApi, 'create').mockResolvedValue({ id: 't-1', editRevision: 0 } as never);
+        vi.spyOn(themesApi, 'create').mockRejectedValue(new ApiError(400, 'INVALID_TOKEN_VALUE'));
         vi.spyOn(designSystemsData, 'tokens').mockResolvedValue([{ id: 'tok-1', name: 'text.primary', type: 'color' }]);
-        vi.spyOn(themesApi, 'saveTokenValues').mockRejectedValue(new ApiError(400, 'INVALID_TOKEN_VALUE'));
         const remove = vi.spyOn(designSystemsData, 'remove').mockResolvedValue();
         renderAt('/projects/project-1/design-systems/new?mode=import');
 
