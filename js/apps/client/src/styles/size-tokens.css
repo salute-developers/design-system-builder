@@ -3746,3 +3746,26 @@
 .size-tokens-screen .cp-format-row select {
     width: max-content;
 }
+
+/* Отметка неопубликованных изменений токена в дереве — как у стилей «Типографики» (#133). */
+.size-tokens-screen .st-row-label {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.size-tokens-screen .st-row-label > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.size-tokens-screen .st-changed-indicator {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--builder-ui-accent, #2b8ced);
+}

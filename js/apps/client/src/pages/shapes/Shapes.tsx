@@ -12,6 +12,8 @@ interface ShapesOutletContextProps {
     theme?: Theme | null;
     palette?: ThemePalette | null;
     rerender: () => void;
+    /** Токены с неопубликованными изменениями: отметка в дереве, как у «Типографики». */
+    changedTokenNames?: Set<string>;
 }
 
 /** Раздел «Отступы, радиусы и тени» темы по прототипу SDDS Portal с автосохранением правок. */
@@ -44,6 +46,7 @@ export const Shapes = () => {
             theme={outlet.theme}
             palette={outlet.palette ?? null}
             rerender={outlet.rerender}
+            changedTokenNames={outlet.changedTokenNames}
         />
     );
 };

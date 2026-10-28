@@ -26,3 +26,11 @@ export const Content = styled.div`
     flex: 1;
     min-width: 0;
 `;
+
+export const ReadOnlyStatus = styled.div`
+    margin: 8px 0;
+    padding: 8px 14px;
+    background: #3c3219;
+    color: #f5d981;
+    font-size: 12px;
+`;

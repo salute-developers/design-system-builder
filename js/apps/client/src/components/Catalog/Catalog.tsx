@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { choose, Visible } from '../rendering';
 import { BuilderShell, type BreadcrumbSegment } from '../BuilderShell/BuilderShell';
+import emptyDesignSystemPreviewImage from '../../assets/catalog/empty-design-system-preview.svg';
+import emptyThemePreviewImage from '../../assets/catalog/empty-theme-preview.svg';
+import errorStateImage from '../../assets/catalog/error-state.png';
 
 export const sortCatalogByName = <T extends { name: string; updatedAt?: string }>(items: T[], sort: string) => {
     if (sort === 'modified') {
@@ -52,7 +55,7 @@ export const State = ({
                         <section className={`catalog-error-state is-${kind}`} role="alert" aria-label={text}>
                             <span className="catalog-state-label">{text}</span>
                             <div className="catalog-error-art" aria-hidden="true">
-                                <img src="/catalog/error-state.png" alt="" />
+                                <img src={errorStateImage} alt="" />
                             </div>
                             <h2>Не удалось загрузить данные</h2>
                             <p>Проверьте подключение и попробуйте ещё раз.</p>
@@ -311,8 +314,8 @@ export const EmptyState = ({
                 <img
                     src={
                         kind === 'theme'
-                            ? '/catalog/empty-theme-preview.svg'
-                            : '/catalog/empty-design-system-preview.svg'
+                            ? emptyThemePreviewImage
+                            : emptyDesignSystemPreviewImage
                     }
                     alt=""
                 />

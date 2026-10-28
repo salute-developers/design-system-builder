@@ -1606,6 +1606,23 @@
     padding: 4px 12px;
     background: transparent;
 }
+.typography-screen .editor-fonts-workbench .typography-changed-indicator {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--builder-ui-accent, #2b8ced);
+}
+.typography-screen .editor-fonts-workbench .typography-style-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.typography-screen .editor-fonts-workbench .typography-style-label > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .typography-screen .editor-fonts-workbench .typography-style-glyph {
     width: 24px;
     min-width: 24px;

@@ -51,6 +51,8 @@ export interface SizeTokensScreenProps {
     /** Палитра темы: ступени для цвета слоя тени. */
     palette: ThemePalette | null;
     rerender: () => void;
+    /** Имена токенов с неопубликованными изменениями темы. */
+    changedTokenNames?: Set<string>;
 }
 
 const COLLAPSED_KEY = 'ds_size_tokens_collapsed';
@@ -267,6 +269,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                 <SizeTokenTree
                     sections={sections}
                     selectedId={selected?.tokenId ?? null}
+                    changedNames={props.changedTokenNames}
                     query={query}
                     searchOpen={searchOpen}
                     collapsed={collapsed}

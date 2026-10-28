@@ -2,7 +2,7 @@ import { useEffect, useMemo, useReducer, useRef } from 'react';
 
 import type { DesignSystem, Theme } from '../../controllers';
 import { authService } from '../../api/authService';
-import { reloadWhenDraftAutosaveIsIdle, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
+import { recordDraftSave, reloadWhenDraftAutosaveIsIdle, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { tokenValueKey } from '../../api/editorHttp';
 import { observeTokenValueRevisions } from '../../api/subjectRevisions';
 import {
@@ -146,7 +146,10 @@ const typographySession = (context: TypographyContext): TypographySession => {
                 setDraftAutosaveActivity(context, ACTIVITY_SOURCE, session.autosave.overall().state);
             notify(session);
         },
-        onSaved: (_, result, change) => applySaved(session, result, change),
+        onSaved: (_, result, change) => {
+            applySaved(session, result, change);
+            recordDraftSave(context);
+        },
         onRejected: (key, error) => {
             session.fieldErrors = { ...session.fieldErrors, [`${key}|${error.field ?? 'size'}`]: error.message };
         },

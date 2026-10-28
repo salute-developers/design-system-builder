@@ -1,4 +1,4 @@
-import { Content, Menu } from './Workspace.styles';
+import { Content, Menu, ReadOnlyStatus } from './Workspace.styles';
 
 interface WorkspaceProps {
     menuBackground?: string;
@@ -17,6 +17,7 @@ export const Workspace = (props: WorkspaceProps) => {
     return (
         <>
             <Menu ref={setReadOnly} data-testid="editor-workspace-menu" background={menuBackground}>
+                {readOnly && <ReadOnlyStatus role="status">Только просмотр</ReadOnlyStatus>}
                 {menu}
             </Menu>
             <Content ref={setReadOnly} data-testid="editor-workspace-content" data-editor-section={section}>

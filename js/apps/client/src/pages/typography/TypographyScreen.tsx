@@ -26,6 +26,7 @@ export interface TypographyScreenProps {
     designSystem: DesignSystem;
     theme: Theme;
     rerender: () => void;
+    changedTokenNames?: Set<string>;
 }
 
 const PANELS_KEY = 'ds_typography_panels';
@@ -55,7 +56,7 @@ const clampWidth = (value: number, { min, max }: { min: number; max: number }) =
 
 /** Экран Typography темы по ветке `editorTab === 'fonts'` функции `editor` прототипа. */
 export const TypographyScreen = (props: TypographyScreenProps) => {
-    const { context, designSystem, theme, rerender } = props;
+    const { context, designSystem, theme, rerender, changedTokenNames } = props;
     const navigate = useNavigate();
     const readOnlyAccess = designSystem.getParameters()?.readOnly === true || Boolean(context.versionId);
     const editor = useTypographyEditor({ context, designSystem, theme, rerender, readOnly: readOnlyAccess });
@@ -99,6 +100,12 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
     };
 
     const current = screenStyles(styles, screen);
+    const changedStyles = new Set(
+        [...(changedTokenNames ?? [])]
+            .map(parseStyleTokenName)
+            .filter((target) => target?.screen === screen)
+            .map((target) => target!.key),
+    );
     const selected =
         current.find((style) => styleKey(style) === selectedKey) ??
         current.find((style) => styleKey(style) === DEFAULT_STYLE_KEY) ??
@@ -169,7 +176,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
             )}
             {readOnly && (
                 <div className="viewer-banner">
-                    <span>Read-only access</span>
+                    <span>Только просмотр</span>
                 </div>
             )}
         </>
@@ -208,6 +215,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                 <TypographyTree
                     title={title}
                     styles={current}
+                    changedStyles={changedStyles}
                     screen={screen}
                     selectedKey={selected ? styleKey(selected) : selectedKey}
                     query={query}

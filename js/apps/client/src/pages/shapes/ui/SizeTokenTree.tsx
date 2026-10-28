@@ -24,6 +24,8 @@ const NEW_TOKEN_PLACEHOLDER: Record<SizeTokenKind, string> = {
 interface SizeTokenTreeProps {
     sections: TreeSection[];
     selectedId: string | null;
+    /** Имена токенов с неопубликованными изменениями: у строки точка, как у стилей «Типографики». */
+    changedNames?: Set<string>;
     query: string;
     searchOpen: boolean;
     collapsed: Partial<Record<SizeTokenKind, boolean>>;
@@ -142,7 +144,12 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
                                         onClick={() => props.onSelect(token)}
                                     >
                                         {glyph(token)}
-                                        <span>{shortName(token)}</span>
+                                        <span className="st-row-label">
+                                            <span>{shortName(token)}</span>
+                                            {props.changedNames?.has(token.name) && (
+                                                <i className="st-changed-indicator" aria-label="Есть изменения" />
+                                            )}
+                                        </span>
                                         <b className="token-row-value">{rowValue(token)}</b>
                                     </button>
                                 ))}

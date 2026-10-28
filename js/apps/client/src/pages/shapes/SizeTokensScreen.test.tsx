@@ -261,6 +261,7 @@ interface MountOptions {
     readOnly?: boolean;
     versionId?: string;
     route?: string;
+    changedTokenNames?: Set<string>;
 }
 
 const renderScreen = async ({
@@ -269,6 +270,7 @@ const renderScreen = async ({
     versionId,
     route = '/',
     palette = null,
+    changedTokenNames,
 }: MountOptions = {}) => {
     // Отдельная тема на каждый тест: сессии автосохранения хранятся по контексту темы.
     const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: `tenant-${++tenantSeq}`, versionId };
@@ -284,6 +286,7 @@ const renderScreen = async ({
                 theme={theme}
                 palette={palette}
                 rerender={rerender}
+                changedTokenNames={changedTokenNames}
             />
             <LocationProbe />
         </MemoryRouter>
@@ -340,6 +343,13 @@ describe('SizeTokensScreen', () => {
         expect(within(inspector()).getByTestId('size-token-impact')).toHaveTextContent('Компоненты 2');
         expect(inspector()).toHaveTextContent('СПИСОК КОМПОНЕНТОВ · 5 ЭКЗЕМПЛЯРОВ');
         expect(screen.queryByTestId('size-tokens-legacy-draft')).toBeNull();
+    });
+
+    it('отмечает в дереве токены с неопубликованными изменениями', async () => {
+        await renderScreen({ changedTokenNames: new Set(['round.m', 'down.soft.s']) });
+        expect(within(row('round.m')).getByLabelText('Есть изменения')).toBeInTheDocument();
+        expect(within(row('down.soft.s')).getByLabelText('Есть изменения')).toBeInTheDocument();
+        expect(within(row('round.l')).queryByLabelText('Есть изменения')).toBeNull();
     });
 
     it('выбирает токен в дереве и на борде', async () => {

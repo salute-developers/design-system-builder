@@ -1,3 +1,4 @@
+import { useChangedTokenNames } from '../features/versionJournal/useChangedTokenNames';
 import { useLayoutEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
@@ -17,6 +18,12 @@ import { useJournal, useReloadAfterAutosave } from '../features/versionJournal/u
 import { Button as JournalButton } from './versionJournal/VersionJournalPages.styles';
 import { editorSection as toEditorSection } from '../features/themeEditor/editorSections';
 import { useJournalSummary } from '../features/versionJournal/useJournalSummary';
+import railChangesIcon from '../assets/catalog/icons/rail-changes.svg';
+import railColorsIcon from '../assets/catalog/icons/rail-colors.svg';
+import railComponentsIcon from '../assets/catalog/icons/rail-components.svg';
+import railCornerRadiusIcon from '../assets/catalog/icons/rail-corner-radius.svg';
+import railTypographyIcon from '../assets/catalog/icons/rail-typography.svg';
+import railVersionsIcon from '../assets/catalog/icons/rail-versions.svg';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
     'not-found': 'Theme не найдена',
@@ -114,6 +121,12 @@ export const Main = () => {
     );
     useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
     const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}`;
+    const changedTokenNames = useChangedTokenNames(
+        editorContext,
+        tokenDefinitions,
+        summaryCursor,
+        Boolean(designSystem) && ['shapes', 'typography'].includes(editorSection),
+    );
     const journalSummary = useJournalSummary(editorContext, summaryCursor, Boolean(designSystem));
     useReloadAfterAutosave(autosaveStatus, journalSummary.reload);
     const onClickPanelButton = (path: string) => {
@@ -196,7 +209,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-colors.svg"
+                                            src={railColorsIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -208,7 +221,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-typography.svg"
+                                            src={railTypographyIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -220,7 +233,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-corner-radius.svg"
+                                            src={railCornerRadiusIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -234,7 +247,7 @@ export const Main = () => {
                                             >
                                                 <img
                                                     className="builder-rail-icon"
-                                                    src="/catalog/icons/rail-components.svg"
+                                                    src={railComponentsIcon}
                                                     alt=""
                                                 />
                                             </StyledIconButton>
@@ -250,7 +263,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-changes.svg"
+                                            src={railChangesIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -263,7 +276,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-versions.svg"
+                                            src={railVersionsIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -388,25 +401,26 @@ export const Main = () => {
                                 editorContext,
                                 autosaveStatus,
                                 editorJournal,
+                                changedTokenNames,
                                 refreshChanges,
                             }}
                         />
                     )}
                 </EditorCanvas>
+                {Boolean(loadError) ? (
+                    <>
+                        <div role="alert">{loadErrorMessages[loadError!]}</div>
+                    </>
+                ) : null}
+                {incompleteTokenIds.length > 0 ? (
+                    <>
+                        <div role="alert">
+                            В теме отсутствуют значения {incompleteTokenIds.length} токенов. Редактор не смешивает их со
+                            значениями другой темы.
+                        </div>
+                    </>
+                ) : null}
             </EditorBody>
-            {Boolean(loadError) ? (
-                <>
-                    <div role="alert">{loadErrorMessages[loadError!]}</div>
-                </>
-            ) : null}
-            {incompleteTokenIds.length > 0 ? (
-                <>
-                    <div role="alert">
-                        В теме отсутствуют значения {incompleteTokenIds.length} токенов. Редактор не смешивает их со
-                        значениями другой темы.
-                    </div>
-                </>
-            ) : null}
             {Boolean(isEditingDesignSystem && !isReadOnly && isDebugMode()) ? (
                 <>
                     <Debug

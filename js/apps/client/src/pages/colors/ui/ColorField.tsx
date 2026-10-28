@@ -11,6 +11,7 @@ interface ColorFieldProps {
     value: ColorFieldValue;
     editable: boolean;
     pickerOpen: boolean;
+    invalid: boolean;
     /** Получает кнопку цвета, пока у поля открыт выбор цвета: к ней привязывается окно выбора. */
     pickerAnchor?: (node: HTMLButtonElement | null) => void;
     /** Строка своего значения платформы под полем. */
@@ -44,6 +45,7 @@ export const ColorField = ({
     value,
     editable,
     pickerOpen,
+    invalid,
     pickerAnchor,
     platformRow = false,
     onOpenPicker,
@@ -75,7 +77,7 @@ export const ColorField = ({
         <div className={`figma-inspector-field ${platformRow ? 'ct-platform-field' : ''}`}>
             <span className={`figma-inspector-field-label ${platformRow ? 'ct-platform-label' : ''}`}>{label}</span>
             <div className="ct-value-line">
-                <div className="figma-value-control">
+                <div className={`figma-value-control ${invalid ? 'is-invalid' : ''}`}>
                     <div className="figma-value-main">
                         <button
                             ref={pickerOpen ? pickerAnchor : undefined}
@@ -91,6 +93,7 @@ export const ColorField = ({
                             <input
                                 readOnly
                                 aria-label={name}
+                                aria-invalid={invalid}
                                 value={text}
                                 onClick={editable ? onOpenPicker : undefined}
                                 disabled={!editable}
@@ -98,6 +101,7 @@ export const ColorField = ({
                         ) : (
                             <input
                                 aria-label={name}
+                                aria-invalid={invalid}
                                 value={draft}
                                 onChange={(event) => setDraft(event.target.value)}
                                 onBlur={commitText}

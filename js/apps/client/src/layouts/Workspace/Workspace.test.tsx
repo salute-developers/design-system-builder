@@ -20,6 +20,7 @@ describe('Workspace read-only mode', () => {
 
         expect((menu as HTMLDivElement & { inert: boolean }).inert).toBe(true);
         expect((content as HTMLDivElement & { inert: boolean }).inert).toBe(true);
+        expect(screen.getByText('Только просмотр')).toBeInTheDocument();
         expect(content).toHaveAttribute('data-editor-section', 'overview');
         expect(container.children).toHaveLength(2);
         expect([...container.children]).toEqual(expect.arrayContaining([menu, content]));

@@ -37,13 +37,11 @@ export const isTokenChanged = (items: (Token | Config)[]) => {
 
     const platforms = Object.keys(items[0].getPlatforms());
 
-    for (const platform of platforms) {
-        return (items as Token[]).some(
+    return platforms.some((platform) =>
+        (items as Token[]).some(
             (item) =>
                 JSON.stringify(item.getDefaultValue(platform)) !== JSON.stringify(item.getValue(platform)) ||
                 item.getDefaultDescription() !== item.getDescription(),
-        );
-    }
-
-    return false;
+        ),
+    );
 };

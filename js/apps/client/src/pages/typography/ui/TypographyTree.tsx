@@ -12,6 +12,7 @@ import { TyGlyph } from './TyGlyph';
 interface TypographyTreeProps {
     title: string;
     styles: TypographyStyle[];
+    changedStyles: Set<string>;
     screen: TypographyScreen;
     selectedKey: string;
     query: string;
@@ -107,7 +108,12 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                                         <i className="typography-style-glyph" aria-hidden="true">
                                             Aa
                                         </i>
-                                        <span>{styleLabel(style)}</span>
+                                        <span className="typography-style-label">
+                                            <span>{styleLabel(style)}</span>
+                                            {props.changedStyles.has(styleKey(style)) && (
+                                                <i className="typography-changed-indicator" aria-label="Есть изменения" />
+                                            )}
+                                        </span>
                                         <b className="token-row-value">
                                             {formatNumber(style.sizePx)}/{formatNumber(style.lineHeightPx)}
                                         </b>

@@ -1,4 +1,4 @@
-import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
+import { getDraftAutosaveRevision, recordDraftSave, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { acceptTokenValueOverridden, observeSubjectAddresses, tokenValueOverridden } from '../../api/subjectRevisions';
 import { authService } from '../../api/authService';
 import { getAdditionalColorValues } from '../../actions/colors';
@@ -284,6 +284,7 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
             if (result.type && parsed)
                 adoptFamilyType(session, { group: parsed.group, name: parsed.name }, result.type);
         },
+        onSaved: () => recordDraftSave(context),
         onConflict: (error) => {
             // Тема изменена в другом месте: несохранённые значения запоминаются, тема перечитывается, повторная
             // отправка — только по «Повторить».
