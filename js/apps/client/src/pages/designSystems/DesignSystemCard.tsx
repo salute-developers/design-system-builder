@@ -7,6 +7,7 @@ import { all, choose, Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
 import { exportDesignSystemFile } from '../../modules/designSystems/application/exportDesignSystemFile';
 import { formatThemeCount } from '../../modules/designSystems/domain/designSystem';
+import emptyDesignSystemPreviewImage from '../../assets/catalog/empty-design-system-preview.svg';
 
 export const DesignSystemCard = ({
     projectId,
@@ -46,7 +47,7 @@ export const DesignSystemCard = ({
                             Boolean(themePreviews.length),
                             <img
                                 className="catalog-empty-cover"
-                                src="/catalog/empty-design-system-preview.svg"
+                                src={emptyDesignSystemPreviewImage}
                                 alt=""
                             />,
                             themePreviews.slice(0, 4).map((theme) => (

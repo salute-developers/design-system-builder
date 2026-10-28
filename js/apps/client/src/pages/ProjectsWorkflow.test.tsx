@@ -26,6 +26,7 @@ import themePagesSource from './themes/Themes.tsx?raw';
 import projectsCatalogSource from './projects/ProjectsCatalog.tsx?raw';
 import designSystemOverviewSource from './designSystems/DesignSystemOverview.tsx?raw';
 import themeSettingsSource from './themes/ThemeSettingsPage.tsx?raw';
+import errorStateImage from '../assets/catalog/error-state.png';
 
 const project = (role: ProjectDto['effectiveRole'], status: ProjectDto['status'] = 'active'): ProjectDto => ({
     id: 'project-1',
@@ -155,7 +156,7 @@ describe('project workflow', () => {
         expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
         expect(
             failed.container.querySelector(
-                '.builder-shell .catalog-error-state.is-project img[src="/catalog/error-state.png"]',
+                `.builder-shell .catalog-error-state.is-project img[src="${errorStateImage}"]`,
             ),
         ).toBeInTheDocument();
     });

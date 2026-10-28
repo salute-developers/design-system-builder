@@ -18,6 +18,12 @@ import { useJournal, useReloadAfterAutosave } from '../features/versionJournal/u
 import { Button as JournalButton } from './versionJournal/VersionJournalPages.styles';
 import { editorSection as toEditorSection } from '../features/themeEditor/editorSections';
 import { useJournalSummary } from '../features/versionJournal/useJournalSummary';
+import railChangesIcon from '../assets/catalog/icons/rail-changes.svg';
+import railColorsIcon from '../assets/catalog/icons/rail-colors.svg';
+import railComponentsIcon from '../assets/catalog/icons/rail-components.svg';
+import railCornerRadiusIcon from '../assets/catalog/icons/rail-corner-radius.svg';
+import railTypographyIcon from '../assets/catalog/icons/rail-typography.svg';
+import railVersionsIcon from '../assets/catalog/icons/rail-versions.svg';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
     'not-found': 'Theme не найдена',
@@ -203,7 +209,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-colors.svg"
+                                            src={railColorsIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -215,7 +221,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-typography.svg"
+                                            src={railTypographyIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -227,7 +233,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-corner-radius.svg"
+                                            src={railCornerRadiusIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -241,7 +247,7 @@ export const Main = () => {
                                             >
                                                 <img
                                                     className="builder-rail-icon"
-                                                    src="/catalog/icons/rail-components.svg"
+                                                    src={railComponentsIcon}
                                                     alt=""
                                                 />
                                             </StyledIconButton>
@@ -257,7 +263,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-changes.svg"
+                                            src={railChangesIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
@@ -270,7 +276,7 @@ export const Main = () => {
                                     >
                                         <img
                                             className="builder-rail-icon"
-                                            src="/catalog/icons/rail-versions.svg"
+                                            src={railVersionsIcon}
                                             alt=""
                                         />
                                     </StyledIconButton>
