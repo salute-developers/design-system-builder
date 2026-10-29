@@ -1,0 +1,21 @@
+# Build backend jars in Linux containers instead of requiring a host JDK on Windows.
+services:
+  auth-helper:
+    build:
+      context: .
+      dockerfile: identity-gateway/app/Dockerfile
+
+  projects-service:
+    build:
+      context: ..
+      dockerfile: backend-kt/projects-service/app/Dockerfile
+
+  ds-service:
+    build:
+      context: ..
+      dockerfile: backend-kt/ds-service/app/Dockerfile
+
+  documentation-service:
+    build:
+      context: ..
+      dockerfile: backend-kt/documentation-service/app/Dockerfile

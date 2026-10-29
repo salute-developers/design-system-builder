@@ -3,6 +3,7 @@ package com.dsbuilder.frontend.core.auth
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -34,6 +35,20 @@ class FileCredentialStoreTest {
         store.save(session("https://api.example.com", "refresh-a"))
 
         assertNull(store.read("https://other.example.com"))
+    }
+
+    @Test
+    fun failedTemporaryWriteKeepsPreviouslySavedSession() = runTest {
+        val fs = MemoryCredentialStoreFileSystem()
+        val store = FileCredentialStore(fs)
+        store.save(session("https://api.example.com", "refresh-old"))
+        fs.failNextNonEmptyWrite = true
+
+        assertFailsWith<IllegalStateException> {
+            store.save(session("https://api.example.com", "refresh-new"))
+        }
+
+        assertEquals("refresh-old", store.read("https://api.example.com")?.refreshToken)
     }
 
     @Test
@@ -122,6 +137,7 @@ class FileCredentialStoreTest {
 }
 
 private class MemoryCredentialStoreFileSystem : CredentialStoreFileSystem {
+    var failNextNonEmptyWrite: Boolean = false
     val files = mutableMapOf<String, String>()
     val permissions = mutableMapOf<String, String>()
     val replacements = mutableListOf<Pair<String, String>>()
@@ -141,6 +157,10 @@ private class MemoryCredentialStoreFileSystem : CredentialStoreFileSystem {
     override fun readText(path: String): String = files.getValue(path)
 
     override fun writeText(path: String, text: String) {
+        if (text.isNotEmpty() && failNextNonEmptyWrite) {
+            failNextNonEmptyWrite = false
+            error("temporary write failed")
+        }
         files[path] = text
     }
 

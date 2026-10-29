@@ -4,7 +4,7 @@
 
 Активные клиентские модули:
 
-- [`cli`](./cli/src) — Kotlin Multiplatform CLI-приложение `dsbuilder` для JVM/macOS, включая `dsbuilder mcp serve`.
+- [`cli`](./cli/src) — Kotlin Multiplatform CLI-приложение `dsbuilder` для JVM, macOS и Windows x64, включая `dsbuilder mcp serve`.
 - [`mcp-server-core`](./mcp-server-core/src) — общий MCP server core и tool registry поверх shared use cases.
 - [`mcp-node`](./mcp-node/src) — Kotlin/JS Node.js executable и npm package `dsbuilder-mcp`.
 
@@ -95,6 +95,19 @@ DSBUILDER_MACOS_ARCH=arm64 ./install-local-cli.sh
 DSBUILDER_MACOS_ARCH=x64 ./install-local-cli.sh
 ```
 
+## Локальная установка для Windows x64
+
+Из PowerShell в каталоге `frontend-kt` соберите нативный CLI и установите его в профиль пользователя:
+
+```powershell
+.\install-local-cli.ps1
+dsbuilder --help
+```
+
+Для сборки из исходников нужен JDK, доступный Gradle. Установленный `dsbuilder.exe` работает без Java.
+Скрипт использует тот же установщик и каталог `%LOCALAPPDATA%\DSBuilder\cli`, что и release-архив.
+Каталог установки можно переопределить переменной `DSBUILDER_INSTALL_DIR`.
+
 ## Архив CLI для macOS
 
 Release-архив собирается Gradle-задачами модуля `:cli`:
@@ -118,6 +131,20 @@ Release-архив собирается Gradle-задачами модуля `:c
 ./install.sh
 dsbuilder --help
 ```
+
+## Архив CLI для Windows x64
+
+На macOS можно собрать и связать Windows executable, но проверить его запуск и системные API может только тестировщик на Windows:
+
+```bash
+./gradlew :cli:packageWindowsX64Cli
+```
+
+`cli/build/distributions/dsbuilder-cli-windows-x64.zip` содержит `dsbuilder.exe`, `install.ps1` и `USAGE.md`.
+Пользователю Windows не нужны Java, Node.js или Gradle для базовых команд, авторизации и `mcp serve`.
+Генерация для Android через `gradlew.bat` требует установленный JDK; web-генерация через `npm.cmd` требует Node.js.
+Для локального Docker-контура на Windows используйте [`setup-local.ps1`](../setup-local.ps1) с Docker Desktop.
+Этот сценарий не входит в архив CLI и не требует JDK или Node.js на Windows-хосте. iOS-инструмент на Windows недоступен.
 
 Backend API URL is configured through `DSBUILDER_API_URL` only; the `--api-url` option is not supported.
 For local development, set `export DSBUILDER_API_URL=http://localhost:8080` before CLI commands, and pass the same environment variable to the MCP process.

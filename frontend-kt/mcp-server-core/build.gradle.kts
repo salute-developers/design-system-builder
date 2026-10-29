@@ -8,6 +8,7 @@ kotlin {
         macosArm64(),
         macosX64(),
     )
+    val windowsTarget = mingwX64()
 
     sourceSets {
         commonMain.dependencies {
@@ -52,6 +53,8 @@ kotlin {
         macosTargets.forEach { target ->
             target.compilations.getByName("main").defaultSourceSet.dependsOn(macosMain)
         }
+
+        windowsTarget.compilations.getByName("main").defaultSourceSet.dependsOn(sdkMain)
     }
 }
 

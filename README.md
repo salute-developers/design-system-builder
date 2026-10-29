@@ -140,6 +140,20 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 ./setup-local.sh
 ```
 
+На Windows используйте PowerShell и Docker Desktop в режиме Linux-контейнеров:
+
+```powershell
+.\setup-local.ps1
+```
+
+Для запуска Windows-контура нужны Docker Desktop и доступ к образам и зависимостям сборки. JDK, Node.js,
+Bash и WSL на Windows-хосте не требуются: backend собирается в Linux-контейнерах, а существующие
+`bootstrap-base.sh`, `publish-compose-plugin.sh` и `seed-local-design-system.sh` выполняются во вспомогательном
+Linux-контейнере. PowerShell-сценарий управляет Docker и настраивает Keycloak через HTTP API.
+Его опции соответствуют Bash-сценарию: `-Reset`, `-Down`, `-PluginZip`, `-SkipPlugin`,
+`-ComponentsPackage`, `-ThemePackage`, `-SkipDesignSystem`. Путь к собственному архиву плагина или пакету
+компонентов можно также задать через `COMPOSE_PREVIEW_PLUGIN_ZIP` и `COMPOSE_COMPONENTS_PACKAGE`.
+
 Скрипт запускает Kotlin backend в detached-режиме,
 наполняет дизайн-систему `base` и поднимает клиент. База `ds_registry` живёт в стеке `backend-kt` (сервис `ds-db`,
 хостовый порт `5433`, переопределяется `DS_DB_PORT`), её схему создаёт Flyway в `ds-service`; Drizzle-миграции не
@@ -157,7 +171,7 @@ CLI (`frontend-kt/gradlew :cli:installJvmDist`, собирается автом�
 ./setup-local.sh --reset
 ```
 
-Для сборки Kotlin backend нужен JDK 17. `backend-kt/start-local.sh` автоматически использует JDK 17 из
+Для сборки Kotlin backend через `setup-local.sh` на macOS/Linux нужен JDK 17. `backend-kt/start-local.sh` автоматически использует JDK 17 из
 `DSBUILDER_JAVA_HOME`, `JAVA_HOME`, `PATH` или стандартных системных установок. JetBrains IDE для запуска не требуется.
 Если JDK установлен в нестандартной директории, укажите её явно:
 

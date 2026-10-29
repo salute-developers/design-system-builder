@@ -1,6 +1,8 @@
 package com.dsbuilder.frontend.core.platform
 
 import com.dsbuilder.frontend.core.domain.TargetPlatform
+import com.dsbuilder.frontend.core.process.isAbsolutePath
+import com.dsbuilder.frontend.core.process.parentOfAbsolutePath
 import kotlin.jvm.JvmInline
 
 /**
@@ -62,8 +64,8 @@ public data class WorkspacePaths(
     public val workspaceDir: String,
 ) {
     init {
-        require(sddsDir.startsWith("/")) { "sddsDir must be an absolute path: '$sddsDir'." }
-        require(workspaceDir.startsWith("/")) { "workspaceDir must be an absolute path: '$workspaceDir'." }
+        require(isAbsolutePath(sddsDir)) { "sddsDir must be an absolute path: '$sddsDir'." }
+        require(isAbsolutePath(workspaceDir)) { "workspaceDir must be an absolute path: '$workspaceDir'." }
     }
 
     public companion object {
@@ -73,11 +75,11 @@ public data class WorkspacePaths(
          * @param sddsDir абсолютный путь `.sdds`, не корень файловой системы.
          */
         public fun fromSddsDirectory(sddsDir: String): WorkspacePaths {
-            val normalized = sddsDir.trimEnd('/')
-            require(normalized.startsWith("/") && normalized.length > 1) {
+            val normalized = sddsDir.trimEnd('/', '\\')
+            require(isAbsolutePath(sddsDir) && parentOfAbsolutePath(normalized) != null) {
                 "sddsDir must be an absolute path below the file system root: '$sddsDir'."
             }
-            val parent = normalized.substringBeforeLast('/').ifEmpty { "/" }
+            val parent = requireNotNull(parentOfAbsolutePath(normalized))
 
             return WorkspacePaths(sddsDir = normalized, workspaceDir = parent)
         }
@@ -88,12 +90,12 @@ public data class WorkspacePaths(
          * @param configPath абсолютный путь config-файла.
          */
         public fun fromConfigPath(configPath: String): WorkspacePaths {
-            val normalized = configPath.trimEnd('/')
-            require(normalized.startsWith("/") && normalized.length > 1) {
+            val normalized = configPath.trimEnd('/', '\\')
+            require(isAbsolutePath(configPath) && parentOfAbsolutePath(normalized) != null) {
                 "configPath must be an absolute path below the file system root: '$configPath'."
             }
 
-            return fromSddsDirectory(normalized.substringBeforeLast('/').ifEmpty { "/" })
+            return fromSddsDirectory(requireNotNull(parentOfAbsolutePath(normalized)))
         }
     }
 }
@@ -117,8 +119,8 @@ public data class DelegateInvocation(
     public val toolOverride: String? = null,
 ) {
     init {
-        require(output == null || output.startsWith("/")) { "output must be an absolute path: '$output'." }
-        require(toolOverride == null || toolOverride.startsWith("/")) {
+        require(output == null || isAbsolutePath(output)) { "output must be an absolute path: '$output'." }
+        require(toolOverride == null || isAbsolutePath(toolOverride)) {
             "toolOverride must be an absolute path: '$toolOverride'."
         }
     }

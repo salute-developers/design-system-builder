@@ -6,6 +6,7 @@ plugins {
 kotlin {
     macosArm64()
     macosX64()
+    mingwX64()
 
     sourceSets {
         commonMain.dependencies {
@@ -31,12 +32,13 @@ kotlin {
 
         // The archive reader of the plugin publication is native-only on macOS and JVM-only on the JVM:
         // the JS target (mcp-node) never publishes plugins.
-        val macosMain by creating {
+        val nativeMain by creating {
             dependsOn(commonMain.get())
         }
 
-        getByName("macosArm64Main").dependsOn(macosMain)
-        getByName("macosX64Main").dependsOn(macosMain)
+        getByName("macosArm64Main").dependsOn(nativeMain)
+        getByName("macosX64Main").dependsOn(nativeMain)
+        getByName("mingwX64Main").dependsOn(nativeMain)
     }
 }
 

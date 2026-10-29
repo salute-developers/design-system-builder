@@ -107,7 +107,9 @@ public class WebNpmDelegate internal constructor(
         add("--sdds")
         add(invocation.workspace.sddsDir)
         add("--out")
-        add(invocation.output ?: "${invocation.workspace.workspaceDir.trimEnd('/')}/$DEFAULT_OUTPUT_DIRECTORY")
+        val workspaceDir = invocation.workspace.workspaceDir
+        val separator = if (workspaceDir.contains('\\')) "\\" else "/"
+        add(invocation.output ?: "${workspaceDir.trimEnd('/', '\\')}$separator$DEFAULT_OUTPUT_DIRECTORY")
         addAll(invocation.passthrough)
     }
 

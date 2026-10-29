@@ -41,17 +41,39 @@ dsbuilder --help
 dsbuilder --version
 ```
 
+## Установка на Windows x64 из release-архива
+
+Распакуйте `dsbuilder-cli-windows-x64.zip` и запустите PowerShell в каталоге `dsbuilder-cli-windows-x64`:
+
+```powershell
+./install.ps1
+dsbuilder --help
+dsbuilder --version
+```
+
+Сценарий копирует `dsbuilder.exe` в `%LOCALAPPDATA%\DSBuilder\cli` и добавляет каталог в пользовательский `PATH` без прав администратора. Для нового `PATH` откройте новое окно терминала. Каталог можно переопределить переменной `DSBUILDER_INSTALL_DIR`.
+
+При работе с исходниками вместо release-архива выполните из каталога `frontend-kt` команду `.\install-local-cli.ps1`. Она собирает Windows executable через Gradle и устанавливает его тем же способом. Для сборки нужен JDK; установленный CLI работает без Java.
+
+В настройке MCP-клиента укажите абсолютный путь к установленному файлу и аргументы `mcp`, `serve`, `--workspace` и абсолютный путь проекта. Например:
+
+```json
+{"command":"C:\\Users\\you\\AppData\\Local\\DSBuilder\\cli\\dsbuilder.exe","args":["mcp","serve","--workspace","C:\\work\\project"]}
+```
+
+Для запуска самого CLI и встроенного MCP не нужны Java или Node.js. Команды генерации Android вызывают `gradlew.bat` проекта и требуют JDK; генерация React вызывает `npm.cmd` и требует Node.js. Генерация SwiftUI на Windows недоступна.
+
 ## User auth
 
 Для сценариев без project API key можно сохранить локальную user session:
 
 ```bash
-dsbuilder auth login --username alice
+dsbuilder auth login
 dsbuilder auth status
 dsbuilder auth logout
 ```
 
-Пароль вводится только интерактивно. `auth status` не печатает access token или refresh token.
+Вход проходит в системном браузере. `auth status` не печатает access token или refresh token.
 
 ## Инициализация дизайн-системы
 

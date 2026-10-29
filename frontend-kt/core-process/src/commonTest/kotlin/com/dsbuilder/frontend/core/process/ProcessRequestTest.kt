@@ -36,6 +36,18 @@ class ProcessRequestTest {
     }
 
     @Test
+    fun windowsDriveAndUncPathsAreAbsoluteButDriveRelativePathIsNot() {
+        ProcessRequest("C:\\Tools\\npm.cmd", emptyList(), "C:\\workspace")
+        ProcessRequest("\\\\server\\share\\tool.exe", emptyList(), "\\\\server\\share\\work")
+        assertFailsWith<IllegalArgumentException> {
+            ProcessRequest("C:tool.exe", emptyList(), "C:\\workspace")
+        }
+        assertEquals("C:\\", parentOfAbsolutePath("C:\\work"))
+        assertEquals("\\\\server\\share", parentOfAbsolutePath("\\\\server\\share\\work"))
+        assertEquals(null, parentOfAbsolutePath("\\\\server\\share"))
+    }
+
+    @Test
     fun environmentKeysMustNotBeBlank() {
         assertFailsWith<IllegalArgumentException> {
             ProcessRequest(
