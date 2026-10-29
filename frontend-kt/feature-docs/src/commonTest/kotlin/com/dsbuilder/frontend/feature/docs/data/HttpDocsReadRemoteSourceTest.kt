@@ -91,6 +91,36 @@ class HttpDocsReadRemoteSourceTest {
     }
 
     @Test
+    fun searchWithoutVersionResolvesLatestActivePublication() = runTest {
+        val paths = mutableListOf<String>()
+        val result = source(paths) { path ->
+            if (path.contains("/publications/active?")) {
+                AuthenticatedHttpResult.Success("{\"publicationId\":\"publication-1\"}", emptyMap())
+            } else {
+                AuthenticatedHttpResult.Success("{}", publicationHeaders)
+            }
+        }.search(runtime(), DocumentationSearchCommand("button", null, "compose", null, null, null))
+
+        assertIs<DocsReadResult.Success>(result)
+        assertEquals(2, paths.size)
+        assertContains(paths[0], "/publications/active?designSystemId=ds-1&platform=compose")
+        assertContains(paths[1], "publicationId=publication-1")
+    }
+
+    @Test
+    fun searchWithoutPublishedDocumentationReturnsSpecificError() = runTest {
+        val paths = mutableListOf<String>()
+        val result = source(paths) {
+            AuthenticatedHttpResult.Failure("Project or resource was not found", 404)
+        }.search(runtime(), DocumentationSearchCommand("button", null, "compose", null, null, null))
+
+        val failure = assertIs<DocsReadResult.Failed>(result)
+        assertEquals(DocsReadErrorCode.PUBLICATION_NOT_FOUND, failure.code)
+        assertEquals("Documentation has not been published for this design system and platform.", failure.message)
+        assertEquals(1, paths.size)
+    }
+
+    @Test
     fun explicitSearchAcceptsAnotherDesignSystemInActualContext() = runTest {
         val result = source(
             mutableListOf(),
@@ -109,11 +139,8 @@ class HttpDocsReadRemoteSourceTest {
 
     private fun source(
         paths: MutableList<String>,
-        headers: Map<String, String> = mapOf(
-            "x-ds-read-context" to
-                "{\"designSystemId\":\"ds-1\",\"version\":\"1.0.0\"," +
-                "\"platform\":\"compose\",\"publicationId\":\"publication-1\"}",
-        ),
+        headers: Map<String, String> = publicationHeaders,
+        response: (String) -> AuthenticatedHttpResult = { AuthenticatedHttpResult.Success("{}", headers) },
     ) = HttpDocsReadRemoteSource(
         object : AuthenticatedHttpClientFactory {
             override fun create(
@@ -122,7 +149,7 @@ class HttpDocsReadRemoteSourceTest {
             ): AuthenticatedHttpClient = object : AuthenticatedHttpClient {
                 override suspend fun get(path: String): AuthenticatedHttpResult {
                     paths += path
-                    return AuthenticatedHttpResult.Success("{}", headers)
+                    return response(path)
                 }
                 override suspend fun post(
                     path: String,
@@ -143,4 +170,12 @@ class HttpDocsReadRemoteSourceTest {
         ProjectApiUrl("https://api.example.com"),
         BackendCredential.ProjectKey("test-key"),
     )
+
+    private companion object {
+        val publicationHeaders = mapOf(
+            "x-ds-read-context" to
+                "{\"designSystemId\":\"ds-1\",\"version\":\"1.0.0\"," +
+                "\"platform\":\"compose\",\"publicationId\":\"publication-1\"}",
+        )
+    }
 }

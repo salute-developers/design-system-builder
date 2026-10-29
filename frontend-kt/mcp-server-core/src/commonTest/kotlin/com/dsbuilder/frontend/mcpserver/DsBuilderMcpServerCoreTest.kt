@@ -630,6 +630,44 @@ class DsBuilderMcpServerCoreTest {
     }
 
     @Test
+    fun componentPropertiesAreCompactByDefaultAndFullOnRequest() = runTest {
+        val core = server(
+            modelReadUseCase = modelReader { _, _, path ->
+                modelResponse(path).copy(
+                    body = """
+                        [{"id":"property-1","name":"height","type":"size","defaultValue":"32",
+                          "description":"Height","createdAt":"2026-01-01","updatedAt":"2026-01-02",
+                          "platformParams":[{"id":"param-1","propertyId":"property-1",
+                            "platform":"compose","name":"height","deprecated":false}]}]
+                    """.trimIndent(),
+                )
+            },
+        )
+        val componentId = "550e8400-e29b-41d4-a716-446655440002"
+        val compact = core.callTool(
+            "component_properties_get",
+            JsonObject(mapOf("componentId" to JsonPrimitive(componentId))),
+        )
+        val full = core.callTool(
+            "component_properties_get",
+            JsonObject(mapOf("componentId" to JsonPrimitive(componentId), "detail" to JsonPrimitive("full"))),
+        )
+
+        assertFalse(compact.isError, compact.body)
+        assertFalse(full.isError, full.body)
+        val compactProperty = json.parseToJsonElement(compact.body).jsonObject.getValue("data")
+            .let { (it as JsonArray).single().jsonObject }
+        val fullProperty = json.parseToJsonElement(full.body).jsonObject.getValue("data")
+            .let { (it as JsonArray).single().jsonObject }
+        assertEquals("property-1", compactProperty.getValue("id").jsonPrimitive.content)
+        assertFalse(compactProperty.containsKey("createdAt"))
+        assertFalse(compactProperty.containsKey("description"))
+        assertFalse(compactProperty.containsKey("platformParams"))
+        assertTrue(fullProperty.containsKey("createdAt"))
+        assertTrue((fullProperty.getValue("platformParams") as JsonArray).single().jsonObject.containsKey("propertyId"))
+    }
+
+    @Test
     fun backendErrorsMapToStableMcpCodesWithoutStackTraces() = runTest {
         val server = server(
             docsReadUseCases = docsReadUseCases(

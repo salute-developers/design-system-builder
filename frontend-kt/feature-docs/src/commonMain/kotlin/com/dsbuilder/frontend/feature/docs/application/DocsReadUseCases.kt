@@ -128,13 +128,19 @@ public class DocsReadUseCases(
     public suspend fun search(
         command: DocumentationSearchCommand,
         request: RuntimeRequest = RuntimeRequest(),
-    ): DocsReadResult = withSelectedPublication(
-        command.publicationId,
-        command.version,
-        command.platform,
-        request,
-    ) { runtime, version, platform ->
-        remoteSource.search(runtime, command.copy(platform = platform, version = version))
+    ): DocsReadResult = if (command.publicationId == null && command.version == null) {
+        withRuntimeAndPlatform(command.platform, request) { runtime, platform ->
+            remoteSource.search(runtime, command.copy(platform = platform))
+        }
+    } else {
+        withSelectedPublication(
+            command.publicationId,
+            command.version,
+            command.platform,
+            request,
+        ) { runtime, version, platform ->
+            remoteSource.search(runtime, command.copy(platform = platform, version = version))
+        }
     }
 
     public suspend fun fetch(

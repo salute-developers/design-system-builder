@@ -37,7 +37,8 @@ private fun tool(name: String, description: String, vararg inputs: String): McpT
 
 private fun documentationSearchTool(): McpToolDefinition = McpToolDefinition(
     name = "documentation_search",
-    description = "Search published DS Builder documentation. Use limit and subject to narrow results.",
+    description = "Search published DS Builder documentation. Without a selected version, searches the latest active " +
+        "publication for the selected platform. Use limit and subject to narrow results.",
     inputSchema = mapOf(
         "query" to requiredStringInput("Search phrase or technical identifier."),
         "subjects" to stringArrayInput("Optional canonical subject filters."),
@@ -46,7 +47,8 @@ private fun documentationSearchTool(): McpToolDefinition = McpToolDefinition(
         "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of results."),
         "cursor" to stringInput("Opaque cursor from a previous search page."),
         "version" to stringInput(
-            "Exact documentation version. Omit only when the resolved design-system context selects a version.",
+            "Exact documentation version. Omit to search the latest active publication for the selected platform, " +
+                "even when the design-system link selects a model version.",
         ),
         "platform" to stringInput("Exact publication platform, for example compose."),
     ),

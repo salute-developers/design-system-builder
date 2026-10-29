@@ -4,6 +4,7 @@ import com.dsbuilder.frontend.feature.ds.application.ModelReadCommand
 import com.dsbuilder.frontend.feature.ds.application.ModelReadOperation
 import com.dsbuilder.frontend.feature.ds.application.ModelReadResult
 import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -22,7 +23,8 @@ internal class ModelMcpTools(
         val id = idName?.let { arguments.required(it) }
         if (idName != null && id == null) return@with toolError("INVALID_QUERY", "$idName is required")
         val reader = useCase ?: return@with backendReaderUnavailable()
-        val filters = arguments.filterKeys { it !in setOf("designSystem", "version", "limit", "cursor", idName) }
+        val excluded = setOf("designSystem", "version", "limit", "cursor", "detail", idName)
+        val filters = arguments.filterKeys { it !in excluded }
             .mapValues { (_, value) -> (value as JsonPrimitive).content }
         when (
             val result = reader.execute(
@@ -37,7 +39,13 @@ internal class ModelMcpTools(
                 runtimeRequest(arguments),
             )
         ) {
-            is ModelReadResult.Success -> success(result.value.toString())
+            is ModelReadResult.Success -> success(
+                if (operation == ModelReadOperation.COMPONENT_PROPERTIES && arguments.optional("detail") != "full") {
+                    compactComponentProperties(result.value).toString()
+                } else {
+                    result.value.toString()
+                },
+            )
             is ModelReadResult.Failed -> toolError(result.code, result.message)
         }
     }
@@ -45,6 +53,11 @@ internal class ModelMcpTools(
     private fun modelArgumentError(arguments: JsonObject, schema: Map<String, McpToolInputDefinition>): String? {
         arguments.keys.firstOrNull { it != "designSystem" && it !in schema }
             ?.let { return "Unsupported model read argument: $it" }
+        arguments["detail"]?.let { detail ->
+            if (detail !is JsonPrimitive || !detail.isString || detail.content !in listOf("compact", "full")) {
+                return "Invalid model read argument: detail"
+            }
+        }
         val invalid = arguments.entries.firstOrNull { (key, value) ->
             val definition = schema[key]
             definition != null && !validModelArgument(value, definition)
@@ -60,6 +73,19 @@ internal class ModelMcpTools(
             else -> false
         }
     }
+}
+
+private fun compactComponentProperties(value: JsonElement): JsonElement {
+    val envelope = value as? JsonObject ?: return value
+    val properties = envelope["data"] as? JsonArray ?: return value
+    val propertyFields = setOf("id", "name", "type", "defaultValue")
+    val compact = JsonArray(
+        properties.map { property ->
+            val item = property as? JsonObject ?: return@map property
+            JsonObject(item.filterKeys { it in propertyFields })
+        },
+    )
+    return JsonObject(envelope + ("data" to compact))
 }
 
 internal val modelToolOperations = linkedMapOf(
@@ -97,6 +123,13 @@ internal fun modelMcpTools(): List<McpToolDefinition> = modelToolOperations.map 
         )
     }
     addModelFilters(operation, properties)
+    if (operation == ModelReadOperation.COMPONENT_PROPERTIES) {
+        properties["detail"] = McpToolInputDefinition(
+            description = "compact (default) returns IDs, names, types and default values; " +
+                "full includes platform parameters and metadata.",
+            allowedValues = listOf("compact", "full"),
+        )
+    }
     if (operation in pagedModelOperations) {
         properties["limit"] = McpToolInputDefinition(type = "integer", description = "Page size 1..200; default 50.")
         properties["cursor"] = McpToolInputDefinition(description = "Opaque continuation returned by this list.")

@@ -41,8 +41,26 @@ public class HttpDocsReadRemoteSource(
             ),
         )
 
-    override suspend fun search(runtime: DocsReadRuntime, command: DocumentationSearchCommand): DocsReadResult =
-        runtime.get(
+    override suspend fun search(runtime: DocsReadRuntime, command: DocumentationSearchCommand): DocsReadResult {
+        val selectedPublicationId = if (command.publicationId == null && command.version == null) {
+            val selector = DocumentationPublicationCommand(null, command.platform)
+            when (val selected = activePublicationId(runtime, selector)) {
+                is PublicationSelection.Found -> selected.id
+                is PublicationSelection.Failed -> return if (
+                    selected.error.code == DocsReadErrorCode.PUBLICATION_NOT_FOUND
+                ) {
+                    DocsReadResult.Failed(
+                        DocsReadErrorCode.PUBLICATION_NOT_FOUND,
+                        "Documentation has not been published for this design system and platform.",
+                    )
+                } else {
+                    selected.error
+                }
+            }
+        } else {
+            command.publicationId
+        }
+        return runtime.get(
             runtime.documentationPath("search") +
                 queryString(
                     "designSystemId" to runtime.context.designSystemId.value,
@@ -51,7 +69,7 @@ public class HttpDocsReadRemoteSource(
                     "query" to command.query,
                     "cursor" to command.cursor,
                     "limit" to command.limit,
-                    "publicationId" to command.publicationId,
+                    "publicationId" to selectedPublicationId,
                 ) + if (command.subjects.isNotEmpty()) {
                     command.subjects.joinToString("") { "&subject=${encode(it)}" }
                 } else {
@@ -59,11 +77,12 @@ public class HttpDocsReadRemoteSource(
                 },
             notFoundCode = DocsReadErrorCode.PUBLICATION_NOT_FOUND,
         ).requireSearchPublication(
-            if (command.publicationId == null) runtime.context.designSystemId.value else null,
-            command.publicationId,
+            if (selectedPublicationId == null) runtime.context.designSystemId.value else null,
+            selectedPublicationId,
             command.version,
             command.platform,
         )
+    }
 
     override suspend fun fetch(runtime: DocsReadRuntime, command: DocumentationFetchCommand): DocsReadResult =
         runtime.get(

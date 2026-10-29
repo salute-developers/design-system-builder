@@ -35,7 +35,7 @@ class DocsReadUseCasesTest {
         useCases.getBinding(CodeBindingGetCommand("binding", null, null, null))
 
         assertEquals(List<String?>(5) { "compose" }, remote.platforms)
-        assertEquals(List<String?>(5) { "1.0.0" }, remote.versions)
+        assertEquals(listOf(null, "1.0.0", "1.0.0", "1.0.0", "1.0.0"), remote.versions)
     }
 
     @Test
@@ -62,16 +62,15 @@ class DocsReadUseCasesTest {
     }
 
     @Test
-    fun missingVersionRequiresExplicitSelectionBeforeRemoteCall() = runTest {
+    fun missingVersionUsesLatestActivePublicationOnSelectedPlatform() = runTest {
         val remote = RecordingDocsReadRemoteSource()
-        val useCases = useCases(listOf(TargetPlatform.COMPOSE), remote, selectedVersion = null)
+        val useCases = useCases(listOf(TargetPlatform.COMPOSE), remote, selectedVersion = "draft")
 
         val result = useCases.search(DocumentationSearchCommand("Button", null, null, null, null, null))
 
-        val failure = assertIs<DocsReadResult.Failed>(result)
-        assertEquals(DocsReadErrorCode.AMBIGUOUS_CONTEXT, failure.code)
-        assertTrue(failure.message.contains("version"), failure.message)
-        assertTrue(remote.versions.isEmpty())
+        assertIs<DocsReadResult.Success>(result)
+        assertEquals(listOf<String?>(null), remote.versions)
+        assertEquals(listOf<String?>("compose"), remote.platforms)
     }
 
     @Test

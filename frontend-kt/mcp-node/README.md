@@ -73,9 +73,14 @@ full arrays, and CLI `theme fetch` and `components fetch` retain their full down
 `appearanceId` and accepts `selectedValueIds`; it returns the resolved properties for exactly that selection.
 `component_tokens_get` requires a value from every axis and returns verified token IDs and usage paths. The
 previous `component_config_get(componentId)` arguments are incompatible with this version.
+`component_properties_get` returns a compact property list by default (`id`, `name`, `type`, `defaultValue`);
+pass `detail=full` to include platform parameters, descriptions and timestamps.
 
-Documentation reads can select an exact `publicationId`. Without one, supply an exact documentation `version`
-and `platform` (or select them in the design-system link). `documentation_publications_list` discovers published
+Documentation reads can select an exact `publicationId`. For navigation, pages and code bindings without one, supply
+an exact documentation `version` and `platform` (or select them in the design-system link). `documentation_search`
+without `version` searches the latest active publication for the selected platform, even when the link selects a
+model version; if none exists, it reports that documentation has not been published.
+`documentation_publications_list` discovers published
 IDs, including republished versions. `documentation_search` accepts repeated `subjects` and returns a factual
 publication ID in its context; pass that ID with the original query and subjects for later pages. If the old
 publication is no longer available, start a new search. `code_binding_search` returns summaries; `code_binding_get`

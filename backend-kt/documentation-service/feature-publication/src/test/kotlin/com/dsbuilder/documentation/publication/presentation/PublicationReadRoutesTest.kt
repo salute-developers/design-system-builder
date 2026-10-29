@@ -198,6 +198,7 @@ class PublicationReadRoutesTest {
         val foreign = client.get("/documentation/publications/publication-1/navigation") { viewer("project-2") }
 
         assertEquals(HttpStatusCode.OK, list.status)
+        assertTrue(list.bodyAsText().contains("\"items\":[]"))
         assertEquals("{\"designSystemId\":\"ds-1\"}", list.headers["X-DS-Read-Context"])
         assertEquals(HttpStatusCode.OK, navigation.status)
         assertEquals(
