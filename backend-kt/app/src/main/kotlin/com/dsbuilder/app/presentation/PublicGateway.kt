@@ -15,14 +15,10 @@ fun Application.installPublicGateway(configuration: GatewayConfiguration, author
             finish()
             return@intercept
         }
-        try {
-            if (java.net.URI(call.request.path()).path == "/api/admin/compose-preview/plugin-builds") {
-                publicationTimeout(call, configuration.pluginTimeoutSeconds * 1000) { proceed() }
-            } else {
-                proceed()
-            }
-        } finally {
-            handler.release(call)
+        if (java.net.URI(call.request.path()).path == "/api/admin/compose-preview/plugin-builds") {
+            publicationTimeout(call, configuration.pluginTimeoutSeconds * 1000) { proceed() }
+        } else {
+            proceed()
         }
     }
 }

@@ -3,7 +3,7 @@
   "profiles": {
     "local": {
       "source": "identity-gateway/gateway/nginx.local.conf",
-      "sha256": "f1cb0708623542c20278ee6eff926dc40bfcdb4805570dd9bb0a2d498930d2fc",
+      "sha256": "631f6e454094749261572205c9b50d69d3e7226a7b417d1e844d7bde594e9a30",
       "locations": [
         {
           "selector": "= /health",
@@ -393,7 +393,7 @@
     },
     "production": {
       "source": "identity-gateway/gateway/nginx.prod.conf.template",
-      "sha256": "cebbd22f637d9281b299edf810a88aa761f029b9358ee1a8fa2470a56846b104",
+      "sha256": "613f8bd9fa625e03ed954dd6c41bd6df963161b15bdd6120653814b5029c2977",
       "locations": [
         {
           "selector": "= /health",

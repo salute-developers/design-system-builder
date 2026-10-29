@@ -56,14 +56,12 @@ Kubernetes указывайте доступные из процесса адр�
 | `BACKEND_PORT` | HTTP-порт приложения, 8080 |
 | `BACKEND_PUBLIC_URL` | Публичный HTTP(S)-адрес для проксирования Keycloak; по умолчанию адрес из `KEYCLOAK_ISSUER` либо `http://localhost:8080` |
 | `BACKEND_SHUTDOWN_TIMEOUT_MS` | Общий срок завершения, 30000 мс |
-| `BACKEND_TRUSTED_PROXIES` | Разделённый запятыми список IP/CIDR доверенных прокси; по умолчанию пуст |
 | `OIDC_WEB_ORIGIN` | Разрешённый origin веб-клиента; если отсутствует, допускаются локальные адреса разработки |
 | `KEYCLOAK_INTERNAL_URL` | Адрес Keycloak из процесса; по умолчанию `PROJECTS_IDENTITY_KEYCLOAK_BASE_URL` либо `http://localhost:8090` |
 | `KEYCLOAK_REALM` | Realm, `dsbuilder` |
 | `KEYCLOAK_ISSUER`, `KEYCLOAK_AUDIENCE`, `KEYCLOAK_JWKS_URL` | Прежние параметры проверки JWT; issuer должен соответствовать публичному адресу выдачи токенов |
 | `COMPOSE_PLUGIN_TIMEOUT_SECONDS` | Ожидание ответа публикации после приёма архива, 120 с; активная загрузка не ограничена общим временем 120 с |
 | `GATEWAY_PROXY_TIMEOUT_SECONDS` | Таймауты чтения/записи, 300 с; установление соединения Keycloak — 10 с |
-| `DOCUMENTATION_RATE_LIMIT_ENABLED` | Ограничение документации 10 запросов/с, burst 20: `false` по умолчанию, `true` в production Compose |
 | `DOCUMENTATION_MAX_REQUEST_SIZE` | Входной предел документации, `101m`, поддерживаются суффиксы `k`/`m` |
 | `AUTHORIZATION_POLICY_PATH`, `PROJECT_AUTHORIZATION_POLICY_PATH` | Прежние пути политики; если заданы оба, должны совпадать. Без них используется встроенный источник authorization-core |
 | `PROJECTS_DATABASE_URL`, `PROJECTS_POSTGRES_USER`, `PROJECTS_POSTGRES_PASSWORD` | Отдельная БД проектов, прежние настройки runtime |
@@ -121,3 +119,11 @@ Compose удаляет старые прикладные контейнеры э
 Общие FAST, независимое ревью и FULL выполняются в конце реализации согласно OpenSpec.
 Подготовка CI входит в изменение: публикуются `backend`, `keycloak`, `keycloak-bootstrap`.
 Запуск публикации и переключение production требуют отдельного запроса.
+
+## Внешняя точка входа и совместимость
+
+Production backend сохраняет сетевой alias `gateway`, поэтому прежний upstream `gateway:8080` продолжает разрешаться в той же Compose-сети. `BACKEND_PUBLIC_URL` необязателен: без него origin для Keycloak берётся из `KEYCLOAK_ISSUER` до `/realms/`. Отдельное значение нужно только для явного переопределения публичного адреса.
+
+Общие IP-лимиты частоты запросов и соединений настраиваются во внешнем reverse proxy или балансировщике. Backend не требует настройки доверенных прокси; авторизация, лимиты тела и параллелизм фоновых workers остаются внутри приложения.
+
+Самостоятельные launcher'ы подсистем сохранены для модульной разработки и будущего разделения инфраструктуры. Они не являются вторым поддерживаемым Docker-контуром. DS standalone явно выбирает внутренний API за доверенным gateway; открывать его напрямую внешним клиентам нельзя.

@@ -210,13 +210,13 @@ private suspend fun ApplicationCall.requireDocumentationRead(evaluator: PolicyEv
 
 private fun ApplicationCall.trustedPrincipal(evaluator: PolicyEvaluator): ProjectPrincipal? {
     return TrustedProjectPrincipalFactory.create(
-        actorType = request.headers[ACTOR_TYPE_HEADER],
-        projectId = request.headers[PROJECT_ID_HEADER],
-        userId = request.headers[USER_ID_HEADER],
-        projectKeyId = request.headers[PROJECT_KEY_ID_HEADER],
-        projectRole = request.headers[PROJECT_ROLE_HEADER],
-        projectScopes = request.headers[PROJECT_SCOPES_HEADER],
-        systemAdmin = request.headers[SYSTEM_ADMIN_HEADER],
+        actorType = publicationTrustedHeaders()[ACTOR_TYPE_HEADER],
+        projectId = publicationTrustedHeaders()[PROJECT_ID_HEADER],
+        userId = publicationTrustedHeaders()[USER_ID_HEADER],
+        projectKeyId = publicationTrustedHeaders()[PROJECT_KEY_ID_HEADER],
+        projectRole = publicationTrustedHeaders()[PROJECT_ROLE_HEADER],
+        projectScopes = publicationTrustedHeaders()[PROJECT_SCOPES_HEADER],
+        systemAdmin = publicationTrustedHeaders()[SYSTEM_ADMIN_HEADER],
         policy = evaluator.policy,
     )
 }

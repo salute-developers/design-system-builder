@@ -21,6 +21,20 @@ class GatewayConfigurationTest {
     }
 
     @Test
+    fun `existing issuer supplies public origin and optional override wins`() {
+        val env = mapOf("KEYCLOAK_ISSUER" to "https://builder.example/realms/dsbuilder")
+        assertEquals("https://builder.example", GatewayConfiguration.fromEnvironment(env).publicUrl)
+        assertEquals(
+            "https://builder.example",
+            GatewayConfiguration.fromEnvironment(env + ("BACKEND_PUBLIC_URL" to "")).publicUrl,
+        )
+        assertEquals(
+            "https://other.example",
+            GatewayConfiguration.fromEnvironment(env + ("BACKEND_PUBLIC_URL" to "https://other.example")).publicUrl,
+        )
+    }
+
+    @Test
     fun `invalid limits and upstreams fail before initialization`() {
         for (env in listOf(
             mapOf("BACKEND_PORT" to "0"),

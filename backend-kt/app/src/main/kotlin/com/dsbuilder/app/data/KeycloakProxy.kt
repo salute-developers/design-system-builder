@@ -92,8 +92,7 @@ class KeycloakProxy(
         val publicAddress = java.net.URI(configuration.publicUrl)
         headers.append(
             "X-Forwarded-For",
-            com.dsbuilder.app.presentation.ProxyTrust(configuration.trustedProxyCidrs)
-                .clientAddress(call.request.local.remoteHost, call.request.headers["X-Forwarded-For"]),
+            call.request.local.remoteHost,
         )
         headers.append("X-Forwarded-Proto", publicAddress.scheme)
         headers.append("X-Forwarded-Host", publicAddress.rawAuthority)

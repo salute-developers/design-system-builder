@@ -140,6 +140,7 @@ private fun Application.registerBackendRoutes(
         get("/auth/account") { call.respondRedirect("/realms/${configuration.realm}/account/") }
         route("/admin") { handle { call.permanentRedirect("/admin/") } }
         registerKeycloakProxy(configuration, proxy)
+        com.dsbuilder.app.presentation.requirePublicRoutes(this)
     }
 }
 

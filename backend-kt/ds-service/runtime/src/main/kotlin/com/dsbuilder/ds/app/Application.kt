@@ -284,6 +284,7 @@ fun Application.module(
     configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment(),
     pluginStorage: PluginBuildStorage? = null,
 ) {
+    com.dsbuilder.ds.core.presentation.configureDsLegacyEntry(this)
     val runtime = createDsRuntime(configuration)
     monitor.subscribe(ApplicationStopped) {
         runtime.close()

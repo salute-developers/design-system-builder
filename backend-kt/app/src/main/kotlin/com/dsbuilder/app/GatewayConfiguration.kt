@@ -12,9 +12,7 @@ import java.net.URI
  * @property shutdownTimeoutMs Проверенное значение настройки публичного входа.
  * @property timeoutSeconds Проверенное значение настройки публичного входа.
  * @property documentationMaxBytes Проверенное значение настройки публичного входа.
- * @property documentationRateLimited Включает прежнее production-ограничение документации.
  * @property publicUrl Проверенное значение настройки публичного входа.
- * @property trustedProxyCidrs Проверенное значение настройки публичного входа.
  */
 data class GatewayConfiguration(
     val port: Int,
@@ -25,8 +23,6 @@ data class GatewayConfiguration(
     val timeoutSeconds: Long,
     val documentationMaxBytes: Long,
     val publicUrl: String,
-    val documentationRateLimited: Boolean = false,
-    val trustedProxyCidrs: List<String>,
     val pluginTimeoutSeconds: Long = 120,
 ) {
     companion object {
@@ -45,7 +41,7 @@ data class GatewayConfiguration(
             require(uri.scheme in setOf("http", "https") && uri.host != null && uri.userInfo == null) {
                 "KEYCLOAK_INTERNAL_URL must be an HTTP(S) origin"
             }
-            val publicUrl = env["BACKEND_PUBLIC_URL"]
+            val publicUrl = env["BACKEND_PUBLIC_URL"]?.takeIf(String::isNotBlank)
                 ?: env["KEYCLOAK_ISSUER"]?.substringBefore("/realms/")
                 ?: "http://localhost:8080"
             val publicUri = URI(publicUrl)
@@ -54,9 +50,6 @@ data class GatewayConfiguration(
             ) {
                 "BACKEND_PUBLIC_URL must be an HTTP(S) origin"
             }
-            val proxies = env["BACKEND_TRUSTED_PROXIES"]?.split(',')
-                ?.map(String::trim)?.filter(String::isNotBlank).orEmpty()
-            com.dsbuilder.app.presentation.ProxyTrust(proxies)
             val realm = env["KEYCLOAK_REALM"] ?: "dsbuilder"
             require(realm.matches(Regex("[A-Za-z0-9_.-]+"))) { "Invalid KEYCLOAK_REALM" }
             val port = positive("BACKEND_PORT", 8080).also { require(it <= 65535) { "Invalid BACKEND_PORT" } }
@@ -67,14 +60,9 @@ data class GatewayConfiguration(
                 positive("GATEWAY_PROXY_TIMEOUT_SECONDS", 300),
                 parseSize(env["DOCUMENTATION_MAX_REQUEST_SIZE"] ?: "101m"),
                 publicUrl = publicUrl.trimEnd('/'),
-                trustedProxyCidrs = proxies,
                 pluginTimeoutSeconds = positive("COMPOSE_PLUGIN_TIMEOUT_SECONDS", 120),
-                documentationRateLimited = documentationLimit(env),
             )
         }
-
-        private fun documentationLimit(env: Map<String, String>): Boolean =
-            env["DOCUMENTATION_RATE_LIMIT_ENABLED"]?.toBooleanStrict() ?: false
 
         private fun keycloakOrigin(env: Map<String, String>): String =
             env["KEYCLOAK_INTERNAL_URL"] ?: env["PROJECTS_IDENTITY_KEYCLOAK_BASE_URL"] ?: "http://localhost:8090"

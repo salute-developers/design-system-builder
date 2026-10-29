@@ -10,7 +10,7 @@ import io.ktor.server.application.ApplicationCall
 
 /** Проверяет селекторы чтения отдельно от проверки доверенного actor. */
 suspend fun ApplicationCall.modelReadContext(evaluator: PolicyEvaluator): DsRequestContext? {
-    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator)
+    val context = TrustedDsRequestContextMapper.map(dsTrustedHeaders(), evaluator)
     if (context == null) {
         respondFailure(DsFailure.Forbidden)
         return null

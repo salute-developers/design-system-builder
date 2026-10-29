@@ -28,14 +28,14 @@ fun Application.configureDsPublicEntry(prefix: String, source: DsTrustedContextS
     attributes.put(contextSourceKey, source)
 }
 
-/** Получает контекст из адаптера входа или заголовков сохранённой точки запуска. */
+/** Требует явно настроенный адаптер доверенного контекста входа. */
 fun ApplicationCall.dsTrustedHeaders(): Headers =
-    application.attributes.getOrNull(contextSourceKey)?.headers(this) ?: request.headers
+    application.attributes[contextSourceKey].headers(this)
 
 /** Отображает прежний путь на публичный префикс при регистрации маршрутов. */
 fun Route.dsRoutePath(path: String): String {
-    val prefix = application.attributes.getOrNull(prefixKey) ?: return path
-    return if (path.startsWith("/api/ds/admin/")) {
+    val prefix = application.attributes[prefixKey]
+    return if (prefix != "/api/ds" && path.startsWith("/api/ds/admin/")) {
         "/api/admin/" + path.removePrefix("/api/ds/admin/")
     } else {
         prefix + path.removePrefix("/api/ds")
@@ -44,11 +44,16 @@ fun Route.dsRoutePath(path: String): String {
 
 /** Находит прежний OpenAPI-путь для конкретного запроса или шаблона публичного маршрута. */
 fun ApplicationCall.dsLegacyPath(path: String): String {
-    val pattern = application.attributes.getOrNull(prefixPatternKey) ?: return path
+    val pattern = application.attributes[prefixPatternKey]
     val matched = pattern.find(path)?.value
     return when {
         matched != null -> "/api/ds" + path.removePrefix(matched)
         path.startsWith("/api/admin/") -> "/api/ds/admin/" + path.removePrefix("/api/admin/")
         else -> path
     }
+}
+
+/** Явно выбирает прежний внутренний HTTP-контракт для самостоятельного запуска за доверенным gateway. */
+fun configureDsLegacyEntry(application: Application) {
+    application.configureDsPublicEntry("/api/ds") { it.request.headers }
 }

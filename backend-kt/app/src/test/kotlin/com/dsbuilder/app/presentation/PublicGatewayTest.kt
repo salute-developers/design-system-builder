@@ -71,34 +71,31 @@ class PublicGatewayTest {
     }
 
     @Test
-    fun `error responses retain cors and forwarded addresses cannot bypass rate limit`() = testApplication {
+    fun `error responses retain cors without shared IP rate limits`() = testApplication {
         application { installPublicGateway(configuration, authorizer) }
         val denied = client.get("/api/projects") { header("Origin", "http://localhost:5173") }
         assertEquals("http://localhost:5173", denied.headers["Access-Control-Allow-Origin"])
-        repeat(20) { index ->
-            assertEquals(
-                HttpStatusCode.Unauthorized,
-                client.get("/api/projects") {
-                    header("X-Forwarded-For", "192.0.2.$index")
-                }.status,
-            )
+        for (name in listOf("X-DS-Read-Context", "X-DS-Page-Limit", "X-DS-Next-Cursor")) {
+            assertTrue(name in denied.headers["Access-Control-Expose-Headers"].orEmpty())
         }
-        assertEquals(HttpStatusCode.ServiceUnavailable, client.get("/api/projects").status)
+        repeat(40) {
+            assertEquals(HttpStatusCode.Unauthorized, client.get("/api/projects").status)
+        }
     }
 
     @Test
-    fun `documentation production rate limit is explicit while local remains unlimited`() {
-        for (limited in listOf(false, true)) {
-            testApplication {
-                application {
-                    installPublicGateway(configuration.copy(documentationRateLimited = limited), authorizer)
-                }
-                val statuses = (1..30).map {
-                    client.get("/api/projects/p/documentation/search").status
-                }
-                assertEquals(limited, HttpStatusCode.ServiceUnavailable in statuses)
+    fun `unmapped routes cannot bypass authentication with forged headers`() = testApplication {
+        application {
+            installPublicGateway(configuration, authorizer)
+            routing {
+                get("/api/ds/tenants/{tenantId}/size-tokens") { call.respondText("unsafe") }
+                get("/unknown") { call.respondText("unsafe") }
             }
         }
+        for (path in listOf("/api/ds/tenants/t/size-tokens", "/unknown")) {
+            assertEquals(HttpStatusCode.NotFound, client.get(path) { header("X-System-Admin", "true") }.status)
+        }
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/projects/p/ds/tenants/t/size-tokens").status)
     }
 
     @Test
@@ -140,14 +137,14 @@ class PublicGatewayTest {
                     call.respondText("error", status = HttpStatusCode.InternalServerError)
                 }
             }
-            routing { post("/echo") { call.respondText(call.receiveText()) } }
+            routing { post("/auth/echo") { call.respondText(call.receiveText()) } }
         }
         assertEquals(
             HttpStatusCode.PayloadTooLarge,
-            client.post("/echo") {
+            client.post("/auth/echo") {
                 setBody(ByteReadChannel(ByteArray(2 * 1024 * 1024 + 1)))
             }.status,
         )
-        assertEquals("ok", client.post("/echo") { setBody("ok") }.bodyAsText())
+        assertEquals("ok", client.post("/auth/echo") { setBody("ok") }.bodyAsText())
     }
 }

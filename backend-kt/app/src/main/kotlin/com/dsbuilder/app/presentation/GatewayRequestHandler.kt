@@ -18,10 +18,6 @@ internal class GatewayRequestHandler(
     private val configuration: GatewayConfiguration,
     private val authorizer: GatewayAuthorizer,
 ) {
-    private val limits = GatewayLimits()
-    private val proxyTrust = ProxyTrust(configuration.trustedProxyCidrs)
-    private val connectionKeyAttribute = io.ktor.util.AttributeKey<String>("backend.active.ds.key")
-
     suspend fun validate(call: ApplicationCall): Boolean {
         cors(call)
         val rawPath = call.request.path()
@@ -32,20 +28,14 @@ internal class GatewayRequestHandler(
         }
         val path = java.net.URI(rawPath).path
         val policy = routePolicy(path)
-        // Forwarded headers never select a limiter identity without a trusted proxy configuration.
-        val peer = proxyTrust.clientAddress(call.request.local.remoteHost, call.request.headers["X-Forwarded-For"])
-        if (policy.rateLimited && !limits.allow(peer)) {
-            reject(call, HttpStatusCode.ServiceUnavailable)
-            return false
-        }
-        return acceptBody(call, path, policy) &&
-            authorize(call, path, policy.userRoute, policy.projectId) && acquire(call, path, peer, policy.ds)
+        return acceptBody(call, path, policy) && authorize(call, path, policy.userRoute, policy.projectId)
     }
 
     private fun preliminaryStatus(call: ApplicationCall, path: String): HttpStatusCode? = when {
-        call.request.httpMethod == HttpMethod.Options -> HttpStatusCode.NoContent
         invalidPath(path) -> HttpStatusCode.BadRequest
         java.net.URI(path).path.startsWith("/internal/") -> HttpStatusCode.Forbidden
+        !publicGatewayPath(java.net.URI(path).path) -> HttpStatusCode.NotFound
+        call.request.httpMethod == HttpMethod.Options -> HttpStatusCode.NoContent
         else -> null
     }
 
@@ -72,25 +62,11 @@ internal class GatewayRequestHandler(
         return accepted
     }
 
-    private suspend fun acquire(
-        call: ApplicationCall,
-        path: String,
-        peer: String,
-        ds: Boolean,
-    ): Boolean {
-        val key = "$peer|$path"
-        val accepted = !ds || limits.acquire(key)
-        if (!accepted) reject(call, HttpStatusCode.ServiceUnavailable)
-        if (accepted && ds) call.attributes.put(connectionKeyAttribute, key)
-        return accepted
-    }
-
     private data class RoutePolicy(
         val projectId: String?,
         val userRoute: Boolean,
         val ds: Boolean,
         val documentation: Boolean,
-        val rateLimited: Boolean,
     )
 
     private fun routePolicy(path: String): RoutePolicy {
@@ -101,9 +77,7 @@ internal class GatewayRequestHandler(
         )
         val ds = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/ds")
         val documentation = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/documentation")
-        val rateLimited = userRoute || project != null && (!documentation || configuration.documentationRateLimited) ||
-            listOf("/auth/", "/realms/", "/resources/", "/admin/").any(path::startsWith)
-        return RoutePolicy(project?.groupValues?.get(1), userRoute, ds, documentation, rateLimited)
+        return RoutePolicy(project?.groupValues?.get(1), userRoute, ds, documentation)
     }
 
     private suspend fun authorize(
@@ -138,10 +112,6 @@ internal class GatewayRequestHandler(
         }
     }
 
-    fun release(call: ApplicationCall) {
-        call.attributes.getOrNull(connectionKeyAttribute)?.let(limits::release)
-    }
-
     private fun cors(call: ApplicationCall) {
         val origin = call.request.headers[HttpHeaders.Origin]
         val allowed = origin != null && if (configuration.webOrigin != null) {
@@ -159,7 +129,8 @@ internal class GatewayRequestHandler(
         )
         call.response.header(
             HttpHeaders.AccessControlExposeHeaders,
-            "X-DS-Mutation-Metadata, X-DS-Mutation-Metadata-Truncated",
+            "X-DS-Mutation-Metadata, X-DS-Mutation-Metadata-Truncated, " +
+                "X-DS-Read-Context, X-DS-Page-Limit, X-DS-Next-Cursor",
         )
         call.response.header("X-Request-Id", UUID.randomUUID().toString())
     }
