@@ -46,6 +46,10 @@ kotlin {
             }
         }
 
+        mingwX64Main.dependencies {
+            implementation(libs.kotlin.logging)
+        }
+
         val macosMain by creating {
             dependsOn(sdkMain)
         }
