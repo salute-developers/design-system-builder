@@ -2,7 +2,9 @@
 
 ## Purpose
 Определяет делегат платформы React: как общий CLI `dsbuilder` запускает web-генератор `js/cli`.
+
 ## Requirements
+
 ### Requirement: Web toolchain delegate
 
 CLI SHALL register a platform delegate with toolchain id `web` that serves the `react` target platform through
@@ -53,3 +55,17 @@ environment variable. A directory is the web generator when it contains `package
 - **WHEN** `toolchain doctor --platform react` runs and the generator and `npm` are found
 - **THEN** it MUST report ready with the generator directory and the `npm` version, capturing `npm --version` output
 
+### Requirement: Обнаружение web-инструмента на Windows
+
+Web-делегат SHALL находить `npm.cmd` в каталогах Windows `PATH` и запускать существующие команды генератора без изменения их аргументов.
+
+#### Scenario: Поиск npm
+
+- **WHEN** `PATH` содержит несколько каталогов, разделённых `;`, и один из них содержит `npm.cmd`
+- **THEN** `toolchain doctor --platform react` MUST использовать найденный сценарий и получить версию npm
+
+#### Scenario: Запуск генератора
+
+- **WHEN** пользователь запускает `dsbuilder.exe ds generate --platform react` с настроенным `DSBUILDER_WEB_TOOL`
+- **THEN** делегат MUST запустить нужный сценарий npm с путями Windows и сохранить выходной код
+- **THEN** CLI MUST NOT требовать Node.js до вызова команды, использующей web-генератор

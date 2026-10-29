@@ -44,6 +44,31 @@ data class KnowledgeChunkDto(
     /** Canonical subjects. */ val subjects: List<String>,
 )
 
+/** Компактное чтение фрагмента без копии поискового индекса. */
+@Serializable
+data class CompactKnowledgeChunkDto(
+    /** Канонический адрес фрагмента. */ val kbUrl: String,
+    /** ID публикации. */ val publicationId: String,
+    /** ID дизайн-системы. */ val designSystemId: String,
+    /** Версия документации. */ val version: String,
+    /** Платформа документации. */ val platform: String,
+    /** ID страницы. */ val pageId: String,
+    /** Путь страницы. */ val pagePath: String,
+    /** Заголовок страницы. */ val pageTitle: String,
+    /** ID блока содержимого. */ val contentId: String,
+    /** Путь исходника. */ val sourcePath: String,
+    /** Порядок фрагмента. */ val ordinal: Int,
+    /** Путь заголовков. */ val headingPath: List<String>,
+    /** Исходный Markdown. */ val markdown: String,
+    /** Предметные метки. */ val subjects: List<String>,
+)
+
+/** Убирает только текст поискового индекса, сохраняя исходный markdown. */
+fun KnowledgeChunkDto.compact(): CompactKnowledgeChunkDto = CompactKnowledgeChunkDto(
+    kbUrl, publicationId, designSystemId, version, platform, pageId, pagePath, pageTitle,
+    contentId, sourcePath, ordinal, headingPath, markdown, subjects,
+)
+
 /** Port project-scoped knowledge chunk fetch. */
 fun interface KnowledgeChunkRepository {
     /** Читает chunk только из published publication trusted project. */

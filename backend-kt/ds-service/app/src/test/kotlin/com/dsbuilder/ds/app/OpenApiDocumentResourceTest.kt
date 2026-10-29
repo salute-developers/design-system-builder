@@ -18,6 +18,50 @@ class OpenApiDocumentResourceTest {
     private val paths = document.getValue("paths").jsonObject
 
     @Test
+    fun `versioned read contract keeps array bodies and exposes metadata outside them`() {
+        val lists = listOf(
+            "/api/ds/design-systems/{id}/tokens",
+            "/api/ds/design-systems/{id}/components",
+            "/api/ds/design-systems/{id}/tenants",
+            "/api/ds/design-systems/{id}/token-groups",
+            "/api/ds/design-systems/{id}/changes",
+            "/api/ds/design-systems/{id}/components/{componentId}/styles",
+            "/api/ds/design-system-versions/by-design-system/{designSystemId}",
+        )
+        lists.forEach { path ->
+            val operation = paths.getValue(path).jsonObject.getValue("get").jsonObject
+            val parameters = operation.getValue("parameters").jsonArray.mapNotNull {
+                it.jsonObject["\$ref"]?.jsonPrimitive?.content
+            }
+            assertTrue("#/components/parameters/ModelVersion" in parameters, path)
+            assertTrue("#/components/parameters/PageLimit" in parameters, path)
+            assertTrue("#/components/parameters/PageCursor" in parameters, path)
+            val response = operation.getValue("responses").jsonObject.getValue("200").jsonObject
+            val headers = response.getValue("headers").jsonObject
+            assertTrue(
+                headers.keys.containsAll(listOf("X-DS-Read-Context", "X-DS-Page-Limit", "X-DS-Next-Cursor")),
+                path,
+            )
+            val schema = response.getValue("content").jsonObject.getValue("application/json")
+                .jsonObject.getValue("schema").jsonObject
+            assertEquals("array", schema.getValue("type").jsonPrimitive.content, path)
+        }
+        val appearance = paths.getValue("/api/ds/appearances/{id}/variations").jsonObject.getValue("get").jsonObject
+        val parameters = appearance.getValue("parameters").jsonArray
+        assertFalse(parameters.any { it.jsonObject["name"]?.jsonPrimitive?.content == "designSystemId" })
+        assertTrue("404" in appearance.getValue("responses").jsonObject)
+        listOf("nginx.local.conf", "nginx.prod.conf.template").forEach { name ->
+            val gateway = File("../../identity-gateway/gateway/$name").readText()
+            val expose = gateway.lineSequence().single { it.contains("add_header Access-Control-Expose-Headers") }
+            assertTrue(
+                expose.contains("X-DS-Read-Context") && expose.contains("X-DS-Page-Limit") &&
+                    expose.contains("X-DS-Next-Cursor"),
+                name,
+            )
+        }
+    }
+
+    @Test
     fun `palette and color operations document version reads and optional revision metadata`() {
         listOf(
             "/api/ds/tenants/{tenantId}/palette",
@@ -155,11 +199,12 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        assertEquals(186, operationCount) // Сводка журнала, +2 типографии, +4 токенов размеров.
+        assertEquals(188, operationCount) // Два маршрута составных чтений поверх текущего dev.
         assertTrue("/api/ds/design-systems/{id}/changes/summary" in paths)
         assertTrue("/api/ds/design-systems" in paths)
         assertTrue("/api/ds/component-config/import" in paths)
         assertTrue("/api/ds/component-config/web-adapter" in paths)
+        assertFalse("/api/ds/component-configurations" in paths)
     }
 
     /** Операции групп манифеста с `origin: ds-service` есть в документе с тем же методом и правом. */

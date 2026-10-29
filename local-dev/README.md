@@ -1,6 +1,6 @@
 # Данные для локального контура
 
-Файлы, которые `./setup-local.sh` берёт по умолчанию, чтобы после настройки в редакторе работало Compose-превью
+Файлы, которые `./setup-local.sh` (на Windows — `.\setup-local.ps1`) берёт по умолчанию, чтобы после настройки в редакторе работало Compose-превью
 компонентов без сборки чего-либо в других репозиториях.
 
 | Каталог | Что внутри | Кто использует |
@@ -21,7 +21,7 @@
 
 ## Как это работает
 
-1. `setup-local.sh` поднимает контур и публикует архив плагина командой CLI, как это делает CI plasma-android:
+1. `setup-local.sh` или Windows-вариант `setup-local.ps1` поднимает контур и публикует архив плагина командой CLI, как это делает CI plasma-android:
    бэкенд кладёт файлы в локальный MinIO, импортирует Compose API-мету из архива (компоненты и свойства глобального
    слоя) и делает билд активным.
 2. `seed-local-design-system.sh` создаёт дизайн-систему `sdds_serv_local` с одноимённой темой через API (другие дизайн-системы проекта, например `base`, не
@@ -43,6 +43,9 @@
 Опции `./setup-local.sh --plugin-zip FILE|URL`, `--components-package DIR` и `--theme-package DIR` (или переменные
 `COMPOSE_PREVIEW_PLUGIN_ZIP`, `COMPOSE_COMPONENTS_PACKAGE`) заменяют файлы из этого каталога, например свежую сборку
 плагина. `--skip-plugin` и `--skip-design-system` отключают шаги.
+
+В PowerShell используйте `-PluginZip`, `-ComponentsPackage`, `-ThemePackage`, `-SkipPlugin` и `-SkipDesignSystem`.
+Существующие Bash-скрипты выполняются во вспомогательном Linux-контейнере, без изменений для Windows.
 
 ## Обновление файлов
 

@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TokenValueReadPolicy
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.tokens.domain.TokenValue
@@ -27,9 +28,12 @@ class GetTokenValuesUseCase(
         filter: TokenValueFilter,
     ): DsResult<List<TokenValue>> = when (val allowed = policy.require(context, ProjectScope.TOKENS_READ)) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly(context) {
-            repository.values(context.projectId, id, filter)
-                ?.let { DsResult.Success(readPolicies.published(context.projectId, it)) }
+        is DsResult.Success -> transactions.readOnly(
+            context,
+            ModelReadTarget(ModelReadTarget.Kind.TOKEN, id),
+        ) { selected ->
+            repository.values(selected.projectId, id, filter)
+                ?.let { DsResult.Success(readPolicies.published(selected.projectId, it)) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }
     }

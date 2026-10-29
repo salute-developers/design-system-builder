@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.core.application
 
+import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.BackendCredential
@@ -12,7 +13,10 @@ import com.dsbuilder.frontend.core.auth.TokenResponse
 import com.dsbuilder.frontend.core.auth.UserSession
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
+import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
+import com.dsbuilder.frontend.core.domain.ProjectContext
+import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.API_URL_ENV
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.workspace.CredentialReference
@@ -50,7 +54,7 @@ class RuntimeAdaptersTest {
         )
         val process = EnvironmentReader { null }
         val credentials = RuntimeCredentialProvider(
-            com.dsbuilder.frontend.core.auth.ApiKeyResolver(process),
+            ApiKeyResolver(process),
             object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession? = null
                 override suspend fun save(session: UserSession) = Unit
@@ -80,7 +84,7 @@ class RuntimeAdaptersTest {
     fun projectKeyFromLocalEnvIsUsedInAutoAndForcedKeyModes() = runTest {
         var sessionReads = 0
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
             credentialStore = object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession? {
                     sessionReads++
@@ -197,7 +201,7 @@ class RuntimeAdaptersTest {
     fun forcedSessionDoesNotReadProjectKey() = runTest {
         var keyReads = 0
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(
+            apiKeyResolver = ApiKeyResolver(
                 EnvironmentReader {
                     keyReads++
                     "project-secret"
@@ -225,7 +229,7 @@ class RuntimeAdaptersTest {
     fun forcedKeyDoesNotReadSessionWhenMissing() = runTest {
         var sessionReads = 0
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
             credentialStore = object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession? {
                     sessionReads++
@@ -281,7 +285,7 @@ class RuntimeAdaptersTest {
         assertEquals(
             "Error: Design-system context is required. Pass --design-system " +
                 "'dsbuilder://projects/<project-id>/design-systems/<design-system-id>" +
-                "?version=<version>&platform=<platform>', or run " +
+                "?version=<version>[&platform=<platform>]', or run " +
                 "`dsbuilder init --project-id <id> --design-system-id <id>`.",
             result.message,
         )
@@ -302,7 +306,7 @@ class RuntimeAdaptersTest {
     fun credentialProviderPrefersProjectKeyWithoutReadingSession() = runTest {
         var sessionRead = false
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(
+            apiKeyResolver = ApiKeyResolver(
                 EnvironmentReader { name -> "project-secret".takeIf { name == "DSBUILDER_API_KEY" } },
             ),
             credentialStore = object : CredentialStore {
@@ -334,10 +338,10 @@ class RuntimeAdaptersTest {
     fun credentialProviderFallsBackToUserSessionWhenProjectKeyIsMissing() = runTest {
         val saved = mutableListOf<UserSession>()
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
             credentialStore = object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession = UserSession(
-                    schemaVersion = 1,
+                    schemaVersion = 2,
                     apiUrl = apiUrl,
                     username = "user@example.com",
                     refreshToken = "refresh-old",
@@ -352,10 +356,11 @@ class RuntimeAdaptersTest {
                 override suspend fun delete(apiUrl: String) = Unit
             },
             tokenClient = object : TokenClient {
-                override suspend fun login(
+                override suspend fun exchangeCode(
                     apiUrl: String,
-                    username: String,
-                    password: String,
+                    code: String,
+                    verifier: String,
+                    redirectUri: String,
                 ): AuthResult<TokenResponse> = AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "not configured")
 
                 override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
@@ -379,6 +384,9 @@ class RuntimeAdaptersTest {
     @Test
     fun credentialProviderRefreshesUsingLockedSessionRereadWhenStoreSupportsRotation() = runTest {
         val store = object : RotatingCredentialStore {
+            override suspend fun logoutSession(apiUrl: String, revoke: suspend (UserSession) -> AuthResult<Unit>) =
+                AuthResult.Success(Unit)
+
             override suspend fun read(apiUrl: String): UserSession = session(apiUrl, "refresh-stale")
 
             override suspend fun save(session: UserSession) = Unit
@@ -392,7 +400,7 @@ class RuntimeAdaptersTest {
         }
         var refreshTokenUsed: String? = null
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
             credentialStore = store,
             tokenClient = object : TokenClient by NoopTokenClient {
                 override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> {
@@ -412,7 +420,7 @@ class RuntimeAdaptersTest {
     fun credentialProviderDeletesSessionAfterAuthRequiredRefreshFailureOnly() = runTest {
         val store = DeletingCredentialStore()
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
             credentialStore = store,
             tokenClient = object : TokenClient by NoopTokenClient {
                 override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
@@ -430,7 +438,7 @@ class RuntimeAdaptersTest {
     fun credentialProviderKeepsSessionAfterTransportRefreshFailure() = runTest {
         val store = DeletingCredentialStore()
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
             credentialStore = store,
             tokenClient = object : TokenClient by NoopTokenClient {
                 override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
@@ -446,9 +454,9 @@ class RuntimeAdaptersTest {
 
     @Test
     fun contextResolverUsesFirstSourceThatFindsContext() {
-        val expected = com.dsbuilder.frontend.core.domain.ProjectContext(
-            projectId = com.dsbuilder.frontend.core.domain.ProjectId("project-a"),
-            designSystemId = com.dsbuilder.frontend.core.domain.DesignSystemId("ds-a"),
+        val expected = ProjectContext(
+            projectId = ProjectId("project-a"),
+            designSystemId = DesignSystemId("ds-a"),
             credentialEnvName = CredentialEnvName("PROJECT_KEY"),
             configPath = "/repo/.sdds/config.json",
         )
@@ -487,6 +495,15 @@ class RuntimeAdaptersTest {
     }
 
     @Test
+    fun linkWithoutPlatformResolvesWithNoImplicitPlatform() {
+        val resolver = ContextResolver(emptyList())
+        val result = resolver.resolve(designSystemUri = "dsbuilder://projects/a/design-systems/b?version=draft")
+        val context = assertIs<ProjectContextReadResult.Found>(result).context
+        assertEquals(emptyList(), context.platforms)
+        assertEquals("draft", context.selectedVersion)
+    }
+
+    @Test
     fun invalidExplicitLinkDoesNotFallBackToWorkspace() {
         var sourceCalled = false
         val resolver = ContextResolver(
@@ -497,13 +514,13 @@ class RuntimeAdaptersTest {
                 },
             ),
         )
-        val result = resolver.resolve("/repo", "dsbuilder://projects/a/design-systems/b?version=1")
+        val result = resolver.resolve("/repo", "dsbuilder://projects/a/design-systems/b?version=1&platform=unknown")
         assertEquals(ProjectContextFailure.INVALID_CONTEXT, assertIs<ProjectContextReadResult.Failed>(result).reason)
         assertEquals(false, sourceCalled)
     }
 
     private fun session(apiUrl: String, refreshToken: String): UserSession = UserSession(
-        schemaVersion = 1,
+        schemaVersion = 2,
         apiUrl = apiUrl,
         username = "user@example.com",
         refreshToken = refreshToken,
@@ -513,10 +530,11 @@ class RuntimeAdaptersTest {
 }
 
 private object NoopTokenClient : TokenClient {
-    override suspend fun login(
+    override suspend fun exchangeCode(
         apiUrl: String,
-        username: String,
-        password: String,
+        code: String,
+        verifier: String,
+        redirectUri: String,
     ): AuthResult<TokenResponse> = AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "not configured")
 
     override suspend fun refresh(
@@ -534,7 +552,7 @@ private class DeletingCredentialStore : CredentialStore {
     val deleted = mutableListOf<String>()
 
     override suspend fun read(apiUrl: String): UserSession = UserSession(
-        schemaVersion = 1,
+        schemaVersion = 2,
         apiUrl = apiUrl,
         username = "user@example.com",
         refreshToken = "refresh-old",

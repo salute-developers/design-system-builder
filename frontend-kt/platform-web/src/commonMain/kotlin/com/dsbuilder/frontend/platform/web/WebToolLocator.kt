@@ -35,12 +35,21 @@ internal class WebToolLocator(
     fun configuredTool(): String? = environmentReader.get(WEB_TOOL_ENV)?.takeIf { it.isNotBlank() }
 
     /** Абсолютный путь `npm` из `PATH` либо `null`: `ProcessRunner` принимает только абсолютный путь. */
-    fun locateNpm(): String? =
-        environmentReader.get("PATH")
-            ?.split(":")
+    fun locateNpm(): String? {
+        val workingDirectory = fileSystem.currentWorkingDirectory()
+        val windows = workingDirectory.startsWith("\\\\") ||
+            (
+                workingDirectory.length >= 3 && workingDirectory[1] == ':' &&
+                    workingDirectory[2] in charArrayOf('\\', '/')
+                )
+        val separator = if (windows) ";" else ":"
+        val executable = if (windows) "npm.cmd" else NPM_EXECUTABLE
+        return environmentReader.get("PATH")
+            ?.split(separator)
             ?.filter { it.isNotBlank() }
-            ?.map { fileSystem.resolve(it, NPM_EXECUTABLE) }
+            ?.map { fileSystem.resolve(it, executable) }
             ?.firstOrNull { fileSystem.exists(it) }
+    }
 
     private companion object {
         const val PACKAGE_JSON = "package.json"

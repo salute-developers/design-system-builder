@@ -26,9 +26,6 @@ class ServiceAccountCredentialProviderTest {
     private var clientResult: AuthResult<AccessTokenResponse> = AuthResult.Success(AccessTokenResponse("service-token"))
 
     private val tokenClient = object : TokenClient {
-        override suspend fun login(apiUrl: String, username: String, password: String): AuthResult<TokenResponse> =
-            error("login must not be used")
-
         override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
             AuthResult.Success(TokenResponse("user-access", "user-refresh", 999))
 
@@ -47,7 +44,7 @@ class ServiceAccountCredentialProviderTest {
     private val store = object : CredentialStore {
         override suspend fun read(apiUrl: String): UserSession? {
             sessionReads++
-            return UserSession(1, apiUrl, "admin", "refresh", 999, 1)
+            return UserSession(2, apiUrl, "admin", "refresh", 999, 1)
         }
 
         override suspend fun save(session: UserSession) = Unit

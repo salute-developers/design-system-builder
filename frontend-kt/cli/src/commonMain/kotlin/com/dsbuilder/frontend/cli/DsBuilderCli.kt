@@ -26,9 +26,6 @@ import com.dsbuilder.frontend.feature.init.initApplicationModule
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
-import com.dsbuilder.frontend.platform.android.androidPlatformModule
-import com.dsbuilder.frontend.platform.ios.iosPlatformModule
-import com.dsbuilder.frontend.platform.web.webPlatformModule
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.parse
 import com.github.ajalt.clikt.core.terminal
@@ -96,9 +93,6 @@ public class DsBuilderCli(
             modules(
                 coreApplicationModule(runtime),
                 corePlatformModule(),
-                iosPlatformModule(),
-                androidPlatformModule(),
-                webPlatformModule(),
                 platformDelegatesModule(),
                 authApplicationModule(),
                 authCliPresentationModule(),
@@ -120,6 +114,7 @@ public class DsBuilderCli(
                 toolchainCliPresentationModule(),
                 cliModule(),
             )
+            modules(platformModules())
         }.koin
 
         return koin.get()
@@ -135,11 +130,9 @@ public class DsBuilderCli(
         koinApplication {
             modules(
                 coreApplicationModule(runtime),
-                iosPlatformModule(),
-                androidPlatformModule(),
-                webPlatformModule(),
                 platformDelegatesModule(),
             )
+            modules(platformModules())
         }.koin.get()
 
     /**
@@ -149,11 +142,9 @@ public class DsBuilderCli(
         koinApplication {
             modules(
                 coreApplicationModule(runtime),
-                iosPlatformModule(),
-                androidPlatformModule(),
-                webPlatformModule(),
                 platformDelegatesModule(),
             )
+            modules(platformModules())
         }.koin.get()
 }
 
@@ -172,7 +163,7 @@ private fun rejectPasswordArgument(args: List<String>): String? {
 
     val hasPasswordArg = args.any { it == "--password" || it.startsWith("--password=") }
     return if (hasPasswordArg) {
-        "Error: password must be entered interactively and cannot be passed as a command-line argument."
+        "Error: password login was removed; use auth login to open the system browser."
     } else {
         null
     }

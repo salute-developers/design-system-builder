@@ -8,6 +8,8 @@ import io.ktor.server.response.respond
 /** Возвращает обычное предметное тело и технические метаданные изменения в отдельном заголовке. */
 suspend inline fun <reified T : Any> ApplicationCall.respondSuccess(result: DsResult.Success<*>, message: T) {
     appendMutationMetadata(result.mutationMetadata)
+    appendReadContext(result.readContext)
+    appendReadPage(result.readPage)
     respond(message)
 }
 
@@ -18,5 +20,7 @@ suspend inline fun <reified T : Any> ApplicationCall.respondSuccess(
     message: T,
 ) {
     appendMutationMetadata(result.mutationMetadata)
+    appendReadContext(result.readContext)
+    appendReadPage(result.readPage)
     respond(status, message)
 }

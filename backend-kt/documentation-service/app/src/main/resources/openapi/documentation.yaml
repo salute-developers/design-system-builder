@@ -39,6 +39,27 @@ paths:
       responses:
         '200': { description: Active publication, content: { application/json: { schema: { type: object } } } }
         '404': { description: Publication not found }
+  /documentation/publications:
+    get:
+      tags: [Publications]
+      summary: List published releases and republications of one design system
+      parameters:
+        - $ref: '#/components/parameters/DesignSystemId'
+        - name: version
+          in: query
+          schema: { type: string }
+        - name: platform
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200': { description: Publication page with items and nextCursor, content: { application/json: { schema: { type: object } } } }
+        '400': { description: Invalid query or cursor }
   /documentation/publications/{publicationId}/navigation:
     get:
       tags: [Publications]
@@ -60,8 +81,19 @@ paths:
     get:
       tags: [Publications]
       summary: List publication code bindings
-      parameters: [ { $ref: '#/components/parameters/PublicationId' } ]
-      responses: { '200': { description: Bindings, content: { application/json: { schema: { type: array, items: { type: object } } } } } }
+      parameters:
+        - $ref: '#/components/parameters/PublicationId'
+        - { name: subject, in: query, schema: { type: string } }
+        - { name: kind, in: query, schema: { type: string } }
+        - { name: name, in: query, description: Case-insensitive substring, schema: { type: string } }
+        - { name: exactName, in: query, description: Exact case-sensitive name; cannot be combined with name, schema: { type: string } }
+        - { name: detail, in: query, schema: { type: string, enum: [summary, full], default: full } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Binding page with items and nextCursor, content: { application/json: { schema: { type: object } } } }
+        '400': { description: Invalid query }
+        '404': { description: Publication not found }
   /documentation/publications/{publicationId}/bindings/{bindingId}:
     get:
       tags: [Publications]
@@ -72,7 +104,21 @@ paths:
           in: path
           required: true
           schema: { type: string }
-      responses: { '200': { description: Binding, content: { application/json: { schema: { type: object } } } } }
+        - { name: detail, in: query, schema: { type: string, enum: [summary, variations, full], default: full } }
+        - name: appearanceNames
+          in: query
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
+        - name: variationNames
+          in: query
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
+      responses:
+        '200': { description: Projected binding, content: { application/json: { schema: { type: object } } } }
+        '400': { description: Invalid query }
+        '404': { description: Binding or publication not found }
   /documentation/publications/{publicationId}/assets/{assetId}:
     get:
       tags: [Publications]
@@ -87,18 +133,31 @@ paths:
   /documentation/search:
     get:
       tags: [Search]
-      summary: Search active documentation
+      summary: Search active or explicitly selected published documentation
       parameters:
         - $ref: '#/components/parameters/DesignSystemId'
-        - $ref: '#/components/parameters/Version'
-        - $ref: '#/components/parameters/Platform'
+        - name: version
+          in: query
+          description: Required unless publicationId is given.
+          schema: { type: string }
+        - name: platform
+          in: query
+          description: Required unless publicationId is given.
+          schema: { type: string }
+        - name: publicationId
+          in: query
+          description: Exact published release; incompatible explicit version or platform is rejected.
+          schema: { type: string }
         - name: query
           in: query
           required: true
           schema: { type: string }
         - name: subject
           in: query
-          schema: { type: string }
+          description: Repeatable canonical subject filter.
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
         - name: cursor
           in: query
           schema: { type: integer, minimum: 0 }
@@ -115,6 +174,7 @@ paths:
           in: query
           required: true
           schema: { type: string }
+        - { name: detail, in: query, schema: { type: string, enum: [full, compact], default: full } }
       responses: { '200': { description: Knowledge-base chunk, content: { application/json: { schema: { type: object } } } } }
 components:
   parameters:

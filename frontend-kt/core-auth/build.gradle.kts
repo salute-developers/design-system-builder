@@ -6,10 +6,12 @@ plugins {
 kotlin {
     macosArm64()
     macosX64()
+    mingwX64()
 
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.coroutines.core)
         }
 
         commonTest.dependencies {

@@ -2,7 +2,9 @@
 
 ## Purpose
 Определяет наполнение локального контура дизайн-системой `base` через Gateway скриптом `backend-kt/bootstrap-base.sh`.
+
 ## Requirements
+
 ### Requirement: Local base bootstrap fills the contour through the gateway
 
 Скрипт `backend-kt/bootstrap-base.sh` SHALL наполнять локальный контур дизайн-системой `base` только через Gateway (`/api/projects`, `/api/projects/{id}/ds/*`, `/api/admin/component-config/import-api-meta` через `dsbuilder components import-api`), без обращения к базе напрямую и без db-service.
@@ -33,3 +35,27 @@
 - **WHEN** `web-api-meta.json` отсутствует и его нельзя сгенерировать, либо дистрибутив CLI нельзя собрать
 - **THEN** скрипт MUST остановиться до изменений в контуре с командой, которую нужно выполнить
 
+### Requirement: Локальный контур запускается из PowerShell на Windows
+
+Система SHALL предоставлять `setup-local.ps1`, который на Windows с Docker Desktop запускает тот же backend, клиент и начальное наполнение, что `setup-local.sh`, без Bash/WSL и без JDK или Node.js на хосте.
+
+#### Scenario: Первый запуск
+
+- **WHEN** пользователь запускает `setup-local.ps1` в Windows-копии репозитория с Docker Desktop
+- **THEN** скрипт MUST собрать backend jars в Linux-контейнерах, поднять backend и клиент, настроить Keycloak, создать или найти проект и черновик `base` с темой, а при наличии локальных пакетов опубликовать Compose-плагин и загрузить компоненты
+- **AND** shell-скрипты, исполняемые внутри Linux-контейнеров, MUST сохранять свои существующие контракты
+
+#### Scenario: Повторный запуск и остановка
+
+- **WHEN** пользователь повторяет запуск без `-Reset`
+- **THEN** существующие Docker volumes и созданные данные MUST сохраняться
+- **WHEN** пользователь запускает `setup-local.ps1 -Down`
+- **THEN** оба локальных Compose-стека MUST останавливаться без удаления данных
+- **WHEN** пользователь запускает `setup-local.ps1 -Reset`
+- **THEN** скрипт MUST удалить данные обоих стеков перед новым запуском
+
+#### Scenario: Необязательные локальные пакеты
+
+- **WHEN** встроенный Compose-плагин или пакет компонентов отсутствует либо не загружается
+- **THEN** скрипт MUST продолжить запуск с диагностикой, если путь не был задан явно
+- **AND** явно заданный, но нерабочий путь MUST приводить к ошибке

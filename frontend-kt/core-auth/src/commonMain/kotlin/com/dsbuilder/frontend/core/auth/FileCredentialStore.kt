@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
-private const val SESSION_SCHEMA_VERSION = 1
+private const val SESSION_SCHEMA_VERSION = 2
 private const val SESSION_DIRECTORY_MODE = "0700"
 private const val SESSION_FILE_MODE = "0600"
 
@@ -85,21 +85,30 @@ public class FileCredentialStore(
 ) : RotatingCredentialStore {
     override suspend fun read(apiUrl: String): UserSession? =
         lock.withLock(lockPath(apiUrl)) {
-            readUnlocked(apiUrl)
+            readUnlocked(normalizeSessionApiUrl(apiUrl))
         }
 
     override suspend fun save(session: UserSession) {
         lock.withLock(lockPath(session.apiUrl)) {
-            saveUnlocked(session)
+            saveUnlocked(session.copy(apiUrl = normalizeSessionApiUrl(session.apiUrl)))
         }
     }
 
     override suspend fun delete(apiUrl: String) {
         lock.withLock(lockPath(apiUrl)) {
-            val path = sessionPath(apiUrl)
-            if (fileSystem.exists(path)) {
-                fileSystem.deleteFile(path)
-            }
+            deleteUnlocked(apiUrl)
+        }
+    }
+
+    override suspend fun logoutSession(
+        apiUrl: String,
+        revoke: suspend (UserSession) -> AuthResult<Unit>,
+    ): AuthResult<Unit> = lock.withLock(lockPath(apiUrl)) {
+        try {
+            val session = readUnlocked(normalizeSessionApiUrl(apiUrl))
+            if (session == null) AuthResult.Success(Unit) else revoke(session)
+        } finally {
+            deleteUnlocked(apiUrl)
         }
     }
 
@@ -108,10 +117,13 @@ public class FileCredentialStore(
         refresh: suspend (UserSession) -> AuthResult<TokenResponse>,
     ): AuthResult<TokenResponse> =
         lock.withLock(lockPath(apiUrl)) {
-            val session = readUnlocked(apiUrl)
+            val session = readUnlocked(normalizeSessionApiUrl(apiUrl))
                 ?: return@withLock AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Error: authentication is required.")
             when (val refreshed = refresh(session)) {
-                is AuthResult.Failed -> refreshed
+                is AuthResult.Failed -> {
+                    if (refreshed.code == AuthErrorCode.AUTH_REQUIRED) deleteUnlocked(apiUrl)
+                    refreshed
+                }
                 is AuthResult.Success -> {
                     saveUnlocked(
                         session.copy(
@@ -123,6 +135,11 @@ public class FileCredentialStore(
                 }
             }
         }
+
+    private fun deleteUnlocked(apiUrl: String) {
+        val path = sessionPath(apiUrl)
+        if (fileSystem.exists(path)) fileSystem.deleteFile(path)
+    }
 
     internal fun readUnlocked(apiUrl: String): UserSession? =
         if (!fileSystem.exists(sessionPath(apiUrl))) {
@@ -137,8 +154,9 @@ public class FileCredentialStore(
         fileSystem.setPosixPermissions(sessions, SESSION_DIRECTORY_MODE)
         val target = sessionPath(session.apiUrl)
         val temp = "$target.tmp"
-        fileSystem.writeText(temp, json.encodeToString(SessionFile.serializer(), session.toFile()))
+        fileSystem.writeText(temp, "")
         fileSystem.setPosixPermissions(temp, SESSION_FILE_MODE)
+        fileSystem.writeText(temp, json.encodeToString(SessionFile.serializer(), session.toFile()))
         fileSystem.atomicReplace(temp, target)
         fileSystem.setPosixPermissions(target, SESSION_FILE_MODE)
     }
@@ -152,7 +170,9 @@ public class FileCredentialStore(
         } catch (exception: IllegalArgumentException) {
             null
         }
-        return if (session?.schemaVersion == SESSION_SCHEMA_VERSION && session.apiUrl == apiUrl) {
+        return if (session?.schemaVersion == SESSION_SCHEMA_VERSION && session.apiUrl == apiUrl &&
+            session.clientId == INTERACTIVE_CLIENT_ID
+        ) {
             session
         } else {
             null
@@ -163,7 +183,7 @@ public class FileCredentialStore(
         fileSystem.resolve(fileSystem.resolve(fileSystem.homeDirectory(), ".sdds"), "sessions")
 
     private fun sessionPath(apiUrl: String): String =
-        fileSystem.resolve(sessionsDirectory(), "${stableHash(apiUrl)}.json")
+        fileSystem.resolve(sessionsDirectory(), "${stableHash(normalizeSessionApiUrl(apiUrl))}.json")
 
     private fun lockPath(apiUrl: String): String = "${sessionPath(apiUrl)}.lock"
 
@@ -185,6 +205,7 @@ private data class SessionFile(
     val refreshToken: String,
     val refreshExpiresAt: Long,
     val updatedAt: Long,
+    val clientId: String,
 ) {
     fun toDomain(): UserSession = UserSession(
         schemaVersion = schemaVersion,
@@ -193,6 +214,7 @@ private data class SessionFile(
         refreshToken = refreshToken,
         refreshExpiresAt = refreshExpiresAt,
         updatedAt = updatedAt,
+        clientId = clientId,
     )
 }
 
@@ -203,4 +225,5 @@ private fun UserSession.toFile(): SessionFile = SessionFile(
     refreshToken = refreshToken,
     refreshExpiresAt = refreshExpiresAt,
     updatedAt = updatedAt,
+    clientId = clientId,
 )

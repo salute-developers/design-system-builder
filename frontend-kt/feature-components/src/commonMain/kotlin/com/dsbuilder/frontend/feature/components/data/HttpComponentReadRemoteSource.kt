@@ -4,76 +4,66 @@ package com.dsbuilder.frontend.feature.components.data
 
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
-import com.dsbuilder.frontend.feature.components.application.ComponentConfigReadCommand
-import com.dsbuilder.frontend.feature.components.application.ComponentGetReadCommand
-import com.dsbuilder.frontend.feature.components.application.ComponentListReadCommand
 import com.dsbuilder.frontend.feature.components.application.ComponentReadErrorCode
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRuntime
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 public class HttpComponentReadRemoteSource(
     private val httpClientFactory: AuthenticatedHttpClientFactory,
     private val json: Json,
 ) : ComponentReadRemoteSource {
-    override suspend fun list(
+    override suspend fun configurations(
         runtime: ComponentReadRuntime,
-        command: ComponentListReadCommand,
-    ): ComponentReadResult =
-        runtime.get(runtime.designSystemModelPath("components") + queryString("query" to command.query))
+        componentId: String,
+        version: String,
+        limit: Int,
+        cursor: String?,
+    ): ComponentReadResult = runtime.get(
+        "/api/projects/${encodePart(runtime.context.projectId.value)}/ds/appearances?" +
+            "designSystemId=${encodePart(runtime.context.designSystemId.value)}" +
+            "&componentId=${encodePart(componentId)}&version=${encodePart(version)}&limit=$limit" +
+            (cursor?.let { "&cursor=${encodePart(it)}" } ?: ""),
+        version,
+    )
 
-    override suspend fun get(runtime: ComponentReadRuntime, command: ComponentGetReadCommand): ComponentReadResult =
-        runtime.get(runtime.projectModelPath("components/${encodePath(command.componentId)}"))
-
-    override suspend fun config(
+    override suspend fun resolvedProperties(
         runtime: ComponentReadRuntime,
-        command: ComponentConfigReadCommand,
-    ): ComponentReadResult {
-        val body = json.encodeToString(
-            JsonObject.serializer(),
-            buildJsonObject {
-                put("designSystemId", runtime.context.designSystemId.value)
-                put("components", JsonArray(listOf(JsonPrimitive(command.identifier))))
-                command.style?.let { put("styles", JsonArray(listOf(JsonPrimitive(it)))) }
-            },
-        )
-        return runtime.post("/api/projects/${runtime.context.projectId.value}/ds/component-config/export", body)
-    }
+        appearanceId: String,
+        selectedValueIds: List<String>,
+        version: String,
+    ): ComponentReadResult = runtime.get(
+        runtime.selectionPath(appearanceId, "resolved-properties", selectedValueIds, version),
+        version,
+    )
 
-    override suspend fun styles(runtime: ComponentReadRuntime, command: ComponentGetReadCommand): ComponentReadResult =
-        runtime.get(runtime.designSystemModelPath("components/${encodePath(command.componentId)}/styles"))
-
-    override suspend fun variations(
+    override suspend fun tokenReferences(
         runtime: ComponentReadRuntime,
-        command: ComponentGetReadCommand,
-    ): ComponentReadResult =
-        runtime.get(
-            runtime.projectModelPath("components/${encodePath(command.componentId)}/variations") +
-                "?designSystemId=${encode(runtime.context.designSystemId.value)}",
-        )
+        appearanceId: String,
+        selectedValueIds: List<String>,
+        version: String,
+    ): ComponentReadResult = runtime.get(
+        runtime.selectionPath(appearanceId, "token-references", selectedValueIds, version),
+        version,
+    )
 
-    override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult =
-        runtime.get(runtime.designSystemModelPath("tokens"))
-
-    private suspend fun ComponentReadRuntime.get(path: String): ComponentReadResult =
+    private suspend fun ComponentReadRuntime.get(path: String, version: String): ComponentReadResult =
         when (val response = httpClientFactory.create(apiUrl.value, credential).get(path)) {
-            is AuthenticatedHttpResult.Success -> parseSuccess(response.body)
+            is AuthenticatedHttpResult.Success -> parseSuccess(response, context.designSystemId.value, version)
             is AuthenticatedHttpResult.Failure -> response.toReadError()
         }
 
-    private suspend fun ComponentReadRuntime.post(path: String, body: String): ComponentReadResult =
-        when (val response = httpClientFactory.create(apiUrl.value, credential).post(path, body)) {
-            is AuthenticatedHttpResult.Success -> parseSuccess(response.body)
-            is AuthenticatedHttpResult.Failure -> response.toReadError()
-        }
-
-    private fun parseSuccess(body: String): ComponentReadResult {
+    @Suppress("ReturnCount")
+    private fun parseSuccess(
+        response: AuthenticatedHttpResult.Success,
+        designSystemId: String,
+        version: String,
+    ): ComponentReadResult {
+        if (!response.readHeadersValid) return unreadableContext()
+        val body = response.body
         val data = if (body.isBlank()) {
             JsonObject(emptyMap())
         } else {
@@ -83,9 +73,46 @@ public class HttpComponentReadRemoteSource(
                     "Backend returned unreadable JSON.",
                 )
         }
+        val context = response.headers["x-ds-read-context"]?.let { raw ->
+            runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
+                ?: return unreadableContext()
+        } ?: return unreadableContext()
+        if ((context["designSystemId"] as? JsonPrimitive)?.content != designSystemId ||
+            (context["version"] as? JsonPrimitive)?.content != version
+        ) {
+            return unreadableContext()
+        }
         return ComponentReadResult.Success(
-            JsonObject(mapOf("source" to JsonPrimitive("design-system-model-api"), "data" to data)),
+            JsonObject(
+                mapOf("source" to JsonPrimitive("design-system-model-api"), "context" to context, "data" to data),
+            ),
         )
+    }
+}
+
+private fun unreadableContext(): ComponentReadResult.Failed = ComponentReadResult.Failed(
+    ComponentReadErrorCode.BACKEND_UNAVAILABLE,
+    "Backend returned unreadable model read context.",
+)
+
+private fun ComponentReadRuntime.selectionPath(
+    appearanceId: String,
+    operation: String,
+    selectedValueIds: List<String>,
+    version: String,
+): String = "/api/projects/${encodePart(context.projectId.value)}/ds/appearances/" +
+    "${encodePart(appearanceId)}/$operation?version=${encodePart(version)}" +
+    selectedValueIds.joinToString("") { "&selectedValueId=${encodePart(it)}" }
+
+private fun encodePart(value: String): String = buildString {
+    value.encodeToByteArray().forEach { raw ->
+        val byte = raw.toInt() and 0xff
+        val letter = byte in 'a'.code..'z'.code || byte in 'A'.code..'Z'.code
+        if (letter || byte in '0'.code..'9'.code || byte.toChar() in "-._~") {
+            append(byte.toChar())
+        } else {
+            append("%" + byte.toString(16).uppercase().padStart(2, '0'))
+        }
     }
 }
 
@@ -99,30 +126,3 @@ private fun AuthenticatedHttpResult.Failure.toReadError(): ComponentReadResult.F
     }
     return ComponentReadResult.Failed(code, message)
 }
-
-private fun queryString(vararg parts: Pair<String, String?>): String {
-    val values = parts.filter { it.second != null }.joinToString("&") { (name, value) ->
-        "${encode(name)}=${encode(value.orEmpty())}"
-    }
-    return if (values.isEmpty()) "" else "?$values"
-}
-
-private fun encodePath(value: String): String = value.split("/").joinToString("/") { encode(it) }
-
-private fun encode(value: String): String = buildString {
-    value.encodeToByteArray().forEach { byte ->
-        val int = byte.toInt() and 0xff
-        val char = int.toChar()
-        if (char.isLetterOrDigit() || char in "-._~") {
-            append(char)
-        } else {
-            append("%" + int.toString(16).uppercase().padStart(2, '0'))
-        }
-    }
-}
-
-private fun ComponentReadRuntime.designSystemModelPath(path: String): String =
-    "/api/projects/${context.projectId.value}/ds/design-systems/${context.designSystemId.value}/$path"
-
-private fun ComponentReadRuntime.projectModelPath(path: String): String =
-    "/api/projects/${context.projectId.value}/ds/$path"

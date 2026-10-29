@@ -36,6 +36,10 @@ public data class CredentialRequest(
     public val credentialEnvName: CredentialEnvName,
     public val policy: CredentialPolicy,
     public val projectEnvironment: EnvironmentReader? = null,
+    /** Принудительное обновление после 401 с обходом кеша. */
+    public val forceRefresh: Boolean = false,
+    /** Отвергнутый bearer для объединения конкурентных повторов после 401. */
+    public val rejectedAccessToken: String? = null,
 )
 
 /** Explicit choice between local discovery and a portable link. */

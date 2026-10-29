@@ -404,3 +404,35 @@ X-System-Admin
 - `auth-helper` использует HTTP access-check до `projects-service`;
 - `projects-service` поддерживает add-member по email зарегистрированного Keycloak user;
 - local bootstrap создает Keycloak client `projects-service` для read-only lookup через Admin API.
+
+## Тема браузерного входа CLI/MCP и IDE
+
+Тема `keycloak/themes/dsbuilder/login` наследует штатную тему `keycloak` версии
+из Dockerfile. Оболочка `template.ftl` адаптирована из штатного шаблона Keycloak 26.6.1;
+`login.ftl` повторяет геометрию формы web-клиента и отправляет данные штатному
+обработчику Keycloak. Дополнительные шаги наследуют штатные шаблоны.
+Весь интерфейс темы и серверные ошибки русские, в том числе при английском
+языке realm. Регистрация и блок «Запросить доступ» в форме не отображаются.
+Inter Regular/SemiBold поставляются локально вместе с OFL в `resources/fonts`.
+При обновлении Keycloak сверяйте изменения `theme/base/login/template.ftl`,
+`login.ftl` и `messages_ru.properties` с адаптированными файлами темы. Оформление и
+локальные изображения повторяют страницу входа `js/apps/client`; при изменении
+этих изображений их копии в теме нужно обновлять вместе.
+
+Только клиент `dsbuilder-studio-plugin` получает `attributes.login_theme=dsbuilder`.
+Тема realm и React-страница входа web-клиента сохраняются. PKCE S256, audience и
+loopback redirect не зависят от оформления.
+
+В локальном контуре каталог темы монтируется через `docker-compose.local.yml`.
+После изменения compose нужно пересоздать контейнер Keycloak. Импорт realm
+настраивает тему при первом запуске; для существующего realm нужно через
+административную консоль Keycloak у клиента `dsbuilder-studio-plugin` выбрать
+Login theme `dsbuilder`. Сброс данных для смены темы не нужен.
+
+В производственном контуре тема включена в образ Keycloak; после его пересборки
+нужно выполнить существующую процедуру `bootstrap-production-keycloak.sh`, которая
+назначает тему как новому, так и существующему клиенту. При обновлении Keycloak
+проверяются основная форма, ошибки, дополнительные шаги и успешный PKCE-вход без
+активной SSO-сессии. Для отката оформления удалите атрибут `login_theme` клиента
+(и его назначение из конфигурации при следующем развёртывании); PKCE и сохранённые
+сессии менять не требуется.

@@ -1,0 +1,5 @@
+package = com.dsbuilder.frontend.cli.winsecurity
+headers = winsock2.h windows.h sddl.h bcrypt.h
+compilerOpts = -DUNICODE
+linkerOpts = -ladvapi32 -lbcrypt -lws2_32
+noStringConversion = send recv

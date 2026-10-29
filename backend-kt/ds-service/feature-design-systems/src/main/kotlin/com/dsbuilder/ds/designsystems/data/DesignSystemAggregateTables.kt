@@ -9,6 +9,7 @@ import org.jetbrains.exposed.v1.javatime.timestamp
 import org.jetbrains.exposed.v1.json.jsonb
 
 internal object AggregateComponentsTable : Table("components") {
+    val platform = text("platform")
     val id = uuid("id")
     val name = text("name")
     val description = text("description").nullable()

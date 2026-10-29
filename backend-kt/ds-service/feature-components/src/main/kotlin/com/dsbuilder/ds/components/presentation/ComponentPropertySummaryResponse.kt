@@ -1,6 +1,9 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package com.dsbuilder.ds.components.presentation
 
 import com.dsbuilder.ds.components.domain.ComponentPropertySummary
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 
 /** External nested property representation. */
@@ -22,10 +25,16 @@ data class ComponentPropertySummaryResponse(
     val createdAt: String,
     /** Updated at carried by this contract. */
     val updatedAt: String,
+    /** Платформенные параметры при явном include. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val platformParams: List<PropertyPlatformParamResponse>? = null,
 ) {
     companion object {
         /** Performs the from operation. */
-        fun from(value: ComponentPropertySummary) = ComponentPropertySummaryResponse(
+        fun from(
+            value: ComponentPropertySummary,
+            platformParams: List<PropertyPlatformParamResponse>? = null,
+        ) = ComponentPropertySummaryResponse(
             value.id.toString(),
             value.componentId?.toString(),
             value.name,
@@ -34,6 +43,7 @@ data class ComponentPropertySummaryResponse(
             value.description,
             value.createdAt.toString(),
             value.updatedAt.toString(),
+            platformParams,
         )
     }
 }

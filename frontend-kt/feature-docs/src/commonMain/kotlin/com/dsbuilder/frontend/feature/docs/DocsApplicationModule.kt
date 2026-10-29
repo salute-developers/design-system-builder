@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.docs
 
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.platform.PlatformCapabilityRunner
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
@@ -74,5 +75,5 @@ public fun docsApplicationModule(): Module = module {
     }
     single { DocsInitUseCase(get(), get()) }
     single { DocsPublishUseCase(get(), get(), get(), get()) }
-    single { DocsReadUseCases(get(), get(), get(), get()) }
+    single { DocsReadUseCases(RuntimeRequestResolver(get(), get(), get()), get()) }
 }

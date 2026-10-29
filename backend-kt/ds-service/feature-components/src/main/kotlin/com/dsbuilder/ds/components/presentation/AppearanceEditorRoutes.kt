@@ -7,6 +7,8 @@ import com.dsbuilder.ds.components.application.AppearanceEditorRepository
 import com.dsbuilder.ds.components.application.CreateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.DuplicateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceEditorModelUseCase
+import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCase
+import com.dsbuilder.ds.components.application.GetResolvedComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisValueUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearancePropertyValueUseCase
@@ -25,6 +27,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -50,6 +53,8 @@ private const val IDEMPOTENCY_HEADER = "Idempotency-Key"
 fun Route.appearanceEditorRoutes(
     evaluator: PolicyEvaluator,
     model: GetAppearanceEditorModelUseCase,
+    resolvedProperties: GetResolvedComponentPropertiesUseCase,
+    tokenReferences: GetComponentTokenReferencesUseCase,
     addAxis: AddAppearanceAxisUseCase,
     removeAxis: RemoveAppearanceAxisUseCase,
     reorderAxes: ReorderAppearanceAxesUseCase,
@@ -69,6 +74,40 @@ fun Route.appearanceEditorRoutes(
             val id = pathUuid("id") ?: return@get
             when (val result = model.execute(context, id)) {
                 is DsResult.Success -> call.respondSuccess(result, AppearanceEditorModelResponse.from(result.value))
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
+        }
+        get("/{id}/resolved-properties") {
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = pathUuid("id") ?: return@get
+            val valueIds = call.request.queryParameters.getAll("selectedValueId").orEmpty().map { it.toUuidOrNull() }
+            if (valueIds.any { it == null }) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_selected_value_id"))
+            }
+            when (val result = resolvedProperties.execute(context, id, valueIds.filterNotNull())) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    ResolvedComponentPropertiesResponse(
+                        id.toString(),
+                        valueIds.filterNotNull().map(UUID::toString),
+                        result.value.map(EditorPropertyValueResponse::from),
+                    ),
+                )
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
+        }
+        get("/{id}/token-references") {
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = pathUuid("id") ?: return@get
+            val valueIds = call.request.queryParameters.getAll("selectedValueId").orEmpty().map { it.toUuidOrNull() }
+            if (valueIds.any { it == null }) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_selected_value_id"))
+            }
+            when (val result = tokenReferences.execute(context, id, valueIds.filterNotNull())) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    ComponentTokenReferencesResponse(result.value.map(ComponentTokenReferenceResponse::from)),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }

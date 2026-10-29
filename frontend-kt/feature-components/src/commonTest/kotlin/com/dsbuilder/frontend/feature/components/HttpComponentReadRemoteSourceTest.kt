@@ -9,101 +9,79 @@ import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
-import com.dsbuilder.frontend.feature.components.application.ComponentConfigReadCommand
-import com.dsbuilder.frontend.feature.components.application.ComponentGetReadCommand
+import com.dsbuilder.frontend.feature.components.application.ComponentReadErrorCode
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRuntime
 import com.dsbuilder.frontend.feature.components.data.HttpComponentReadRemoteSource
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertIs
 
 class HttpComponentReadRemoteSourceTest {
     @Test
-    fun omittedStyleIsAbsentFromExportRequest() = runTest {
-        var requestBody = ""
-        val source = source { requestBody = it }
+    fun readsConfigurationsByComponentIdAndReturnsActualContext() = runTest {
+        var path = ""
+        val source = source({ path = it })
 
-        assertIs<ComponentReadResult.Success>(
-            source.config(runtime(), ComponentConfigReadCommand("basic-button", null)),
-        )
+        val result = source.configurations(runtime(), "component-1", "draft", 50, "10")
 
-        val body = Json.parseToJsonElement(requestBody).jsonObject
-        assertEquals("ds-1", body.getValue("designSystemId").jsonPrimitive.content)
-        assertEquals("basic-button", body.getValue("components").jsonArray.single().jsonPrimitive.content)
-        assertFalse(body.containsKey("styles"))
-    }
-
-    @Test
-    fun explicitStyleIsSentAsArray() = runTest {
-        var requestBody = ""
-        val source = source { requestBody = it }
-
-        source.config(runtime(), ComponentConfigReadCommand("basic-button", "basic-button"))
-
-        val styles = Json.parseToJsonElement(requestBody).jsonObject.getValue("styles").jsonArray
-        assertEquals("basic-button", styles.single().jsonPrimitive.content)
-    }
-
-    @Test
-    fun detailAndVariationReadsReuseIdRoutesWhileStylesStayAggregated() = runTest {
-        val requestedPaths = mutableListOf<String>()
-        val source = HttpComponentReadRemoteSource(
-            object : AuthenticatedHttpClientFactory {
-                override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-                    error("Project-key overload should not be used.")
-
-                override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =
-                    object : AuthenticatedHttpClient {
-                        override suspend fun get(path: String): AuthenticatedHttpResult {
-                            requestedPaths += path
-                            return AuthenticatedHttpResult.Success("{}")
-                        }
-
-                        override suspend fun post(path: String, body: String): AuthenticatedHttpResult =
-                            error("Unexpected POST")
-                    }
-            },
-            Json,
-        )
-        val command = ComponentGetReadCommand("component-1")
-
-        source.get(runtime(), command)
-        source.variations(runtime(), command)
-        source.styles(runtime(), command)
-
+        val success = assertIs<ComponentReadResult.Success>(result)
+        assertContains(path, "/appearances?")
+        assertContains(path, "componentId=component-1")
+        assertContains(path, "cursor=10")
         assertEquals(
-            listOf(
-                "/api/projects/project-1/ds/components/component-1",
-                "/api/projects/project-1/ds/components/component-1/variations?designSystemId=ds-1",
-                "/api/projects/project-1/ds/design-systems/ds-1/components/component-1/styles",
-            ),
-            requestedPaths,
+            "ds-1",
+            success.value.jsonObject.getValue("context").jsonObject.getValue("designSystemId").toString().trim('"'),
         )
     }
 
-    private fun source(onPost: (String) -> Unit) = HttpComponentReadRemoteSource(
-        object : AuthenticatedHttpClientFactory {
-            override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-                object : AuthenticatedHttpClient {
-                    override suspend fun get(path: String): AuthenticatedHttpResult = error("Unexpected GET")
+    @Test
+    fun sendsEachSelectedValueIdWithoutGeneratorExport() = runTest {
+        var path = ""
+        val source = source({ path = it })
 
-                    override suspend fun post(path: String, body: String): AuthenticatedHttpResult {
-                        onPost(body)
-                        return AuthenticatedHttpResult.Success("{\"components\":[]}")
-                    }
+        source.resolvedProperties(runtime(), "appearance-1", listOf("value-1", "value-2"), "draft")
+
+        assertContains(path, "/appearances/appearance-1/resolved-properties")
+        assertContains(path, "selectedValueId=value-1&selectedValueId=value-2")
+    }
+
+    @Test
+    fun rejectsMissingReadContext() = runTest {
+        val source = source({ }, AuthenticatedHttpResult.Success("{}"))
+
+        val result = source.tokenReferences(runtime(), "appearance-1", emptyList(), "draft")
+
+        assertEquals(ComponentReadErrorCode.BACKEND_UNAVAILABLE, assertIs<ComponentReadResult.Failed>(result).code)
+    }
+
+    private fun source(
+        onGet: (String) -> Unit,
+        response: AuthenticatedHttpResult = AuthenticatedHttpResult.Success(
+            "{}",
+            mapOf("x-ds-read-context" to "{\"designSystemId\":\"ds-1\",\"version\":\"draft\"}"),
+        ),
+    ) = HttpComponentReadRemoteSource(
+        object : AuthenticatedHttpClientFactory {
+            override fun create(
+                apiUrl: String,
+                apiKey: String,
+            ): AuthenticatedHttpClient = object : AuthenticatedHttpClient {
+                override suspend fun get(path: String): AuthenticatedHttpResult {
+                    onGet(path)
+                    return response
                 }
+                override suspend fun post(
+                    path: String,
+                    body: String,
+                ): AuthenticatedHttpResult = error("Unexpected POST")
+            }
         },
-        Json {
-            encodeDefaults = true
-            explicitNulls = true
-        },
+        Json,
     )
 
     private fun runtime() = ComponentReadRuntime(

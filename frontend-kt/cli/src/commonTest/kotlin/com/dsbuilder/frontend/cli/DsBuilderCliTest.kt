@@ -25,6 +25,9 @@ import com.dsbuilder.frontend.core.workspace.ProjectConfigTenant
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -37,6 +40,93 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DsBuilderCliTest {
+    @Test
+    fun themeFetchRetainsMoreThanTwoHundredDefinitionsAndFiftyThemesWithoutPageParameters() {
+        val fileSystem = initializedFileSystem()
+        val tenants = (1..51).map { configTenant("tenant-$it").copy(name = "Theme $it") }
+        val token = Json.parseToJsonElement(singleColorTokenResponse()).jsonArray.single().jsonObject
+        val tokens = (1..205).map { index ->
+            JsonObject(
+                token + mapOf(
+                    "id" to JsonPrimitive("token-$index"), "name" to JsonPrimitive("color.primary$index"),
+                ),
+            )
+        }
+        val value = Json.parseToJsonElement(nullableAndNonNullColorValuesResponse()).jsonArray.last().jsonObject
+        val results = successfulThemeHttpResults().toMutableMap()
+        results[
+            "/api/projects/project-a/ds/" +
+                "design-systems/design-system-a/tenants",
+        ] = AuthenticatedHttpResult.Success(
+            Json.encodeToString(ListSerializer(ProjectConfigTenant.serializer()), tenants),
+        )
+        results["/api/projects/project-a/ds/design-systems/design-system-a/tokens"] =
+            AuthenticatedHttpResult.Success(JsonArray(tokens).toString())
+        tenants.forEach { tenant ->
+            val values = (1..205).map { index ->
+                JsonObject(
+                    value + mapOf(
+                        "id" to JsonPrimitive("value-$index"), "tokenId" to JsonPrimitive("token-$index"),
+                        "tenantId" to JsonPrimitive(tenant.id),
+                    ),
+                )
+            }
+            results["/api/projects/project-a/ds/tenants/${tenant.id}/token-values"] =
+                AuthenticatedHttpResult.Success(JsonArray(values).toString())
+        }
+        val calls = mutableListOf<String>()
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "test-key"),
+                httpResults = results,
+                onGet = { calls += it },
+            ),
+        ).execute(listOf("theme", "fetch"))
+        assertEquals(0, result.exitCode, result.output)
+        val config = ProjectConfigCodec().decode(fileSystem.readText("/repo/.sdds/config.json"))
+        assertEquals(51, config.tenants.size)
+        config.tenants.forEach { tenant ->
+            val meta = Json.parseToJsonElement(
+                fileSystem.readText("/repo/${tenant.directoryPath}/meta.json"),
+            ).jsonObject
+            assertEquals(205, meta.getValue("tokens").jsonArray.size)
+            assertTrue("name" in meta && "version" in meta)
+        }
+        assertTrue(calls.none { "limit=" in it || "cursor=" in it })
+        assertEquals(51, calls.count { it.endsWith("/token-values") })
+    }
+
+    @Test
+    fun componentsFetchRetainsMoreThanTwoHundredConfigurationsAndExistingFileFormat() {
+        val fileSystem = initializedFileSystem()
+        val components = (1..205).joinToString(",") {
+            """{"componentName":"component$it","styleName":"default","config":{"invariants":{}}}"""
+        }
+        val response = """{"meta":{"name":"large","version":"1.0.0"},"components":[$components]}"""
+        val calls = mutableListOf<String>()
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "test-key"),
+                httpResults = successfulComponentHttpResults() + mapOf(
+                    "/api/projects/project-a/ds/component-config/export" to AuthenticatedHttpResult.Success(response),
+                ),
+                onGet = { calls += it },
+            ),
+        ).execute(listOf("components", "fetch"))
+        assertEquals(0, result.exitCode, result.output)
+        (1..205).forEach { index ->
+            val path = "/repo/.sdds/components/component${index}_default_config.json"
+            assertTrue(fileSystem.exists(path), path)
+            assertEquals(
+                Json.parseToJsonElement("""{"bindings":[]}"""),
+                Json.parseToJsonElement(fileSystem.readText(path)),
+            )
+        }
+        assertEquals(listOf("/api/projects/project-a/ds/component-config/export"), calls)
+    }
+
     @Test
     fun statusUsesProjectEnvForKeyAndApiUrl() {
         val fileSystem = initializedFileSystem()
@@ -192,11 +282,14 @@ class DsBuilderCliTest {
         val result = DsBuilderCli(
             fakeRuntime(
                 fileSystem = fileSystem,
-                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                environment = mapOf(
+                    "DSBUILDER_API_URL" to "http://backend",
+                    "DSBUILDER_PROJECT_A_API_KEY" to "secret-value",
+                ),
                 httpResults = successfulComponentHttpResults(),
                 onGet = { calls += it },
             ),
-        ).execute(listOf("components", "fetch", "--to", "/custom-components", "--api-url", "http://backend"))
+        ).execute(listOf("components", "fetch", "--to", "/custom-components"))
 
         assertEquals(1, result.exitCode, result.output)
         assertTrue(result.output.contains("compose, android-view"), result.output)
@@ -265,8 +358,26 @@ class DsBuilderCliTest {
         )
 
         assertEquals(1, result.exitCode)
-        assertTrue(result.output.contains("password must be entered interactively"), result.output)
+        assertTrue(result.output.contains("password login was removed"), result.output)
         assertFalse(result.output.contains("secret"), result.output)
+    }
+
+    @Test
+    fun apiUrlOptionIsRejectedByNetworkCommands() {
+        listOf(
+            listOf("auth", "status"),
+            listOf("auth", "logout"),
+            listOf("mcp", "serve"),
+            listOf("status"),
+            listOf("theme", "fetch"),
+            listOf("components", "fetch"),
+            listOf("components", "push"),
+            listOf("ds", "fetch"),
+        ).forEach { command ->
+            val result = DsBuilderCli(fakeRuntime()).execute(command + listOf("--api-url", "http://backend"))
+            assertEquals(1, result.exitCode, result.output)
+            assertTrue(result.output.contains("--api-url"), result.output)
+        }
     }
 
     @Test
@@ -276,7 +387,7 @@ class DsBuilderCliTest {
         assertEquals(0, result.exitCode, result.output)
         assertTrue(result.output.contains("Serve DS Builder MCP tools over stdio."), result.output)
         assertTrue(result.output.contains("--workspace"), result.output)
-        assertTrue(result.output.contains("--api-url"), result.output)
+        assertFalse(result.output.contains("--api-url"), result.output)
     }
 
     @Test
@@ -325,6 +436,7 @@ class DsBuilderCliTest {
         var createdApiKey = ""
         val result = DsBuilderCli(
             fakeRuntime(
+                environment = mapOf("DSBUILDER_API_URL" to "https://override.example.com"),
                 fileSystem = fileSystem,
                 multipartResponse = AuthenticatedHttpResponse(
                     422,
@@ -343,8 +455,6 @@ class DsBuilderCliTest {
                 "/custom.tar.gz",
                 "--api-key",
                 "override-key",
-                "--api-url",
-                "https://override.example.com",
             ),
         )
 
@@ -1039,6 +1149,7 @@ class DsBuilderCliTest {
         val calls = mutableListOf<String>()
         val result = DsBuilderCli(
             fakeRuntime(
+                environment = mapOf("DSBUILDER_API_URL" to "https://api.example.com"),
                 fileSystem = initializedFileSystem(),
                 httpResults = successfulComponentHttpResults(),
                 onGet = { calls += it },
@@ -1047,7 +1158,7 @@ class DsBuilderCliTest {
                     assertEquals("override-key", key)
                 },
             ),
-        ).execute(listOf("components", "fetch", "--api-url", "https://api.example.com", "--api-key", "override-key"))
+        ).execute(listOf("components", "fetch", "--api-key", "override-key"))
 
         assertEquals(0, result.exitCode, result.output)
         assertEquals(listOf("/api/projects/project-a/ds/component-config/export"), calls)
@@ -1113,7 +1224,7 @@ class DsBuilderCliTest {
         val result = DsBuilderCli(
             fakeRuntime(
                 fileSystem = fileSystem,
-                environment = mapOf("CI_PROJECT_KEY" to "ci-secret"),
+                environment = mapOf("DSBUILDER_API_URL" to "https://api.example.com", "CI_PROJECT_KEY" to "ci-secret"),
                 httpResults = successfulComponentHttpResults(),
                 onCredential = { credentials += it },
             ),
@@ -1121,7 +1232,7 @@ class DsBuilderCliTest {
             listOf(
                 "components", "fetch", "--design-system", link,
                 "--project-key-env", "CI_PROJECT_KEY", "--to", "/target/components",
-                "--api-url", "https://api.example.com", "--platform", "react",
+                "--platform", "react",
             ),
         )
 
@@ -1567,7 +1678,7 @@ class DsBuilderCliTest {
 
     private fun testSessionStore(): CredentialStore = object : CredentialStore {
         override suspend fun read(apiUrl: String): UserSession = UserSession(
-            schemaVersion = 1,
+            schemaVersion = 2,
             apiUrl = apiUrl,
             username = "user@example.com",
             refreshToken = "refresh-token",
@@ -1579,7 +1690,12 @@ class DsBuilderCliTest {
     }
 
     private fun testTokenClient(): TokenClient = object : TokenClient {
-        override suspend fun login(apiUrl: String, username: String, password: String): AuthResult<TokenResponse> =
+        override suspend fun exchangeCode(
+            apiUrl: String,
+            code: String,
+            verifier: String,
+            redirectUri: String,
+        ): AuthResult<TokenResponse> =
             AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
         override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
             AuthResult.Success(TokenResponse("access-token", "refresh-token", 999))
@@ -1648,7 +1764,10 @@ private class FakeFileSystem(
             .takeUnless { it == normalized }
     }
 
-    override fun resolve(parent: String, child: String): String = normalize("${normalize(parent).trimEnd('/')}/$child")
+    override fun resolve(
+        parent: String,
+        child: String,
+    ): String = normalize("${normalize(parent).trimEnd('/')}/$child")
 
     override fun absolutePath(path: String): String = normalize(path)
 

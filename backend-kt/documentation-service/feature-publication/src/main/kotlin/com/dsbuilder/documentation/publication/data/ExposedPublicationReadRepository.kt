@@ -11,6 +11,8 @@ import com.dsbuilder.documentation.publication.application.IngestionJobStatusDto
 import com.dsbuilder.documentation.publication.application.NavigationNodeDto
 import com.dsbuilder.documentation.publication.application.PageDto
 import com.dsbuilder.documentation.publication.application.ProgressDto
+import com.dsbuilder.documentation.publication.application.PublicationListQuery
+import com.dsbuilder.documentation.publication.application.PublicationPageDto
 import com.dsbuilder.documentation.publication.application.PublicationReadRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,9 +35,56 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.json.jsonb
+import java.util.Base64
 
 /** Exposed implementation project-scoped read repository. */
 class ExposedPublicationReadRepository(private val database: Database) : PublicationReadRepository {
+    override suspend fun publication(projectId: String, publicationId: String): ActivePublicationDto? = query {
+        Publications.select(Publications.columns).where {
+            (Publications.id eq publicationId) and
+                (Publications.projectId eq projectId) and
+                (Publications.status eq "published")
+        }.singleOrNull()?.let { row ->
+            ActivePublicationDto(
+                row[Publications.id],
+                row[Publications.designSystemId],
+                row[Publications.version],
+                row[Publications.platform],
+                row[Publications.status],
+                requireNotNull(row[Publications.publishedAt]).toString(),
+            )
+        }
+    }
+    override suspend fun publications(
+        projectId: String,
+        query: PublicationListQuery,
+    ): PublicationPageDto? = this.query {
+        val offset = decodePublicationCursor(projectId, query) ?: return@query null
+        val condition = (Publications.projectId eq projectId) and
+            (Publications.designSystemId eq query.designSystemId) and
+            (Publications.status eq "published") and
+            (query.version?.let { Publications.version eq it } ?: Op.TRUE) and
+            (query.platform?.let { Publications.platform eq it } ?: Op.TRUE)
+        val rows = Publications.select(Publications.columns).where { condition }
+            .orderBy(Publications.publishedAt to SortOrder.DESC, Publications.id to SortOrder.DESC)
+            .limit(query.limit + 1).offset(offset.toLong()).toList()
+        val items = rows.take(query.limit).map { row ->
+            ActivePublicationDto(
+                row[Publications.id],
+                row[Publications.designSystemId],
+                row[Publications.version],
+                row[Publications.platform],
+                row[Publications.status],
+                requireNotNull(row[Publications.publishedAt]).toString(),
+            )
+        }
+        val nextCursor = if (rows.size > query.limit) {
+            encodePublicationCursor(projectId, query, offset + items.size)
+        } else {
+            null
+        }
+        PublicationPageDto(items, nextCursor)
+    }
     override suspend fun ingestionJob(projectId: String, jobId: String): IngestionJobStatusDto? = query {
         val row = Jobs.innerJoin(Bundles)
             .select(Jobs.columns + Bundles.projectId)
@@ -160,16 +209,25 @@ class ExposedPublicationReadRepository(private val database: Database) : Publica
     override suspend fun bindings(projectId: String, publicationId: String, query: BindingQuery): BindingPageDto? =
         this.query {
             if (!ownsPublished(projectId, publicationId)) return@query null
+            val afterId = decodeBindingCursor(projectId, publicationId, query) ?: return@query null
             var condition = Bindings.publicationId eq publicationId
-            query.cursor?.let { condition = condition and (Bindings.id greater it) }
+            afterId.takeIf(String::isNotEmpty)?.let { condition = condition and (Bindings.id greater it) }
             query.subject?.let { condition = condition and (Bindings.subject eq it) }
             query.kind?.let { condition = condition and (Bindings.kind eq it) }
             query.name?.let { condition = condition and (Bindings.name.lowerCase() like "%${it.lowercase()}%") }
+            query.exactName?.let { condition = condition and (Bindings.name eq it) }
             val rows = Bindings.select(
                 Bindings.columns,
             ).where { condition }.orderBy(Bindings.id).limit(query.limit + 1).toList()
             val items = rows.take(query.limit).map { it.toBinding() }
-            BindingPageDto(items, if (rows.size > query.limit) items.lastOrNull()?.id else null)
+            BindingPageDto(
+                items,
+                if (rows.size > query.limit) {
+                    items.lastOrNull()?.id?.let { encodeBindingCursor(projectId, publicationId, query, it) }
+                } else {
+                    null
+                },
+            )
         }
 
     override suspend fun asset(projectId: String, publicationId: String, assetId: String): AssetDto? = query {
@@ -207,6 +265,63 @@ class ExposedPublicationReadRepository(private val database: Database) : Publica
 
     private suspend fun <T> query(block: () -> T): T =
         withContext(Dispatchers.IO) { transaction(database) { block() } }
+}
+
+private fun encodePublicationCursor(projectId: String, query: PublicationListQuery, offset: Int): String {
+    val raw = listOf(
+        projectId,
+        query.designSystemId,
+        query.version.orEmpty(),
+        query.platform.orEmpty(),
+        offset.toString(),
+    )
+        .joinToString("\u0000")
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.encodeToByteArray())
+}
+
+@Suppress("ComplexCondition", "ReturnCount")
+private fun decodePublicationCursor(projectId: String, query: PublicationListQuery): Int? {
+    val cursor = query.cursor ?: return 0
+    val values = runCatching {
+        Base64.getUrlDecoder().decode(cursor).decodeToString().split('\u0000')
+    }.getOrNull() ?: return null
+    if (values.size != 5 || values[0] != projectId || values[1] != query.designSystemId ||
+        values[2] != query.version.orEmpty() || values[3] != query.platform.orEmpty()
+    ) {
+        return null
+    }
+    return values[4].toIntOrNull()?.takeIf { it >= 0 }
+}
+
+private const val BINDING_CURSOR_PREFIX = "b1:"
+
+private fun encodeBindingCursor(projectId: String, publicationId: String, query: BindingQuery, lastId: String): String {
+    val raw = listOf(
+        projectId,
+        publicationId,
+        query.subject.orEmpty(),
+        query.kind.orEmpty(),
+        query.name.orEmpty(),
+        query.exactName.orEmpty(),
+        lastId,
+    ).joinToString("\u0000")
+    return BINDING_CURSOR_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(raw.encodeToByteArray())
+}
+
+@Suppress("ComplexCondition", "ReturnCount")
+private fun decodeBindingCursor(projectId: String, publicationId: String, query: BindingQuery): String? {
+    val cursor = query.cursor ?: return ""
+    if (!cursor.startsWith(BINDING_CURSOR_PREFIX)) return cursor // Старая форма: ID последней записи.
+    val values = runCatching {
+        Base64.getUrlDecoder().decode(cursor.removePrefix(BINDING_CURSOR_PREFIX)).decodeToString().split('\u0000')
+    }.getOrNull() ?: return null
+    if (values.size != 7 || values[0] != projectId || values[1] != publicationId ||
+        values[2] != query.subject.orEmpty() || values[3] != query.kind.orEmpty() ||
+        values[4] != query.name.orEmpty() || values[5] != query.exactName.orEmpty()
+    ) {
+        return null
+    }
+    return values[6].takeIf(String::isNotEmpty)
 }
 
 private object Bundles : Table("documentation_bundles") {
@@ -255,6 +370,9 @@ private object Publications : Table("documentation_publications") {
     val id = varchar("id", 80)
     val status = varchar("status", 32)
     val projectId = varchar("project_id", 80)
+    val designSystemId = varchar("design_system_id", 128)
+    val version = varchar("design_system_version", 128)
+    val platform = varchar("platform", 64)
     val publishedAt = timestamp("published_at").nullable()
     override val primaryKey = PrimaryKey(id)
 }

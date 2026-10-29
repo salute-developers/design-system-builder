@@ -14,8 +14,6 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.subcommands
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.prompt
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -40,20 +38,13 @@ internal class AuthLoginCliCommand(
     private val useCase: LoginUseCase,
     private val apiUrlResolver: ApiUrlResolver,
 ) : CliktCommand(name = "login") {
-    private val apiUrl: String? by option("--api-url")
-
-    private val username: String by option("--username").prompt("Username")
-
-    private val password: String by option("--password", hidden = true).prompt("Password", hideInput = true)
 
     override fun run() {
-        val resolvedApiUrl = apiUrlResolver.resolve(apiUrl)
+        val resolvedApiUrl = apiUrlResolver.resolve(null)
         echo("API URL: ${resolvedApiUrl.value} (from ${resolvedApiUrl.sourceName})")
         val result = runBlocking {
             useCase.execute(
                 LoginCommand(
-                    username = username,
-                    password = password,
                     apiUrlOverride = resolvedApiUrl.value,
                 ),
             )
@@ -67,7 +58,7 @@ internal class AuthLoginCliCommand(
         }
     }
 
-    override fun help(context: Context): String = "Log in with a user session."
+    override fun help(context: Context): String = "Log in using the system browser (PKCE)."
 }
 
 /**
@@ -76,10 +67,9 @@ internal class AuthLoginCliCommand(
 internal class AuthStatusCliCommand(
     private val useCase: AuthStatusUseCase,
 ) : CliktCommand(name = "status") {
-    private val apiUrl: String? by option("--api-url")
 
     override fun run() {
-        val result = runBlocking { useCase.execute(AuthStatusCommand(apiUrlOverride = apiUrl)) }
+        val result = runBlocking { useCase.execute(AuthStatusCommand(apiUrlOverride = null)) }
         when (result) {
             is AuthStatusResult.LoggedIn -> echo("Logged in: ${result.username} (${result.apiUrl})")
             is AuthStatusResult.NotLoggedIn -> echo("Not logged in (${result.apiUrl})")
@@ -95,10 +85,9 @@ internal class AuthStatusCliCommand(
 internal class AuthLogoutCliCommand(
     private val useCase: LogoutUseCase,
 ) : CliktCommand(name = "logout") {
-    private val apiUrl: String? by option("--api-url")
 
     override fun run() {
-        val result = runBlocking { useCase.execute(LogoutCommand(apiUrlOverride = apiUrl)) }
+        val result = runBlocking { useCase.execute(LogoutCommand(apiUrlOverride = null)) }
         when (result) {
             is LogoutResult.Failed -> {
                 echo(result.message)

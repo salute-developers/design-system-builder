@@ -46,7 +46,7 @@ class ComponentsCliCommandTest {
         val result = cli(fileSystem) { backendCalls++ }.execute(listOf("components", "import-api", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
-        listOf("--from", "--platform", "--api-url", "--map-type", "--apply", "--dry-run", "--strict")
+        listOf("--from", "--platform", "--map-type", "--apply", "--dry-run", "--strict")
             .forEach { assertTrue(result.output.contains(it), "$it отсутствует в help:\n${result.output}") }
         listOf("--api-key", "--tool")
             .forEach { assertTrue(!result.output.contains(it), "$it остался в help:\n${result.output}") }
@@ -69,7 +69,7 @@ class ComponentsCliCommandTest {
 
         // Help не требует ни project config, ни backend, ни credentials.
         assertEquals(0, result.exitCode, result.output)
-        listOf("--to", "--api-key", "--api-url")
+        listOf("--to", "--api-key")
             .forEach { assertTrue(result.output.contains(it), "$it отсутствует в help:\n${result.output}") }
     }
 
@@ -78,7 +78,7 @@ class ComponentsCliCommandTest {
         val result = cli().execute(listOf("components", "push", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
-        listOf("--from", "--api-key", "--api-url", "--apply", "--dry-run")
+        listOf("--from", "--api-key", "--apply", "--dry-run")
             .forEach { assertTrue(result.output.contains(it), "$it отсутствует в help:\n${result.output}") }
     }
 

@@ -3,6 +3,8 @@ package com.dsbuilder.ds.components.presentation
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.components.application.ComponentRepository
 import com.dsbuilder.ds.components.application.CreateComponentUseCase
+import com.dsbuilder.ds.components.application.GetComponentDependenciesWithReuseConfigUseCase
+import com.dsbuilder.ds.components.application.GetComponentPropertiesWithPlatformParamsUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.ListComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.ListComponentVariationsUseCase
@@ -14,6 +16,7 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -40,6 +43,8 @@ fun Route.componentRoutes(
     variations: ListComponentVariationsUseCase,
     properties: ListComponentPropertiesUseCase,
     dependencies: ListDependenciesByComponentUseCase,
+    enrichedProperties: GetComponentPropertiesWithPlatformParamsUseCase,
+    enrichedDependencies: GetComponentDependenciesWithReuseConfigUseCase,
     json: Json,
 ) {
     route("/api/ds/components") {
@@ -153,14 +158,36 @@ fun Route.componentRoutes(
             }
         }
         get("/{id}/properties") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+            val include = call.request.queryParameters["include"]
+            val context = if (include != null) {
+                call.modelReadContext(evaluator) ?: return@get
+            } else {
+                TrustedDsRequestContextMapper.map(
+                    call.request.headers, evaluator, call.request.queryParameters["versionId"],
+                ) ?: return@get call.respondFailure(DsFailure.Forbidden)
+            }
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+            if (include != null && include != "platformParams") {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_include"))
+            }
+            if (include == "platformParams") {
+                val designSystemId = call.request.queryParameters["designSystemId"].toUuidOrNull()
+                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
+                when (val result = enrichedProperties.execute(context, id, designSystemId)) {
+                    is DsResult.Success -> call.respondSuccess(
+                        result,
+                        result.value.map {
+                            ComponentPropertySummaryResponse.from(
+                                it.property,
+                                it.platformParams.map(PropertyPlatformParamResponse::from),
+                            )
+                        },
+                    )
+                    is DsResult.Failure -> call.respondFailure(result.error)
+                }
+                return@get
+            }
             when (val result = properties.execute(context, id)) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
@@ -170,14 +197,31 @@ fun Route.componentRoutes(
             }
         }
         get("/{id}/deps") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+            val include = call.request.queryParameters["include"]
+            val context = if (include != null) {
+                call.modelReadContext(evaluator) ?: return@get
+            } else {
+                TrustedDsRequestContextMapper.map(
+                    call.request.headers, evaluator, call.request.queryParameters["versionId"],
+                ) ?: return@get call.respondFailure(DsFailure.Forbidden)
+            }
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+            if (include != null && include != "reuseConfig") {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_include"))
+            }
+            if (include == "reuseConfig") {
+                val designSystemId = call.request.queryParameters["designSystemId"].toUuidOrNull()
+                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
+                when (val result = enrichedDependencies.execute(context, id, designSystemId)) {
+                    is DsResult.Success -> call.respondSuccess(
+                        result,
+                        ComponentDependencyGraphResponse.from(result.value.graph, result.value.reuseConfigs),
+                    )
+                    is DsResult.Failure -> call.respondFailure(result.error)
+                }
+                return@get
+            }
             when (val result = dependencies.execute(context, id)) {
                 is DsResult.Success -> call.respondSuccess(result, ComponentDependencyGraphResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)

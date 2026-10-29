@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.core.network
 
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
+import com.dsbuilder.frontend.core.auth.TokenResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -18,34 +19,39 @@ import kotlin.test.assertTrue
 
 class KtorTokenClientTest {
     @Test
-    fun loginPostsPasswordGrantToHardcodedTokenEndpoint() = runTest {
+    fun exchangePostsCodeAndVerifierToGateway() = runTest {
         var request: HttpRequestData? = null
         val client = tokenClient {
             request = it
             respond(TOKEN_RESPONSE)
         }
 
-        val result = client.login("https://api.example.com", "alice", "secret")
+        val result = client.exchangeCode(
+            "https://api.example.com",
+            "code",
+            "verifier",
+            "http://127.0.0.1:1234/callback",
+        )
 
-        assertIs<AuthResult.Success<com.dsbuilder.frontend.core.auth.TokenResponse>>(result)
+        assertIs<AuthResult.Success<TokenResponse>>(result)
         assertEquals("/auth/token", request!!.url.encodedPath)
         assertEquals(HttpMethod.Post, request!!.method)
         val body = request!!.body.toByteArray().decodeToString()
-        assertTrue(body.contains("grant_type=password"), body)
-        assertTrue(body.contains("client_id=dsbuilder-api"), body)
-        assertTrue(body.contains("username=alice"), body)
-        assertTrue(body.contains("scope=openid"), body)
+        assertTrue(body.contains("grant_type=authorization_code"), body)
+        assertTrue(body.contains("client_id=dsbuilder-studio-plugin"), body)
+        assertTrue(body.contains("code_verifier=verifier"), body)
+        assertTrue(body.contains("code=code"), body)
     }
 
     @Test
     fun loginRejectsPlainHttpExceptLoopback() = runTest {
         val client = tokenClient { respond(TOKEN_RESPONSE) }
 
-        val rejected = client.login("http://api.example.com", "alice", "secret")
-        val accepted = client.login("http://localhost:8080", "alice", "secret")
+        val rejected = client.exchangeCode("http://api.example.com", "code", "verifier", "redirect")
+        val accepted = client.exchangeCode("http://localhost:8080", "code", "verifier", "redirect")
 
         assertEquals(AuthErrorCode.INVALID_AUTH_URL, assertIs<AuthResult.Failed>(rejected).code)
-        assertIs<AuthResult.Success<com.dsbuilder.frontend.core.auth.TokenResponse>>(accepted)
+        assertIs<AuthResult.Success<TokenResponse>>(accepted)
     }
 
     @Test
@@ -58,7 +64,7 @@ class KtorTokenClientTest {
 
         val result = client.refresh("https://api.example.com/", "refresh-old")
 
-        assertIs<AuthResult.Success<com.dsbuilder.frontend.core.auth.TokenResponse>>(result)
+        assertIs<AuthResult.Success<TokenResponse>>(result)
         assertEquals("/auth/token", request!!.url.encodedPath)
         val body = request!!.body.toByteArray().decodeToString()
         assertTrue(body.contains("grant_type=refresh_token"), body)

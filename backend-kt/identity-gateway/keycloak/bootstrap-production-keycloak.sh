@@ -197,6 +197,7 @@ if [ -z "$studio_plugin_uuid" ]; then
     -s "standardFlowEnabled=true" \
     -s "redirectUris=[\"$studio_plugin_redirect_uri\"]" \
     -s "attributes.\"pkce.code.challenge.method\"=S256" \
+    -s "attributes.login_theme=dsbuilder" \
     -s "protocol=openid-connect"
 
   studio_plugin_uuid="$(
@@ -211,6 +212,7 @@ else
     -s "standardFlowEnabled=true" \
     -s "redirectUris=[\"$studio_plugin_redirect_uri\"]" \
     -s "attributes.\"pkce.code.challenge.method\"=S256" \
+    -s "attributes.login_theme=dsbuilder" \
     -s "protocol=openid-connect"
 fi
 

@@ -4,10 +4,6 @@ import com.dsbuilder.frontend.core.platform.PlatformDelegate
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
 import com.dsbuilder.frontend.core.platform.ToolchainInstaller
 import com.dsbuilder.frontend.core.platform.ToolchainInstallerRegistry
-import com.dsbuilder.frontend.platform.android.AndroidGradleDelegate
-import com.dsbuilder.frontend.platform.ios.IosCliDelegate
-import com.dsbuilder.frontend.platform.ios.IosToolchainInstaller
-import com.dsbuilder.frontend.platform.web.WebNpmDelegate
 import org.koin.core.module.Module
 import org.koin.core.scope.Scope
 import org.koin.dsl.module
@@ -27,11 +23,7 @@ public fun platformDelegatesModule(): Module = module {
 /**
  * Делегаты в порядке регистрации.
  */
-private fun Scope.platformDelegates(): List<PlatformDelegate> = listOf(
-    get<IosCliDelegate>(),
-    get<AndroidGradleDelegate>(),
-    get<WebNpmDelegate>(),
-)
+internal expect fun Scope.platformDelegates(): List<PlatformDelegate>
 
 /**
  * Установщики в порядке регистрации.
@@ -39,6 +31,4 @@ private fun Scope.platformDelegates(): List<PlatformDelegate> = listOf(
  * Toolchain без установщика остаётся рабочим: его инструмент ставят руками, а `--tool`
  * и `DSBUILDER_IOS_TOOL` продолжают работать.
  */
-private fun Scope.toolchainInstallers(): List<ToolchainInstaller> = listOf(
-    get<IosToolchainInstaller>(),
-)
+internal expect fun Scope.toolchainInstallers(): List<ToolchainInstaller>

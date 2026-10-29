@@ -21,13 +21,13 @@ public enum class CredentialPolicy {
  * @property projectId project identifier.
  * @property designSystemId design-system identifier.
  * @property version publication version.
- * @property platform target platform.
+ * @property platform optional target platform.
  */
 public data class DesignSystemSelection(
     public val projectId: ProjectId,
     public val designSystemId: DesignSystemId,
     public val version: String,
-    public val platform: TargetPlatform,
+    public val platform: TargetPlatform? = null,
 ) {
     init {
         require(version.isNotBlank()) { "Version must not be blank." }

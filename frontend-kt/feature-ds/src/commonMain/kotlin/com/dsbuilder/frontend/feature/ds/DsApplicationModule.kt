@@ -1,7 +1,11 @@
 package com.dsbuilder.frontend.feature.ds
 
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.platform.PlatformCapabilityRunner
 import com.dsbuilder.frontend.feature.ds.application.GenerateDesignSystemUseCase
+import com.dsbuilder.frontend.feature.ds.application.ModelReadRemoteSource
+import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
+import com.dsbuilder.frontend.feature.ds.data.HttpModelReadRemoteSource
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -12,5 +16,7 @@ import org.koin.dsl.module
  * не зависят друг от друга — поэтому склейка загрузок живёт в presentation `:cli`.
  */
 public fun dsApplicationModule(): Module = module {
+    single<ModelReadRemoteSource> { HttpModelReadRemoteSource(get()) }
+    single { ReadDesignSystemModelUseCase(RuntimeRequestResolver(get(), get(), get()), get()) }
     single { GenerateDesignSystemUseCase(get<PlatformCapabilityRunner>()) }
 }

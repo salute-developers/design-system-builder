@@ -76,8 +76,30 @@ data class ActivePublicationDto(
     val publishedAt: String,
 )
 
+/** Страница опубликованных выпусков документации. */
+@Serializable
+data class PublicationPageDto(
+    /** Публикации текущей страницы. */ val items: List<ActivePublicationDto>,
+    /** Курсор следующей страницы. */ val nextCursor: String?,
+)
+
+/** Параметры списка опубликованных выпусков. */
+data class PublicationListQuery(
+    /** ID дизайн-системы. */ val designSystemId: String,
+    /** Точная версия, если задана. */ val version: String?,
+    /** Точная платформа, если задана. */ val platform: String?,
+    /** Размер страницы. */ val limit: Int,
+    /** Курсор продолжения. */ val cursor: String?,
+)
+
 /** Port project-scoped чтения publication metadata. */
 interface PublicationReadRepository {
+    /** Читает опубликованные выпуски и переиздания выбранной дизайн-системы. */
+    suspend fun publications(projectId: String, query: PublicationListQuery): PublicationPageDto?
+
+    /** Читает фактические метаданные опубликованного выпуска по ID внутри trusted project. */
+    suspend fun publication(projectId: String, publicationId: String): ActivePublicationDto?
+
     /** Читает job только внутри trusted project. */
     suspend fun ingestionJob(projectId: String, jobId: String): IngestionJobStatusDto?
 
@@ -169,6 +191,7 @@ data class BindingQuery(
     /** Exact kind. */ val kind: String?,
     /** Case-insensitive name. */ val name: String?,
     /** Ограничение результата. */ val limit: Int,
+    /** Точное имя с учётом регистра. */ val exactName: String? = null,
 )
 
 /** Cursor page bindings. */
@@ -177,6 +200,26 @@ data class BindingPageDto(
     /** Items. */ val items: List<CodeBindingDto>,
     /** Следующий cursor. */ val nextCursor: String?,
 )
+
+/** Краткая метаинформация одной привязки. */
+@Serializable
+data class CodeBindingSummaryDto(
+    /** ID привязки. */ val id: String,
+    /** Канонический subject. */ val subject: String,
+    /** Тип привязки. */ val kind: String,
+    /** Имя привязки. */ val name: String,
+    /** Платформа привязки. */ val platform: String,
+)
+
+/** Страница привязок без полного платформенного содержимого. */
+@Serializable
+data class BindingSummaryPageDto(
+    /** Привязки текущей страницы. */ val items: List<CodeBindingSummaryDto>,
+    /** Курсор следующей страницы. */ val nextCursor: String?,
+)
+
+/** Исключает полное платформенное содержимое из списка. */
+fun CodeBindingDto.summary(): CodeBindingSummaryDto = CodeBindingSummaryDto(id, subject, kind, name, platform)
 
 /** Port потокового чтения immutable publication object. */
 fun interface AssetContentReader {

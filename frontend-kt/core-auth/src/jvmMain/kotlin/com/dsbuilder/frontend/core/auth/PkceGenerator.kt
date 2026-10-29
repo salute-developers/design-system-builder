@@ -22,9 +22,9 @@ public data class PkcePair(
 )
 
 /**
- * Генерирует PKCE-пары для интерактивной OAuth-авторизации плагина. Живёт только в `jvmMain`,
- * так как единственный сегодняшний потребитель — JVM-плагин Android Studio / IntelliJ IDEA;
- * CLI использует project access key и в PKCE не нуждается.
+ * Генерирует PKCE-пары для JVM-клиентов CLI и IDE через системную криптографию.
+ * Общий сценарий получает параметры через платформенный порт `PkcePlatform`; macOS и Node
+ * предоставляют собственные реализации без зависимости от JVM.
  */
 @OptIn(ExperimentalEncodingApi::class)
 public object PkceGenerator {

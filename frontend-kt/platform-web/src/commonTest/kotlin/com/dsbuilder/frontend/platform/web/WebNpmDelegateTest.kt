@@ -159,6 +159,28 @@ class WebNpmDelegateTest {
     }
 
     @Test
+    fun windowsPathSelectsNpmCmdAndKeepsWindowsOutputPath() {
+        val requests = mutableListOf<ProcessRequest>()
+        val windowsTool = "C:\\ds builder\\js\\cli"
+        val windowsNpm = "C:\\Program Files\\nodejs\\npm.cmd"
+        val delegate = delegate(
+            runner = recording(requests),
+            existing = setOf("$windowsTool\\package.json", windowsNpm),
+            environment = mapOf(
+                WEB_TOOL_ENV to windowsTool,
+                "PATH" to "C:\\Tools;C:\\Program Files\\nodejs",
+            ),
+            workingDirectory = "C:\\project",
+        )
+        val windowsWorkspace = WorkspacePaths.fromSddsDirectory("C:\\project\\.sdds")
+
+        delegate.run(DelegateInvocation(Capability.THEME, TargetPlatform.REACT, windowsWorkspace))
+
+        assertEquals(windowsNpm, requests.single().executable)
+        assertEquals("C:\\project\\output", requests.single().args[6])
+    }
+
+    @Test
     fun doctorReportsMissingTool() {
         val delegate = delegate(environment = mapOf("PATH" to "/usr/local/bin"))
 
@@ -197,10 +219,11 @@ class WebNpmDelegateTest {
         runner: ProcessRunner = ProcessRunner { ProcessResult(exitCode = 0, output = "") },
         existing: Set<String> = setOf("$tool/package.json", npm),
         environment: Map<String, String> = mapOf(WEB_TOOL_ENV to tool, "PATH" to "/usr/bin:/usr/local/bin"),
+        workingDirectory: String = "/project",
     ) = WebNpmDelegate(
         processRunner = runner,
         locator = WebToolLocator(
-            fileSystem = FakeFileSystem(existing),
+            fileSystem = FakeFileSystem(existing, workingDirectory),
             environmentReader = EnvironmentReader { environment[it] },
         ),
     )
@@ -208,13 +231,21 @@ class WebNpmDelegateTest {
 
 internal class FakeFileSystem(
     private val existing: Set<String>,
+    private val workingDirectory: String = "/project",
 ) : WorkspaceFileSystem {
-    override fun currentWorkingDirectory(): String = "/project"
+    override fun currentWorkingDirectory(): String = workingDirectory
 
     override fun parent(path: String): String? = path.substringBeforeLast('/', "").takeIf { it.isNotEmpty() }
 
     override fun resolve(parent: String, child: String): String =
-        if (child.startsWith("/")) child else "${parent.trimEnd('/')}/$child"
+        if (child.startsWith(
+                "/",
+            )
+        ) {
+            child
+        } else {
+            "${parent.trimEnd('/', '\\')}${if (parent.contains('\\')) "\\" else "/"}$child"
+        }
 
     override fun absolutePath(path: String): String = path
 

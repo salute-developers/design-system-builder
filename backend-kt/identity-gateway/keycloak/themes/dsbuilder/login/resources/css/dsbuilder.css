@@ -1,0 +1,413 @@
+/* Геометрия и токены страниц Login, LoginForm, FormField и BrandPreview web-клиента. */
+@font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../fonts/Inter-Regular.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: Inter;
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("../fonts/Inter-SemiBold.ttf") format("truetype");
+}
+
+:root {
+    color-scheme: dark;
+    --ds-background: #27282c;
+    --ds-text: #e8eaee;
+    --ds-muted: #b8bec6;
+    --ds-accent: #166dc4;
+    --ds-outline: rgb(242 244 246 / 10%);
+    --ds-focus: #2b8ced;
+    --ds-negative: #f31b31;
+    --pf-global--BackgroundColor--100: var(--ds-background);
+    --pf-global--Color--100: var(--ds-text);
+    --pf-global--Color--200: var(--ds-muted);
+    --pf-global--primary-color--100: var(--ds-accent);
+}
+
+html.login-pf,
+.login-pf body {
+    height: 100%;
+    margin: 0;
+    background: var(--ds-background);
+    color: #ecedf4;
+    font-family: Inter, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: normal;
+}
+
+.login-pf-page,
+.login-pf-page * {
+    box-sizing: border-box;
+    font-family: Inter, Helvetica, Arial, sans-serif;
+}
+
+.login-pf-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: 100%;
+    height: 100vh;
+    padding: 0;
+    overflow: hidden;
+}
+
+.dsbuilder-preview {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+    padding: 40px 0 40px 40px;
+    overflow: hidden;
+    color: #ecedf4;
+}
+
+.dsbuilder-preview-image,
+.dsbuilder-preview-shade {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    user-select: none;
+}
+
+.dsbuilder-preview-image {
+    max-width: none;
+    object-fit: cover;
+}
+
+.dsbuilder-preview-shade {
+    background: linear-gradient(180deg, rgb(39 40 44 / 0%) 47.05%, rgb(39 40 44 / 60%) 100%);
+}
+
+#kc-header.dsbuilder-brand {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 440px;
+    max-width: 100%;
+    margin: 0;
+    color: #ecedf4;
+    font-size: 16px;
+    line-height: 20px;
+    font-weight: 600;
+    letter-spacing: -0.32px;
+    text-align: left;
+    white-space: normal;
+}
+
+.dsbuilder-brand img {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.dsbuilder-carousel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 440px;
+    max-width: 100%;
+}
+
+.dsbuilder-tip {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    word-break: break-word;
+}
+
+.dsbuilder-topic {
+    color: var(--ds-muted);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+}
+
+.dsbuilder-tip-title {
+    font-size: 32px;
+    line-height: 36px;
+    font-weight: 600;
+}
+
+.dsbuilder-description {
+    color: var(--ds-muted);
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 600;
+    letter-spacing: -0.28px;
+}
+
+.dsbuilder-pagination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 20px;
+}
+
+.dsbuilder-bullet {
+    position: relative;
+    width: 4px;
+    height: 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgb(158 159 162 / 45%);
+    cursor: pointer;
+    transition: width 0.2s ease-in-out, background 0.2s ease-in-out;
+}
+
+.dsbuilder-bullet[aria-pressed="true"] {
+    width: 16px;
+    background: rgb(243 243 243 / 95%);
+}
+
+.dsbuilder-bullet::before {
+    position: absolute;
+    inset: -8px -4px;
+    content: "";
+}
+
+.dsbuilder-bullet:hover {
+    background: rgb(243 243 243 / 70%);
+}
+
+.dsbuilder-form-column {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    padding: 32px 16px;
+    overflow: auto;
+}
+
+.login-pf-page .card-pf {
+    width: min(100%, 440px);
+    min-width: 0;
+    max-width: 100%;
+    margin: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow-wrap: anywhere;
+}
+
+body[data-page-id="login-login"] .card-pf {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 300px;
+    flex-shrink: 0;
+}
+
+.login-pf-page .login-pf-header {
+    margin: 0;
+    text-align: center;
+}
+
+h1#kc-page-title {
+    margin: 0;
+    color: var(--ds-text);
+    font-size: 24px;
+    line-height: 30px;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.login-pf-page .login-pf-header .dsbuilder-subtitle {
+    margin: 8px 0 0;
+    color: var(--ds-muted);
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 400;
+    letter-spacing: -0.28px;
+}
+
+#kc-content,
+#kc-content-wrapper,
+#kc-form-wrapper {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+#kc-form-login {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    margin: 0;
+}
+
+.dsbuilder-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+}
+
+.dsbuilder-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 14px;
+    font-weight: 400;
+    letter-spacing: -0.24px;
+}
+
+.dsbuilder-field label {
+    margin: 0;
+    color: var(--ds-muted);
+    font: inherit;
+    letter-spacing: inherit;
+}
+
+.dsbuilder-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    height: 24px;
+    padding: 0 6px;
+    border: 1px solid var(--ds-outline);
+    border-radius: 6px;
+    background: #f7f8fb0a;
+    transition: border-color 0.1s ease-in-out, background 0.1s ease-in-out;
+}
+
+.dsbuilder-input-wrapper:hover {
+    background: #f4f5fb0f;
+}
+
+.dsbuilder-input-wrapper:has([aria-invalid="true"]) {
+    border-color: var(--ds-negative);
+}
+
+.dsbuilder-input-wrapper:focus-within {
+    border-color: var(--ds-focus);
+    background: #f4f5fb0f;
+}
+
+.dsbuilder-field input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    height: 14px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--ds-text);
+    caret-color: var(--ds-text);
+    font: inherit;
+    letter-spacing: inherit;
+    box-shadow: none;
+}
+
+.dsbuilder-field input::placeholder {
+    opacity: 1;
+    color: var(--ds-muted);
+}
+
+.dsbuilder-input-error {
+    color: var(--ds-negative);
+}
+
+.dsbuilder-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dsbuilder-submit {
+    width: 100%;
+    margin: 0;
+    padding: 4px 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: var(--ds-accent);
+    color: #ecedf4;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 400;
+    cursor: pointer;
+    appearance: none;
+    transition: transform 0.1s ease-in-out;
+}
+
+.dsbuilder-submit:hover:not(:disabled) {
+    transform: scale(1.02);
+}
+
+.dsbuilder-submit:active:not(:disabled) {
+    transform: scale(0.99);
+}
+
+.dsbuilder-submit:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.login-pf-page :is(button, a, select, textarea, input[type="submit"]):focus-visible {
+    outline: 1px solid var(--ds-focus);
+    outline-offset: 2px;
+}
+
+.login-pf-page a {
+    color: #a9c3ff;
+}
+
+.login-pf-page .pf-c-alert {
+    background: #343539;
+    color: var(--ds-text);
+}
+
+.login-pf-page .pf-c-form-control {
+    background: #343539;
+    color: var(--ds-text);
+}
+
+/* Дополнительные шаги используют штатные шаблоны Keycloak. */
+#kc-info {
+    margin: 24px 0 0;
+    padding: 0;
+}
+
+@media (max-width: 960px) {
+    .login-pf-page {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dsbuilder-preview {
+        display: none;
+    }
+}
+
+@media (max-width: 331px) {
+    body[data-page-id="login-login"] .card-pf {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dsbuilder-bullet,
+    .dsbuilder-submit,
+    .dsbuilder-input-wrapper {
+        transition: none;
+    }
+}

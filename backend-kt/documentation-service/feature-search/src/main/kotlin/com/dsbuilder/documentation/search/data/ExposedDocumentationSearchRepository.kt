@@ -11,6 +11,7 @@ import com.dsbuilder.documentation.search.application.LexicalSearchQuery
 import com.dsbuilder.documentation.search.application.MarkdownSearchChannel
 import com.dsbuilder.documentation.search.application.MarkdownSearchHit
 import com.dsbuilder.documentation.search.application.MarkdownTitleMatch
+import com.dsbuilder.documentation.search.application.SearchPublication
 import com.dsbuilder.documentation.search.application.StructuredMatchKind
 import com.dsbuilder.documentation.search.application.StructuredSearchHit
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,22 @@ class ExposedDocumentationSearchRepository(private val database: Database) :
     ActivePublicationResolver,
     DocumentationSearchIndex,
     KnowledgeChunkRepository {
+    override suspend fun resolveExplicit(projectId: String, publicationId: String): SearchPublication? = query {
+        Publications.select(Publications.id, Publications.designSystemId, Publications.version, Publications.platform)
+            .where {
+                (Publications.id eq publicationId) and
+                    (Publications.projectId eq projectId) and
+                    (Publications.status eq PUBLISHED)
+            }
+            .singleOrNull()?.let {
+                SearchPublication(
+                    it[Publications.id],
+                    it[Publications.designSystemId],
+                    it[Publications.version],
+                    it[Publications.platform],
+                )
+            }
+    }
     override suspend fun resolve(
         projectId: String,
         designSystemId: String,

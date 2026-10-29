@@ -21,24 +21,24 @@ public object DesignSystemLink {
         if (path.size != 3 || path[1] != "design-systems") return null
         val projectId = path[0].takeIf(identifier::matches) ?: return null
         val designSystemId = path[2].takeIf(identifier::matches) ?: return null
-        val query = pieces[1].split('&')
-        if (query.size != 2) return null
-        val parameters = query.map { field ->
+        val pairs = pieces[1].split('&').map { field ->
             val pair = field.split('=', limit = 3)
             if (pair.size != 2) return null
             pair[0] to pair[1]
         }
-        if (parameters.map { it.first }.toSet() != setOf("version", "platform")) return null
-        val values = parameters.toMap()
+        val keys = pairs.map { it.first }.sorted()
+        if (keys !in listOf(listOf("version"), listOf("platform", "version"))) return null
+        val values = pairs.toMap()
         val selectedVersion = values["version"]?.takeIf(version::matches) ?: return null
-        val platform = values["platform"]?.let(TargetPlatform::fromCliValue) ?: return null
+        val platform = values["platform"]?.let { TargetPlatform.fromCliValue(it) ?: return null }
         return DesignSystemSelection(ProjectId(projectId), DesignSystemId(designSystemId), selectedVersion, platform)
     }
 
     /** Canonical, secret-free representation of one selection. */
     public fun format(selection: DesignSystemSelection): String {
         val link = "$PREFIX${selection.projectId.value}/design-systems/${selection.designSystemId.value}" +
-            "?version=${selection.version}&platform=${selection.platform.cliValue}"
+            "?version=${selection.version}" +
+            (selection.platform?.let { "&platform=${it.cliValue}" } ?: "")
         require(parse(link) == selection) { "Selection cannot be represented as a design-system link." }
         return link
     }

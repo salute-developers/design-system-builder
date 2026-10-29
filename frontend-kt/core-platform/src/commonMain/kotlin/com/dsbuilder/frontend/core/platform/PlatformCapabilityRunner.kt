@@ -84,6 +84,9 @@ public class PlatformCapabilityRunner internal constructor(
     }
 
     private fun noDelegateMessage(platform: TargetPlatform): String {
+        if (platform == TargetPlatform.SWIFT_UI) {
+            return "iOS toolchain for 'swiftui' is unavailable on this operating system."
+        }
         val registered = registry.all.joinToString { it.toolchain.value }
 
         return if (registered.isEmpty()) {

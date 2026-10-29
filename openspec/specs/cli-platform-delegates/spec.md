@@ -2,7 +2,9 @@
 
 ## Purpose
 Определяет, как CLI `dsbuilder` делегирует генерацию кода темы, компонентов и платформенную агрегацию документации инструментам платформ: порт делегата, реестр, выбор целевой платформы, запуск внешних процессов и команды, которые этим пользуются.
+
 ## Requirements
+
 ### Requirement: Target platform dictionary
 
 CLI SHALL define a single dictionary of target platforms shared by all platform-aware commands and by local project config.
@@ -295,3 +297,43 @@ CLI `docs generate` SHALL enrich the documentation tree with the platform tool b
 - **WHEN** `--platform` is given
 - **THEN** CLI MUST use it, including `design`, which has no platform tool
 
+### Requirement: Абсолютные пути Windows в CLI
+
+CLI SHALL принимать абсолютные пути Windows с буквой диска и UNC-пути там, где команда требует абсолютный путь, и SHALL сохранять связь `.sdds` с родительским рабочим каталогом.
+
+#### Scenario: Путь с буквой диска
+
+- **WHEN** конфигурация найдена по `C:\work\project\.sdds\config.json`
+- **THEN** `sddsDir` MUST указывать на `C:\work\project\.sdds`, а `workspaceDir` — на `C:\work\project`
+- **THEN** путь MUST NOT отклоняться как относительный
+
+#### Scenario: Сетевой путь и относительный путь
+
+- **WHEN** конфигурация находится в UNC-каталоге
+- **THEN** CLI MUST сохранять корень сетевого ресурса при вычислении родителя
+- **WHEN** пользователь передаёт относительный путь в контракт, требующий абсолютного
+- **THEN** CLI MUST отклонить его детерминированно
+
+### Requirement: Запуск внешнего процесса на Windows
+
+CLI SHALL запускать доступные Windows-инструменты через `ProcessRunner`, сохраняя аргументы, рабочий каталог, добавленные переменные окружения, код завершения и режим вывода.
+
+#### Scenario: Запуск с захватом вывода
+
+- **WHEN** делегат проверяет версию инструмента на Windows
+- **THEN** `ProcessRunner` MUST запустить найденный инструмент и вернуть код завершения вместе с объединённым stdout/stderr
+
+#### Scenario: Инструмент отсутствует
+
+- **WHEN** указанный исполняемый файл не найден или не запускается
+- **THEN** делегат MUST вернуть диагностируемое отсутствие инструмента без падения процесса CLI
+
+### Requirement: Недоступный iOS-инструмент на Windows
+
+CLI SHALL сообщать, что iOS-инструмент недоступен на Windows, не пытаясь выполнить команды macOS.
+
+#### Scenario: Запрос iOS-генерации
+
+- **WHEN** пользователь Windows запускает генерацию для `swiftui`
+- **THEN** CLI MUST вернуть понятное сообщение о неподдерживаемой среде
+- **THEN** CLI MUST NOT запускать macOS-команды установки или поиска `dsbuilder-ios`

@@ -20,6 +20,7 @@ kotlin {
         macosArm64(),
         macosX64(),
     )
+    val windowsTarget = mingwX64()
 
     macosTargets.forEach { target ->
         target.binaries {
@@ -28,6 +29,17 @@ kotlin {
                 entryPoint = "com.dsbuilder.frontend.cli.main"
             }
         }
+    }
+
+    windowsTarget.binaries {
+        executable {
+            baseName = "dsbuilder"
+            entryPoint = "com.dsbuilder.frontend.cli.main"
+        }
+    }
+
+    windowsTarget.compilations.getByName("main").cinterops.create("windowsSecurity") {
+        defFile(project.file("src/nativeInterop/cinterop/windowsSecurity.def"))
     }
 
     sourceSets {
@@ -77,6 +89,10 @@ kotlin {
 
         val macosTest by creating {
             dependsOn(commonTest.get())
+        }
+
+        mingwX64Main.dependencies {
+            implementation(libs.ktor.client.winhttp)
         }
 
         macosTargets.forEach { target ->
@@ -149,6 +165,28 @@ registerMacosCliPackage(
     targetName = "macosX64",
     linkTaskName = "linkReleaseExecutableMacosX64",
 )
+
+tasks.register<Zip>("packageWindowsX64Cli") {
+    group = "distribution"
+    description = "Packages the native Windows x64 dsbuilder executable and user installer."
+
+    dependsOn("linkReleaseExecutableMingwX64")
+    val packageRoot = "dsbuilder-cli-windows-x64"
+    archiveBaseName.set("dsbuilder-cli")
+    archiveClassifier.set("windows-x64")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+
+    from(layout.buildDirectory.file("bin/mingwX64/releaseExecutable/dsbuilder.exe")) {
+        into(packageRoot)
+    }
+    from(layout.projectDirectory.file("distribution/install-windows-cli.ps1")) {
+        into(packageRoot)
+        rename { "install.ps1" }
+    }
+    from(layout.projectDirectory.file("USAGE.md")) {
+        into(packageRoot)
+    }
+}
 
 // JVM-дистрибутив (bin/dsbuilder + lib/*.jar) под стабильным именем для релиза CLI: CI других репозиториев
 // скачивает его и запускает на Linux с Java 17.

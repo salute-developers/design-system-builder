@@ -8,6 +8,7 @@ import com.dsbuilder.ds.core.application.IdempotentReplayException
 import com.dsbuilder.ds.core.application.IdempotentRequestLookup
 import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.RequestHash
 import com.dsbuilder.ds.core.application.TransactionFailureMapper
 import com.dsbuilder.ds.core.application.TransactionRunner
@@ -37,7 +38,7 @@ class ExposedTransactionRunner(
         context: DsRequestContext,
         block: suspend () -> DsResult<T>,
     ): DsResult<T> = execute(readOnly = false) {
-        if (context.versionId != null) {
+        if (context.versionId != null || context.version != null) {
             return@execute DsResult.Failure(DsFailure.InvalidRequest("historical_version_read_only"))
         }
         configure(context)
@@ -112,6 +113,23 @@ class ExposedTransactionRunner(
             DsResult.Failure(DsFailure.NotFound)
         } else {
             block()
+        }
+    }
+
+    override suspend fun <T> readOnly(
+        context: DsRequestContext,
+        target: ModelReadTarget,
+        block: suspend (DsRequestContext) -> DsResult<T>,
+    ): DsResult<T> = execute(readOnly = true) {
+        when (val resolved = ExposedModelReadSelectionResolver().resolve(context, target)) {
+            is DsResult.Failure -> resolved
+            is DsResult.Success -> {
+                configure(resolved.value.context)
+                when (val result = block(resolved.value.context)) {
+                    is DsResult.Failure -> result
+                    is DsResult.Success -> result.copy(readContext = resolved.value.metadata)
+                }
+            }
         }
     }
 
@@ -192,6 +210,8 @@ class ExposedTransactionRunner(
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (_: InvalidModelReadQueryException) {
+                return DsResult.Failure(DsFailure.InvalidRequest("INVALID_QUERY"))
             } catch (failure: ExposedSQLException) {
                 if (!failure.isRetryableTransactionFailure() || attempt == SERIALIZABLE_ATTEMPTS - 1) {
                     return DsResult.Failure(failureMapper.map(failure))

@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteMutation
@@ -48,9 +49,11 @@ fun Route.tenantPaletteRoutes(evaluator: PolicyEvaluator, useCases: TenantPalett
 
 private fun Route.paletteReadRoutes(evaluator: PolicyEvaluator, useCases: TenantPaletteUseCases) {
     get {
-        val (context, tenantId) = call.paletteTarget(evaluator) ?: return@get
+        val context = call.modelReadContext(evaluator) ?: return@get
+        val tenantId = call.parameters["tenantId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            ?: return@get call.respondFailure(INVALID_TENANT)
         when (val result = useCases.get.execute(context, tenantId)) {
-            is DsResult.Success -> call.respond(result.value.toResponse())
+            is DsResult.Success -> call.respondSuccess(result, result.value.toResponse())
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }

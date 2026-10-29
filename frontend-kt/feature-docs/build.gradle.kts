@@ -6,6 +6,7 @@ plugins {
 kotlin {
     macosArm64()
     macosX64()
+    mingwX64()
 
     sourceSets {
         commonMain.dependencies {
@@ -32,12 +33,13 @@ kotlin {
             dependsOn(posixMain)
         }
 
-        val macosMain by creating {
+        val nativeMain by creating {
             dependsOn(posixMain)
         }
 
-        getByName("macosArm64Main").dependsOn(macosMain)
-        getByName("macosX64Main").dependsOn(macosMain)
+        getByName("macosArm64Main").dependsOn(nativeMain)
+        getByName("macosX64Main").dependsOn(nativeMain)
+        getByName("mingwX64Main").dependsOn(nativeMain)
     }
 }
 

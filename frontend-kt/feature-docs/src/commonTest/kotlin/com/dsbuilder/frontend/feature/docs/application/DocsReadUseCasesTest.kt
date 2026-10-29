@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.core.application.ContextSource
 import com.dsbuilder.frontend.core.application.ContextSourceResult
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.CredentialResult
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
@@ -34,7 +35,7 @@ class DocsReadUseCasesTest {
         useCases.getBinding(CodeBindingGetCommand("binding", null, null, null))
 
         assertEquals(List<String?>(5) { "compose" }, remote.platforms)
-        assertEquals(List<String?>(5) { "1.0.0" }, remote.versions)
+        assertEquals(listOf(null, "1.0.0", "1.0.0", "1.0.0", "1.0.0"), remote.versions)
     }
 
     @Test
@@ -61,16 +62,15 @@ class DocsReadUseCasesTest {
     }
 
     @Test
-    fun missingVersionRequiresExplicitSelectionBeforeRemoteCall() = runTest {
+    fun missingVersionUsesLatestActivePublicationOnSelectedPlatform() = runTest {
         val remote = RecordingDocsReadRemoteSource()
-        val useCases = useCases(listOf(TargetPlatform.COMPOSE), remote, selectedVersion = null)
+        val useCases = useCases(listOf(TargetPlatform.COMPOSE), remote, selectedVersion = "draft")
 
         val result = useCases.search(DocumentationSearchCommand("Button", null, null, null, null, null))
 
-        val failure = assertIs<DocsReadResult.Failed>(result)
-        assertEquals(DocsReadErrorCode.AMBIGUOUS_CONTEXT, failure.code)
-        assertTrue(failure.message.contains("version"), failure.message)
-        assertTrue(remote.versions.isEmpty())
+        assertIs<DocsReadResult.Success>(result)
+        assertEquals(listOf<String?>(null), remote.versions)
+        assertEquals(listOf<String?>("compose"), remote.platforms)
     }
 
     @Test
@@ -109,18 +109,20 @@ class DocsReadUseCasesTest {
             selectedVersion = selectedVersion,
         )
         return DocsReadUseCases(
-            contextResolver = ContextResolver(listOf(ContextSource { ContextSourceResult.Found(context) })),
-            apiUrlResolver = ApiUrlResolver(EnvironmentReader { null }),
-            credentialProvider = object : CredentialProvider {
-                override suspend fun resolve(
-                    apiUrl: com.dsbuilder.frontend.core.domain.ProjectApiUrl,
-                    projectKeyOverride: String?,
-                    credentialEnvName: CredentialEnvName,
-                ): CredentialResult = CredentialResult.Selected(
-                    BackendCredential.ProjectKey("key"),
-                    BackendCredentialType.PROJECT_KEY,
-                )
-            },
+            runtimeResolver = RuntimeRequestResolver(
+                ContextResolver(listOf(ContextSource { ContextSourceResult.Found(context) })),
+                ApiUrlResolver(EnvironmentReader { null }),
+                object : CredentialProvider {
+                    override suspend fun resolve(
+                        apiUrl: com.dsbuilder.frontend.core.domain.ProjectApiUrl,
+                        projectKeyOverride: String?,
+                        credentialEnvName: CredentialEnvName,
+                    ): CredentialResult = CredentialResult.Selected(
+                        BackendCredential.ProjectKey("key"),
+                        BackendCredentialType.PROJECT_KEY,
+                    )
+                },
+            ),
             remoteSource = remote,
         )
     }

@@ -23,6 +23,10 @@ data class DsRequestContext(
     val idempotentResponseEncoder: ((Any) -> String)? = null,
     /** Повторяемая предметная команда, выполняемая в одной транзакции с сохранением её результата. */
     val mutationRequest: IdempotentMutationRequest? = null,
+    /** Точный номер версии либо draft; разрешается в транзакции предметного чтения. */
+    val version: String? = null,
+    /** Проверенные фильтры и параметры необязательной страницы. */
+    val readQuery: ModelReadQuery = ModelReadQuery(),
 ) {
     /** Project boundary derived exclusively from [principal]. */
     val projectId: ProjectId = ProjectId(principal.projectId)
