@@ -319,7 +319,9 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
     )
 
     private val definitions: List<Definition> by lazy {
-        val text = requireNotNull(javaClass.classLoader.getResourceAsStream("token-initial-values.json")) {
+        val text = requireNotNull(
+            javaClass.classLoader.getResourceAsStream("dsbuilder/ds/seeds/token-initial-values.json"),
+        ) {
             "Generated initial token values resource is missing"
         }.bufferedReader().use { it.readText() }
         Json.parseToJsonElement(text).jsonObject.getValue("values").jsonArray.map { element ->
@@ -365,7 +367,9 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
     }
 
     private val paletteDefinitions: List<PaletteDefinition> by lazy {
-        val text = requireNotNull(javaClass.classLoader.getResourceAsStream("token-initial-values.json")) {
+        val text = requireNotNull(
+            javaClass.classLoader.getResourceAsStream("dsbuilder/ds/seeds/token-initial-values.json"),
+        ) {
             "Generated initial token values resource is missing"
         }.bufferedReader().use { it.readText() }
         Json.parseToJsonElement(text).jsonObject.getValue("palettes").jsonArray.map { element ->

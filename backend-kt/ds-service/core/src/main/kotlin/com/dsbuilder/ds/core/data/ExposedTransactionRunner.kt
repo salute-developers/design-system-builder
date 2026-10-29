@@ -88,7 +88,7 @@ class ExposedTransactionRunner(
 
     override suspend fun <T> rollback(block: suspend () -> DsResult<T>): DsResult<T> = try {
         withContext(Dispatchers.IO) {
-            transaction(database) {
+            transaction(db = database) {
                 val result = runBlocking { block() }
                 rollback()
                 result
@@ -196,7 +196,7 @@ class ExposedTransactionRunner(
         repeat(if (readOnly) 1 else SERIALIZABLE_ATTEMPTS) { attempt ->
             try {
                 return withContext(Dispatchers.IO) {
-                    transaction(database) {
+                    transaction(db = database) {
                         connection.readOnly = readOnly
                         connection.transactionIsolation = if (readOnly) {
                             Connection.TRANSACTION_REPEATABLE_READ

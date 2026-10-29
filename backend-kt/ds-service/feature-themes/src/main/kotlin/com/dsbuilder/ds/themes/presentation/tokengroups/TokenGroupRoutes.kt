@@ -5,6 +5,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -29,7 +31,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /** Регистрирует список групп токенов дизайн-системы и операции над ними в теме. */
 fun Route.tokenGroupRoutes(evaluator: PolicyEvaluator, useCases: TokenGroupUseCases) {
-    get("/api/ds/design-systems/{designSystemId}/token-groups") {
+    get(dsRoutePath("/api/ds/design-systems/{designSystemId}/token-groups")) {
         val context = call.modelReadContext(evaluator) ?: return@get
         val designSystemId = uuid(call.parameters["designSystemId"])
             ?: return@get call.respondFailure(invalidId("дизайн-системы"))
@@ -39,7 +41,7 @@ fun Route.tokenGroupRoutes(evaluator: PolicyEvaluator, useCases: TokenGroupUseCa
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }
-    route("/api/ds/tenants/{tenantId}/token-groups") {
+    route(dsRoutePath("/api/ds/tenants/{tenantId}/token-groups")) {
         post {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
             val command = call.body<CreateTokenGroupRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)
@@ -87,7 +89,9 @@ private fun uuid(value: String?): UUID? = value?.let { runCatching { UUID.fromSt
 
 /** Контекст запроса; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.context(evaluator: PolicyEvaluator): DsRequestContext? =
-    TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"]) ?: null.also {
+    TrustedDsRequestContextMapper.map(
+        dsTrustedHeaders(), evaluator, request.queryParameters["versionId"],
+    ) ?: null.also {
         respondFailure(DsFailure.Forbidden)
     }
 

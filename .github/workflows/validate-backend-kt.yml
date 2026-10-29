@@ -46,6 +46,11 @@ jobs:
             directory: backend-kt/project-publisher
           - name: documentation-service
             directory: backend-kt/documentation-service
+          - name: ds-service
+            directory: backend-kt/ds-service
+          - name: backend-app
+            directory: backend-kt
+            args: -p app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -53,7 +58,7 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew test
+      - run: ./gradlew ${{ matrix.project.args }} test
         working-directory: ${{ matrix.project.directory }}
 
   build:
@@ -71,6 +76,11 @@ jobs:
             directory: backend-kt/project-publisher
           - name: documentation-service
             directory: backend-kt/documentation-service
+          - name: ds-service
+            directory: backend-kt/ds-service
+          - name: backend-app
+            directory: backend-kt
+            args: -p app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -78,5 +88,5 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew build
+      - run: ./gradlew ${{ matrix.project.args }} build
         working-directory: ${{ matrix.project.directory }}

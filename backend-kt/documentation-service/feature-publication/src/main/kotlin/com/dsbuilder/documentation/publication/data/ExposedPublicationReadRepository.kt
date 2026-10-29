@@ -264,7 +264,7 @@ class ExposedPublicationReadRepository(private val database: Database) : Publica
     )
 
     private suspend fun <T> query(block: () -> T): T =
-        withContext(Dispatchers.IO) { transaction(database) { block() } }
+        withContext(Dispatchers.IO) { transaction(db = database) { block() } }
 }
 
 private fun encodePublicationCursor(projectId: String, query: PublicationListQuery, offset: Int): String {

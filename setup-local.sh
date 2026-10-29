@@ -12,6 +12,7 @@ Usage:
   ./setup-local.sh --down
 
 Options:
+  --backend-only  Start only the Kotlin backend and its infrastructure; leave JS containers untouched.
   --reset  Delete the data of the local Docker stacks (all volumes) before the setup.
            Without it the existing data is kept.
   --down   Stop the local Docker stacks without deleting their volumes.
@@ -57,6 +58,7 @@ require() {
 
 ACTION="setup"
 RESET=0
+BACKEND_ONLY=0
 PLUGIN_ZIP="${COMPOSE_PREVIEW_PLUGIN_ZIP:-}"
 PLUGIN_ZIP_EXPLICIT=0
 SKIP_PLUGIN=0
@@ -71,6 +73,10 @@ BUNDLED_PLUGIN_ZIP="$ROOT_DIR/local-dev/compose-preview/preview-compose-plugin.z
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --backend-only)
+      BACKEND_ONLY=1
+      shift
+      ;;
     --down)
       ACTION="down"
       shift
@@ -131,8 +137,10 @@ js_compose() {
 if [[ "$ACTION" == "down" ]]; then
   log "Stopping Kotlin backend"
   "$ROOT_DIR/backend-kt/start-local.sh" --down
-  log "Stopping the client"
-  js_compose down --remove-orphans
+  if [[ "$BACKEND_ONLY" == "0" ]]; then
+    log "Stopping the client"
+    js_compose down --remove-orphans
+  fi
   log "Local stacks are stopped"
   exit 0
 fi
@@ -141,13 +149,17 @@ if [[ "$RESET" == "1" ]]; then
   log "Resetting local data: removing the volumes of both stacks"
   docker compose -f "$ROOT_DIR/backend-kt/docker-compose.local.yml" down -v
   # --remove-orphans: контейнеры прежнего JS-стека (db-service и его Postgres на порту 5433) больше не описаны в compose.
-  js_compose down -v --remove-orphans
-else
+  if [[ "$BACKEND_ONLY" == "0" ]]; then js_compose down -v --remove-orphans; fi
+elif [[ "$BACKEND_ONLY" == "0" ]]; then
   js_compose down --remove-orphans
 fi
 
 log "Starting Kotlin backend (Flyway creates the schema in ds-db)"
 DS_FLYWAY_ADOPT_EXISTING=false "$ROOT_DIR/backend-kt/start-local.sh" --detach
+if [[ "$BACKEND_ONLY" == "1" ]]; then
+  log "Backend started; JS stack and seed data were left untouched"
+  exit 0
+fi
 
 log "Filling the design system 'base' through the gateway"
 "$ROOT_DIR/backend-kt/bootstrap-base.sh"

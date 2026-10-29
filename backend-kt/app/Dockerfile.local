@@ -1,0 +1,17 @@
+FROM eclipse-temurin:17-jre-jammy
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd --system dsbuilder && useradd --system --gid dsbuilder --home /app dsbuilder && \
+    mkdir -p /app/authorization /var/tmp/documentation && \
+    chown -R dsbuilder:dsbuilder /app /var/tmp/documentation
+WORKDIR /app
+COPY --chown=dsbuilder:dsbuilder backend-kt/app/build/libs/*-all.jar /app/backend.jar
+COPY --chown=dsbuilder:dsbuilder authorization /app/authorization
+ENV AUTHORIZATION_POLICY_PATH=/app/authorization/policy.json
+ENV PROJECT_AUTHORIZATION_POLICY_PATH=/app/authorization/policy.json
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60.0"
+USER dsbuilder
+EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=10 \
+    CMD curl -fsS http://127.0.0.1:8080/ready >/dev/null || exit 1
+ENTRYPOINT ["java", "-jar", "/app/backend.jar"]

@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.designsystems.di
 
 import com.dsbuilder.ds.core.application.DraftChangeHandler
+import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersionUseCase
@@ -30,8 +31,10 @@ import com.dsbuilder.ds.designsystems.data.ExposedDesignSystemVersionRepository
 import com.dsbuilder.ds.designsystems.data.ExposedDraftChangeRepository
 import com.dsbuilder.ds.designsystems.data.ExposedVersionBoundaryRepository
 import com.dsbuilder.ds.designsystems.data.designSystemDraftChangeHandler
+import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import java.util.UUID
 
 /** Dependency bindings owned by the design-systems feature. */
 val designSystemsModule = module {
@@ -43,6 +46,15 @@ val designSystemsModule = module {
     single<DraftChangeRepository> { ExposedDraftChangeRepository(getAll(), getAll(), getAll()) }
     factory { ListDesignSystemsUseCase(get(), get(), get()) }
     factory { GetDesignSystemUseCase(get(), get(), get()) }
+    factory<com.dsbuilder.ds.designsystems.application.DesignSystemAccess> {
+        val reader = get<GetDesignSystemUseCase>()
+        com.dsbuilder.ds.designsystems.application.DesignSystemAccess { context, id ->
+            when (val result = reader.execute(context, DesignSystemId(UUID.fromString(id)))) {
+                is DsResult.Failure -> result
+                is DsResult.Success -> DsResult.Success(Unit)
+            }
+        }
+    }
     factory { GetDesignSystemDraftCursorUseCase(get(), get(), get()) }
     factory { CreateDesignSystemUseCase(get(), get(), get(), get(), get(), get(), IdempotentCreateExecutor(get())) }
     factory { UpdateDesignSystemUseCase(get(), get(), get()) }

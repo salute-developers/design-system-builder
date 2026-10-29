@@ -2,16 +2,19 @@
 
 ## Purpose
 Определяет runtime ds-service: модульную архитектуру, владение схемой через Flyway, контейнерный и локальный запуск, readiness и наблюдаемость.
+
 ## Requirements
+
 ### Requirement: Модульная архитектура ds-service
 
-`ds-service` SHALL быть отдельной Kotlin Gradle-сборкой с модулями `app`, `core`, `feature-design-systems`, `feature-themes`, `feature-tokens` и `feature-components` и SHALL соблюдать направление зависимостей `presentation -> application -> domain`.
+`ds-service` SHALL быть отдельной Kotlin Gradle-сборкой с модулями `app`, `runtime`, `core`, `feature-design-systems`, `feature-themes`, `feature-tokens` и `feature-components` и SHALL соблюдать направление зависимостей `presentation -> application -> domain`.
 
 #### Scenario: Проверка модульного графа
 
 - **WHEN** выполняются архитектурные тесты `backend-kt`
 - **THEN** feature-модули MUST зависеть от `core`, но MUST NOT зависеть друг от друга
-- **AND** `app` MUST быть единственным модулем, собирающим feature-модули в запускаемое приложение
+- **AND** `runtime` MUST собирать feature-модули без собственной точки запуска
+- **AND** отдельный `app` сервиса и монолитный `backend-kt/app` MUST подключать один и тот же `runtime` без зависимости от другого исполняемого приложения
 
 #### Scenario: Проверка слоёв feature-модуля
 
@@ -78,36 +81,37 @@
 
 ### Requirement: Контейнерный и локальный запуск
 
-`ds-service` SHALL запускаться в контейнере и в общем локальном контуре `backend-kt` вместе со своей базой `ds_registry`, без JS-стека.
+Функции `ds-service` SHALL запускаться внутри единого backend-монолита вместе с отдельной базой `ds_registry`. Создание схемы и работа предметного API SHALL NOT требовать JS-стека. Самостоятельный контейнер ds-service и nginx SHALL NOT требоваться.
 
 #### Scenario: Запуск контейнера
 
-- **WHEN** образ `ds-service` запускается с переменными окружения БД и policy
-- **THEN** сервис MUST стартовать, применить Flyway-миграции и открыть readiness только после успешной проверки зависимостей
+- **WHEN** образ монолита запускается с переменными окружения БД и политики доступа
+- **THEN** runtime ds MUST инициализироваться, применить Flyway-миграции и открыть общую готовность только после успешной проверки обязательных зависимостей
 
 #### Scenario: Запуск общего локального контура
 
 - **WHEN** разработчик запускает корневой `./setup-local.sh`
-- **THEN** `ds-service` MUST запускаться вместе с базой `ds-db` из `backend-kt/docker-compose.local.yml` и Gateway
+- **THEN** функции ds MUST обслуживаться монолитом вместе с отдельной базой `ds-db` из `backend-kt/docker-compose.local.yml`, без nginx и отдельного контейнера ds-service
 - **AND** healthcheck MUST отражать состояние приложения без ручной настройки внутри контейнера
 - **AND** из `js/docker-compose.dev.yml` поднимается клиент
 
 #### Scenario: Схему общей базы создаёт Flyway
 
-- **WHEN** `./setup-local.sh` готовит базу `ds_registry`
-- **THEN** `ds-service` MUST создать схему Flyway-миграциями в пустой базе `ds-db` без принятия существующей
-- **AND** наполнение дизайн-системой `base` MUST выполняться `backend-kt/bootstrap-base.sh` после того, как `ds-service` создал схему и Gateway готов
+- **WHEN** `./setup-local.sh` готовит пустую базу `ds_registry`
+- **THEN** runtime ds MUST создать схему Flyway-миграциями в базе `ds-db` без принятия существующей
+- **AND** наполнение дизайн-системой `base` MUST выполняться `backend-kt/bootstrap-base.sh` после создания схемы и готовности публичного API монолита
 
 #### Scenario: Данные удаляются только явно
 
 - **WHEN** разработчик запускает `./setup-local.sh` без опций
-- **THEN** локальные данные обоих стеков MUST сохраняться
-- **AND** удаление volumes MUST выполняться только опцией `--reset`
+- **THEN** существующие данные backend и клиента MUST сохраняться
+- **AND** удаление томов MUST выполняться только явно указанной опцией `--reset`, которая не применяется при однократном переходе к монолиту
 
 #### Scenario: База со схемой Drizzle
 
 - **WHEN** в `ds_registry` есть таблицы, а истории Flyway нет
-- **THEN** `ds-service` с `DS_FLYWAY_ADOPT_EXISTING=false` MUST остановиться на проверке Flyway, а разработчик пересоздаёт базу `./setup-local.sh --reset`
+- **THEN** runtime ds с `DS_FLYWAY_ADOPT_EXISTING=false` MUST остановиться на проверке Flyway
+- **AND** принятие поддерживаемой схемы выполняется отдельной управляемой процедурой; пересоздание локальной базы через `./setup-local.sh --reset` допускается только по явному решению разработчика
 
 ### Requirement: Раздельные проверки жизнеспособности и готовности
 
@@ -170,4 +174,3 @@
 
 - **WHEN** схема базы отличается от ожидаемой
 - **THEN** принятие MUST быть отклонено
-

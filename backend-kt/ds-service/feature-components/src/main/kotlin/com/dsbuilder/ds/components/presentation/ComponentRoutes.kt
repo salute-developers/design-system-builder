@@ -16,6 +16,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
@@ -47,10 +49,10 @@ fun Route.componentRoutes(
     enrichedDependencies: GetComponentDependenciesWithReuseConfigUseCase,
     json: Json,
 ) {
-    route("/api/ds/components") {
+    route(dsRoutePath("/api/ds/components")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -62,7 +64,7 @@ fun Route.componentRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -76,7 +78,7 @@ fun Route.componentRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -96,7 +98,7 @@ fun Route.componentRoutes(
                         json.encodeToString(ComponentResponse.from(value))
                     },
                     ComponentRepository.Create(name, request.platform, description),
-                    call.request.headers["Idempotency-Key"],
+                    call.dsTrustedHeaders()["Idempotency-Key"],
                 )
             ) {
                 is DsResult.Success -> call.respondSuccess(
@@ -109,7 +111,7 @@ fun Route.componentRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -138,7 +140,7 @@ fun Route.componentRoutes(
         }
         get("/{id}/variations") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -163,7 +165,7 @@ fun Route.componentRoutes(
                 call.modelReadContext(evaluator) ?: return@get
             } else {
                 TrustedDsRequestContextMapper.map(
-                    call.request.headers, evaluator, call.request.queryParameters["versionId"],
+                    call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
                 ) ?: return@get call.respondFailure(DsFailure.Forbidden)
             }
             val id = call.parameters["id"].toUuidOrNull()
@@ -202,7 +204,7 @@ fun Route.componentRoutes(
                 call.modelReadContext(evaluator) ?: return@get
             } else {
                 TrustedDsRequestContextMapper.map(
-                    call.request.headers, evaluator, call.request.queryParameters["versionId"],
+                    call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
                 ) ?: return@get call.respondFailure(DsFailure.Forbidden)
             }
             val id = call.parameters["id"].toUuidOrNull()

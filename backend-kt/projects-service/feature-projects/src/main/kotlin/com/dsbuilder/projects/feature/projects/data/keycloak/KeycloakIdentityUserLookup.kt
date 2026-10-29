@@ -23,7 +23,9 @@ import kotlinx.serialization.json.Json
 internal class KeycloakIdentityUserLookup(
     private val configuration: KeycloakIdentityLookupConfiguration,
     private val client: HttpClient = defaultHttpClient(configuration),
-) : IdentityUserLookup {
+) : IdentityUserLookup, AutoCloseable {
+    override fun close() = client.close()
+
     private val tokenMutex = Mutex()
 
     @Volatile

@@ -5,6 +5,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -37,7 +39,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /** Регистрирует маршруты палитры темы `/api/ds/tenants/{tenantId}/palette`. */
 fun Route.tenantPaletteRoutes(evaluator: PolicyEvaluator, useCases: TenantPaletteUseCases) {
-    route("/api/ds/tenants/{tenantId}/palette") {
+    route(dsRoutePath("/api/ds/tenants/{tenantId}/palette")) {
         paletteReadRoutes(evaluator, useCases)
         paletteGroupRoutes(evaluator, useCases)
         route("/groups/{groupId}/ramps") {
@@ -220,7 +222,7 @@ private suspend fun ApplicationCall.respondRemoveRamp(
 
 /** Контекст запроса и тема; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.paletteTarget(evaluator: PolicyEvaluator): Pair<DsRequestContext, UUID>? {
-    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"])
+    val context = TrustedDsRequestContextMapper.map(dsTrustedHeaders(), evaluator, request.queryParameters["versionId"])
         ?: return null.also { respondFailure(DsFailure.Forbidden) }
     val tenantId = parameters["tenantId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         ?: return null.also { respondFailure(INVALID_TENANT) }
