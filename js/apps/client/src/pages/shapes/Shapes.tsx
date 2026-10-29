@@ -1,76 +1,52 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { useMemo } from 'react';
+import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
-import { getOldMenuItems } from '../../utils';
-import { useSelectItemInMenu } from '../../hooks';
-import { DesignSystem, Theme, Token } from '../../controllers';
-import { MenuOld, Workspace } from '../../layouts';
-import { shapeTokenActions } from '../../actions';
+import '../../styles/size-tokens.css';
 
-import { TokenShapeEditor } from './features/TokenShapeEditor';
+import type { DesignSystem, Theme } from '../../controllers';
+import type { ThemePalette } from '../../modules/palette';
+import { SizeTokensScreen } from './SizeTokensScreen';
 
 interface ShapesOutletContextProps {
-    designSystem?: DesignSystem;
-    theme?: Theme;
-    updated: object;
+    designSystem?: DesignSystem | null;
+    theme?: Theme | null;
+    palette?: ThemePalette | null;
     rerender: () => void;
+    /** Токены с неопубликованными изменениями: отметка в дереве, как у «Типографики». */
+    changedTokenNames?: Set<string>;
 }
 
+/** Раздел «Отступы, радиусы и тени» темы по прототипу SDDS Portal с автосохранением правок. */
 export const Shapes = () => {
-    const { designSystem, theme, updated, rerender } = useOutletContext<ShapesOutletContextProps>();
+    const outlet = useOutletContext<ShapesOutletContextProps>();
+    const { projectId, designSystemId, tenantId } = useParams();
+    const [searchParams] = useSearchParams();
+    // Опубликованная версия из адреса: раздел читает её значения и доступен только для чтения.
+    const versionId = searchParams.get('versionId') ?? undefined;
+    const context = useMemo(
+        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId, versionId } : null),
+        [projectId, designSystemId, tenantId, versionId],
+    );
 
-    const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu();
-
-    const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    const data = useMemo(() => getOldMenuItems(theme, 'shape'), [theme, updated]);
-
-    const onTokenAdd = (_: string, tokenName: string, __?: string, tokens?: (Token | unknown)[]) => {
-        shapeTokenActions.addToken({ tokenName, tokens, theme, designSystem });
-
-        rerender();
-    };
-
-    const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
-        shapeTokenActions.disableToken({ disabled, tokens, designSystem });
-
-        rerender();
-    };
-
-    useEffect(() => {
-        if (!data) {
-            return;
-        }
-
-        const [tabIndex, groupIndex, tokenIndex] = selectedItemIndexes;
-        const selectedTokens = data.groups?.[tabIndex]?.data?.[groupIndex]?.items?.[tokenIndex]?.data as
-            | Token[]
-            | undefined;
-
-        setTokens(selectedTokens);
-    }, [data, selectedItemIndexes]);
-
-    if (!data || !designSystem || !theme) {
-        return null;
+    if (!context || !outlet.designSystem || !outlet.theme) {
+        return (
+            <div className="size-tokens-screen st-shell st-theme-workspace" data-testid="size-tokens-loading">
+                <div className="st-empty" role="status">
+                    Загружаем радиусы, отступы и тени…
+                </div>
+            </div>
+        );
     }
 
     return (
-        <Workspace
-            menuBackground={'transparent'}
-            menu={
-                <MenuOld
-                    header={designSystem.getParameters()?.projectName}
-                    subheader={designSystem.getParameters()?.packagesName}
-                    data={data}
-                    selectedItemIndexes={selectedItemIndexes}
-                    onItemSelect={onItemSelect}
-                    onItemAdd={onTokenAdd}
-                    onItemDisable={onTokenDisable}
-                />
-            }
-            content={
-                <TokenShapeEditor designSystem={designSystem} theme={theme} tokens={tokens} rerender={rerender} />
-            }
+        <SizeTokensScreen
+            key={`${context.projectId}:${context.designSystemId}:${context.tenantId}:${context.versionId ?? ''}`}
+            context={context}
+            designSystem={outlet.designSystem}
+            theme={outlet.theme}
+            palette={outlet.palette ?? null}
+            rerender={outlet.rerender}
+            changedTokenNames={outlet.changedTokenNames}
         />
     );
 };

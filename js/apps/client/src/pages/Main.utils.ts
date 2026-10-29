@@ -1,158 +1,44 @@
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
 
-import { GrayTone, Parameters } from '../types';
+import { GrayTone } from '../types';
 import { Config, createMetaTokens, createVariationTokens, DesignSystem, Theme } from '../controllers';
-import { getNpmMeta, getNpmPackageName, http, PROJECTS_URL } from '../api';
+import { http, PROJECTS_URL } from '../api';
+import { themeValuesToTokenValues, tokenKey } from '../api/themeTokenValues';
 
-export const popupContentPages = {
-    CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
-    SETUP_PARAMETERS: 'SETUP_PARAMETERS',
-    CREATION_PROGRESS: 'CREATION_PROGRESS',
-    PUBLISH_PROGRESS: 'PUBLISH_PROGRESS',
+const grayTokenTones = {
+    dark: [150, 300, 800, 500, 150, 950, 950, 800, 300, 50, 100, 800, 1000, 950, 900, 950, 250],
+    light: [950, 800, 400, 600, 150, 950, 150, 150, 600, 1000, 950, 300, 300, 250, 200, 950, 250],
 } as const;
 
-export const defaultParameters: Parameters = {
-    projectName: '',
-    packagesName: '',
-    projectId: '',
-    accentColor: 'blue',
-    grayTone: 'warmGray',
-    darkFillSaturation: 50,
-    darkStrokeSaturation: 50,
-    lightFillSaturation: 50,
-    lightStrokeSaturation: 50,
-};
+const grayTokenNames = [
+    'text-primary',
+    'text-secondary',
+    'text-tertiary',
+    'text-paragraph',
+    'on-dark-text-primary',
+    'on-light-text-primary',
+    'inverse-text-primary',
+    'surface-solid-card',
+    'surface-solid-default',
+    'surface-transparent-primary',
+    'surface-transparent-secondary',
+    'outline-solid-secondary',
+    'background-primary',
+    'background-secondary',
+    'background-tertiary',
+    'dark-background-secondary',
+    'light-background-secondary',
+] as const;
+const grayTokenAlpha = ['', '', '', '', '', '', '', '', '', '0a', '0f', '', '', '', '', '', ''] as const;
 
 // TODO: Добавить оставшиеся переменные из макетов
-export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
-    return `
-        --text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 950]};
-        --text-secondary: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
-        --text-tertiary: ${general[grayTone][themeMode === 'dark' ? 800 : 400]};
-        --text-paragraph: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
-        --on-dark-text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 150]};
-        --on-light-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
-        --inverse-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 150]};
-        --surface-solid-card: ${general[grayTone][themeMode === 'dark' ? 800 : 150]};
-        --surface-solid-default: ${general[grayTone][themeMode === 'dark' ? 300 : 600]};
-        --surface-transparent-primary: ${general[grayTone][themeMode === 'dark' ? 50 : 1000]}0a;
-        --surface-transparent-secondary: ${general[grayTone][themeMode === 'dark' ? 100 : 950]}0f;
-        --outline-solid-secondary: ${general[grayTone][themeMode === 'dark' ? 800 : 300]};
-        --background-primary: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
-        --background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 250]};
-        --background-tertiary: ${general[grayTone][themeMode === 'dark' ? 900 : 200]};
-        --dark-background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
-        --light-background-secondary: ${general[grayTone][themeMode === 'dark' ? 250 : 250]};
-    `;
-};
-
-export const generateDownload = async (designSystem: DesignSystem, exportType: 'tgz' | 'zip') => {
-    const projectId = designSystem.getParameters()?.projectId;
-
-    const data = {
-        packageName: designSystem.getName(),
-        packageVersion: designSystem.getVersion(),
-        exportType,
-    };
-
-    const result = await http.post<ArrayBuffer>(`${PROJECTS_URL}/${projectId}/generator/generate-download`, data, {
-        responseType: 'arraybuffer',
-    });
-
-    const u8 = new Uint8Array(result.data);
-
-    // Находим начало архива (на случай мусора/префикса перед бинарником)
-    let start = 0;
-    for (let i = 0; i < u8.length - 3; i++) {
-        // TGZ
-        if (u8[i] === 0x1f && u8[i + 1] === 0x8b) {
-            start = i;
-            break;
-        }
-
-        // ZIP
-        if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x03 && u8[i + 3] === 0x04) {
-            start = i;
-            break;
-        }
-    }
-
-    const blob = new Blob([u8.slice(start)]);
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${designSystem.getName()}@${designSystem.getVersion()}.${exportType}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-
-    return true;
-};
-
-export const downloadThemeData = async (designSystem: DesignSystem) => {
-    const name = designSystem.getName();
-
-    const projectId = designSystem.getParameters()?.projectId;
-
-    const response = await http.get<Blob>(
-        `${PROJECTS_URL}/${projectId}/ds/legacy/design-systems/${name}/download-theme`,
-        { responseType: 'blob' },
-    );
-
-    const blob = response.data;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-
-    const contentDisposition = response.headers['content-disposition'] as string | undefined;
-    a.href = url;
-    a.download = contentDisposition?.match(/filename="(.+)"/)?.[1] ?? `${name}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-};
-
-export interface PublishResult {
-    success: boolean;
-    version?: string;
-}
-
-export const generatePublish = async (
-    designSystem: DesignSystem,
-    exportType: 'tgz' | 'zip',
-): Promise<PublishResult> => {
-    const data = {
-        packageName: designSystem.getName(),
-        packageVersion: designSystem.getVersion(),
-        exportType,
-    };
-
-    const projectId = designSystem.getParameters()?.projectId;
-
-    const result = (await http.post(`${PROJECTS_URL}/${projectId}/generator/generate-publish`, data)).data;
-
-    return {
-        success: result?.message?.success || false,
-        version: result?.version ?? result?.message?.version,
-    };
-};
-
-export const generateAndDeployDocumentation = async (designSystem: DesignSystem) => {
-    const data = {
-        packageName: designSystem.getName(),
-        packageVersion: designSystem.getVersion(),
-        projectName: designSystem.getName(),
-    };
-
-    const projectId = designSystem.getParameters()?.projectId;
-
-    // TODO: Очень странный эндпоинт, нужно будет потом его переписать
-    const result = (await http.post(`${PROJECTS_URL}/${projectId}/docs/api/documentation/generate`, data)).data;
-
-    return result;
-};
+export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) =>
+    grayTokenNames
+        .map((name, index) => {
+            return `--${name}: ${general[grayTone][grayTokenTones[themeMode][index]]}${grayTokenAlpha[index]};`;
+        })
+        .join('\n');
 
 export const designSystemSave = async (designSystem: DesignSystem, theme: Theme, components: Config[]) => {
     const themeData = {
@@ -160,12 +46,11 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
         variations: createVariationTokens(theme),
     };
 
-    const componentsData = components.map((component) => {
-        const name = component.getName();
-        const description = component.getDescription();
+    // Правки компонентов в базу этим путём не уходят, но модель дизайн-системы в памяти держится
+    // в актуальном состоянии: экраны читают её через getComponentDataByName до перезагрузки.
+    for (const component of components) {
         const { defaultVariations, invariantProps, variations } = component.getMeta();
-
-        const { sources } = designSystem.getComponentDataByName(name);
+        const { sources } = designSystem.getComponentDataByName(component.getName());
 
         sources.configs[0] = {
             ...sources.configs[0],
@@ -176,52 +61,27 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
                 variations,
             },
         };
+    }
 
-        return {
-            name,
-            description,
-            sources: {
-                configs: sources.configs,
-                // TODO: подумать, надо ли будет потом это тащить в бд
-                api: sources.api,
-                variations: sources.variations,
-            },
-        };
-    });
-
-    return await designSystem.updateDesignSystemData(themeData, componentsData);
-};
-
-interface LongPollNpmOptions {
-    version?: string;
-    interval?: number;
-    shouldStop?: () => boolean;
-}
-
-// Опрашивает npm, пока там не появится пакет (или его конкретная версия)
-export const longPollNpm = async (packagesName: string, options: LongPollNpmOptions = {}): Promise<{ success: boolean }> => {
-    const { version, interval = 10_000, shouldStop = () => false } = options;
-
-    return new Promise((resolve) => {
-        const poll = async () => {
-            if (shouldStop()) {
-                return resolve({ success: false });
-            }
-
-            try {
-                const data = await getNpmMeta(getNpmPackageName(packagesName));
-                const published = version ? Boolean(data?.versions?.[version]) : 'versions' in data;
-
-                if (published) {
-                    return resolve({ success: true });
-                }
-            } catch (err) {
-                console.error('[longPollNpm] Ошибка запроса к npm:', err);
-            }
-
-            setTimeout(poll, interval);
-        };
-
-        poll();
-    });
+    const parameters = designSystem.getParameters();
+    if (!parameters?.tenantId || !parameters.designSystemId || parameters.editRevision === undefined) {
+        // Сохранение идёт только в контексте темы: legacy-путь через db-service удалён.
+        throw new Error('THEME_CONTEXT_REQUIRED');
+    }
+    const root = `${PROJECTS_URL}/${parameters.projectId}/ds`;
+    const definitions = (
+        await http.get<Array<{ id: string; name: string; type: keyof typeof themeData.variations }>>(
+            `${root}/design-systems/${parameters.designSystemId}/tokens`,
+        )
+    ).data;
+    const ids = new Map(definitions.map((token) => [tokenKey(token.type, token.name), token.id]));
+    const values = themeValuesToTokenValues(themeData.variations, ids);
+    const saved = (
+        await http.put<{ editRevision: number }>(`${root}/tenants/${parameters.tenantId}/token-values`, {
+            editRevision: parameters.editRevision,
+            values,
+        })
+    ).data;
+    parameters.editRevision = saved.editRevision;
+    return saved;
 };

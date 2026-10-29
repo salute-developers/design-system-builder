@@ -7,12 +7,14 @@ import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.ResolvedApiUrl
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanResult
 import com.dsbuilder.frontend.feature.components.domain.ExportedComponentPackage
 import com.dsbuilder.frontend.feature.components.domain.RenderedComponentConfig
+import com.dsbuilder.frontend.feature.components.domain.apimeta.toApiMetaPlatform
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodecResult
 
@@ -31,8 +33,8 @@ public class FetchComponentsUseCase internal constructor(
     private val directoryReader: ComponentPackageDirectoryReader,
     private val writer: LocalComponentPackageWriter,
     private val codec: ConfigCodec,
-    private val snapshotSource: ComponentConfigsSnapshotSource,
-    private val snapshotWriter: ComponentConfigsSnapshotWriter,
+    private val webAdapterSource: WebAdapterFileSource,
+    private val webAdapterWriter: WebAdapterFileWriter,
     private val planBuilder: ComponentPackageWritePlanBuilder = ComponentPackageWritePlanBuilder(),
 ) {
     /**
@@ -43,7 +45,7 @@ public class FetchComponentsUseCase internal constructor(
      * директории, потому что неконвертируемая конфигурация — отказ всей выгрузки, и трогать
      * из-за неё файлы незачем.
      */
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     public suspend fun execute(command: FetchComponentsCommand): FetchComponentsResult {
         val found = when (
             val read = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
@@ -54,6 +56,12 @@ public class FetchComponentsUseCase internal constructor(
         val context = found.context
         if (context.configPath.isBlank() && command.destination.directory == null) {
             return FetchComponentsResult.Failed("--to is required with --design-system.")
+        }
+        val platform = when (
+            val resolved = ComponentPlatformResolver.resolve(context.platforms, command.platform)
+        ) {
+            is ComponentPlatformResolution.Failed -> return FetchComponentsResult.Failed(resolved.message)
+            is ComponentPlatformResolution.Resolved -> resolved.platform
         }
         val apiUrl = apiUrlResolver.resolve(command.apiUrlOverride, found.projectEnvironment)
 
@@ -77,6 +85,7 @@ public class FetchComponentsUseCase internal constructor(
             credential = credential,
             projectId = context.projectId,
             designSystemId = context.designSystemId,
+            platform = platform.toApiMetaPlatform(),
         )
         val exported = when (val result = remoteSource.export(remoteCommand)) {
             is ExportComponentsResult.Failed -> return FetchComponentsResult.Failed(result.message)
@@ -84,6 +93,7 @@ public class FetchComponentsUseCase internal constructor(
         }
 
         val source = FetchSource(
+            platform = platform,
             apiUrl = apiUrl,
             projectId = context.projectId.value,
             designSystemId = context.designSystemId.value,
@@ -92,17 +102,42 @@ public class FetchComponentsUseCase internal constructor(
             configurationCount = exported.configurations.size,
         )
 
-        val snapshot = when (val result = snapshotSource.fetch(remoteCommand, exported.name)) {
-            is ComponentConfigsSnapshotResult.Failed -> return FetchComponentsResult.Failed(result.message, source)
-            is ComponentConfigsSnapshotResult.Loaded -> result.content
-        }
+        // Загружается до записи: недоступная ручка не должна оставить пакет без адаптера.
+        val webAdapter = loadWebAdapter(platform, remoteCommand)
+        if (webAdapter is WebAdapterFileResult.Failed) return FetchComponentsResult.Failed(webAdapter.message, source)
         val result = writePackage(exported, source, command, context)
         if (result !is FetchComponentsResult.Fetched) return result
-        return when (val written = snapshotWriter.write(context, command.destination, snapshot)) {
-            is ComponentPackageWriteResult.Failed -> FetchComponentsResult.Failed(written.message, source)
-            is ComponentPackageWriteResult.Written -> result.copy(snapshotPath = written.path)
-        }
+        if (webAdapter !is WebAdapterFileResult.Loaded) return result
+        return writeWebAdapter(result, context, command, webAdapter)
     }
+
+    /**
+     * Web-адаптер нужен только React; остальным платформам — `null`.
+     *
+     * Платформа уже выбрана выше (`--platform` или единственная платформа project config): без неё
+     * экспорт компонентов неоднозначен, поэтому fetch с несколькими платформами и без `--platform`
+     * отказывает раньше, чем что-либо запрошено.
+     */
+    private suspend fun loadWebAdapter(
+        platform: TargetPlatform,
+        remoteCommand: ExportComponentsCommand,
+    ): WebAdapterFileResult? = if (platform == TargetPlatform.REACT) webAdapterSource.fetch(remoteCommand) else null
+
+    /**
+     * Записывает web-адаптер после пакета.
+     *
+     * Адаптер загружен до записи пакета, поэтому здесь отказать может только файловая система.
+     */
+    private fun writeWebAdapter(
+        result: FetchComponentsResult.Fetched,
+        context: ProjectContext,
+        command: FetchComponentsCommand,
+        webAdapter: WebAdapterFileResult.Loaded,
+    ): FetchComponentsResult =
+        when (val written = webAdapterWriter.write(context, command.destination, webAdapter)) {
+            is ComponentPackageWriteResult.Failed -> FetchComponentsResult.Failed(written.message, result.source)
+            is ComponentPackageWriteResult.Written -> result.copy(webAdapterPath = written.path)
+        }
 
     /**
      * Преобразует пакет и записывает его в рабочую копию.
@@ -193,6 +228,9 @@ private sealed interface RenderResult {
  * @property apiUrlOverride backend API URL, переданный аргументом.
  * @property designSystemUri явная ссылка на дизайн-систему.
  * @property projectKeyEnvName env-переменная ключа для явной ссылки.
+ * @property platform платформа компонентов из `--platform`; без неё берётся единственная платформа project
+ *   config, при нескольких платформах `--platform` обязателен. [TargetPlatform.REACT] дополнительно выгружает
+ *   web-адаптер.
  */
 public data class FetchComponentsCommand(
     public val destination: ComponentDestination,
@@ -200,11 +238,13 @@ public data class FetchComponentsCommand(
     public val apiUrlOverride: String? = null,
     public val designSystemUri: String? = null,
     public val projectKeyEnvName: String? = null,
+    public val platform: TargetPlatform? = null,
 )
 
 /**
  * Источник пакета и его состав, печатаемые перед записью.
  *
+ * @property platform платформа компонентов, определённая по конфигурации или `--platform`.
  * @property apiUrl разрешённый backend API URL вместе с источником.
  * @property projectId идентификатор проекта.
  * @property designSystemId идентификатор дизайн-системы.
@@ -213,6 +253,7 @@ public data class FetchComponentsCommand(
  * @property configurationCount число выгруженных конфигураций.
  */
 public data class FetchSource(
+    public val platform: TargetPlatform,
     public val apiUrl: ResolvedApiUrl,
     public val projectId: String,
     public val designSystemId: String,
@@ -237,7 +278,7 @@ public sealed interface FetchComponentsResult {
      * @property path директория, в которую записан пакет.
      * @property fileNames имена записанных файлов конфигураций.
      * @property unrelatedFiles файлы, оставшиеся в директории от прежнего состава.
-     * @property snapshotPath путь исходного JSON legacy-конфигов.
+     * @property webAdapterPath путь web-адаптера, если он выгружался.
      * @property underivedTypes значения, вид заливки которых модель не смогла вывести.
      */
     public data class Fetched(
@@ -246,7 +287,7 @@ public sealed interface FetchComponentsResult {
         public val fileNames: List<String>,
         public val unrelatedFiles: List<String>,
         public val underivedTypes: List<String>,
-        public val snapshotPath: String? = null,
+        public val webAdapterPath: String? = null,
     ) : FetchComponentsResult
 
     /**

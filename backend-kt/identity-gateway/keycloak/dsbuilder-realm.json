@@ -12,6 +12,10 @@
       {
         "name": "system_admin",
         "description": "Platform administrator"
+      },
+      {
+        "name": "compose_preview_publisher",
+        "description": "Publishes Compose preview plugin builds (service account of the plasma-android CI)"
       }
     ]
   },
@@ -35,6 +39,57 @@
         "http://localhost:3002",
         "http://localhost:8080"
       ],
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "dsbuilder-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "dsbuilder-api",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "dsbuilder-studio-plugin",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": true,
+      "redirectUris": [
+        "http://127.0.0.1:*",
+        "http://localhost:*"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "dsbuilder-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "dsbuilder-api",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "dsbuilder-preview-publisher",
+      "name": "DS Builder Compose preview publisher",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dev-preview-publisher-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
       "protocol": "openid-connect",
       "protocolMappers": [
         {
@@ -104,6 +159,14 @@
       "realmRoles": [
         "user",
         "system_admin"
+      ]
+    },
+    {
+      "username": "service-account-dsbuilder-preview-publisher",
+      "enabled": true,
+      "serviceAccountClientId": "dsbuilder-preview-publisher",
+      "realmRoles": [
+        "compose_preview_publisher"
       ]
     }
   ]

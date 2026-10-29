@@ -1,1 +1,0 @@
-export { TokenShapeEditor } from './TokenShapeEditor';

@@ -43,15 +43,21 @@ data class ProjectPrincipal(
     val projectRole: String? = null,
     val projectScopes: Set<String> = emptySet(),
     val systemAdmin: Boolean = false,
+    /** Служебная роль публикации Compose preview plugin: даёт право только на этот маршрут. */
+    val composePreviewPublisher: Boolean = false,
 ) {
     /** Rejects incomplete and contradictory trusted contexts. */
     fun isValid(policy: AuthorizationPolicy): Boolean = when (type) {
         ProjectActorType.USER ->
             actorId.isNotBlank() && projectId.isNotBlank() &&
-                ((systemAdmin && projectRole == null) || projectRole?.lowercase() in policy.roles) &&
+                (
+                    ((systemAdmin || composePreviewPublisher) && projectRole == null) ||
+                        projectRole?.lowercase() in policy.roles
+                    ) &&
                 projectScopes.isEmpty()
         ProjectActorType.PROJECT_KEY ->
             actorId.isNotBlank() && projectId.isNotBlank() && projectRole == null && !systemAdmin &&
+                !composePreviewPublisher &&
                 policy.projectKeyScopes.containsAll(projectScopes)
     }
 }

@@ -15,14 +15,16 @@ OpenSpec Change и сохраняют краткий результат в ло�
 ./tools/e2e all
 ./tools/e2e api-project-access
 ./tools/e2e cli-auth-session
+./tools/e2e documentation-publication-lifecycle
 ./tools/e2e list
 ```
 
-Runner сначала вызывает обычный `./setup-local.sh`. Используются те же общие Docker images, build cache, контейнеры,
+Runner сначала вызывает обычный `./setup-local.sh --reset`. Используются те же общие Docker images, build cache, контейнеры,
 порты и volumes, что при ручном локальном запуске. Отдельные Compose projects для E2E не создаются, а запущенный контур
 после тестов не останавливается.
 
-`setup-local.sh` пересоздаёт volumes JavaScript-контура, выполняет миграции и общий seed. После этого
+`setup-local.sh --reset` пересоздаёт volumes обоих стеков, `ds-service` создаёт схему Flyway-миграциями в `ds-db`, затем
+`backend-kt/bootstrap-base.sh` наполняет дизайн-систему `base` через Gateway. После этого
 `e2e/seed/common.sh` создаёт через Gateway данные, общие для E2E-сценариев, и записывает только идентификаторы и имена
 пользователей в `e2e/artifacts/<run-id>/context.env`. Токены и пароли туда не записываются.
 
@@ -43,3 +45,8 @@ Runner сначала вызывает обычный `./setup-local.sh`. Исп
 
 Используйте функции из `e2e/lib/common.sh`, `curl --fail-with-body` для успешных запросов и структурные проверки через
 `jq`. Сценарий завершается с кодом `0` при успехе и ненулевым кодом при нарушении ожиданий.
+
+`documentation-publication-lifecycle` сначала поднимает контур с выключенным cleanup worker, наблюдает созданное
+`pending`-задание, а затем включает worker с короткой защитной задержкой и ждёт очистку. Сценарий публикует bundles через
+Gateway, а итоговую область удаления проверяет непосредственно в общих PostgreSQL и MinIO контейнерах. Обычный локальный
+запуск сохраняет безопасные значения `cleanup.enabled=false` и `graceSeconds=86400`.

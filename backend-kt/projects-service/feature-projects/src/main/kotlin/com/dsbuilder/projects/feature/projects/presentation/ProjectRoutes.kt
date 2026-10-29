@@ -18,6 +18,7 @@ import com.dsbuilder.projects.feature.projects.application.usecase.ManageMemberI
 import com.dsbuilder.projects.feature.projects.application.usecase.RemoveProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RestoreProjectUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RevokeProjectAccessKeyUseCase
+import com.dsbuilder.projects.feature.projects.application.usecase.SearchProjectMemberCandidatesUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectInput
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectMemberRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectUseCase
@@ -49,6 +50,7 @@ fun Application.projectsRoutes(internalApiKey: String?) {
     val addProjectMember by inject<AddProjectMemberUseCase>()
     val updateProjectMemberRole by inject<UpdateProjectMemberRoleUseCase>()
     val removeProjectMember by inject<RemoveProjectMemberUseCase>()
+    val searchProjectMemberCandidates by inject<SearchProjectMemberCandidatesUseCase>()
     val createProjectAccessKey by inject<CreateProjectAccessKeyUseCase>()
     val listProjectAccessKeys by inject<ListProjectAccessKeysUseCase>()
     val revokeProjectAccessKey by inject<RevokeProjectAccessKeyUseCase>()
@@ -61,7 +63,13 @@ fun Application.projectsRoutes(internalApiKey: String?) {
         }
 
         projectCrudRoutes(listProjects, createProject, getProject, updateProject, archiveProject, restoreProject)
-        projectMemberRoutes(listProjectMembers, addProjectMember, updateProjectMemberRole, removeProjectMember)
+        projectMemberRoutes(
+            listProjectMembers,
+            searchProjectMemberCandidates,
+            addProjectMember,
+            updateProjectMemberRole,
+            removeProjectMember,
+        )
         projectAccessKeyRoutes(createProjectAccessKey, listProjectAccessKeys, revokeProjectAccessKey)
         internalProjectRoutes(getEffectiveProjectRole, verifyProjectAccessKey, internalApiKey)
     }
@@ -98,7 +106,7 @@ private fun Route.projectCrudRoutes(
                 val actor = call.requireActor()
                 val projectId = call.parameters["projectId"].orEmpty()
                 getProject.execute(actor, projectId)
-            }.onSuccess { call.respond(it.toResponse()) }
+            }.onSuccess { call.respond(it.project.toResponse(it.effectiveRole, it.ownerIdentity)) }
                 .onFailure { call.respondProjectError(it) }
         }
 
@@ -139,23 +147,35 @@ private fun Route.listProjectsRoute(listProjects: ListProjectsUseCase) {
         runCatching {
             listProjects.execute(ListProjectsInput(actor = call.requireActor()))
         }.onSuccess { projects ->
-            call.respond(projects.map { it.toResponse() })
+            call.respond(projects.map { it.project.toResponse(it.effectiveRole) })
         }.onFailure { call.respondProjectError(it) }
     }
 }
 
 private fun Route.projectMemberRoutes(
     listProjectMembers: ListProjectMembersUseCase,
+    searchProjectMemberCandidates: SearchProjectMemberCandidatesUseCase,
     addProjectMember: AddProjectMemberUseCase,
     updateProjectMemberRole: UpdateProjectMemberRoleUseCase,
     removeProjectMember: RemoveProjectMemberUseCase,
 ) {
+    get("/projects/member-candidates") {
+        runCatching {
+            searchProjectMemberCandidates.execute(
+                call.requireActor(),
+                call.request.queryParameters["query"].orEmpty(),
+            )
+        }.onSuccess { candidates ->
+            call.respond(candidates.map { it.toCandidateResponse() })
+        }.onFailure { call.respondProjectError(it) }
+    }
+
     route("/projects/{projectId}/members") {
         get {
             runCatching {
                 listProjectMembers.execute(call.requireActor(), call.parameters["projectId"].orEmpty())
             }.onSuccess { members ->
-                call.respond(members.map { it.toResponse() })
+                call.respond(members.map { it.member.toResponse(it.identity) })
             }.onFailure { call.respondProjectError(it) }
         }
 

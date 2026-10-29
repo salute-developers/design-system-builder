@@ -9,6 +9,6 @@
         "noEmit": true,
         "skipLibCheck": true
     },
-    "include": ["**/*.ts"],
-    "exclude": [".sdds", "output"]
+    "include": ["src/**/*.ts"],
+    "exclude": [".sdds", "output", "result-*", "src/generator/templates", "src/generator/constants"]
 }

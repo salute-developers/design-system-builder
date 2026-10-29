@@ -5,6 +5,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
@@ -81,5 +82,32 @@ class KtorAuthenticatedHttpClientRequestTest {
         assertEquals("/api/projects/project-a/documentation/bundles", request!!.url.encodedPath)
         assertEquals("ProjectKey secret-value", request!!.headers[HttpHeaders.Authorization])
         assertTrue(request!!.body.contentType?.toString()?.startsWith("multipart/form-data") == true)
+    }
+
+    @Test
+    fun ktorHttpClientSendsSeveralPartsWithAServiceTokenAndKeepsTheQuery() = runTest {
+        var request: HttpRequestData? = null
+        val engine = MockEngine {
+            request = it
+            respond(content = "{}", status = HttpStatusCode.OK)
+        }
+        val client = KtorAuthenticatedHttpClientFactory { HttpClient(engine) }.create(
+            "https://api.example.com",
+            BackendCredential.ServiceToken("service-token"),
+        )
+
+        val response = client.postMultipart(
+            "/api/admin/compose-preview/plugin-builds?dryRun=true",
+            listOf(
+                MultipartFile("plugin", "plugin.zip", "application/zip", byteArrayOf(1, 2)),
+                MultipartFile("meta", "meta.json", "application/json", "{}".encodeToByteArray()),
+            ),
+        )
+
+        assertEquals(200, response.statusCode)
+        assertEquals("Bearer service-token", request!!.headers[HttpHeaders.Authorization])
+        assertEquals("/api/admin/compose-preview/plugin-builds", request!!.url.encodedPath)
+        assertEquals("true", request!!.url.parameters["dryRun"])
+        assertTrue(request!!.body.contentType?.match(ContentType.MultiPart.FormData) == true)
     }
 }

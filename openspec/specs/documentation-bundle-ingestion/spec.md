@@ -1,22 +1,9 @@
 # documentation-bundle-ingestion Specification
 
 ## Purpose
-TBD - created by archiving change add-documentation-bundle-upload. Update Purpose after archive.
+Приём архива документации: авторизация, безопасное ограниченное чтение и проверка манифеста.
+
 ## Requirements
-### Requirement: Project-scoped endpoint приема bundle
-Gateway SHALL предоставлять `POST /api/projects/{projectId}/documentation/bundles`, защищать его существующей project-scoped аутентификацией и направлять запрос в новый documentation service как `POST /documentation/bundles` вместе с trusted actor/project context.
-
-#### Scenario: Gateway направляет upload в documentation service
-- **WHEN** аутентифицированный клиент отправляет `POST /api/projects/project-a/documentation/bundles`
-- **THEN** Gateway SHALL проверить доступ actor к `project-a`
-- **AND** Gateway SHALL передать запрос новому documentation service по внутреннему пути `/documentation/bundles`
-- **AND** Gateway SHALL явно заменить client-provided `X-Actor-*` и `X-Project-*` headers значениями Auth Helper
-
-#### Scenario: Существующий docs route остается независимым
-- **WHEN** клиент обращается к `/api/projects/project-a/docs/...`
-- **THEN** Gateway SHALL продолжить направлять запрос в существующий `docs_service_api`
-- **AND** новый documentation route SHALL NOT изменять rewrite или upstream существующего route
-
 ### Requirement: Авторизация публикации документации
 Documentation service MUST требовать permission `documentation:write` для публикации bundle. User actor получает permission через grants effective project role; project key actor — только при наличии точного scope `documentation:write`; `system_admin` использует global override canonical policy.
 
@@ -128,14 +115,14 @@ Endpoint MUST принимать `multipart/form-data` с ровно одной 
 - **THEN** upload endpoint SHALL NOT парсить `docs.json`, markdown или info-artifacts для семантической валидации
 
 ### Requirement: Проверка design system в project
-До сохранения bundle сервис MUST проверить, что `manifest.designSystem.id` доступен в trusted project context, вызвав db-service `GET /api/ds/design-systems/{designSystemId}` с полученными от Gateway trusted headers.
+До сохранения bundle сервис MUST проверить, что `manifest.designSystem.id` доступен в trusted project context, вызвав ds-service `GET /api/ds/design-systems/{designSystemId}` с полученными от Gateway trusted headers.
 
 #### Scenario: Design system принадлежит project
-- **WHEN** db-service успешно возвращает design system для `manifest.designSystem.id` и trusted `X-Project-Id`
+- **WHEN** ds-service успешно возвращает design system для `manifest.designSystem.id` и trusted `X-Project-Id`
 - **THEN** сервис SHALL продолжить сохранение bundle
 
 #### Scenario: Design system не найдена в project
-- **WHEN** db-service возвращает `404` для пары trusted project/design system
+- **WHEN** ds-service возвращает `404` для пары trusted project/design system
 - **THEN** сервис MUST вернуть `404 Not Found` с code `DESIGN_SYSTEM_NOT_FOUND`
 - **AND** сообщение MUST NOT раскрывать, существует ли design system в другом project
 - **AND** bundle/job MUST NOT быть созданы
@@ -221,4 +208,19 @@ Documentation service MUST получать endpoint, region, bucket, credential
 
 #### Scenario: Внутренняя ошибка не раскрывает инфраструктуру
 - **WHEN** storage, database или downstream request завершается внутренней ошибкой
-- **THEN** публичный response MUST NOT содержать stack trace, JDBC URL, storage root, credential или внутренний db-service URL
+- **THEN** публичный response MUST NOT содержать stack trace, JDBC URL, storage root, credential или внутренний URL ds-service
+
+### Requirement: Project-scoped endpoint приема documentation bundle
+Gateway SHALL предоставлять `POST /api/projects/{projectId}/documentation/bundles`, защищать его существующей project-scoped аутентификацией и направлять запрос в новый documentation service как `POST /documentation/bundles` вместе с trusted actor/project context.
+
+#### Scenario: Gateway направляет upload в documentation service
+- **WHEN** аутентифицированный клиент отправляет `POST /api/projects/project-a/documentation/bundles`
+- **THEN** Gateway SHALL проверить доступ actor к `project-a`
+- **AND** Gateway SHALL передать запрос новому documentation service по внутреннему пути `/documentation/bundles`
+- **AND** Gateway SHALL явно заменить client-provided `X-Actor-*` и `X-Project-*` headers значениями Auth Helper
+
+#### Scenario: Маршрута удалённого docs-сервиса нет
+- **WHEN** клиент обращается к `/api/projects/project-a/docs/...`
+- **THEN** Gateway SHALL NOT проксировать запрос в удалённый сервис `documentation-generator` и SHALL NOT объявлять upstream `docs_service_api`
+- **AND** маршрут `/api/projects/{projectId}/documentation` SHALL по-прежнему проксироваться в `documentation_service_api` с `auth_request /_auth_project`
+

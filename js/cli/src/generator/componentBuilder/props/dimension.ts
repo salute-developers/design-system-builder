@@ -1,0 +1,22 @@
+import { DEFAULT_FONT_SIZE, type PlatformTokens, type PropConfig } from '../type.ts';
+import { Prop } from './prop.ts';
+
+export class DimensionProp extends Prop {
+    protected readonly type = 'dimension';
+
+    constructor(name: string, data: PropConfig, platformTokens?: PlatformTokens) {
+        super(name, data, platformTokens);
+    }
+
+    public getWebTokenValue() {
+        if (this.value === undefined) {
+            return;
+        }
+
+        const value = `${Number(this.value) / DEFAULT_FONT_SIZE}rem`;
+
+        return {
+            ...this.createWebToken(value),
+        };
+    }
+}

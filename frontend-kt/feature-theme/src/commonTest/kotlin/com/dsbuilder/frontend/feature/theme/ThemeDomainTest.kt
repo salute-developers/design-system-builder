@@ -10,6 +10,7 @@ import com.dsbuilder.frontend.feature.theme.domain.Token
 import com.dsbuilder.frontend.feature.theme.domain.TokenValue
 import com.dsbuilder.frontend.feature.theme.domain.TokenValueNormalizationResult
 import com.dsbuilder.frontend.feature.theme.domain.TokenValueNormalizer
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -103,6 +104,40 @@ class ThemeDomainTest {
         assertEquals(JsonPrimitive("4"), (webSpacing as TokenValueNormalizationResult.Success).value)
         assertTrue((androidSpacing as TokenValueNormalizationResult.Success).value is JsonObject)
         assertTrue((fontFamily as TokenValueNormalizationResult.Success).value is JsonObject)
+    }
+
+    @Test
+    fun themeWritePlanWritesPaletteLinkedValuesAsReferences() {
+        val result = ThemeWritePlanBuilder().build(
+            tenants = listOf(tenant()),
+            tokens = listOf(
+                token("plain", "syntax.default.yellow", "color"),
+                token("faded", "data.default.yellow-transparent", "color"),
+            ),
+            paletteItems = listOf(paletteItem("amber", 300, "#F7C45F")),
+            valuesByTenantId = mapOf(
+                "tenant-a" to listOf(
+                    tokenValue("plain", Platform.ANDROID, "dark", value = null, paletteId = "palette-amber-300"),
+                    tokenValue(
+                        "faded",
+                        Platform.ANDROID,
+                        "dark",
+                        value = listOf(JsonPrimitive("0.56")),
+                        paletteId = "palette-amber-300",
+                    ),
+                ),
+            ),
+        ) as ThemeWritePlanBuildResult.Success
+
+        val colors = Json.parseToJsonElement(
+            result.writePlan.files.first { it.relativePath == "android/android_color.json" }.content,
+        ).jsonObject
+
+        assertEquals("[general.amber.300]", colors.getValue("dark.syntax.default.yellow").jsonPrimitive.content)
+        assertEquals(
+            "[general.amber.300][0.56]",
+            colors.getValue("dark.data.default.yellow-transparent").jsonPrimitive.content,
+        )
     }
 
     @Test
@@ -206,12 +241,13 @@ class ThemeDomainTest {
         tokenId: String,
         platform: Platform = Platform.WEB,
         mode: String = "light",
-        value: List<JsonElement> = listOf(JsonPrimitive("#FFFFFF")),
+        value: List<JsonElement>? = listOf(JsonPrimitive("#FFFFFF")),
+        paletteId: String? = "palette-a",
     ): TokenValue = TokenValue(
         id = "value-$tokenId-${platform.directoryName}-$mode",
         tokenId = tokenId,
         tenantId = "tenant-a",
-        paletteId = "palette-a",
+        paletteId = paletteId,
         platform = platform,
         mode = mode,
         value = value,

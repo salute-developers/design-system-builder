@@ -1,70 +1,71 @@
 # design-system-model-api Specification
 
 ## Purpose
-TBD - created by archiving change add-mcp-design-system-read-tools. Update Purpose after archive.
+Предметный API дизайн-системы: разрешённые маршруты, DTO, платформы, права доступа и операции компонентной модели.
+
 ## Requirements
 ### Requirement: Project-scoped token read API
-DS Builder model API SHALL provide project-scoped read endpoints for authoritative token and token value data.
+API предметной модели DS Builder SHALL предоставлять через `ds-service` project-scoped endpoints чтения эталонных токенов и их значений.
 
-#### Scenario: List tokens in design system
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens`
-- **THEN** the API MUST return token summaries from the system model source of truth
-- **THEN** the response MUST preserve the existing array response shape
-- **THEN** the response MUST support optional filters for token type and textual query
-- **THEN** db-service MUST verify that the requested design system belongs to trusted `X-Project-Id` or is globally available to that project
-- **THEN** db-service MUST require `tokens:read` when request uses project access-key scopes
-- **THEN** the response MUST NOT be derived from documentation publications
+#### Scenario: Список токенов дизайн-системы
+- **WHEN** аутентифицированный клиент вызывает `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens`
+- **THEN** API MUST вернуть краткие данные токенов из системного источника истины
+- **THEN** ответ MUST сохранить существующую форму массива
+- **THEN** ответ MUST поддерживать необязательные фильтры типа токена и текстового запроса
+- **THEN** `ds-service` MUST проверить, что запрошенная дизайн-система принадлежит trusted `X-Project-Id` или глобально доступна этому проекту
+- **THEN** `ds-service` MUST потребовать `tokens:read`
+- **THEN** ответ MUST NOT строиться из публикаций документации
 
-#### Scenario: Read token by stable ID
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/tokens/{tokenId}`
-- **THEN** the API MUST return the authoritative token DTO with identity, type, display metadata and revision metadata when available
-- **THEN** db-service MUST verify that the token belongs to a design system available to trusted `X-Project-Id`
-- **THEN** the API MUST return `404` when the token does not belong to the trusted project
+#### Scenario: Чтение токена по стабильному идентификатору
+- **WHEN** аутентифицированный клиент вызывает `GET /api/projects/{projectId}/ds/tokens/{tokenId}`
+- **THEN** API MUST вернуть эталонный DTO токена с идентификатором, типом, отображаемыми метаданными и метаданными ревизии при их наличии
+- **THEN** `ds-service` MUST проверить, что токен принадлежит дизайн-системе, доступной trusted `X-Project-Id`
+- **THEN** API MUST вернуть `404`, если токен не принадлежит trusted project
 
-#### Scenario: Read token values with filters
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/tokens/{tokenId}/values` with optional tenant, mode or platform filters
-- **THEN** the API MUST return authoritative token value DTOs from the system model
-- **THEN** the API MUST preserve raw, reference and resolved value metadata when those concepts are present in the source model
+#### Scenario: Чтение значений токена с фильтрами
+- **WHEN** аутентифицированный клиент вызывает `GET /api/projects/{projectId}/ds/tokens/{tokenId}/values` с необязательными фильтрами темы, режима или платформы
+- **THEN** API MUST вернуть эталонные DTO значений токена из системной модели
+- **THEN** API MUST сохранить метаданные исходного, ссылочного и разрешённого значения, если эти понятия представлены в исходной модели
 
-#### Scenario: Existing token routes are stabilized
-- **WHEN** MCP reads one token or its values by stable ID
-- **THEN** the API MUST reuse `/ds/tokens/{tokenId}` and `/ds/tokens/{tokenId}/values`
-- **THEN** those routes MUST enforce project ownership and `tokens:read` rather than adding duplicate design-system lookup routes
+#### Scenario: Стабильность существующих маршрутов токенов
+- **WHEN** MCP читает один токен или его значения по стабильному идентификатору
+- **THEN** API MUST использовать `/ds/tokens/{tokenId}` и `/ds/tokens/{tokenId}/values`
+- **THEN** эти маршруты MUST проверять project ownership и `tokens:read`, не добавляя дублирующих маршрутов поиска через дизайн-систему
 
 ### Requirement: Project-scoped component read API
-DS Builder model API SHALL provide project-scoped read endpoints for authoritative component, component config, component style and variation data.
+API предметной модели DS Builder SHALL предоставлять через `ds-service` project-scoped endpoints чтения эталонных данных компонентов, конфигураций, стилей и вариаций.
 
-#### Scenario: List components in design system
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components`
-- **THEN** the API MUST return component summaries from the system model source of truth
-- **THEN** the response MUST include stable component identifiers and available style names
-- **THEN** the response MUST preserve the existing array response shape
-- **THEN** the response MUST support optional textual query
-- **THEN** db-service MUST verify that the requested design system belongs to trusted `X-Project-Id` or is globally available to that project
-- **THEN** db-service MUST require `components:read` when request uses project access-key scopes
+#### Scenario: Список компонентов дизайн-системы
+- **WHEN** аутентифицированный клиент вызывает `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components`
+- **THEN** API MUST вернуть краткие данные компонентов из системного источника истины
+- **THEN** ответ MUST включать стабильные идентификаторы компонентов и имена доступных стилей
+- **THEN** ответ MUST сохранить существующую форму массива
+- **THEN** ответ MUST поддерживать необязательный текстовый запрос
+- **THEN** `ds-service` MUST проверить, что дизайн-система принадлежит trusted `X-Project-Id` или глобально доступна проекту
+- **THEN** `ds-service` MUST потребовать `components:read`
 
-#### Scenario: Read component details
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/components/{componentId}`
-- **THEN** the API MUST return authoritative component metadata and available configuration references
-- **THEN** db-service MUST verify component membership in a design system available to the trusted project
-- **THEN** the API MUST return `404` when the component does not belong to the trusted project
+#### Scenario: Чтение компонента
+- **WHEN** аутентифицированный клиент вызывает `GET /api/projects/{projectId}/ds/components/{componentId}`
+- **THEN** API MUST вернуть эталонные метаданные компонента и доступные ссылки на конфигурацию
+- **THEN** `ds-service` MUST проверить связь компонента с дизайн-системой, доступной trusted project
+- **THEN** API MUST вернуть `404`, если компонент не принадлежит trusted project
 
-#### Scenario: Read component configuration package
-- **WHEN** an authenticated client calls `POST /api/projects/{projectId}/ds/component-config/export` with `designSystemId` and optional `components` or `styles` filters
-- **THEN** the API MUST return the authoritative component configuration package with component names, style names and canonical common config
-- **THEN** the API MUST limit the package to requested component/style filters when filters are provided
-- **THEN** the API MUST require `components:read` when request uses project access-key scopes
+#### Scenario: Чтение пакета конфигураций компонентов
+- **WHEN** аутентифицированный клиент вызывает `POST /api/projects/{projectId}/ds/component-config/export` с `designSystemId` и необязательными фильтрами `components` или `styles`
+- **THEN** API MUST вернуть эталонный пакет конфигураций с именами компонентов, стилей и канонической общей конфигурацией
+- **THEN** API MUST ограничить пакет указанными фильтрами компонентов и стилей
+- **THEN** API MUST потребовать `components:read`
 
-#### Scenario: Read one component configuration from package contract
-- **WHEN** MCP needs `component_config_get` for one component and optional style
-- **THEN** frontend application layer MUST request `POST /ds/component-config/export` with component/style filters when backend supports them
-- **THEN** the API MUST return canonical common config
+#### Scenario: Чтение одной конфигурации из пакетного контракта
+- **WHEN** MCP требуется `component_config_get` для одного компонента и необязательного стиля
+- **THEN** frontend application layer MUST вызвать `POST /ds/component-config/export` с фильтрами компонента и стиля, когда backend их поддерживает
+- **THEN** API MUST вернуть каноническую общую конфигурацию
 
-#### Scenario: Read component styles and variations
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentId}/styles` or `GET /api/projects/{projectId}/ds/components/{componentId}/variations`
-- **THEN** the API MUST return authoritative style and variation DTOs from the system model
-- **THEN** the response MUST include stable identifiers that MCP clients can use to correlate model data with code bindings
-- **THEN** only the styles endpoint MUST remain design-system-scoped because it aggregates styles across component variations while filtering by design system
+#### Scenario: Чтение стилей и вариаций компонента
+- **WHEN** аутентифицированный клиент вызывает `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentId}/styles` или `GET /api/projects/{projectId}/ds/components/{componentId}/variations`
+- **THEN** API MUST вернуть эталонные DTO стилей и вариаций из системной модели
+- **THEN** ответ MUST включать стабильные идентификаторы для сопоставления модельных данных с code bindings
+- **THEN** только styles endpoint MUST оставаться design-system-scoped, поскольку он агрегирует стили вариаций с фильтром дизайн-системы
 
 ### Requirement: No backend pagination in first read tools version
 Token and component model reads SHALL avoid introducing backend cursor pagination in this change.
@@ -80,18 +81,19 @@ Token and component model reads SHALL avoid introducing backend cursor paginatio
 - **THEN** the external read contract MUST provide the aggregate design-system component styles response without requiring MCP clients to issue one request per variation
 
 ### Requirement: Gateway authorization for model read API
-Gateway SHALL expose token and component read API through project-scoped authorization and trusted project context.
+Gateway SHALL публиковать API чтения токенов и компонентов через project-scoped authorization и trusted project context, а `ds-service` SHALL независимо проверять этот контекст.
 
-#### Scenario: Existing gateway route forwards authorized model read request
-- **WHEN** an authenticated client calls a token or component read endpoint through `/api/projects/{projectId}/ds/...`
-- **THEN** gateway MUST validate project-scoped authentication using existing user session or project access key semantics
-- **THEN** gateway MUST forward trusted project/design-system context to the model API implementation
-- **THEN** this change MUST NOT require a new gateway route when the existing `/api/projects/{projectId}/ds/...` route covers the endpoint path
+#### Scenario: Существующий маршрут Gateway передаёт разрешённый запрос
+- **WHEN** аутентифицированный клиент вызывает endpoint чтения токена или компонента через `/api/projects/{projectId}/ds/...`
+- **THEN** Gateway MUST проверить project-scoped authentication по существующей семантике пользовательской сессии или project access key
+- **THEN** Gateway MUST передать trusted project context в `ds-service`
+- **THEN** изменение MUST NOT требовать второго публичного маршрута, если путь уже покрыт `/api/projects/{projectId}/ds/...`
 
-#### Scenario: Unauthorized model read request is rejected
-- **WHEN** a client calls a token or component read endpoint without valid project-scoped authentication
-- **THEN** gateway MUST reject the request with `401` or `403`
-- **THEN** db-service MUST NOT receive untrusted project identity from client-controlled request parameters
+#### Scenario: Неавторизованный запрос отклоняется
+- **WHEN** клиент вызывает endpoint чтения токена или компонента без действительной project-scoped authentication
+- **THEN** Gateway MUST отклонить запрос с `401` или `403`
+- **THEN** `ds-service` MUST отклонить отсутствующий или противоречивый trusted context при прямом обращении
+- **THEN** `ds-service` MUST NOT выводить trusted project identity только из управляемых клиентом path или query parameters
 
 ### Requirement: Stable DTO boundary for model reads
 Token and component read endpoints SHALL return explicit API DTOs rather than persistence rows or UI-only shapes.
@@ -117,3 +119,510 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 - **WHEN** new read DTOs affect `frontend-kt/cli` or shared frontend application use cases
 - **THEN** the implementation MAY update `frontend-kt/cli` together with the shared use cases
 - **THEN** CLI changes MUST preserve documented command behavior or update CLI documentation in the same change
+
+### Requirement: Tenant token values expose palette references
+
+`GET /tenants/:id/token-values` SHALL return a value bound to the palette as a palette reference string.
+
+#### Scenario: Значение со ссылкой на палитру
+
+- **WHEN** a token value has `paletteId`
+- **THEN** its `value` MUST be `["[type.shade.saturation]"]`, or `["[type.shade.saturation][opacity]"]` when the stored value holds an opacity
+- **THEN** values without `paletteId` MUST be returned unchanged
+
+### Requirement: Полный разрешённый набор предметных маршрутов
+
+`ds-service` SHALL реализовать приведённый ниже набор маршрутов относительно публичного префикса `P = /api/projects/{projectId}/ds` и внутреннего префикса `/api/ds` после переписывания Gateway. Маршрут, отсутствующий в этом наборе, MUST NOT публиковаться OpenAPI нового сервиса.
+
+#### Scenario: Полный перечень маршрутов по ресурсам
+
+- **WHEN** проверяется соответствие предметного API разрешённому набору маршрутов
+- **THEN** набор MUST соответствовать следующей таблице
+
+| Ресурс | Обязательные маршруты относительно `P` |
+|---|---|
+| Дизайн-системы | `GET /design-systems`, `GET /design-systems/{id}`, `POST /design-systems`, `PATCH /design-systems/{id}`, `DELETE /design-systems/{id}`, `GET /design-systems/{id}/components`, `GET /design-systems/{id}/tokens`, `GET /design-systems/{id}/components/{componentId}/styles`, `GET /design-systems/{id}/tenants`, `GET /design-systems/{id}/appearances`, `GET /design-systems/{id}/changes` |
+| Версии дизайн-систем | `GET /design-system-versions`, `GET /design-system-versions/{id}`, `GET /design-system-versions/by-design-system/{designSystemId}`, `POST /design-system-versions`, `PATCH /design-system-versions/{id}`, `DELETE /design-system-versions/{id}` |
+| Журнал изменений | `GET /design-system-changes`, `GET /design-system-changes/{id}`, `GET /design-system-changes/by-design-system/{designSystemId}`, `POST /design-system-changes` |
+| Темы | `GET /tenants`, `GET /tenants/{id}`, `POST /tenants`, `PATCH /tenants/{id}`, `DELETE /tenants/{id}`, `GET /tenants/{id}/token-values` |
+| Токены | `GET /tokens`, `GET /tokens/{id}`, `POST /tokens`, `PATCH /tokens/{id}`, `DELETE /tokens/{id}`, `GET /tokens/{id}/values` |
+| Значения токенов | `GET /token-values`, `GET /token-values/{id}`, `POST /token-values`, `PATCH /token-values/{id}`, `DELETE /token-values/{id}` |
+| Палитра | `GET /palette`, `GET /palette/{id}`, `GET /palette/by-type/{type}`, `POST /palette`, `PATCH /palette/{id}`, `DELETE /palette/{id}` |
+| Компоненты | `GET /components`, `GET /components/{id}`, `POST /components`, `PATCH /components/{id}`, `DELETE /components/{id}`, `GET /components/{id}/variations`, `GET /components/{id}/properties`, `GET /components/{id}/deps` |
+| Компоненты дизайн-систем | `GET /design-system-components`, `GET /design-system-components/{id}`, `POST /design-system-components`, `DELETE /design-system-components/{id}` |
+| Зависимости компонентов | `GET /component-deps`, `GET /component-deps/{id}`, `POST /component-deps`, `PATCH /component-deps/{id}`, `DELETE /component-deps/{id}` |
+| Конфигурации повторного использования | `GET /component-reuse-configs`, `GET /component-reuse-configs/{id}`, `GET /component-reuse-configs/by-dep/{componentDepId}`, `POST /component-reuse-configs`, `PATCH /component-reuse-configs/{id}`, `DELETE /component-reuse-configs/{id}` |
+| Вариации | `GET /variations`, `GET /variations/{id}`, `POST /variations`, `PATCH /variations/{id}`, `DELETE /variations/{id}`, `GET /variations/{id}/styles`, `GET /variations/{id}/properties` |
+| Свойства | `GET /properties`, `GET /properties/{id}`, `POST /properties`, `PATCH /properties/{id}`, `DELETE /properties/{id}` |
+| Параметры платформы свойства | `GET /property-platform-params`, `GET /property-platform-params/{id}`, `POST /property-platform-params`, `PATCH /property-platform-params/{id}`, `DELETE /property-platform-params/{id}` |
+| Связи свойства и вариации | `GET /property-variations`, `GET /property-variations/{id}`, `POST /property-variations`, `DELETE /property-variations/{id}` |
+| Корректировки параметров вариации | `GET /variation-platform-param-adjustments`, `GET /variation-platform-param-adjustments/{id}`, `POST /variation-platform-param-adjustments`, `PATCH /variation-platform-param-adjustments/{id}`, `DELETE /variation-platform-param-adjustments/{id}` |
+| Корректировки инвариантных параметров | `GET /invariant-platform-param-adjustments`, `GET /invariant-platform-param-adjustments/{id}`, `POST /invariant-platform-param-adjustments`, `PATCH /invariant-platform-param-adjustments/{id}`, `DELETE /invariant-platform-param-adjustments/{id}` |
+| Внешние виды | `GET /appearances`, `GET /appearances/{id}`, `POST /appearances`, `PATCH /appearances/{id}`, `DELETE /appearances/{id}`, `GET /appearances/{id}/variations` |
+| Вариации внешнего вида | `GET /appearance-variations`, `GET /appearance-variations/{id}`, `POST /appearance-variations`, `PATCH /appearance-variations/{id}`, `DELETE /appearance-variations/{id}` |
+| Значения вариаций внешнего вида | `GET /appearance-variation-values`, `GET /appearance-variation-values/{id}`, `POST /appearance-variation-values`, `PATCH /appearance-variation-values/{id}`, `DELETE /appearance-variation-values/{id}` |
+| Стили | `GET /styles`, `GET /styles/{id}`, `GET /styles/by-variation/{variationId}/by-design-system/{designSystemId}`, `POST /styles`, `PATCH /styles/{id}`, `DELETE /styles/{id}` |
+| Значения свойств вариаций | `GET /variation-property-values`, `GET /variation-property-values/{id}`, `GET /variation-property-values/by-style/{styleId}`, `GET /variation-property-values/by-appearance/{appearanceId}`, `POST /variation-property-values`, `PATCH /variation-property-values/{id}`, `DELETE /variation-property-values/{id}` |
+| Инвариантные значения свойств | `GET /invariant-property-values`, `GET /invariant-property-values/{id}`, `GET /invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}`, `POST /invariant-property-values`, `PATCH /invariant-property-values/{id}`, `DELETE /invariant-property-values/{id}` |
+| Состояния | `GET /states`, `GET /states/{id}`, `POST /states`, `PATCH /states/{id}`, `DELETE /states/{id}`, `GET /states/{id}/impact` |
+| Наборы состояний | `GET /state-sets`, `GET /state-sets/{id}`, `POST /state-sets/resolve` |
+| Комбинации стилей | `GET /style-combinations`, `GET /style-combinations/{id}`, `POST /style-combinations`, `PATCH /style-combinations/{id}`, `DELETE /style-combinations/{id}`, `GET /style-combinations/{id}/members`, `POST /style-combinations/{id}/members` |
+| Элементы комбинаций стилей | `GET /style-combination-members`, `GET /style-combination-members/{id}`, `POST /style-combination-members`, `DELETE /style-combination-members/{id}` |
+| Конфигурация компонента | `GET /component-config?ds={ds}&version={version}&appearance={appearance}&component={component}`, `POST /component-config/import`, `POST /component-config/export`, `POST /component-config/web-adapter` |
+
+#### Scenario: Проверка route manifest
+
+- **WHEN** контрактный тест перечисляет маршруты `ds-service`
+- **THEN** каждый маршрут из таблицы MUST существовать с указанным HTTP-методом
+- **AND** сервис MUST NOT добавлять предметный маршрут вне таблицы без нового OpenSpec-изменения
+
+#### Scenario: Доступ через внешний и внутренний префиксы
+
+- **WHEN** клиент вызывает любой маршрут таблицы через `P`
+- **THEN** Gateway MUST передать тот же остаток пути в `ds-service` под `/api/ds`
+- **AND** публичный DTO MUST NOT содержать детали внутреннего переписывания пути
+
+### Requirement: Исключённые маршруты не входят в Kotlin-сервис
+
+`ds-service` MUST NOT реализовывать маршруты `documentation-pages`, `saved-queries`, `/legacy/**`, а также операции генерации артефактов. Единственный административный маршрут продукта — импорт API-меты в глобальный слой компонентов, он выполняется в `ds-service` под внутренним путём `/api/ds/admin/component-config/import-api-meta`; других маршрутов `/api/admin/**` в продукте нет.
+
+#### Scenario: Исключённые области маршрутизации
+
+- **WHEN** проверяется отсутствие исключённых маршрутов в предметном API
+- **THEN** перечень исключённых маршрутов MUST соответствовать следующей таблице
+
+| Исключённая область | Маршруты, от которых отказывается `ds-service` |
+|---|---|
+| Документация | `GET /documentation-pages`, `GET /documentation-pages/{id}`, `GET /documentation-pages/by-design-system/{designSystemId}`, `POST /documentation-pages`, `PATCH /documentation-pages/{id}`, `DELETE /documentation-pages/{id}` |
+| Сохранённые запросы | `GET /saved-queries`, `GET /saved-queries/{id}`, `POST /saved-queries`, `PATCH /saved-queries/{id}`, `DELETE /saved-queries/{id}`, `GET /saved-queries/{id}/run` |
+| Legacy (удалены вместе с db-service) | `GET /legacy/design-systems/{name}/component-configs`, `GET /legacy/design-systems/{name}/theme-data`, `GET /legacy/design-systems/{name}/tenant-params`, `POST /legacy/design-systems/create`, `POST /legacy/design-systems/{name}/update`, `GET /legacy/design-systems/{name}/download-theme` |
+
+Отдельных смонтированных маршрутов генерации в текущем предметном router нет; `download-theme` считается legacy-операцией и исключён явно.
+
+#### Scenario: Запрос исключённого маршрута напрямую в ds-service
+
+- **WHEN** запрос приходит в `ds-service` по исключённому пути
+- **THEN** сервис MUST вернуть `404 Not Found`
+- **AND** OpenAPI `ds-service` MUST NOT описывать этот путь
+
+#### Scenario: Совместное существование с db-service
+
+- **WHEN** исключённый маршрут требуется существующему потребителю
+- **THEN** Gateway MUST ответить `404`: upstream db-service удалён, более специфичной маршрутизации исключённых путей нет
+- **AND** это MUST NOT добавлять исключённый маршрут в контракт `ds-service`
+
+#### Scenario: Административные маршруты db-service удалены
+
+- **WHEN** клиент вызывает `GET /api/admin/tables`, `GET /api/admin/queries`, `GET /api/admin/schema` или любой путь `/api/projects/{projectId}/ds/legacy/**` через Gateway
+- **THEN** Gateway MUST ответить `404` и MUST NOT содержать для них upstream
+
+### Requirement: Совместимость перенесённого API
+
+Каждый перенесённый маршрут SHALL сохранять наблюдаемый контракт прежнего `db-service`, зафиксированный в OpenAPI `ds-service`: имена и обязательность path/query/body полей, форму JSON, семантику `null` и отсутствующих полей, коды успешных ответов, предметные ошибки, порядок элементов там, где он стабилен, и транзакционные границы.
+
+#### Scenario: Сравнение чтения двух реализаций
+
+- **WHEN** `ds-service` получает запрос чтения перенесённого маршрута
+- **THEN** статус и JSON-ответ MUST соответствовать OpenAPI `ds-service`; второй реализации для сравнения нет
+
+#### Scenario: Сравнение мутации двух реализаций
+
+- **WHEN** допустимая мутация выполняется в `ds-service`
+- **THEN** ответ и итоговое состояние предметных таблиц MUST соответствовать документированным транзакционным границам
+
+#### Scenario: Версия в текущем component-config
+
+- **WHEN** клиент вызывает `GET /component-config` с обязательным параметром `version`
+- **THEN** `ds-service` MUST принять и валидировать наличие параметра
+- **AND** MUST сохранить текущее поведение выбора данных без новой исторической семантики версии
+
+### Requirement: Явные DTO предметного API
+
+`ds-service` SHALL определять отдельные сериализуемые request/response DTO на границе HTTP и MUST NOT сериализовать domain-объекты, Exposed rows или структуры таблиц напрямую.
+
+#### Scenario: Отображение ответа
+
+- **WHEN** use case возвращает предметный результат
+- **THEN** presentation-слой MUST преобразовать его в DTO совместимого контракта
+- **AND** внутренние поля хранения и связи MUST NOT появляться в JSON без явного поля DTO
+
+#### Scenario: Отображение ошибки
+
+- **WHEN** запрос недопустим, ресурс не найден, permission отсутствует или БД недоступна
+- **THEN** presentation-слой MUST вернуть стабильный HTTP-статус и совместимое тело ошибки
+- **AND** ответ MUST NOT содержать stack trace, SQL или сведения о владельце чужого ресурса
+
+### Requirement: Совместимый контракт профилей и preview тем
+
+`ds-service` SHALL сохранять контракт тем, унаследованный от прежнего `db-service`: `POST /tenants` принимает `profile` (`sber`, `malachite`, `b2b` или `custom`) и для `custom` обязательный `customPalette`; ответы `Tenant` содержат `editRevision` и `preview`; список тем и агрегаты дизайн-систем SHALL возвращать вычисленные preview без раскрытия внутренних данных токенов.
+
+#### Scenario: Создание темы с профилем
+
+- **WHEN** principal с `tenants:write` создаёт тему доступной дизайн-системы с валидным профилем
+- **THEN** `ds-service` MUST нормализовать имя и создать тему с `editRevision = 0`
+- **AND** MUST создать начальные значения токенов в той же транзакционной границе
+- **AND** ответ MUST соответствовать DTO `Tenant` из OpenAPI `ds-service`
+
+#### Scenario: Дублирующее имя темы
+
+- **WHEN** в одной дизайн-системе создаётся или переименовывается тема с совпадающим после нормализации и приведения регистра именем
+- **THEN** `ds-service` MUST вернуть `409 Conflict` с кодом `TENANT_NAME_CONFLICT`
+- **AND** MUST NOT изменить существующую тему
+
+### Requirement: Пакетное сохранение значений темы с optimistic concurrency
+
+`ds-service` SHALL публиковать `PUT /tenants/{id}/token-values` с массивом значений и обязательным `editRevision`. Операция MUST проверить `tenants:write`, ownership темы, принадлежность каждого токена дизайн-системе темы и уникальность комбинации `tokenId/platform/mode`.
+
+#### Scenario: Успешное пакетное сохранение
+
+- **WHEN** клиент передаёт актуальный `editRevision` и валидный уникальный набор значений
+- **THEN** сервис MUST атомарно заменить platform-specific значения темы
+- **AND** MUST вернуть увеличенный `editRevision`
+
+#### Scenario: Конфликт параллельного изменения
+
+- **WHEN** переданный `editRevision` отличается от сохранённого
+- **THEN** сервис MUST вернуть `409 Conflict` с кодом `TENANT_EDIT_CONFLICT` и актуальным `editRevision`
+- **AND** MUST NOT заменить ни одно значение токена
+
+### Requirement: Компонент идентифицируется именем и платформой
+
+`ds-service` SHALL хранить и отдавать компонент с обязательной платформой (`web`, `compose`, `xml`, `ios`) и идентифицировать его парой `(name, platform)`. Создание компонента MUST требовать `platform` и MUST отвечать `400` без него или со значением вне словаря. Ответы свойств, appearances и сводки appearances дизайн-системы MUST NOT содержать собственной платформы: она определяется компонентом.
+
+#### Scenario: Одно имя на двух платформах
+
+- **WHEN** создаются компоненты `Avatar` для `compose` и для `xml`
+- **THEN** `ds-service` MUST создать две разные записи с собственными идентификаторами
+
+#### Scenario: Платформа обязательна при создании
+
+- **WHEN** тело `POST /components` не содержит `platform` или содержит значение вне словаря
+- **THEN** `ds-service` MUST ответить `400` и MUST NOT создать компонент
+
+#### Scenario: Дубликат пары
+
+- **WHEN** создаётся компонент с уже существующей парой `(name, platform)`
+- **THEN** `ds-service` MUST отклонить запись и MUST NOT создать второй компонент
+
+#### Scenario: Игнорируемое поле платформы
+
+- **WHEN** тело создания или изменения appearance или свойства содержит `platform`
+- **THEN** `ds-service` MUST принять запрос и MUST игнорировать поле
+
+### Requirement: Признак устаревания платформенного имени
+
+`ds-service` SHALL принимать и возвращать у `property-platform-params` поля `deprecated` (boolean, по умолчанию `false`) и `deprecatedMessage`. Явный `null` в `deprecatedMessage` при изменении MUST очищать сообщение; отсутствие поля MUST оставлять его прежним. Платформа алиаса MUST совпадать с платформой компонента его свойства.
+
+#### Scenario: Устаревший алиас с сообщением
+
+- **WHEN** создаётся алиас с `deprecated: true` и сообщением
+- **THEN** ответ MUST содержать эти значения
+
+#### Scenario: Пустое сообщение
+
+- **WHEN** алиас изменяется с `deprecated: true` и `deprecatedMessage: ""`
+- **THEN** сообщение MUST быть пустой строкой, а не `null`
+
+#### Scenario: Сообщение без пометки
+
+- **WHEN** алиас изменяется с `deprecated: false` и непустым `deprecatedMessage`
+- **THEN** `ds-service` MUST отклонить запись
+
+#### Scenario: Алиас чужой платформы
+
+- **WHEN** создаётся алиас платформы, не совпадающей с платформой компонента свойства
+- **THEN** `ds-service` MUST отклонить запись
+
+### Requirement: Платформа в component-config
+
+`GET /component-config` SHALL требовать query-параметр `platform`, а `POST /component-config/import` и `POST /component-config/export` — поле тела `platform`; без платформы или со значением вне словаря `ds-service` MUST отвечать `400`.
+
+#### Scenario: Выбор платформенных данных конфигурации
+
+- **WHEN** запрос component-config задаёт допустимую платформу
+- **THEN** Компонент MUST выбираться только среди компонентов этой платформы, экспорт MUST отдавать конфигурации только компонентов этой платформы, а конфигурация без компонента на платформе импорта MUST отклоняться с причиной, называющей платформу. Запись журнала `components:import` MUST содержать `platform`.
+
+#### Scenario: Импорт в компонент своей платформы
+
+- **WHEN** есть компоненты `Button` для `web` и `compose` и выполняется импорт с `platform: compose`
+- **THEN** appearance MUST появиться только у компонента `compose`
+
+#### Scenario: Чтение без платформы
+
+- **WHEN** запрос `GET /component-config` не содержит `platform`
+- **THEN** `ds-service` MUST ответить `400`
+
+#### Scenario: Чтение чужой платформы
+
+- **WHEN** appearance есть у компонента `compose`, а запрос содержит `platform=web`
+- **THEN** `ds-service` MUST ответить `404`
+
+#### Scenario: Экспорт по платформе
+
+- **WHEN** конфигурации есть только у компонента `compose`, а экспорт запрошен для `web`
+- **THEN** пакет MUST содержать ноль конфигураций
+
+#### Scenario: Нет компонента на платформе
+
+- **WHEN** импорт выполняется для платформы, на которой компонента нет
+- **THEN** конфигурация MUST попасть в `rejected` с причиной, содержащей платформу
+
+### Requirement: Записи журнала без дизайн-системы не попадают в ленты
+
+Строки `design_system_changes` с пустым `design_system_id` SHALL NOT возвращаться общими и поддизайн-системными лентами изменений `ds-service`, а их наличие MUST NOT приводить к ошибке чтения.
+
+#### Scenario: Глобальная запись в базе
+
+- **WHEN** в таблице есть строка журнала без дизайн-системы
+- **THEN** `GET /design-system-changes` и `GET /design-system-changes/by-design-system/{id}` MUST ответить `200` и MUST NOT содержать эту строку
+
+### Requirement: Административный импорт API-меты в ds-service
+
+`ds-service` SHALL предоставлять административный маршрут `POST /api/ds/admin/component-config/import-api-meta`, который Gateway публикует как `POST /api/admin/component-config/import-api-meta`.
+
+#### Scenario: Доверенный административный импорт
+
+- **WHEN** вызывается административный маршрут импорта API-меты
+- **THEN** Маршрут MUST быть доступен только доверенному системному администратору, принимать манифест API-меты одним запросом (до 16 MiB), выполнять запись аддитивно в одной транзакции и писать в журнал `design_system_changes` строку с `design_system_id = NULL`. Маршрут не входит в проектный префикс `/api/projects/{projectId}/ds`, не описывается в OpenAPI проектных маршрутов и не требует идентификатора дизайн-системы.
+
+#### Scenario: Системный администратор импортирует мету
+
+- **WHEN** системный администратор отправляет манифест на `POST /api/admin/component-config/import-api-meta`
+- **THEN** Gateway MUST передать запрос в `ds-service` на `/api/ds/admin/component-config/import-api-meta`
+- **AND** `ds-service` MUST вернуть отчёт импорта с теми же полями, что и прежняя реализация в `db-service`
+
+#### Scenario: Пользователь без роли и прямой вызов
+
+- **WHEN** запрос приходит без `X-System-Admin: true`
+- **THEN** `ds-service` MUST ответить `403` до разбора тела и MUST NOT изменить данные
+
+#### Scenario: Роль и права ключа проекта
+
+- **WHEN** запрос на административный маршрут приходит с ключом проекта
+- **THEN** Gateway MUST ответить `401` и MUST NOT передавать запрос в `ds-service`
+
+### Requirement: ds-service обслуживает web-адаптер
+
+`ds-service` SHALL обслуживать `POST /api/ds/component-config/web-adapter` с телом `{ "designSystemId": "<uuid>" }`
+и возвращать JSON-массив по контракту требования `Web adapter endpoint` из `cli-components`: по одной записи на
+компонент, у которого в дизайн-системе есть конфигурация, с полями `componentName`, `name` и необязательными
+`description`, `compose`, `styles`. Необязательное поле без данных MUST отсутствовать в ответе, а не равняться `null`.
+
+#### Scenario: Ответ совпадает с эталонной реализацией
+
+- **GIVEN** одна и та же база с конфигурациями компонентов, шаблонами web-параметров и compose-связями
+- **WHEN** клиент с permission `components:read` запрашивает web-адаптер доступной дизайн-системы у `ds-service`
+- **THEN** сервис MUST вернуть `200` и массив с записями по контракту `Web adapter endpoint`
+- **AND** `componentName` MUST быть именем компонента в написании `meta.json`, а `name` — именем из базы
+
+#### Scenario: Шаблоны собираются по стилям
+
+- **WHEN** у значения конфигурации есть поправка web-параметра с шаблоном
+- **THEN** `styles.<styleName>.templates` MUST сопоставлять имя свойства с именем параметра и шаблоном
+- **AND** стиль без шаблонов MUST отсутствовать в `styles`
+- **AND** при расходящихся шаблонах одной пары свойства и параметра внутри стиля MUST выбираться наименьший по строковому сравнению
+
+#### Scenario: Compose-связи только между компонентами пакета
+
+- **WHEN** у компонентов дизайн-системы есть зависимости типа `compose`
+- **THEN** `compose` родителя MUST перечислять детей в порядке связи
+- **AND** ребёнок без конфигурации в этой дизайн-системе и зависимости типа `reuse` MUST отсутствовать
+
+#### Scenario: Дизайн-система без конфигураций
+
+- **WHEN** у доступной дизайн-системы нет ни одной конфигурации компонента
+- **THEN** сервис MUST вернуть `200` и пустой массив
+
+#### Scenario: Повторный запрос не даёт расхождений
+
+- **WHEN** клиент дважды запрашивает web-адаптер без изменения данных
+- **THEN** оба ответа MUST совпадать побайтно: записи упорядочены по `componentName`, ключи `styles` и `templates` — по имени
+
+#### Scenario: Недостаточно прав или чужая дизайн-система
+
+- **WHEN** у субъекта запроса нет permission `components:read`
+- **THEN** сервис MUST вернуть `403` и MUST NOT читать данные дизайн-системы
+- **WHEN** `designSystemId` принадлежит другому проекту или не существует
+- **THEN** сервис MUST вернуть `404` без признаков существования чужой дизайн-системы
+
+#### Scenario: Некорректное тело запроса
+
+- **WHEN** `designSystemId` отсутствует или не является UUID
+- **THEN** сервис MUST вернуть `400` и MUST NOT обращаться к базе
+
+### Requirement: Выгрузка компонентов ds-service восстанавливает смещения
+
+`POST /api/ds/component-config/export` в `ds-service` SHALL возвращать `adjustment` значения из поправок
+платформенных параметров, когда у строки значения собственное смещение не задано, по правилам требования
+`Export restores offsets from platform parameter adjustments` из `cli-components`.
+
+#### Scenario: Смещение берётся из поправки
+
+- **WHEN** у строки значения нет `adjustment`, но есть числовая поправка платформенного параметра, отличная от значения строки
+- **THEN** выгрузка MUST вернуть эту поправку как `adjustment`
+- **AND** при разных поправках по платформам MUST выбираться web, затем xml, compose, ios
+
+#### Scenario: Собственное смещение строки имеет приоритет
+
+- **WHEN** у строки значения задан `adjustment` и есть числовая поправка платформенного параметра
+- **THEN** выгрузка MUST вернуть `adjustment` строки
+
+#### Scenario: Нечисловая поправка и копия значения не считаются смещением
+
+- **WHEN** поправка не является числом, пуста либо совпадает со значением строки или именем её токена
+- **THEN** выгрузка MUST NOT подставлять её в `adjustment`
+
+#### Scenario: Чтение одного конфига не меняется
+
+- **WHEN** клиент читает `GET /api/ds/component-config`
+- **THEN** ответ MUST формироваться как до изменения, без подстановки смещений из поправок
+
+### Requirement: Снимок конфигураций компонентов согласован с глобальными свойствами
+
+Снимок конфигураций компонентов `ds-service` SHALL ссылаться на свойства по именам, принятым в глобальном слое
+метаданных после PLASMABLDR-186, и MUST NOT ссылаться на свойства, удалённые из prod-сидов как не имеющие web-параметра.
+
+#### Scenario: Свойство разделителя списка
+
+- **WHEN** загружается снимок `component-seeds.json`
+- **THEN** компонент `List` MUST ссылаться на свойство `listItemDividerHeight`
+- **AND** имя `listItemDividerWidth` MUST отсутствовать в снимке
+
+#### Scenario: Инициализация на актуальных метаданных
+
+- **GIVEN** глобальные метаданные содержат свойство `List.listItemDividerHeight` и не содержат `listItemDividerWidth`
+- **WHEN** проверяется полнота метаданных перед инициализацией конфигураций компонентов
+- **THEN** свойство разделителя списка MUST NOT попадать в число отсутствующих метаданных
+
+#### Scenario: Свойства без web-параметра отсутствуют в снимке
+
+- **WHEN** загружается снимок `component-seeds.json`
+- **THEN** компоненты `Button`, `Checkbox`, `IconButton` и `Radiobox` MUST NOT ссылаться на свойства, удалённые из prod-сидов (например, `Button.iconColor`, `IconButton.paddingEnd`)
+- **AND** инициализация на метаданных чистого prod-сида MUST NOT находить отсутствующих свойств
+
+### Requirement: Предметное чтение поддерживает временную границу дизайн-системы
+
+Методы чтения модели в `backend-kt/ds-service` SHALL принимать необязательный `versionId` для данных, принадлежащих
+конкретной дизайн-системе, и SHALL сохранять существующее чтение активного состояния при отсутствии параметра.
+
+#### Scenario: Клиент читает актуальную модель
+
+- **WHEN** клиент вызывает список токенов, значения tenant, конфигурацию appearance, варианты или стили без
+  `versionId`
+- **THEN** API MUST вернуть разрешённое состояние активного черновика
+- **THEN** ответ MUST сохранять документированную предметную форму DTO
+
+#### Scenario: Клиент читает опубликованную модель
+
+- **WHEN** клиент вызывает поддерживаемый предметный метод с `versionId` опубликованной версии
+- **THEN** API MUST вернуть разрешённое состояние на границе этой версии
+- **THEN** API MUST применить те же проверки проекта и прав, что и для актуального состояния
+
+#### Scenario: Клиент передал недоступную версию
+
+- **WHEN** версия отсутствует, принадлежит другой дизайн-системе или недоступна доверенному проекту
+- **THEN** API MUST вернуть `404 Not Found`
+- **THEN** ответ MUST NOT раскрывать наличие данных другого проекта
+
+### Requirement: Общая модель компонента не входит в версии дизайн-системы
+
+API SHALL версионировать только данные компонента, принадлежащие конкретной дизайн-системе, и SHALL читать общие
+описания компонента, его платформу, свойства, состояния и признаки устаревания платформенных имён независимо от
+`versionId`. Общие сущности SHALL NOT удаляться через публичный API, а ссылки конфигурации дизайн-системы и её истории
+на них MUST запрещать физическое удаление.
+
+#### Scenario: Клиент читает компонент опубликованной версии новой модели
+
+- **WHEN** запрос содержит `versionId`
+- **THEN** API MUST применить временную границу к `design_system_components`, `appearances`, `styles` и связанным
+  таблицам значений, комбинаций, поправок и ссылок конфигурации компонента
+- **THEN** API MUST использовать актуальное общее описание API компонента, его свойств и состояний
+
+#### Scenario: Старую версию читают после изменения общего каталога
+
+- **WHEN** общее описание компонента или признак устаревания платформенного имени изменён после публикации версии
+- **THEN** чтение опубликованной версии MUST использовать актуальное общее описание и признак устаревания
+- **THEN** журнал дизайн-системы MUST NOT содержать это изменение общего каталога
+
+#### Scenario: Клиент пытается удалить общую сущность
+
+- **WHEN** клиент вызывает прежний публичный `DELETE` компонента, зависимости, свойства, вариации, платформенного
+  имени, связи свойства с вариацией или состояния
+- **THEN** API MUST ответить `404 Not Found` или `405 Method Not Allowed`
+- **THEN** активные и исторические данные дизайн-систем MUST остаться без изменений
+
+#### Scenario: Служебная очистка встретила зависимость
+
+- **WHEN** служебная операция пытается физически удалить общую сущность, на которую ссылается активная или
+  историческая конфигурация дизайн-системы
+- **THEN** PostgreSQL MUST отклонить удаление ограничением внешнего ключа `RESTRICT`
+
+### Requirement: Маршруты операций редактора оформления входят в разрешённый набор
+
+Операции редактора оформления SHALL входить в разрешённый набор предметного API по приведённому ниже перечню.
+
+#### Scenario: Полный перечень операций редактора
+
+- **WHEN** проверяется разрешённый набор маршрутов редактора оформления
+- **THEN** Перечень предметных маршрутов `ds-service` SHALL быть дополнен маршрутами операций редактора оформления (относительно `P = /api/projects/{projectId}/ds`): `GET /appearances/{id}/editor-model`, `POST /appearances/{id}/axes`, `DELETE /appearances/{id}/axes/{axisId}`, `POST /appearances/{id}/axis-order`, `POST /appearances/{id}/axes/{axisId}/values`, `DELETE /appearances/{id}/axis-values/{valueId}`, `PUT /appearances/{id}/axes/{axisId}/value-order`, `PUT /appearances/{id}/property-values`, `DELETE /appearances/{id}/property-values` (область в параметрах запроса `propertyId`, `styleIds`, `states`), `PUT /appearances/{id}/state-order`, `POST /appearances/new`, `POST /appearances/{id}/duplicate`. Эти маршруты MUST NOT считаться предметными маршрутами вне набора, запрещёнными требованием «Полный разрешённый набор предметных маршрутов»: их добавление выполняется этим OpenSpec-изменением.
+
+#### Scenario: Проверка route manifest
+
+- **WHEN** контрактный тест перечисляет маршруты `ds-service`
+- **THEN** каждый маршрут операций редактора MUST существовать с указанным HTTP-методом
+- **THEN** каждый такой маршрут MUST быть описан в `documentation.yaml`, манифесте маршрутов и аудите потребителей
+
+#### Scenario: Доступ через внешний и внутренний префиксы
+
+- **WHEN** клиент вызывает операцию редактора через `P`
+- **THEN** Gateway MUST передать тот же остаток пути в `ds-service` под `/api/ds`
+
+### Requirement: Вариации ограничены дизайн-системой
+
+`GET /api/ds/variations` и `GET /api/ds/components/{id}/variations` SHALL принимать необязательный `designSystemId`, а каждая вариация в ответе SHALL нести `designSystemId`. `POST /api/ds/variations` SHALL требовать `designSystemId` в теле запроса.
+
+#### Scenario: Чтение с фильтром
+
+- **WHEN** клиент вызывает `GET /api/ds/components/{id}/variations?designSystemId=A`
+- **THEN** ответ MUST содержать только оси дизайн-системы A
+
+#### Scenario: Чтение без фильтра
+
+- **WHEN** клиент вызывает `GET /api/ds/components/{id}/variations` без `designSystemId`
+- **THEN** ответ MUST содержать оси всех дизайн-систем, доступных вызывающему
+- **THEN** форма ответа MUST оставаться массивом
+
+#### Scenario: Создание оси без системы
+
+- **WHEN** клиент вызывает `POST /api/ds/variations` без `designSystemId`
+- **THEN** `ds-service` MUST ответить `400`
+
+#### Scenario: Создание оси в чужой системе
+
+- **WHEN** клиент вызывает `POST /api/ds/variations` с `designSystemId`, недоступной проекту на запись
+- **THEN** `ds-service` MUST отклонить запрос и MUST NOT создавать ось
+
+### Requirement: Ссылки компонентов на токены переживают переименование
+
+Значения свойств компонентов, ссылающиеся на токен, SHALL хранить ссылку через `token_id` без копии имени в `value`. Сборка конфигурации компонентов SHALL брать имя токена по `token_id`.
+
+#### Scenario: Запись значения со ссылкой на токен
+
+- **WHEN** `ds-service` записывает значение свойства компонента со ссылкой на токен — импортом конфигурации, созданием или изменением значения через API или сидом
+- **THEN** строка значения MUST содержать `token_id` и `value = null`
+
+#### Scenario: Строка с токеном и текстом
+
+- **WHEN** сборка конфигурации в `ds-service` встречает строку, где заданы и `token_id`, и `value`
+- **THEN** в конфигурации MUST быть имя токена по `token_id`
+
+#### Scenario: Компонент после переименования токена
+
+- **WHEN** токен `text.default.accent`, на который ссылается стиль компонента, переименован в `text.default.brand`
+- **THEN** `GET component-configs` в `ds-service` MUST вернуть в этом свойстве `text.default.brand`
+
+#### Scenario: Миграция дублей имени
+
+- **WHEN** миграция обрабатывает строку значения компонента, где `token_id` задан, а `value` равен имени этого токена
+- **THEN** `value` MUST стать `null`, а строки без `token_id` MUST NOT измениться
+

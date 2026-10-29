@@ -63,6 +63,8 @@ services:
       OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
       PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID}
       PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET}
+      PREVIEW_PUBLISHER_CLIENT_ID: ${PREVIEW_PUBLISHER_CLIENT_ID:-dsbuilder-preview-publisher}
+      PREVIEW_PUBLISHER_CLIENT_SECRET: ${PREVIEW_PUBLISHER_CLIENT_SECRET:-}
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
     entrypoint:
@@ -118,89 +120,32 @@ services:
       start_period: 20s
       retries: 5
 
-  db-service:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/db-service:${IMAGE_TAG:?Set IMAGE_TAG}
+  ds-service:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/ds-service:${IMAGE_TAG:?Set IMAGE_TAG}
     pull_policy: always
     restart: unless-stopped
     environment:
-      NODE_ENV: production
-      PORT: 3008
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
-      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      DS_SERVICE_PORT: 8085
+      DS_DATABASE_URL: ${DS_DATABASE_URL:?Set DS_DATABASE_URL}
+      DS_DATABASE_USER: ${DS_DATABASE_USER:?Set DS_DATABASE_USER}
+      DS_DATABASE_PASSWORD: ${DS_DATABASE_PASSWORD:?Set DS_DATABASE_PASSWORD}
+      DS_DATABASE_POOL_SIZE: ${DS_DATABASE_POOL_SIZE:-10}
+      DS_DATABASE_CONNECTION_TIMEOUT_MS: ${DS_DATABASE_CONNECTION_TIMEOUT_MS:-5000}
+      DS_FLYWAY_ENABLED: "true"
+      DS_FLYWAY_ADOPT_EXISTING: ${DS_FLYWAY_ADOPT_EXISTING:-false}
+      DS_EXPECTED_SCHEMA_SHA256: ${DS_EXPECTED_SCHEMA_SHA256:-}
+      DS_PLUGIN_S3_ENDPOINT: ${DS_PLUGIN_S3_ENDPOINT:-}
+      DS_PLUGIN_S3_REGION: ${DS_PLUGIN_S3_REGION:-us-east-1}
+      DS_PLUGIN_S3_BUCKET: ${DS_PLUGIN_S3_BUCKET:-}
+      DS_PLUGIN_S3_ACCESS_KEY: ${DS_PLUGIN_S3_ACCESS_KEY:-}
+      DS_PLUGIN_S3_SECRET_KEY: ${DS_PLUGIN_S3_SECRET_KEY:-}
+      DS_PLUGIN_S3_PATH_STYLE: ${DS_PLUGIN_S3_PATH_STYLE:-false}
+      DS_PLUGIN_S3_PREFIX: ${DS_PLUGIN_S3_PREFIX:-}
+      DS_PLUGIN_PUBLIC_BASE_URL: ${DS_PLUGIN_PUBLIC_BASE_URL:-}
     expose:
-      - "3008"
+      - "8085"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3008/api/health >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 5s
-      start_period: 15s
-      retries: 5
-
-  publisher:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/publisher:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3007
-      NPM_TOKEN: ${NPM_TOKEN:?Set NPM_TOKEN}
-    expose:
-      - "3007"
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3007/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      start_period: 15s
-      retries: 5
-
-  generator:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/generator:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3005
-      DB_SERVICE_URL: http://db-service:3008/api
-      PUBLISHER_URL: http://publisher:3007
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:?Set NPM_PACKAGE_SCOPE}
-    expose:
-      - "3005"
-    depends_on:
-      db-service:
-        condition: service_healthy
-      publisher:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      start_period: 20s
-      retries: 5
-
-  docs-generator:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/documentation-generator:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3006
-      DB_SERVICE_URL: http://db-service:3008/api
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:?Set NPM_PACKAGE_SCOPE}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?Set AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?Set AWS_SECRET_ACCESS_KEY}
-      AWS_ENDPOINT: ${AWS_ENDPOINT:?Set AWS_ENDPOINT}
-      AWS_REGION: ${AWS_REGION:?Set AWS_REGION}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET:?Set AWS_S3_BUCKET}
-      OUTPUT_DIR: /home/node/app/output
-    expose:
-      - "3006"
-    volumes:
-      - docs_output:/home/node/app/output
-    depends_on:
-      db-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3006/api/documentation/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8085/ready || exit 1"]
       interval: 15s
       timeout: 5s
       start_period: 30s
@@ -215,7 +160,7 @@ services:
       DOCUMENTATION_DATABASE_URL: ${DOCUMENTATION_DATABASE_URL:?Set DOCUMENTATION_DATABASE_URL}
       DOCUMENTATION_POSTGRES_USER: ${DOCUMENTATION_POSTGRES_USER:?Set DOCUMENTATION_POSTGRES_USER}
       DOCUMENTATION_POSTGRES_PASSWORD: ${DOCUMENTATION_POSTGRES_PASSWORD:?Set DOCUMENTATION_POSTGRES_PASSWORD}
-      DB_SERVICE_BASE_URL: http://db-service:3008
+      DS_SERVICE_BASE_URL: http://ds-service:8085
       DB_SERVICE_CONNECT_TIMEOUT_MS: ${DB_SERVICE_CONNECT_TIMEOUT_MS:-1500}
       DB_SERVICE_REQUEST_TIMEOUT_MS: ${DB_SERVICE_REQUEST_TIMEOUT_MS:-3000}
       DOCUMENTATION_TEMP_DIRECTORY: /var/tmp/documentation
@@ -266,7 +211,7 @@ services:
     expose:
       - "8084"
     depends_on:
-      db-service:
+      ds-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health/ready || exit 1"]
@@ -286,27 +231,18 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID}
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?Set OIDC_REDIRECT_URI}
       OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
-      DB_SERVICE_UPSTREAM_SCHEME: http
-      DB_SERVICE_UPSTREAM_HOST: db-service
-      DB_SERVICE_UPSTREAM_PORT: 3008
-      DOCS_SERVICE_UPSTREAM_SCHEME: http
-      DOCS_SERVICE_UPSTREAM_HOST: docs-generator
-      DOCS_SERVICE_UPSTREAM_PORT: 3006
+      DS_SERVICE_UPSTREAM_SCHEME: http
+      DS_SERVICE_UPSTREAM_HOST: ds-service
+      DS_SERVICE_UPSTREAM_PORT: 8085
       DOCUMENTATION_SERVICE_UPSTREAM_SCHEME: http
       DOCUMENTATION_SERVICE_UPSTREAM_HOST: documentation-service
       DOCUMENTATION_SERVICE_UPSTREAM_PORT: 8084
       DOCUMENTATION_MAX_REQUEST_SIZE: ${DOCUMENTATION_MAX_REQUEST_SIZE:-101m}
-      GENERATOR_SERVICE_UPSTREAM_SCHEME: http
-      GENERATOR_SERVICE_UPSTREAM_HOST: generator
-      GENERATOR_SERVICE_UPSTREAM_PORT: 3005
-      PUBLISHER_SERVICE_UPSTREAM_SCHEME: http
-      PUBLISHER_SERVICE_UPSTREAM_HOST: publisher
-      PUBLISHER_SERVICE_UPSTREAM_PORT: 3007
       GATEWAY_PROXY_TIMEOUT_SECONDS: ${GATEWAY_PROXY_TIMEOUT_SECONDS:-300}
     command:
       - /bin/sh
       - -c
-      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DOCS_SERVICE_UPSTREAM_SCHEME $$DOCS_SERVICE_UPSTREAM_HOST $$DOCS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GENERATOR_SERVICE_UPSTREAM_SCHEME $$GENERATOR_SERVICE_UPSTREAM_HOST $$GENERATOR_SERVICE_UPSTREAM_PORT $$PUBLISHER_SERVICE_UPSTREAM_SCHEME $$PUBLISHER_SERVICE_UPSTREAM_HOST $$PUBLISHER_SERVICE_UPSTREAM_PORT $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DS_SERVICE_UPSTREAM_SCHEME $$DS_SERVICE_UPSTREAM_HOST $$DS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
     expose:
       - "8080"
     depends_on:
@@ -318,17 +254,10 @@ services:
         condition: service_healthy
       documentation-service:
         condition: service_healthy
-      generator:
-        condition: service_healthy
-      publisher:
-        condition: service_healthy
-      docs-generator:
+      ds-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
-
-volumes:
-  docs_output:

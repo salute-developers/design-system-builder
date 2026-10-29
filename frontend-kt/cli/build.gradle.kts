@@ -46,9 +46,11 @@ kotlin {
             implementation(projects.featureDocs)
             implementation(projects.featureComponents)
             implementation(projects.featureToolchain)
+            implementation(projects.featureDs)
             implementation(projects.platformIos)
             implementation(projects.mcpServerCore)
             implementation(projects.platformAndroid)
+            implementation(projects.platformWeb)
             implementation(libs.clikt)
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines.core)
@@ -147,6 +149,19 @@ registerMacosCliPackage(
     targetName = "macosX64",
     linkTaskName = "linkReleaseExecutableMacosX64",
 )
+
+// JVM-дистрибутив (bin/dsbuilder + lib/*.jar) под стабильным именем для релиза CLI: CI других репозиториев
+// скачивает его и запускает на Linux с Java 17.
+tasks.register<Copy>("packageJvmCli") {
+    group = "distribution"
+    description = "Copies the JVM distribution of dsbuilder CLI under a stable name for the CLI release."
+
+    val distribution = tasks.named<Zip>("jvmDistZip")
+    dependsOn(distribution)
+    from(distribution.flatMap { it.archiveFile })
+    into(layout.buildDirectory.dir("distributions"))
+    rename { "dsbuilder-cli-jvm.zip" }
+}
 
 tasks.register("packageMacosCli") {
     group = "distribution"

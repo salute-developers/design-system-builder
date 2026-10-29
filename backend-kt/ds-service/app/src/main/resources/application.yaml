@@ -1,0 +1,6 @@
+ktor:
+  deployment:
+    port: 8085
+  application:
+    modules:
+      - com.dsbuilder.ds.app.ApplicationKt.module

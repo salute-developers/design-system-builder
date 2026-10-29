@@ -1,101 +1,60 @@
 import { useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
-import { getMenuItems } from '../../utils';
-import { useSelectItemInMenu } from '../../hooks';
-import { DesignSystem, GradientToken, Theme, Token } from '../../controllers';
-import { GroupNode } from '../../types/other';
-import { Menu, Workspace } from '../../layouts';
-
-import { TokenColorEditor } from './features/TokenColorEditor';
-import { colorTokenActions, gradientTokenActions } from '../../actions';
-import { getAnchor, useTokenNodeSelection } from '../../hooks/useTokenNodeSelection';
+import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
+import type { Config, DesignSystem, Theme } from '../../controllers';
+import type { ThemePalette } from '../../modules/palette';
+import { ColorTokensScreen } from './ColorTokensScreen';
 
 interface ColorsOutletContextProps {
-    designSystem?: DesignSystem;
-    theme?: Theme;
+    designSystem?: DesignSystem | null;
+    theme?: Theme | null;
+    components?: Config[] | null;
+    palette?: ThemePalette | null;
+    setPalette?: (palette: ThemePalette) => void;
+    tokenDefinitions?: TokenDefinitionDto[];
+    colorTokenGroups?: import('../../modules/colorTokens/domain/types').TokenGroupDto[];
+    incompleteTokenIds?: string[];
     updated: object;
     rerender: () => void;
+    reload: () => void;
 }
 
+/** Раздел «Цвета» темы: экран Color Tokens по прототипу SDDS Portal с автосохранением правок. */
 export const Colors = () => {
-    const { designSystem, theme, updated, rerender } = useOutletContext<ColorsOutletContextProps>();
+    const outlet = useOutletContext<ColorsOutletContextProps>();
+    const { projectId, designSystemId, tenantId } = useParams();
+    const [searchParams] = useSearchParams();
+    const versionId = searchParams.get('versionId') ?? undefined;
+    const context = useMemo(
+        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId, versionId } : null),
+        [projectId, designSystemId, tenantId, versionId],
+    );
 
-    const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu();
-    const [, groupIndex, itemIndex] = selectedItemIndexes;
-
-    const data = useMemo(() => getMenuItems(theme, 'color') as GroupNode[] | undefined, [theme, updated]);
-
-    const { tokenNode, selectToken } = useTokenNodeSelection({ data, groupIndex, itemIndex, onItemSelect });
-
-    const onMenuItemSelect = (nextGroupIndex: number, nextItemIndex: number) => {
-        onItemSelect(nextGroupIndex, nextItemIndex);
-        const node = data?.[nextGroupIndex]?.data[nextItemIndex];
-        const nextToken = node && getAnchor(node);
-
-        if (nextToken) {
-            selectToken(nextToken);
-        }
-    };
-
-    const onTokenAdd = async (groupName: string, tokenName: string) => {
-        const existingNames = new Set(
-            data?.find((group) => group.group === groupName)?.data.map((node) => node.name) ?? [],
+    if (!context || !outlet.designSystem || !outlet.theme) {
+        return (
+            <div className="color-tokens-screen" data-testid="color-tokens-loading">
+                <div className="ct-tree-empty" role="status">
+                    Загружаем цветовые токены…
+                </div>
+            </div>
         );
-
-        if (tokenName.toLocaleLowerCase().includes('gradient')) {
-            gradientTokenActions.addToken({ groupName, tokenName, theme, designSystem });
-        } else {
-            colorTokenActions.addToken({ groupName, tokenName, theme, designSystem });
-        }
-
-        const nextData = getMenuItems(theme, 'color') as GroupNode[] | undefined;
-        const addedNode = nextData
-            ?.find((group) => group.group === groupName)
-            ?.data.find((node) => !existingNames.has(node.name));
-
-        const addedToken = addedNode && getAnchor(addedNode);
-        
-        if (addedToken) {
-            selectToken(addedToken);
-        }
-
-        rerender();
-    };
-
-    const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
-        if (tokens[0] instanceof GradientToken) {
-            gradientTokenActions.disableToken({ disabled, tokens, designSystem });
-
-            rerender();
-            return;
-        }
-
-        colorTokenActions.disableToken({ disabled, tokens, theme, designSystem });
-
-        rerender();
-    };
-
-    if (!data || !designSystem || !theme) {
-        return null;
     }
 
     return (
-        <Workspace
-            menuBackground={'transparent'}
-            menu={
-                <Menu
-                    header={designSystem.getParameters()?.projectName}
-                    data={data}
-                    selectedItemIndexes={[selectedItemIndexes[1], selectedItemIndexes[2]]}
-                    onItemSelect={onMenuItemSelect}
-                    onItemAdd={onTokenAdd}
-                    onItemDisable={onTokenDisable}
-                />
-            }
-            content={
-                <TokenColorEditor designSystem={designSystem} theme={theme} tokenNode={tokenNode} rerender={rerender} />
-            }
+        <ColorTokensScreen
+            context={context}
+            designSystem={outlet.designSystem}
+            theme={outlet.theme}
+            components={outlet.components ?? []}
+            palette={outlet.palette ?? null}
+            setPalette={outlet.setPalette}
+            tokenDefinitions={outlet.tokenDefinitions ?? []}
+            colorTokenGroups={outlet.colorTokenGroups}
+            incompleteTokenIds={outlet.incompleteTokenIds ?? []}
+            updated={outlet.updated}
+            rerender={outlet.rerender}
+            reload={outlet.reload}
         />
     );
 };

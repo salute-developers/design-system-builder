@@ -6,6 +6,7 @@ import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.ResolvedApiUrl
 import com.dsbuilder.frontend.core.network.WriteApiUrlResult
@@ -13,6 +14,7 @@ import com.dsbuilder.frontend.feature.components.domain.ComponentImportReport
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackage
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageResult
 import com.dsbuilder.frontend.feature.components.domain.ConvertedComponentConfig
+import com.dsbuilder.frontend.feature.components.domain.apimeta.toApiMetaPlatform
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodecResult
 
@@ -50,6 +52,12 @@ public class PushComponentsUseCase internal constructor(
         if (context.configPath.isBlank() && command.source.directory == null) {
             return PushComponentsResult.Failed("--from is required with --design-system.")
         }
+        val platform = when (
+            val resolved = ComponentPlatformResolver.resolve(context.platforms, command.platformOverride)
+        ) {
+            is ComponentPlatformResolution.Failed -> return PushComponentsResult.Failed(resolved.message)
+            is ComponentPlatformResolution.Resolved -> resolved.platform
+        }
         val apiUrl = when (
             val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride, found.projectEnvironment)
         ) {
@@ -78,6 +86,7 @@ public class PushComponentsUseCase internal constructor(
         }
 
         val target = PushTarget(
+            platform = platform,
             apiUrl = apiUrl,
             projectId = context.projectId.value,
             designSystemId = context.designSystemId.value,
@@ -97,6 +106,7 @@ public class PushComponentsUseCase internal constructor(
                 credential = credential,
                 projectId = context.projectId,
                 designSystemId = context.designSystemId,
+                platform = platform.toApiMetaPlatform(),
                 packageName = componentPackage.name,
                 packageOrigin = componentPackage.origin,
                 dryRun = command.dryRun,
@@ -158,6 +168,7 @@ private sealed interface ConversionResult {
  * @property apiUrlOverride backend API URL, переданный аргументом.
  * @property designSystemUri явная ссылка на дизайн-систему.
  * @property projectKeyEnvName env-переменная ключа для явной ссылки.
+ * @property platformOverride платформа компонентов из `--platform`; побеждает конфигурацию проекта.
  */
 public data class PushComponentsCommand(
     public val source: ComponentSource,
@@ -166,6 +177,7 @@ public data class PushComponentsCommand(
     public val apiUrlOverride: String? = null,
     public val designSystemUri: String? = null,
     public val projectKeyEnvName: String? = null,
+    public val platformOverride: TargetPlatform? = null,
 )
 
 /**
@@ -173,6 +185,7 @@ public data class PushComponentsCommand(
  *
  * Обе стороны показываются рядом, потому что автоматической сверки имён нет.
  *
+ * @property platform платформа компонентов, определённая по конфигурации или `--platform`.
  * @property apiUrl разрешённый backend API URL вместе с источником.
  * @property projectId идентификатор проекта.
  * @property designSystemId идентификатор дизайн-системы.
@@ -181,6 +194,7 @@ public data class PushComponentsCommand(
  * @property configurationCount число конфигураций в пакете.
  */
 public data class PushTarget(
+    public val platform: TargetPlatform,
     public val apiUrl: ResolvedApiUrl,
     public val projectId: String,
     public val designSystemId: String,

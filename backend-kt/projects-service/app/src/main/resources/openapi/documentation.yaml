@@ -70,6 +70,33 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /projects/member-candidates:
+    get:
+      tags: [Members]
+      summary: Search registered users by name, username, or email
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        '200':
+          description: Matching registered users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectMemberCandidateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /projects/{projectId}:
     get:
       tags: [Projects]
@@ -511,7 +538,7 @@ components:
       properties:
         email:
           type: string
-          format: email
+          description: Registered user's email or username
         role:
           type: string
           example: OWNER
@@ -522,6 +549,20 @@ components:
         role:
           type: string
           example: EDITOR
+    ProjectMemberCandidateResponse:
+      type: object
+      required: [userId, email]
+      properties:
+        userId:
+          type: string
+        username:
+          type: string
+          nullable: true
+        email:
+          type: string
+        displayName:
+          type: string
+          nullable: true
     CreateProjectAccessKeyRequest:
       type: object
       required: [name, scopes]
@@ -539,7 +580,7 @@ components:
           nullable: true
     ProjectResponse:
       type: object
-      required: [id, name, status, ownerUserId, createdAt, updatedAt]
+      required: [id, name, status, ownerUserId, effectiveRole, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -552,6 +593,19 @@ components:
           type: string
         ownerUserId:
           type: string
+        ownerUsername:
+          type: string
+          nullable: true
+        ownerEmail:
+          type: string
+          nullable: true
+        ownerDisplayName:
+          type: string
+          nullable: true
+        effectiveRole:
+          type: string
+          nullable: true
+          enum: [viewer, editor, maintainer, owner]
         createdAt:
           type: string
         updatedAt:
@@ -562,6 +616,15 @@ components:
       properties:
         userId:
           type: string
+        username:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        displayName:
+          type: string
+          nullable: true
         role:
           type: string
         createdAt:

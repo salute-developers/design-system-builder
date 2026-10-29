@@ -82,7 +82,11 @@ export const ComponentEditorSetup = (props: ComponentEditorSetupProps) => {
             return;
         }
 
-        const { api } = designSystem.getComponentDataByName(config.getName()).sources;
+        const api = designSystem.getComponentData(config)?.sources.api;
+        if (!api) {
+            return;
+        }
+
         config.addVariationStyle(api, variationID, tokenName);
 
         onConfigUpdate();

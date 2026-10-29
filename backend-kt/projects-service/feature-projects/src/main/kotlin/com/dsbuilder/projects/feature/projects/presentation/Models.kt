@@ -6,12 +6,14 @@ import com.dsbuilder.projects.feature.projects.application.IdentityProviderUnava
 import com.dsbuilder.projects.feature.projects.application.InvalidProjectRequestException
 import com.dsbuilder.projects.feature.projects.application.ProjectNotFoundException
 import com.dsbuilder.projects.feature.projects.application.RegisteredIdentityUserNotFoundException
+import com.dsbuilder.projects.feature.projects.application.port.IdentityUser
 import com.dsbuilder.projects.feature.projects.domain.model.AccessKeyScope
 import com.dsbuilder.projects.feature.projects.domain.model.ActorType
 import com.dsbuilder.projects.feature.projects.domain.model.AuthenticatedActor
 import com.dsbuilder.projects.feature.projects.domain.model.Project
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKey
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
+import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.application
@@ -64,6 +66,10 @@ internal data class ProjectResponse(
     val description: String?,
     val status: String,
     val ownerUserId: String,
+    val ownerUsername: String? = null,
+    val ownerEmail: String? = null,
+    val ownerDisplayName: String? = null,
+    val effectiveRole: String? = null,
     val createdAt: String,
     val updatedAt: String,
 )
@@ -71,9 +77,20 @@ internal data class ProjectResponse(
 @Serializable
 internal data class ProjectMemberResponse(
     val userId: String,
+    val username: String? = null,
+    val email: String? = null,
+    val displayName: String? = null,
     val role: String,
     val createdAt: String,
     val updatedAt: String,
+)
+
+@Serializable
+internal data class ProjectMemberCandidateResponse(
+    val userId: String,
+    val username: String?,
+    val email: String,
+    val displayName: String?,
 )
 
 @Serializable
@@ -119,23 +136,41 @@ internal data class ErrorResponse(
     val code: String? = null,
 )
 
-internal fun Project.toResponse(): ProjectResponse =
+internal fun Project.toResponse(
+    effectiveRole: ProjectRole? = null,
+    ownerIdentity: IdentityUser? = null,
+): ProjectResponse =
     ProjectResponse(
         id = id,
         name = name,
         description = description,
         status = status.name.lowercase(),
         ownerUserId = ownerUserId,
+        ownerUsername = ownerIdentity?.username,
+        ownerEmail = ownerIdentity?.email,
+        ownerDisplayName = ownerIdentity?.displayName,
+        effectiveRole = effectiveRole?.name?.lowercase(),
         createdAt = createdAt.toString(),
         updatedAt = updatedAt.toString(),
     )
 
-internal fun ProjectMember.toResponse(): ProjectMemberResponse =
+internal fun ProjectMember.toResponse(identity: IdentityUser? = null): ProjectMemberResponse =
     ProjectMemberResponse(
         userId = userId,
+        username = identity?.username,
+        email = identity?.email,
+        displayName = identity?.displayName,
         role = role.name.lowercase(),
         createdAt = createdAt.toString(),
         updatedAt = updatedAt.toString(),
+    )
+
+internal fun IdentityUser.toCandidateResponse(): ProjectMemberCandidateResponse =
+    ProjectMemberCandidateResponse(
+        userId = userId,
+        username = username,
+        email = email,
+        displayName = displayName,
     )
 
 internal fun ProjectAccessKey.toResponse(): ProjectAccessKeyResponse =

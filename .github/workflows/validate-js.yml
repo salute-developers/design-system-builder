@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'js/**'
+      - 'backend-kt/preview/contract/**'
       - '.github/actions/prepare-environment/**'
       - '.github/workflows/validate-js.yml'
   push:
@@ -12,6 +13,7 @@ on:
       - master
     paths:
       - 'js/**'
+      - 'backend-kt/preview/contract/**'
       - '.github/actions/prepare-environment/**'
       - '.github/workflows/validate-js.yml'
   workflow_dispatch:
@@ -39,29 +41,47 @@ jobs:
         run: >-
           npm exec -- eslint
           "apps/client/src/**/*.{ts,tsx}"
-          "apps/admin/src/**/*.{ts,tsx}"
-          "services/db-service/src/**/*.ts"
-          "services/documentation-generator/src/**/*.ts"
-          "services/generator/app/**/*.{ts,tsx}"
-      - name: Publisher syntax
-        run: node --check services/publisher/app/server.js
 
-  tests:
-    name: Tests (documentation-generator)
-    if: ${{ false }} # Temporarily disabled together with JS analysis.
+  cli:
+    name: Typecheck and tests (cli)
     runs-on: ubuntu-22.04
     defaults:
       run:
-        working-directory: js/services/documentation-generator
+        working-directory: js/cli
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22.20.0'
           cache: npm
-          cache-dependency-path: js/services/documentation-generator/package-lock.json
+          cache-dependency-path: js/cli/package-lock.json
       - run: npm ci --no-progress
-      - run: npm test -- --runInBand --passWithNoTests
+      - run: npm run typecheck
+      - run: npm test
+
+  tests-client:
+    name: Tests (client)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          cache: npm
+          cache-dependency-path: js/apps/client/package-lock.json
+      - run: npm ci --no-progress
+        working-directory: js/apps/client
+      # Схема и общие фикстуры Preview Protocol читаются из backend-kt/preview/contract.
+      - run: npm test
+        working-directory: js/apps/client
+
+  contract-fingerprint:
+    name: Contract fingerprint
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      # CONTRACT.sha256 читает CI plasma-android: он должен соответствовать схеме и общим фикстурам.
+      - run: backend-kt/preview/contract/fingerprint.sh --check
 
   build:
     name: Build (${{ matrix.project.name }})
@@ -72,14 +92,6 @@ jobs:
         project:
           - name: client
             directory: js/apps/client
-          - name: admin
-            directory: js/apps/admin
-          - name: db-service
-            directory: js/services/db-service
-          - name: documentation-generator
-            directory: js/services/documentation-generator
-          - name: generator
-            directory: js/services/generator
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

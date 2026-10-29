@@ -13,7 +13,9 @@ kotlin {
             api(projects.coreDomain)
             // GenerateThemeUseCase публично возвращает PlatformRunResult и принимает PlatformRunPlan.
             api(projects.corePlatform)
-            implementation(projects.coreNetwork)
+            // ListDesignSystemTenantsUseCase публично принимает ApiUrlResolver и AuthenticatedHttpClientFactory,
+            // UserSessionCredentialResolver приходит через api(core-network) -> api(core-auth).
+            api(projects.coreNetwork)
             // ThemeAliasListResult.Listed exposes ProjectConfigTenant (core-workspace) publicly.
             api(projects.coreWorkspace)
             implementation(projects.coreApplication)
@@ -24,6 +26,7 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }

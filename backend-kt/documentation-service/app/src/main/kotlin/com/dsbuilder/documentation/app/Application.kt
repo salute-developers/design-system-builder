@@ -6,13 +6,14 @@ import com.dsbuilder.documentation.ingestion.application.AcceptDocumentationBund
 import com.dsbuilder.documentation.ingestion.application.DocumentationPublishPolicy
 import com.dsbuilder.documentation.ingestion.data.ArchiveLimits
 import com.dsbuilder.documentation.ingestion.data.BoundedBundleUpload
-import com.dsbuilder.documentation.ingestion.data.DbServiceOwnershipVerifier
+import com.dsbuilder.documentation.ingestion.data.DsServiceOwnershipVerifier
 import com.dsbuilder.documentation.ingestion.data.ExposedDocumentationBundleRepository
 import com.dsbuilder.documentation.ingestion.data.ExposedIngestionJobRepository
 import com.dsbuilder.documentation.ingestion.data.JdbcTransactionManager
 import com.dsbuilder.documentation.ingestion.data.S3RawBundleStorage
 import com.dsbuilder.documentation.ingestion.data.TarGzipBundleArchiveInspector
 import com.dsbuilder.documentation.ingestion.presentation.documentationBundleRoutes
+import com.dsbuilder.documentation.processing.application.DefaultCleanupSupersededPublicationUseCase
 import com.dsbuilder.documentation.processing.application.ProcessDocumentationJobUseCase
 import com.dsbuilder.documentation.processing.application.ProcessingWorkerPolicy
 import com.dsbuilder.documentation.processing.application.PublicationContextProvider
@@ -24,12 +25,15 @@ import com.dsbuilder.documentation.processing.data.DocumentationValidationLimits
 import com.dsbuilder.documentation.processing.data.ExposedCandidateIndexer
 import com.dsbuilder.documentation.processing.data.ExposedProcessingContextRepository
 import com.dsbuilder.documentation.processing.data.ExposedProcessingJobStore
+import com.dsbuilder.documentation.processing.data.ExposedPublicationCleanupRepository
 import com.dsbuilder.documentation.processing.data.PublicationObjectKeyPolicy
 import com.dsbuilder.documentation.processing.data.ResolvedDocumentationNormalizer
 import com.dsbuilder.documentation.processing.data.S3ImmutableObjectWriter
+import com.dsbuilder.documentation.processing.data.S3PublicationObjectDeleter
 import com.dsbuilder.documentation.processing.data.S3PublicationObjectStorage
 import com.dsbuilder.documentation.processing.data.S3RawObjectStream
 import com.dsbuilder.documentation.processing.data.SafeTarGzipBundleExtractor
+import com.dsbuilder.documentation.processing.domain.PublicationCleanupPolicy
 import com.dsbuilder.documentation.publication.data.ExposedPublicationReadRepository
 import com.dsbuilder.documentation.publication.data.S3AssetContentReader
 import com.dsbuilder.documentation.publication.presentation.publicationReadRoutes
@@ -45,6 +49,7 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.install
 import io.ktor.server.netty.EngineMain
@@ -90,15 +95,9 @@ fun Application.module() {
     }
     install(CallLogging)
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = false }) }
+    configureApiDocs()
     val runtime = ingestionRuntime(environment, evaluator)
-    val workerJob = launchDocumentationWorker(
-        runtime.worker.enabled,
-        runtime.worker.pollingMs,
-        runtime.worker.workerId,
-        runtime.worker.processor,
-        runtime.worker.health,
-    )
-    monitor.subscribe(ApplicationStopping) { workerJob?.cancel() }
+    launchBackgroundWorkers(runtime)
     routing {
         get("/health") {
             call.respondText("ok")
@@ -122,8 +121,7 @@ fun Application.module() {
             }
         }
         get("/health/worker") {
-            val snapshot = runtime.worker.health.snapshot()
-            if (snapshot.healthy) call.respond(snapshot) else call.respond(HttpStatusCode.ServiceUnavailable, snapshot)
+            call.respondWorkerDiagnostics(runtime)
         }
         documentationBundleRoutes(runtime.useCase, runtime.uploader, runtime.evaluator)
         publicationReadRoutes(
@@ -138,6 +136,42 @@ fun Application.module() {
             runtime.searchLimits,
             runtime.evaluator,
         )
+    }
+}
+
+private suspend fun ApplicationCall.respondWorkerDiagnostics(runtime: IngestionRuntime) {
+    val snapshot = runtime.worker.health.snapshot()
+    val diagnostics = DocumentationBackgroundWorkersDiagnostics(
+        snapshot,
+        runtime.cleanup.enabled,
+        runtime.cleanup.telemetry.snapshot(),
+    )
+    if (snapshot.healthy) {
+        respond(diagnostics)
+    } else {
+        respond(HttpStatusCode.ServiceUnavailable, diagnostics)
+    }
+}
+
+private fun Application.launchBackgroundWorkers(runtime: IngestionRuntime) {
+    val workerJob = launchDocumentationWorker(
+        runtime.worker.enabled,
+        runtime.worker.pollingMs,
+        runtime.worker.workerId,
+        runtime.worker.processor,
+        runtime.worker.health,
+    )
+    val cleanupWorkerJob = launchPublicationCleanupWorker(
+        runtime.cleanup.enabled,
+        runtime.cleanup.pollingMs,
+        runtime.cleanup.workerId,
+        runtime.cleanup.processor,
+        runtime.cleanup.repository,
+        runtime.cleanup.telemetry,
+    )
+    monitor.subscribe(ApplicationStopping) {
+        workerJob?.cancel()
+        cleanupWorkerJob.cancel()
     }
 }
 
@@ -162,6 +196,7 @@ private data class IngestionRuntime(
     val searchProfile: LexicalRankingProfile,
     val evaluator: PolicyEvaluator,
     val worker: WorkerRuntime,
+    val cleanup: CleanupRuntime,
 )
 
 private data class WorkerRuntime(
@@ -172,13 +207,25 @@ private data class WorkerRuntime(
     val health: DocumentationWorkerHealth,
 )
 
+private data class CleanupRuntime(
+    val enabled: Boolean,
+    val pollingMs: Long,
+    val workerId: String,
+    val processor: DefaultCleanupSupersededPublicationUseCase,
+    val repository: ExposedPublicationCleanupRepository,
+    val telemetry: PublicationLifecycleTelemetry,
+)
+
 private fun ingestionRuntime(environment: EnvironmentConfiguration, evaluator: PolicyEvaluator): IngestionRuntime {
     val database = createDatabase(environment)
     val s3Client = createS3Client(environment)
     val bucket = environment.value(S3_BUCKET, DEFAULT_S3_BUCKET)
     val storage = createStorage(environment, s3Client, bucket)
     val useCase = createUseCase(environment, database, storage, evaluator)
-    val worker = createWorkerRuntime(environment, database, s3Client, bucket)
+    val cleanupPolicy = createCleanupPolicy(environment)
+    val telemetry = PublicationLifecycleTelemetry()
+    val worker = createWorkerRuntime(environment, database, s3Client, bucket, cleanupPolicy, telemetry)
+    val cleanup = createCleanupRuntime(environment, database, s3Client, bucket, cleanupPolicy, telemetry)
     return IngestionRuntime(
         useCase = useCase,
         uploader = BoundedBundleUpload(
@@ -213,6 +260,7 @@ private fun ingestionRuntime(environment: EnvironmentConfiguration, evaluator: P
         ),
         evaluator = evaluator,
         worker = worker,
+        cleanup = cleanup,
     )
 }
 
@@ -221,6 +269,8 @@ private fun createWorkerRuntime(
     database: Database,
     s3Client: S3Client,
     bucket: String,
+    cleanupPolicy: PublicationCleanupPolicy,
+    cleanupTelemetry: PublicationLifecycleTelemetry,
 ): WorkerRuntime {
     val enabled = environment.boolean(WORKER_ENABLED, DEFAULT_WORKER_ENABLED)
     val contexts = ExposedProcessingContextRepository(database)
@@ -231,7 +281,7 @@ private fun createWorkerRuntime(
         Path.of(environment.value(TEMP_DIRECTORY, System.getProperty("java.io.tmpdir"))),
         createArchiveLimits(environment),
     )
-    val jobs = ExposedProcessingJobStore(database)
+    val jobs = ExposedProcessingJobStore(database, cleanupPolicy.gracePeriod, cleanupTelemetry)
     val processor = ProcessDocumentationJobUseCase(
         jobs = jobs,
         rawBundles = extractor,
@@ -272,6 +322,43 @@ private fun createWorkerRuntime(
     )
 }
 
+private fun createCleanupRuntime(
+    environment: EnvironmentConfiguration,
+    database: Database,
+    s3Client: S3Client,
+    bucket: String,
+    policy: PublicationCleanupPolicy,
+    telemetry: PublicationLifecycleTelemetry,
+): CleanupRuntime {
+    val repository = ExposedPublicationCleanupRepository(database, bucket)
+    val processor = DefaultCleanupSupersededPublicationUseCase(
+        repository = repository,
+        objects = S3PublicationObjectDeleter(s3Client),
+        metrics = telemetry,
+        policy = policy,
+        events = telemetry,
+    )
+    return CleanupRuntime(
+        enabled = environment.boolean(CLEANUP_ENABLED, DEFAULT_CLEANUP_ENABLED),
+        pollingMs = environment.positiveLong(CLEANUP_POLLING_MS, DEFAULT_CLEANUP_POLLING_MS),
+        workerId = environment.value(CLEANUP_WORKER_ID, "cleanup-${UUID.randomUUID()}"),
+        processor = processor,
+        repository = repository,
+        telemetry = telemetry,
+    )
+}
+
+private fun createCleanupPolicy(environment: EnvironmentConfiguration) = PublicationCleanupPolicy(
+    gracePeriod = Duration.ofSeconds(environment.positiveLong(CLEANUP_GRACE_SECONDS, DEFAULT_CLEANUP_GRACE_SECONDS)),
+    leaseDuration = Duration.ofSeconds(environment.positiveLong(CLEANUP_LEASE_SECONDS, DEFAULT_CLEANUP_LEASE_SECONDS)),
+    retryInitialDelay = Duration.ofSeconds(
+        environment.positiveLong(CLEANUP_RETRY_INITIAL_SECONDS, DEFAULT_CLEANUP_RETRY_INITIAL_SECONDS),
+    ),
+    retryMaxDelay = Duration.ofSeconds(
+        environment.positiveLong(CLEANUP_RETRY_MAX_SECONDS, DEFAULT_CLEANUP_RETRY_MAX_SECONDS),
+    ),
+)
+
 private fun createDatabase(environment: EnvironmentConfiguration): Database {
     val databaseUrl = environment.value(DATABASE_URL, DEFAULT_DATABASE_URL)
     val databaseUser = environment.value(DATABASE_USER, DEFAULT_DATABASE_USER)
@@ -301,9 +388,9 @@ private fun createUseCase(
     val httpClient = createDbServiceClient(environment)
     return AcceptDocumentationBundleUseCase(
         inspector = TarGzipBundleArchiveInspector(createArchiveLimits(environment)),
-        ownershipVerifier = DbServiceOwnershipVerifier(
+        ownershipVerifier = DsServiceOwnershipVerifier(
             httpClient,
-            environment.value(DB_SERVICE_BASE_URL, DEFAULT_DB_SERVICE_BASE_URL),
+            environment.value(DS_SERVICE_BASE_URL, DEFAULT_DS_SERVICE_BASE_URL),
         ),
         storage = storage,
         bundleRepository = ExposedDocumentationBundleRepository(database),
@@ -383,6 +470,9 @@ private class EnvironmentConfiguration {
     fun int(name: String, default: Int): Int = optional(name)?.toInt() ?: default
     fun double(name: String, default: Double): Double = optional(name)?.toDouble() ?: default
     fun boolean(name: String, default: Boolean): Boolean = optional(name)?.toBooleanStrictOrNull() ?: default
+    fun positiveLong(name: String, default: Long): Long = long(name, default).also {
+        require(it > 0) { "$name must be positive" }
+    }
 }
 
 private const val DATABASE_URL = "DOCUMENTATION_DATABASE_URL"
@@ -396,7 +486,7 @@ private const val MAX_ENTRY_BYTES = "DOCUMENTATION_MAX_ENTRY_BYTES"
 private const val MAX_ENTRIES = "DOCUMENTATION_MAX_ENTRIES"
 private const val MAX_PATH_BYTES = "DOCUMENTATION_MAX_PATH_BYTES"
 private const val MAX_MANIFEST_BYTES = "DOCUMENTATION_MAX_MANIFEST_BYTES"
-private const val DB_SERVICE_BASE_URL = "DB_SERVICE_BASE_URL"
+private const val DS_SERVICE_BASE_URL = "DS_SERVICE_BASE_URL"
 private const val DB_SERVICE_CONNECT_TIMEOUT = "DB_SERVICE_CONNECT_TIMEOUT_MS"
 private const val DB_SERVICE_REQUEST_TIMEOUT = "DB_SERVICE_REQUEST_TIMEOUT_MS"
 private const val S3_ENDPOINT = "DOCUMENTATION_S3_ENDPOINT"
@@ -433,6 +523,13 @@ private const val WORKER_HEARTBEAT_SECONDS = "DOCUMENTATION_WORKER_HEARTBEAT_SEC
 private const val WORKER_MAX_ATTEMPTS = "DOCUMENTATION_WORKER_MAX_ATTEMPTS"
 private const val WORKER_ID = "DOCUMENTATION_WORKER_ID"
 private const val PUBLICATION_S3_PREFIX = "DOCUMENTATION_PUBLICATION_S3_PREFIX"
+private const val CLEANUP_ENABLED = "DOCUMENTATION_CLEANUP_ENABLED"
+private const val CLEANUP_GRACE_SECONDS = "DOCUMENTATION_CLEANUP_GRACE_SECONDS"
+private const val CLEANUP_POLLING_MS = "DOCUMENTATION_CLEANUP_POLLING_MS"
+private const val CLEANUP_LEASE_SECONDS = "DOCUMENTATION_CLEANUP_LEASE_SECONDS"
+private const val CLEANUP_RETRY_INITIAL_SECONDS = "DOCUMENTATION_CLEANUP_RETRY_INITIAL_SECONDS"
+private const val CLEANUP_RETRY_MAX_SECONDS = "DOCUMENTATION_CLEANUP_RETRY_MAX_SECONDS"
+private const val CLEANUP_WORKER_ID = "DOCUMENTATION_CLEANUP_WORKER_ID"
 private const val MAX_NAVIGATION_NODES = "DOCUMENTATION_MAX_NAVIGATION_NODES"
 private const val MAX_NAVIGATION_DEPTH = "DOCUMENTATION_MAX_NAVIGATION_DEPTH"
 private const val MAX_PAGES = "DOCUMENTATION_MAX_PAGES"
@@ -444,7 +541,7 @@ private const val CHUNK_TARGET_BYTES = "DOCUMENTATION_CHUNK_TARGET_BYTES"
 private const val DEFAULT_DATABASE_URL = "jdbc:postgresql://localhost:5434/documentation_service"
 private const val DEFAULT_DATABASE_USER = "documentation"
 private const val DEFAULT_DATABASE_PASSWORD = "documentation"
-private const val DEFAULT_DB_SERVICE_BASE_URL = "http://localhost:3008"
+private const val DEFAULT_DS_SERVICE_BASE_URL = "http://localhost:8085"
 private const val DEFAULT_S3_REGION = "us-east-1"
 private const val DEFAULT_S3_BUCKET = "documentation-bundles"
 private const val DEFAULT_S3_ACCESS_KEY = "minio"
@@ -488,6 +585,12 @@ private const val DEFAULT_WORKER_LEASE_SECONDS = 60L
 private const val DEFAULT_WORKER_HEARTBEAT_SECONDS = 20L
 private const val DEFAULT_WORKER_MAX_ATTEMPTS = 3
 private const val DEFAULT_PUBLICATION_PREFIX = EMPTY_PREFIX
+private const val DEFAULT_CLEANUP_ENABLED = false
+private const val DEFAULT_CLEANUP_GRACE_SECONDS = 86_400L
+private const val DEFAULT_CLEANUP_POLLING_MS = 5_000L
+private const val DEFAULT_CLEANUP_LEASE_SECONDS = 60L
+private const val DEFAULT_CLEANUP_RETRY_INITIAL_SECONDS = 30L
+private const val DEFAULT_CLEANUP_RETRY_MAX_SECONDS = 3_600L
 private const val DEFAULT_MAX_NAVIGATION_NODES = 10_000
 private const val DEFAULT_MAX_NAVIGATION_DEPTH = 32
 private const val DEFAULT_MAX_PAGES = 5_000

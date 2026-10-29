@@ -1,7 +1,8 @@
 # frontend-client-authentication Specification
 
 ## Purpose
-TBD - created by archiving change add-frontend-mcp-server. Update Purpose after archive.
+Общая пользовательская авторизация CLI и MCP, хранение сеанса, ротация токенов и приоритет источников учётных данных.
+
 ## Requirements
 ### Requirement: Общая пользовательская авторизация CLI и MCP
 
@@ -153,7 +154,7 @@ policy без удаления session при транспортных ошиб�
 
 ### Requirement: User session для всех авторизованных CLI операций
 
-Каждая CLI-команда, выполняющая project-scoped backend request, SHALL поддерживать выбранный Bearer user credential наряду с project key и SHALL передавать ответ backend об отказе без смены actor. Проверка project role на `db-service` `component-config/import` остаётся отдельным backend gap, описанным в `backend-audit.md`.
+Каждая CLI-команда, выполняющая project-scoped backend request, SHALL поддерживать выбранный Bearer user credential наряду с project key и SHALL передавать ответ backend об отказе без смены actor.md`.
 
 #### Scenario: Публикация с user session
 
@@ -166,4 +167,33 @@ policy без удаления session при транспортных ошиб�
 - **WHEN** backend отвечает `403` на запись с Bearer credential
 - **THEN** CLI MUST вернуть `FORBIDDEN`
 - **THEN** CLI MUST NOT повторять запрос с project key
+
+### Requirement: Authorization Code + PKCE как альтернативный способ получить user session
+
+`feature-auth` SHALL предоставлять Authorization Code + PKCE через системный браузер как второй, не заменяющий существующий Direct Access Grant, способ получить пользовательскую сессию (`UserOAuthTokens`) для клиентов с интерактивным UI (например `:plugins:android-studio`).
+
+#### Scenario: Клиент запускает PKCE-флоу
+
+- **WHEN** клиентское приложение вызывает OAuth use case из `feature-auth`
+- **THEN** use case генерирует PKCE-пару и `state` через `PkceGenerator` из `core-auth`
+- **THEN** use case строит authorize URL и открывает его через предоставленную клиентом реализацию порта `BrowserLauncher`
+- **THEN** use case дожидается OAuth redirect через предоставленную клиентом реализацию порта `RedirectListener`
+
+#### Scenario: Полученные токены применяются через общий resolver
+
+- **WHEN** authorization code успешно обменян на токены через `TokenExchangeClient`
+- **THEN** use case применяет `UserOAuthTokens` через `UserSessionCredentialResolver` из `core-auth`, используя тот же resolver, что и Direct Access Grant флоу
+- **THEN** refresh token сохраняется через предоставленную клиентом реализацию порта `RefreshTokenStore`, а не через файловый `CredentialStore`, используемый `auth login`
+
+#### Scenario: Тихий refresh на 401 переиспользует общий примитив
+
+- **WHEN** authenticated HTTP-запрос клиента завершается `401` и в `RefreshTokenStore` есть сохранённый refresh token
+- **THEN** use case тихого refresh из `feature-auth` обменивает его через `TokenExchangeClient.refresh`
+- **THEN** при неудаче use case очищает сессию через `UserSessionCredentialResolver.clear()`, не завершаясь исключением наружу
+
+#### Scenario: PKCE-флоу не требует username/password UI
+
+- **WHEN** клиент использует Authorization Code + PKCE как способ авторизации
+- **THEN** клиент MUST NOT запрашивать логин или пароль в собственном UI
+- **THEN** ввод учётных данных происходит только в системном браузере пользователя
 

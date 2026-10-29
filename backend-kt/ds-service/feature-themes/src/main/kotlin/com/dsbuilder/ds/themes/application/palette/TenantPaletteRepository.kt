@@ -1,0 +1,44 @@
+package com.dsbuilder.ds.themes.application.palette
+
+import com.dsbuilder.ds.core.domain.ProjectId
+import com.dsbuilder.ds.themes.domain.palette.PaletteRampRef
+import com.dsbuilder.ds.themes.domain.palette.TenantPaletteState
+import com.dsbuilder.ds.themes.domain.palette.TokenReferenceRewrite
+import java.util.UUID
+
+/** Хранилище палитры темы; вызывается внутри транзакции use case. */
+interface TenantPaletteRepository {
+    /**
+     * Идемпотентно создаёт копию общей палитры (только если её ещё нет) и недостающие системные группы темы.
+     * Нужна и для тем, созданных в обход `ds-service` (db-service `legacy/design-systems/create`).
+     */
+    suspend fun initialize(tenantId: UUID)
+
+    /** Копия шаблона палитры темы; пустая, если темы ещё не инициализировали. Доступ к теме проверяет вызывающий. */
+    suspend fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>>
+
+    /** Проверяет принадлежность темы; конкурентная запись согласуется по изменяемым сущностям. */
+    suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantPaletteLock
+
+    /**
+     * Палитра темы на выбранной границе, доступной проекту, или `null`. Не выполняет записей.
+     */
+    suspend fun snapshot(
+        projectId: ProjectId,
+        tenantId: UUID,
+        includeSubjectRevisions: Boolean = false,
+    ): TenantPaletteSnapshot?
+
+    /** Записывает только различия [before] и [state], сохраняя соседние конкурентные изменения. */
+    suspend fun save(tenantId: UUID, before: TenantPaletteState, state: TenantPaletteState)
+
+    /**
+     * Переписывает ссылки значений токенов темы при удалении растяжки в той же форме, что `PUT token-values`;
+     * [resolveHex] даёт текущее значение ступени убираемой растяжки. Возвращает число изменённых значений.
+     */
+    suspend fun rewriteTokenReferences(
+        tenantId: UUID,
+        rewrite: TokenReferenceRewrite,
+        resolveHex: (Int) -> String?,
+    ): Int
+}

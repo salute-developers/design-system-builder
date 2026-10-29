@@ -1,42 +1,42 @@
 {
   "project": {
     "lang": "kotlin",
-    "loc": 10863,
-    "packages": 49,
-    "modules": 133,
-    "classes": 389,
-    "methods": 422,
-    "functions": 111,
+    "loc": 28970,
+    "packages": 71,
+    "modules": 560,
+    "classes": 854,
+    "methods": 1143,
+    "functions": 288,
     "status": {
-      "name": "normal",
-      "score": 38,
+      "name": "warning",
+      "score": 41,
       "reasons": [
         "Increased refactoring pressure"
       ],
       "suggestions": []
     },
     "overengineering_pressure": {
-      "score": 36
+      "score": 40
     },
     "refactoring_pressure": {
-      "score": 54,
+      "score": 59,
       "stat(modules)": {
-        "avg": 5,
+        "avg": 4,
         "min": 0,
-        "max": 22,
-        "p50": 3,
-        "p90": 13
+        "max": 23,
+        "p50": 2,
+        "p90": 12
       }
     },
     "complexity": {
-      "score": 873,
-      "density": 8.04,
+      "score": 2243,
+      "density": 7.74,
       "stat(modules)": {
-        "avg": 7,
+        "avg": 4,
         "min": 0,
-        "max": 58,
-        "p50": 2,
-        "p90": 17
+        "max": 96,
+        "p50": 1,
+        "p90": 11
       }
     }
   }

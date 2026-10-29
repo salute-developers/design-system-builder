@@ -39,14 +39,7 @@ internal class ThemeFetchCliCommand(
         }
 
         when (result) {
-            is FetchThemesResult.Fetched -> echo(
-                """
-                    Tenants: ${result.tenantCount}
-                    Files: ${result.fileCount}
-                    Config: ${result.configPath}
-                    Status: themes fetched
-                """.trimIndent(),
-            )
+            is FetchThemesResult.Fetched -> echo(result.render())
             is FetchThemesResult.Failed -> {
                 echo(result.message)
                 throw ProgramResult(statusCode = 1)
@@ -56,3 +49,11 @@ internal class ThemeFetchCliCommand(
 
     override fun help(context: Context): String = "Fetch themes into local .sdds files."
 }
+
+/** Печатает результат загрузки тем; общий для `theme fetch` и `ds fetch`. */
+internal fun FetchThemesResult.Fetched.render(): String = """
+    Tenants: $tenantCount
+    Files: $fileCount
+    Config: $configPath
+    Status: themes fetched
+""".trimIndent()

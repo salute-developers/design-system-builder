@@ -4,6 +4,7 @@ events {
 
 http {
     limit_req_zone $binary_remote_addr zone=project_api:10m rate=10r/s;
+    limit_conn_zone "$binary_remote_addr|$uri" zone=ds_route_connections:10m;
 
     map $http_x_forwarded_proto $forwarded_proto {
         default $http_x_forwarded_proto;
@@ -40,24 +41,12 @@ http {
         server projects-service:8082;
     }
 
-    upstream db_service_api {
-        server ${DB_SERVICE_UPSTREAM_HOST}:${DB_SERVICE_UPSTREAM_PORT};
-    }
-
-    upstream docs_service_api {
-        server ${DOCS_SERVICE_UPSTREAM_HOST}:${DOCS_SERVICE_UPSTREAM_PORT};
+    upstream ds_service_api {
+        server ${DS_SERVICE_UPSTREAM_HOST}:${DS_SERVICE_UPSTREAM_PORT};
     }
 
     upstream documentation_service_api {
         server ${DOCUMENTATION_SERVICE_UPSTREAM_HOST}:${DOCUMENTATION_SERVICE_UPSTREAM_PORT};
-    }
-
-    upstream generator_service_api {
-        server ${GENERATOR_SERVICE_UPSTREAM_HOST}:${GENERATOR_SERVICE_UPSTREAM_PORT};
-    }
-
-    upstream publisher_service_api {
-        server ${PUBLISHER_SERVICE_UPSTREAM_HOST}:${PUBLISHER_SERVICE_UPSTREAM_PORT};
     }
 
     server {
@@ -77,10 +66,12 @@ http {
         proxy_hide_header Access-Control-Allow-Origin;
         proxy_hide_header Access-Control-Allow-Methods;
         proxy_hide_header Access-Control-Allow-Headers;
+        proxy_hide_header Access-Control-Expose-Headers;
         add_header Access-Control-Allow-Origin $cors_allowed_origin always;
         add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
-        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key" always;
         add_header Vary Origin always;
+        add_header Access-Control-Expose-Headers "X-DS-Mutation-Metadata, X-DS-Mutation-Metadata-Truncated" always;
         error_page 401 = @gateway_unauthorized;
         error_page 403 = @gateway_forbidden;
 
@@ -103,6 +94,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -130,6 +122,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -153,6 +146,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -172,6 +166,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -199,6 +194,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -218,6 +214,7 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin "";
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $http_host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -231,7 +228,8 @@ http {
             return 403;
         }
 
-        location = /api/projects {
+        # Collection-level project routes require an authenticated user, not project membership.
+        location ~ ^/api/projects(?:/member-candidates)?$ {
             limit_req zone=project_api burst=20 nodelay;
             auth_request /_auth_user;
             auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
@@ -245,11 +243,12 @@ http {
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
-            rewrite ^/api(/projects)$ $1 break;
+            rewrite ^/api(/projects(?:/member-candidates)?)$ $1 break;
             proxy_pass http://projects_api;
         }
 
@@ -257,7 +256,13 @@ http {
             return 308 /api/projects;
         }
 
-        location ~ ^/api/admin(/.*)?$ {
+        # Импорт API-меты в глобальный слой обслуживает ds-service. Принимается только токен пользователя
+        # (ключ проекта получает 401), а ds-service сам требует роль системного администратора. У глобальной
+        # операции проекта нет, но доверенный контекст ds-service требует непустой идентификатор: gateway
+        # выставляет служебное значение `global`.
+        location = /api/admin/component-config/import-api-meta {
+            client_max_body_size 16m;
+
             limit_req zone=project_api burst=20 nodelay;
             auth_request /_auth_user;
             auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
@@ -266,19 +271,48 @@ http {
 
             proxy_set_header X-Actor-Type $trusted_actor_type;
             proxy_set_header X-User-Id $trusted_user_id;
-            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Id "global";
             proxy_set_header X-Project-Role "";
             proxy_set_header X-Project-Key-Id "";
             proxy_set_header X-Project-Scopes "";
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
 
-            proxy_set_header Host ${DB_SERVICE_UPSTREAM_HOST};
+            proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
-            rewrite ^/api/admin(/.*)?$ /api/admin$1 break;
-            proxy_ssl_server_name on;
-            proxy_ssl_name ${DB_SERVICE_UPSTREAM_HOST};
-            proxy_pass ${DB_SERVICE_UPSTREAM_SCHEME}://db_service_api;
+            rewrite ^/api/admin/component-config/import-api-meta$ /api/ds/admin/component-config/import-api-meta break;
+            proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;
+        }
+
+        # Публикация Compose preview plugin: архив и нормализованная мета одним multipart-запросом. Принимается только
+        # токен пользователя (ключ проекта получает 401); роль публикации или системного администратора проверяет ds-service.
+        location = /api/admin/compose-preview/plugin-builds {
+            client_max_body_size 64m;
+            proxy_read_timeout 120s;
+            proxy_send_timeout 120s;
+
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_user;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+            auth_request_set $trusted_compose_preview_publisher $upstream_http_x_compose_preview_publisher;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id "global";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher $trusted_compose_preview_publisher;
+
+            proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/admin/compose-preview/plugin-builds$ /api/ds/admin/compose-preview/plugin-builds break;
+            proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;
         }
 
         location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {
@@ -290,6 +324,7 @@ http {
             client_max_body_size 16m;
 
             limit_req zone=project_api burst=20 nodelay;
+            limit_conn ds_route_connections 16;
             auth_request /_auth_project;
             auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
             auth_request_set $trusted_user_id $upstream_http_x_user_id;
@@ -306,44 +341,13 @@ http {
             proxy_set_header X-Project-Key-Id $trusted_project_key_id;
             proxy_set_header X-Project-Scopes $trusted_project_scopes;
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
 
-            proxy_set_header Host ${DB_SERVICE_UPSTREAM_HOST};
+            proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;
-            proxy_ssl_server_name on;
-            proxy_ssl_name ${DB_SERVICE_UPSTREAM_HOST};
-            proxy_pass ${DB_SERVICE_UPSTREAM_SCHEME}://db_service_api;
-        }
-
-        location ~ ^/api/projects/([^/]+)/docs(/.*)?$ {
-            set $project_id $1;
-
-            limit_req zone=project_api burst=20 nodelay;
-            auth_request /_auth_project;
-            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
-            auth_request_set $trusted_user_id $upstream_http_x_user_id;
-            auth_request_set $trusted_project_id $upstream_http_x_project_id;
-            auth_request_set $trusted_project_role $upstream_http_x_project_role;
-            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
-            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
-            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
-
-            proxy_set_header X-Actor-Type $trusted_actor_type;
-            proxy_set_header X-User-Id $trusted_user_id;
-            proxy_set_header X-Project-Id $trusted_project_id;
-            proxy_set_header X-Project-Role $trusted_project_role;
-            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
-            proxy_set_header X-Project-Scopes $trusted_project_scopes;
-            proxy_set_header X-System-Admin $trusted_system_admin;
-
-            proxy_set_header Host ${DOCS_SERVICE_UPSTREAM_HOST};
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            rewrite ^/api/projects/[^/]+/docs(/.*)?$ $1 break;
-            proxy_ssl_server_name on;
-            proxy_ssl_name ${DOCS_SERVICE_UPSTREAM_HOST};
-            proxy_pass ${DOCS_SERVICE_UPSTREAM_SCHEME}://docs_service_api;
+            proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;
         }
 
         location ~ ^/api/projects/([^/]+)/documentation(/.*)?$ {
@@ -372,6 +376,7 @@ http {
             proxy_set_header X-Project-Key-Id $trusted_project_key_id;
             proxy_set_header X-Project-Scopes $trusted_project_scopes;
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
             proxy_set_header X-Request-Id $request_id;
             proxy_set_header Host ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -380,66 +385,6 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_name ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};
             proxy_pass ${DOCUMENTATION_SERVICE_UPSTREAM_SCHEME}://documentation_service_api;
-        }
-
-        location ~ ^/api/projects/([^/]+)/generator(/.*)?$ {
-            set $project_id $1;
-
-            limit_req zone=project_api burst=20 nodelay;
-            auth_request /_auth_project;
-            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
-            auth_request_set $trusted_user_id $upstream_http_x_user_id;
-            auth_request_set $trusted_project_id $upstream_http_x_project_id;
-            auth_request_set $trusted_project_role $upstream_http_x_project_role;
-            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
-            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
-            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
-
-            proxy_set_header X-Actor-Type $trusted_actor_type;
-            proxy_set_header X-User-Id $trusted_user_id;
-            proxy_set_header X-Project-Id $trusted_project_id;
-            proxy_set_header X-Project-Role $trusted_project_role;
-            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
-            proxy_set_header X-Project-Scopes $trusted_project_scopes;
-            proxy_set_header X-System-Admin $trusted_system_admin;
-
-            proxy_set_header Host ${GENERATOR_SERVICE_UPSTREAM_HOST};
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            rewrite ^/api/projects/[^/]+/generator(/.*)?$ $1 break;
-            proxy_ssl_server_name on;
-            proxy_ssl_name ${GENERATOR_SERVICE_UPSTREAM_HOST};
-            proxy_pass ${GENERATOR_SERVICE_UPSTREAM_SCHEME}://generator_service_api;
-        }
-
-        location ~ ^/api/projects/([^/]+)/publisher(/.*)?$ {
-            set $project_id $1;
-
-            limit_req zone=project_api burst=20 nodelay;
-            auth_request /_auth_project;
-            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
-            auth_request_set $trusted_user_id $upstream_http_x_user_id;
-            auth_request_set $trusted_project_id $upstream_http_x_project_id;
-            auth_request_set $trusted_project_role $upstream_http_x_project_role;
-            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
-            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
-            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
-
-            proxy_set_header X-Actor-Type $trusted_actor_type;
-            proxy_set_header X-User-Id $trusted_user_id;
-            proxy_set_header X-Project-Id $trusted_project_id;
-            proxy_set_header X-Project-Role $trusted_project_role;
-            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
-            proxy_set_header X-Project-Scopes $trusted_project_scopes;
-            proxy_set_header X-System-Admin $trusted_system_admin;
-
-            proxy_set_header Host ${PUBLISHER_SERVICE_UPSTREAM_HOST};
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            rewrite ^/api/projects/[^/]+/publisher(/.*)?$ $1 break;
-            proxy_ssl_server_name on;
-            proxy_ssl_name ${PUBLISHER_SERVICE_UPSTREAM_HOST};
-            proxy_pass ${PUBLISHER_SERVICE_UPSTREAM_SCHEME}://publisher_service_api;
         }
 
         location ~ ^/api/projects/([^/]+)(/.*)?$ {
@@ -462,6 +407,7 @@ http {
             proxy_set_header X-Project-Key-Id $trusted_project_key_id;
             proxy_set_header X-Project-Scopes $trusted_project_scopes;
             proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Compose-Preview-Publisher "";
 
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -481,6 +427,9 @@ http {
 
         location = /_auth_user {
             internal;
+            # Подзапрос проверяет размер тела по своему location, хотя тело не передаёт: без своего лимита (общий 2m)
+            # большие загрузки (архив плагина) получают 413 до проверки прав.
+            client_max_body_size 64m;
             proxy_pass_request_body off;
             proxy_set_header Content-Length "";
             proxy_set_header Authorization $http_authorization;
@@ -491,7 +440,7 @@ http {
         location @gateway_unauthorized {
             add_header Access-Control-Allow-Origin $cors_allowed_origin always;
             add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
-            add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key" always;
             add_header Vary Origin always;
             return 401;
         }
@@ -499,7 +448,7 @@ http {
         location @gateway_forbidden {
             add_header Access-Control-Allow-Origin $cors_allowed_origin always;
             add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
-            add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key" always;
             add_header Vary Origin always;
             return 403;
         }

@@ -1,8 +1,7 @@
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
-
 import { Config, Theme, ComponentAPI, ComponentVariation, PropType, PropState, PropUnion } from '../../../../controllers';
 
 import { ListItemPreviewWrapper, ListItemColorPreview, ListItemTypographyPreview, ListItemShapePreview, ListItemShadowPreview } from './ComponentEditorProperties.styles';
+import { restorePaletteColor } from '../../../../palette/activePalette';
 
 export const getPropsByVariation = (api: ComponentAPI[], variations: ComponentVariation[], variationID?: string) => {
     if (!variationID) {
@@ -50,6 +49,7 @@ export const propTypeMap: Record<string, string> = {
     shadow: 'Тень',
     float: 'Число',
     dimension: 'Размер',
+    component_style: 'Стиль компонента',
 };
 
 export const getPropList = (
@@ -77,11 +77,12 @@ export const getPropList = (
                 return;
             }
 
-            result[type].push(item);
+            // Значение стиля может иметь тип, которого нет среди свойств API выбранной вариации (Compose).
+            (result[type] ??= []).push(item);
         });
 
         return Object.entries(result).map(([key, props]) => ({
-            type: propTypeMap[key],
+            type: propTypeMap[key] ?? key,
             props,
         }));
     };
@@ -131,8 +132,8 @@ export const getColorsTokens = (theme?: Theme) => {
                 value: name.join('.'),
                 contentRight: (
                     <ListItemPreviewWrapper>
-                        <ListItemColorPreview color={getRestoredColorFromPalette(darkValue)} />
-                        <ListItemColorPreview color={getRestoredColorFromPalette(lightValue)} />
+                        <ListItemColorPreview color={restorePaletteColor(darkValue, 0, item.getName())} />
+                        <ListItemColorPreview color={restorePaletteColor(lightValue, 0, item.getName())} />
                     </ListItemPreviewWrapper>
                 ),
             };
@@ -176,8 +177,8 @@ export const getColorStateTokens = (suffix: string, theme?: Theme) => {
                 value: stateName,
                 contentRight: (
                     <ListItemPreviewWrapper>
-                        <ListItemColorPreview color={getRestoredColorFromPalette(darkValue)} />
-                        <ListItemColorPreview color={getRestoredColorFromPalette(lightValue)} />
+                        <ListItemColorPreview color={restorePaletteColor(darkValue, 0, item.getName())} />
+                        <ListItemColorPreview color={restorePaletteColor(lightValue, 0, item.getName())} />
                     </ListItemPreviewWrapper>
                 ),
             };

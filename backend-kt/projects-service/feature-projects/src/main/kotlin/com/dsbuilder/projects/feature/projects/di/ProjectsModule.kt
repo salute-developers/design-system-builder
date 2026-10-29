@@ -19,6 +19,7 @@ import com.dsbuilder.projects.feature.projects.application.usecase.ProjectAccess
 import com.dsbuilder.projects.feature.projects.application.usecase.RemoveProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RestoreProjectUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RevokeProjectAccessKeyUseCase
+import com.dsbuilder.projects.feature.projects.application.usecase.SearchProjectMemberCandidatesUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectMemberRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProjectAccessKeyUseCase
@@ -55,13 +56,14 @@ object ProjectsModule {
         single<ProjectRepository> { ExposedProjectRepository() }
         single<TransactionManager> { JdbcTransactionManager(get()) }
         single { CreateProjectUseCase(get(), get(), get(), get()) }
-        single { ListProjectsUseCase(get(), get()) }
-        single { GetProjectUseCase(get(), get(), get()) }
+        single { ListProjectsUseCase(get(), get(), get()) }
+        single { GetProjectUseCase(get(), get(), get(), get()) }
         single { UpdateProjectUseCase(get(), get(), get(), get()) }
         single { ArchiveProjectUseCase(get(), get(), get(), get()) }
         single { RestoreProjectUseCase(get(), get(), get(), get()) }
-        single { ListProjectMembersUseCase(get(), get(), get()) }
+        single { ListProjectMembersUseCase(get(), get(), get(), get()) }
         single { AddProjectMemberUseCase(get(), get(), get(), get(), get()) }
+        single { SearchProjectMemberCandidatesUseCase(get()) }
         single { UpdateProjectMemberRoleUseCase(get(), get(), get(), get()) }
         single { RemoveProjectMemberUseCase(get(), get(), get()) }
         single { CreateProjectAccessKeyUseCase(get(), get(), get(), get(), get(), get()) }

@@ -57,7 +57,7 @@ interface TokenMeta {
     displayName: string;
 }
 
-interface TokenChange {
+export interface TokenChange {
     type: VariationType;
     values: {
         web: any;
@@ -67,44 +67,141 @@ interface TokenChange {
     description?: string;
     enabled: boolean;
     meta?: TokenMeta;
+    deleted?: boolean;
 }
 
 type DraftChanges = Record<string, TokenChange>;
 
-const draftAddedTokens = new Set<string>();
+export interface DraftContext {
+    projectId: string;
+    designSystemId: string;
+    tenantId: string;
+}
 
-export const isDraftAddedToken = (tokenName: string) => draftAddedTokens.has(tokenName);
+let activeDraftContext: DraftContext | null = null;
+let pendingMutationListener:
+    | ((event: {
+          context: NonNullable<typeof activeDraftContext>;
+          tokenName: string;
+          previousTokenName?: string;
+          change: TokenChange | null;
+          kind: 'create' | 'update' | 'rename' | 'delete' | 'discard';
+      }) => void)
+    | null = null;
+const draftAddedTokensByKey = new Map<string, Set<string>>();
+const volatileDraftChanges = new Map<string, DraftChanges>();
 
-export const getDraftKey = (name: string, version: string) => `${DRAFT_PREFIX}${name}:${version}`;
+export const setActiveDraftContext = (context: typeof activeDraftContext) => {
+    activeDraftContext = context;
+};
 
-const loadDraftChanges = (dsName: string, dsVersion: string): DraftChanges => {
-    const raw = localStorage.getItem(getDraftKey(dsName, dsVersion));
+export const setPendingMutationListener = (listener: typeof pendingMutationListener) => {
+    pendingMutationListener = listener;
+};
+
+const notifyPendingMutation = (
+    tokenName: string,
+    change: TokenChange | null,
+    kind: 'create' | 'update' | 'rename' | 'delete' | 'discard',
+    previousTokenName?: string,
+) => {
+    if (activeDraftContext && pendingMutationListener) {
+        pendingMutationListener({ context: activeDraftContext, tokenName, previousTokenName, change, kind });
+    }
+};
+
+const activeKey = (name: string, version: string, context: DraftContext | null = activeDraftContext) =>
+    context
+        ? `${DRAFT_PREFIX}${context.projectId}:${context.designSystemId}:${context.tenantId}`
+        : `${DRAFT_PREFIX}${name}:${version}`;
+const draftAddedTokens = (context?: DraftContext) => {
+    const key = activeKey('', '', context);
+    const existing = draftAddedTokensByKey.get(key) ?? new Set<string>();
+    draftAddedTokensByKey.set(key, existing);
+    return existing;
+};
+
+export const isDraftAddedToken = (tokenName: string) => draftAddedTokens().has(tokenName);
+
+export const getDraftKey = (name: string, version: string, context?: DraftContext) => activeKey(name, version, context);
+
+const loadDraftChanges = (dsName: string, dsVersion: string, context?: DraftContext): DraftChanges => {
+    const key = getDraftKey(dsName, dsVersion, context);
+    let raw: string | null;
+    try {
+        raw = localStorage.getItem(key);
+    } catch {
+        return volatileDraftChanges.get(key) ?? {};
+    }
 
     if (!raw) {
+        volatileDraftChanges.delete(key);
         return {};
     }
 
     try {
-        return JSON.parse(raw) as DraftChanges;
+        const changes = JSON.parse(raw) as DraftChanges;
+        volatileDraftChanges.set(key, changes);
+        return changes;
     } catch {
+        volatileDraftChanges.delete(key);
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            // Storage is only a recovery aid; the in-memory autosave path must remain available.
+        }
         return {};
     }
 };
 
-const saveDraftChanges = (dsName: string, dsVersion: string, changes: DraftChanges) => {
+/** Полные имена токенов (с префиксом режима), у которых есть запись в черновике. */
+export const draftTokenNames = (dsName: string, dsVersion: string) =>
+    new Set(Object.keys(loadDraftChanges(dsName, dsVersion)));
+
+/** Записи черновика токенов заданных типов: полное имя с режимом и тип. */
+export const draftEntriesOfTypes = (dsName: string, dsVersion: string, types: readonly VariationType[]) =>
+    Object.entries(loadDraftChanges(dsName, dsVersion))
+        .filter(([, change]) => types.includes(change.type))
+        .map(([name, change]) => ({ name, type: change.type }));
+
+/** Удаляет из черновика записи [names]; остальные записи сохраняются. */
+export const removeDraftEntries = (dsName: string, dsVersion: string, names: readonly string[]) => {
+    const changes = loadDraftChanges(dsName, dsVersion);
+    names.forEach((name) => {
+        delete changes[name];
+        draftAddedTokens().delete(name);
+    });
+    saveDraftChanges(dsName, dsVersion, changes);
+};
+
+export const pendingDraftTokens = (dsName: string, dsVersion: string): DraftChanges =>
+    loadDraftChanges(dsName, dsVersion);
+
+const saveDraftChanges = (dsName: string, dsVersion: string, changes: DraftChanges, context?: DraftContext) => {
+    const key = getDraftKey(dsName, dsVersion, context);
     if (Object.keys(changes).length === 0) {
-        localStorage.removeItem(getDraftKey(dsName, dsVersion));
+        volatileDraftChanges.delete(key);
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            // The server save remains authoritative even when browser storage is unavailable.
+        }
         return;
     }
 
-    localStorage.setItem(getDraftKey(dsName, dsVersion), JSON.stringify(changes));
+    volatileDraftChanges.set(key, changes);
+    try {
+        localStorage.setItem(key, JSON.stringify(changes));
+    } catch {
+        // Keep the pending change in memory so the autosave listener can still enqueue it.
+    }
 };
 
 export const updateDraftToken = (
     dsName: string,
     dsVersion: string,
     token?: Token,
-    action: 'remove' | 'save' | 'toggle' = 'save',
+    action: 'remove' | 'discard' | 'save' | 'toggle' = 'save',
 ) => {
     if (!token) {
         return;
@@ -113,10 +210,35 @@ export const updateDraftToken = (
     const tokenName = token.getName();
     const changes = loadDraftChanges(dsName, dsVersion);
 
-    if (action === 'remove') {
+    if (action === 'discard') {
         delete changes[tokenName];
 
         saveDraftChanges(dsName, dsVersion, changes);
+        notifyPendingMutation(tokenName, null, 'discard');
+        return;
+    }
+
+    if (action === 'remove') {
+        if (draftAddedTokens().has(tokenName)) {
+            draftAddedTokens().delete(tokenName);
+            delete changes[tokenName];
+            saveDraftChanges(dsName, dsVersion, changes);
+            notifyPendingMutation(tokenName, null, 'discard');
+            return;
+        }
+        changes[tokenName] = {
+            type: token.getType(),
+            values: {
+                web: token.getValue('web'),
+                ios: token.getValue('ios'),
+                android: token.getValue('android'),
+            },
+            description: token.getDescription(),
+            enabled: token.getEnabled(),
+            deleted: true,
+        };
+        saveDraftChanges(dsName, dsVersion, changes);
+        notifyPendingMutation(tokenName, changes[tokenName], 'delete');
         return;
     }
 
@@ -137,6 +259,7 @@ export const updateDraftToken = (
         };
 
         saveDraftChanges(dsName, dsVersion, changes);
+        notifyPendingMutation(tokenName, changes[tokenName], 'update');
         return;
     }
 };
@@ -147,9 +270,9 @@ export const renameDraftToken = (dsName: string, dsVersion: string, oldName: str
 
     delete changes[oldName];
 
-    if (draftAddedTokens.has(oldName)) {
-        draftAddedTokens.delete(oldName);
-        draftAddedTokens.add(newName);
+    if (draftAddedTokens().has(oldName)) {
+        draftAddedTokens().delete(oldName);
+        draftAddedTokens().add(newName);
     }
 
     changes[newName] = {
@@ -169,13 +292,14 @@ export const renameDraftToken = (dsName: string, dsVersion: string, oldName: str
     };
 
     saveDraftChanges(dsName, dsVersion, changes);
+    notifyPendingMutation(newName, changes[newName], 'rename', oldName);
 };
 
 export const createDraftToken = (dsName: string, dsVersion: string, token: Token) => {
     const tokenName = token.getName();
     const changes = loadDraftChanges(dsName, dsVersion);
 
-    draftAddedTokens.add(tokenName);
+    draftAddedTokens().add(tokenName);
 
     changes[tokenName] = {
         type: token.getType(),
@@ -194,6 +318,15 @@ export const createDraftToken = (dsName: string, dsVersion: string, token: Token
     };
 
     saveDraftChanges(dsName, dsVersion, changes);
+    notifyPendingMutation(tokenName, changes[tokenName], 'create');
+};
+
+/** Удаляет только подтверждённый сервером запрос, не меняя предметные данные редактора. */
+export const confirmDraftToken = (dsName: string, dsVersion: string, tokenName: string, context?: DraftContext) => {
+    const changes = loadDraftChanges(dsName, dsVersion, context);
+    delete changes[tokenName];
+    saveDraftChanges(dsName, dsVersion, changes, context);
+    draftAddedTokens(context).delete(tokenName);
 };
 
 const restoreDraftToken = (theme: Theme, change: TokenChange) => {
@@ -209,71 +342,50 @@ const restoreDraftToken = (theme: Theme, change: TokenChange) => {
         enabled: change.enabled,
     };
 
-    if (change.type === 'color') {
-        const token = new ColorToken(meta, {
-            web: new WebColor(change.values.web as WebColorToken[string]),
-            ios: new IOSColor(change.values.ios as IOSColorToken[string]),
-            android: new AndroidColor(change.values.android as AndroidColorToken[string]),
-        });
-        theme.addToken('color', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
+    const factories: Partial<Record<VariationType, () => Token>> = {
+        color: () =>
+            new ColorToken(meta, {
+                web: new WebColor(change.values.web as WebColorToken[string]),
+                ios: new IOSColor(change.values.ios as IOSColorToken[string]),
+                android: new AndroidColor(change.values.android as AndroidColorToken[string]),
+            }),
+        gradient: () =>
+            new GradientToken(meta, {
+                web: new WebGradient(change.values.web as WebGradientToken[string]),
+                ios: new IOSGradient(change.values.ios as IOSGradientToken[string]),
+                android: new AndroidGradient(change.values.android as AndroidGradientToken[string]),
+            }),
+        shape: () =>
+            new ShapeToken(meta, {
+                web: new WebShape(change.values.web as WebShapeToken[string]),
+                ios: new IOSShape(change.values.ios as IOSShapeToken[string]),
+                android: new AndroidShape(change.values.android as AndroidShapeToken[string]),
+            }),
+        spacing: () =>
+            new SpacingToken(meta, {
+                web: new WebSpacing(change.values.web as WebSpacingToken[string]),
+                ios: new IOSSpacing(change.values.ios as IOSSpacingToken[string]),
+                android: new AndroidSpacing(change.values.android as AndroidSpacingToken[string]),
+            }),
+        shadow: () =>
+            new ShadowToken(meta, {
+                web: new WebShadow(change.values.web as WebShadowToken[string]),
+                ios: new IOSShadow(change.values.ios as IOSShadowToken[string]),
+                android: new AndroidShadow(change.values.android as AndroidShadowToken[string]),
+            }),
+        typography: () =>
+            new TypographyToken(meta, {
+                web: new WebTypography(change.values.web as WebTypographyToken[string]),
+                ios: new IOSTypography(change.values.ios as IOSTypographyToken[string]),
+                android: new AndroidTypography(change.values.android as AndroidTypographyToken[string]),
+            }),
+    };
 
-    if (change.type === 'gradient') {
-        const token = new GradientToken(meta, {
-            web: new WebGradient(change.values.web as WebGradientToken[string]),
-            ios: new IOSGradient(change.values.ios as IOSGradientToken[string]),
-            android: new AndroidGradient(change.values.android as AndroidGradientToken[string]),
-        });
-        theme.addToken('gradient', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
+    const factory = factories[change.type];
+    if (!factory) return;
 
-    if (change.type === 'shape') {
-        const token = new ShapeToken(meta, {
-            web: new WebShape(change.values.web as WebShapeToken[string]),
-            ios: new IOSShape(change.values.ios as IOSShapeToken[string]),
-            android: new AndroidShape(change.values.android as AndroidShapeToken[string]),
-        });
-        theme.addToken('shape', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
-
-    if (change.type === 'spacing') {
-        const token = new SpacingToken(meta, {
-            web: new WebSpacing(change.values.web as WebSpacingToken[string]),
-            ios: new IOSSpacing(change.values.ios as IOSSpacingToken[string]),
-            android: new AndroidSpacing(change.values.android as AndroidSpacingToken[string]),
-        });
-        theme.addToken('spacing', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
-
-    if (change.type === 'shadow') {
-        const token = new ShadowToken(meta, {
-            web: new WebShadow(change.values.web as WebShadowToken[string]),
-            ios: new IOSShadow(change.values.ios as IOSShadowToken[string]),
-            android: new AndroidShadow(change.values.android as AndroidShadowToken[string]),
-        });
-        theme.addToken('shadow', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
-
-    if (change.type === 'typography') {
-        const token = new TypographyToken(meta, {
-            web: new WebTypography(change.values.web as WebTypographyToken[string]),
-            ios: new IOSTypography(change.values.ios as IOSTypographyToken[string]),
-            android: new AndroidTypography(change.values.android as AndroidTypographyToken[string]),
-        });
-        theme.addToken('typography', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
+    theme.addToken(change.type, factory());
+    draftAddedTokens().add(change.meta.name);
 };
 
 export const clearDraft = (dsName?: string, dsVersion?: string) => {
@@ -281,18 +393,57 @@ export const clearDraft = (dsName?: string, dsVersion?: string) => {
         return;
     }
 
-    localStorage.removeItem(getDraftKey(dsName, dsVersion));
-    draftAddedTokens.clear();
+    const key = getDraftKey(dsName, dsVersion);
+    volatileDraftChanges.delete(key);
+    try {
+        localStorage.removeItem(key);
+    } catch {
+        // Clearing the in-memory copy is sufficient for the active page session.
+    }
+    draftAddedTokens().clear();
 };
 
 export const hasDraft = (dsName: string, dsVersion: string) => {
-    return localStorage.getItem(getDraftKey(dsName, dsVersion)) !== null;
+    const key = getDraftKey(dsName, dsVersion);
+    try {
+        return localStorage.getItem(key) !== null;
+    } catch {
+        return volatileDraftChanges.has(key);
+    }
+};
+
+/** Черновик на момент отправки: ключ фиксируется сразу, чтобы смена tenant не подменила его. */
+export interface DraftSnapshot {
+    key: string;
+    value: string | null;
+}
+
+export const takeDraftSnapshot = (dsName: string, dsVersion: string): DraftSnapshot => {
+    const key = getDraftKey(dsName, dsVersion);
+    return { key, value: localStorage.getItem(key) };
+};
+
+/**
+ * Очищает черновик снимка, если он не менялся с момента снимка: правки, сделанные во время сохранения,
+ * в запрос не попали и должны остаться. Возвращает, был ли черновик очищен.
+ */
+export const clearDraftIfUnchanged = ({ key, value }: DraftSnapshot) => {
+    if (localStorage.getItem(key) !== value) {
+        return false;
+    }
+    localStorage.removeItem(key);
+    draftAddedTokensByKey.delete(key);
+    return true;
 };
 
 export const applyDraftChanges = (theme: Theme, dsName: string, dsVersion: string) => {
     const changes = loadDraftChanges(dsName, dsVersion);
 
     Object.entries(changes).forEach(([tokenName, change]) => {
+        if (change.deleted) {
+            theme.removeToken(tokenName, change.type);
+            return;
+        }
         let token = theme.getToken(tokenName, change.type);
 
         if (!token) {

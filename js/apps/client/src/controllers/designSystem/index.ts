@@ -8,13 +8,8 @@ import {
     type PlatformsVariations,
     type ThemeMeta,
 } from '../themeBuilder';
-import { Config, type Meta } from '../componentBuilder';
-import {
-    kebabToCamel,
-    loadDesignSystem,
-    saveDesignSystem,
-    updateDesignSystem,
-} from '../../utils';
+import { Config, resolveStyleReference, type Meta } from '../componentBuilder';
+import { kebabToCamel } from '../../utils';
 import { Parameters } from '../../types';
 
 interface DesignSystemProps {
@@ -37,55 +32,29 @@ export class DesignSystem {
 
     private themeData: ThemeSource;
     private componentsData: Meta[] = [];
+    private composeComponentsData: Meta[] = [];
 
-    private constructor({ name, parameters }: DesignSystemProps) {
+    private constructor({ name, version = '0.1.0', parameters }: DesignSystemProps) {
         this.name = name;
-        this.version = '0.1.0';
+        this.version = version;
         this.parameters = parameters;
 
         this.themeData = {} as ThemeSource;
         this.componentsData = [];
     }
 
-    public static async create({
+    public static fromSnapshot({
         name,
-        version = '0.1.0',
+        version,
         parameters,
-        themeData: externalThemeData,
-    }: DesignSystemProps): Promise<DesignSystem> {
+        themeData,
+        componentsData,
+        composeComponentsData = [],
+    }: DesignSystemProps & { componentsData: Meta[]; composeComponentsData?: Meta[] }) {
         const instance = new DesignSystem({ name, version, parameters });
-
-        // TOD: Временно новая дизайн-система создаётся только с темой: компоненты из `base` в неё не копируются.
-        instance.themeData = externalThemeData ?? instance.generateThemeData(parameters);
-        instance.componentsData = [];
-
-        if (name && version) {
-            await saveDesignSystem({
-                name,
-                version,
-                parameters,
-                themeData: instance.themeData,
-                componentsData: instance.componentsData,
-            });
-        }
-
-        return instance;
-    }
-
-    public static async get({ name, version = '0.1.0', projectId = '' }: DesignSystemProps): Promise<DesignSystem> {
-        const instance = new DesignSystem({ name, version });
-        const data = await loadDesignSystem({ name, version, projectId });
-
-        if (!data) {
-            throw new Error('Дизайн-система не найдена');
-        }
-
-        const { themeData, componentsData, parameters } = data;
-
-        instance.themeData = themeData;
+        instance.themeData = themeData ?? ({} as ThemeSource);
         instance.componentsData = componentsData;
-        instance.parameters = { ...parameters, projectId }; // TODO: Забирать эти значения из бд
-
+        instance.composeComponentsData = composeComponentsData;
         return instance;
     }
 
@@ -130,58 +99,6 @@ export class DesignSystem {
         };
     }
 
-    // public async saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
-    //     this.themeData = data;
-
-    //     if (!this.name || !this.version) {
-    //         return;
-    //     }
-
-    //     return await saveDesignSystem({
-    //         name: this.name,
-    //         version: this.version,
-    //         parameters: this.parameters,
-    //         themeData: this.themeData,
-    //         componentsData: this.componentsData,
-    //     });
-    // }
-
-    // public async saveComponentsData(data: Meta[]) {
-    //     this.componentsData = data;
-
-    //     if (!this.name || !this.version) {
-    //         return;
-    //     }
-
-    //     return await saveDesignSystem({
-    //         name: this.name,
-    //         version: this.version,
-    //         parameters: this.parameters,
-    //         themeData: this.themeData,
-    //         componentsData: this.componentsData,
-    //     });
-    // }
-
-    public async updateDesignSystemData(
-        themeData: { meta: ThemeMeta; variations: PlatformsVariations },
-        componentsData: Meta[],
-    ) {
-        this.themeData = themeData;
-        this.componentsData = componentsData;
-
-        if (!this.name || !this.version) {
-            return;
-        }
-
-        return await updateDesignSystem({
-            name: this.name,
-            version: this.version,
-            parameters: this.parameters,
-            themeData: this.themeData,
-            componentsData: this.componentsData,
-        });
-    }
-
     public getName() {
         return this.name;
     }
@@ -209,6 +126,18 @@ export class DesignSystem {
         return componentData || this.componentsData[0];
     }
 
+    /**
+     * API-метаданные компонента конфигурации с учётом платформы. Compose-компонент ищется только среди Compose-компонентов
+     * (имена с web совпадают, а API разный), без подмены чужим компонентом, если его нет.
+     */
+    public getComponentData(config: Config) {
+        if (config.getPlatform() === 'compose') {
+            return this.composeComponentsData.find((item) => item.name === config.getName());
+        }
+
+        return this.getComponentDataByName(config.getName());
+    }
+
     public getComponentsData() {
         return this.componentsData;
     }
@@ -219,6 +148,15 @@ export class DesignSystem {
 
     public createAllComponentInstances() {
         return this.componentsData.map((item) => new Config(item));
+    }
+
+    public createAllComposeComponentInstances() {
+        return this.composeComponentsData.map((item) => new Config(item));
+    }
+
+    /** Разворачивает ссылку на стиль Compose-компонента (`basic-button.xxs.default`). */
+    public resolveComposeStyleReference(reference: string) {
+        return resolveStyleReference(this.composeComponentsData, reference);
     }
 
     public createComponentInstance(data: { componentName: string }) {

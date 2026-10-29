@@ -17,8 +17,13 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 private const val TRANSPORT_MESSAGE_LIMIT = 200
+private val DENIAL_REASON_FIELDS = listOf("error", "message")
 
 /**
  * Таймаут запроса/сокета для HTTP-клиентов CLI.
@@ -107,6 +112,10 @@ public interface AuthenticatedHttpClient {
 
     /** Выполняет multipart POST с project API key. */
     public suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
+        postMultipart(path, listOf(file))
+
+    /** Выполняет multipart POST с несколькими частями; параметры запроса задаются в [path]. */
+    public suspend fun postMultipart(path: String, files: List<MultipartFile>): AuthenticatedHttpResponse =
         error("Multipart POST is not supported by this client.")
 }
 
@@ -132,6 +141,7 @@ public interface AuthenticatedHttpClientFactory {
         when (credential) {
             is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
             is BackendCredential.Bearer -> error("Bearer credentials are not supported by this client.")
+            is BackendCredential.ServiceToken -> error("Service tokens are not supported by this client.")
         }
 }
 
@@ -159,26 +169,31 @@ public class KtorAuthenticatedHttpClient(
             }
         }
 
-    override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
+    override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
+        postMultipart(path, listOf(file))
+
+    override suspend fun postMultipart(path: String, files: List<MultipartFile>): AuthenticatedHttpResponse {
         val response = httpClient.post(url(path)) {
             authorizationHeader()
             setBody(
                 MultiPartFormDataContent(
                     formData {
-                        append(
-                            file.partName,
-                            file.bytes,
-                            Headers.build {
-                                append(HttpHeaders.ContentType, file.contentType)
-                                append(
-                                    HttpHeaders.ContentDisposition,
-                                    ContentDisposition.File.withParameter(
-                                        ContentDisposition.Parameters.FileName,
-                                        file.fileName,
-                                    ).toString(),
-                                )
-                            },
-                        )
+                        files.forEach { file ->
+                            append(
+                                file.partName,
+                                file.bytes,
+                                Headers.build {
+                                    append(HttpHeaders.ContentType, file.contentType)
+                                    append(
+                                        HttpHeaders.ContentDisposition,
+                                        ContentDisposition.File.withParameter(
+                                            ContentDisposition.Parameters.FileName,
+                                            file.fileName,
+                                        ).toString(),
+                                    )
+                                },
+                            )
+                        }
                     },
                 ),
             )
@@ -215,11 +230,11 @@ public class KtorAuthenticatedHttpClient(
     private suspend fun HttpResponse.toResult(): AuthenticatedHttpResult = when {
         status.isSuccess() -> AuthenticatedHttpResult.Success(bodyAsText())
         status == HttpStatusCode.Unauthorized -> AuthenticatedHttpResult.Failure(
-            "Status: unauthorized. Credential is missing or invalid.",
+            "Status: unauthorized. Credential is missing or invalid.".withReason(denialReason()),
             status.value,
         )
         status == HttpStatusCode.Forbidden -> AuthenticatedHttpResult.Failure(
-            "Status: forbidden. Credential has no access to this project.",
+            "Status: forbidden. Credential has no access to this project.".withReason(denialReason()),
             status.value,
         )
         status == HttpStatusCode.NotFound -> AuthenticatedHttpResult.Failure(
@@ -245,11 +260,40 @@ public class KtorAuthenticatedHttpClient(
             ?.take(TRANSPORT_MESSAGE_LIMIT)
             ?: "(empty body)"
 
+    /**
+     * Причина отказа из JSON-тела ответа: текстовое поле `error` или `message`.
+     *
+     * Общий текст про проект не различает причин: `403` бывает из-за чужого проекта, нехватки scope и
+     * отсутствия роли системного администратора, и без причины администратор не поймёт, что именно не
+     * так. Пустое тело, не JSON и тело без текстового поля (например, `error` с описанием полей
+     * валидации) причины не дают, и сообщение остаётся прежним.
+     */
+    private suspend fun HttpResponse.denialReason(): String? {
+        val body = try {
+            Json.parseToJsonElement(bodyAsText()) as? JsonObject
+        } catch (exception: SerializationException) {
+            null
+        } catch (exception: IllegalArgumentException) {
+            null
+        }
+        return body?.let { DENIAL_REASON_FIELDS.firstNotNullOfOrNull { field -> it.textOf(field) } }
+            ?.substringBefore('\n')
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.take(TRANSPORT_MESSAGE_LIMIT)
+    }
+
+    private fun JsonObject.textOf(field: String): String? =
+        (get(field) as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    private fun String.withReason(reason: String?): String = if (reason == null) this else "$this Server: $reason"
+
     private fun url(path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
 
     private fun io.ktor.client.request.HttpRequestBuilder.authorizationHeader() {
         val value = when (credential) {
             is BackendCredential.Bearer -> "Bearer ${credential.accessToken}"
+            is BackendCredential.ServiceToken -> "Bearer ${credential.accessToken}"
             is BackendCredential.ProjectKey -> "ProjectKey ${credential.value}"
         }
         header(HttpHeaders.Authorization, value)

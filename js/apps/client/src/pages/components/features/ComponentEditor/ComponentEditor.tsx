@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { useComponentData, useStory } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
@@ -13,7 +14,9 @@ import {
     createComponentVars,
     createRelatedComponentVars,
     createRelatedComponents,
+    componentPreviewRequest,
     modeList,
+    resolveComponentPreview,
 } from './ComponentEditor.utils';
 
 interface ComponentEditorProps {
@@ -29,7 +32,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     const config = configs?.[0];
 
-    const { storyArgs, Story, items: storyItems, selectedStory, setSelectedStory } = useStory(config?.getName());
+    const { storyArgs, Story, items: storyItems, selectedStory, setSelectedStory } = useStory(config?.getPlatform() === 'web' ? config.getName() : undefined);
 
     const [
         selectedVariation,
@@ -40,7 +43,29 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setComponentProps,
     ] = useComponentData(config, storyArgs);
 
-    const [themeMode, setThemeMode] = useState<SegmentButtonItem>(modeList[0]);
+    const location = useLocation();
+    const preview = useMemo(() => componentPreviewRequest(location.state), [location.state]);
+    const [themeMode, setThemeMode] = useState<SegmentButtonItem>(
+        () => modeList.find((item) => item.value === preview?.mode) ?? modeList[0],
+    );
+
+    // INFO: Переход из «Доступности» цветовых токенов открывает вариацию и стиль пары. Эффект объявлен после
+    // `useComponentData` и применяется поверх значений по умолчанию, которые хук выставляет при загрузке.
+    useEffect(() => {
+        const selection = config && preview ? resolveComponentPreview(config, preview) : undefined;
+        if (!selection) {
+            return;
+        }
+        setSelectedVariation(selection.variationID);
+        setSelectedStyle(selection.styleID);
+        setComponentProps((current) => ({ ...current, [selection.variationName]: selection.styleID }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [config, storyArgs, preview]);
+    // Стабильная ссылка: от неё зависит пересборка payload Compose-превью.
+    const resolveStyleReference = useCallback(
+        (reference: string) => designSystem.resolveComposeStyleReference(reference),
+        [designSystem],
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const relatedConfigs = useMemo(() => new Map<string, Config>(), [designSystem, updated]);
 
@@ -77,11 +102,6 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     const onChangeComponentControlValue = (name?: string, value?: unknown) => {
         if (!name) {
             return;
-        }
-
-        // TODO: Подумать уйти от хардкода свойств
-        if (name === 'size' || name === 'view' || name === 'shape') {
-            delete componentProps[name];
         }
 
         // INFO: Выключенный флаг (`pilled`) — отсутствие аргумента, а не значение.
@@ -156,6 +176,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 onStorySelect={setSelectedStory}
                 onChange={onChangeComponentControlValue}
                 onUpdateThemeMode={setThemeMode}
+                resolveStyleReference={resolveStyleReference}
             />
         </Root>
     );

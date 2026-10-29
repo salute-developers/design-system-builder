@@ -1,4 +1,4 @@
-import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
+import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import {
     Config,
@@ -11,8 +11,10 @@ import {
     Theme,
     TypographyToken,
 } from '../controllers';
+import type { ComposePreviewComponentGroup } from '../composePreview';
 import { kebabToCamel } from './';
 import { Data, DataItems, GroupNode, MenuType } from '../types';
+import { restorePaletteColor } from '../palette/activePalette';
 
 // TODO: Перенести в БД?
 const componentList = [
@@ -75,7 +77,6 @@ const componentList = [
             { name: 'LinkButton', disabled: false },
             { name: 'NumberFormat', disabled: true },
             { name: 'NumberInput', disabled: false },
-            { name: 'Portal', disabled: true },
             { name: 'Radiobox', disabled: false },
             { name: 'Range', disabled: false },
             { name: 'SegmentGroup', disabled: false },
@@ -165,6 +166,123 @@ const generateComponentMap = (componentConfigs: Config[]) => {
     return data;
 };
 
+const OTHER_COMPONENTS_GROUP = 'Other';
+
+/**
+ * Группы Compose-компонентов. Имена Compose-платформы частично отличаются от web (`BasicButton` и
+ * `Button`, `CheckBox` и `Checkbox`) и включают собственные компоненты, поэтому соответствие задано явно.
+ * Компонент без записи ищется в каталоге web по имени, иначе попадает в «Other».
+ */
+const composeComponentGroups: Record<string, string[]> = {
+    'Data Display': [
+        'Accordion',
+        'AccordionItem',
+        'Avatar',
+        'AvatarGroup',
+        'Badge',
+        'Card',
+        'Cell',
+        'Chip',
+        'ChipGroup',
+        'Counter',
+        'Divider',
+        'IconBadge',
+        'Image',
+        'Indicator',
+        'List',
+        'ListItem',
+        'Note',
+        'NoteCompact',
+        'RectSkeleton',
+        'Spinner',
+        'TextSkeleton',
+    ],
+    'Data Entry': [
+        'Autocomplete',
+        'BasicButton',
+        'ButtonGroup',
+        'CheckBox',
+        'CheckBoxGroup',
+        'CodeField',
+        'CodeInput',
+        'ComboBox',
+        'DropdownEmptyState',
+        'DropdownLoadingState',
+        'DropdownMenu',
+        'DropZone',
+        'Editable',
+        'File',
+        'FormItem',
+        'IconButton',
+        'LinkButton',
+        'RadioBox',
+        'RadioBoxGroup',
+        'Segment',
+        'SegmentItem',
+        'Select',
+        'SelectItem',
+        'Slider',
+        'Switch',
+        'TextArea',
+        'TextField',
+        'Wheel',
+    ],
+    Navigation: [
+        'Carousel',
+        'CollapsingNavigationBar',
+        'IconTabItem',
+        'NavigationBar',
+        'NavigationDrawer',
+        'NavigationDrawerItem',
+        'PaginationDots',
+        'TabBar',
+        'TabBarItem',
+        'TabItem',
+        'Tabs',
+    ],
+    Overlay: [
+        'CircularProgressBar',
+        'Drawer',
+        'Loader',
+        'Modal',
+        'ModalBottomSheet',
+        'Notification',
+        'NotificationContent',
+        'Overlay',
+        'Popover',
+        'ProgressBar',
+        'Toast',
+        'ToolBar',
+        'Tooltip',
+    ],
+    Layout: ['ScrollBar', 'Splitter'],
+    AI: ['AiAnswer', 'AiHeader', 'AiInput', 'AiUserMessage'],
+};
+
+/**
+ * Compose-компоненты раскладываются по группам меню; имена вне соответствия и каталога web
+ * попадают в группу «Other».
+ */
+const generateComposeComponentMap = (componentConfigs: Config[], pluginGroups: ComposePreviewComponentGroup[] = []) => {
+    const groupByName = new Map([
+        ...componentList.flatMap(({ groupName, components }) => components.map(({ name }) => [name, groupName] as const)),
+        ...Object.entries(composeComponentGroups).flatMap(([group, names]) => names.map((name) => [name, group] as const)),
+        // Группы плагина совпадают с песочницей и сильнее таблицы клиента.
+        ...pluginGroups.flatMap(({ name, components }) => components.map((component) => [component, name] as const)),
+    ]);
+    const data: DataItems = { default: {} };
+
+    componentConfigs.forEach((item) => {
+        const name = item.getName();
+        const group = groupByName.get(name) ?? OTHER_COMPONENTS_GROUP;
+
+        data.default[group] ??= {};
+        data.default[group][name] = { default: { enabled: true, value: null, item } };
+    });
+
+    return data;
+};
+
 const generateColorTokensMap = (colors: ColorToken[], gradients: GradientToken[]) => {
     const groups: GroupNode[] = [];
 
@@ -194,7 +312,7 @@ const generateColorTokensMap = (colors: ColorToken[], gradients: GradientToken[]
                 let value = '';
 
                 if (token instanceof ColorToken) {
-                    value = getRestoredColorFromPalette(token.getValue('web') as string, -1);
+                    value = restorePaletteColor(token.getValue('web') as string, -1, token.getName());
                 }
                 if (token instanceof GradientToken) {
                     value = token.getValue('web').join(' ');
@@ -380,6 +498,9 @@ export const getMenuItems = (data?: Theme | Config[], type?: MenuType): GroupNod
         return colorTokens;
     }
 };
+
+export const getComposeMenuItems = (componentConfigs: Config[], pluginGroups?: ComposePreviewComponentGroup[]): Data =>
+    createDataItems(generateComposeComponentMap(componentConfigs, pluginGroups), 'components');
 
 export const getOldMenuItems = (data?: Theme | Config[], type?: MenuType): Data | undefined => {
     if (type === 'typography' && data instanceof Theme) {

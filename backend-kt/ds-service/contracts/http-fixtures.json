@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "description": "Deterministic identifiers and values shared by legacy and Kotlin HTTP contract runs.",
+  "project": {
+    "id": "project-contract-a",
+    "otherId": "project-contract-b"
+  },
+  "actor": {
+    "type": "user",
+    "id": "00000000-0000-4000-8000-000000000001",
+    "role": "owner",
+    "systemAdmin": false
+  },
+  "ids": {
+    "designSystem": "10000000-0000-4000-8000-000000000001",
+    "designSystemVersion": "10000000-0000-4000-8000-000000000002",
+    "designSystemChange": "10000000-0000-4000-8000-000000000003",
+    "tenant": "20000000-0000-4000-8000-000000000001",
+    "token": "30000000-0000-4000-8000-000000000001",
+    "tokenValue": "30000000-0000-4000-8000-000000000002",
+    "palette": "30000000-0000-4000-8000-000000000003",
+    "component": "40000000-0000-4000-8000-000000000001",
+    "componentChild": "40000000-0000-4000-8000-000000000010",
+    "componentThird": "40000000-0000-4000-8000-00000000001b",
+    "designSystemComponent": "40000000-0000-4000-8000-000000000002",
+    "variation": "40000000-0000-4000-8000-000000000003",
+    "variationChild": "40000000-0000-4000-8000-000000000016",
+    "property": "40000000-0000-4000-8000-000000000004",
+    "propertyChild": "40000000-0000-4000-8000-00000000001c",
+    "appearance": "40000000-0000-4000-8000-000000000005",
+    "appearanceChild": "40000000-0000-4000-8000-000000000017",
+    "style": "40000000-0000-4000-8000-000000000006",
+    "styleChild": "40000000-0000-4000-8000-000000000018",
+    "styleSecond": "40000000-0000-4000-8000-00000000001f",
+    "componentDep": "40000000-0000-4000-8000-000000000007",
+    "componentDepCreate": "40000000-0000-4000-8000-000000000019",
+    "componentReuseConfig": "40000000-0000-4000-8000-000000000008",
+    "propertyPlatformParam": "40000000-0000-4000-8000-000000000009",
+    "propertyPlatformParamCreate": "40000000-0000-4000-8000-00000000001a",
+    "propertyVariation": "40000000-0000-4000-8000-00000000000a",
+    "variationPlatformParamAdjustment": "40000000-0000-4000-8000-00000000000b",
+    "invariantPropertyValue": "40000000-0000-4000-8000-00000000000c",
+    "invariantPlatformParamAdjustment": "40000000-0000-4000-8000-00000000000d",
+    "appearanceVariation": "40000000-0000-4000-8000-00000000000e",
+    "appearanceVariationValue": "40000000-0000-4000-8000-00000000000f",
+    "variationPropertyValue": "40000000-0000-4000-8000-000000000011",
+    "state": "40000000-0000-4000-8000-000000000012",
+    "stateResolve": "40000000-0000-4000-8000-000000000020",
+    "stateSet": "40000000-0000-4000-8000-000000000013",
+    "stateChild": "40000000-0000-4000-8000-00000000001d",
+    "stateSetChild": "40000000-0000-4000-8000-00000000001e",
+    "styleCombination": "40000000-0000-4000-8000-000000000014",
+    "styleCombinationMember": "40000000-0000-4000-8000-000000000015",
+    "missing": "ffffffff-ffff-4fff-8fff-ffffffffffff"
+  },
+  "values": {
+    "name": "contract-primary",
+    "updatedName": "contract-updated",
+    "description": null,
+    "themeProfile": "malachite",
+    "customPalette": {
+      "primary": "#107F8C",
+      "onPrimary": "#FFFFFF",
+      "background": "#F7F9F8",
+      "text": "#162019"
+    },
+    "tenantEditRevision": 0,
+    "tokenScalar": "{accent.500}",
+    "tokenComposite": ["#ff0000", { "kind": "reference", "value": "{accent.500}" }],
+    "emptyObject": {},
+    "emptyArray": []
+  }
+}

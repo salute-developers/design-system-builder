@@ -1,2 +1,0 @@
-export { GrayToneStep } from './GrayToneStep';
-

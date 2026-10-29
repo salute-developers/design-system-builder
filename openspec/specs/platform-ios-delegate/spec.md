@@ -1,7 +1,8 @@
 # platform-ios-delegate Specification
 
 ## Purpose
-TBD - created by archiving change platform-ios-delegate. Update Purpose after archive.
+Делегирование iOS-операций внешнему инструменту, его обнаружение и диагностика доступности.
+
 ## Requirements
 ### Requirement: iOS toolchain delegate
 
@@ -11,7 +12,7 @@ CLI SHALL register a platform delegate with toolchain id `ios` that serves the `
 
 - **WHEN** CLI builds its platform delegate registry
 - **THEN** the registry MUST resolve `swiftui` to the `ios` toolchain
-- **THEN** the `ios` toolchain MUST declare the capabilities `THEME` and `DOCS_AGGREGATE`
+- **THEN** the `ios` toolchain MUST declare the capabilities `THEME`, `COMPONENTS`, `DOCS_AGGREGATE` and `DESIGN_SYSTEM`
 - **THEN** `toolchain list` MUST show it without any additional configuration
 
 #### Scenario: Генерация темы
@@ -28,11 +29,11 @@ CLI SHALL register a platform delegate with toolchain id `ios` that serves the `
 - **THEN** it MUST invoke the tool as `docs aggregate --sdds <sddsDir>`
 - **THEN** the tool MUST receive the same output and passthrough handling as the theme capability
 
-#### Scenario: Компоненты генерируются вместе с темой
+#### Scenario: Генерация компонентов
 
-- **WHEN** the delegate is asked for the `COMPONENTS` capability
-- **THEN** it MUST return an unsupported result naming `theme generate`
-- **THEN** it MUST NOT start any process
+- **WHEN** the delegate runs the `COMPONENTS` capability
+- **THEN** it MUST invoke the tool as `components generate --sdds <sddsDir>`
+- **THEN** the tool MUST receive the same output and passthrough handling as the theme capability
 
 #### Scenario: Результат инструмента
 
@@ -42,6 +43,12 @@ CLI SHALL register a platform delegate with toolchain id `ios` that serves the `
 - **THEN** the delegate MUST report failure carrying that exit code
 - **WHEN** the tool cannot be started
 - **THEN** the delegate MUST report a missing toolchain instead of a failure
+
+#### Scenario: Дизайн-система целиком
+
+- **WHEN** the delegate runs the `DESIGN_SYSTEM` capability
+- **THEN** it MUST invoke the tool as `theme generate` and then as `components generate`, with the same arguments as the separate capabilities
+- **THEN** it MUST NOT run the components generation when the theme generation exits with a non-zero code, and MUST report failure carrying that exit code
 
 ### Requirement: iOS tool discovery
 

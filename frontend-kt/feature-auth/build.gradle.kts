@@ -10,6 +10,8 @@ kotlin {
         commonMain.dependencies {
             api(projects.coreAuth)
             api(projects.coreNetwork)
+            // OAuth use case'ы публично принимают CoroutineDispatcher.
+            api(libs.kotlinx.coroutines.core)
             api(libs.koin.core)
         }
 

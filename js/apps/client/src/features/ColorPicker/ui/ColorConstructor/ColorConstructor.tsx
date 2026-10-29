@@ -1,6 +1,7 @@
 import { MouseEvent, useEffect, useRef, useState } from 'react';
 
-import { getNormalizedColor, isValidColorValue } from '../../../../utils';
+import { convertColor, getNormalizedColor, isValidColorValue } from '../../../../utils';
+import { ColorFormats } from '../../../../types';
 import { SelectButton, SelectButtonItem, Slider, TextField } from '../../../../components';
 import { ColorValueEditButton } from '../ColorValueEditButton';
 
@@ -18,17 +19,33 @@ interface ColorConstructorProps {
     opacity: number;
     onChange: (color: string) => void;
     onOpacityChange: (opacity: number) => void;
+    /** Скрывает регулятор прозрачности: ступени палитры непрозрачны. */
+    hideOpacity?: boolean;
+    /** Токен, для которого показывается цвет: ссылка разрешается по его группе палитры. */
+    tokenName?: string;
 }
 
 export const ColorConstructor = (props: ColorConstructorProps) => {
-    const { color, opacity, onChange, onOpacityChange } = props;
+    const { color, opacity, onChange, onOpacityChange, hideOpacity, tokenName } = props;
 
     const [hue, setHue] = useState(0);
     const [xPos, setXPos] = useState(0);
     const [yPos, setYPos] = useState(0);
 
+    // Поле ввода показывает цвет в выбранном формате (HEX, RGB, HSL) и принимает правку в нём (ревью QA, PR #101).
+    // Формат считается от HEX без прозрачности: прозрачность у выбора цвета отдельная.
+    const formatColor = (format: string) => {
+        const hex = getNormalizedColor(color, undefined, false, tokenName);
+        if (format === 'hex') return hex;
+        try {
+            return convertColor(hex)[format as keyof ColorFormats];
+        } catch {
+            return hex;
+        }
+    };
+
     const [colorType, setColorType] = useState({ value: 'hex' });
-    const [inputValue, setInputValue] = useState(getNormalizedColor(color, undefined, true));
+    const [inputValue, setInputValue] = useState(formatColor('hex'));
     const [colorValueStatus, setColorValueStatus] = useState<'default' | 'negative'>('default');
 
     const hueSliderThumbRef = useRef<HTMLDivElement>(null);
@@ -43,6 +60,8 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
 
     const onColorTypeSelect = (item: SelectButtonItem) => {
         setColorType(item);
+        setColorValueStatus('default');
+        setInputValue(formatColor(item.value));
     };
 
     const onInputValueChange = (value: string) => {
@@ -63,7 +82,7 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
         }
 
         if (value === '') {
-            setInputValue(getNormalizedColor(color, undefined, true));
+            setInputValue(formatColor(colorType.value));
             return;
         }
 
@@ -139,7 +158,7 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
             return;
         }
 
-        const colorValue = getNormalizedColor(color);
+        const colorValue = getNormalizedColor(color, undefined, false, tokenName);
 
         if (!colorValue) {
             return;
@@ -161,7 +180,7 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
     }, [color]);
 
     useEffect(() => {
-        setInputValue(getNormalizedColor(color, undefined, true));
+        setInputValue(formatColor(colorType.value));
     }, [color]);
 
     const hueColor = `hsl(${hue}, 100%, 50%)`;
@@ -195,11 +214,13 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
                 />
             </StyledSaturationValueArea>
             <Slider gradientBackground={hueGradient} value={hue} min={0} max={360} onChange={onChangeValue} />
-            <Slider
-                solidBackground={color}
-                value={Number(((opacity ?? 1) * 100).toFixed(0))}
-                onChange={onOpacityChange}
-            />
+            {!hideOpacity && (
+                <Slider
+                    solidBackground={color}
+                    value={Number(((opacity ?? 1) * 100).toFixed(0))}
+                    onChange={onOpacityChange}
+                />
+            )}
             <StyledColorInput>
                 <SelectButton items={colorTypeList} selected={colorType} onItemSelect={onColorTypeSelect} />
                 <TextField

@@ -37,3 +37,20 @@ production tables будущие GIN indexes следует создавать `
 Representative plan verification выполняется на production-like PostgreSQL через `EXPLAIN (ANALYZE, BUFFERS)` для
 exact, prefix, trigram и каждого FTS channel. Проверяются publication/subject filters до `LIMIT`, использование B-tree
 prefix и GIN/trigram indexes и отсутствие snippet/ranking work вне hard candidate window.
+
+## Publication cleanup rollout
+
+Миграция `V2__publication_cleanup_lifecycle.sql` создаёт очередь для новых и уже существующих `superseded` публикаций.
+Фоновая очистка по умолчанию выключена (`DOCUMENTATION_CLEANUP_ENABLED=false`), но повторная публикация всегда создаёт
+задание с задержкой `DOCUMENTATION_CLEANUP_GRACE_SECONDS` (по умолчанию 24 часа). Перед включением worker нужно:
+
+1. Сверить число строк `publication_cleanup_jobs` с числом `superseded` публикаций, не имеющих active pointer.
+2. На тестовой публикации проверить сохранённые точные ключи content, assets, structured artifacts и raw bundle.
+3. Выдать сервисной учётной записи `s3:DeleteObject` только для уже используемых documentation prefixes и проверить
+   удаление тестовых ключей без изменения другой версии или платформы.
+4. Включить `DOCUMENTATION_CLEANUP_ENABLED=true` и наблюдать структурированные сигналы
+   `publication_cleanup_queue`, `publication_cleanup_transition` и `publication_cleanup_cycle_failed`.
+
+Для отката сначала установить `DOCUMENTATION_CLEANUP_ENABLED=false`. Аддитивные таблицу, индекс и колонку следует
+оставить: они не меняют чтение, поиск или публикацию. Уже удалённые объекты и заменённые снимки невосстановимы; при
+необходимости их можно получить только повторной загрузкой исходного пакета из внешней резервной копии.

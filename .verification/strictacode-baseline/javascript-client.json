@@ -1,43 +1,43 @@
 {
   "project": {
     "lang": "javascript",
-    "loc": 29508,
-    "packages": 97,
-    "modules": 265,
-    "classes": 45,
-    "methods": 165,
-    "functions": 612,
+    "loc": 51511,
+    "packages": 117,
+    "modules": 412,
+    "classes": 61,
+    "methods": 249,
+    "functions": 1452,
     "status": {
       "name": "warning",
-      "score": 44,
+      "score": 48,
       "reasons": [
         "High RP/OE imbalance - possibly spaghetti code",
-        "Increased refactoring pressure"
+        "Excessive refactoring pressure"
       ],
       "suggestions": []
     },
     "overengineering_pressure": {
-      "score": 10
+      "score": 16
     },
     "refactoring_pressure": {
-      "score": 58,
+      "score": 61,
       "stat(modules)": {
-        "avg": 6,
+        "avg": 8,
         "min": 0,
-        "max": 21,
-        "p50": 5,
-        "p90": 13
+        "max": 26,
+        "p50": 6,
+        "p90": 16
       }
     },
     "complexity": {
-      "score": 2200,
-      "density": 7.46,
+      "score": 4935,
+      "density": 9.58,
       "stat(modules)": {
-        "avg": 8,
+        "avg": 12,
         "min": 1,
-        "max": 408,
-        "p50": 3,
-        "p90": 18
+        "max": 160,
+        "p50": 5,
+        "p90": 32
       }
     }
   }

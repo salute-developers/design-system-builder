@@ -1,6 +1,7 @@
 # documentation-publication-reading Specification
 ## Purpose
-TBD - created by archiving change add-documentation-ingestion-pipeline. Update Purpose after archive.
+Авторизованное чтение документации проекта: состояние загрузки, активная публикация, навигация и страницы.
+
 ## Requirements
 ### Requirement: Project-scoped private authorization чтения
 Gateway MUST проксировать documentation read endpoints только через `/api/projects/{projectId}/documentation/...` с existing project auth и trusted context. Documentation Service MUST требовать permission `documentation:read` и MUST отдельно проверять принадлежность job/publication trusted project.
@@ -33,11 +34,16 @@ Service SHALL предоставлять `GET /documentation/ingestion-jobs/{job
 - **THEN** response SHALL содержать `jobId`, `status`, current step, attempt, timestamps и diagnostics
 
 ### Requirement: Чтение active publication
-Service SHALL предоставлять active publication по `designSystemId`, `version` и canonical `platform` и MUST возвращать только успешно опубликованный active pointer.
+Service SHALL предоставлять active publication по `designSystemId` и canonical `platform` с необязательным `version` и MUST возвращать только успешно опубликованный active pointer. Без `version` service MUST вернуть последнюю по времени публикации active publication для пары (`designSystemId`, `platform`).
 
 #### Scenario: Active publication найдена
 - **WHEN** authorized client запрашивает опубликованный ключ
 - **THEN** response SHALL содержать `publicationId`, design system, version, platform, status и publication timestamp
+
+#### Scenario: Version не указан
+- **WHEN** authorized client запрашивает active publication без `version`
+- **THEN** response SHALL описывать последнюю по времени публикации active publication для `designSystemId` и `platform`
+- **THEN** поле `version` в response SHALL содержать версию найденной publication
 
 #### Scenario: Есть только candidate
 - **WHEN** для ключа существует candidate, но active publication отсутствует

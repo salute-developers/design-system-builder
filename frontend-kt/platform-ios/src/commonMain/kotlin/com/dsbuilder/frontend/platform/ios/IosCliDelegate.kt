@@ -31,10 +31,11 @@ public class IosCliDelegate internal constructor(
     override val platforms: Set<TargetPlatform> = setOf(TargetPlatform.SWIFT_UI)
 
     /**
-     * Вариации компонентов на iOS генерируются вместе с темой, отдельного входа для них нет:
-     * `COMPONENTS` осознанно не поддержан, чтобы команда отказала понятно, а не сгенерировала половину.
+     * `DESIGN_SYSTEM` — генерация темы, затем компонентов: у инструмента нет общей команды,
+     * поэтому делегат запускает обе по очереди и останавливается на первой неудаче.
      */
-    override val capabilities: Set<Capability> = setOf(Capability.THEME, Capability.DOCS_AGGREGATE)
+    override val capabilities: Set<Capability> =
+        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM)
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val executable = locator.locate(toolOverride) ?: return ToolchainStatus.Missing(missingHint(toolOverride))
@@ -69,41 +70,47 @@ public class IosCliDelegate internal constructor(
     }
 
     override fun run(invocation: DelegateInvocation): DelegateResult {
-        val arguments = arguments(invocation)
-            ?: return DelegateResult.Unsupported(
-                "dsbuilder-ios generates component variations together with the theme; " +
-                    "run `dsbuilder theme generate --platform swiftui` instead.",
-            )
+        val commands = commands(invocation)
         val executable = locator.locate(invocation.toolOverride)
             ?: return DelegateResult.ToolchainMissing(missingHint(invocation.toolOverride))
 
         return try {
-            val result = processRunner.run(
-                ProcessRequest(
-                    executable = executable,
-                    args = arguments,
-                    workingDirectory = invocation.workspace.workspaceDir,
-                ),
-            )
-            if (result.exitCode == 0) {
+            val failed = commands.firstNotNullOfOrNull { arguments ->
+                processRunner.run(
+                    ProcessRequest(
+                        executable = executable,
+                        args = arguments,
+                        workingDirectory = invocation.workspace.workspaceDir,
+                    ),
+                ).exitCode.takeIf { it != 0 }
+            }
+            if (failed == null) {
                 DelegateResult.Completed(summary = completedSummary(invocation))
             } else {
-                DelegateResult.Failed(exitCode = result.exitCode, message = "see the output of $executable above")
+                DelegateResult.Failed(exitCode = failed, message = "see the output of $executable above")
             }
         } catch (error: ProcessLaunchException) {
             DelegateResult.ToolchainMissing("$executable cannot be started: ${error.message}")
         }
     }
 
-    /** Аргументы инструмента либо `null`, если capability он не умеет. */
-    private fun arguments(invocation: DelegateInvocation): List<String>? = when (invocation.capability) {
-        Capability.THEME -> themeArguments(invocation)
-        Capability.DOCS_AGGREGATE -> docsArguments(invocation)
-        Capability.COMPONENTS -> null
+    /** Запуски инструмента для capability по порядку; поддержаны все объявленные в [capabilities]. */
+    private fun commands(invocation: DelegateInvocation): List<List<String>> = when (invocation.capability) {
+        Capability.THEME -> listOf(generationArguments("theme", invocation))
+        Capability.COMPONENTS -> listOf(generationArguments("components", invocation))
+        Capability.DESIGN_SYSTEM -> listOf(
+            generationArguments("theme", invocation),
+            generationArguments("components", invocation),
+        )
+        Capability.DOCS_AGGREGATE -> listOf(docsArguments(invocation))
     }
 
-    private fun themeArguments(invocation: DelegateInvocation): List<String> = buildList {
-        add("theme")
+    /**
+     * `theme generate` и `components generate` принимают одинаковые аргументы: инструмент
+     * разделяет их так же, как Gradle-плагин Android разделяет свои generate-таски.
+     */
+    private fun generationArguments(command: String, invocation: DelegateInvocation): List<String> = buildList {
+        add(command)
         add("generate")
         add("--sdds")
         add(invocation.workspace.sddsDir)
@@ -128,8 +135,9 @@ public class IosCliDelegate internal constructor(
 
     private fun completedSummary(invocation: DelegateInvocation): String = when (invocation.capability) {
         Capability.THEME -> "Theme generated from ${invocation.workspace.sddsDir}."
+        Capability.COMPONENTS -> "Component variations generated from ${invocation.workspace.sddsDir}."
         Capability.DOCS_AGGREGATE -> "Documentation tree aggregated from ${invocation.workspace.sddsDir}."
-        Capability.COMPONENTS -> "Done."
+        Capability.DESIGN_SYSTEM -> "Design system generated from ${invocation.workspace.sddsDir}."
     }
 
     /** Результат чтения версии инструмента. */

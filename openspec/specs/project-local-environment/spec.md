@@ -1,7 +1,8 @@
 # project-local-environment Specification
 
 ## Purpose
-TBD - created by archiving change load-project-env-for-cli-and-mcp. Update Purpose after archive.
+Загрузка проектного файла .env и правила разрешения локальных переменных окружения.
+
 ## Requirements
 ### Requirement: Проектный источник env
 

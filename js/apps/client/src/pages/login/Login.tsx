@@ -7,7 +7,6 @@ import { StyledFormColumn, StyledPreviewColumn, Wrapper } from './Login.styles.t
 import { ActionButton } from '../../components';
 import { AuthState, BrandPreview, LoginForm } from '../../features';
 import { authService, REQUEST_ACCESS_URL } from '../../api';
-import { fetchOwnerProjectId } from '../../hooks';
 
 export type LoginReason = 'expired';
 
@@ -32,20 +31,8 @@ const Login = () => {
             return;
         }
 
-        try {
-            const ownerProjectId = await fetchOwnerProjectId();
-
-            if (!ownerProjectId) {
-                setError('У пользователя нет проектов');
-                return;
-            }
-
-            navigate(`/${ownerProjectId}`);
-        } catch {
-            setError('Не удалось загрузить проекты');
-        } finally {
-            setLoading(false);
-        }
+        navigate('/projects');
+        setLoading(false);
     };
 
     const onRequestAccess = () => {

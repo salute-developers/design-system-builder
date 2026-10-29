@@ -103,6 +103,7 @@ class AuthRoutesTest {
         assertEquals("user", response.headers["X-Actor-Type"])
         assertEquals("user-1", response.headers["X-User-Id"])
         assertEquals("false", response.headers["X-System-Admin"])
+        assertEquals("false", response.headers["X-Compose-Preview-Publisher"])
     }
 }
 

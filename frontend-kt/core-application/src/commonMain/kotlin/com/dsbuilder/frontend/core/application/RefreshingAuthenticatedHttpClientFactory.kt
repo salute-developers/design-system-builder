@@ -35,10 +35,18 @@ internal class RefreshingAuthenticatedHttpClientFactory(
         override suspend fun post(path: String, body: String): AuthenticatedHttpResult =
             retryResult(firstClient.post(path, body)) { it.post(path, body) }
 
-        override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
-            val first = firstClient.postMultipart(path, file)
+        override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
+            retryMultipart { it.postMultipart(path, file) }
+
+        override suspend fun postMultipart(path: String, files: List<MultipartFile>): AuthenticatedHttpResponse =
+            retryMultipart { it.postMultipart(path, files) }
+
+        private suspend fun retryMultipart(
+            send: suspend (AuthenticatedHttpClient) -> AuthenticatedHttpResponse,
+        ): AuthenticatedHttpResponse {
+            val first = send(firstClient)
             return if (first.statusCode == 401) {
-                refreshedClient()?.postMultipart(path, file)?.also { second ->
+                refreshedClient()?.let { send(it) }?.also { second ->
                     if (second.statusCode == 401) credentialStore.delete(apiUrl)
                 } ?: first
             } else {

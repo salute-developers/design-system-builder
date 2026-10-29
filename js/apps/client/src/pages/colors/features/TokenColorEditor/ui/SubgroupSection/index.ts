@@ -1,1 +1,0 @@
-export { SubgroupSection } from './SubgroupSection';

@@ -8,6 +8,9 @@
 - [`mcp-server-core`](./mcp-server-core/src) — общий MCP server core и tool registry поверх shared use cases.
 - [`mcp-node`](./mcp-node/src) — Kotlin/JS Node.js executable и npm package `dsbuilder-mcp`.
 
+Документация CLI: [USAGE.md](./cli/USAGE.md) — справочник по командам,
+[README-ios.md](./cli/README-ios.md) — короткая инструкция по генерации для iOS.
+
 ## Проверки
 
 Команды выполняются из директории `frontend-kt`:

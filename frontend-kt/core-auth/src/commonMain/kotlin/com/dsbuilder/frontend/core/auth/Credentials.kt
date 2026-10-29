@@ -21,6 +21,16 @@ public sealed interface BackendCredential {
     public data class Bearer(
         public val accessToken: String,
     ) : BackendCredential
+
+    /**
+     * Short-lived access token of a service account (`client_credentials`); it is never refreshed
+     * through a user session.
+     *
+     * @property accessToken raw bearer access token.
+     */
+    public data class ServiceToken(
+        public val accessToken: String,
+    ) : BackendCredential
 }
 
 /**
@@ -29,6 +39,7 @@ public sealed interface BackendCredential {
 public enum class BackendCredentialType {
     PROJECT_KEY,
     USER_SESSION,
+    SERVICE_ACCOUNT,
 }
 
 /**
@@ -160,4 +171,25 @@ public interface TokenClient {
         apiUrl: String,
         refreshToken: String,
     ): AuthResult<Unit>
+
+    /**
+     * Gets an access token of a service account with the `client_credentials` grant.
+     *
+     * Implementations that cannot talk to a gateway keep the default refusal.
+     */
+    public suspend fun clientCredentials(
+        apiUrl: String,
+        clientId: String,
+        clientSecret: String,
+    ): AuthResult<AccessTokenResponse> =
+        AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: service account login is not supported.")
 }
+
+/**
+ * Access token of a service account; the grant has no refresh token.
+ *
+ * @property accessToken short-lived bearer token kept in memory.
+ */
+public data class AccessTokenResponse(
+    public val accessToken: String,
+)

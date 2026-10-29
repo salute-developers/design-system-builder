@@ -23,6 +23,14 @@ export interface Parameters {
     projectName: string;
     packagesName: string;
     projectId: string;
+    designSystemId?: string;
+    tenantId?: string;
+    editRevision?: number;
+    draftId?: string;
+    draftRevision?: number;
+    readOnly?: boolean;
+    /** Роль пользователя в проекте: от неё зависят действия, например удаление токена (`maintainer`, `owner`). */
+    effectiveRole?: string;
     grayTone: GrayTone;
     accentColor: GeneralColor;
     lightStrokeSaturation: PlasmaSaturation;

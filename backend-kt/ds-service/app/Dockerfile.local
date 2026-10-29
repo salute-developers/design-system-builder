@@ -1,0 +1,14 @@
+FROM eclipse-temurin:17-jre-jammy
+
+RUN apt-get update && apt-get install --yes --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd --system dsservice && useradd --system --gid dsservice --home /app dsservice && \
+    mkdir -p /app/authorization && chown -R dsservice:dsservice /app
+
+COPY --chown=dsservice:dsservice ./build/libs/*-all.jar /app/ds-service.jar
+
+USER dsservice
+EXPOSE 8085
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+    CMD curl --fail --silent http://localhost:8085/health >/dev/null || exit 1
+ENTRYPOINT ["java", "-jar", "/app/ds-service.jar"]

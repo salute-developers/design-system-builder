@@ -1,5 +1,7 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
+import com.dsbuilder.frontend.cli.presentation.targetPlatform
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ComponentSource
 import com.dsbuilder.frontend.feature.components.application.PushComponentsCommand
 import com.dsbuilder.frontend.feature.components.application.PushComponentsResult
@@ -11,6 +13,7 @@ import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import kotlinx.coroutines.runBlocking
 
@@ -23,6 +26,8 @@ internal class ComponentsPushCliCommand(
     private val from: String? by option("--from")
 
     private val apiKey: String? by option("--api-key")
+
+    private val platform: TargetPlatform? by option("--platform").targetPlatform().help(PLATFORM_COMPONENTS_HELP)
 
     private val apiUrl: String? by option("--api-url")
     private val designSystem: String? by option("--design-system")
@@ -45,6 +50,7 @@ internal class ComponentsPushCliCommand(
                     apiUrlOverride = apiUrl,
                     designSystemUri = designSystem,
                     projectKeyEnvName = projectKeyEnv,
+                    platformOverride = platform,
                 ),
             )
         }
@@ -70,6 +76,7 @@ internal class ComponentsPushCliCommand(
  * API key не выводится ни в каком виде.
  */
 private fun PushTarget.render(): String = """
+    Platform: ${platform.cliValue}
     Package: $packageName
     Source: $packageOrigin
     Configurations: $configurationCount

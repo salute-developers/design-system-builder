@@ -2,7 +2,16 @@ package com.dsbuilder.documentation.processing.data
 
 import com.dsbuilder.documentation.processing.application.ChunkedCandidate
 import com.dsbuilder.documentation.processing.application.ClaimedIngestionJob
+import com.dsbuilder.documentation.processing.application.DefaultCleanupSupersededPublicationUseCase
 import com.dsbuilder.documentation.processing.application.NormalizedCandidate
+import com.dsbuilder.documentation.processing.application.PublicationCleanupRepository
+import com.dsbuilder.documentation.processing.application.PublicationLifecycleMetrics
+import com.dsbuilder.documentation.processing.application.PublicationObjectDeleter
+import com.dsbuilder.documentation.processing.domain.DeletedObjects
+import com.dsbuilder.documentation.processing.domain.PublicationCleanupClaim
+import com.dsbuilder.documentation.processing.domain.PublicationCleanupFailureClass
+import com.dsbuilder.documentation.processing.domain.PublicationCleanupPolicy
+import com.dsbuilder.documentation.processing.domain.PublicationCleanupRunResult
 import com.dsbuilder.documentation.publication.domain.ActivePublicationKey
 import com.dsbuilder.documentation.publication.domain.CodeBinding
 import com.dsbuilder.documentation.publication.domain.CodeBindingKind
@@ -26,6 +35,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -43,6 +53,7 @@ class ExposedProcessingJobStoreIntegrationTest {
         )
     }
     private val store by lazy { ExposedProcessingJobStore(database) }
+    private val cleanupStore by lazy { ExposedPublicationCleanupRepository(database, "publication-bucket") }
 
     @BeforeTest
     fun prepare() {
@@ -161,6 +172,10 @@ class ExposedProcessingJobStoreIntegrationTest {
             text("SELECT publication_id FROM active_documentation_publications WHERE design_system_id = 'ds-1'"),
         )
         assertEquals("superseded", text("SELECT status FROM documentation_publications WHERE id = 'old-publication'"))
+        assertEquals(
+            1,
+            scalar("SELECT count(*) FROM publication_cleanup_jobs WHERE publication_id = 'old-publication'"),
+        )
 
         insertAccepted("failed-job", "failed-bundle")
         insertPublication("failed-publication", "failed-bundle", "candidate")
@@ -170,6 +185,244 @@ class ExposedProcessingJobStoreIntegrationTest {
             "new-publication",
             text("SELECT publication_id FROM active_documentation_publications WHERE design_system_id = 'ds-1'"),
         )
+        assertEquals(
+            0,
+            scalar("SELECT count(*) FROM publication_cleanup_jobs WHERE publication_id = 'failed-publication'"),
+        )
+    }
+
+    @Test
+    fun firstPublicationDoesNotCreateCleanupJob() = runBlocking {
+        if (url == null) return@runBlocking
+        insertAccepted("job-1", "bundle-1")
+        insertPublication("publication-1", "bundle-1", "candidate")
+        val claim = requireNotNull(store.claim("worker-1", Duration.ofSeconds(60), MAX_ATTEMPTS))
+
+        assertTrue(store.publish(claim, "publication-1"))
+
+        assertEquals(0, scalar("SELECT count(*) FROM publication_cleanup_jobs"))
+    }
+
+    @Test
+    fun `concurrent publication of one key serializes lifecycle transitions`() = runBlocking {
+        if (url == null) return@runBlocking
+        insertAccepted("job-a", "bundle-a")
+        insertPublication("publication-a", "bundle-a", "candidate")
+        insertAccepted("job-b", "bundle-b")
+        insertPublication("publication-b", "bundle-b", "candidate")
+        sql(
+            """
+                UPDATE ingestion_jobs SET publication_id = 'publication-a' WHERE id = 'job-a';
+                UPDATE ingestion_jobs SET publication_id = 'publication-b' WHERE id = 'job-b'
+            """.trimIndent(),
+        )
+        val first = requireNotNull(store.claim("publisher-a", Duration.ofSeconds(60), MAX_ATTEMPTS))
+        val second = requireNotNull(store.claim("publisher-b", Duration.ofSeconds(60), MAX_ATTEMPTS))
+
+        val results = listOf(first, second).map { claim ->
+            async { store.publish(claim, requireNotNull(claim.job.publicationId)) }
+        }.awaitAll()
+
+        assertTrue(results.all { it })
+        assertEquals(1, scalar("SELECT count(*) FROM documentation_publications WHERE status = 'published'"))
+        assertEquals(1, scalar("SELECT count(*) FROM documentation_publications WHERE status = 'superseded'"))
+        assertEquals(1, scalar("SELECT count(*) FROM publication_cleanup_jobs"))
+        assertEquals(1, scalar("SELECT count(*) FROM active_documentation_publications"))
+    }
+
+    @Test
+    fun `cleanup claim is exclusive and completion preserves another version`() = runBlocking {
+        if (url == null) return@runBlocking
+        insertAccepted("old-job", "old-bundle")
+        insertPublication("old-publication", "old-bundle", "superseded", version = "2.0.0")
+        insertAccepted("other-job", "other-bundle")
+        insertPublication("other-publication", "other-bundle", "published", version = "1.0.0")
+        sql(
+            """
+                INSERT INTO active_documentation_publications
+                    (project_id, design_system_id, design_system_version, platform, publication_id, activated_at)
+                VALUES ('project-1', 'ds-1', '1.0.0', 'compose', 'other-publication', now());
+                INSERT INTO structured_artifacts
+                    (id, publication_id, type, format, storage_key, sha256, size)
+                VALUES
+                    ('old-artifact', 'old-publication', 'components_info', 'v1', 'publications/old/meta.json',
+                     '${"0".repeat(64)}', 42),
+                    ('other-artifact', 'other-publication', 'components_info', 'v1', 'publications/other/meta.json',
+                     '${"0".repeat(64)}', 84);
+                INSERT INTO documentation_pages (id, publication_id, path, title, subjects)
+                VALUES ('old-page', 'old-publication', 'page', 'Page', '[]'::jsonb);
+                INSERT INTO documentation_content
+                    (id, publication_id, page_id, source_path, source, ordinal, storage_key, sha256, size)
+                VALUES (
+                    'old-content', 'old-publication', 'old-page', 'content.md', 'core', 0,
+                    'publications/old/content.md', '${"0".repeat(64)}', 21
+                );
+                INSERT INTO documentation_assets
+                    (id, publication_id, path, storage_key, media_type, sha256, size)
+                VALUES
+                    ('old-asset', 'old-publication', 'asset.svg', 'publications/old/asset.svg', 'image/svg+xml',
+                     '${"0".repeat(64)}', 22),
+                    ('other-asset', 'other-publication', 'asset.svg', 'publications/other/asset.svg', 'image/svg+xml',
+                     '${"0".repeat(64)}', 88);
+                INSERT INTO publication_cleanup_jobs
+                    (publication_id, state, eligible_at, attempt, created_at, updated_at)
+                VALUES ('old-publication', 'pending', now() - interval '1 second', 0, now(), now())
+            """.trimIndent(),
+        )
+        val policy = PublicationCleanupPolicy(
+            Duration.ofHours(24),
+            Duration.ofSeconds(60),
+            Duration.ofSeconds(30),
+            Duration.ofMinutes(5),
+        )
+
+        val claims = listOf("cleanup-a", "cleanup-b").map { worker ->
+            async { cleanupStore.claim(worker, policy) }
+        }.awaitAll().filterNotNull()
+        val claim = claims.single()
+        val target = requireNotNull(cleanupStore.target(claim))
+
+        assertEquals(
+            listOf(
+                "publications/old/asset.svg",
+                "publications/old/content.md",
+                "publications/old/meta.json",
+            ),
+            target.publicationObjects.map { it.key },
+        )
+        assertEquals("raw/old-bundle", target.rawBundle.key)
+        assertTrue(cleanupStore.complete(claim, Instant.parse("2026-09-24T00:00:00Z")))
+        assertEquals(0, scalar("SELECT count(*) FROM documentation_publications WHERE id = 'old-publication'"))
+        assertEquals(
+            0,
+            scalar("SELECT count(*) FROM publication_cleanup_jobs WHERE publication_id = 'old-publication'"),
+        )
+        assertEquals(1, scalar("SELECT count(*) FROM documentation_publications WHERE id = 'other-publication'"))
+        assertEquals(1, scalar("SELECT count(*) FROM structured_artifacts WHERE id = 'other-artifact'"))
+        assertEquals(1, scalar("SELECT count(*) FROM documentation_assets WHERE id = 'other-asset'"))
+        assertNotNull(text("SELECT storage_deleted_at::text FROM documentation_bundles WHERE id = 'old-bundle'"))
+    }
+
+    @Test
+    fun `expired cleanup lease fences stale owner after reclaim`() = runBlocking {
+        if (url == null) return@runBlocking
+        insertAccepted("old-job", "old-bundle")
+        insertPublication("old-publication", "old-bundle", "superseded")
+        sql(
+            """
+                INSERT INTO publication_cleanup_jobs
+                    (publication_id, state, eligible_at, attempt, created_at, updated_at)
+                VALUES ('old-publication', 'pending', now() - interval '1 second', 0, now(), now())
+            """.trimIndent(),
+        )
+        val policy = PublicationCleanupPolicy(
+            Duration.ofHours(24),
+            Duration.ofSeconds(60),
+            Duration.ofSeconds(30),
+            Duration.ofMinutes(5),
+        )
+        val stale = requireNotNull(cleanupStore.claim("cleanup-a", policy))
+        sql(
+            """
+                UPDATE publication_cleanup_jobs
+                SET lease_until = now() - interval '1 second'
+                WHERE publication_id = 'old-publication'
+            """.trimIndent(),
+        )
+        val current = requireNotNull(cleanupStore.claim("cleanup-b", policy))
+
+        assertFalse(cleanupStore.complete(stale, Instant.now()))
+        assertTrue(cleanupStore.complete(current, Instant.now()))
+    }
+
+    @Test
+    fun `cleanup recovers after objects are deleted before database completion`() = runBlocking {
+        if (url == null) return@runBlocking
+        insertAccepted("old-job", "old-bundle")
+        insertPublication("old-publication", "old-bundle", "superseded")
+        sql(
+            """
+                INSERT INTO structured_artifacts
+                    (id, publication_id, type, format, storage_key, sha256, size)
+                VALUES (
+                    'old-artifact', 'old-publication', 'components_info', 'v1',
+                    'publications/old/meta.json', '${"0".repeat(64)}', 42
+                );
+                INSERT INTO publication_cleanup_jobs
+                    (publication_id, state, eligible_at, attempt, created_at, updated_at)
+                VALUES ('old-publication', 'pending', now() - interval '1 second', 0, now(), now())
+            """.trimIndent(),
+        )
+        val policy = cleanupPolicy()
+        var failCompletion = true
+        val repository = object : PublicationCleanupRepository by cleanupStore {
+            override suspend fun complete(claim: PublicationCleanupClaim, deletedAt: Instant): Boolean {
+                if (failCompletion) {
+                    failCompletion = false
+                    error("database completion failed after S3 deletion")
+                }
+                return cleanupStore.complete(claim, deletedAt)
+            }
+        }
+        val deletedKeys = mutableListOf<String>()
+        val cleanup = DefaultCleanupSupersededPublicationUseCase(
+            repository = repository,
+            objects = PublicationObjectDeleter { objects ->
+                deletedKeys += objects.map { it.key }
+                DeletedObjects(objects.size, objects.sumOf { it.size })
+            },
+            metrics = PublicationLifecycleMetrics { },
+            policy = policy,
+            clock = { Instant.parse("2026-09-24T00:00:00Z") },
+        )
+
+        val first = cleanup.processNext("cleanup-a")
+        assertIs<PublicationCleanupRunResult.RetryScheduled>(first)
+        assertEquals(PublicationCleanupFailureClass.DATABASE, first.failureClass)
+        assertEquals(1, scalar("SELECT count(*) FROM documentation_publications WHERE id = 'old-publication'"))
+        sql(
+            """
+                UPDATE publication_cleanup_jobs
+                SET next_attempt_at = now() - interval '1 second'
+                WHERE publication_id = 'old-publication'
+            """.trimIndent(),
+        )
+
+        val second = cleanup.processNext("cleanup-b")
+
+        assertIs<PublicationCleanupRunResult.Succeeded>(second)
+        assertEquals(
+            mapOf("publications/old/meta.json" to 2, "raw/old-bundle" to 2),
+            deletedKeys.groupingBy { it }.eachCount(),
+        )
+        assertEquals(0, scalar("SELECT count(*) FROM documentation_publications WHERE id = 'old-publication'"))
+        assertEquals(
+            0,
+            scalar("SELECT count(*) FROM publication_cleanup_jobs WHERE publication_id = 'old-publication'"),
+        )
+    }
+
+    @Test
+    fun `queue diagnostics include blocked jobs`() = runBlocking {
+        if (url == null) return@runBlocking
+        insertAccepted("blocked-job", "blocked-bundle")
+        insertPublication("blocked-publication", "blocked-bundle", "superseded")
+        insertAccepted("pending-job", "pending-bundle")
+        insertPublication("pending-publication", "pending-bundle", "superseded", version = "2.0.0")
+        sql(
+            """
+                INSERT INTO publication_cleanup_jobs
+                    (publication_id, state, eligible_at, attempt, last_failure_class, created_at, updated_at)
+                VALUES
+                    ('blocked-publication', 'blocked', now() - interval '1 minute', 1, 'invariant', now(), now()),
+                    ('pending-publication', 'pending', now() - interval '1 minute', 0, NULL, now(), now())
+            """.trimIndent(),
+        )
+
+        val diagnostics = cleanupStore.diagnostics()
+
+        assertEquals(2, diagnostics.queueSize)
+        assertTrue(diagnostics.oldestReadyAgeSeconds >= 60)
     }
 
     @Test
@@ -342,6 +595,7 @@ class ExposedProcessingJobStoreIntegrationTest {
         bundleId: String,
         status: String,
         projectId: String = "project-1",
+        version: String = "1.0.0",
     ) {
         sql(
             """
@@ -349,12 +603,19 @@ class ExposedProcessingJobStoreIntegrationTest {
                     id, project_id, bundle_id, design_system_id, design_system_version,
                     platform, status, created_at, published_at
                 ) VALUES (
-                    '$id', '$projectId', '$bundleId', 'ds-1', '1.0.0', 'compose', '$status', now(),
+                    '$id', '$projectId', '$bundleId', 'ds-1', '$version', 'compose', '$status', now(),
                     CASE WHEN '$status' = 'published' THEN now() ELSE NULL END
                 )
             """.trimIndent(),
         )
     }
+
+    private fun cleanupPolicy() = PublicationCleanupPolicy(
+        Duration.ofHours(24),
+        Duration.ofSeconds(60),
+        Duration.ofSeconds(1),
+        Duration.ofMinutes(5),
+    )
 
     private fun sql(statement: String) = connection().use { connection ->
         connection.createStatement().use { it.execute(statement) }

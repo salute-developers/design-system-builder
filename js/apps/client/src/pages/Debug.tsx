@@ -1,26 +1,12 @@
 import { ChangeEvent, MouseEvent, useCallback, useState } from 'react';
+import { isAxiosError } from 'axios';
 import styled, { keyframes } from 'styled-components';
-import {
-    IconSave,
-    IconDownload,
-    IconCloudUploadOutline,
-    IconDocumentImportOutline,
-    IconUploadOutline,
-    IconFileTextOutline,
-    IconTrashOutline,
-} from '@salutejs/plasma-icons';
+import { IconSave, IconDocumentImportOutline, IconTrashOutline } from '@salutejs/plasma-icons';
 
-import { BasicButton, LinkButton, Dialog, Switch, TextField } from '../components';
-import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
-import { importTokensToTheme, importDesignSystem, clearDraft } from '../utils';
-import { Parameters } from '../types';
-import {
-    designSystemSave,
-    downloadThemeData,
-    generateAndDeployDocumentation,
-    generateDownload,
-    generatePublish,
-} from './Main.utils';
+import { BasicButton, LinkButton, Dialog } from '../components';
+import { Config, DesignSystem, Theme } from '../controllers';
+import { importTokensToTheme, clearDraft } from '../utils';
+import { designSystemSave } from './Main.utils';
 
 const spin = keyframes`
     to { 
@@ -64,12 +50,6 @@ const Spinner = styled.div`
     animation: ${spin} 0.6s linear infinite;
 `;
 
-interface ImportDialogData {
-    defaultName: string;
-    parameters: Partial<Parameters>;
-    themeData: ThemeSource;
-}
-
 interface DebugProps {
     designSystem: DesignSystem | null;
     theme: Theme | null;
@@ -82,11 +62,11 @@ interface DebugProps {
 export const Debug = (props: DebugProps) => {
     const { designSystem, theme, components, rerender, reload } = props;
 
-    const [importDialogData, setImportDialogData] = useState<ImportDialogData | null>(null);
-    const [isDefaultName, setIsDefaultName] = useState(true);
-    const [customName, setCustomName] = useState('');
     const [loading, setLoading] = useState(false);
     const [isClearDraftDialogOpen, setIsClearDraftDialogOpen] = useState(false);
+
+    const withDesignSystem = <T,>(action: (loadedDesignSystem: DesignSystem) => T) =>
+        designSystem ? action(designSystem) : undefined;
 
     const withLoading = useCallback(
         <T,>(fn: () => Promise<T>) =>
@@ -101,38 +81,6 @@ export const Debug = (props: DebugProps) => {
         [],
     );
 
-    const onDebugDesignSystemDownload = async () => {
-        if (!designSystem) {
-            return;
-        }
-
-        return await generateDownload(designSystem, 'tgz');
-    };
-
-    const onThemeDataDownload = async () => {
-        if (!designSystem) {
-            return;
-        }
-
-        return await downloadThemeData(designSystem);
-    };
-
-    const onDesignSystemPublish = async () => {
-        if (!designSystem) {
-            return;
-        }
-
-        return await generatePublish(designSystem, 'tgz');
-    };
-
-    const onDesignSystemDocs = async () => {
-        if (!designSystem) {
-            return;
-        }
-
-        return await generateAndDeployDocumentation(designSystem);
-    };
-
     const onClearDraftClick = (event: MouseEvent<HTMLDivElement>) => {
         event.stopPropagation();
 
@@ -142,12 +90,10 @@ export const Debug = (props: DebugProps) => {
     const onClearDraftConfirm = async () => {
         setIsClearDraftDialogOpen(false);
 
-        if (!designSystem) {
-            return;
-        }
-
-        clearDraft(designSystem.getName(), designSystem.getVersion());
-        reload();
+        withDesignSystem((loadedDesignSystem) => {
+            clearDraft(loadedDesignSystem.getName(), loadedDesignSystem.getVersion());
+            reload();
+        });
     };
 
     const onClearDraftCancel = () => {
@@ -159,7 +105,27 @@ export const Debug = (props: DebugProps) => {
             return;
         }
 
-        return await designSystemSave(designSystem, theme, components);
+        try {
+            const result = await designSystemSave(designSystem, theme, components);
+            clearDraft(designSystem.getName(), designSystem.getVersion());
+            return result;
+        } catch (error) {
+            if (
+                isAxiosError(error) &&
+                error.response?.status === 409 &&
+                error.response.data?.code === 'TENANT_EDIT_CONFLICT'
+            ) {
+                if (
+                    window.confirm(
+                        'Тема уже изменена в другой сессии. Черновик сохранён. Перезагрузить актуальные данные?',
+                    )
+                ) {
+                    reload();
+                }
+                return;
+            }
+            throw error;
+        }
     };
 
     const onImportTokens = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -190,63 +156,6 @@ export const Debug = (props: DebugProps) => {
         }
     };
 
-    const onImportDesignSystem = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-
-        if (!file) {
-            return;
-        }
-
-        try {
-            const content = file.name.endsWith('.json') ? await file.text() : await file.arrayBuffer();
-
-            const { name, parameters, themeData } = await importDesignSystem(content);
-
-            setImportDialogData({ defaultName: name, parameters, themeData });
-            setCustomName(name);
-            setIsDefaultName(true);
-        } catch (error) {
-            console.error('Failed to import design system:', error);
-        }
-    };
-
-    const onImportConfirm = async () => {
-        if (!importDialogData) {
-            return;
-        }
-
-        const { defaultName, parameters, themeData } = importDialogData;
-        const name = isDefaultName ? defaultName : customName;
-
-        setLoading(true);
-
-        try {
-            await DesignSystem.create({
-                name,
-                version: '0.1.0',
-                parameters: {
-                    ...parameters,
-                    projectName: name.split('_').join(' ').toUpperCase(),
-                    packagesName: name,
-                    projectId: designSystem?.getParameters()?.projectId,
-                },
-                themeData,
-            });
-
-            console.log('Design system imported successfully');
-        } catch (error) {
-            console.error('Failed to import design system:', error);
-        } finally {
-            setLoading(false);
-        }
-
-        setImportDialogData(null);
-    };
-
-    const onImportCancel = () => {
-        setImportDialogData(null);
-    };
-
     return (
         <>
             <Root>
@@ -266,36 +175,10 @@ export const Debug = (props: DebugProps) => {
                     onClick={onClearDraftClick}
                 />
                 <LinkButton
-                    text="Скачать архив дизайн системы"
-                    contentRight={<IconDownload size="s" />}
-                    onClick={withLoading(onDebugDesignSystemDownload)}
-                />
-                <LinkButton
-                    text="Скачать тему"
-                    contentRight={<IconDownload size="s" />}
-                    onClick={withLoading(onThemeDataDownload)}
-                />
-                <LinkButton
-                    text="Опубликовать"
-                    contentRight={<IconCloudUploadOutline size="s" />}
-                    onClick={withLoading(onDesignSystemPublish)}
-                />
-                <LinkButton
-                    text="Опубликовать документацию"
-                    contentRight={<IconFileTextOutline size="s" />}
-                    onClick={withLoading(onDesignSystemDocs)}
-                />
-                <LinkButton
                     text="Импортировать токены (PIXSO)"
                     contentRight={<IconDocumentImportOutline size="s" />}
                     accept=".json"
                     onFileChange={onImportTokens}
-                />
-                <LinkButton
-                    text="Импортировать дизайн систему"
-                    contentRight={<IconUploadOutline size="s" />}
-                    accept=".zip, .json"
-                    onFileChange={onImportDesignSystem}
                 />
             </Root>
             <Dialog
@@ -309,36 +192,6 @@ export const Debug = (props: DebugProps) => {
             >
                 Все несохранённые изменения будут потеряны. Продолжить?
             </Dialog>
-            {importDialogData && (
-                <Dialog
-                    opened={Boolean(importDialogData)}
-                    title="Импортировать дизайн систему"
-                    onClose={onImportCancel}
-                    actions={[
-                        <BasicButton text="Отмена" backgroundColor="transparent" onClick={onImportCancel} />,
-                        <BasicButton text="Импортировать" onClick={onImportConfirm} />,
-                    ]}
-                >
-                    <Switch
-                        checked={isDefaultName}
-                        label="Оставить название по умолчанию"
-                        onToggle={(checked) => {
-                            setIsDefaultName(checked);
-                            if (checked) {
-                                setCustomName(importDialogData.defaultName);
-                            }
-                        }}
-                    />
-                    <TextField
-                        value={isDefaultName ? importDialogData.defaultName : customName}
-                        readOnly={isDefaultName}
-                        label="Название дизайн системы"
-                        stretched
-                        hasBackground
-                        onChange={(value) => setCustomName(value)}
-                    />
-                </Dialog>
-            )}
         </>
     );
 };

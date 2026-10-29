@@ -1,13 +1,12 @@
 # component-appearance-model Specification
 
 ## Purpose
-TBD - created by archiving change add-cli-components-fetch. Update Purpose after archive.
+Модель оформления компонента: объявленные оси и значения вариаций, свойства, состояния и правила целостности конфигурации.
 
 ## Requirements
-
 ### Requirement: Variation axis declaration belongs to the appearance
 
-`db-service` SHALL store the declaration of variation axes — which axes a component style exposes,
+`ds-service` SHALL store the declaration of variation axes — which axes a component style exposes,
 in which order, with which declared values and which default — as a fact of the appearance, not
 of the component and not of the design system.
 
@@ -38,7 +37,7 @@ of the component and not of the design system.
 
 ### Requirement: Declared axis values are stored, not derived
 
-`db-service` SHALL store every declared value of an axis, including values for which the appearance
+`ds-service` SHALL store every declared value of an axis, including values for which the appearance
 carries no property override.
 
 #### Scenario: Значение без переопределений сохраняется
@@ -62,7 +61,7 @@ carries no property override.
 
 ### Requirement: Property value completeness
 
-`db-service` SHALL store every field a property value carries in a component configuration, so that
+`ds-service` SHALL store every field a property value carries in a component configuration, so that
 the value can be returned in the form it was received.
 
 #### Scenario: Alpha сохраняется
@@ -99,7 +98,7 @@ the value can be returned in the form it was received.
 
 ### Requirement: Property type describes the API slot
 
-`db-service` SHALL treat `properties.type` as the type of the component API slot, imported from
+`ds-service` SHALL treat `properties.type` as the type of the component API slot, imported from
 component code. A paint slot SHALL be stored as `color`, which denotes the family of values that
 covers both a solid colour and a gradient. `gradient` SHALL NOT be stored as the type of a paint
 slot: it discriminates a value, not a slot.
@@ -131,7 +130,7 @@ slot: it discriminates a value, not a slot.
 
 ### Requirement: Value type is derived per value
 
-`db-service` SHALL NOT store the type of a property value. The type SHALL be derived separately for
+`ds-service` SHALL NOT store the type of a property value. The type SHALL be derived separately for
 every stored value — an invariant value, a variation value, a cross-axis combination and a state
 override alike — from the token that value refers to, falling back to the type of the property.
 
@@ -206,14 +205,14 @@ override alike — from the token that value refers to, falling back to the type
 
 ### Requirement: Component name belongs to the component code
 
-`db-service` SHALL treat the stored component name as the name used by component code, imported
-from `uikit-api-meta.json`. Appearance configurations SHALL NOT rewrite it.
+`ds-service` SHALL treat the stored component name as the name used by component code, imported
+from `uikit-compose-api-meta.json`. Appearance configurations SHALL NOT rewrite it.
 
 #### Scenario: Имя пишет только импорт метаинформации кода
 
 - **WHEN** the global layer of components is populated
-- **THEN** the component name MUST be the name declared by `uikit-api-meta.json`
-- **THEN** seeds MUST use the same spelling as `uikit-api-meta.json`
+- **THEN** the component name MUST be the name declared by `uikit-compose-api-meta.json`
+- **THEN** seeds MUST use the same spelling as `uikit-compose-api-meta.json`
 - **THEN** importing a component configuration MUST NOT create or rename a component
 
 #### Scenario: Имя конфигурации выводится обратимо
@@ -230,7 +229,7 @@ from `uikit-api-meta.json`. Appearance configurations SHALL NOT rewrite it.
 
 ### Requirement: Component configuration export
 
-`db-service` SHALL provide an endpoint that returns every component configuration of a design system
+`ds-service` SHALL provide an endpoint that returns every component configuration of a design system
 in one response, mirroring the import endpoint.
 
 #### Scenario: Export адресует дизайн-систему телом запроса
@@ -261,7 +260,7 @@ in one response, mirroring the import endpoint.
 
 #### Scenario: Правило типа общее для всех читающих ручек
 
-- **WHEN** any endpoint of `db-service` returns a component configuration
+- **WHEN** any endpoint of `ds-service` returns a component configuration
 - **THEN** it MUST report the type derived for each value
 - **THEN** two endpoints MUST NOT report different types for the same stored value
 
@@ -288,9 +287,11 @@ in one response, mirroring the import endpoint.
 
 ### Requirement: Colour scheme axis role is stored, not derived
 
-`db-service` SHALL store which axis of an appearance plays the colour scheme role, because the role is
-declared by the configuration and cannot be recovered from the axis name. Deriving it from the name
-`view` holds only for design systems that happen to use that name.
+The service SHALL store which axis of an appearance plays the colour scheme role as a reference from the
+appearance to one of its declared axes, because the role is declared by the configuration and cannot be
+recovered from the axis name. Deriving it from the name `view` holds only for design systems that happen to
+use that name. An appearance SHALL have at most one colour scheme axis, and that axis SHALL be declared at
+the same appearance.
 
 #### Scenario: Роль оси сохраняется при заливке
 
@@ -316,9 +317,26 @@ declared by the configuration and cannot be recovered from the axis name. Derivi
 - **THEN** the exported configuration MUST carry `colorSchemeVariationId` as absent
 - **THEN** every axis MUST be exported as an ordinary variation
 
+#### Scenario: Роль принадлежит оси этого appearance
+
+- **WHEN** a colour scheme role is assigned to an axis
+- **THEN** that axis MUST be declared at the same appearance
+- **THEN** an axis declared only at another appearance MUST be rejected
+
+#### Scenario: Назначение роли другой оси переносит её
+
+- **WHEN** a colour scheme role is assigned to an axis while another axis of the appearance holds it
+- **THEN** the previous axis MUST lose the role
+- **THEN** the appearance MUST report exactly one colour scheme axis
+
+#### Scenario: Удаление оси снимает роль
+
+- **WHEN** the axis holding the colour scheme role is removed from the appearance
+- **THEN** the appearance MUST report no colour scheme axis
+
 ### Requirement: View entry key is stored apart from the axis value
 
-`db-service` SHALL treat the key of a `view` entry as an authored label of that entry and the value named
+`ds-service` SHALL treat the key of a `view` entry as an authored label of that entry and the value named
 by the entry's own `binding` as the axis value. The two coincide in some design systems and differ in
 others, so the key MUST NOT be used to identify the axis value.
 
@@ -347,7 +365,7 @@ others, so the key MUST NOT be used to identify the axis value.
 
 ### Requirement: Variation parent is derived, not stored
 
-`db-service` SHALL NOT store the parent of an axis value. The parent is recoverable from the stored
+`ds-service` SHALL NOT store the parent of an axis value. The parent is recoverable from the stored
 authored identifiers, and storing it duplicates a fact the model already holds.
 
 #### Scenario: Родитель не хранится
@@ -375,7 +393,7 @@ configuration that the model cannot compute.
 
 ### Requirement: Import reports identifiers it cannot derive
 
-`db-service` SHALL report configurations whose variation identifiers do not follow from the values of
+`ds-service` SHALL report configurations whose variation identifiers do not follow from the values of
 their axes, so that the need to store them stays measurable instead of silent.
 
 #### Scenario: Невыводимый идентификатор попадает в отчёт
@@ -391,7 +409,7 @@ their axes, so that the need to store them stays measurable instead of silent.
 
 ### Requirement: Declared axis type is stored beside the role
 
-`db-service` SHALL store the axis type declared by the configuration separately from the colour
+`ds-service` SHALL store the axis type declared by the configuration separately from the colour
 scheme role, because the two are independent: the role says where the values of the axis go, the
 declared type says how the axis is announced in `bindings`.
 
@@ -415,7 +433,7 @@ declared type says how the axis is announced in `bindings`.
 
 ### Requirement: Flag variation is a single style named true
 
-`db-service` SHALL хранить вариацию-флаг (`pilled`, `stretch`) как вариацию с единственным стилем `true`
+`ds-service` SHALL хранить вариацию-флаг (`pilled`, `stretch`) как вариацию с единственным стилем `true`
 без дефолта, как в конфиге ядра. Стиль `false` SHALL NOT существовать: выключенное состояние — отсутствие
 дефолта и отсутствие ключа в `defaults` конфига.
 
@@ -469,22 +487,6 @@ declared type says how the axis is announced in `bindings`.
 - **WHEN** любой читающий endpoint возвращает значение свойства `value`
 - **THEN** он MUST вернуть сохранённую строку без нормализации
 
-### Requirement: Legacy component configs follow appearance declarations
-
-Endpoint `GET /:name/component-configs` SHALL строить состав и порядок вариаций каждого appearance по
-объявлениям этого appearance, а не по всем вариациям компонента.
-
-#### Scenario: Appearance без части вариаций
-
-- **WHEN** appearance объявляет подмножество вариаций компонента
-- **THEN** ответ MUST содержать для него только объявленные вариации в порядке `position`
-- **THEN** дефолты MUST браться из объявлений этого appearance
-
-#### Scenario: Appearance без объявлений
-
-- **WHEN** у appearance нет ни одного объявления вариации
-- **THEN** ответ MUST содержать все вариации компонента в порядке их объявления
-
 ### Requirement: Style combinations are seedable
 
 Значения на сочетании стилей разных вариаций SHALL записываться сидом в `style_combinations` по
@@ -495,3 +497,209 @@ Endpoint `GET /:name/component-configs` SHALL строить состав и п�
 - **WHEN** сид appearance содержит `combinations` с `styles: { view: 'clear', itemView: 'accent' }`
 - **THEN** сидер MUST разрешить имена в стили и записать значение на сочетание
 - **THEN** повторный сид MUST NOT дублировать сочетание
+
+### Requirement: Root axis role is stored
+
+The service SHALL store which axis of an appearance is the root axis as a reference from the appearance to
+one of its declared axes. An appearance SHALL have at most one root axis, and that axis SHALL be declared at
+the same appearance. The export MUST NOT identify the root axis by its name.
+
+#### Scenario: Корень сохраняется при заливке
+
+- **WHEN** an import receives a configuration carrying `rootVariationId`
+- **THEN** the named axis MUST be stored as the root axis of that appearance
+- **THEN** reading the appearance back MUST report the same axis as the root axis
+
+#### Scenario: Корень под любым именем возвращается выгрузкой
+
+- **WHEN** an appearance stores a root axis named `shape` and also declares an axis named `size`
+- **THEN** the exported configuration MUST carry `rootVariationId` naming `shape`
+
+#### Scenario: Указанный корень отсутствует среди осей
+
+- **WHEN** an import receives a `rootVariationId` that names no axis of the configuration
+- **THEN** the import MUST be rejected
+- **THEN** the import MUST NOT substitute another axis as the root
+
+#### Scenario: Роль принадлежит оси этого appearance
+
+- **WHEN** the root role is assigned to an axis
+- **THEN** that axis MUST be declared at the same appearance
+- **THEN** an axis declared only at another appearance MUST be rejected
+
+#### Scenario: Назначение корня другой оси переносит роль
+
+- **WHEN** the root role is assigned to an axis while another axis of the appearance holds it
+- **THEN** the previous axis MUST lose the role
+- **THEN** the appearance MUST report exactly one root axis
+
+#### Scenario: Одна ось не бывает корнем и осью схемы через ручки осей
+
+- **WHEN** a request assigns the root role to the colour scheme axis, or the colour scheme role to the root axis
+- **THEN** the request MUST be rejected as a conflict
+- **THEN** the stored roles MUST remain unchanged
+
+### Requirement: Absent root falls back to a derived axis
+
+The service SHALL choose the root axis by a fixed fallback order and store it, when a configuration does not
+carry `rootVariationId` or the root role is released by removing its axis. The candidates are the axes other
+than the colour scheme axis; the order is: the axis named `size`; otherwise the first candidate by position;
+otherwise none.
+
+#### Scenario: Корня нет в конфиге, есть ось size
+
+- **WHEN** an import receives a configuration without `rootVariationId` that declares an axis named `size`
+- **THEN** that axis MUST be stored as the root axis
+
+#### Scenario: Корня нет в конфиге и нет оси size
+
+- **WHEN** an import receives a configuration without `rootVariationId` that declares axes `shape` and `view`, with `view` as the colour scheme axis
+- **THEN** `shape` MUST be stored as the root axis
+
+#### Scenario: Ось схемы не становится корнем по фолбэку
+
+- **WHEN** the only declared axis is the colour scheme axis and the configuration carries no `rootVariationId`
+- **THEN** the appearance MUST store no root axis
+
+#### Scenario: Первая ось, созданная ручкой осей, становится корнем
+
+- **WHEN** an axis is created through the axis endpoint for an appearance that has no root axis
+- **THEN** the axis MUST become the root unless it is the colour scheme axis
+
+#### Scenario: Снятая с оси роль корня не возвращается ей по фолбэку
+
+- **WHEN** the root role is released from an axis by a request and other candidate axes exist
+- **THEN** the root MUST be chosen again by the fallback order among the other axes
+- **THEN** the released axis MUST NOT be chosen again
+
+#### Scenario: Appearance без осей
+
+- **WHEN** an appearance declares no axes
+- **THEN** the exported configuration MUST carry `rootVariationId` as absent
+
+#### Scenario: Удаление корневой оси пересчитывает корень
+
+- **WHEN** the root axis is removed from an appearance that declares other axes
+- **THEN** the root MUST be chosen again by the fallback order
+- **THEN** the removed axis MUST NOT remain referenced
+
+### Requirement: Axis roles are available through axis endpoints
+
+The endpoints that create, update and return appearance axes SHALL carry both roles. `isColorScheme` and
+`isRoot` of an axis SHALL be true exactly for the axis the appearance references for that role, and SHALL NOT
+be stored independently of that reference.
+
+#### Scenario: Ответ несёт обе роли
+
+- **WHEN** an endpoint returns an appearance axis
+- **THEN** the response MUST contain `isColorScheme` and `isRoot`
+- **THEN** each MUST agree with the references stored on the appearance
+
+#### Scenario: Запрос на создание оси назначает роль
+
+- **WHEN** a request creates an axis with `isRoot` set to true
+- **THEN** the appearance MUST reference that axis as its root
+
+#### Scenario: Снятие роли с оси без роли
+
+- **WHEN** a request sets `isRoot` to false on an axis that is not the root
+- **THEN** the stored roles MUST remain unchanged
+
+#### Scenario: Снятие роли цветовой схемы
+
+- **WHEN** a request sets `isColorScheme` to false on the colour scheme axis
+- **THEN** the appearance MUST report no colour scheme axis
+
+### Requirement: Stored roles are migrated from the previous model
+
+Existing appearances SHALL receive the new references from the data already stored: the colour scheme axis
+from the axis flagged as colour scheme, and the root axis by the fallback order. The previous colour scheme
+flag SHALL remain equal to the new reference while the column exists.
+
+#### Scenario: Роль схемы переносится из флага
+
+- **WHEN** the migration runs on an appearance with a flagged colour scheme axis
+- **THEN** the appearance MUST reference that axis as its colour scheme axis
+
+#### Scenario: Корень проставляется существующим appearance
+
+- **WHEN** the migration runs on an appearance with axes and no stored root
+- **THEN** the root MUST be set by the fallback order, after the colour scheme axis is transferred
+
+#### Scenario: Флаг остаётся синхронным
+
+- **WHEN** the colour scheme role changes through any endpoint
+- **THEN** the previous colour scheme flag MUST be updated in the same transaction
+- **THEN** the flag MUST be true only on the axis the appearance references
+
+### Requirement: Действующее имя оси и значения принадлежит оформлению
+
+`ds-service` SHALL хранить необязательное отображаемое имя оси и значения оси в объявлении оформления. Действующим именем SHALL считаться отображаемое имя, а при его отсутствии — `variations.name` либо `styles.name`.
+
+#### Scenario: Два оформления называют ось по-разному
+
+- **WHEN** одна ось компонента объявлена в двух оформлениях с разными отображаемыми именами
+- **THEN** каждое оформление MUST сохранить своё имя
+- **THEN** запись имени одного оформления MUST NOT менять имя другого
+
+#### Scenario: Имя не задано
+
+- **WHEN** отображаемое имя не задано
+- **THEN** действующим именем MUST быть `variations.name` либо `styles.name`
+
+#### Scenario: Конфигурация использует действующие имена
+
+- **WHEN** строится конфигурация оформления для экспорта, превью или чтения
+- **THEN** оси и значения MUST называться действующими именами
+- **THEN** `authoredId` значений MUST остаться без изменений
+
+#### Scenario: Импорт задаёт действующие имена
+
+- **WHEN** импортируется конфигурация оформления
+- **THEN** оси и значения MUST сопоставляться по действующим именам оформления
+- **THEN** новые оси и значения MUST получать имена конфигурации
+
+### Requirement: Отображаемое имя — изменяемое поле объявления
+
+Отображаемое имя оси и значения оси SHALL быть изменяемым полем объявления оформления в модели редакций change `add-versioned-multi-user-editing` (`appearance_variation_revisions`, `appearance_variation_value_revisions`) и SHALL участвовать в журнале изменений и откате как обычное поле.
+
+#### Scenario: Переименование попадает в журнал
+
+- **WHEN** ось или значение оси переименовано в активном черновике
+- **THEN** журнал MUST содержать изменение поля отображаемого имени этой сущности
+- **THEN** откат изменения MUST вернуть прежнее имя
+
+#### Scenario: Чтение опубликованной версии
+
+- **WHEN** конфигурация читается с `versionId` опубликованной версии
+- **THEN** действующие имена MUST соответствовать границе этой версии
+
+#### Scenario: Импорт сохраняет имена
+
+- **WHEN** импорт заменяет оформление
+- **THEN** отображаемые имена осей и значений, оставшихся в конфигурации, MUST сохраниться
+
+### Requirement: Признак конфигурации по умолчанию
+
+`ds-service` SHALL хранить у оформления признак `isDefault` как изменяемое поле модели редакций (`appearance_revisions`). Для пары (дизайн-система, компонент) на любой границе версии ровно одно действующее оформление MUST иметь `isDefault = true`.
+
+#### Scenario: Чтение опубликованной версии
+
+- **WHEN** оформления читаются с `versionId` опубликованной версии
+- **THEN** `isDefault` MUST соответствовать границе этой версии
+
+#### Scenario: Признак в журнале
+
+- **WHEN** оформление создано в черновике
+- **THEN** журнал MUST содержать запись `CREATE` с признаком
+
+### Requirement: Объявление оси ссылается на ось своей системы
+
+Объявление оси в оформлении SHALL ссылаться на ось вариации той же дизайн-системы и того же компонента, что и само оформление.
+
+#### Scenario: Ось другой системы
+
+- **WHEN** запись объявляет в оформлении системы A ось системы B
+- **THEN** `ds-service` MUST отклонить запись
+- **THEN** объявления остальных осей оформления MUST NOT измениться
+

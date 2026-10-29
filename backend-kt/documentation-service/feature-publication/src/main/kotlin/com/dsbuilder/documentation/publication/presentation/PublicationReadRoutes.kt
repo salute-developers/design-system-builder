@@ -34,7 +34,7 @@ fun Route.publicationReadRoutes(
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val designSystemId = call.request.queryParameters["designSystemId"]
             ?: return@get call.respond(HttpStatusCode.BadRequest)
-        val version = call.request.queryParameters["version"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+        val version = call.request.queryParameters["version"]
         val platform = call.request.queryParameters["platform"] ?: return@get call.respond(HttpStatusCode.BadRequest)
         repository.activePublication(projectId, designSystemId, version, platform)?.let { call.respond(it) }
             ?: call.respond(HttpStatusCode.NotFound)

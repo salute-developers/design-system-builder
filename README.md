@@ -115,11 +115,11 @@ cd frontend-kt && ./gradlew build
 ## Production
 
 Backend production stack описан в [docker-compose.prod.yml](./docker-compose.prod.yml). GitHub Actions вручную собирает
-десять Kotlin, JavaScript и infrastructure образов, публикует их в GitHub Container Registry (GHCR) и вызывает deploy webhook
+восемь Kotlin, JavaScript и infrastructure образов, публикует их в GitHub Container Registry (GHCR) и вызывает deploy webhook
 DEV или PROD resource в Coolify. Compose использует только готовые registry images; исходники на deployment server не
 собираются.
 
-`js/apps/client` и `js/apps/admin` не входят в Docker Compose: их environment-specific статика продолжает публиковаться
+`js/apps/client` не входит в Docker Compose: его environment-specific статика продолжает публиковаться
 существующими frontend workflow в S3. Снаружи Coolify публикует только `gateway`, а внутренние сервисы используют
 service-name DNS внутри compose network.
 
@@ -140,8 +140,22 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 ./setup-local.sh
 ```
 
-Скрипт сначала настраивает и запускает JavaScript-контур, а затем запускает Kotlin backend в detached-режиме. Такой порядок
-нужен, потому что `documentation-service` использует JS `db-service` по адресу `host.docker.internal:3008`.
+Скрипт запускает Kotlin backend в detached-режиме,
+наполняет дизайн-систему `base` и поднимает клиент. База `ds_registry` живёт в стеке `backend-kt` (сервис `ds-db`,
+хостовый порт `5433`, переопределяется `DS_DB_PORT`), её схему создаёт Flyway в `ds-service`; Drizzle-миграции не
+запускаются. Наполнение делает `backend-kt/bootstrap-base.sh` только через Gateway: находит или создаёт проект
+пользователя `admin@example.com`, заливает глобальный слой web-компонентов (`dsbuilder components import-api` по
+`web-api-meta.json` из `js/cli`), создаёт дизайн-систему `base` с темой `base_default`; версию он не публикует, `base` остаётся черновиком.
+Токены, их значения, палитру и компоненты темы `ds-service` заводит сам из своих ресурсов. Для bootstrap нужны JVM-дистрибутив
+CLI (`frontend-kt/gradlew :cli:installJvmDist`, собирается автоматически) и установленные зависимости `js/cli`
+(`cd js/cli && npm ci`) для генерации `web-api-meta.json`; готовый файл можно передать через `DSBUILDER_WEB_API_META`.
+
+По умолчанию локальные данные сохраняются, повторный запуск ничего не дублирует. Чтобы удалить данные обоих стеков
+(все Docker volumes) и начать с чистой базы, запустите с явной опцией:
+
+```bash
+./setup-local.sh --reset
+```
 
 Для сборки Kotlin backend нужен JDK 17. `backend-kt/start-local.sh` автоматически использует JDK 17 из
 `DSBUILDER_JAVA_HOME`, `JAVA_HOME`, `PATH` или стандартных системных установок. JetBrains IDE для запуска не требуется.
@@ -169,12 +183,52 @@ DSBUILDER_JAVA_HOME=/path/to/jdk-17 ./setup-local.sh
 cp js/.env.example js/.env
 ```
 
-Контуры можно запускать и отдельно:
+Для локального запуска `NPM_PACKAGE_SCOPE` по умолчанию равен `@sddsjs`. `NPM_TOKEN` JS-контуром не используется:
+сервиса публикации npm-пакета в нём больше нет.
+
+Kotlin backend можно запускать и отдельно, а наполнить базу повторным bootstrap:
 
 ```bash
-./js/setup-docker.sh
 ./backend-kt/start-local.sh --detach
+./backend-kt/bootstrap-base.sh
 ```
+
+Клиент отдельно: `docker compose -f js/docker-compose.dev.yml up -d --build client` или `npm run dev` в `js/apps/client`.
+
+### Проверка API через Scalar
+
+Локальный API Reference на базе Scalar объединяет публичные контракты Authentication,
+Projects, Design systems и Documentation. Он отправляет запросы через Gateway, поэтому
+пути и авторизация соответствуют реальному клиентскому API, а не внутренним адресам
+микросервисов.
+
+Сначала поднимите локальный контур, затем в отдельном терминале выполните:
+
+```bash
+./backend-kt/scripts/start-api-reference.sh
+```
+
+Откройте [http://127.0.0.1:8090](http://127.0.0.1:8090). Для другого порта передайте
+`--port <port>`. При необходимости Dev и Production gateway добавляются только при
+явной передаче `DS_API_REFERENCE_DEV_GATEWAY` и `DS_API_REFERENCE_PROD_GATEWAY` перед
+запуском скрипта.
+
+Базовый сценарий проверки project-scoped API:
+
+1. В источнике **Projects** откройте `List available projects for the actor` и нажмите
+   **Test Request**.
+2. В блоке **Authentication** выберите `GatewayOAuth`, укажите учётные данные локального
+   пользователя и нажмите **Authorize**. Затем отправьте запрос и сохраните `id` нужного
+   проекта из ответа.
+3. В верхней панели самой страницы API Reference укажите этот идентификатор в поле
+   **Project ID** и нажмите **Apply**. Значение сохраняется только в local storage браузера
+   и подставляется во все Design systems и Documentation запросы.
+4. Откройте требуемую операцию в **Design systems** или **Documentation**, при необходимости
+   авторизуйте этот источник через его `GatewayOAuth`, и выполните **Test Request**.
+
+Не используйте кнопку внешнего Scalar API Client: локальная страница уже содержит Project ID
+и отправляет запросы через настроенный gateway. Нажмите **Clear** рядом с Project ID, чтобы
+удалить выбранный проект из браузера.
 
 ## Backend E2E
 
@@ -191,6 +245,5 @@ E2E запускает разработчик, CI или главный аген
 архивирования OpenSpec Change. Структура сценариев и правила тестовых данных
 описаны в [`e2e/README.md`](./e2e/README.md).
 
-`js/setup-docker.sh` выполняет полную подготовку JS dev-контура: пересоздаёт его Docker volumes, собирает контейнеры,
-запускает миграции и seed базы, а затем поднимает Node.js-сервисы, client и admin. Поэтому локальные данные JS-базы при
-таком запуске будут сброшены.
+JavaScript-часть репозитория — это клиент и локальный генератор (`js/cli`); Node.js-сервисов в ней нет. Общий контур
+поднимайте через `./setup-local.sh`: база `ds-db` и наполнение `base` принадлежат стеку `backend-kt`.

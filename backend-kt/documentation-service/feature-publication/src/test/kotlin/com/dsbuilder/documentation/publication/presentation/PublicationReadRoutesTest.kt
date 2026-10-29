@@ -14,6 +14,7 @@ import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -143,6 +144,21 @@ class PublicationReadRoutesTest {
     }
 
     @Test
+    fun missingVersionResolvesLatestActivePublication() = testApplication {
+        application {
+            install(ContentNegotiation) { json(Json) }
+            routing { publicationReadRoutes(repository()) }
+        }
+
+        val response = client.get("/documentation/publications/active?designSystemId=ds-1&platform=compose") {
+            viewer("project-1")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertTrue(response.bodyAsText().contains("\"version\":\"1.0.0\""))
+    }
+
+    @Test
     fun candidateIsInvisibleAndBindingsAreProjectScoped() = testApplication {
         application {
             install(ContentNegotiation) { json(Json) }
@@ -178,13 +194,13 @@ class PublicationReadRoutesTest {
         override suspend fun activePublication(
             projectId: String,
             designSystemId: String,
-            version: String,
+            version: String?,
             platform: String,
         ): ActivePublicationDto? = if (projectId == "project-1" && platform == "compose") {
             ActivePublicationDto(
                 "publication-1",
                 designSystemId,
-                version,
+                version ?: "1.0.0",
                 platform,
                 "published",
                 "2026-01-01T00:00:01Z",

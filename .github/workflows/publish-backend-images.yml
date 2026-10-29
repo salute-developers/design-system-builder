@@ -87,21 +87,12 @@ jobs:
           - image: projects-service
             context: .
             file: backend-kt/projects-service/app/Dockerfile
+          - image: ds-service
+            context: .
+            file: backend-kt/ds-service/app/Dockerfile
           - image: documentation-service
             context: .
             file: backend-kt/documentation-service/app/Dockerfile
-          - image: db-service
-            context: js/services/db-service
-            file: js/services/db-service/Dockerfile
-          - image: generator
-            context: js/services/generator
-            file: js/services/generator/Dockerfile
-          - image: publisher
-            context: js/services/publisher
-            file: js/services/publisher/Dockerfile
-          - image: documentation-generator
-            context: js/services/documentation-generator
-            file: js/services/documentation-generator/Dockerfile
     env:
       IMAGE_REF: ghcr.io/${{ needs.prepare.outputs.image_namespace }}/${{ matrix.image }}
       DEPLOYMENT_TAG: ${{ needs.prepare.outputs.deployment_tag }}

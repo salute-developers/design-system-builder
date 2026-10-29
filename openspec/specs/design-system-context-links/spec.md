@@ -1,7 +1,8 @@
 # design-system-context-links Specification
 
 ## Purpose
-TBD - created by archiving change add-link-based-context-and-auth. Update Purpose after archive.
+Переносимые ссылки на дизайн-систему, разрешение явного контекста и проверка его полноты.
+
 ## Requirements
 ### Requirement: Переносимая ссылка на дизайн-систему
 

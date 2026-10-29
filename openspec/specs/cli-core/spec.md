@@ -261,3 +261,49 @@ CLI core SHALL отделять явный `--design-system` от локальн
 - **WHEN** headless-команда явно указывает env-переменную с project key
 - **THEN** CLI MUST прочитать значение из env, не из URI
 - **THEN** CLI MUST NOT сохранять key в `.sdds` или выводить его в diagnostics
+
+### Requirement: Backend denial reason in CLI errors
+
+CLI core SHALL дописывать к сообщению об ответе `401` и `403` причину отказа из тела ответа backend, если тело содержит текстовое поле `error` или `message`, и MUST NOT менять сообщение, если такого поля нет.
+
+#### Scenario: Причина из поля error
+
+- **WHEN** backend отвечает `403` с телом `{"error":"System administrator role is required"}`
+- **THEN** сообщение CLI MUST содержать статус отказа и текст `System administrator role is required`
+
+#### Scenario: Причина из поля message
+
+- **WHEN** backend отвечает `401` с телом `{"message":"Invalid bearer token"}`
+- **THEN** сообщение CLI MUST содержать статус отказа и текст `Invalid bearer token`
+
+#### Scenario: Тело без причины
+
+- **WHEN** backend отвечает `403` с пустым телом или телом без полей `error` и `message`
+- **THEN** сообщение CLI MUST совпадать с сообщением без причины
+
+#### Scenario: Причина усечена
+
+- **WHEN** текст причины длиннее лимита вывода
+- **THEN** CLI MUST усечь его до лимита и MUST NOT выводить многострочное тело целиком
+
+### Requirement: Брейкпоинты web-типографики в project config
+
+CLI core SHALL принимать в `.sdds/config.json` необязательный JSON-массив `breakpoints` как
+несекретные локальные метаданные проекта, SHALL NOT интерпретировать и проверять его содержимое
+(это делает web-генератор) и SHALL сохранять его при перезаписи config.
+
+#### Scenario: Config с брейкпоинтами читается
+
+- **WHEN** `.sdds/config.json` содержит массив `breakpoints`
+- **THEN** команды `dsbuilder`, читающие project context, MUST работать так же, как без него
+
+#### Scenario: Брейкпоинты сохраняются при обновлении config
+
+- **WHEN** `theme fetch` или изменение алиасов тем перезаписывает config, в котором есть `breakpoints`
+- **THEN** записанный config MUST содержать то же значение `breakpoints`
+
+#### Scenario: Брейкпоинты не добавляются сами
+
+- **WHEN** CLI создаёт или перезаписывает config без `breakpoints`
+- **THEN** записанный config MUST NOT содержать ключ `breakpoints`
+

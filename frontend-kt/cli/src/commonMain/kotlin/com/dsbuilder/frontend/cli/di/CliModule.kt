@@ -3,8 +3,10 @@ package com.dsbuilder.frontend.cli.di
 import com.dsbuilder.frontend.cli.feature.auth.presentation.AuthCliCommand
 import com.dsbuilder.frontend.cli.feature.components.presentation.ComponentsCliCommand
 import com.dsbuilder.frontend.cli.feature.docs.presentation.DocsCliCommand
+import com.dsbuilder.frontend.cli.feature.ds.presentation.DsCliCommand
 import com.dsbuilder.frontend.cli.feature.init.presentation.InitCliCommand
 import com.dsbuilder.frontend.cli.feature.mcp.presentation.McpCliCommand
+import com.dsbuilder.frontend.cli.feature.previewplugin.presentation.PreviewPluginCliCommand
 import com.dsbuilder.frontend.cli.feature.status.presentation.StatusCliCommand
 import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeCliCommand
 import com.dsbuilder.frontend.cli.feature.toolchain.presentation.ToolchainCliCommand
@@ -22,9 +24,11 @@ public fun cliModule(): Module = module {
         val statusCommand = get<StatusCliCommand>()
         val themeCommand = get<ThemeCliCommand>()
         val componentsCommand = get<ComponentsCliCommand>()
+        val dsCommand = get<DsCliCommand>()
         val docsCommand = get<DocsCliCommand>()
         val toolchainCommand = get<ToolchainCliCommand>()
         val mcpCommand = get<McpCliCommand>()
+        val previewPluginCommand = get<PreviewPluginCliCommand>()
 
         RootCliCommand(
             cliktSubcommands = listOf(
@@ -33,9 +37,11 @@ public fun cliModule(): Module = module {
                 statusCommand,
                 themeCommand,
                 componentsCommand,
+                dsCommand,
                 docsCommand,
                 toolchainCommand,
                 mcpCommand,
+                previewPluginCommand,
             ),
         )
     }

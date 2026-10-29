@@ -1,26 +1,109 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Navigate, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
-import { getOldMenuItems } from '../../utils';
+import {
+    getComposePreviewPluginUrl,
+    loadComposePreviewManifest,
+    parseComponentRoute,
+    toComponentRoute,
+} from '../../composePreview';
+import type { ComponentRoute, ComposePreviewComponentGroup } from '../../composePreview';
+import { SegmentButton, SegmentButtonItem } from '../../components';
+import { getComposeMenuItems, getOldMenuItems } from '../../utils';
+import type { Data } from '../../types';
 import { DesignSystem, Theme, Config } from '../../controllers';
 import { MenuOld, Workspace } from '../../layouts';
+import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
+import { componentRepository as repository } from '../../api/componentRepository';
+import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
 import { ComponentEditor } from './features/ComponentEditor';
+import { PlatformSwitch } from './Components.styles';
+
+import { AutosaveIndicator } from '../../components/AutosaveIndicator';
+import { isRetryableAutosaveError } from '../../api/autosaveHttp';
+import { registerDraftAutosaveSource } from '../../api/draftAutosaveActivity';
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
     components?: Config[];
+    composeComponents?: Config[];
     updated: object;
     rerender: () => void;
+    reload: () => void;
 }
 
+type Platform = ComponentRoute['platform'];
+
+const platformItems: Record<Platform, SegmentButtonItem> = {
+    web: { label: 'Web', value: 'web' },
+    compose: { label: 'Compose', value: 'compose' },
+};
+const platformOrder: Platform[] = ['web', 'compose'];
+
+/** Вкладки платформ показываются всегда; платформа, для которой у дизайн-системы нет компонентов, отключена. */
+export const platformSwitchItems = (available: Platform[]): SegmentButtonItem[] =>
+    platformOrder.map((platform) => ({ ...platformItems[platform], disabled: !available.includes(platform) }));
+type PendingComponentSave = PendingComponentMutation &
+    AutosaveOperation & {
+        metadataKey: string;
+        predecessor?: PendingComponentSave;
+    };
+
 export const Components = () => {
-    const { designSystem, theme, components, updated, rerender } = useOutletContext<ComponentsOutletContextProps>();
+    const { designSystem, theme, components, composeComponents, updated, rerender, reload } =
+        useOutletContext<ComponentsOutletContextProps>();
     const { componentName } = useParams<{ componentName?: string }>();
+    const location = useLocation();
     const navigate = useNavigate();
 
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
-    const data = useMemo(() => getOldMenuItems(components, 'components'), [theme]);
+    // Группы компонентов из манифеста плагина: до загрузки и без них меню строится по таблице клиента.
+    const [pluginGroups, setPluginGroups] = useState<ComposePreviewComponentGroup[]>();
+
+    useEffect(() => {
+        const pluginUrl = getComposePreviewPluginUrl();
+        if (!pluginUrl || !composeComponents?.length) return;
+
+        let cancelled = false;
+        void loadComposePreviewManifest(pluginUrl)
+            .then(({ manifest }) => {
+                if (!cancelled) setPluginGroups(manifest.groups);
+            })
+            .catch(() => undefined);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [composeComponents]);
+
+    // В меню попадают только платформы, для которых у дизайн-системы есть компоненты; остальные вкладки отключены.
+    const menus = useMemo<Partial<Record<Platform, Data | undefined>>>(
+        () => ({
+            ...(components?.length ? { web: getOldMenuItems(components, 'components') } : {}),
+            ...(composeComponents?.length ? { compose: getComposeMenuItems(composeComponents, pluginGroups) } : {}),
+        }),
+        [theme, components, composeComponents, pluginGroups],
+    );
+    const platforms = (Object.keys(menus) as Platform[]).sort((a, b) => (a === 'web' ? -1 : b === 'web' ? 1 : 0));
+    const routePlatform = componentName ? parseComponentRoute(componentName).platform : undefined;
+    const platform: Platform | undefined = routePlatform && menus[routePlatform] ? routePlatform : platforms[0];
+    const data = platform ? menus[platform] : undefined;
+
+    const firstEnabledRoute = (target: Platform) => {
+        const item = menus[target]?.groups?.[0]?.data
+            ?.flatMap(({ items }) => items)
+            .find((candidate) => !candidate.disabled);
+
+        return item ? toComponentRoute(target, item.name) : undefined;
+    };
+    const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('saved');
+    const [lastSave, setLastSave] = useState<{ key: string; time: number }>();
+    const confirmedConfig = useRef<{
+        componentName: string;
+        value: PendingComponentMutation['before'];
+    }>();
+    const autosaveQueue = useRef<TokenAutosaveQueue<PendingComponentSave, Record<string, number>> | null>(null);
 
     // TODO: Маппинг имени компонента в индексы — временный мост к MenuOld, который работает
     // на индексах [tab, group, item]. Когда MenuOld заменят на новый Menu, выбирающий по имени,
@@ -33,33 +116,46 @@ export const Components = () => {
             return [0, 0, 0];
         }
 
+        const { name } = parseComponentRoute(componentName);
         const groupIndex = groups.findIndex(({ items }) =>
-            items.some((item) => item.name.toLowerCase() === componentName.toLowerCase()),
+            items.some((item) => item.name.toLowerCase() === name.toLowerCase()),
         );
 
         if (groupIndex === -1) {
             return [0, 0, 0];
         }
 
-        const itemIndex = groups[groupIndex].items.findIndex(
-            (item) => item.name.toLowerCase() === componentName.toLowerCase(),
-        );
+        const itemIndex = groups[groupIndex].items.findIndex((item) => item.name.toLowerCase() === name.toLowerCase());
 
         return [0, groupIndex, itemIndex];
     }, [groups, componentName]);
 
-    // Если компонент не задан в URL (или не найден) — переходим на первый доступный.
+    // Если компонент не задан в URL или его нет в меню (например, у него нет конфигурации) — переходим на первый доступный.
     useEffect(() => {
-        if (!groups || componentName) {
+        if (!platform || !data) {
             return;
         }
 
-        const firstEnabled = groups.flatMap(({ items }) => items).find((item) => !item.disabled);
+        if (componentName) {
+            const { name } = parseComponentRoute(componentName);
+            const inMenu = groups?.some(({ items }) =>
+                items.some((item) => item.name.toLowerCase() === name.toLowerCase()),
+            );
 
-        if (firstEnabled) {
-            navigate(firstEnabled.name, { replace: true });
+            if (inMenu) {
+                return;
+            }
         }
-    }, [groups, componentName, navigate]);
+
+        const route = firstEnabledRoute(platform);
+
+        if (route) {
+            // С параметром маршрута относительный путь считается от него, поэтому, как в onItemSelect, идём через `../components`.
+            navigate(componentNavigationTarget(componentName ? `../components/${route}` : route, location.search), {
+                replace: true,
+            });
+        }
+    }, [platform, menus, componentName, navigate, location.search]);
 
     useEffect(() => {
         if (!data) {
@@ -74,11 +170,178 @@ export const Components = () => {
         setConfigs(selectedConfigs);
     }, [theme, data, selectedItemIndexes]);
 
+    const config = configs?.[0];
+    const parameters = designSystem?.getParameters();
+    const editorContext = useMemo<EditorContextKey | null>(() => {
+        if (!parameters?.projectId || !parameters.designSystemId || !parameters.tenantId) return null;
+        return {
+            projectId: parameters.projectId,
+            designSystemId: parameters.designSystemId,
+            tenantId: parameters.tenantId,
+        };
+    }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId]);
+    const storagePrefix = editorContext
+        ? `ds_pending_component:${editorContext.projectId}:${editorContext.designSystemId}:${editorContext.tenantId}`
+        : null;
+
+    useEffect(() => {
+        if (!config || !storagePrefix || !editorContext || !designSystem || parameters?.readOnly) return;
+        confirmedConfig.current = { componentName: config.getName(), value: structuredClone(config.getMeta()) };
+        let mounted = true;
+        const componentName = config.getName();
+        const activitySource = `component:${toComponentRoute(config.getPlatform(), componentName)}`;
+        const setActivity = registerDraftAutosaveSource(editorContext, activitySource);
+        let latestActivityStatus: AutosaveStatus = 'saved';
+        const requestKey = `${storagePrefix}:${componentName}:request`;
+        const revisionKey = `${storagePrefix}:${componentName}:revisions`;
+        const aliasesKey = `${storagePrefix}:${componentName}:style-aliases`;
+        let styleAliases = readStoredJson<Record<string, string>>(aliasesKey, {});
+        const readRevisions = () => readStoredJson<Record<string, number>>(revisionKey, {});
+        const queue = new TokenAutosaveQueue<PendingComponentSave, Record<string, number>>({
+            send: (operation) => {
+                operation.requestBodies ??= {};
+                operation.styleAliases = {
+                    ...operation.styleAliases,
+                    ...styleAliases,
+                    ...readStoredJson<Record<string, string>>(aliasesKey, {}),
+                };
+                const meta = designSystem.getComponentDataByName(operation.componentName);
+                if (!operation.prepared) {
+                    if (confirmedConfig.current?.componentName === operation.componentName)
+                        operation.before = structuredClone(confirmedConfig.current.value);
+                    delete operation.predecessor;
+                }
+                operation.prepared = true;
+                const currentOperation = operation;
+                const pending = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+                if (pending?.generation === operation.generation) persistStoredJson(requestKey, operation);
+                return repository.saveComponentMutation(
+                    editorContext,
+                    meta,
+                    currentOperation,
+                    readRevisions(),
+                    (revisions) => {
+                        persistStoredJson(revisionKey, revisions);
+                        styleAliases = { ...styleAliases, ...currentOperation.styleAliases };
+                        persistStoredJson(aliasesKey, styleAliases);
+                        const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+                        if (!stored) return;
+                        if (stored.generation === operation.generation) {
+                            persistStoredJson(requestKey, currentOperation);
+                        } else if (stored.predecessor?.generation === operation.generation) {
+                            persistStoredJson(requestKey, { ...stored, predecessor: currentOperation });
+                        }
+                    },
+                );
+            },
+            confirmed: (operation, revisions) => {
+                if (mounted) setLastSave({ key: storagePrefix, time: Date.now() });
+                persistStoredJson(revisionKey, revisions);
+                if (confirmedConfig.current?.componentName === operation.componentName) {
+                    confirmedConfig.current = {
+                        componentName: operation.componentName,
+                        value: structuredClone(operation.after),
+                    };
+                }
+                const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+                if (stored?.generation === operation.generation) {
+                    removeStoredValue(requestKey);
+                } else if (stored?.predecessor?.generation === operation.generation) {
+                    delete stored.predecessor;
+                    persistStoredJson(requestKey, stored);
+                }
+                reload();
+            },
+            retryable: isRetryableAutosaveError,
+            statusChanged: (status) => {
+                latestActivityStatus = status;
+                setActivity(!mounted && status === 'saved' ? null : status);
+                if (mounted) {
+                    setAutosaveStatus(status);
+                }
+            },
+        });
+        setActivity('saved');
+        autosaveQueue.current = queue;
+        const stored = readStoredJson<(Partial<PendingComponentSave> & PendingComponentMutation) | null>(
+            requestKey,
+            null,
+        );
+        if (stored) {
+            try {
+                const operation: PendingComponentSave = {
+                    ...stored,
+                    prepared: stored.prepared ?? Object.keys(stored.idempotencyKeys).length > 0,
+                    tokenKey: componentName,
+                    operationKey: componentName,
+                    generation: stored.generation ?? crypto.randomUUID(),
+                    retryCount: stored.retryCount ?? 0,
+                    metadataKey: requestKey,
+                };
+                persistStoredJson(requestKey, operation);
+                if (operation.predecessor) {
+                    queue.enqueue(
+                        {
+                            ...operation.predecessor,
+                            operationKey: `${componentName}:predecessor`,
+                        },
+                        true,
+                    );
+                }
+                queue.enqueue(operation, true);
+                setActivity.adoptFailed();
+            } catch {
+                removeStoredValue(requestKey);
+            }
+        }
+        return () => {
+            mounted = false;
+            queue.flushAll();
+            if (latestActivityStatus === 'saved') {
+                setActivity(null);
+            } else setActivity.detach();
+            if (autosaveQueue.current === queue) autosaveQueue.current = null;
+        };
+    }, [config, designSystem, editorContext, parameters?.readOnly, reload, storagePrefix]);
+
+    const onConfigUpdate = useCallback(() => {
+        rerender();
+        if (!config || !storagePrefix || parameters?.readOnly) return;
+        const before =
+            confirmedConfig.current?.componentName === config.getName() ? confirmedConfig.current.value : undefined;
+        if (!before) return;
+        const requestKey = `${storagePrefix}:${config.getName()}:request`;
+        const previous = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+        const pending: PendingComponentSave = {
+            componentName: config.getName(),
+            before: structuredClone(before),
+            after: structuredClone(config.getMeta()),
+            idempotencyKeys: {},
+            requestBodies: {},
+            predecessor: previous?.prepared ? (previous as PendingComponentSave) : previous?.predecessor,
+            tokenKey: config.getName(),
+            operationKey: config.getName(),
+            generation: crypto.randomUUID(),
+            retryCount: 0,
+            metadataKey: requestKey,
+        };
+        persistStoredJson(requestKey, pending);
+        autosaveQueue.current?.enqueue(pending);
+    }, [config, parameters?.readOnly, rerender, storagePrefix]);
+
     const onItemSelect = (groupIndex: number, itemIndex: number) => {
         const name = groups?.[groupIndex]?.items?.[itemIndex]?.name;
 
-        if (name) {
-            navigate(`../components/${name}`);
+        if (name && platform) {
+            navigate(componentNavigationTarget(`../components/${toComponentRoute(platform, name)}`, location.search));
+        }
+    };
+
+    const onPlatformSelect = (item: SegmentButtonItem) => {
+        const route = firstEnabledRoute(item.value as Platform);
+
+        if (route) {
+            navigate(componentNavigationTarget(`../components/${route}`, location.search));
         }
     };
 
@@ -86,15 +349,19 @@ export const Components = () => {
         return null;
     }
 
-    if (components.length === 0) {
-        return <Navigate to="../colors" replace />;
+    if (!platform) {
+        return <Navigate to={componentNavigationTarget('../colors', location.search)} replace />;
     }
 
     return (
         <Workspace
+            section="components"
+            readOnly={designSystem.getParameters()?.readOnly}
             menuBackground={'transparent'}
             menu={
                 <MenuOld
+                    // Развёрнутая группа берётся из выбора при монтировании: с группами плагина меню собирается заново.
+                    key={`${platform}-${pluginGroups ? 'plugin-groups' : 'default-groups'}`}
                     header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
@@ -103,17 +370,62 @@ export const Components = () => {
                     sectionTitle="Компоненты"
                     selectedItemIndexes={selectedItemIndexes}
                     onItemSelect={onItemSelect}
+                    toolbar={
+                        <PlatformSwitch>
+                            <SegmentButton
+                                label="Платформа"
+                                items={platformSwitchItems(platforms)}
+                                selected={platformItems[platform]}
+                                onSelect={onPlatformSelect}
+                            />
+                        </PlatformSwitch>
+                    }
                 />
             }
             content={
-                <ComponentEditor
-                    designSystem={designSystem}
-                    theme={theme}
-                    configs={configs}
-                    updated={updated}
-                    onConfigUpdate={rerender}
-                />
+                <>
+                    <AutosaveIndicator
+                        status={autosaveStatus}
+                        retry={() => autosaveQueue.current?.retryFailed()}
+                        lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
+                    />
+                    <ComponentEditor
+                        designSystem={designSystem}
+                        theme={theme}
+                        configs={configs}
+                        updated={updated}
+                        onConfigUpdate={onConfigUpdate}
+                    />
+                </>
             }
         />
     );
+};
+
+export const componentNavigationTarget = (pathname: string, search: string) => ({ pathname, search });
+
+const readStoredJson = <T,>(key: string, fallback: T): T => {
+    try {
+        const stored = localStorage.getItem(key);
+        return stored === null ? fallback : (JSON.parse(stored) as T);
+    } catch {
+        removeStoredValue(key);
+        return fallback;
+    }
+};
+
+const persistStoredJson = (key: string, value: unknown) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+        // Локальная копия необязательна: очередь в памяти всё равно должна отправить изменение.
+    }
+};
+
+const removeStoredValue = (key: string) => {
+    try {
+        localStorage.removeItem(key);
+    } catch {
+        // Ошибка очистки локальной копии не меняет результат подтверждённой серверной операции.
+    }
 };

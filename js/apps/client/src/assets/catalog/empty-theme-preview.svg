@@ -1,0 +1,48 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="420" height="260" viewBox="0 0 420 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Preview">
+<g id="Light mode ghost">
+<rect x="88" y="48" width="112" height="164" rx="12" fill="#27282C"/>
+<rect x="88.5" y="48.5" width="111" height="163" rx="11.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<g id="Dark mode ghost">
+<rect x="220" y="48" width="112" height="164" rx="12" fill="#212327"/>
+<rect x="220.5" y="48.5" width="111" height="163" rx="11.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<rect id="Ghost bar" x="101" y="64" width="48" height="6" rx="3" fill="white" fill-opacity="0.03"/>
+<circle id="Accent" cx="177" cy="70" r="9" fill="#2B8CED"/>
+<g id="Field ghost">
+<rect x="101" y="88" width="86" height="34" rx="7" fill="white" fill-opacity="0.03"/>
+<rect x="101.5" y="88.5" width="85" height="33" rx="6.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<rect id="Ghost bar_2" x="112" y="101" width="43" height="5" rx="2.5" fill="white" fill-opacity="0.03"/>
+<g id="Control ghost">
+<circle cx="171" cy="103" r="4" fill="white" fill-opacity="0.03"/>
+<circle cx="171" cy="103" r="3.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<rect id="Ghost bar_3" x="101" y="137" width="72" height="6" rx="3" fill="white" fill-opacity="0.03"/>
+<rect id="Ghost bar_4" x="101" y="151" width="52" height="5" rx="2.5" fill="white" fill-opacity="0.03"/>
+<rect id="Button ghost" x="101" y="178" width="48" height="20" rx="6" fill="#2B8CED"/>
+<g id="Button ghost_2">
+<rect x="158" y="178" width="29" height="20" rx="6" fill="white" fill-opacity="0.03"/>
+<rect x="158.5" y="178.5" width="28" height="19" rx="5.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<rect id="Ghost bar_5" x="233" y="64" width="48" height="6" rx="3" fill="white" fill-opacity="0.03"/>
+<circle id="Accent dim" cx="309" cy="70" r="8.5" fill="white" fill-opacity="0.03" stroke="#2B8CED"/>
+<g id="Field ghost_2">
+<rect x="233" y="88" width="86" height="34" rx="7" fill="white" fill-opacity="0.03"/>
+<rect x="233.5" y="88.5" width="85" height="33" rx="6.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<rect id="Ghost bar_6" x="244" y="101" width="43" height="5" rx="2.5" fill="white" fill-opacity="0.03"/>
+<g id="Control ghost_2">
+<circle cx="303" cy="103" r="4" fill="white" fill-opacity="0.03"/>
+<circle cx="303" cy="103" r="3.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<rect id="Ghost bar_7" x="233" y="137" width="72" height="6" rx="3" fill="white" fill-opacity="0.03"/>
+<rect id="Ghost bar_8" x="233" y="151" width="52" height="5" rx="2.5" fill="white" fill-opacity="0.03"/>
+<rect id="Button ghost_3" x="233.5" y="178.5" width="47" height="19" rx="5.5" fill="white" fill-opacity="0.03" stroke="#2B8CED"/>
+<g id="Button ghost_4">
+<rect x="290" y="178" width="29" height="20" rx="6" fill="white" fill-opacity="0.03"/>
+<rect x="290.5" y="178.5" width="28" height="19" rx="5.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+</g>
+</svg>

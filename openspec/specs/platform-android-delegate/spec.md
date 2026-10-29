@@ -1,7 +1,8 @@
 # platform-android-delegate Specification
 
 ## Purpose
-TBD - created by archiving change platform-android-delegate. Update Purpose after archive.
+Делегирование Android-операций внешнему инструменту, его обнаружение и диагностика доступности.
+
 ## Requirements
 ### Requirement: Android toolchain delegate
 
@@ -12,7 +13,7 @@ target platforms through the `dsBuilder` Gradle plugin (`sdds-core/plugin_theme_
 
 - **WHEN** CLI builds its platform delegate registry
 - **THEN** the registry MUST resolve both `compose` and `android-view` to the `android` toolchain
-- **THEN** the `android` toolchain MUST declare the capabilities `THEME`, `COMPONENTS` and `DOCS_AGGREGATE`
+- **THEN** the `android` toolchain MUST declare the capabilities `THEME`, `COMPONENTS`, `DOCS_AGGREGATE` and `DESIGN_SYSTEM`
 - **THEN** `toolchain list` MUST show it without any additional configuration
 
 #### Scenario: Генерация темы
@@ -28,6 +29,13 @@ target platforms through the `dsBuilder` Gradle plugin (`sdds-core/plugin_theme_
 - **THEN** it MUST invoke the Gradle task `generateComposeComponents`
 - **WHEN** the delegate runs the `COMPONENTS` capability for `android-view`
 - **THEN** it MUST invoke the Gradle task `generateViewComponents`
+
+#### Scenario: Генерация дизайн-системы целиком
+
+- **WHEN** the delegate runs the `DESIGN_SYSTEM` capability for `compose`
+- **THEN** it MUST invoke `generateComposeTheme` and `generateComposeComponents` in one `gradlew` run, theme first
+- **WHEN** the delegate runs the `DESIGN_SYSTEM` capability for `android-view`
+- **THEN** it MUST invoke `generateViewTheme` and `generateViewComponents` in one `gradlew` run, theme first
 
 #### Scenario: Агрегация документации
 
@@ -106,3 +114,4 @@ its theme generation task, without generating anything and without relying on a 
 - **WHEN** `doctor` reports a ready toolchain
 - **THEN** a subsequent `run` MAY still fail if the specific requested capability/platform task is not
   configured for the module or the tool's own generation fails
+

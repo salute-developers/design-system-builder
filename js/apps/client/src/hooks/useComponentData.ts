@@ -3,23 +3,27 @@ import { useEffect, useState } from 'react';
 import { Config } from '../controllers';
 
 // TODO: перенести в утилиты?
-const getDefaultProps = (config: Config) => {
+export const getDefaultProps = (config: Config) => {
     const defaultVariations = config.getDefaults();
-
     const defaults: Record<string, string | boolean> = {};
 
     defaultVariations.forEach((item) => {
-        const variation = item.getVariation();
-        const styleID = item.getStyleID();
-
-        defaults[variation] = styleID;
+        defaults[item.getVariation()] = item.getStyleID();
     });
 
-    if (defaultVariations.length) {
+    // Для web при заданных стилях по умолчанию остальные вариации не выбираются, как и раньше.
+    if (defaultVariations.length && config.getPlatform() !== 'compose') {
         return defaults;
     }
 
+    // Вариация без стиля по умолчанию (например, `view` у `TabBar`) получает первый стиль: от него зависят значения
+    // сочетаний стилей, и без него вложенные стили айтемов не попадают в превью, пока вкладку вариации не откроют.
+    // Флаг без значения по умолчанию остаётся выключенным: его выключенное состояние — отсутствие аргумента.
     config.getVariations().forEach((variation) => {
+        if (defaults[variation.getName()] !== undefined || (defaultVariations.length && variation.isFlag())) {
+            return;
+        }
+
         const firstStyle = variation.getStyles()?.[0];
 
         if (firstStyle) {

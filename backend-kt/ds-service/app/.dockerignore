@@ -1,0 +1,6 @@
+.gradle
+build/*
+!build/libs
+build/libs/*
+!build/libs/*-all.jar
+*.env
