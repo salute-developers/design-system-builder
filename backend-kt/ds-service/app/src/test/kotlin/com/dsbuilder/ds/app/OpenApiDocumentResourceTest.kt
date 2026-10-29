@@ -199,7 +199,7 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        assertEquals(186, operationCount) // Составные чтения используют существующие маршруты; +4 токенов размеров.
+        assertEquals(188, operationCount) // Два маршрута составных чтений поверх текущего dev.
         assertTrue("/api/ds/design-systems/{id}/changes/summary" in paths)
         assertTrue("/api/ds/design-systems" in paths)
         assertTrue("/api/ds/component-config/import" in paths)
