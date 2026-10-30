@@ -163,6 +163,9 @@ services:
       DS_PLUGIN_S3_PATH_STYLE: "true"
       DS_PLUGIN_S3_PREFIX: ${DS_PLUGIN_S3_PREFIX:-}
       DS_PLUGIN_PUBLIC_BASE_URL: ${DS_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/compose-preview}
+      DS_WEB_PLUGIN_S3_BUCKET: web-preview
+      DS_WEB_PLUGIN_S3_PREFIX: ${DS_WEB_PLUGIN_S3_PREFIX:-}
+      DS_WEB_PLUGIN_PUBLIC_BASE_URL: ${DS_WEB_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/web-preview}
     expose:
       - "8085"
     volumes:
@@ -206,8 +209,8 @@ services:
     # Without a volume the buckets are lost on a Docker restart, while the registry still lists the plugin builds.
     volumes:
       - minio-data:/data
-    # The browser loads Compose preview plugin builds straight from the bucket; the web console (minio/minio123)
-    # shows the buckets for local debugging.
+    # The browser loads Compose and web preview plugin builds straight from their buckets; the web console
+    # (minio/minio123) shows the buckets for local debugging.
     ports:
       - "${MINIO_PUBLIC_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -222,7 +225,7 @@ services:
       context: ./docker/minio
       dockerfile: Dockerfile.mc
     image: dsbuilder-minio-mc:local
-    entrypoint: ["/bin/sh", "-c", "mc alias set local http://minio:9000 minio minio123 && mc mb --ignore-existing local/documentation-bundles && mc mb --ignore-existing local/compose-preview && mc anonymous set download local/compose-preview"]
+    entrypoint: ["/bin/sh", "-c", "mc alias set local http://minio:9000 minio minio123 && mc mb --ignore-existing local/documentation-bundles && mc mb --ignore-existing local/compose-preview && mc anonymous set download local/compose-preview && mc mb --ignore-existing local/web-preview && mc anonymous set download local/web-preview"]
     depends_on:
       minio:
         condition: service_healthy

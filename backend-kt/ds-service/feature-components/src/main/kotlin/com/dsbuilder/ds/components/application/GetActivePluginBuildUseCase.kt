@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.authorization.ProjectScope
+import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -11,17 +12,16 @@ import com.dsbuilder.ds.core.application.TransactionRunner
 class GetActivePluginBuildUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
-    private val storage: PluginBuildStorage,
+    private val storages: PluginBuildStorages,
     private val builds: PluginBuildRepository,
-    private val settings: PluginBuildSettings,
 ) {
-    /** Возвращает активный билд платформы `compose` либо `NotFound`. */
-    suspend fun execute(context: DsRequestContext): DsResult<ActivePluginBuild> =
+    /** Возвращает активный билд [platform] либо `NotFound`, если хранилище платформы не настроено или билда нет. */
+    suspend fun execute(platform: PreviewPluginPlatform, context: DsRequestContext): DsResult<ActivePluginBuild> =
         policy.read(context, ProjectScope.COMPONENTS_READ) {
-            if (!storage.configured) return@read DsResult.Failure(DsFailure.NotFound)
+            val binding = storages.configured(platform) ?: return@read DsResult.Failure(DsFailure.NotFound)
             transactions.readOnly {
-                builds.active(PublishPluginBuildUseCase.PLATFORM)
-                    ?.let { DsResult.Success(ActivePluginBuild(it, settings.pluginUrl(it.buildId))) }
+                builds.active(platform.wire)
+                    ?.let { DsResult.Success(ActivePluginBuild(it, binding.settings.pluginUrl(it.buildId))) }
                     ?: DsResult.Failure(DsFailure.NotFound)
             }
         }

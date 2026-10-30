@@ -3566,6 +3566,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
+  /api/ds/web-preview/plugin:
+    get:
+      tags:
+        - Web Preview
+      summary: Get the active web preview plugin build
+      description: >-
+        Returns the public address and version of the web plugin build that is active in this environment.
+        The answer does not depend on the selected design system version.
+      responses:
+        '200':
+          description: Active web plugin build
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveWebPluginBuild'
+        '404':
+          description: No web plugin build is published or the web plugin storage is not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
   /api/ds/components:
     get:
       tags:
@@ -8845,6 +8873,37 @@ components:
           description: Build identifier, the first 12 characters of the commit
         uikitComposeVersion:
           type: string
+        metaSha256:
+          type: string
+        protocolVersion:
+          type: integer
+        pluginUrl:
+          type: string
+          description: Public address of the build directory, ends with a slash
+        publishedAt:
+          type: string
+          format: date-time
+    ActiveWebPluginBuild:
+      type: object
+      required:
+        - buildId
+        - platform
+        - libraryVersion
+        - metaSha256
+        - protocolVersion
+        - pluginUrl
+        - publishedAt
+      properties:
+        buildId:
+          type: string
+          description: Build identifier, the first 12 characters of the commit
+        platform:
+          type: string
+          enum:
+            - web
+        libraryVersion:
+          type: string
+          description: plasma-new-hope version the plugin and its meta are built from
         metaSha256:
           type: string
         protocolVersion:

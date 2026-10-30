@@ -500,6 +500,16 @@
       "operations": [
         ["GET", "/compose-preview/plugin", null, "ActivePluginBuild", 200, "components:read", null]
       ]
+    },
+    {
+      "name": "web-preview",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "global-read-system-admin-write",
+      "operations": [
+        ["GET", "/web-preview/plugin", null, "ActiveWebPluginBuild", 200, "components:read", null]
+      ]
     }
   ]
 }
