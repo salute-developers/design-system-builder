@@ -15,7 +15,7 @@ fun Application.installPublicGateway(configuration: GatewayConfiguration, author
             finish()
             return@intercept
         }
-        if (java.net.URI(call.request.path()).path == "/api/admin/compose-preview/plugin-builds") {
+        if (java.net.URI(call.request.path()).path in pluginPublishPaths) {
             publicationTimeout(call, configuration.pluginTimeoutSeconds * 1000) { proceed() }
         } else {
             proceed()

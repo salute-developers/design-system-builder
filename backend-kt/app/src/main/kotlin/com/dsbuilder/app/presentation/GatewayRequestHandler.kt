@@ -51,7 +51,7 @@ internal class GatewayRequestHandler(
     ): Boolean {
         val maxBytes = when {
             policy.documentation -> configuration.documentationMaxBytes
-            path == "/api/admin/compose-preview/plugin-builds" -> 64L * 1024 * 1024
+            path in pluginPublishPaths -> 64L * 1024 * 1024
             policy.ds || path == "/api/admin/component-config/import-api-meta" -> 16L * 1024 * 1024
             else -> 2L * 1024 * 1024
         }
@@ -71,9 +71,9 @@ internal class GatewayRequestHandler(
 
     private fun routePolicy(path: String): RoutePolicy {
         val project = Regex("^/api/projects/([^/]+)(?:/.*)?$").matchEntire(path)
-        val userRoute = path in setOf(
+        val userRoute = path in pluginPublishPaths || path in setOf(
             "/api/projects", "/api/projects/member-candidates",
-            "/api/admin/component-config/import-api-meta", "/api/admin/compose-preview/plugin-builds",
+            "/api/admin/component-config/import-api-meta",
         )
         val ds = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/ds")
         val documentation = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/documentation")

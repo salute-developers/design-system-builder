@@ -7,10 +7,16 @@ import io.ktor.server.routing.PathSegmentTailcardRouteSelector
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingNode
 
+/** Публикация preview-плагинов: большие архивы с собственным таймаутом. */
+internal val pluginPublishPaths = setOf(
+    "/api/admin/compose-preview/plugin-builds",
+    "/api/admin/web-preview/plugin-builds",
+)
+
 /** Проверяет публичную границу до авторизации и выполнения предметного маршрута. */
 internal fun publicGatewayPath(path: String): Boolean =
     path in setOf("/health", "/ready", "/admin", "/api/projects", "/api/projects/") ||
-        path in setOf("/api/admin/component-config/import-api-meta", "/api/admin/compose-preview/plugin-builds") ||
+        path == "/api/admin/component-config/import-api-meta" || path in pluginPublishPaths ||
         listOf("/api/projects/", "/auth/", "/realms/", "/resources/", "/admin/").any(path::startsWith)
 
 /** Перебирает зарегистрированные конечные маршруты и запрещает случайную публикацию внутренних API. */

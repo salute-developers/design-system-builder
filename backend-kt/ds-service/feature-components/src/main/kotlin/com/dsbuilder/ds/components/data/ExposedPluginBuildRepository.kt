@@ -48,7 +48,7 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
         PluginBuildsTable.insert {
             it[buildId] = build.buildId
             it[platform] = db
-            it[uikitComposeVersion] = build.uikitComposeVersion
+            it[libraryVersion] = build.libraryVersion
             it[metaSha256] = build.metaSha256
             it[commitSha] = build.commit
             it[protocolVersion] = build.protocolVersion
@@ -89,7 +89,7 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
     private fun ResultRow.toBuild() = PluginBuild(
         buildId = this[PluginBuildsTable.buildId],
         platform = this[PluginBuildsTable.platform].wireValue,
-        uikitComposeVersion = this[PluginBuildsTable.uikitComposeVersion],
+        libraryVersion = this[PluginBuildsTable.libraryVersion],
         metaSha256 = this[PluginBuildsTable.metaSha256],
         commit = this[PluginBuildsTable.commitSha],
         protocolVersion = this[PluginBuildsTable.protocolVersion],
