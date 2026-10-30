@@ -127,7 +127,10 @@ private fun Module.apiMetaBindings() {
             apiUrlResolver = get<ApiUrlResolver>(),
             archiveSource = get<PreviewPluginArchiveSource>(),
             remoteSource = get<PreviewPluginRemoteSource>(),
-            normalizer = get<ComposeApiMetaNormalizer>(),
+            normalizers = mapOf(
+                TargetPlatform.COMPOSE to get<ComposeApiMetaNormalizer>(),
+                TargetPlatform.REACT to get<WebApiMetaNormalizer>(),
+            ),
         )
     }
 }

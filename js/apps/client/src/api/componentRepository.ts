@@ -19,6 +19,7 @@ import type {
     ComponentConfigPropertyDto,
     ComponentConfigDto,
     ComponentConfigExportDto,
+    ComponentEditorBundleDto,
     PendingComponentMutation,
 } from './editorContracts';
 import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
@@ -29,14 +30,12 @@ import { camelToKebab } from '../utils/text';
 import {
     collectDependencies,
     enrichApi,
-    templateLookup,
     variationNamesByProperty,
     composeParamsByProperty,
     webParamsByProperty,
     type ComponentDependencyDto,
     type PropertyPlatformParamDto,
     type PropertyVariationDto,
-    type WebAdapterComponentDto,
 } from './componentModelEnrichment';
 
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
@@ -114,6 +113,126 @@ const createRequestLimiter = (maximum: number) => {
 
 const COMPONENT_LOAD_CONCURRENCY = 4;
 
+/** Данные, из которых собирается `Meta`: либо списки всей ДС, либо они же, ограниченные одним компонентом. */
+interface ComponentSources {
+    links: DesignSystemComponentDto[];
+    catalog: ComponentDto[];
+    appearances: AppearanceDto[];
+    exported: ComponentConfigExportDto[];
+    params: PropertyPlatformParamDto[];
+    propertyVariations: PropertyVariationDto[];
+    dependencies: ComponentDependencyDto[];
+    details: (component: ComponentDto) => Promise<{
+        properties: ComponentPropertyDto[];
+        variations: ComponentVariationDto[];
+        styles: ComponentStyleDto[];
+    }>;
+}
+
+/** Прежний путь: списки всей дизайн-системы и по три чтения на компонент. */
+const readComponentLists = async (
+    context: EditorContextKey,
+    signal: AbortSignal | undefined,
+    platform: ComponentDto['platform'],
+    componentName: string | undefined,
+): Promise<ComponentSources> => {
+    const root = apiRoot(context.projectId);
+    const request = readRequest(context, signal);
+    // Web-параметры и панели вариаций нужны только web-превью; Compose-превью нужны только имена
+    // Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
+    const isWeb = platform === 'web';
+    const isCompose = platform === 'compose';
+    const empty = <T>() => Promise.resolve({ data: [] as T[] });
+    const [links, catalog, appearances, exported, params, propertyVariations, dependencies] =
+        await Promise.all([
+            readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+            readEditor<ComponentDto[]>(`${root}/components`, request),
+            readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+            readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
+                designSystemId: context.designSystemId,
+                platform,
+                ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
+            }),
+            isWeb || isCompose
+                ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
+                : empty<PropertyPlatformParamDto>(),
+            isWeb
+                ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request)
+                : empty<PropertyVariationDto>(),
+            readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request),
+        ]);
+    const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
+    return {
+        links: links.data,
+        catalog: catalog.data,
+        appearances: appearances.data,
+        exported: [exported.data],
+        params: params.data,
+        propertyVariations: propertyVariations.data,
+        dependencies: dependencies.data,
+        details: async (component) => {
+            const [properties, variations] = await Promise.all([
+                limitedRequest(() =>
+                    readEditor<ComponentPropertyDto[]>(`${root}/components/${component.id}/properties`, request),
+                ),
+                limitedRequest(() =>
+                    readEditor<ComponentVariationDto[]>(
+                        `${root}/components/${component.id}/variations`,
+                        variationReadRequest(context, signal),
+                    ),
+                ),
+            ]);
+            const styles = componentName
+                ? (
+                      await readEditor<ComponentStyleDto[]>(
+                          `${root}/design-systems/${context.designSystemId}/components/${component.id}/styles`,
+                          request,
+                      )
+                  ).data
+                : (
+                      await Promise.all(
+                          variations.data.map((variation) =>
+                              limitedRequest(() =>
+                                  readEditor<ComponentStyleDto[]>(`${root}/variations/${variation.id}/styles`, request),
+                              ),
+                          ),
+                      )
+                  ).flatMap((response) => response.data);
+            return { properties: properties.data, variations: variations.data, styles };
+        },
+    };
+};
+
+/** Один компонент — одно чтение: те же DTO, что у списков, уже ограниченные компонентом и его связями. */
+const readEditorBundle = async (
+    context: EditorContextKey,
+    signal: AbortSignal | undefined,
+    platform: ComponentDto['platform'],
+    componentId: string,
+): Promise<ComponentSources> => {
+    const request = readRequest(context, signal);
+    const { data } = await readEditor<ComponentEditorBundleDto>(
+        `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/components/${componentId}/editor-bundle`,
+        { ...request, params: { ...request.params, platform } },
+    );
+    const catalog = [data.component, ...data.dependencyComponents];
+    return {
+        // Сервер отдаёт только компоненты, привязанные к этой ДС и платформе.
+        links: catalog.map((component) => ({
+            id: component.id,
+            designSystemId: context.designSystemId,
+            componentId: component.id,
+        })),
+        catalog,
+        appearances: data.appearances,
+        exported: [data.export],
+        params: data.platformParams,
+        propertyVariations: data.propertyVariations,
+        dependencies: data.dependencies,
+        details: async () => ({ properties: data.properties, variations: data.variations, styles: data.styles }),
+    };
+};
+
 /** Предметный клиент с ограниченным набором операций. */
 export const componentRepository = {
     /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей. */
@@ -167,101 +286,48 @@ export const componentRepository = {
         signal?: AbortSignal,
         platform: ComponentDto['platform'] = 'web',
         componentName?: string,
+        componentId?: string,
     ): Promise<Meta[]> {
         // Модель web-компонентов нужна не только разделу «Компоненты»: «Цвета» берут из неё связи токенов,
         // пары контраста и канвас. Флаг прячет раздел, а не данные, поэтому здесь не проверяется.
-        const root = apiRoot(context.projectId);
-        const request = readRequest(context, signal);
-        // Web-параметры, панели вариаций и шаблоны нужны только web-превью; Compose-превью нужны только имена
-        // Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
+        // Известный компонент читается одним editor-bundle; без него — прежние списки всей дизайн-системы.
         const isWeb = platform === 'web';
         const isCompose = platform === 'compose';
-        const empty = <T>() => Promise.resolve({ data: [] as T[] });
-        const [links, catalog, appearances, exported, params, propertyVariations, adapter, dependencies] =
-            await Promise.all([
-                readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-                readEditor<ComponentDto[]>(`${root}/components`, request),
-                readEditor<AppearanceDto[]>(`${root}/appearances`, request),
-                Promise.all(
-                    [platform].map((platform) =>
-                        readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-                            designSystemId: context.designSystemId,
-                            platform,
-                            ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
-                        }),
-                    ),
-                ),
-                isWeb || isCompose
-                    ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
-                    : empty<PropertyPlatformParamDto>(),
-                isWeb
-                    ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request)
-                    : empty<PropertyVariationDto>(),
-                isWeb
-                    ? readEditor<WebAdapterComponentDto[]>(`${root}/component-config/web-adapter`, request, {
-                          designSystemId: context.designSystemId,
-                      })
-                    : empty<WebAdapterComponentDto>(),
-                readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request),
-            ]);
-        const webParams = webParamsByProperty(params.data);
-        const composeParams = composeParamsByProperty(params.data);
-        const adapterByName = new Map(adapter.data.map((entry) => [entry.name, entry]));
+        const sources: ComponentSources =
+            componentId && (isWeb || isCompose)
+                ? await readEditorBundle(context, signal, platform, componentId)
+                : await readComponentLists(context, signal, platform, componentName);
+        const { links, catalog, appearances, exported, params, dependencies } = sources;
+        // Как у списочных чтений: панели вариаций есть только у web.
+        const propertyVariations = isWeb ? sources.propertyVariations : [];
+        const webParams = webParamsByProperty(params);
+        const composeParams = composeParamsByProperty(params);
         const linkedIds = new Set(
-            links.data.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
+            links.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
         );
-        const entries = exported.flatMap((response) => response.data.components);
+        const entries = exported.flatMap((response) => response.components);
         const configuredNames = new Set(entries.map((entry) => normalizeComponentName(entry.componentName)));
-        const components = catalog.data.filter(
+        const components = catalog.filter(
             (component) =>
                 linkedIds.has(component.id) &&
                 component.platform === platform &&
+                (!componentId || component.id === componentId) &&
                 (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
                 configuredNames.has(normalizeComponentName(component.name)),
         );
         const depsByParent = collectDependencies(
-            dependencies.data,
+            dependencies,
             new Map(
-                catalog.data
+                catalog
                     .filter((component) => linkedIds.has(component.id) && component.platform === platform)
                     .map((component) => [component.id, component.name]),
             ),
         );
-        const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
         return Promise.all(
             components.map(async (component) => {
-                const [properties, variations] = await Promise.all([
-                    limitedRequest(() =>
-                        readEditor<ComponentPropertyDto[]>(`${root}/components/${component.id}/properties`, request),
-                    ),
-                    limitedRequest(() =>
-                        readEditor<ComponentVariationDto[]>(
-                            `${root}/components/${component.id}/variations`,
-                            variationReadRequest(context, signal),
-                        ),
-                    ),
-                ]);
-                const styles = componentName
-                    ? (
-                          await readEditor<ComponentStyleDto[]>(
-                              `${root}/design-systems/${context.designSystemId}/components/${component.id}/styles`,
-                              request,
-                          )
-                      ).data
-                    : (
-                          await Promise.all(
-                              variations.data.map((variation) =>
-                                  limitedRequest(() =>
-                                      readEditor<ComponentStyleDto[]>(
-                                          `${root}/variations/${variation.id}/styles`,
-                                          request,
-                                      ),
-                                  ),
-                              ),
-                          )
-                      ).flatMap((response) => response.data);
-                const propertyByName = new Map(properties.data.map((property) => [property.name, property]));
-                const variationByName = new Map(variations.data.map((variation) => [variation.name, variation]));
+                const { properties, variations, styles } = await sources.details(component);
+                const propertyByName = new Map(properties.map((property) => [property.name, property]));
+                const variationByName = new Map(variations.map((variation) => [variation.name, variation]));
                 const stylesByVariation = new Map<string, ComponentStyleDto[]>();
                 styles.forEach((style) =>
                     stylesByVariation.set(style.variationId, [
@@ -269,7 +335,7 @@ export const componentRepository = {
                         style,
                     ]),
                 );
-                const componentAppearances = appearances.data.filter(
+                const componentAppearances = appearances.filter(
                     (appearance) =>
                         appearance.designSystemId === context.designSystemId && appearance.componentId === component.id,
                 );
@@ -284,13 +350,18 @@ export const componentRepository = {
                     description: component.description ?? '',
                     platform: component.platform,
                     deps: depsByParent.get(component.name) ?? [],
+                    composeParents: [...depsByParent]
+                        .filter(([, deps]) =>
+                            deps.some((dep) => dep.type === 'compose' && dep.childName === component.name),
+                        )
+                        .map(([parent]) => parent),
                     serverBinding: {
                         componentId: component.id,
                         appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
                     },
                     sources: {
                         api: enrichApi(
-                            properties.data.map((property) => ({
+                            properties.map((property) => ({
                                 id: property.id,
                                 name: property.name,
                                 type: property.type as Meta['sources']['api'][number]['type'],
@@ -305,15 +376,11 @@ export const componentRepository = {
                             })),
                             webParams,
                             variationNamesByProperty(
-                                propertyVariations.data,
-                                new Map(variations.data.map((variation) => [variation.id, variation.name])),
-                            ),
-                            templateLookup(
-                                adapterByName.get(component.name),
-                                componentEntries.map((entry) => entry.styleName),
+                                propertyVariations,
+                                new Map(variations.map((variation) => [variation.id, variation.name])),
                             ),
                         ),
-                        variations: variations.data,
+                        variations,
                         configs: componentEntries.map((entry) => {
                             const appearance = componentAppearances.find(
                                 (candidate) => (candidate.name ?? 'default') === entry.styleName,
@@ -338,7 +405,7 @@ export const componentRepository = {
     async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
         try {
-            // Без активного билда (и без прямого адреса) Compose-preview не предлагается: React-preview не меняется.
+            // Без активного билда (и без прямого адреса) Compose-preview не предлагается.
             const pluginUrl = await resolveComposePreviewPluginUrl(
                 context.projectId,
                 fetchComposePreviewPluginDescriptor,

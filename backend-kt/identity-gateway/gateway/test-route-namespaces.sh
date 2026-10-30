@@ -46,9 +46,11 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   import_meta_block=$(awk 'index($0, "location = /api/admin/component-config/import-api-meta {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
 
   plugin_builds_block=$(awk 'index($0, "location = /api/admin/compose-preview/plugin-builds {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+  web_plugin_builds_block=$(awk 'index($0, "location = /api/admin/web-preview/plugin-builds {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
 
   test -n "$import_meta_block"
   test -n "$plugin_builds_block"
+  test -n "$web_plugin_builds_block"
 
   auth_user_block=$(awk 'index($0, "location = /_auth_user {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   test -n "$auth_user_block"
@@ -84,6 +86,28 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   printf '%s' "$plugin_builds_block" | grep -Fq 'rewrite ^/api/admin/compose-preview/plugin-builds$ /api/ds/admin/compose-preview/plugin-builds break;'
   printf '%s' "$plugin_builds_block" | grep -Fq 'ds_service_api'
   ! printf '%s' "$import_meta_block" | grep -Fq '$trusted_compose_preview_publisher'
+
+  # Публикация web preview plugin повторяет правила Compose строка в строку, кроме пути маршрута.
+  expected_web_block=$(printf '%s\n' "$plugin_builds_block" | sed 's#compose-preview/plugin-builds#web-preview/plugin-builds#g')
+  if [ "$web_plugin_builds_block" != "$expected_web_block" ]; then
+    echo "$config: the web preview plugin publication must mirror the Compose publication location" >&2
+    exit 1
+  fi
+
+  # Сжатие только JSON маршрутов дизайн-системы: поток SSE (text/event-stream) идёт через тот же location
+  # и копился бы в буфере, а ответы аутентификации с токенами не сжимаются вовсе.
+  printf '%s' "$ds_block" | grep -Fq 'gzip on;'
+  printf '%s' "$ds_block" | grep -Fq 'gzip_types application/json;'
+  printf '%s' "$ds_block" | grep -Fq 'gzip_proxied any;'
+  printf '%s' "$ds_block" | grep -Fq 'gzip_vary on;'
+  if printf '%s' "$ds_block" | grep -F 'gzip_types' | grep -Fq 'event-stream'; then
+    echo "$config: text/event-stream must not be compressed" >&2
+    exit 1
+  fi
+  if [ "$(grep -Fc 'gzip on;' "$config")" != "1" ]; then
+    echo "$config: gzip must be enabled only in the design-system location" >&2
+    exit 1
+  fi
 
   ! grep -Fq 'location /documentation' "$config"
   ! grep -Fq 'location = /documentation' "$config"

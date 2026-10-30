@@ -34,7 +34,7 @@ data class PublishPluginBuildResponse(
             },
             dryRun = dryRun,
             buildId = value.build.buildId,
-            uikitComposeVersion = value.build.uikitComposeVersion,
+            uikitComposeVersion = value.build.libraryVersion,
             metaSha256 = value.build.metaSha256,
             pluginUrl = value.pluginUrl,
             report = ImportApiMetaResponse.from(value.report),

@@ -3,6 +3,7 @@ param(
     [switch]$Reset,
     [switch]$Down,
     [string]$PluginZip,
+    [string]$WebPluginZip,
     [switch]$SkipPlugin,
     [string]$ComponentsPackage,
     [string]$ThemePackage,
@@ -16,6 +17,7 @@ $js = Join-Path $root 'js'
 $toolsImage = 'dsbuilder-local-setup-tools:dev'
 $gateway = 'http://host.docker.internal:8080'
 $pluginWasExplicit = $PSBoundParameters.ContainsKey('PluginZip')
+$webPluginWasExplicit = $PSBoundParameters.ContainsKey('WebPluginZip')
 $componentsWereExplicit = $PSBoundParameters.ContainsKey('ComponentsPackage')
 $themeWasExplicit = $PSBoundParameters.ContainsKey('ThemePackage')
 $pluginFromEnvironment = [Environment]::GetEnvironmentVariable('COMPOSE_PREVIEW_PLUGIN_ZIP')
@@ -23,6 +25,11 @@ $componentsFromEnvironment = [Environment]::GetEnvironmentVariable('COMPOSE_COMP
 if (-not $pluginWasExplicit -and $pluginFromEnvironment) {
     $PluginZip = $pluginFromEnvironment
     $pluginWasExplicit = $true
+}
+$webPluginFromEnvironment = [Environment]::GetEnvironmentVariable('WEB_PREVIEW_PLUGIN_ZIP')
+if (-not $webPluginWasExplicit -and $webPluginFromEnvironment) {
+    $WebPluginZip = $webPluginFromEnvironment
+    $webPluginWasExplicit = $true
 }
 if (-not $componentsWereExplicit -and $componentsFromEnvironment) {
     $ComponentsPackage = $componentsFromEnvironment
@@ -188,6 +195,9 @@ if ($Reset) {
 Write-SetupLog 'Building and starting Kotlin backend in Linux containers'
 $env:DS_FLYWAY_ADOPT_EXISTING = 'false'
 Invoke-BackendCompose @('up', '--build', '-d')
+# The gateway mounts nginx.local.conf as a single file: after a checkout replaces the file the running container keeps
+# the old one, and a recreated ds-service gets a new address. A restart picks up both.
+Invoke-BackendCompose @('restart', 'gateway')
 Initialize-ProjectsLookupClient
 
 Write-SetupLog 'Building local setup tools container'
@@ -209,22 +219,29 @@ Invoke-SetupTool 'local-dev/bootstrap-base-in-container.sh' @() $metaMounts $met
 Write-SetupLog 'Starting the client'
 Invoke-ClientCompose @('up', '-d', '--build', 'client')
 
-if (-not $SkipPlugin) {
-    if (-not $PluginZip) { $PluginZip = Join-Path $root 'local-dev/compose-preview/preview-compose-plugin.zip' }
-    if ($PluginZip -match '^https?://' -or (Test-Path -LiteralPath $PluginZip -PathType Leaf)) {
+# Each plugin is published by the CLI as CI does it: the backend stores the files in the MinIO bucket of its
+# platform (compose-preview, web-preview) and imports the API meta of the platform from the archive.
+function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archive, [bool]$explicit, [string]$bundled) {
+    if (-not $archive) { $archive = Join-Path $root $bundled }
+    if ($archive -match '^https?://' -or (Test-Path -LiteralPath $archive -PathType Leaf)) {
         $mounts = @()
-        $source = Convert-InputPath $PluginZip '/input/preview-compose-plugin.zip' ([ref]$mounts)
+        $source = Convert-InputPath $archive "/input/$(Split-Path $bundled -Leaf)" ([ref]$mounts)
         try {
-            Write-SetupLog 'Publishing the Compose preview plugin'
-            Invoke-SetupTool 'publish-compose-plugin.sh' @('--from', $source) $mounts
+            Write-SetupLog "Publishing the $title"
+            Invoke-SetupTool 'publish-preview-plugin.sh' @('--platform', $platform, '--from', $source) $mounts
         } catch {
-            if ($pluginWasExplicit) { throw }
-            Write-SetupLog "The bundled plugin could not be published: $_"
+            if ($explicit) { throw }
+            Write-SetupLog "The bundled $title could not be published: $_"
         }
     } else {
-        if ($pluginWasExplicit) { throw "Compose preview plugin archive not found: $PluginZip" }
-        Write-SetupLog 'No Compose preview plugin archive; continuing without it'
+        if ($explicit) { throw "$title archive not found: $archive" }
+        Write-SetupLog "No $title archive; continuing without it"
     }
+}
+
+if (-not $SkipPlugin) {
+    Publish-PreviewPlugin 'compose' 'Compose preview plugin' $PluginZip $pluginWasExplicit 'local-dev/compose-preview/preview-compose-plugin.zip'
+    Publish-PreviewPlugin 'react' 'web preview plugin' $WebPluginZip $webPluginWasExplicit 'local-dev/web-preview/preview-web-plugin.zip'
 }
 
 if (-not $SkipDesignSystem) {

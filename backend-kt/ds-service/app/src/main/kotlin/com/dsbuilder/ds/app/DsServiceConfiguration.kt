@@ -13,7 +13,7 @@ package com.dsbuilder.ds.app
  * @property runFlyway whether Flyway migration and validation run at startup
  * @property adoptExistingSchema whether the verified legacy schema is baselined
  * @property expectedSchemaFingerprint reviewed fingerprint required for adoption
- * @property composePreviewPlugin storage and limits of Compose preview plugin publication
+ * @property composePreviewPlugin storages and limits of Compose and web preview plugin publication
  */
 data class DsServiceConfiguration(
     val port: Int,

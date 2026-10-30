@@ -6,8 +6,8 @@ data class NewPluginBuild(
     val buildId: String,
     /** Платформа билда. */
     val platform: String,
-    /** Версия `uikit-compose`. */
-    val uikitComposeVersion: String,
+    /** Версия библиотеки платформы. */
+    val libraryVersion: String,
     /** sha256 меты. */
     val metaSha256: String,
     /** Полный sha коммита. */

@@ -148,11 +148,15 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 
 Для запуска Windows-контура нужны Docker Desktop и доступ к образам и зависимостям сборки. JDK, Node.js,
 Bash и WSL на Windows-хосте не требуются: backend собирается в Linux-контейнерах, а существующие
-`bootstrap-base.sh`, `publish-compose-plugin.sh` и `seed-local-design-system.sh` выполняются во вспомогательном
+`bootstrap-base.sh`, `publish-preview-plugin.sh` и `seed-local-design-system.sh` выполняются во вспомогательном
 Linux-контейнере. PowerShell-сценарий управляет Docker и настраивает Keycloak через HTTP API.
-Его опции соответствуют Bash-сценарию: `-Reset`, `-Down`, `-PluginZip`, `-SkipPlugin`,
-`-ComponentsPackage`, `-ThemePackage`, `-SkipDesignSystem`. Путь к собственному архиву плагина или пакету
-компонентов можно также задать через `COMPOSE_PREVIEW_PLUGIN_ZIP` и `COMPOSE_COMPONENTS_PACKAGE`.
+Его опции соответствуют Bash-сценарию: `-Reset`, `-Down`, `-PluginZip`, `-WebPluginZip`, `-SkipPlugin`,
+`-ComponentsPackage`, `-ThemePackage`, `-SkipDesignSystem`. Пути к собственным архивам плагинов или пакету
+компонентов можно также задать через `COMPOSE_PREVIEW_PLUGIN_ZIP`, `WEB_PREVIEW_PLUGIN_ZIP` и `COMPOSE_COMPONENTS_PACKAGE`.
+
+После наполнения `base` скрипт публикует Compose- и web-плагин превью из `local-dev/` в локальный MinIO
+(`./publish-preview-plugin.sh --platform compose|react`), и клиент загружает оба плагина оттуда по адресу,
+который выдаёт бэкенд. Архивы и их обновление описаны в [local-dev/README.md](./local-dev/README.md).
 
 Скрипт запускает Kotlin backend в detached-режиме,
 наполняет дизайн-систему `base` и поднимает клиент. База `ds_registry` живёт в стеке `backend-kt` (сервис `ds-db`,

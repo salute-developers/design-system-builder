@@ -93,6 +93,8 @@ export const Main = () => {
         loadError,
         sectionLoading,
         sectionError,
+        componentLoading,
+        componentError,
         hasConfiguredComponents,
         reload,
         palette,
@@ -102,6 +104,7 @@ export const Main = () => {
         lastSavedAt,
         retryAutosave,
         refreshChanges,
+        loadComponent,
     } = useDesignSystem(editorContext, true, sectionSelection);
 
     // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
@@ -398,6 +401,8 @@ export const Main = () => {
                                 updated,
                                 rerender,
                                 reload,
+                                componentLoading,
+                                componentError,
                                 palette,
                                 paletteError,
                                 setPalette,
@@ -409,6 +414,7 @@ export const Main = () => {
                                 editorJournal,
                                 changedTokenNames,
                                 refreshChanges,
+                                loadComponent,
                             }}
                         />
                     )}

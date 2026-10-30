@@ -483,6 +483,88 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
+  /api/ds/design-systems/{id}/components/{componentId}/editor-bundle:
+    get:
+      tags:
+        - Components
+      summary: Данные одного компонента для редактора одним запросом
+      description: |-
+        Каждое поле совпадает с ответом существующего маршрута, ограниченным этим компонентом,
+        его свойствами и этой дизайн-системой: appearances — GET /ds/appearances, export —
+        POST /ds/component-config/export с одним компонентом и platform, properties —
+        GET /ds/components/{id}/properties, platformParams — GET /ds/property-platform-params,
+        propertyVariations — GET /ds/property-variations (пусто для compose), variations —
+        GET /ds/components/{id}/variations?designSystemId=…, styles —
+        GET /ds/design-systems/{id}/components/{componentId}/styles, webAdapter — запись компонента
+        из POST /ds/component-config/web-adapter (null для compose), dependencies — связи, где
+        компонент родитель или дочерний, dependencyComponents — компоненты по другую сторону этих
+        связей, привязанные к той же дизайн-системе и имеющие ту же платформу.
+
+        versionId выбирает опубликованную версию так же, как у существующих маршрутов.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+          description: Дизайн-система
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: componentId
+          in: path
+        - schema:
+            type: string
+            enum:
+              - web
+              - compose
+          required: true
+          name: platform
+          in: query
+          description: Платформа компонента; другая платформа даёт 404
+        - $ref: '#/components/parameters/VersionId'
+      responses:
+        '200':
+          description: Данные компонента
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentEditorBundle'
+        '400':
+          description: platform отсутствует или не равен web либо compose, идентификатор не является uuid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: У ключа нет scope components:variations:read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Дизайн-система или компонент недоступны, компонент не привязан к дизайн-системе или другой платформы
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Выгрузка конфигураций отказала, как POST /ds/component-config/export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
   /api/ds/design-systems/{id}/tenants:
     get:
       tags:
@@ -3473,6 +3555,34 @@ paths:
                 $ref: '#/components/schemas/ActivePluginBuild'
         '404':
           description: No plugin build is published or the plugin storage is not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
+  /api/ds/web-preview/plugin:
+    get:
+      tags:
+        - Web Preview
+      summary: Get the active web preview plugin build
+      description: >-
+        Returns the public address and version of the web plugin build that is active in this environment.
+        The answer does not depend on the selected design system version.
+      responses:
+        '200':
+          description: Active web plugin build
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveWebPluginBuild'
+        '404':
+          description: No web plugin build is published or the web plugin storage is not configured
           content:
             application/json:
               schema:
@@ -8773,6 +8883,37 @@ components:
         publishedAt:
           type: string
           format: date-time
+    ActiveWebPluginBuild:
+      type: object
+      required:
+        - buildId
+        - platform
+        - libraryVersion
+        - metaSha256
+        - protocolVersion
+        - pluginUrl
+        - publishedAt
+      properties:
+        buildId:
+          type: string
+          description: Build identifier, the first 12 characters of the commit
+        platform:
+          type: string
+          enum:
+            - web
+        libraryVersion:
+          type: string
+          description: plasma-new-hope version the plugin and its meta are built from
+        metaSha256:
+          type: string
+        protocolVersion:
+          type: integer
+        pluginUrl:
+          type: string
+          description: Public address of the build directory, ends with a slash
+        publishedAt:
+          type: string
+          format: date-time
     Component:
       type: object
       properties:
@@ -9367,6 +9508,62 @@ components:
             $ref: '#/components/schemas/ComponentTokenReferenceResponse'
       required:
         - items
+    ComponentEditorBundle:
+      type: object
+      description: Данные одного компонента в дизайн-системе в тех же схемах, что у списочных маршрутов
+      properties:
+        component:
+          $ref: '#/components/schemas/Component'
+        appearances:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appearance'
+        export:
+          $ref: '#/components/schemas/ComponentExportPackage'
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Property'
+        platformParams:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyPlatformParam'
+        propertyVariations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PropertyVariation'
+        variations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Variation'
+        styles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Style'
+        webAdapter:
+          allOf:
+            - $ref: '#/components/schemas/ComponentWebAdapterEntry'
+          nullable: true
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentDep'
+        dependencyComponents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Component'
+      required:
+        - component
+        - appearances
+        - export
+        - properties
+        - platformParams
+        - propertyVariations
+        - variations
+        - styles
+        - webAdapter
+        - dependencies
+        - dependencyComponents
     AppearanceEditorModel:
       type: object
       properties:
@@ -11292,40 +11489,42 @@ components:
       type: array
       description: Компоненты пакета по componentName; пустые поля не пишутся
       items:
-        type: object
-        properties:
-          componentName:
+        $ref: '#/components/schemas/ComponentWebAdapterEntry'
+    ComponentWebAdapterEntry:
+      type: object
+      properties:
+        componentName:
+          type: string
+          description: Имя компонента в написании meta.json
+        name:
+          type: string
+          description: Имя компонента в коде, как в базе
+        description:
+          type: string
+          description: Описание для JSDoc обёртки
+        compose:
+          type: array
+          items:
             type: string
-            description: Имя компонента в написании meta.json
-          name:
-            type: string
-            description: Имя компонента в коде, как в базе
-          description:
-            type: string
-            description: Описание для JSDoc обёртки
-          compose:
-            type: array
-            items:
-              type: string
-            description: Дочерние компоненты compose в написании meta.json, в порядке связи; только компоненты пакета
-          styles:
+          description: Дочерние компоненты compose в написании meta.json, в порядке связи; только компоненты пакета
+        styles:
+          type: object
+          additionalProperties:
             type: object
-            additionalProperties:
-              type: object
-              properties:
-                templates:
+            properties:
+              templates:
+                type: object
+                additionalProperties:
                   type: object
                   additionalProperties:
-                    type: object
-                    additionalProperties:
-                      type: string
-                  description: Свойство -> web-параметр -> шаблон значения, например `0 $1`
-              required:
-                - templates
-            description: Шаблоны по стилям (appearance), только у стилей, где они есть
-        required:
-          - componentName
-          - name
+                    type: string
+                description: Свойство -> web-параметр -> шаблон значения, например `0 $1`
+            required:
+              - templates
+          description: Шаблоны по стилям (appearance), только у стилей, где они есть
+      required:
+        - componentName
+        - name
     ComponentExportRequest:
       type: object
       properties:

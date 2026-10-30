@@ -4,6 +4,7 @@ import com.dsbuilder.ds.components.application.PluginArchiveLimits
 import com.dsbuilder.ds.components.application.PluginBuildStorage
 import com.dsbuilder.ds.components.application.StoredPluginBuild
 import com.dsbuilder.ds.components.application.sha256Hex
+import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
@@ -454,7 +455,12 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     ) {
         IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
-                application { module(configuration(postgres, keepBuilds), storage) }
+                application {
+                    module(
+                        configuration(postgres, keepBuilds),
+                        storage?.let { mapOf(PreviewPluginPlatform.COMPOSE to it) }.orEmpty(),
+                    )
+                }
                 service = Service(postgres, this)
                 this@PluginBuildPublishHttpPostgresIntegrationTest.storage = storage ?: InMemoryStorage(false)
                 kotlinx.coroutines.runBlocking { body() }

@@ -337,6 +337,9 @@ fi
 
 log "Starting Keycloak, Auth Helper, Gateway, Projects Service, Documentation Service, and DS Service"
 $COMPOSE_CMD -f docker-compose.local.yml up --build -d
+# The gateway mounts nginx.local.conf as a single file: after a checkout replaces the file the running container keeps
+# the old one, and a recreated ds-service gets a new address. A restart picks up both.
+$COMPOSE_CMD -f docker-compose.local.yml restart gateway
 bootstrap_projects_lookup_client
 
 if [[ "$DETACH" != true ]]; then

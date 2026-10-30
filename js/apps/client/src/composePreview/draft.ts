@@ -4,12 +4,17 @@ import type { JsonValue, PreviewAsset, PreviewSurface } from './types';
 import { restorePaletteColor } from '../palette/activePalette';
 
 export type ThemeValuePlatform = 'web' | 'android' | 'ios';
+/** Платформа компонента: от неё зависят `payload.platform`, значения токенов темы и отбор свойств. */
+export type PreviewRendererPlatform = 'COMPOSE' | 'WEB';
 export interface PreviewPropertyDraft {
     id: string;
     name: string;
     type: PropType;
     composeParameters: string[];
     hasNonComposeMappings?: boolean;
+    /** Web-параметры свойства: по их наличию свойство попадает в payload платформы `WEB`. */
+    webParameters?: string[];
+    hasNonWebMappings?: boolean;
     value?: string | number;
     states: Array<{ names: string[]; value?: string | number; alpha?: number }>;
     adjustment?: string | number;
@@ -20,11 +25,18 @@ export interface PreviewPropertyDraft {
     /** Идентификатор ресурса из `ComponentPreviewDraft.assets` вместо значения. */
     assetRef?: string;
 }
-/** Вложенный стиль компонента, на который ссылаются свойства через `styleRef`. */
+/**
+ * Вложенный стиль компонента, на который ссылаются свойства через `styleRef`, или стиль связанного компонента
+ * (`variation`/`name`/`default`, `invariant`): из них web-плагин собирает конфиг связанного компонента.
+ */
 export interface PreviewStyleDraft {
     id: string;
     componentId: string;
     properties: PreviewPropertyDraft[];
+    variation?: string;
+    name?: string;
+    default?: boolean;
+    invariant?: boolean;
 }
 export interface PreviewThemeTokenDraft {
     id: string;
@@ -40,7 +52,7 @@ export interface HostDefaults {
 export interface ComponentPreviewDraft {
     componentId: string;
     storyId: string;
-    rendererPlatform: 'COMPOSE';
+    rendererPlatform: PreviewRendererPlatform;
     themeValuePlatform: ThemeValuePlatform;
     themeMode: string;
     componentRevision: number;
@@ -52,6 +64,13 @@ export interface ComponentPreviewDraft {
     assets: PreviewAsset[];
     /** Вложенные стили; пусто, пока редактор не умеет ссылок на стили. */
     styles?: PreviewStyleDraft[];
+    /**
+     * Платформа `WEB`: все стили всех вариаций и инварианты самого компонента и связанных с ним (зависимости выбранного
+     * и родители по `compose`). Попадают в `styles` целиком, а не по ссылкам.
+     */
+    relatedStyles?: PreviewStyleDraft[];
+    /** Выбранные стили по именам вариаций (`view` → `accent`) для `component.variations`; без них — идентификаторы. */
+    componentVariations?: Record<string, string>;
     /** Стили по умолчанию (идентификаторы указывают на `styles`) и токены текста по умолчанию. */
     defaults?: HostDefaults;
     example: { id: string; props: Record<string, JsonValue> };
@@ -98,6 +117,12 @@ const projectProperty = (prop: PropUnion): PreviewPropertyDraft => ({
     composeParameters: splitComposeMapping(prop.getPlatformMappings()?.compose),
     hasNonComposeMappings: Boolean(
         prop.getPlatformMappings()?.web?.length || prop.getPlatformMappings()?.xml || prop.getPlatformMappings()?.ios,
+    ),
+    webParameters: (prop.getPlatformMappings()?.web ?? []).map((param) => param.name),
+    hasNonWebMappings: Boolean(
+        splitComposeMapping(prop.getPlatformMappings()?.compose).length ||
+            prop.getPlatformMappings()?.xml ||
+            prop.getPlatformMappings()?.ios,
     ),
     value: prop.getValue(),
     states: (prop.getStates() ?? []).map((state) => ({ names: state.state, value: state.value, alpha: state.alpha })),
@@ -197,9 +222,50 @@ const projectThemeValue = (type: string, value: unknown, tokenName: string): Jso
     ) as JsonValue;
 };
 
+/**
+ * Стили связанного компонента для `relatedStyles`: каждый стиль каждой вариации (`<компонент>/<вариация>/<стиль>`,
+ * стиль по умолчанию помечен `default`) и инварианты (`<компонент>/invariants`). Ссылки на стили других
+ * компонентов в связанных стилях не разворачиваются.
+ */
+export const projectComponentStyles = (config: Config): PreviewStyleDraft[] => {
+    const component = config.getName();
+    const project = (props: PropUnion[]) =>
+        props.filter((prop) => prop.getType() !== 'component_style').map(projectProperty);
+    const defaults = new Set(config.getDefaults().map((item) => `${item.getVariation()}/${item.getStyle()}`));
+    const styles = config.getVariations().flatMap((variation) =>
+        (variation.getStyles() ?? []).map((style): PreviewStyleDraft => {
+            const key = `${variation.getName()}/${style.getName()}`;
+            return {
+                id: `${component}/${key}`,
+                componentId: component,
+                variation: variation.getName(),
+                name: style.getName(),
+                ...(defaults.has(key) ? { default: true } : {}),
+                properties: project(style.getProps().getList()),
+            };
+        }),
+    );
+    return [
+        ...styles,
+        {
+            id: `${component}/invariants`,
+            componentId: component,
+            invariant: true,
+            properties: project(config.getInvariants().getList()),
+        },
+    ];
+};
+
 export interface CreateComponentPreviewDraftOptions {
     config: Config;
     theme: Theme;
+    /** Платформа компонента; по умолчанию `COMPOSE`. */
+    rendererPlatform?: PreviewRendererPlatform;
+    /**
+     * Платформа `WEB`: компонент и связанные с ним (`collectRelatedConfigs`), чьи стили целиком уходят в `styles`
+     * для сборки конфигов связанных компонентов в плагине.
+     */
+    relatedConfigs?: Config[];
     previewMetadata?: {
         componentId?: string;
         storyId?: string;
@@ -220,6 +286,8 @@ export interface CreateComponentPreviewDraftOptions {
 export const createComponentPreviewDraft = ({
     config,
     theme,
+    rendererPlatform = 'COMPOSE',
+    relatedConfigs = [],
     previewMetadata,
     args,
     variationSelections: explicitVariationSelections,
@@ -236,7 +304,10 @@ export const createComponentPreviewDraft = ({
     if (!metadata.componentId || !metadata.storyId) {
         diagnostics.push({
             code: 'missing_metadata',
-            message: 'Stable Compose component/story metadata is unavailable',
+            message:
+                rendererPlatform === 'WEB'
+                    ? 'Web component/story metadata is unavailable'
+                    : 'Stable Compose component/story metadata is unavailable',
         });
     }
 
@@ -305,12 +376,23 @@ export const createComponentPreviewDraft = ({
         }
     }
     if (diagnostics.length) return { ok: false, diagnostics };
+    const isWeb = rendererPlatform === 'WEB';
+    const relatedStyles = isWeb ? relatedConfigs.flatMap(projectComponentStyles) : [];
+    const componentVariations = isWeb
+        ? Object.fromEntries(
+              config.getVariations().flatMap((variation) => {
+                  const styleID = variationSelections[variation.getID()];
+                  const style = styleID ? variation.getStyle(styleID) : undefined;
+                  return style ? [[variation.getName(), style.getName()]] : [];
+              }),
+          )
+        : undefined;
     return {
         ok: true,
         draft: {
             componentId: metadata.componentId!,
             storyId: metadata.storyId!,
-            rendererPlatform: 'COMPOSE',
+            rendererPlatform,
             themeValuePlatform,
             themeMode,
             componentRevision: config.getRevision(),
@@ -321,6 +403,8 @@ export const createComponentPreviewDraft = ({
             themeTokens,
             assets,
             ...(context.styles.size ? { styles: [...context.styles.values()] } : {}),
+            ...(relatedStyles.length ? { relatedStyles } : {}),
+            ...(componentVariations ? { componentVariations } : {}),
             ...(defaults ? { defaults } : {}),
             example: { id: metadata.storyId!, props: exampleProps },
             surface,

@@ -186,6 +186,18 @@ export class ThemeEditorSession {
         }
     }
 
+    /** Компонент для канваса «Цвета» (без имени — индекс компонентов); активный раздел не меняется. */
+    async loadComponent(component?: string): Promise<void> {
+        const sections = this.options.sections;
+        if (!sections) return;
+        const result = await sections.loadComponent(component);
+        if (!result) return;
+        const types = result.tokenTypes.filter(
+            (type) => !this.queue.hasPendingWhere((operation) => operation.change.type === type),
+        );
+        this.applyRemoteSnapshot(result.snapshot, types.length > 0, result.componentsChanged, types);
+    }
+
     /** После подтверждения скрытой очереди можно завершить отложенное обновление открытой зоны. */
     refreshActiveSection(): Promise<void> {
         const sections = this.options.sections;

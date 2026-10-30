@@ -2,14 +2,14 @@ package com.dsbuilder.ds.components.domain
 
 import java.time.Instant
 
-/** Опубликованный билд Compose preview plugin. */
+/** Опубликованный билд preview plugin. */
 data class PluginBuild(
     /** Идентификатор билда: первые 12 символов `commit`. */
     val buildId: String,
-    /** Платформа билда (`compose`). */
+    /** Платформа билда (`compose` или `web`). */
     val platform: String,
-    /** Версия `uikit-compose`, из которой собран плагин и его мета. */
-    val uikitComposeVersion: String,
+    /** Версия библиотеки, из которой собраны плагин и его мета: `uikit-compose` или `plasma-new-hope`. */
+    val libraryVersion: String,
     /** sha256 файла `api-meta.json` билда. */
     val metaSha256: String,
     /** Полный sha коммита сборки. */

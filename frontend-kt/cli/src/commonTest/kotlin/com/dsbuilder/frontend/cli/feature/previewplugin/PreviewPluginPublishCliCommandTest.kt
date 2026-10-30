@@ -88,11 +88,20 @@ class PreviewPluginPublishCliCommandTest {
     }
 
     @Test
-    fun onlyComposeIsSupported() {
-        val result = run(base(platform = "react"))
+    fun onlyComposeAndReactAreSupported() {
+        val result = run(base(platform = "swiftui"))
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("compose"), result.output)
+        assertTrue(result.output.contains("compose, react"), result.output)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun reactReadsTheWebArchiveBeforeAnyRequest() {
+        val result = run(base(platform = "react", from = "/work/preview-web-plugin.zip"))
+
+        assertEquals(1, result.exitCode, result.output)
+        assertTrue(result.output.contains("/work/preview-web-plugin.zip"), result.output)
         assertTrue(requests.isEmpty())
     }
 
@@ -122,7 +131,15 @@ class PreviewPluginPublishCliCommandTest {
         assertEquals(0, group.exitCode, group.output)
         assertTrue(group.output.contains("publish"), group.output)
         assertEquals(0, publish.exitCode, publish.output)
-        listOf("--platform", "--from", "--api-url", "--apply", "DSBUILDER_CLIENT_ID", "DSBUILDER_CLIENT_SECRET")
+        listOf(
+            "--platform",
+            "compose or react",
+            "--from",
+            "--api-url",
+            "--apply",
+            "DSBUILDER_CLIENT_ID",
+            "DSBUILDER_CLIENT_SECRET",
+        )
             .forEach { assertTrue(publish.output.contains(it), "no '$it' in:\n${publish.output}") }
     }
 

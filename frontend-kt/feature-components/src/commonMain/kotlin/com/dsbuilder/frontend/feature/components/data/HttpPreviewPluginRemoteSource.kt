@@ -1,17 +1,24 @@
 package com.dsbuilder.frontend.feature.components.data
 
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResponse
 import com.dsbuilder.frontend.core.network.MultipartFile
 import com.dsbuilder.frontend.feature.components.application.PreviewPluginRemoteSource
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginRemoteCommand
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginRemoteResult
+import com.dsbuilder.frontend.feature.components.domain.apimeta.toApiMetaPlatform
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
-/** HTTP adapter публикации билда плагина: архив и нормализованная мета одним multipart-запросом. */
+/**
+ * HTTP adapter публикации билда плагина: архив и нормализованная мета одним multipart-запросом.
+ *
+ * Маршрут, `platform` меты и имя файла архива выбираются по платформе плагина; часть архива называется
+ * `plugin` для обеих платформ.
+ */
 internal class HttpPreviewPluginRemoteSource(
     private val httpClientFactory: AuthenticatedHttpClientFactory,
 ) : PreviewPluginRemoteSource {
@@ -27,16 +34,20 @@ internal class HttpPreviewPluginRemoteSource(
      */
     @Suppress("TooGenericExceptionCaught")
     override suspend fun publish(command: PublishPreviewPluginRemoteCommand): PublishPreviewPluginRemoteResult {
+        val route = ROUTES[command.platform]
+            ?: return PublishPreviewPluginRemoteResult.Failed(
+                "Error: preview-plugin publish does not support platform '${command.platform.cliValue}'.",
+            )
         val meta = json.encodeToString(
             ApiMetaImportRequest.serializer(),
-            command.manifest.toImportRequest(COMPOSE_PLATFORM, command.source, command.dryRun),
+            command.manifest.toImportRequest(command.platform.toApiMetaPlatform(), command.source, command.dryRun),
         )
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         val response = try {
             client.postMultipart(
-                "$PATH?dryRun=${command.dryRun}",
+                "${route.path}?dryRun=${command.dryRun}",
                 listOf(
-                    MultipartFile(PLUGIN_PART, ARCHIVE_NAME, "application/zip", command.archive.zipBytes),
+                    MultipartFile(PLUGIN_PART, route.archiveName, "application/zip", command.archive.zipBytes),
                     MultipartFile(META_PART, META_NAME, "application/json", meta.encodeToByteArray()),
                 ),
             )
@@ -64,10 +75,13 @@ internal class HttpPreviewPluginRemoteSource(
 
     private fun parse(body: String): PublishPreviewPluginRemoteResult = try {
         val dto = json.decodeFromString(PublishPluginBuildResponse.serializer(), body)
+        val libraryVersion = requireNotNull(dto.libraryVersion ?: dto.uikitComposeVersion) {
+            "no 'libraryVersion' or 'uikitComposeVersion'"
+        }
         PublishPreviewPluginRemoteResult.Published(
             outcome = dto.outcome,
             buildId = dto.buildId,
-            uikitComposeVersion = dto.uikitComposeVersion,
+            libraryVersion = libraryVersion,
             pluginUrl = dto.pluginUrl,
             report = dto.report.toDomain(),
         )
@@ -93,12 +107,16 @@ internal class HttpPreviewPluginRemoteSource(
             ?.let { "Status: failed. Backend is unreachable: $it" }
             ?: "Status: failed. Backend is unreachable."
 
+    /** Маршрут публикации платформы и имя файла архива в multipart-части. */
+    private class Route(val path: String, val archiveName: String)
+
     private companion object {
-        const val PATH = "/api/admin/compose-preview/plugin-builds"
-        const val COMPOSE_PLATFORM = "compose"
+        val ROUTES = mapOf(
+            TargetPlatform.COMPOSE to Route("/api/admin/compose-preview/plugin-builds", "preview-compose-plugin.zip"),
+            TargetPlatform.REACT to Route("/api/admin/web-preview/plugin-builds", "preview-web-plugin.zip"),
+        )
         const val PLUGIN_PART = "plugin"
         const val META_PART = "meta"
-        const val ARCHIVE_NAME = "preview-compose-plugin.zip"
         const val META_NAME = "meta.json"
         const val CONFLICT = 409
         const val UNAUTHORIZED = 401
@@ -108,12 +126,17 @@ internal class HttpPreviewPluginRemoteSource(
     }
 }
 
-/** Ответ публикации backend: нужные клиенту поля. */
+/**
+ * Ответ публикации backend: нужные клиенту поля.
+ *
+ * Маршрут Compose отдаёт версию библиотеки в `uikitComposeVersion`, маршрут web — в `libraryVersion`.
+ */
 @Serializable
 internal data class PublishPluginBuildResponse(
     val outcome: String,
     val buildId: String,
-    val uikitComposeVersion: String,
+    val uikitComposeVersion: String? = null,
+    val libraryVersion: String? = null,
     val pluginUrl: String,
     val report: ApiMetaImportReportResponse = ApiMetaImportReportResponse(),
 )

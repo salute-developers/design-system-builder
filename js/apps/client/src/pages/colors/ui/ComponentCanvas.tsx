@@ -1,49 +1,65 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import type { Config, DesignSystem, Theme } from '../../../controllers';
-import { useComponentData, useStory } from '../../../hooks';
+import { useComponentData } from '../../../hooks';
 import {
-    createComponentVars,
-    createRelatedComponents,
-    createRelatedComponentVars,
-    createThemeVars,
-} from '../../components/features/ComponentEditor/ComponentEditor.utils';
+    ComposePreviewSlot,
+    DEFAULT_WEB_STORY_ID,
+    assembleWebPreviewPayload,
+    useWebPreviewPlugin,
+    type PreviewPayloadInput,
+} from '../../../composePreview';
+import { restorePaletteColor } from '../../../palette/activePalette';
+import { fetchWebPreviewPluginDescriptor } from '../../../api/webPreviewPluginRepository';
 
 interface ComponentCanvasProps {
     designSystem: DesignSystem;
     theme: Theme;
     config: Config;
-    /** Отметка правок темы: тема меняется на месте, переменные пересчитываются по ней. */
+    /** Отметка правок темы: тема меняется на месте, payload пересобирается по ней. */
     updated: unknown;
 }
 
-/** Живой компонент на текущих значениях темы (`canvasComponentExample` прототипа). */
+/**
+ * Живой компонент на текущих значениях темы (`canvasComponentExample` прототипа). Рисует его web-плагин превью
+ * по тому же payload, что и раздел компонентов; без плагина канвас показывает причину.
+ */
 export const ComponentCanvas = ({ designSystem, theme, config, updated }: ComponentCanvasProps) => {
     const [mode, setMode] = useState<'light' | 'dark'>('light');
-    const { storyArgs, Story } = useStory(config.getName());
-    const [, , , , componentProps] = useComponentData(config, storyArgs);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- тема меняется на месте, `updated` отмечает правки
+    const [, , , , componentProps] = useComponentData(config);
+    const plugin = useWebPreviewPlugin(
+        config.getName(),
+        designSystem.getParameters()?.projectId,
+        fetchWebPreviewPluginDescriptor,
+    );
     const related = useMemo(() => new Map<string, Config>(), [designSystem, updated]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const themeVars = useMemo(() => createThemeVars(theme, mode) as Record<string, string>, [theme, mode, updated]);
+    const backgroundToken = `${mode}.background.default.primary`;
+    const payloadCache = useRef<{ key: string; payload: PreviewPayloadInput }>();
 
-    const variations = config.getVariations();
-    const styleName = new Map(
-        variations.flatMap(
-            (variation) => variation.getStyles()?.map((style) => [style.getID(), style.getName()]) ?? [],
-        ),
-    );
-    const args = Object.fromEntries(
-        Object.entries(componentProps).map(([name, value]) => {
-            const style = typeof value === 'string' ? styleName.get(value) : undefined;
-            return [name, style === undefined ? value : style === 'true' ? true : style];
-        }),
-    );
-    const componentVars = {
-        ...createRelatedComponentVars(designSystem, config, componentProps, theme, mode, related),
-        ...createComponentVars(config, theme, componentProps, mode),
-    };
-    const relatedComponents = createRelatedComponents(designSystem, config, theme, mode, related);
+    const assembly = useMemo(() => {
+        if (plugin.status !== 'available') return undefined;
+        const result = assembleWebPreviewPayload({
+            config,
+            theme,
+            args: componentProps,
+            themeMode: mode,
+            storyId: DEFAULT_WEB_STORY_ID,
+            storyProps: {},
+            backgroundToken,
+            designSystem,
+            relatedConfigs: related,
+        });
+        if (!result.ok) return { error: result.diagnostics[0]?.message ?? 'payload не собран' };
+        // Объект меняется только вместе с содержимым: каждый новый объект уходит в плагин отдельным payload.
+        const key = JSON.stringify(result.payload);
+        if (payloadCache.current?.key !== key) payloadCache.current = { key, payload: result.payload };
+        return { payload: payloadCache.current.payload };
+    }, [plugin.status, config, theme, componentProps, mode, backgroundToken, designSystem, related, updated]);
+
+    const background =
+        restorePaletteColor(theme.getTokenValue(backgroundToken, 'color', 'web') || '', -1, backgroundToken) ||
+        (mode === 'dark' ? '#000000' : '#FFFFFF');
+    const unavailable = plugin.status === 'unavailable' ? plugin.reason : assembly?.error;
 
     return (
         <div
@@ -64,9 +80,7 @@ export const ComponentCanvas = ({ designSystem, theme, config, updated }: Compon
             </div>
             <div
                 style={{
-                    ...componentVars,
-                    ...themeVars,
-                    background: themeVars['--background-primary'] ?? (mode === 'dark' ? '#000000' : '#FFFFFF'),
+                    background,
                     padding: 24,
                     borderRadius: 12,
                     display: 'flex',
@@ -75,7 +89,16 @@ export const ComponentCanvas = ({ designSystem, theme, config, updated }: Compon
                     minHeight: 240,
                 }}
             >
-                {Story ? <Story {...args} relatedComponents={relatedComponents} /> : <p>Для компонента нет превью.</p>}
+                {unavailable ? (
+                    <p role="alert">Превью недоступно: {unavailable}</p>
+                ) : plugin.status === 'available' && assembly?.payload ? (
+                    <ComposePreviewSlot
+                        platform="web"
+                        pluginUrl={plugin.pluginUrl}
+                        owner={`colors:${config.getName()}`}
+                        payload={assembly.payload}
+                    />
+                ) : null}
             </div>
         </div>
     );

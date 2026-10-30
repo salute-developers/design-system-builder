@@ -47,7 +47,7 @@ class ColorTokenValueKindMigrationPostgresIntegrationTest {
             val fixture = connection(postgres).use(::seedLegacyGradients)
             val rowsBefore = connection(postgres).use(::rowsPerBoundary)
 
-            assertEquals(1, flyway(postgres).migrate().migrationsExecuted)
+            assertEquals(1, flyway(postgres, "15").migrate().migrationsExecuted)
 
             connection(postgres).use { connection ->
                 assertEquals(rowsBefore, rowsPerBoundary(connection), "V15 не создаёт и не удаляет редакции")

@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.components.application
 
+import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -11,17 +12,20 @@ object PluginManifestParser {
     /** Обязательные файлы архива. */
     val requiredFiles = listOf("index.html", MANIFEST_FILE, META_FILE)
 
-    /** Проверяет manifest [archive]. */
+    /**
+     * Проверяет manifest [archive] по общим правилам и правилам [platform]: значение `platform` и поле версии
+     * библиотеки платформы ([PreviewPluginPlatform.libraryVersionField]).
+     */
     @Suppress("ReturnCount", "CyclomaticComplexMethod")
-    fun parse(archive: PluginArchive): PluginManifestResult {
+    fun parse(archive: PluginArchive, platform: PreviewPluginPlatform): PluginManifestResult {
         requiredFiles.firstOrNull { it !in archive.files }
             ?.let { return invalid("PLUGIN_FILE_MISSING", "В архиве нет файла $it") }
         val root = runCatching { Json.parseToJsonElement(archive.files.getValue(MANIFEST_FILE).decodeToString()) }
             .getOrNull() as? JsonObject
             ?: return invalid("PLUGIN_MANIFEST_INVALID", "$MANIFEST_FILE не является JSON-объектом")
         if (root.int("schemaVersion") != 1) return invalid("PLUGIN_MANIFEST_INVALID", "schemaVersion должен быть 1")
-        if (root.string("platform") != "compose") {
-            return invalid("PLUGIN_MANIFEST_INVALID", "platform должна быть compose")
+        if (root.string("platform") != platform.wire) {
+            return invalid("PLUGIN_MANIFEST_INVALID", "platform должна быть ${platform.wire}")
         }
         val protocol = root.int("protocolVersion")?.takeIf { it >= 1 }
             ?: return invalid("PLUGIN_MANIFEST_INVALID", "protocolVersion должен быть целым числом")
@@ -32,8 +36,9 @@ object PluginManifestParser {
         if (version != commit.take(BUILD_ID_LENGTH)) {
             return invalid("PLUGIN_VERSION_COMMIT_MISMATCH", "version должна равняться первым 12 символам commit")
         }
-        val uikit = root.string("uikitComposeVersion")?.takeIf(SEMVER::matches)
-            ?: return invalid("PLUGIN_MANIFEST_INVALID", "uikitComposeVersion должна быть семантической версией")
+        val libraryField = platform.libraryVersionField
+        val libraryVersion = root.string(libraryField)?.takeIf(SEMVER::matches)
+            ?: return invalid("PLUGIN_MANIFEST_INVALID", "$libraryField должна быть семантической версией")
         val metaSha = root.string("apiMetaSha256")?.takeIf(SHA256::matches)
             ?: return invalid("PLUGIN_MANIFEST_INVALID", "apiMetaSha256 должна быть sha256 в нижнем регистре")
         if (sha256Hex(archive.files.getValue(META_FILE)) != metaSha) {
@@ -44,7 +49,9 @@ object PluginManifestParser {
         if (entrypoint !in archive.files) {
             return invalid("PLUGIN_ENTRYPOINT_MISSING", "Файл entrypoint $entrypoint отсутствует в архиве")
         }
-        return PluginManifestResult.Valid(PluginManifest(version, commit, uikit, metaSha, protocol, entrypoint))
+        return PluginManifestResult.Valid(
+            PluginManifest(platform, version, commit, libraryVersion, metaSha, protocol, entrypoint),
+        )
     }
 
     private fun invalid(code: String, message: String) = PluginManifestResult.Invalid(code, message)

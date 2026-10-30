@@ -4,6 +4,7 @@ import {
     LoadedComposePreviewManifest,
     PREVIEW_MESSAGE_TYPES,
     PREVIEW_PROTOCOL_VERSION,
+    PreviewPluginPlatform,
 } from './types';
 
 const MANIFEST_FILE = 'preview-plugin.json';
@@ -33,30 +34,39 @@ const parseGroups = (value: unknown): ComposePreviewComponentGroup[] | undefined
     return value.every(isGroup) ? value.map(({ name, components }) => ({ name, components })) : undefined;
 };
 
-export const validateComposePreviewManifest = (value: unknown): ComposePreviewManifest => {
+/**
+ * Проверяет манифест плагина превью ожидаемой платформы: `compose` для Compose-компонентов, `web` для web-компонентов.
+ * Манифест другой платформы отклоняется.
+ */
+export const validateComposePreviewManifest = (
+    value: unknown,
+    expectedPlatform: PreviewPluginPlatform = 'compose',
+): ComposePreviewManifest => {
     if (!isRecord(value)) {
-        throw new Error('Compose preview manifest must be an object');
+        throw new Error('Preview plugin manifest must be an object');
     }
     if (value.schemaVersion !== 1) {
-        throw new Error('Unsupported Compose preview manifest schemaVersion');
+        throw new Error('Unsupported preview plugin manifest schemaVersion');
     }
-    if (value.platform !== 'compose') {
-        throw new Error('Compose preview manifest has an unsupported platform');
+    if (value.platform !== expectedPlatform) {
+        throw new Error(
+            `Preview plugin manifest has an unsupported platform: expected ${expectedPlatform}, got ${String(value.platform)}`,
+        );
     }
     if (value.protocolVersion !== PREVIEW_PROTOCOL_VERSION) {
-        throw new Error('Compose preview manifest has an unsupported protocolVersion');
+        throw new Error('Preview plugin manifest has an unsupported protocolVersion');
     }
     if (typeof value.entrypoint !== 'string' || !value.entrypoint.trim()) {
-        throw new Error('Compose preview manifest must define a non-empty entrypoint');
+        throw new Error('Preview plugin manifest must define a non-empty entrypoint');
     }
     if (!hasExpectedMessages(value.payloadBridge)) {
-        throw new Error('Compose preview manifest does not define the required bridge messages');
+        throw new Error('Preview plugin manifest does not define the required bridge messages');
     }
     if (
         !Array.isArray(value.components) ||
         !value.components.every((component) => typeof component === 'string' && component.trim())
     ) {
-        throw new Error('Compose preview manifest must list its components as non-empty strings');
+        throw new Error('Preview plugin manifest must list its components as non-empty strings');
     }
 
     const { groups: rawGroups, ...rest } = value;
@@ -67,6 +77,7 @@ export const validateComposePreviewManifest = (value: unknown): ComposePreviewMa
 
 const fetchComposePreviewManifest = async (
     pluginBaseUrl: string,
+    platform: PreviewPluginPlatform,
     fetcher: typeof fetch,
 ): Promise<LoadedComposePreviewManifest> => {
     let manifestUrl: URL;
@@ -75,37 +86,37 @@ const fetchComposePreviewManifest = async (
         const baseUrl = new URL(pluginBaseUrl);
         manifestUrl = new URL(MANIFEST_FILE, baseUrl.href.endsWith('/') ? baseUrl : `${baseUrl.href}/`);
     } catch {
-        throw new Error(`Invalid Compose preview plugin URL: ${pluginBaseUrl}`);
+        throw new Error(`Invalid preview plugin URL: ${pluginBaseUrl}`);
     }
 
     let response: Response;
     try {
         response = await fetcher(manifestUrl);
     } catch (error) {
-        throw new Error(`Unable to load Compose preview manifest: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Unable to load preview plugin manifest: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     if (!response.ok) {
-        throw new Error(`Unable to load Compose preview manifest: HTTP ${response.status}`);
+        throw new Error(`Unable to load preview plugin manifest: HTTP ${response.status}`);
     }
 
     let manifestValue: unknown;
     try {
         manifestValue = await response.json();
     } catch {
-        throw new Error('Compose preview manifest is not valid JSON');
+        throw new Error('Preview plugin manifest is not valid JSON');
     }
 
-    const manifest = validateComposePreviewManifest(manifestValue);
+    const manifest = validateComposePreviewManifest(manifestValue, platform);
     let entrypointUrl: URL;
     try {
         entrypointUrl = new URL(manifest.entrypoint, manifestUrl);
     } catch {
-        throw new Error(`Invalid Compose preview entrypoint: ${manifest.entrypoint}`);
+        throw new Error(`Invalid preview plugin entrypoint: ${manifest.entrypoint}`);
     }
 
     if (entrypointUrl.origin !== manifestUrl.origin) {
-        throw new Error(`Compose preview entrypoint must be served from the plugin origin: ${manifest.entrypoint}`);
+        throw new Error(`Preview plugin entrypoint must be served from the plugin origin: ${manifest.entrypoint}`);
     }
 
     return { manifest, manifestUrl, entrypointUrl };
@@ -114,24 +125,27 @@ const fetchComposePreviewManifest = async (
 const manifestCache = new Map<string, Promise<LoadedComposePreviewManifest>>();
 
 /**
- * Загружает manifest плагина. Манифест с настоящим `fetch` запоминается на время жизни страницы: редактор спрашивает его
- * при каждом переключении компонента, а он меняется только вместе с плагином (после перезагрузки страницы). Ошибка в
- * кеше не остаётся. С подменённым `fetcher` (тесты) кеш не используется.
+ * Загружает manifest плагина превью платформы `platform` (по умолчанию `compose`) и отклоняет манифест другой
+ * платформы. Манифест с настоящим `fetch` запоминается на время жизни страницы: редактор спрашивает его при каждом
+ * переключении компонента, а он меняется только вместе с плагином (после перезагрузки страницы). Ошибка в кеше не
+ * остаётся. С подменённым `fetcher` (тесты) кеш не используется.
  */
 export const loadComposePreviewManifest = (
     pluginBaseUrl: string,
+    platform: PreviewPluginPlatform = 'compose',
     fetcher: typeof fetch = fetch,
 ): Promise<LoadedComposePreviewManifest> => {
-    if (fetcher !== fetch) return fetchComposePreviewManifest(pluginBaseUrl, fetcher);
+    if (fetcher !== fetch) return fetchComposePreviewManifest(pluginBaseUrl, platform, fetcher);
 
-    const cached = manifestCache.get(pluginBaseUrl);
+    const cacheKey = `${platform}\n${pluginBaseUrl}`;
+    const cached = manifestCache.get(cacheKey);
     if (cached) return cached;
 
-    const loading = fetchComposePreviewManifest(pluginBaseUrl, fetcher).catch((error) => {
-        manifestCache.delete(pluginBaseUrl);
+    const loading = fetchComposePreviewManifest(pluginBaseUrl, platform, fetcher).catch((error) => {
+        manifestCache.delete(cacheKey);
         throw error;
     });
-    manifestCache.set(pluginBaseUrl, loading);
+    manifestCache.set(cacheKey, loading);
 
     return loading;
 };

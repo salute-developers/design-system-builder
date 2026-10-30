@@ -20,7 +20,7 @@ Usage:
 
 Local dev helper for the stack started by ./setup-local.sh. It creates a design system with a theme in the
 local project and loads the component configurations of a package into it, so the component editor lists the
-Compose components and shows their preview (the plugin itself is published by ./publish-compose-plugin.sh).
+Compose components and shows their preview (the plugin itself is published by ./publish-preview-plugin.sh).
 
 The package is a directory with `meta.json` and the component configuration files, for example the one
 that the theme builder of a plasma-android token module downloads. The package bundled in this repository is

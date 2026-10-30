@@ -72,26 +72,16 @@ beforeEach(() => {
                     ],
                 },
             });
-        if (url.endsWith('/component-config/web-adapter'))
-            return Promise.resolve({
-                data: [
-                    {
-                        componentName: 'button',
-                        name: 'Button',
-                        styles: { default: { templates: { height: { buttonHeight: '$1 1rem' } } } },
-                    },
-                ],
-            });
         throw new Error(`Unexpected POST ${url}`);
     });
 });
 
 describe('componentRepository.loadComponentData', () => {
-    it('fills web params, declared variations and templates of the web preview', async () => {
+    it('fills web params and declared variations of the web preview', async () => {
         const meta = await componentRepository.loadComponentData(context);
         const button = meta.find((item) => item.name === 'Button')!;
         const height = button.sources.api.find((item) => item.name === 'height')!;
-        expect(height.platformMappings.web).toEqual([{ name: 'buttonHeight', adjustment: '$1 1rem' }]);
+        expect(height.platformMappings.web).toEqual([{ name: 'buttonHeight' }]);
         expect(height.variations).toEqual(['size']);
         const focus = button.sources.api.find((item) => item.name === 'focusColor')!;
         expect(focus.platformMappings.web).toBeNull();
@@ -109,7 +99,7 @@ describe('componentRepository.loadComponentData', () => {
             const call = get.mock.calls.find(([url]) => String(url).endsWith(suffix));
             expect(call?.[1]).toMatchObject({ params: { versionId: 'version-1' } });
         }
-        const adapter = post.mock.calls.find(([url]) => String(url).endsWith('/component-config/web-adapter'));
-        expect(adapter?.[2]).toMatchObject({ params: { versionId: 'version-1' } });
+        // Web-шаблоны клиент не читает: они лежат в web-плагине превью.
+        expect(post.mock.calls.some(([url]) => String(url).endsWith('/component-config/web-adapter'))).toBe(false);
     });
 });

@@ -482,6 +482,16 @@
       ]
     },
     {
+      "name": "component-editor-bundle",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/design-systems/{id}/components/{componentId}/editor-bundle", "ComponentEditorBundleQuery", "ComponentEditorBundle", 200, "components:variations:read", "design-system-and-component-link"]
+      ]
+    },
+    {
       "name": "compose-preview",
       "origin": "ds-service",
       "router": "",
@@ -489,6 +499,16 @@
       "ownership": "global-read-system-admin-write",
       "operations": [
         ["GET", "/compose-preview/plugin", null, "ActivePluginBuild", 200, "components:read", null]
+      ]
+    },
+    {
+      "name": "web-preview",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "global-read-system-admin-write",
+      "operations": [
+        ["GET", "/web-preview/plugin", null, "ActiveWebPluginBuild", 200, "components:read", null]
       ]
     }
   ]

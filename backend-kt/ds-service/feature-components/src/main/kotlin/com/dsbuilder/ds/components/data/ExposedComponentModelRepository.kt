@@ -16,6 +16,7 @@ import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.select
@@ -264,6 +265,18 @@ class ExposedComponentModelRepository : ComponentModelRepository {
             ComponentOwnership.readableProperty(PropertyPlatformParamsTable.propertyId, projectId, systemAdmin)
         }.map(::platformParam)
 
+    override suspend fun listPlatformParamsByProperties(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        propertyIds: Collection<UUID>,
+    ): List<PropertyPlatformParam> {
+        if (propertyIds.isEmpty()) return emptyList()
+        return PropertyPlatformParamsTable.selectAll().where {
+            (PropertyPlatformParamsTable.propertyId inList propertyIds) and
+                ComponentOwnership.readableProperty(PropertyPlatformParamsTable.propertyId, projectId, systemAdmin)
+        }.map(::platformParam)
+    }
+
     override suspend fun findPlatformParam(
         projectId: ProjectId,
         systemAdmin: Boolean,
@@ -320,6 +333,19 @@ class ExposedComponentModelRepository : ComponentModelRepository {
             ComponentOwnership.readableProperty(PropertyVariationsTable.propertyId, projectId, systemAdmin) and
                 ComponentOwnership.readableVariation(PropertyVariationsTable.variationId, projectId, systemAdmin)
         }.map(::propertyVariation)
+
+    override suspend fun listPropertyVariationsByProperties(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        propertyIds: Collection<UUID>,
+    ): List<PropertyVariation> {
+        if (propertyIds.isEmpty()) return emptyList()
+        return PropertyVariationsTable.selectAll().where {
+            (PropertyVariationsTable.propertyId inList propertyIds) and
+                ComponentOwnership.readableProperty(PropertyVariationsTable.propertyId, projectId, systemAdmin) and
+                ComponentOwnership.readableVariation(PropertyVariationsTable.variationId, projectId, systemAdmin)
+        }.map(::propertyVariation)
+    }
 
     override suspend fun findPropertyVariation(
         projectId: ProjectId,

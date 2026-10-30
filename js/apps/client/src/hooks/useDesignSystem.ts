@@ -26,6 +26,33 @@ const loadErrorFor = (error: unknown): 'forbidden' | 'not-found' | 'failed' => {
         : 'failed';
 };
 
+/**
+ * Состояние загрузки выбранной зоны редактора. В разделе компонентов смена компонента внутри уже загруженного
+ * раздела отдаётся отдельно (`componentLoading`/`componentError`): страница раздела остаётся смонтированной,
+ * загрузка видна только в настройке и превью. Остальные разделы ведут себя как раньше.
+ */
+export const sectionStatus = ({
+    selected,
+    componentSection,
+    sectionReady,
+    error,
+    areaLoaded,
+}: {
+    selected: boolean;
+    componentSection: boolean;
+    sectionReady: boolean;
+    error?: string;
+    areaLoaded: boolean;
+}) => {
+    const componentSwitch = componentSection && areaLoaded;
+    return {
+        sectionLoading: selected && !sectionReady && !componentSwitch,
+        sectionError: componentSwitch ? undefined : error,
+        componentLoading: selected && !sectionReady && componentSwitch,
+        componentError: componentSwitch ? error : undefined,
+    };
+};
+
 export const useDesignSystem = (
     designSystemProjectId?: EditorContextKey,
     includeExtraTokens = true,
@@ -63,7 +90,17 @@ export const useDesignSystem = (
     ]);
     const currentSectionKey = useRef(sectionKey);
     currentSectionKey.current = sectionKey;
+    // Тот же ключ без выбранного компонента: смена компонента внутри загруженного раздела не считается загрузкой
+    // раздела и не должна размонтировать страницу (меню, шапку, хост Compose-плагина).
+    const sectionAreaKey = JSON.stringify([
+        autosaveContextKey,
+        typeof designSystemProjectId === 'object' ? designSystemProjectId.versionId : undefined,
+        selection?.section,
+    ]);
+    const currentSectionAreaKey = useRef(sectionAreaKey);
+    currentSectionAreaKey.current = sectionAreaKey;
     const [sectionState, setSectionState] = useState<{ key: string; error?: string }>();
+    const [loadedSectionArea, setLoadedSectionArea] = useState<string>();
 
     useEffect(() => {
         void sectionLoader.current?.();
@@ -217,8 +254,10 @@ export const useDesignSystem = (
                                 if (
                                     selectionRef.current?.section === sections.activeSection &&
                                     selectionRef.current?.component === sections.activeComponent
-                                )
+                                ) {
                                     setSectionState({ key: currentSectionKey.current });
+                                    setLoadedSectionArea(currentSectionAreaKey.current);
+                                }
                             },
                             onDisposed: () => {
                                 if (autosaveSession.current === session) autosaveSession.current = null;
@@ -230,10 +269,13 @@ export const useDesignSystem = (
                             const selected = selectionRef.current;
                             if (!selected || controller.signal.aborted) return;
                             const key = currentSectionKey.current;
+                            const area = currentSectionAreaKey.current;
                             try {
                                 await session.activateSection(selected.section, selected.component);
-                                if (!controller.signal.aborted && currentSectionKey.current === key)
+                                if (!controller.signal.aborted && currentSectionKey.current === key) {
                                     setSectionState({ key });
+                                    setLoadedSectionArea(area);
+                                }
                             } catch (error) {
                                 if (!controller.signal.aborted && currentSectionKey.current === key)
                                     setSectionState({
@@ -315,6 +357,11 @@ export const useDesignSystem = (
         },
         [designSystemProjectId],
     );
+    /** Загружает компонент (без имени — индекс компонентов) вне раздела компонентов: канвас «Цвета». */
+    const loadComponent = useCallback(
+        (name?: string) => autosaveSession.current?.loadComponent(name) ?? Promise.resolve(),
+        [],
+    );
     const refreshChanges = useCallback((changes: DraftChangeDto[]) => {
         const session = autosaveSession.current;
         if (!session) return Promise.reject(new Error('Редактор черновика недоступен'));
@@ -334,12 +381,18 @@ export const useDesignSystem = (
         setPalette,
         incompleteTokenIds,
         loadError,
-        sectionLoading: Boolean(designSystemProjectId && selection && sectionState?.key !== sectionKey),
-        sectionError: sectionState?.key === sectionKey ? sectionState.error : undefined,
+        ...sectionStatus({
+            selected: Boolean(designSystemProjectId && selection),
+            componentSection: selection?.section === 'components',
+            sectionReady: sectionState?.key === sectionKey,
+            error: sectionState?.key === sectionKey ? sectionState.error : undefined,
+            areaLoaded: loadedSectionArea === sectionAreaKey,
+        }),
         reload,
         autosaveStatus,
         lastSavedAt: lastSave?.key === autosaveContextKey ? lastSave.time : undefined,
         retryAutosave,
         refreshChanges,
+        loadComponent,
     };
 };
