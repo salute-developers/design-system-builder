@@ -1,6 +1,5 @@
 name: Publish CLI release
 
-# JVM-дистрибутив для CI и нативный Windows x64 CLI.
 on:
   push:
     tags:
@@ -8,36 +7,148 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag of the release, for example cli-v0.1.0'
+        description: 'Existing release tag, for example cli-v0.1.0'
         required: true
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: publish-cli-release
+  cancel-in-progress: false
+
+env:
+  CLI_RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
-  cli-distributions:
-    name: CLI distributions
-    runs-on: macos-14
-    env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  build:
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.RELEASE_TAG }}
+      - name: Validate and check out the exact tag
+        shell: bash
+        run: |
+          python3 frontend-kt/cli/distribution/release.py version --tag "$CLI_RELEASE_TAG"
+          git fetch origin "refs/tags/$CLI_RELEASE_TAG:refs/tags/$CLI_RELEASE_TAG"
+          git checkout --detach "refs/tags/$CLI_RELEASE_TAG"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :cli:packageJvmCli :cli:packageWindowsX64Cli
+      - name: Build and check distributions
         working-directory: frontend-kt
-      - name: Publish the release asset
+        run: |
+          ./gradlew :cli:distributionTests :cli:jvmTest :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli
+          python3 cli/distribution/release.py validate --tag "$CLI_RELEASE_TAG" --directory cli/build/distributions
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-distributions
+          path: frontend-kt/cli/build/distributions/dsbuilder-cli-*.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-release-tools
+          path: frontend-kt/cli/distribution/
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: macos-arm64
+          - os: macos-15-intel
+            target: macos-x64
+          - os: windows-2022
+            target: windows-x64
+          - os: ubuntu-22.04
+            target: jvm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-distributions
+          path: archives
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-release-tools
+          path: release-tools
+      - name: Windows installer contract tests
+        if: matrix.target == 'windows-x64'
+        shell: powershell
+        run: ./release-tools/tests/install-windows.Tests.ps1
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'jvm'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install and smoke test on Unix
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          unzip -q "archives/dsbuilder-cli-$TARGET.zip" -d extracted
+          export DSBUILDER_INSTALL_DIR="$RUNNER_TEMP/CLI install"
+          export DSBUILDER_BIN_DIR="$RUNNER_TEMP/CLI bin"
+          installer=$(find extracted -name install.sh -type f)
+          sh "$installer"
+          sh "$installer"
+          "$DSBUILDER_BIN_DIR/dsbuilder" --help
+          test "$("$DSBUILDER_BIN_DIR/dsbuilder" --version)" = "dsbuilder version ${CLI_RELEASE_TAG#cli-v}"
+      - name: Install and smoke test on Windows
+        if: matrix.target == 'windows-x64'
+        shell: powershell
+        run: |
+          Expand-Archive archives/dsbuilder-cli-windows-x64.zip extracted
+          $env:DSBUILDER_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'CLI install'
+          $installer = 'extracted/dsbuilder-cli-windows-x64/install.ps1'
+          & $installer
+          & $installer
+          $binary = Join-Path $env:DSBUILDER_INSTALL_DIR 'dsbuilder.exe'
+          & $binary --help
+          if ($LASTEXITCODE -ne 0) { throw 'CLI help failed' }
+          $version = & $binary --version
+          if ($LASTEXITCODE -ne 0 -or $version -ne "dsbuilder version $($env:CLI_RELEASE_TAG.Substring(5))") { throw 'CLI version mismatch' }
+
+  publish:
+    needs: [build, smoke]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      AWS_ENDPOINT: ${{ secrets.AWS_ENDPOINT }}
+      AWS_S3_BUCKET_2: ${{ secrets.AWS_S3_BUCKET_2 }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      CLI_S3_PREFIX: ${{ vars.CLI_S3_PREFIX }}
+      CLI_DOWNLOAD_BASE_URL: ${{ vars.CLI_DOWNLOAD_BASE_URL }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-distributions
+          path: distributions
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-release-tools
+          path: release-tools
+      - run: python3 -m pip install s3cmd==2.4.0
+      - name: Prepare and upload immutable release
+        run: |
+          python3 release-tools/release.py prepare --tag "$CLI_RELEASE_TAG" --directory distributions
+          python3 release-tools/release.py upload --tag "$CLI_RELEASE_TAG" --directory distributions
+      - name: Preserve JVM asset for plasma-android
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" \
-            --title "DS Builder CLI ${RELEASE_TAG#cli-v}" \
-            --notes "DS Builder CLI distributions: JVM (Java 17) and native Windows x64 (no Java required)."
-          gh release upload "$RELEASE_TAG" \
-            frontend-kt/cli/build/distributions/dsbuilder-cli-jvm.zip \
-            frontend-kt/cli/build/distributions/dsbuilder-cli-windows-x64.zip --clobber
+          gh release view "$CLI_RELEASE_TAG" || gh release create "$CLI_RELEASE_TAG" \
+            --verify-tag --title "DS Builder CLI ${CLI_RELEASE_TAG#cli-v}" \
+            --notes 'CLI distributions are available through the configured public download URL. JVM asset is retained for CI compatibility.'
+          gh release upload "$CLI_RELEASE_TAG" distributions/dsbuilder-cli-jvm.zip --clobber
+      - name: Promote only the complete verified release
+        run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions

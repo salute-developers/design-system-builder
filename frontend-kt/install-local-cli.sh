@@ -21,62 +21,32 @@ case "$REQUESTED_ARCH" in
 esac
 
 INSTALL_ROOT=${DSBUILDER_INSTALL_ROOT:-"$HOME/.dsbuilder/cli"}
-BIN_DIR=${DSBUILDER_BIN_DIR:-"$HOME/.local/bin"}
-INSTALL_DIR="$INSTALL_ROOT/$TARGET_NAME"
-BINARY_PATH="$SCRIPT_DIR/cli/build/bin/$TARGET_NAME/releaseExecutable/dsbuilder.kexe"
-INSTALLED_BINARY="$INSTALL_DIR/dsbuilder"
-COMMAND_PATH="$BIN_DIR/dsbuilder"
-TEMP_BINARY="$INSTALL_DIR/dsbuilder.tmp.$$"
-
+DSBUILDER_INSTALL_DIR=${DSBUILDER_INSTALL_DIR:-"$INSTALL_ROOT/$TARGET_NAME"}
+export DSBUILDER_INSTALL_DIR
 cd "$SCRIPT_DIR"
 ./gradlew ":cli:$TASK_NAME"
+sh "$SCRIPT_DIR/cli/distribution/install-macos-cli.sh" \
+    "$SCRIPT_DIR/cli/build/bin/$TARGET_NAME/releaseExecutable/dsbuilder.kexe"
 
-mkdir -p "$INSTALL_DIR" "$BIN_DIR"
-cp "$BINARY_PATH" "$TEMP_BINARY"
-chmod 755 "$TEMP_BINARY"
-mv -f "$TEMP_BINARY" "$INSTALLED_BINARY"
-ln -sf "$INSTALLED_BINARY" "$COMMAND_PATH"
-
-echo "Installed dsbuilder to $INSTALLED_BINARY"
-echo "Linked command to $COMMAND_PATH"
-
+# Сохраняем настройку PATH локального контура; копирование CLI выполняет общий установщик.
+BIN_DIR=${DSBUILDER_BIN_DIR:-"$HOME/.local/bin"}
 case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *)
-        echo "Add $BIN_DIR to PATH to run dsbuilder from any directory."
-        SHELL_NAME=$(basename "${SHELL:-/bin/bash}")
-        case "$SHELL_NAME" in
-            zsh)
-                CONFIG_FILE="$HOME/.zshrc"
-                echo "Adding $BIN_DIR to PATH in $CONFIG_FILE ..."
-                if ! grep -q "$BIN_DIR" "$CONFIG_FILE" 2>/dev/null; then
-                    echo '' >> "$CONFIG_FILE"
-                    echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$CONFIG_FILE"
-                else
-                    echo "$BIN_DIR is already in $CONFIG_FILE, skipping."
-                fi
-                echo "Then run: source $CONFIG_FILE"
-                ;;
+        case "$(basename "${SHELL:-/bin/bash}")" in
+            zsh) CONFIG_FILE="$HOME/.zshrc" ;;
             bash)
-                # bash reads ~/.bashrc for interactive shells, ~/.bash_profile for login shells
                 CONFIG_FILE="$HOME/.bashrc"
-                if [ ! -f "$CONFIG_FILE" ] && [ -f "$HOME/.bash_profile" ]; then
-                    CONFIG_FILE="$HOME/.bash_profile"
-                fi
-                echo "Adding $BIN_DIR to PATH in $CONFIG_FILE ..."
-                if ! grep -q "$BIN_DIR" "$CONFIG_FILE" 2>/dev/null; then
-                    echo '' >> "$CONFIG_FILE"
-                    echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$CONFIG_FILE"
-                else
-                    echo "$BIN_DIR is already in $CONFIG_FILE, skipping."
-                fi
-                echo "Then run: source $CONFIG_FILE"
+                if [ ! -f "$CONFIG_FILE" ] && [ -f "$HOME/.bash_profile" ]; then CONFIG_FILE="$HOME/.bash_profile"; fi
                 ;;
-            *)
-                echo "Your shell ($SHELL_NAME) is not automatically detected."
-                echo "Add the following line to your shell config (~/.bashrc, ~/.zshrc, etc.):"
-                echo "export PATH=\"$BIN_DIR:\$PATH\""
-                ;;
+            *) exit 0 ;;
         esac
+        # Одинарные кавычки не интерпретируют $, backticks и пробелы пользовательского пути.
+        QUOTED_BIN_DIR=$(printf '%s' "$BIN_DIR" | sed "s/'/'\\\\''/g")
+        PATH_LINE="export PATH='$QUOTED_BIN_DIR':\$PATH"
+        if ! grep -Fqx "$PATH_LINE" "$CONFIG_FILE" 2>/dev/null; then
+            printf '\n%s\n' "$PATH_LINE" >> "$CONFIG_FILE"
+        fi
+        printf 'Then run: source %s\n' "$CONFIG_FILE"
         ;;
 esac

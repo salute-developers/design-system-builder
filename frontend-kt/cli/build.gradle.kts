@@ -7,6 +7,24 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val cliVersion = providers.environmentVariable("CLI_RELEASE_TAG").map { tag ->
+    require(Regex("cli-v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)").matches(tag)) {
+        "CLI_RELEASE_TAG must be cli-vX.Y.Z"
+    }
+    tag.removePrefix("cli-v")
+}.orElse("0.1.0")
+
+val generatedVersionDirectory = layout.buildDirectory.dir("generated/cliVersion")
+val generateCliVersion by tasks.registering {
+    inputs.property("cliVersion", cliVersion)
+    outputs.dir(generatedVersionDirectory)
+    doLast {
+        val output = generatedVersionDirectory.get().file("com/dsbuilder/frontend/cli/CliVersion.kt").asFile
+        output.parentFile.mkdirs()
+        output.writeText("package com.dsbuilder.frontend.cli\n\ninternal const val VERSION = \"${cliVersion.get()}\"\n")
+    }
+}
+
 kotlin {
     jvm {
         binaries {
@@ -43,6 +61,9 @@ kotlin {
     }
 
     sourceSets {
+        commonMain {
+            kotlin.srcDir(generateCliVersion.map { generatedVersionDirectory.get() })
+        }
         commonMain.dependencies {
             implementation(projects.coreNetwork)
             implementation(projects.coreAuth)
@@ -128,8 +149,7 @@ fun registerMacosCliPackage(
 
         val packageRoot = "dsbuilder-cli-macos-$classifier"
 
-        archiveBaseName.set("dsbuilder-cli")
-        archiveClassifier.set("macos-$classifier")
+        archiveFileName.set("dsbuilder-cli-macos-$classifier.zip")
         destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 
         from(layout.buildDirectory.file("bin/$targetName/releaseExecutable/dsbuilder.kexe")) {
@@ -145,6 +165,9 @@ fun registerMacosCliPackage(
             filePermissions {
                 unix("rwxr-xr-x")
             }
+        }
+        from(layout.projectDirectory.file("distribution/install-unix-common.sh")) {
+            into(packageRoot)
         }
         from(layout.projectDirectory.file("USAGE.md")) {
             into(packageRoot)
@@ -172,8 +195,7 @@ tasks.register<Zip>("packageWindowsX64Cli") {
 
     dependsOn("linkReleaseExecutableMingwX64")
     val packageRoot = "dsbuilder-cli-windows-x64"
-    archiveBaseName.set("dsbuilder-cli")
-    archiveClassifier.set("windows-x64")
+    archiveFileName.set("dsbuilder-cli-windows-x64.zip")
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 
     from(layout.buildDirectory.file("bin/mingwX64/releaseExecutable/dsbuilder.exe")) {
@@ -212,4 +234,37 @@ tasks.register("packageMacosCli") {
     }
 
     dependsOn(currentArchPackageTask)
+}
+
+// Добавляется в корень существующего JVM-дистрибутива без изменения bin/lib.
+extensions.configure<org.gradle.api.distribution.DistributionContainer> {
+    named("jvm") {
+        contents {
+            from(layout.projectDirectory.file("distribution/install-unix-common.sh"))
+            from(layout.projectDirectory.file("distribution/install-jvm-cli.sh")) {
+                rename { "install.sh" }
+                filePermissions { unix("rwxr-xr-x") }
+            }
+        }
+    }
+}
+
+val distributionTests by tasks.registering(Exec::class) {
+    group = "verification"
+    workingDir(layout.projectDirectory.dir("distribution"))
+    commandLine("python3", "-m", "unittest", "discover", "-s", "tests", "-v")
+}
+tasks.named("check") { dependsOn(distributionTests) }
+tasks.named("allTests") { dependsOn(distributionTests) }
+
+tasks.withType<org.gradle.api.tasks.bundling.AbstractArchiveTask>().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
+
+val distributionS3Test by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs CLI delivery against an isolated temporary MinIO (requires Docker)."
+    workingDir(layout.projectDirectory.dir("distribution"))
+    commandLine("python3", "tests/run_s3_integration.py")
 }

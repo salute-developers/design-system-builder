@@ -395,7 +395,7 @@ class DsBuilderCliTest {
         val result = DsBuilderCli(fakeRuntime()).execute(listOf("--version"))
 
         assertEquals(0, result.exitCode)
-        assertEquals("dsbuilder version 0.1.0", result.output)
+        assertEquals("dsbuilder version $VERSION", result.output)
     }
 
     @Test
@@ -694,7 +694,7 @@ class DsBuilderCliTest {
 
         assertEquals(0, help.exitCode)
         assertEquals(0, version.exitCode)
-        assertEquals("dsbuilder version 0.1.0", version.output)
+        assertEquals("dsbuilder version $VERSION", version.output)
     }
 
     @Test

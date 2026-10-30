@@ -5,6 +5,8 @@ on:
     paths:
       - 'frontend-kt/**'
       - '.github/workflows/validate-frontend-kt.yml'
+      - '.github/workflows/publish-cli-release.yml'
+      - 'backend-kt/docker/minio/Dockerfile'
   push:
     branches:
       - dev
@@ -12,6 +14,8 @@ on:
     paths:
       - 'frontend-kt/**'
       - '.github/workflows/validate-frontend-kt.yml'
+      - '.github/workflows/publish-cli-release.yml'
+      - 'backend-kt/docker/minio/Dockerfile'
   workflow_dispatch:
 
 permissions:
@@ -56,3 +60,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew build :cli:linkReleaseExecutableMingwX64
         working-directory: frontend-kt
+
+  cli-s3-integration:
+    name: CLI delivery / MinIO
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test delivery with isolated MinIO
+        run: python3 frontend-kt/cli/distribution/tests/run_s3_integration.py
