@@ -36,7 +36,10 @@ vi.mock('../api/tokenRepository', () => ({
 vi.mock('../api/componentRepository', () => ({
     componentRepository: { loadComponentData, loadComponentIndex, loadComposeComponentData: async () => [] },
 }));
-vi.mock('../api/draftInvalidationStream', () => ({ subscribeToDraftInvalidations }));
+vi.mock('../api/draftInvalidationStream', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../api/draftInvalidationStream')>()),
+    subscribeToDraftInvalidations,
+}));
 vi.mock('../utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../utils')>()),
     applyDraftChanges,
@@ -139,10 +142,13 @@ describe('согласованная загрузка целых раздело�
                 expect(result.current.palette).toBe(palette);
                 expect(getActivePalette()).toBe(palette);
                 expect(loadPalette).toHaveBeenCalledTimes(1);
-                expect(loadTokenData).toHaveBeenCalledExactlyOnceWith(context, expect.any(AbortSignal), '0.1.0', [
-                    'color',
-                    'gradient',
-                ]);
+                expect(loadTokenData).toHaveBeenCalledExactlyOnceWith(
+                    context,
+                    expect.any(AbortSignal),
+                    '0.1.0',
+                    ['color', 'gradient'],
+                    undefined,
+                );
                 act(() => updateDraftToken('System', '0.1.0', token));
                 await act(async () => vi.advanceTimersByTimeAsync(400));
                 expect(saveTokenMutation).toHaveBeenCalledTimes(1);
@@ -218,7 +224,13 @@ describe('согласованная загрузка целых раздело�
         updateDraftToken('System', '0.1.0', token);
         renderHook(() => useDesignSystem(context, true, { section: 'settings' }));
         await act(async () => vi.advanceTimersByTimeAsync(400));
-        expect(loadTokenData).toHaveBeenCalledWith(context, expect.any(AbortSignal), '0.1.0', ['color', 'gradient']);
+        expect(loadTokenData).toHaveBeenCalledWith(
+            context,
+            expect.any(AbortSignal),
+            '0.1.0',
+            ['color', 'gradient'],
+            undefined,
+        );
         expect(saveTokenMutation).toHaveBeenCalledTimes(1);
         expect(saveTokenMutation.mock.calls[0][1]).toBe('token-1');
     });
@@ -229,15 +241,23 @@ describe('согласованная загрузка целых раздело�
         );
         await act(async () => Promise.resolve());
         expect(result.current.sectionLoading).toBe(false);
-        expect(loadTokenData).toHaveBeenCalledWith(context, expect.any(AbortSignal), '0.1.0', ['color', 'gradient']);
+        expect(loadTokenData).toHaveBeenCalledWith(
+            context,
+            expect.any(AbortSignal),
+            '0.1.0',
+            ['color', 'gradient'],
+            undefined,
+        );
         expect(loadComponentData).not.toHaveBeenCalled();
         rerender({ section: 'shapes' });
         await act(async () => Promise.resolve());
-        expect(loadTokenData).toHaveBeenLastCalledWith(context, expect.any(AbortSignal), '0.1.0', [
-            'shape',
-            'spacing',
-            'shadow',
-        ]);
+        expect(loadTokenData).toHaveBeenLastCalledWith(
+            context,
+            expect.any(AbortSignal),
+            '0.1.0',
+            ['shape', 'spacing', 'shadow'],
+            undefined,
+        );
         expect(load).toHaveBeenCalledTimes(1);
         expect(subscribeToDraftInvalidations).toHaveBeenCalledTimes(1);
         rerender({ section: 'colors' });

@@ -35,3 +35,36 @@ describe('incomplete mutation metadata', () => {
         cancel();
     });
 });
+
+it('полное подтверждение своей темы подавляет только fallback значения, но не чужую или неизвестную операцию', () => {
+    const refresh = vi.fn();
+    const cancel = subscribeIncompleteMutationMetadata(context, refresh);
+    const response = {
+        headers: { 'x-ds-mutation-metadata-truncated': 'true' },
+        config: { url: '/api/projects/p1/ds/tenants/t1/color-tokens/token/values' },
+        data: {
+            type: 'color',
+            confirmedValues: [
+                {
+                    id: 'v',
+                    tokenId: 'token',
+                    tenantId: 't1',
+                    platform: 'web',
+                    mode: 'light',
+                    value: '#000000',
+                    editRevision: 1,
+                },
+            ],
+        },
+    };
+    reportIncompleteMutationMetadata(response);
+    expect(refresh).not.toHaveBeenCalled();
+    reportIncompleteMutationMetadata({
+        ...response,
+        data: { ...response.data, confirmedValues: [{ ...response.data.confirmedValues[0], tenantId: 'other' }] },
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    reportIncompleteMutationMetadata({ ...response, config: { url: '/api/projects/p1/ds/tenants/t1/palette' } });
+    expect(refresh).toHaveBeenCalledTimes(2);
+    cancel();
+});

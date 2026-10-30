@@ -136,7 +136,8 @@ it('данные C50 читаются адресно и стили всех ег
     expect(urls).toContain('/api/projects/project/ds/design-systems/system/components/c50/styles');
     expect(urls.filter((url) => /\/components\/c\d+\/(properties|variations)/.test(url))).toHaveLength(2);
     expect(urls.filter((url) => /\/variations\/axis\d\/styles/.test(url))).toHaveLength(0);
-    expect(http.get).toHaveBeenCalledTimes(9);
+    expect(http.get).toHaveBeenCalledTimes(8);
+    expect(http.get.mock.calls.some(([url]) => url.endsWith('/property-platform-params'))).toBe(false);
     expect(http.post).toHaveBeenCalledTimes(2);
 });
 

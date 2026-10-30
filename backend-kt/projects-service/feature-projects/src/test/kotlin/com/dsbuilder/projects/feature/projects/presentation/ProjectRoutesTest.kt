@@ -157,6 +157,7 @@ class ProjectRoutesTest {
         assertEquals(false, body.contains("project-3"))
         assertTrue(body.contains("\"effectiveRole\":\"owner\""))
         assertTrue(body.contains("\"effectiveRole\":\"viewer\""))
+        assertTrue(body.contains("\"designSystemCount\":null"))
     }
 
     @Test

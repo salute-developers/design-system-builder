@@ -6,6 +6,7 @@ import com.dsbuilder.identity.auth.application.usecase.GatewayAuthDecision
 import com.dsbuilder.identity.auth.domain.model.TrustedHeaders
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.options
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -43,6 +44,24 @@ class PublicGatewayTest {
     }
 
     @Test
+    fun `preflight cache is limited to allowed origins and does not authorize commands`() = testApplication {
+        application {
+            installPublicGateway(configuration, authorizer)
+            routing { get("/api/projects") { call.respondText("projects") } }
+        }
+        val preflight = client.options("/api/projects") { header("Origin", "http://localhost:5173") }
+        assertEquals(HttpStatusCode.NoContent, preflight.status)
+        assertEquals("600", preflight.headers["Access-Control-Max-Age"])
+        assertEquals("Origin", preflight.headers["Vary"])
+        val forbiddenOrigin = client.options("/api/projects") { header("Origin", "https://unknown.example") }
+        assertEquals(null, forbiddenOrigin.headers["Access-Control-Allow-Origin"])
+        assertEquals(null, forbiddenOrigin.headers["Access-Control-Max-Age"])
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/projects").status)
+        val internal = client.options("/internal/catalog") { header("Origin", "http://localhost:5173") }
+        assertEquals(null, internal.headers["Access-Control-Max-Age"])
+    }
+
+    @Test
     fun `incoming principal headers never grant access`() = testApplication {
         application {
             installPublicGateway(configuration, authorizer)
@@ -75,7 +94,7 @@ class PublicGatewayTest {
         application { installPublicGateway(configuration, authorizer) }
         val denied = client.get("/api/projects") { header("Origin", "http://localhost:5173") }
         assertEquals("http://localhost:5173", denied.headers["Access-Control-Allow-Origin"])
-        for (name in listOf("X-DS-Read-Context", "X-DS-Page-Limit", "X-DS-Next-Cursor")) {
+        for (name in listOf("X-DS-Read-Context", "X-DS-Page-Limit", "X-DS-Next-Cursor", "X-DS-Journal-Total")) {
             assertTrue(name in denied.headers["Access-Control-Expose-Headers"].orEmpty())
         }
         repeat(40) {

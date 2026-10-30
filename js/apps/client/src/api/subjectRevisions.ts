@@ -1,4 +1,4 @@
-import type { EditorContextKey, ThemeEditorTokenSnapshot } from './editorContracts';
+import type { EditorContextKey, ThemeEditorTokenSnapshot, TenantTokenValueDto } from './editorContracts';
 import { tokenValueKey } from './editorHttp';
 import { authService } from './authService';
 
@@ -60,7 +60,10 @@ export const observeSubjectRevisions = (
     const revisions = revisionsOf(context);
     metadata.forEach((item) => {
         if (Number.isSafeInteger(item.revision) && item.revision >= 0)
-            revisions.byEntity.set(`${item.entityType}:${item.entityId}`, item.revision);
+            revisions.byEntity.set(
+                `${item.entityType}:${item.entityId}`,
+                Math.max(item.revision, revisions.byEntity.get(`${item.entityType}:${item.entityId}`) ?? 0),
+            );
     });
 };
 
@@ -86,3 +89,18 @@ export const subjectBaseRevision = (context: EditorContextKey, address: string) 
     revisionsOf(context).byAddress.get(address) ?? 0;
 export const acceptSubjectAddress = (context: EditorContextKey, address: string, revision: number) =>
     revisionsOf(context).byAddress.set(address, revision);
+
+/** Адресное подтверждение не стирает редакции и overrides соседних токенов. */
+export const observeConfirmedTokenValues = (context: EditorContextKey, values: TenantTokenValueDto[]) => {
+    const revisions = revisionsOf(context);
+    for (const value of values) {
+        if (value.tenantId !== context.tenantId || !Number.isSafeInteger(value.editRevision) || value.editRevision < 0)
+            continue;
+        const key = tokenValueKey(value.tokenId, value.platform, value.mode);
+        const previous = revisions.byEntity.get(`token-value:${value.id}`) ?? -1;
+        if (value.editRevision < previous) continue;
+        revisions.valueEntities.set(key, value.id);
+        revisions.byEntity.set(`token-value:${value.id}`, value.editRevision);
+        revisions.overridden.set(key, value.overridden === true);
+    }
+};

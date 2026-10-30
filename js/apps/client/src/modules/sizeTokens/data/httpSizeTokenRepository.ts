@@ -3,6 +3,12 @@ import axios from 'axios';
 import { http } from '../../../api/http';
 import { readRequest } from '../../../api/editorHttp';
 import { subjectMutation } from '../../../api/subjectMutation';
+
+const tokenMutation = <T>(context: Parameters<typeof subjectMutation>[0], operation: () => Promise<T>) =>
+    subjectMutation(context, operation, undefined, ['shape', 'spacing', 'shadow'], (response) => {
+        const data = (response as { data?: UpdateDto }).data;
+        return data?.token && data.values?.length ? [{ tokenId: data.token.tokenId, values: data.values }] : undefined;
+    });
 import { tokenValueBaseRevision } from '../../../api/subjectRevisions';
 import {
     SizeTokenOperationError,
@@ -239,7 +245,7 @@ export const createHttpSizeTokenRepository = (): SizeTokenRepository => ({
         };
     },
     send: async (context, command): Promise<SizeTokenResult> => {
-        const data = await call(() => subjectMutation(context, () => request(command)));
+        const data = await call(() => tokenMutation(context, () => request(command)));
         if (command.operation === 'update') {
             const { kind, token, values } = data as UpdateDto;
             return { type: 'update', token: fromDto(kind, token), values: values ?? [] };

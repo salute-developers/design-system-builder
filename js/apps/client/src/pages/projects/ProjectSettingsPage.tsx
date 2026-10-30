@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { ApiError, designSystemsApi, projectsApi, type ProjectMemberDto } from '../../api';
 import { SettingsFrame } from '../../components/BuilderShell/BuilderShell';
 import { Field, State } from '../../components/Catalog/Catalog';
@@ -14,9 +14,23 @@ import { MemberActionsMenu, MemberCandidatePicker, ROLE_FILTER_OPTIONS, ROLE_OPT
 
 export const ProjectSettingsPage = () => {
     const { projectId = '' } = useParams();
-    const project = useLoad(() => projectsApi.get(projectId), [projectId], `project:${projectId}`);
-    const members = useLoad(() => projectsApi.members(projectId), [projectId], `members:${projectId}`);
-    const systems = useLoad(() => designSystemsApi.list(projectId), [projectId], `systems:${projectId}`);
+    const [params] = useSearchParams();
+    const section = params.get('section') ?? 'general';
+    const needsMembers = section === 'members' || section === 'lifecycle';
+    const needsSystems = section === 'lifecycle';
+    const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
+    const members = useLoad(
+        (signal) => projectsApi.members(projectId, signal),
+        [projectId],
+        `members:${projectId}`,
+        needsMembers,
+    );
+    const systems = useLoad(
+        (signal) => designSystemsApi.list(projectId, signal),
+        [projectId],
+        `systems:${projectId}`,
+        needsSystems,
+    );
     const [message, setMessage] = useState('');
     const [memberSearch, setMemberSearch] = useState('');
     const [memberRoleFilter, setMemberRoleFilter] = useState('all');
@@ -58,13 +72,12 @@ export const ProjectSettingsPage = () => {
                 }}
             />
         );
-    if (!project.data || !members.data || !systems.data)
+    if (!project.data)
         return (
             <State
                 text="Загружаем настройки…"
                 title="Настройки проекта"
                 back={`/projects/${projectId}`}
-                projectName={project.data?.name}
                 projectId={projectId}
                 kind="system"
             />
@@ -102,6 +115,8 @@ export const ProjectSettingsPage = () => {
                 </section>
             </SettingsFrame>
         );
+    const loadedMembers = members.data ?? [];
+    const loadedSystems = systems.data ?? [];
     const save = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
@@ -194,15 +209,7 @@ export const ProjectSettingsPage = () => {
                                 </div>
                                 <div>
                                     <dt>Дизайн-системы</dt>
-                                    <dd>{systems.data.filter((system) => !system.isTechnical).length}</dd>
-                                </div>
-                                <div>
-                                    <dt>Темы</dt>
-                                    <dd>
-                                        {systems.data
-                                            .filter((system) => !system.isTechnical)
-                                            .reduce((sum, system) => sum + system.tenantCount, 0)}
-                                    </dd>
+                                    <dd>{project.data.designSystemCount ?? '—'}</dd>
                                 </div>
                             </dl>
                         </div>
@@ -219,7 +226,7 @@ export const ProjectSettingsPage = () => {
                             <p className="ps-aside-section">Доступ к проекту</p>
                             <div className="ps-aside-row">
                                 <span>Участники</span>
-                                <strong>{members.data.length + 1}</strong>
+                                <strong>{loadedMembers.length + 1}</strong>
                             </div>
                             <div className="ps-aside-row">
                                 <span>Owners</span>
@@ -227,15 +234,15 @@ export const ProjectSettingsPage = () => {
                             </div>
                             <div className="ps-aside-row">
                                 <span>Maintainers</span>
-                                <strong>{members.data.filter((item) => item.role === 'maintainer').length}</strong>
+                                <strong>{loadedMembers.filter((item) => item.role === 'maintainer').length}</strong>
                             </div>
                             <div className="ps-aside-row">
                                 <span>Editors</span>
-                                <strong>{members.data.filter((item) => item.role === 'editor').length}</strong>
+                                <strong>{loadedMembers.filter((item) => item.role === 'editor').length}</strong>
                             </div>
                             <div className="ps-aside-row">
                                 <span>Viewers</span>
-                                <strong>{members.data.filter((item) => item.role === 'viewer').length}</strong>
+                                <strong>{loadedMembers.filter((item) => item.role === 'viewer').length}</strong>
                             </div>
                         </div>
                         <div className="ps-aside-section-block">
@@ -303,7 +310,8 @@ export const ProjectSettingsPage = () => {
                 <Visible when={Boolean(message)}>
                     <p>{message}</p>
                 </Visible>
-                <section id="settings-members" className="settings-section">
+                <section id="settings-members" className="settings-section" aria-busy={needsMembers && !members.data}>
+                    {needsMembers && !members.data && <p>Загружаем участников…</p>}
                     <div className="ps-members-toolbar">
                         <div className="ps-search">
                             <svg className="ui-glyph" viewBox="0 0 24 24" aria-hidden="true">
@@ -339,7 +347,7 @@ export const ProjectSettingsPage = () => {
                     </div>
                     <p className="ps-block-title ps-members-count">
                         УЧАСТНИКИ ·{' '}
-                        {members.data.filter(
+                        {loadedMembers.filter(
                             (member) =>
                                 (memberRoleFilter === 'all' || member.role === memberRoleFilter) &&
                                 memberMatches(member),
@@ -371,7 +379,7 @@ export const ProjectSettingsPage = () => {
                                 <span />
                             </div>
                         )}
-                        {members.data
+                        {loadedMembers
                             .filter(
                                 (member) =>
                                     (memberRoleFilter === 'all' || member.role === memberRoleFilter) &&
@@ -419,7 +427,9 @@ export const ProjectSettingsPage = () => {
                     </div>
                 </section>
                 <section id="settings-lifecycle" className="settings-section ps-administration">
-                    <AccessKeysPanel projectId={projectId} onActiveCount={setActiveKeyCount} />
+                    {section === 'lifecycle' && (
+                        <AccessKeysPanel projectId={projectId} onActiveCount={setActiveKeyCount} />
+                    )}
                     <div className="ps-divider" />
                     <Visible when={project.data.effectiveRole === 'owner'}>
                         <>
@@ -427,17 +437,17 @@ export const ProjectSettingsPage = () => {
                             <div className="ps-danger-zone">
                                 <strong>Архивировать проект</strong>
                                 <p>Проект и его данные сохранятся, но изменяющие действия будут отключены.</p>
-                                <div className="ps-danger-badges">
+                                <div className="ps-danger-badges" hidden={!members.data || !systems.data}>
                                     <span className="ps-badge">
-                                        {systems.data.filter((system) => !system.isTechnical).length} дизайн-систем
+                                        {loadedSystems.filter((system) => !system.isTechnical).length} дизайн-систем
                                     </span>
                                     <span className="ps-badge">
-                                        {systems.data
+                                        {loadedSystems
                                             .filter((system) => !system.isTechnical)
                                             .reduce((sum, system) => sum + system.tenantCount, 0)}{' '}
                                         тем
                                     </span>
-                                    <span className="ps-badge">{members.data.length + 1} участников</span>
+                                    <span className="ps-badge">{loadedMembers.length + 1} участников</span>
                                 </div>
                                 <p className="ps-danger-confirm">Введите {project.data.name} для подтверждения</p>
                                 <div className="ps-danger-actions">
@@ -450,7 +460,9 @@ export const ProjectSettingsPage = () => {
                                     <button
                                         type="button"
                                         className="ps-button ps-button-danger"
-                                        disabled={archiveConfirmation !== project.data.name}
+                                        disabled={
+                                            archiveConfirmation !== project.data.name || !members.data || !systems.data
+                                        }
                                         onClick={() => void projectsApi.archive(projectId).then(project.reload)}
                                     >
                                         Архивировать проект

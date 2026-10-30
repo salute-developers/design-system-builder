@@ -6,4 +6,8 @@ data class ColorTokenMutation<T>(
     val editRevision: Int,
     /** Значение операции. */
     val value: T,
+    /** Подтверждённые значения семейства из той же транзакции; null для прежних адаптеров. */
+    val structure: ColorTokenStructure? = null,
+    /** Полные подтверждённые значения текущей темы. */
+    val confirmedValues: List<com.dsbuilder.ds.themes.domain.TenantTokenValue>? = null,
 )

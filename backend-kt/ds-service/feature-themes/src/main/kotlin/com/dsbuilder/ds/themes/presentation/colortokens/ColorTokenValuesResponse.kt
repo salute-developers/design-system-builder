@@ -11,10 +11,16 @@ data class ColorTokenValuesResponse(
     val editRevision: Int,
     /** Тип семейства после изменения: `color` или `gradient`. */
     val type: String,
+    /** Полное подтверждение значений и редакций семейства, не ограниченное размером HTTP-заголовка. */
+    val confirmedValues: List<com.dsbuilder.ds.themes.presentation.TenantTokenValueResponse>? = null,
 ) {
     companion object {
         /** DTO из результата операции. */
         fun from(value: ColorTokenMutation<ThemeTokenType>) =
-            ColorTokenValuesResponse(value.editRevision, value.value.wireValue)
+            ColorTokenValuesResponse(
+                value.editRevision,
+                value.value.wireValue,
+                value.confirmedValues?.map(com.dsbuilder.ds.themes.presentation.TenantTokenValueResponse::from),
+            )
     }
 }

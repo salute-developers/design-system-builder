@@ -1,3 +1,4 @@
+import type { ConfirmedTokenValues } from '../../api/draftAutosaveActivity';
 import { loadThemeEditor, loadDesignSystemCursor } from '../../api/themeEditorRepository';
 import { tokenRepository } from '../../api/tokenRepository';
 import { componentRepository } from '../../api/componentRepository';
@@ -15,6 +16,7 @@ import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from 
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
 import {
     subscribeToDraftInvalidations,
+    notifyEditorDataInvalidated,
     type DraftInvalidationEvent,
     type DraftInvalidationScope,
 } from '../../api/draftInvalidationStream';
@@ -81,7 +83,7 @@ interface SessionOptions {
     context: EditorContextKey;
     snapshot: ThemeEditorSnapshot;
     signal: AbortSignal;
-    onSaved: () => void;
+    onSaved: (types?: TokenDefinitionDto['type'][], values?: ConfirmedTokenValues[]) => void;
     onStatus: (status: AutosaveStatus) => void;
     onSnapshot: (snapshot: ThemeEditorSnapshot, tokensChanged: boolean, componentsChanged: boolean) => void;
     onDisposed: () => void;
@@ -138,7 +140,7 @@ export class ThemeEditorSession {
     start() {
         this.cancelIncompleteMetadataRefresh = subscribeIncompleteMutationMetadata(this.context, (scope) => {
             if (this.signal.aborted) return;
-            invalidateEditorReads();
+            invalidateEditorReads(this.context);
             this.latestRemoteEvent = undefined;
             this.pendingRemoteScopes.add(scope);
             this.scheduleRemoteReload();
@@ -458,9 +460,14 @@ export class ThemeEditorSession {
     }
 
     private refreshSnapshot(scopes: Set<DraftInvalidationScope>, event?: DraftInvalidationEvent) {
+        notifyEditorDataInvalidated(this.context, scopes);
         if (this.options.sections) {
+            if (event) {
+                if (event.draftId !== this.snapshot.designSystem.draftId) scopes.add('all');
+                this.options.sections.acceptDraftCursor(event.draftId, event.draftRevision);
+            }
             this.options.sections.invalidate(scopes);
-            invalidateEditorReads();
+            invalidateEditorReads(this.context);
             return this.refreshActiveSection();
         }
         const refresh = this.reloadChain
@@ -551,6 +558,7 @@ export class ThemeEditorSession {
                 editRevision: this.editRevision,
                 baseRevision: operation.tokenBaseRevision,
                 valueBaseRevisions: operation.valueBaseRevisions,
+                values: undefined,
             });
         }
         operation.request ??= {
@@ -590,8 +598,29 @@ export class ThemeEditorSession {
 
     private confirmed(operation: PendingTokenSave, result: TokenSaveResult) {
         if (!this.mounted || this.signal.aborted) return;
-        this.options.sections?.invalidate(new Set(['theme-tokens']));
-        if (this.mounted) this.options.onSaved();
+        const values: ConfirmedTokenValues[] | undefined =
+            operation.kind === 'update' &&
+            !Object.keys(operation.request?.definitionPatch ?? {}).length &&
+            result.values?.length
+                ? [
+                      {
+                          tokenId: result.tokenId,
+                          type: operation.change.type,
+                          values: result.values
+                              .filter((value) => value.platform !== null)
+                              .map((value) => ({
+                                  platform: value.platform!,
+                                  mode: value.mode,
+                                  value: value.sourceValue ?? value.value,
+                                  overridden: value.overridden,
+                              })),
+                      },
+                  ]
+                : undefined;
+        if (!values || !this.options.sections?.acceptConfirmedValues(values))
+            this.options.sections?.invalidateTokenTypes([operation.change.type]);
+        notifyEditorDataInvalidated(this.context, new Set(['theme-tokens']), [operation.change.type]);
+        if (this.mounted) this.options.onSaved([operation.change.type], values);
         const baseName = operation.tokenName.replace(/^(light|dark)\./, '');
         const previousBaseName = operation.previousTokenName?.replace(/^(light|dark)\./, '');
         if ([previousBaseName, previousBaseName !== baseName].every(Boolean)) delete this.tokenIds[previousBaseName!];

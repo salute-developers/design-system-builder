@@ -17,6 +17,7 @@ import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
 import com.dsbuilder.ds.designsystems.domain.DraftChange
 import io.ktor.server.request.receiveText
+import io.ktor.server.response.header
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
@@ -37,8 +38,29 @@ fun Route.designSystemChangeRoutes(
 ) {
     listChangeRoute(evaluator, list)
     summaryChangeRoute(evaluator, list)
+    tokenIdsRoute(evaluator, list)
     revertChangeRoute(evaluator, revert, json)
 }
+
+private fun Route.tokenIdsRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
+    get(dsRoutePath("/api/ds/design-systems/{id}/changes/token-ids")) {
+        val context = call.modelReadContext(evaluator) ?: return@get
+        val id = call.parameters["id"]?.uuid()
+            ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val tenantId = call.request.queryParameters["tenantId"]?.uuid()
+            ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_tenant_id"))
+        when (val result = list.tokenIds(context, DesignSystemId(id), tenantId)) {
+            is DsResult.Success -> call.respondSuccess(
+                result,
+                ChangedTokenIdsResponse(result.value.map(UUID::toString)),
+            )
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}
+
+@Serializable
+private data class ChangedTokenIdsResponse(val tokenIds: List<String>)
 
 private fun Route.summaryChangeRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
     get(dsRoutePath("/api/ds/design-systems/{id}/changes/summary")) {
@@ -64,13 +86,16 @@ private fun Route.listChangeRoute(evaluator: PolicyEvaluator, list: ListDraftCha
         val versionId = rawVersionId?.uuid()
             ?: rawVersionId?.let { return@get call.respondFailure(DsFailure.InvalidRequest("invalid_version_id")) }
         when (
-            val result = list.execute(
+            val result = list.snapshot(
                 context,
                 DesignSystemId(designSystemId),
                 versionId?.let(::DesignSystemVersionId),
             )
         ) {
-            is DsResult.Success -> call.respondSuccess(result, result.value.map(DraftChangeResponse::from))
+            is DsResult.Success -> {
+                result.value.total?.let { call.response.header("X-DS-Journal-Total", it.toString()) }
+                call.respondSuccess(result, result.value.changes.items.map(DraftChangeResponse::from))
+            }
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }

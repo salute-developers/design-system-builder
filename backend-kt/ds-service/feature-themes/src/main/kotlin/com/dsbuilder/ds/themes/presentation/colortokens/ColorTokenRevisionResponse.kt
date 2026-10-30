@@ -7,4 +7,6 @@ import kotlinx.serialization.Serializable
 data class ColorTokenRevisionResponse(
     /** Новая ревизия текущей темы. */
     val editRevision: Int,
+    /** Удалённые определения и новые позиции соседей. */
+    val structure: ColorTokenStructureResponse? = null,
 )

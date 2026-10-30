@@ -1,4 +1,5 @@
-import { getDraftAutosaveRevision, recordDraftSave, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
+import type { ColorTokenStructure } from '../../modules/colorTokens/application/colorTokenRepository';
+import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { acceptTokenValueOverridden, observeSubjectAddresses, tokenValueOverridden } from '../../api/subjectRevisions';
 import { authService } from '../../api/authService';
 import { getAdditionalColorValues } from '../../actions/colors';
@@ -284,7 +285,6 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
             if (result.type && parsed)
                 adoptFamilyType(session, { group: parsed.group, name: parsed.name }, result.type);
         },
-        onSaved: () => recordDraftSave(context),
         onConflict: (error) => {
             // Тема изменена в другом месте: несохранённые значения запоминаются, тема перечитывается, повторная
             // отправка — только по «Повторить».
@@ -347,7 +347,40 @@ const syncTheme = (session: ColorTokenSession, definitions: PlacedDefinition[]) 
 };
 
 /** Перечитывает группы и места определений; после операций над структурой приводит к ним тему. */
-export const refreshStructure = async (session: ColorTokenSession, sync = false) => {
+export const refreshStructure = async (
+    session: ColorTokenSession,
+    sync = false,
+    confirmation?: ColorTokenStructure,
+) => {
+    if (confirmation) {
+        const removed = new Set(confirmation.removedTokenIds);
+        const replaced = new Map(confirmation.definitions.map((definition) => [definition.id, definition]));
+        const placements = new Map(confirmation.placements.map((value) => [value.id, value]));
+        const definitions: PlacedDefinition[] = [...session.definitions]
+            .filter(([, value]) => !removed.has(value.id) && !replaced.has(value.id))
+            .map(([name, value]) => ({
+                name,
+                ...value,
+                groupId: null,
+                position: 0,
+                publishedIn: null,
+                ...session.placements.get(name),
+                ...placements.get(value.id),
+            }));
+        definitions.push(
+            ...confirmation.definitions.map((definition) => ({
+                ...definition,
+                publishedIn:
+                    session.placements.get(
+                        [...session.definitions].find(([, value]) => value.id === definition.id)?.[0] ?? '',
+                    )?.publishedIn ?? null,
+            })),
+        );
+        if (sync) syncTheme(session, definitions);
+        setPlacements(session, definitions);
+        notify(session);
+        return;
+    }
     const previous = structureReads.get(session);
     const read = { sync: sync || previous?.sync === true };
     structureReads.set(session, read);
@@ -673,24 +706,30 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             groupId: string | null,
         ): Promise<ColorTokenFamilyDto> {
             const members = newTokenMembers(key, defaults, stateValue);
+            let confirmation: ColorTokenStructure | undefined;
             const family = await session.autosave.run((editRevision) =>
-                repository.create(
-                    session.context,
-                    {
-                        type: 'color',
-                        group: key.group,
-                        name: key.name,
-                        displayName,
-                        groupId,
-                        members: members.map((member) => ({
-                            name: member.name,
-                            values: member.values.flatMap(({ mode, value }) =>
-                                PLATFORMS.map((platform) => ({ platform, mode, paletteId: null, value: [value] })),
-                            ),
-                        })),
-                    },
-                    editRevision,
-                ),
+                repository
+                    .create(
+                        session.context,
+                        {
+                            type: 'color',
+                            group: key.group,
+                            name: key.name,
+                            displayName,
+                            groupId,
+                            members: members.map((member) => ({
+                                name: member.name,
+                                values: member.values.flatMap(({ mode, value }) =>
+                                    PLATFORMS.map((platform) => ({ platform, mode, paletteId: null, value: [value] })),
+                                ),
+                            })),
+                        },
+                        editRevision,
+                    )
+                    .then((result) => {
+                        confirmation = result.structure;
+                        return result;
+                    }),
             );
             const { theme: current } = theme();
             const type: ColorTokenType = family.type ?? 'color';
@@ -711,7 +750,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                     current.addToken(type, retyped(token, type) as never);
                 }
             }
-            await refreshStructure(session).catch(() => notify(session));
+            await refreshStructure(session, false, confirmation).catch(() => notify(session));
             return family;
         },
 
@@ -750,16 +789,17 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         async move(view: ColorTokenView, groupId: string, position: number, name?: string): Promise<string> {
             const defaultId = session.definitions.get(`${view.key.group}.default.${view.key.name}`)?.id;
             if (!defaultId) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
+            let confirmation: ColorTokenStructure | undefined;
             const family = await session.autosave.run((editRevision) =>
-                repository.move(
-                    session.context,
-                    defaultId,
-                    { groupId, position, ...(name ? { name } : {}) },
-                    editRevision,
-                ),
+                repository
+                    .move(session.context, defaultId, { groupId, position, ...(name ? { name } : {}) }, editRevision)
+                    .then((result) => {
+                        confirmation = result.structure;
+                        return result;
+                    }),
             );
             session.autosave.forget(tokenId(view.key));
-            await refreshStructure(session, true);
+            await refreshStructure(session, true, confirmation);
             return tokenId({ group: family.group, name: family.name });
         },
 
@@ -767,10 +807,12 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         async remove(view: ColorTokenView) {
             const defaultId = session.definitions.get(`${view.key.group}.default.${view.key.name}`)?.id;
             if (!defaultId) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
+            let confirmation: ColorTokenStructure | undefined;
             await session.autosave.run((editRevision) =>
-                repository
-                    .delete(session.context, defaultId, editRevision)
-                    .then((result) => ({ ...result, value: null })),
+                repository.delete(session.context, defaultId, editRevision).then((result) => {
+                    confirmation = result.structure;
+                    return { ...result, value: null };
+                }),
             );
             session.autosave.forget(tokenId(view.key));
             const { theme: current } = theme();
@@ -780,7 +822,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                 if (parsed?.mode) session.definitions.delete(token.getName().slice(parsed.mode.length + 1));
             }
             // Позиции соседей пересчитаны сервером.
-            await refreshStructure(session).catch(() => notify(session));
+            await refreshStructure(session, false, confirmation).catch(() => notify(session));
         },
 
         /** Цветовые и градиентные записи прежнего черновика темы. */

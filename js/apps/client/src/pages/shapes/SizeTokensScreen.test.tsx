@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { notifyEditorDataInvalidated } from '../../api/draftInvalidationStream';
 import type { DesignSystem, Theme } from '../../controllers';
 import { getDraftAutosaveStatus } from '../../api/draftAutosaveActivity';
 import {
@@ -256,6 +257,7 @@ const LocationProbe = () => <output data-testid="location">{useLocation().search
 let tenantSeq = 0;
 
 interface MountOptions {
+    tenantId?: string;
     palette?: ThemePalette | null;
     role?: string;
     readOnly?: boolean;
@@ -265,6 +267,7 @@ interface MountOptions {
 }
 
 const renderScreen = async ({
+    tenantId = `tenant-${++tenantSeq}`,
     role = 'maintainer',
     readOnly = false,
     versionId,
@@ -273,7 +276,7 @@ const renderScreen = async ({
     changedTokenNames,
 }: MountOptions = {}) => {
     // Отдельная тема на каждый тест: сессии автосохранения хранятся по контексту темы.
-    const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: `tenant-${++tenantSeq}`, versionId };
+    const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId, versionId };
     const parameters = { readOnly, effectiveRole: role };
     const designSystem = { getName: () => 'System', getParameters: () => parameters } as unknown as DesignSystem;
     const model = themeModel();
@@ -294,8 +297,18 @@ const renderScreen = async ({
     const result = render(view(model.theme));
     await screen.findByTestId('size-tokens-screen');
     /** Новая модель темы — как после сигнала об изменении черновика в другом месте. */
-    const replaceTheme = () => result.rerender(view(themeModel().theme));
-    return { context, values: model.values, rerender, replaceTheme };
+    const replaceTheme = () => {
+        notifyEditorDataInvalidated(context, new Set(['theme-tokens']));
+        result.rerender(view(themeModel().theme));
+    };
+    return {
+        context,
+        values: model.values,
+        rerender,
+        replaceTheme,
+        unmount: result.unmount,
+        remount: () => render(view(themeModel().theme)),
+    };
 };
 
 const inspector = () => document.querySelector('.properties-panel') as HTMLElement;
@@ -533,6 +546,14 @@ describe('SizeTokensScreen', () => {
         // «Повторить» отправляет ту же правку, а автоматический повтор не отправляет её ещё раз.
         await act(() => new Promise((done) => setTimeout(done, 1_100)));
         expect(repository.send).toHaveBeenCalledTimes(2);
+    });
+
+    it('reuses unchanged section data after leaving and returning', async () => {
+        const { context } = await renderScreen();
+        expect(repository.load).toHaveBeenCalledOnce();
+        await act(async () => cleanup());
+        await renderScreen({ tenantId: context.tenantId });
+        expect(repository.load).toHaveBeenCalledOnce();
     });
 
     it('перечитывает раздел по новой модели темы только после отправки очереди', async () => {
@@ -825,7 +846,10 @@ describe('SizeTokensScreen', () => {
 
     it('читает опубликованную версию с versionId и не даёт её править', async () => {
         const { context } = await renderScreen({ versionId: 'v1' });
-        expect(repository.load).toHaveBeenCalledWith(expect.objectContaining({ versionId: 'v1' }));
+        expect(repository.load).toHaveBeenCalledWith(
+            expect.objectContaining({ versionId: 'v1' }),
+            expect.any(AbortSignal),
+        );
         expect(context.versionId).toBe('v1');
         expect(screen.getByTestId('size-tokens-viewer')).toHaveTextContent('Опубликованная версия');
         expect(screen.queryByTestId('size-tokens-save-status')).toBeNull();
@@ -834,4 +858,17 @@ describe('SizeTokensScreen', () => {
         expect(within(inspector()).queryByRole('button', { name: 'Удалить токен' })).toBeNull();
         expect(repository.send).not.toHaveBeenCalled();
     });
+});
+
+it('повторное открытие после ошибки ревалидации повторяет чтение сразу', async () => {
+    const view = await renderScreen();
+    await waitFor(() => expect(repository.load).toHaveBeenCalledOnce());
+    repository.load.mockRejectedValueOnce(new Error('temporary read failure'));
+    act(() => notifyEditorDataInvalidated(view.context, new Set(['theme-tokens'])));
+    await waitFor(() => expect(repository.load).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    await act(async () => view.unmount());
+    view.remount();
+    await waitFor(() => expect(repository.load).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(screen.queryByText('temporary read failure')).not.toBeInTheDocument());
 });

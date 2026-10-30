@@ -61,6 +61,7 @@ internal data class ProjectWithEffectiveRole(
     val project: Project,
     val effectiveRole: ProjectRole,
     val ownerIdentity: IdentityUser? = null,
+    val designSystemCount: Int? = null,
 )
 
 internal data class ProjectMemberWithIdentity(
@@ -120,8 +121,24 @@ internal class ListProjectsUseCase(
     private val repository: ProjectRepository,
     private val transactionManager: TransactionManager,
     private val policy: ProjectAccessPolicy,
+    private val counts: com.dsbuilder.projects.feature.projects.application.port.DesignSystemCounts? = null,
 ) {
-    suspend fun execute(input: ListProjectsInput): List<ProjectWithEffectiveRole> =
+    suspend fun execute(input: ListProjectsInput): List<ProjectWithEffectiveRole> {
+        val projects = list(input)
+        val values = mutableMapOf<String, Int>()
+        for (batch in projects.map { it.project.id }.chunked(500)) {
+            try {
+                counts?.count(batch)?.let { values.putAll(it) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Отказ сводки не скрывает уже авторизованные проекты и не запускает N+1.
+            }
+        }
+        return projects.map { it.copy(designSystemCount = values[it.project.id]) }
+    }
+
+    private suspend fun list(input: ListProjectsInput): List<ProjectWithEffectiveRole> =
         transactionManager.required {
             val projects = if (input.actor.isSystemAdmin) {
                 repository.listAllProjects()

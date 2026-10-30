@@ -731,6 +731,7 @@ describe('Editor repositories', () => {
             editRevision: 5,
             baseRevision: 1,
             valueBaseRevisions: { 'token-created:web:light': 2 },
+            values: [expect.objectContaining({ id: 'value-1', value: '#111111', editRevision: 2 })],
         });
     });
 

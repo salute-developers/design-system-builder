@@ -113,7 +113,10 @@ afterEach(cleanup);
 describe('DesignSystemChangesPage', () => {
     it('при отказе журнала после неизвестного результата блокирует отмену и повторяет только чтения', async () => {
         operations.revertChange.mockRejectedValueOnce(new Error('response lost after commit'));
-        operations.listChanges.mockResolvedValueOnce([change]).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]);
+        operations.listChanges
+            .mockResolvedValueOnce([change])
+            .mockRejectedValueOnce(new Error('offline'))
+            .mockResolvedValueOnce([]);
         renderPage('changes');
         fireEvent.click(await screen.findByRole('button', { name: /^Отменить изменение:/ }));
         const retry = await screen.findByRole('button', { name: 'Повторить загрузку данных' });
@@ -463,6 +466,7 @@ describe('DesignSystemVersionsPage', () => {
         expect(operations.listChanges).toHaveBeenCalledWith(
             { ...context, versionId: 'version-1' },
             expect.any(AbortSignal),
+            expect.any(Function),
         );
     });
 

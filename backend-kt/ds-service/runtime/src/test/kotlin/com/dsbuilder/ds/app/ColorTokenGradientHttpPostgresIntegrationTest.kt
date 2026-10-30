@@ -68,6 +68,11 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 val update = api.call("PUT", valuesPath, EDITOR, gradientBody(base, api.revisions(tenantB, base)))
                 assertEquals(HttpStatusCode.OK, update.status, update.bodyAsText())
                 assertEquals("gradient", api.body(update).jsonObject.text("type"))
+                val confirmed = api.body(update).jsonObject.getValue("confirmedValues").jsonArray
+                assertTrue(confirmed.isNotEmpty())
+                assertTrue(confirmed.all { it.jsonObject.text("tenantId") == tenantB })
+                assertTrue(confirmed.map { it.jsonObject.text("tokenId") }.toSet() == setOf(base, hover))
+                assertTrue(confirmed.all { it.jsonObject.getValue("editRevision").jsonPrimitive.content.toLong() >= 0 })
                 assertEquals(0, api.body(update).jsonObject.number("editRevision"))
                 val metadata = json.parseToJsonElement(requireNotNull(update.headers["X-DS-Mutation-Metadata"]))
                     .jsonArray

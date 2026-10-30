@@ -85,7 +85,17 @@ private fun withPaletteLocation(delegate: DraftChangeHandler): DraftChangeHandle
             previousSequenceNumber: Long,
             limit: Int?,
         ): List<DraftSubjectChange> {
-            val changes = delegate.describe(designSystemId, sequenceNumber, previousSequenceNumber, limit)
+            return located(delegate.describe(designSystemId, sequenceNumber, previousSequenceNumber, limit))
+        }
+
+        override fun visit(
+            designSystemId: UUID,
+            sequenceNumber: Long,
+            previousSequenceNumber: Long,
+            consume: (List<DraftSubjectChange>) -> Unit,
+        ) = delegate.visit(designSystemId, sequenceNumber, previousSequenceNumber) { batch -> consume(located(batch)) }
+
+        private fun located(changes: List<DraftSubjectChange>): List<DraftSubjectChange> {
             val locations = paletteLocations(delegate.entityType, changes.map { it.entityId })
             return changes.map { change ->
                 val location = locations[change.entityId].orEmpty()

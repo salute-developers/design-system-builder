@@ -1,5 +1,5 @@
 import { useChangedTokenNames } from '../features/versionJournal/useChangedTokenNames';
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
@@ -113,12 +113,13 @@ export const Main = () => {
     const isHome = !isEditingDesignSystem;
     const isEditorLoading = Boolean(editorContext && !designSystem && !loadError);
     const journalComponents = useMemo(() => designSystem?.getComponentsData() ?? [], [designSystem]);
+    const journalOpen = editorSection === 'changes' || editorSection === 'versions';
     const editorJournal = useJournal(
         editorContext,
         journalComponents,
-        designSystem,
+        `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}`,
         designSystem?.getParameters()?.readOnly !== false,
-        Boolean(designSystem) && (editorSection === 'changes' || editorSection === 'versions'),
+        Boolean(designSystem) && journalOpen,
     );
     useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
     const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}`;
@@ -128,8 +129,20 @@ export const Main = () => {
         summaryCursor,
         Boolean(designSystem) && ['shapes', 'typography'].includes(editorSection),
     );
-    const journalSummary = useJournalSummary(editorContext, summaryCursor, Boolean(designSystem));
-    useReloadAfterAutosave(autosaveStatus, journalSummary.reload);
+    const journalHasTotal = journalOpen && !editorJournal.error && editorJournal.total !== undefined;
+    const summaryNeeded =
+        Boolean(designSystem) &&
+        (!journalOpen || Boolean(editorJournal.error) || (!editorJournal.loading && !journalHasTotal));
+    const journalSummary = useJournalSummary(
+        editorContext,
+        `${summaryCursor}:${summaryNeeded && journalOpen ? (editorJournal.readAt ?? '') : ''}`,
+        summaryNeeded,
+    );
+    const journalTotal = journalHasTotal ? editorJournal.total! : journalSummary.total;
+    const journalCountError = journalHasTotal ? false : journalSummary.error;
+    const reloadJournalAfterRevert = useCallback(async () => {
+        await editorJournal.reloadChecked();
+    }, [editorJournal.reloadChecked]);
     const onClickPanelButton = (path: string) => {
         if (path === '') {
             navigate('/', {
@@ -208,11 +221,7 @@ export const Main = () => {
                                         selected={currentPath.includes('colors')}
                                         onClick={() => onClickPanelButton('colors')}
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railColorsIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railColorsIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('typography') ? 'is-active' : ''}`}
@@ -220,11 +229,7 @@ export const Main = () => {
                                         selected={currentPath.includes('typography')}
                                         onClick={() => onClickPanelButton('typography')}
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railTypographyIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railTypographyIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('shapes') ? 'is-active' : ''}`}
@@ -232,11 +237,7 @@ export const Main = () => {
                                         selected={currentPath.includes('shapes')}
                                         onClick={() => onClickPanelButton('shapes')}
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railCornerRadiusIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railCornerRadiusIcon} alt="" />
                                     </StyledIconButton>
                                     {hasComponents ? (
                                         <>
@@ -246,11 +247,7 @@ export const Main = () => {
                                                 selected={currentPath.includes('components')}
                                                 onClick={() => onClickPanelButton('components')}
                                             >
-                                                <img
-                                                    className="builder-rail-icon"
-                                                    src={railComponentsIcon}
-                                                    alt=""
-                                                />
+                                                <img className="builder-rail-icon" src={railComponentsIcon} alt="" />
                                             </StyledIconButton>
                                         </>
                                     ) : null}
@@ -262,11 +259,7 @@ export const Main = () => {
                                         onClick={() => onClickPanelButton('changes')}
                                         aria-label="Изменения дизайн-системы"
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railChangesIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railChangesIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('versions') ? 'is-active' : ''}`}
@@ -275,11 +268,7 @@ export const Main = () => {
                                         onClick={() => onClickPanelButton('versions')}
                                         aria-label="Версии дизайн-системы"
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railVersionsIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railVersionsIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('settings') ? 'is-active' : ''}`}
@@ -343,11 +332,15 @@ export const Main = () => {
                                                 selectedVersion={designSystem?.getVersion()}
                                             />
                                         )}
-                                        {editorContext && designSystem && (!editorVersionId || designSystem.getVersion()) && (
-                                            <McpLinkButton projectId={editorContext.projectId}
-                                                designSystemId={editorContext.designSystemId}
-                                                version={editorVersionId ? designSystem.getVersion()! : 'draft'} />
-                                        )}
+                                        {editorContext &&
+                                            designSystem &&
+                                            (!editorVersionId || designSystem.getVersion()) && (
+                                                <McpLinkButton
+                                                    projectId={editorContext.projectId}
+                                                    designSystemId={editorContext.designSystemId}
+                                                    version={editorVersionId ? designSystem.getVersion()! : 'draft'}
+                                                />
+                                            )}
                                         <JournalButton
                                             className="primary"
                                             type="button"
@@ -357,10 +350,10 @@ export const Main = () => {
                                             onClick={() => onClickPanelButton('changes')}
                                         >
                                             Изменения
-                                            {!journalSummary.error && journalSummary.total > 0 && (
+                                            {!journalCountError && journalTotal > 0 && (
                                                 <>
                                                     <span aria-hidden="true">·</span>
-                                                    <span>{journalSummary.total}</span>
+                                                    <span>{journalTotal}</span>
                                                 </>
                                             )}
                                         </JournalButton>
@@ -406,7 +399,7 @@ export const Main = () => {
                                 incompleteTokenIds,
                                 editorContext,
                                 autosaveStatus,
-                                editorJournal,
+                                editorJournal: { ...editorJournal, reloadChecked: reloadJournalAfterRevert },
                                 changedTokenNames,
                                 refreshChanges,
                             }}

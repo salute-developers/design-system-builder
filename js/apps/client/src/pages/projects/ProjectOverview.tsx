@@ -9,8 +9,8 @@ import { DesignSystemCard } from '../designSystems/DesignSystemCard';
 
 export const ProjectPage = () => {
     const { projectId = '' } = useParams();
-    const project = useLoad(() => projectsApi.get(projectId), [projectId], `project:${projectId}`);
-    const systems = useLoad(() => designSystemsApi.list(projectId), [projectId], `systems:${projectId}`);
+    const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
+    const systems = useLoad((signal) => designSystemsApi.list(projectId, signal), [projectId], `systems:${projectId}`);
     const dialog = useOutlet({ project: project.data } satisfies Partial<ProjectOutletContext>);
     if ([project.error, systems.error].some(isAccessDenied))
         return <State text="Нет доступа" title="Дизайн-системы" back="/projects" projectId={projectId} kind="system" />;

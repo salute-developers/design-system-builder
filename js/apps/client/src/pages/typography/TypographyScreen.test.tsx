@@ -2,6 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { notifyEditorDataInvalidated } from '../../api/draftInvalidationStream';
+import { subjectMutation } from '../../api/subjectMutation';
 import type { DesignSystem, Theme } from '../../controllers';
 import { getDraftAutosaveStatus, subscribeDraftAutosaveStatus } from '../../api/draftAutosaveActivity';
 import {
@@ -62,10 +64,11 @@ const mount = (styles: TypographyStyles, options: MountOptions = {}) => {
         load: vi.fn(async () => styles),
         update: vi.fn(
             options.update ??
-                (async (_c, tokenId, change) => {
-                    const screenId = tokenId.split('.')[0] as 'screen-l';
-                    return updated(bodyM(screenId, { sizePx: change.size ?? 16 }));
-                }),
+                (async (c, tokenId, change) =>
+                    subjectMutation(c, async () => {
+                        const screenId = tokenId.split('.')[0] as 'screen-l';
+                        return updated(bodyM(screenId, { sizePx: change.size ?? 16 }));
+                    })),
         ),
     };
     setTypographyStyleRepository(repository);
@@ -85,8 +88,18 @@ const mount = (styles: TypographyStyles, options: MountOptions = {}) => {
     );
     const result = render(view(createTheme()));
     /** Новая модель темы — как после сигнала об изменении черновика в другом месте. */
-    const replaceTheme = () => result.rerender(view(createTheme()));
-    return { repository, setValue, rerender, unmount: result.unmount, replaceTheme };
+    const replaceTheme = () => {
+        notifyEditorDataInvalidated(screenContext, new Set(['theme-tokens']));
+        result.rerender(view(createTheme()));
+    };
+    return {
+        repository,
+        setValue,
+        rerender,
+        unmount: result.unmount,
+        replaceTheme,
+        remount: () => render(view(createTheme())),
+    };
 };
 
 const tree = () => within(document.querySelector('.token-tree') as HTMLElement);
@@ -145,6 +158,19 @@ describe('экран «Типографика»', () => {
         fireEvent.change(screen.getByLabelText('Найти токен'), { target: { value: 'h1' } });
         expect(tree().queryByText('Body M')).toBeNull();
         expect(tree().getByText('H1')).toBeTruthy();
+    });
+
+    it('does not reload styles solely because the theme object changes locally', async () => {
+        const { repository } = setup();
+        await screen.findByRole('heading', { name: 'Body / Body M' });
+        expect(repository.load).toHaveBeenCalledOnce();
+        // Обычная подтверждённая правка не является удалённой инвалидацией.
+        const size = inspector().getByLabelText('Size');
+        fireEvent.change(size, { target: { value: '18' } });
+        fireEvent.blur(size);
+        await waitFor(() => expect(repository.update).toHaveBeenCalledOnce());
+        await waitFor(() => expect(getDraftAutosaveStatus(context)).toBe('saved'));
+        expect(repository.load).toHaveBeenCalledOnce();
     });
 
     it('сохраняет размер выбранного экрана с базовыми редакциями значений стиля и обновляет модель темы', async () => {
@@ -413,4 +439,17 @@ describe('экран «Типографика»', () => {
         expect(await screen.findByText('Точный источник токена недоступен.')).toBeTruthy();
         expect(screen.getByRole('heading', { name: 'Body / Body M' })).toBeTruthy();
     });
+});
+
+it('повторное открытие типографики не кеширует ошибку чтения', async () => {
+    const view = setup();
+    await waitFor(() => expect(view.repository.load).toHaveBeenCalledOnce());
+    vi.mocked(view.repository.load).mockRejectedValueOnce(new Error('temporary typography failure'));
+    act(() => notifyEditorDataInvalidated(context, new Set(['theme-tokens'])));
+    await waitFor(() => expect(view.repository.load).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    await act(async () => view.unmount());
+    view.remount();
+    await waitFor(() => expect(view.repository.load).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(screen.queryByText('temporary typography failure')).not.toBeInTheDocument());
 });

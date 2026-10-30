@@ -47,6 +47,13 @@ internal fun withPaletteRebuildJournal(handlers: List<DraftChangeHandler>): List
                     limit: Int?,
                 ) = projection.ramps(designSystemId, sequenceNumber, previousSequenceNumber, limit)
 
+                override fun visit(
+                    designSystemId: UUID,
+                    sequenceNumber: Long,
+                    previousSequenceNumber: Long,
+                    consume: (List<DraftSubjectChange>) -> Unit,
+                ) = projection.visitRamps(designSystemId, sequenceNumber, previousSequenceNumber, consume)
+
                 override fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long) =
                     describe(designSystemId, sequenceNumber, previousSequenceNumber, null).isNotEmpty()
 
@@ -68,6 +75,13 @@ internal fun withPaletteRebuildJournal(handlers: List<DraftChangeHandler>): List
                     previousSequenceNumber: Long,
                     limit: Int?,
                 ) = projection.steps(designSystemId, sequenceNumber, previousSequenceNumber, limit)
+
+                override fun visit(
+                    designSystemId: UUID,
+                    sequenceNumber: Long,
+                    previousSequenceNumber: Long,
+                    consume: (List<DraftSubjectChange>) -> Unit,
+                ) = projection.visitSteps(designSystemId, sequenceNumber, previousSequenceNumber, consume)
 
                 override fun prepareRevert(designSystemId: UUID, entityId: UUID): Boolean {
                     val ramp = StablePaletteSteps.selectAll().where { StablePaletteSteps.id eq entityId }
@@ -135,6 +149,30 @@ private class PaletteRebuildProjection(
         return (changes.filterNot { it.entityId in covered } + manual).let { result ->
             if (limit == null) result else result.take(limit)
         }
+    }
+
+    fun visitRamps(owner: UUID, sequence: Long, previous: Long, consume: (List<DraftSubjectChange>) -> Unit) {
+        rampHandler.visit(owner, sequence, previous) { batch ->
+            val plans = plans(batch, sequence, previous)
+            consume(
+                batch.mapNotNull { change ->
+                    plans[change.entityId]?.change() ?: change.takeUnless(::implicitTemplate)
+                },
+            )
+        }
+    }
+
+    fun visitSteps(owner: UUID, sequence: Long, previous: Long, consume: (List<DraftSubjectChange>) -> Unit) {
+        // Удерживаем только идентификаторы покрытых ступеней; JSON планов живёт в текущей порции.
+        val covered = hashSetOf<UUID>()
+        rampHandler.visit(owner, sequence, previous) { batch ->
+            val plans = plans(batch, sequence, previous)
+            plans.values.forEach { plan ->
+                covered.addAll(plan.steps.map { it.id })
+                consume(plan.steps.mapNotNull { plan.manualChange(it) })
+            }
+        }
+        stepHandler.visit(owner, sequence, previous) { batch -> consume(batch.filterNot { it.entityId in covered }) }
     }
 
     fun revertRamp(version: UUID, entity: UUID): Boolean? {
