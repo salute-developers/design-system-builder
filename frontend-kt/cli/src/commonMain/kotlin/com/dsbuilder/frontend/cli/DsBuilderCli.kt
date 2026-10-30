@@ -34,8 +34,6 @@ import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.terminal.TerminalRecorder
 import org.koin.dsl.koinApplication
 
-internal const val VERSION = "0.1.0"
-
 /**
  * Результат обработки CLI-вызова `dsbuilder`.
  *

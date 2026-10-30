@@ -1,0 +1,8 @@
+FROM python:3.12-slim-bookworm
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y libmagic1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip install --no-cache-dir s3cmd==2.4.0
+ENV PYTHONDONTWRITEBYTECODE=1
+WORKDIR /workspace/tests
+ENTRYPOINT ["python", "s3_integration.py"]
