@@ -20,6 +20,11 @@ Compose- и web-превью компонентов без сборки чего
 - plasma-android commit of the refresh: `e66280f5dcd97f5a2dfd834dd343155fd5c87b07`.
 <!-- provenance:end -->
 
+<!-- web-provenance:start -->
+- Web plugin archive: build `cfe2408854a3` (commit `cfe2408854a30ae437aea4686e50e08c87286da6`), plasma-new-hope `0.386.0`, protocol 1, sha256 `40da8a807ae7a9497be3def0226fd90f27f36aadc1b49b2f1dfb3f9a16191e20`.
+- Web API meta: sha256 `2c9bc4ac38aea5fc8c8bf511e8dcc17620c6096ffc896e73f1a2c63e68c0e4e4`; built by `npm run package` in `js/apps/preview-web-plugin`.
+<!-- web-provenance:end -->
+
 
 ## Как это работает
 
