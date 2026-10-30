@@ -19,8 +19,12 @@ Options:
            Compose preview plugin archive to publish into the local MinIO after the setup, so the component
            editor shows the Compose preview. Env: COMPOSE_PREVIEW_PLUGIN_ZIP. Default: the archive bundled in
            local-dev/compose-preview.
+  --web-plugin-zip FILE|URL
+           Web preview plugin archive to publish into the local MinIO after the Compose plugin, so the component
+           editor shows the preview of web components. Env: WEB_PREVIEW_PLUGIN_ZIP. Default: the archive bundled in
+           local-dev/web-preview.
   --skip-plugin
-           Do not publish the Compose preview plugin.
+           Do not publish the preview plugins (neither Compose nor web).
   --components-package DIR
            Component package (meta.json and *_config.json) to load into a new design system with a theme, so the
            editor lists the Compose components with their preview. Env: COMPOSE_COMPONENTS_PACKAGE. Default: the
@@ -36,11 +40,11 @@ The setup starts the Kotlin backend, whose ds-service creates the schema of its 
 with Flyway, fills the design system 'base' through the gateway (backend-kt/bootstrap-base.sh)
 and starts the client.
 
-The Compose preview plugin archive and the component package are bundled in local-dev/ (see
-local-dev/README.md; ./refresh-local-dev-assets.sh updates them from a plasma-android checkout). The setup
-publishes the plugin with ./publish-compose-plugin.sh, which also imports the Compose API meta from the archive,
-and ./seed-local-design-system.sh then creates a design system with a theme and loads the component
-configurations, so the editor shows the Compose preview right after the setup.
+The preview plugin archives and the component package are bundled in local-dev/ (see local-dev/README.md;
+./refresh-local-dev-assets.sh updates the Compose ones from a plasma-android checkout, `npm run package` in
+js/apps/preview-web-plugin the web one). The setup publishes both plugins with ./publish-preview-plugin.sh, which
+also imports the API meta of each platform from the archive, and ./seed-local-design-system.sh then creates a design
+system with a theme and loads the component configurations, so the editor shows the previews right after the setup.
 USAGE
 }
 
@@ -61,6 +65,9 @@ PLUGIN_ZIP="${COMPOSE_PREVIEW_PLUGIN_ZIP:-}"
 PLUGIN_ZIP_EXPLICIT=0
 SKIP_PLUGIN=0
 [[ -n "$PLUGIN_ZIP" ]] && PLUGIN_ZIP_EXPLICIT=1
+WEB_PLUGIN_ZIP="${WEB_PREVIEW_PLUGIN_ZIP:-}"
+WEB_PLUGIN_ZIP_EXPLICIT=0
+[[ -n "$WEB_PLUGIN_ZIP" ]] && WEB_PLUGIN_ZIP_EXPLICIT=1
 COMPONENTS_PACKAGE="${COMPOSE_COMPONENTS_PACKAGE:-}"
 COMPONENTS_PACKAGE_EXPLICIT=0
 THEME_PACKAGE_ARGS=()
@@ -68,6 +75,7 @@ SKIP_DESIGN_SYSTEM=0
 [[ -n "$COMPONENTS_PACKAGE" ]] && COMPONENTS_PACKAGE_EXPLICIT=1
 BUNDLED_COMPONENTS_PACKAGE="$ROOT_DIR/local-dev/design-system/components"
 BUNDLED_PLUGIN_ZIP="$ROOT_DIR/local-dev/compose-preview/preview-compose-plugin.zip"
+BUNDLED_WEB_PLUGIN_ZIP="$ROOT_DIR/local-dev/web-preview/preview-web-plugin.zip"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -82,6 +90,11 @@ while [[ $# -gt 0 ]]; do
     --plugin-zip)
       PLUGIN_ZIP="${2:-}"
       PLUGIN_ZIP_EXPLICIT=1
+      shift 2
+      ;;
+    --web-plugin-zip)
+      WEB_PLUGIN_ZIP="${2:-}"
+      WEB_PLUGIN_ZIP_EXPLICIT=1
       shift 2
       ;;
     --skip-plugin)
@@ -155,24 +168,33 @@ log "Filling the design system 'base' through the gateway"
 log "Starting the client"
 js_compose up -d --build client
 
-# The plugin is published as the plasma-android CI does it: the backend stores it in the local MinIO and
-# imports the API meta from the archive. Without an archive the editor simply shows no Compose preview.
-if [[ "$SKIP_PLUGIN" == "0" ]]; then
-  if [[ -z "$PLUGIN_ZIP" && -f "$BUNDLED_PLUGIN_ZIP" ]]; then
-    PLUGIN_ZIP="$BUNDLED_PLUGIN_ZIP"
+# The plugins are published as CI does it: the backend stores each one in its local MinIO bucket (compose-preview,
+# web-preview) and imports the API meta of its platform from the archive. Without an archive the editor simply shows
+# no preview of that platform.
+publish_plugin() {
+  local platform="$1" title="$2" archive="$3" explicit="$4" bundled="$5" hint="$6"
+  if [[ -z "$archive" && -f "$bundled" ]]; then
+    archive="$bundled"
   fi
-  if [[ -n "$PLUGIN_ZIP" ]]; then
-    log "Publishing the Compose preview plugin"
-    if ! "$ROOT_DIR/publish-compose-plugin.sh" --from "$PLUGIN_ZIP"; then
-      if [[ "$PLUGIN_ZIP_EXPLICIT" == "1" ]]; then
-        echo "[local-setup] The requested plugin could not be published" >&2
-        exit 1
-      fi
-      log "The plugin could not be published; the setup continues without the Compose preview"
+  if [[ -z "$archive" ]]; then
+    log "No $title archive: $hint"
+    return
+  fi
+  log "Publishing the $title"
+  if ! "$ROOT_DIR/publish-preview-plugin.sh" --platform "$platform" --from "$archive"; then
+    if [[ "$explicit" == "1" ]]; then
+      echo "[local-setup] The requested $title could not be published" >&2
+      exit 1
     fi
-  else
-    log "No Compose preview plugin archive: restore local-dev/compose-preview or pass --plugin-zip"
+    log "The $title could not be published; the setup continues without its preview"
   fi
+}
+
+if [[ "$SKIP_PLUGIN" == "0" ]]; then
+  publish_plugin compose "Compose preview plugin" "$PLUGIN_ZIP" "$PLUGIN_ZIP_EXPLICIT" "$BUNDLED_PLUGIN_ZIP" \
+    "restore local-dev/compose-preview or pass --plugin-zip"
+  publish_plugin react "web preview plugin" "$WEB_PLUGIN_ZIP" "$WEB_PLUGIN_ZIP_EXPLICIT" "$BUNDLED_WEB_PLUGIN_ZIP" \
+    "restore local-dev/web-preview or pass --web-plugin-zip"
 fi
 
 # The components of the package must already exist in the global layer: the plugin publication above imports them.
