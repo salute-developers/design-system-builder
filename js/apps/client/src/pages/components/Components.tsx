@@ -4,11 +4,11 @@ import { Navigate, useLocation, useNavigate, useOutletContext, useParams } from 
 import {
     ComposePreviewHostProvider,
     getComposePreviewPluginUrl,
-    getWebPreviewPluginUrl,
     isComposePreviewEnvironmentSupported,
     loadComposePreviewManifest,
     parseComponentRoute,
     toComponentRoute,
+    useWebPreviewPluginLocation,
 } from '../../composePreview';
 import type { ComponentRoute, ComposePreviewComponentGroup } from '../../composePreview';
 import { SegmentButton, SegmentButtonItem } from '../../components';
@@ -18,6 +18,7 @@ import { DesignSystem, Theme, Config } from '../../controllers';
 import { MenuOld, Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
 import { componentRepository as repository } from '../../api/componentRepository';
+import { fetchWebPreviewPluginDescriptor } from '../../api/webPreviewPluginRepository';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
 import { ComponentEditor } from './features/ComponentEditor';
@@ -201,9 +202,14 @@ export const Components = () => {
     // при уходе из раздела, смене адреса плагина или контекста дизайн-системы.
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
     const composePluginUrl = composeEnvironmentSupported ? getComposePreviewPluginUrl() : undefined;
-    // Web-плагин превью — свой хост рядом с Compose: отдельные iframe и сессия, без проверки WebAssembly. Запускается
-    // при первой области превью web-компонента из манифеста плагина; без таких компонентов iframe не создаётся.
-    const webPluginUrl = getWebPreviewPluginUrl();
+    // Web-плагин превью — свой хост рядом с Compose: отдельные iframe и сессия, без проверки WebAssembly. Адрес
+    // (прямой из сборки или от бэкенда) запрашивается при входе в раздел, только если в нём есть web-компоненты;
+    // без адреса хост не создаётся, а область превью web-компонента показывает причину.
+    const webPluginLocation = useWebPreviewPluginLocation(
+        components?.length ? parameters?.projectId : undefined,
+        fetchWebPreviewPluginDescriptor,
+    );
+    const webPluginUrl = webPluginLocation.status === 'resolved' ? webPluginLocation.pluginUrl : undefined;
     const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId].join(':');
     const storagePrefix = editorContext
         ? `ds_pending_component:${editorContext.projectId}:${editorContext.designSystemId}:${editorContext.tenantId}`

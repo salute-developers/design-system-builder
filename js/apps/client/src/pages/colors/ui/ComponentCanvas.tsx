@@ -10,6 +10,7 @@ import {
     type PreviewPayloadInput,
 } from '../../../composePreview';
 import { restorePaletteColor } from '../../../palette/activePalette';
+import { fetchWebPreviewPluginDescriptor } from '../../../api/webPreviewPluginRepository';
 
 interface ComponentCanvasProps {
     designSystem: DesignSystem;
@@ -26,7 +27,11 @@ interface ComponentCanvasProps {
 export const ComponentCanvas = ({ designSystem, theme, config, updated }: ComponentCanvasProps) => {
     const [mode, setMode] = useState<'light' | 'dark'>('light');
     const [, , , , componentProps] = useComponentData(config);
-    const plugin = useWebPreviewPlugin(config.getName());
+    const plugin = useWebPreviewPlugin(
+        config.getName(),
+        designSystem.getParameters()?.projectId,
+        fetchWebPreviewPluginDescriptor,
+    );
     const related = useMemo(() => new Map<string, Config>(), [designSystem, updated]);
     const backgroundToken = `${mode}.background.default.primary`;
     const payloadCache = useRef<{ key: string; payload: PreviewPayloadInput }>();

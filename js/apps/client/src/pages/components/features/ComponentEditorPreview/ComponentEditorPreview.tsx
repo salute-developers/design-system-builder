@@ -41,6 +41,7 @@ import {
 } from './ComponentEditorPreview.styles';
 import { backgroundList, getBackgroundTokenName } from './ComponentEditorPreview.utils';
 import { restorePaletteColor } from '../../../../palette/activePalette';
+import { fetchWebPreviewPluginDescriptor } from '../../../../api/webPreviewPluginRepository';
 
 interface ComponentEditorPreviewProps {
     config: Config;
@@ -137,8 +138,13 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     const supportsCompose = Boolean(composePreviewMetadata);
     const hasComposeMetadata = Boolean(config.getPreviewMetadata().componentId);
     const isWebComponent = config.getPlatform() === 'web';
-    // Web-компонент рисует только web-плагин: адрес задан, манифест совместим и перечисляет компонент.
-    const webPlugin = useWebPreviewPlugin(isWebComponent ? componentName : undefined);
+    // Web-компонент рисует только web-плагин: адрес известен (из сборки или от бэкенда), манифест совместим и
+    // перечисляет компонент.
+    const webPlugin = useWebPreviewPlugin(
+        isWebComponent ? componentName : undefined,
+        designSystem?.getParameters()?.projectId,
+        fetchWebPreviewPluginDescriptor,
+    );
     const debugMode = isDebugMode();
     const rendererModes = useMemo(
         () => (supportsCompose ? [WEB_PLUGIN_RENDERER, COMPOSE_RENDERER] : [WEB_PLUGIN_RENDERER]),

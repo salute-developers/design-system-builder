@@ -7,6 +7,7 @@ import type {
     PreviewPayloadInput,
     WebPreviewPayloadOptions,
 } from '../../../../composePreview';
+import { resetWebPreviewPluginLocation } from '../../../../composePreview/webPluginLocation';
 import { ComponentEditorPreview } from './ComponentEditorPreview';
 
 const WEB_PLUGIN_URL = 'http://localhost:3011/';
@@ -23,7 +24,10 @@ const description: PreviewComponentDescription = {
 };
 
 const pluginState = vi.hoisted(() => ({
+    /** Прямой адрес из сборки (`VITE_WEB_PREVIEW_PLUGIN_URL`). */
     webUrl: undefined as string | undefined,
+    /** Ответ бэкенда на `web-preview/plugin`: адрес, `undefined` (`404`) или ошибка. */
+    fetchDescriptor: vi.fn(),
     wasmSupported: true,
     loadManifest: vi.fn(),
     slots: [] as Array<{ platform?: string; payload?: unknown; storyId?: string }>,
@@ -39,7 +43,6 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
     return {
         ...actual,
         getComposePreviewPluginUrl: () => undefined,
-        getWebPreviewPluginUrl: () => pluginState.webUrl,
         isComposePreviewEnvironmentSupported: () => pluginState.wasmSupported,
         loadComposePreviewManifest: (url: string, platform?: string) => pluginState.loadManifest(url, platform),
         // Compose-payload здесь не нужен: адреса Compose-плагина нет.
@@ -83,7 +86,10 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
 // Доступность web-плагина проверяет `useWebPreviewPlugin` через внутренние модули, минуя `index`.
 vi.mock('../../../../composePreview/config', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../../../../composePreview/config')>()),
-    getWebPreviewPluginUrl: () => pluginState.webUrl,
+    getWebPreviewPluginOverride: () => pluginState.webUrl,
+}));
+vi.mock('../../../../api/webPreviewPluginRepository', () => ({
+    fetchWebPreviewPluginDescriptor: (projectId: string) => pluginState.fetchDescriptor(projectId),
 }));
 vi.mock('../../../../composePreview/manifest', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../../../../composePreview/manifest')>()),
@@ -116,10 +122,13 @@ const theme = {
     getRevision: () => 1,
 };
 
+const designSystem = { getParameters: () => ({ projectId: 'project-1' }) };
+
 const previewElement = (config = configOf('Button')) => (
     <ComponentEditorPreview
         config={config as never}
         theme={theme as never}
+        designSystem={designSystem as never}
         args={{ view: 'style-accent' }}
         themeModeList={[{ label: 'Тёмный', value: 'dark' }]}
         themeMode={{ label: 'Тёмный', value: 'dark' }}
@@ -135,7 +144,9 @@ const lastWebPayload = () =>
 
 describe('ComponentEditorPreview web plugin', () => {
     beforeEach(() => {
+        resetWebPreviewPluginLocation();
         pluginState.webUrl = WEB_PLUGIN_URL;
+        pluginState.fetchDescriptor = vi.fn();
         pluginState.wasmSupported = true;
         pluginState.loadManifest = vi.fn().mockResolvedValue({ manifest: { platform: 'web', components: ['Button'] } });
         pluginState.slots = [];
@@ -250,16 +261,64 @@ describe('ComponentEditorPreview web plugin', () => {
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
-    it('shows «Превью недоступно» without a web plugin URL and keeps the setup controls', async () => {
+    it('uses the direct address without asking the backend', async () => {
+        render(previewElement());
+
+        expect(await screen.findByTestId('web-frame')).toBeInTheDocument();
+        expect(pluginState.fetchDescriptor).not.toHaveBeenCalled();
+    });
+
+    it('takes the web plugin address from the backend without the direct address', async () => {
         pluginState.webUrl = undefined;
+        const backendUrl = 'http://localhost:9000/web-preview/builds/0123456789ab/';
+        pluginState.fetchDescriptor.mockResolvedValue({ buildId: '0123456789ab', pluginUrl: backendUrl });
 
         render(previewElement());
 
-        expect(screen.getByTestId('preview-unavailable')).toHaveTextContent(
-            'Превью недоступно: адрес web-плагина превью не задан',
+        expect(await screen.findByTestId('web-frame')).toBeInTheDocument();
+        expect(pluginState.fetchDescriptor).toHaveBeenCalledWith('project-1');
+        expect(pluginState.loadManifest).toHaveBeenCalledWith(backendUrl, 'web');
+    });
+
+    it('asks the backend once when the user switches between web components', async () => {
+        pluginState.webUrl = undefined;
+        pluginState.loadManifest = vi
+            .fn()
+            .mockResolvedValue({ manifest: { platform: 'web', components: ['Button', 'Checkbox'] } });
+        pluginState.fetchDescriptor.mockResolvedValue({ buildId: '0123456789ab', pluginUrl: 'https://plugins.test/' });
+
+        const { rerender } = render(previewElement());
+        await screen.findByTestId('web-frame');
+        rerender(previewElement(configOf('Checkbox')));
+        await waitFor(() => expect(pluginState.webAssemblies.at(-1)?.config.getName()).toBe('Checkbox'));
+
+        expect(pluginState.fetchDescriptor).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows «Превью недоступно» when the web plugin is not published and keeps the setup controls', async () => {
+        pluginState.webUrl = undefined;
+        pluginState.fetchDescriptor.mockResolvedValue(undefined);
+
+        render(previewElement());
+
+        expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
+            'Превью недоступно: web-плагин превью не опубликован',
         );
         expect(screen.getByText('View')).toBeInTheDocument();
         expect(screen.queryByTestId('web-frame')).not.toBeInTheDocument();
+        expect(pluginState.loadManifest).not.toHaveBeenCalled();
+    });
+
+    it('shows «Превью недоступно» with the reason when the backend request fails', async () => {
+        pluginState.webUrl = undefined;
+        pluginState.fetchDescriptor.mockRejectedValue(new Error('Network Error'));
+
+        render(previewElement());
+
+        expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
+            'Превью недоступно: адрес web-плагина превью не получен: Network Error',
+        );
+        expect(screen.getByText('View')).toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
 
@@ -308,9 +367,11 @@ describe('ComponentEditorPreview web plugin', () => {
     });
 
     it('does not load the web plugin manifest for a Compose component', async () => {
+        pluginState.webUrl = undefined;
         render(previewElement(configOf('BasicButton', 'compose')));
 
         await Promise.resolve();
+        expect(pluginState.fetchDescriptor).not.toHaveBeenCalled();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
         expect(screen.queryByTestId('web-frame')).not.toBeInTheDocument();
     });

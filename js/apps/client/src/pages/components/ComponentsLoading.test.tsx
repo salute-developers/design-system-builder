@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+    fetchWebPreviewPluginDescriptor: vi.fn(),
     config: {
         getName: () => 'Button',
         getPlatform: () => 'web' as const,
@@ -36,11 +37,19 @@ vi.mock('../../api/componentRepository', () => ({
     componentRepository: { saveComponentMutation: vi.fn() },
 }));
 
+vi.mock('../../api/webPreviewPluginRepository', () => ({
+    fetchWebPreviewPluginDescriptor: mocks.fetchWebPreviewPluginDescriptor,
+}));
+
+import { resetWebPreviewPluginLocation } from '../../composePreview';
 import { Components } from './Components';
 
 const editorContext = { projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' };
 
-const renderPage = (state: { componentLoading?: boolean; componentError?: string }, reload = vi.fn()) => {
+const renderPage = (
+    state: { componentLoading?: boolean; componentError?: string; components?: unknown[] },
+    reload = vi.fn(),
+) => {
     const context = {
         designSystem: { getParameters: () => editorContext, getComponentDataByName: () => ({}) },
         theme: {},
@@ -61,6 +70,12 @@ const renderPage = (state: { componentLoading?: boolean; componentError?: string
     );
     return reload;
 };
+
+beforeEach(() => {
+    resetWebPreviewPluginLocation();
+    vi.stubEnv('VITE_WEB_PREVIEW_PLUGIN_URL', '');
+    mocks.fetchWebPreviewPluginDescriptor.mockResolvedValue(undefined);
+});
 
 afterEach(() => {
     cleanup();
@@ -99,5 +114,40 @@ describe('Components: загрузка выбранного компонента
         // Компонент ещё грузится, области превью нет, а хост web-плагина уже смонтирован.
         expect(screen.queryByText('настройка и превью')).not.toBeInTheDocument();
         expect(screen.getByTestId('web-preview-host')).toBeInTheDocument();
+        // Прямой адрес из сборки: бэкенд не спрашивается.
+        expect(mocks.fetchWebPreviewPluginDescriptor).not.toHaveBeenCalled();
+    });
+
+    it('без прямого адреса берёт адрес web-плагина у бэкенда один раз на проект', async () => {
+        mocks.fetchWebPreviewPluginDescriptor.mockResolvedValue({
+            buildId: '0123456789ab',
+            pluginUrl: 'http://localhost:9000/web-preview/builds/0123456789ab/',
+        });
+        renderPage({ componentLoading: true });
+
+        expect(await screen.findByTestId('web-preview-host')).toBeInTheDocument();
+        expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledTimes(1);
+        expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledWith('project');
+
+        cleanup();
+        renderPage({ componentLoading: true });
+        expect(await screen.findByTestId('web-preview-host')).toBeInTheDocument();
+        expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledTimes(1);
+    });
+
+    it('не создаёт хост web-плагина, если web-плагин не опубликован', async () => {
+        renderPage({ componentLoading: true });
+
+        await vi.waitFor(() => expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledTimes(1));
+        expect(screen.queryByTestId('web-preview-host')).not.toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: 'Компоненты' })).toBeInTheDocument();
+    });
+
+    it('не спрашивает адрес web-плагина, если в разделе нет web-компонентов', async () => {
+        renderPage({ componentLoading: true, components: [] });
+
+        await Promise.resolve();
+        expect(mocks.fetchWebPreviewPluginDescriptor).not.toHaveBeenCalled();
+        expect(screen.queryByTestId('web-preview-host')).not.toBeInTheDocument();
     });
 });
