@@ -1,7 +1,7 @@
 # Данные для локального контура
 
-Файлы, которые `./setup-local.sh` (на Windows — `.\setup-local.ps1`) берёт по умолчанию, чтобы после настройки в редакторе работало Compose-превью
-компонентов без сборки чего-либо в других репозиториях.
+Файлы для локального контура. Обычный `./setup-local.sh` (на Windows — `.\setup-local.ps1`) использует
+Compose-плагин с API-метаданными. Пакеты темы и конфигураций импортируются только по явному запросу.
 
 | Каталог | Что внутри | Кто использует |
 |---|---|---|
@@ -24,7 +24,8 @@
 1. `setup-local.sh` или Windows-вариант `setup-local.ps1` поднимает контур и публикует архив плагина командой CLI, как это делает CI plasma-android:
    бэкенд кладёт файлы в локальный MinIO, импортирует Compose API-мету из архива (компоненты и свойства глобального
    слоя) и делает билд активным.
-2. `seed-local-design-system.sh` создаёт дизайн-систему `sdds_serv_local` с одноимённой темой через API (другие дизайн-системы проекта, например `base`, не
+2. Только при явном `--components-package DIR` (PowerShell: `-ComponentsPackage DIR`) либо
+   `COMPOSE_COMPONENTS_PACKAGE` вызывается `seed-local-design-system.sh`: он создаёт дизайн-систему `sdds_serv_local` с одноимённой темой через API (другие дизайн-системы проекта, например `base`, не
    затрагиваются). Бэкенд создаёт
    стандартный набор токенов для стартовой палитры (`malachite`). Затем помощник `apply_theme_values.py` заменяет
    значения Android (их читает Compose-превью) значениями из пакета темы `sdds_serv`, сопоставляя токены по имени.
@@ -41,8 +42,12 @@
 ## Свои файлы
 
 Опции `./setup-local.sh --plugin-zip FILE|URL`, `--components-package DIR` и `--theme-package DIR` (или переменные
-`COMPOSE_PREVIEW_PLUGIN_ZIP`, `COMPOSE_COMPONENTS_PACKAGE`) заменяют файлы из этого каталога, например свежую сборку
-плагина. `--skip-plugin` и `--skip-design-system` отключают шаги.
+`COMPOSE_PREVIEW_PLUGIN_ZIP`, `COMPOSE_COMPONENTS_PACKAGE`) задают собственные файлы.
+`--components-package` включает демонстрационный импорт; `--theme-package` требует явного пакета компонентов.
+`--skip-plugin` и `--skip-design-system` отключают соответствующие шаги.
+Например: `./setup-local.sh --components-package ./local-dev/design-system/components`.
+Без этой опции ДС и тема создаются пользователем, а начальные данные берутся из ресурсов backend;
+значения Android и конфигурации из этого каталога поверх них не импортируются.
 
 В PowerShell используйте `-PluginZip`, `-ComponentsPackage`, `-ThemePackage`, `-SkipPlugin` и `-SkipDesignSystem`.
 Существующие Bash-скрипты выполняются во вспомогательном Linux-контейнере, без изменений для Windows.

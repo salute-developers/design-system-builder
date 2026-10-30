@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 
 import type { DesignSystem, Theme } from '../../controllers';
+import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
 import { authService } from '../../api/authService';
-import { recordDraftSave, reloadWhenDraftAutosaveIsIdle, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
+import { reloadWhenDraftAutosaveIsIdle, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { tokenValueKey } from '../../api/editorHttp';
 import { observeTokenValueRevisions } from '../../api/subjectRevisions';
 import {
@@ -46,6 +47,13 @@ interface TypographySession {
     loadError: string | null;
     /** Номер последнего запущенного чтения: ответ устаревшего чтения не заменяет более нового. */
     loads: number;
+    invalidation: number;
+    loadedInvalidation: number;
+    loadedAt?: number;
+    failedInvalidation?: number;
+    loading?: Promise<void>;
+    readController?: AbortController;
+    unsubscribe: () => void;
     /** Ошибки значений у полей: `<экран>|<стиль>|<поле>` → текст. */
     fieldErrors: Record<string, string>;
     /** Тема и перерисовка открытого экрана. */
@@ -58,6 +66,8 @@ const sessions = new Map<string, TypographySession>();
 
 const clearSessions = () => {
     sessions.forEach((session) => {
+        session.unsubscribe();
+        session.readController?.abort();
         session.autosave.dispose();
         if (!session.context.versionId) setDraftAutosaveActivity(session.context, ACTIVITY_SOURCE, null);
     });
@@ -86,20 +96,35 @@ const observeRevisions = (session: TypographySession, styles: TypographyStyles) 
 };
 
 /** Перечитывает стили после отправки очереди: ответ чтения не опережает отправленные правки. */
-const load = async (session: TypographySession) => {
-    await session.autosave.flush();
-    const current = ++session.loads;
-    try {
-        const styles = await repository.load(session.context);
-        if (current !== session.loads) return;
-        observeRevisions(session, styles);
-        session.saved = styles;
-        session.loadError = null;
-    } catch (error) {
-        if (current !== session.loads) return;
-        session.loadError = errorText(error);
-    }
-    notify(session);
+const load = (session: TypographySession): Promise<void> => {
+    if (session.loading) return session.loading;
+    const controller = new AbortController();
+    session.readController = controller;
+    const run = async () => {
+        await session.autosave.flush();
+        if (controller.signal.aborted) return;
+        const current = ++session.loads;
+        const invalidation = session.invalidation;
+        try {
+            const styles = await repository.load(session.context, controller.signal);
+            if (current !== session.loads || controller.signal.aborted) return;
+            observeRevisions(session, styles);
+            session.saved = styles;
+            session.loadError = null;
+            session.failedInvalidation = undefined;
+            session.loadedInvalidation = invalidation;
+            session.loadedAt = Date.now();
+        } catch (error) {
+            if (current !== session.loads || controller.signal.aborted) return;
+            session.loadError = errorText(error);
+            session.failedInvalidation = invalidation;
+        }
+    };
+    session.loading = run().finally(() => {
+        session.loading = undefined;
+        notify(session);
+    });
+    return session.loading;
 };
 
 /** Записанные значения токенов стиля переносятся в модель темы, чтобы другие разделы видели новую типографию. */
@@ -115,6 +140,8 @@ const applyToTheme = (theme: Theme | null, result: UpdatedTypographyStyle) => {
 };
 
 const applySaved = (session: TypographySession, result: UpdatedTypographyStyle, change: TypographyStyleChange) => {
+    session.loads++;
+    session.loadedAt = Date.now();
     if (session.saved) session.saved = applyUpdatedStyle(session.saved, result.style, change);
     applyToTheme(session.live.theme, result);
     session.live.rerender();
@@ -125,6 +152,20 @@ const sessionKey = ({ projectId, designSystemId, tenantId, versionId }: Typograp
 
 const typographySession = (context: TypographyContext): TypographySession => {
     const id = sessionKey(context);
+    for (const [key, cached] of sessions) {
+        if (
+            key !== id &&
+            !cached.listeners.size &&
+            !cached.loading &&
+            cached.loadedAt !== undefined &&
+            Date.now() - cached.loadedAt >= 300_000 &&
+            cached.autosave.overall().state === 'saved'
+        ) {
+            cached.unsubscribe();
+            cached.autosave.dispose();
+            sessions.delete(key);
+        }
+    }
     const existing = sessions.get(id);
     if (existing) return existing;
     const session: TypographySession = {
@@ -133,10 +174,26 @@ const typographySession = (context: TypographyContext): TypographySession => {
         saved: null,
         loadError: null,
         loads: 0,
+        invalidation: 0,
+        loadedInvalidation: -1,
+        unsubscribe: () => {},
         fieldErrors: {},
         live: { theme: null, rerender: () => undefined },
         listeners: new Set(),
     };
+    session.unsubscribe = subscribeEditorDataInvalidation(context, (scopes, types) => {
+        if (types && !types.some((type) => ['typography', 'fontFamily'].includes(type))) return;
+        if (
+            !scopes.has('theme-tokens') &&
+            !scopes.has('theme-metadata') &&
+            !scopes.has('component-configurations') &&
+            !scopes.has('all') &&
+            !scopes.has('design-system')
+        )
+            return;
+        session.invalidation++;
+        notify(session);
+    });
     session.autosave = createTypographyAutosave({
         repository: { load: (...args) => repository.load(...args), update: (...args) => repository.update(...args) },
         context,
@@ -148,7 +205,6 @@ const typographySession = (context: TypographyContext): TypographySession => {
         },
         onSaved: (_, result, change) => {
             applySaved(session, result, change);
-            recordDraftSave(context);
         },
         onRejected: (key, error) => {
             session.fieldErrors = { ...session.fieldErrors, [`${key}|${error.field ?? 'size'}`]: error.message };
@@ -178,19 +234,27 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
 
     useEffect(() => {
         session.listeners.add(refresh);
-        void load(session);
+        session.failedInvalidation = undefined;
+        if (session.loadedAt !== undefined && Date.now() - session.loadedAt >= 30_000) session.invalidation++;
         return () => {
             session.listeners.delete(refresh);
+            queueMicrotask(() => {
+                if (!session.listeners.size) session.readController?.abort();
+            });
         };
     }, [session]);
 
-    // Новая модель темы — сигнал об изменении черновика в другом месте: стили перечитываются после локальных очередей.
-    const loadedTheme = useRef(theme);
     useEffect(() => {
-        if (loadedTheme.current === theme) return;
-        loadedTheme.current = theme;
-        return reloadWhenDraftAutosaveIsIdle(session.context, () => void load(session));
-    }, [session, theme]);
+        if (
+            session.loadedInvalidation === session.invalidation ||
+            session.failedInvalidation === session.invalidation ||
+            session.loading
+        )
+            return;
+        return reloadWhenDraftAutosaveIsIdle(session.context, () => {
+            void load(session);
+        });
+    }, [session, session.invalidation, session.loadedInvalidation, Boolean(session.loading)]);
 
     // Уход со страницы: очередь отправляется сразу, а несохранённые правки предупреждают браузер.
     useEffect(() => {

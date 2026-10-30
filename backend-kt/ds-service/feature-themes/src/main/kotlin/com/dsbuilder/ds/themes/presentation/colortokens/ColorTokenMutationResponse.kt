@@ -9,4 +9,8 @@ data class ColorTokenMutationResponse(
     val editRevision: Int,
     /** Созданное семейство. */
     val value: ColorTokenFamilyDto,
+    /** Полное подтверждение структуры без повторного чтения справочников. */
+    val structure: ColorTokenStructureResponse? = null,
+    /** Начальные значения только созданного семейства в текущей теме. */
+    val confirmedValues: List<com.dsbuilder.ds.themes.presentation.TenantTokenValueResponse>? = null,
 )

@@ -18,6 +18,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** Срезы разделов возвращают только запрошенные типы выбранной границы и сохраняют права. */
@@ -42,6 +43,18 @@ class EditorSectionReadsPostgresIntegrationTest {
                 val tenant =
                     read(client, "POST", "/api/ds/tenants", """{"designSystemId":"$systemId","name":"first"}""")
                 val tenantId = tenant.field("id")
+                val markersPath = "/api/ds/design-systems/$systemId/changes/token-ids?tenantId=$tenantId"
+                val markers = api(client, "GET", markersPath)
+                assertEquals(HttpStatusCode.OK, markers.status)
+                assertNotNull(markers.headers["X-DS-Read-Context"])
+                val ids = Json.parseToJsonElement(markers.bodyAsText()).jsonObject.getValue("tokenIds").jsonArray
+                assertEquals(ids.size, ids.toSet().size)
+                assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$markersPath&version=bad").status)
+                val conflict = "$markersPath&version=draft&versionId=${UUID.randomUUID()}"
+                assertEquals(HttpStatusCode.BadRequest, api(client, "GET", conflict).status)
+                assertEquals(HttpStatusCode.BadRequest, api(client, "GET", markersPath.substringBefore('?')).status)
+                assertEquals(HttpStatusCode.Forbidden, api(client, "GET", markersPath, role = "none").status)
+                assertEquals(HttpStatusCode.NotFound, api(client, "GET", markersPath, project = "other").status)
                 val summary = read(client, "GET", summaryPath)
                 assertEquals(setOf("total"), summary.jsonObject.keys)
                 assertEquals("1", summary.field("total"))
@@ -85,6 +98,10 @@ class EditorSectionReadsPostgresIntegrationTest {
                     colorIds,
                     read(client, "GET", "/api/ds/design-systems/$systemId/tokens?type=color&versionId=$version")
                         .jsonArray.map { it.field("id") }.toSet(),
+                )
+                assertEquals(
+                    read(client, "GET", "$markersPath&versionId=$version"),
+                    read(client, "GET", "$markersPath&version=1.0.0"),
                 )
                 for (filter in listOf("unknown", "color,", "")) {
                     assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$path?types=$filter").status)

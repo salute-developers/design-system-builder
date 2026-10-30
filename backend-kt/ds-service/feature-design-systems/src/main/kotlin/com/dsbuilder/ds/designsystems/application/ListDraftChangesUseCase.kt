@@ -9,31 +9,44 @@ import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
 import com.dsbuilder.ds.designsystems.domain.DraftChange
-import com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount
 
 /** Возвращает вычисляемый журнал черновика или публикации. */
 class ListDraftChangesUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
     private val repository: DraftChangeRepository,
-    private val aggregates: DesignSystemAggregateRepository,
 ) {
     /** Читает отличия выбранной границы с проверкой права просмотра. */
     suspend fun execute(
         context: DsRequestContext,
         designSystemId: DesignSystemId,
         versionId: DesignSystemVersionId?,
-    ): DsResult<List<DraftChange>> = when (val allowed = policy.require(context, "design-systems:read")) {
+    ): DsResult<List<DraftChange>> = when (val result = snapshot(context, designSystemId, versionId)) {
+        is DsResult.Failure -> result
+        is DsResult.Success -> DsResult.Success(
+            result.value.changes.items,
+            result.mutationMetadata,
+            result.readContext,
+            result.readPage,
+        )
+    }
+
+    /** Возвращает записи и точный total из одного read-only снимка. */
+    suspend fun snapshot(
+        context: DsRequestContext,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+    ): DsResult<DraftJournalRead> = when (val allowed = policy.require(context, "design-systems:read")) {
         is DsResult.Failure -> allowed
         is DsResult.Success -> transactions.readOnly(
             context.copy(versionId = context.versionId ?: versionId?.value),
             ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, designSystemId.value),
         ) { selected ->
             try {
-                repository.page(
+                repository.pageAndSummary(
                     selected.projectId, selected.principal.systemAdmin, designSystemId,
                     selected.versionId?.let(::DesignSystemVersionId), selected.readQuery,
-                )?.let { DsResult.Success(it.items, readPage = it.page) } ?: DsResult.Failure(DsFailure.NotFound)
+                )?.let { DsResult.Success(it, readPage = it.changes.page) } ?: DsResult.Failure(DsFailure.NotFound)
             } catch (_: DraftChangeLimitExceededException) {
                 DsResult.Failure(
                     DsFailure.Unprocessable(
@@ -50,38 +63,40 @@ class ListDraftChangesUseCase(
         context: DsRequestContext,
         designSystemId: DesignSystemId,
         versionId: DesignSystemVersionId?,
-    ): DsResult<Int> = read(context, designSystemId, versionId) { changes ->
-        val types = aggregates.listTokens(context.projectId, designSystemId, null, null)
-            .orEmpty().associate { it.id to it.type }
-        draftChangeDisplayCount(changes, types)
+    ): DsResult<Int> = projection(context, designSystemId, versionId) { selected ->
+        repository.summary(
+            selected.projectId,
+            selected.principal.systemAdmin,
+            designSystemId,
+            selected.versionId?.let(::DesignSystemVersionId),
+        )
     }
 
-    private suspend fun <T> read(
+    /** Возвращает компактные отметки выбранной темы на той же границе чтения. */
+    suspend fun tokenIds(
+        context: DsRequestContext,
+        designSystemId: DesignSystemId,
+        tenantId: java.util.UUID,
+    ): DsResult<Set<java.util.UUID>> = projection(context, designSystemId, null) { selected ->
+        repository.changedTokenIds(
+            selected.projectId,
+            selected.principal.systemAdmin,
+            designSystemId,
+            selected.versionId?.let(::DesignSystemVersionId),
+            tenantId,
+        )
+    }
+
+    private suspend fun <T> projection(
         context: DsRequestContext,
         designSystemId: DesignSystemId,
         versionId: DesignSystemVersionId?,
-        present: suspend (List<DraftChange>) -> T,
+        read: suspend (DsRequestContext) -> T?,
     ): DsResult<T> = when (val allowed = policy.require(context, "design-systems:read")) {
         is DsResult.Failure -> allowed
         is DsResult.Success -> transactions.readOnly(
             context.copy(versionId = context.versionId ?: versionId?.value),
             ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, designSystemId.value),
-        ) { selected ->
-            try {
-                repository.list(
-                    selected.projectId, selected.principal.systemAdmin, designSystemId,
-                    selected.versionId?.let(::DesignSystemVersionId),
-                )
-                    ?.let { changes -> DsResult.Success(present(changes)) }
-                    ?: DsResult.Failure(DsFailure.NotFound)
-            } catch (_: DraftChangeLimitExceededException) {
-                DsResult.Failure(
-                    DsFailure.Unprocessable(
-                        code = "JOURNAL_LIMIT_EXCEEDED",
-                        message = "The journal exceeds the supported limit of 10000 changes",
-                    ),
-                )
-            }
-        }
+        ) { selected -> read(selected)?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound) }
     }
 }

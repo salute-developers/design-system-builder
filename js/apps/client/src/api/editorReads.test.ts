@@ -34,6 +34,37 @@ afterEach(() => {
 });
 
 describe('чтения редактора', () => {
+    it('переиспользует только явно кешируемую мету до TTL, а не до каждой записи токена', async () => {
+        const first = readEditor('/meta', { params: { b: 2, a: 1 } }, undefined, 300_000);
+        await vi.runAllTimersAsync();
+        await first;
+        invalidateEditorReads();
+        await readEditor('/meta', { params: { a: 1, b: 2 } }, undefined, 300_000);
+        expect(mocks.get).toHaveBeenCalledOnce();
+        await vi.advanceTimersByTimeAsync(300_001);
+        expect(mocks.get).toHaveBeenCalledOnce();
+        const expired = readEditor('/meta', { params: { b: 2, a: 1 } }, undefined, 300_000);
+        await vi.runAllTimersAsync();
+        await expired;
+        expect(mocks.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('различает тела кешируемых POST-чтений и очищает ответы при смене сессии', async () => {
+        const first = readEditor('/export', {}, { component: 'Card' }, 300_000);
+        await vi.runAllTimersAsync();
+        await first;
+        await readEditor('/export', {}, { component: 'Card' }, 300_000);
+        const other = readEditor('/export', {}, { component: 'Accordion' }, 300_000);
+        await vi.runAllTimersAsync();
+        await other;
+        expect(mocks.post).toHaveBeenCalledTimes(2);
+        mocks.reset();
+        const nextSession = readEditor('/export', {}, { component: 'Card' }, 300_000);
+        await vi.runAllTimersAsync();
+        await nextSession;
+        expect(mocks.post).toHaveBeenCalledTimes(3);
+    });
+
     it('объединяет одновременные запросы, но не кеширует готовый ответ', async () => {
         const a = readEditor('/tokens');
         const b = readEditor('/tokens');
@@ -58,6 +89,18 @@ describe('чтения редактора', () => {
         await Promise.all(calls);
         expect(mocks.get).toHaveBeenCalledTimes(3);
         expect(mocks.post).toHaveBeenCalledTimes(2);
+    });
+    it('сохранение одного проекта не сбрасывает свежие данные другого', async () => {
+        const a = '/api/projects/p1/ds/design-systems/ds1';
+        const b = '/api/projects/p2/ds/design-systems/ds2';
+        const first = Promise.all([readEditor(a, {}, undefined, 30_000), readEditor(b, {}, undefined, 30_000)]);
+        await vi.runAllTimersAsync();
+        await first;
+        invalidateEditorReads({ projectId: 'p1' });
+        const second = Promise.all([readEditor(a, {}, undefined, 30_000), readEditor(b, {}, undefined, 30_000)]);
+        await vi.runAllTimersAsync();
+        await second;
+        expect(mocks.get.mock.calls.map((call) => call[0])).toEqual([a, b, a]);
     });
     it('отмена одного владельца не прерывает другого', async () => {
         const remote = deferred();

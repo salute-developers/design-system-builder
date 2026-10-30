@@ -138,7 +138,13 @@ it('палитровое SSE во время чтения цветов не от
 it('открывает цвета без любых конфигураций компонентов и без остальных типов темы', async () => {
     const data = create();
     const result = await data.activate('colors');
-    expect(reads.tokens).toHaveBeenCalledExactlyOnceWith(context, expect.anything(), '0.1.0', ['color', 'gradient']);
+    expect(reads.tokens).toHaveBeenCalledExactlyOnceWith(
+        context,
+        expect.anything(),
+        '0.1.0',
+        ['color', 'gradient'],
+        undefined,
+    );
     expect(reads.index).not.toHaveBeenCalled();
     expect(reads.component).not.toHaveBeenCalled();
     expect(Object.keys(result!.snapshot.tokenIdsByName)).toEqual(['color', 'gradient']);
@@ -217,14 +223,14 @@ it('кэширует целые разделы и сохраняет данны�
     expect(Object.keys(result!.snapshot.tokenIdsByName)).toEqual(['color', 'gradient', 'typography', 'fontFamily']);
 });
 
-it('SSE не читает скрытые разделы и сохраняет их устаревание после сверки курсора', async () => {
+it('инвалидация токенов не читает оболочку и скрытые разделы', async () => {
     const data = create();
     await data.activate('colors');
     await data.activate('settings');
     data.invalidate(new Set(['theme-tokens']));
     await data.refresh();
     expect(reads.tokens).toHaveBeenCalledTimes(1);
-    expect(reads.shell).toHaveBeenCalledTimes(1);
+    expect(reads.shell).not.toHaveBeenCalled();
     await data.activate('colors');
     expect(reads.tokens).toHaveBeenCalledTimes(2);
     expect(reads.component).not.toHaveBeenCalled();
@@ -354,4 +360,232 @@ it('читает только необходимые вложенные комп
     expect(reads.component.mock.calls.map((call) => call[3])).toEqual(['A', 'B']);
     await data.activate('components', 'B');
     expect(reads.component).toHaveBeenCalledTimes(2);
+});
+
+it('token invalidation reloads neither the shell nor hidden sections', async () => {
+    const data = create();
+    await data.activate('colors');
+    reads.tokens.mockClear();
+    data.invalidate(new Set(['theme-tokens']));
+    expect(reads.tokens).not.toHaveBeenCalled();
+    await data.activate('colors');
+    expect(reads.shell).not.toHaveBeenCalled();
+    expect(reads.tokens).toHaveBeenCalledOnce();
+    expect(reads.tokens.mock.calls[0][3]).toEqual(['color', 'gradient']);
+});
+
+it('a local color write invalidates colors without typography or component configuration reads', async () => {
+    const data = create();
+    await data.activate('colors');
+    await data.activate('typography');
+    reads.tokens.mockClear();
+    data.invalidateTokenTypes(['color', 'gradient']);
+    expect(reads.tokens).not.toHaveBeenCalled();
+    await data.activate('typography');
+    expect(reads.tokens).not.toHaveBeenCalled();
+    await data.activate('colors');
+    expect(reads.tokens).toHaveBeenCalledOnce();
+    expect(reads.shell).not.toHaveBeenCalled();
+    expect(reads.component).not.toHaveBeenCalled();
+});
+
+it('expires derived component models on reuse without polling hidden components', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+        const data = create();
+        await data.activate('components', 'A');
+        const initial = reads.component.mock.calls.length;
+        await data.activate('components', 'A');
+        expect(reads.component).toHaveBeenCalledTimes(initial);
+        await data.activate('settings');
+        now.mockReturnValue(1_300_001);
+        expect(reads.component).toHaveBeenCalledTimes(initial);
+        await data.activate('components', 'A');
+        expect(reads.component.mock.calls.length).toBeGreaterThan(initial);
+    } finally {
+        now.mockRestore();
+    }
+});
+
+it('применяет достаточный ACK без GET и не снимает удалённую инвалидацию', async () => {
+    const data = create();
+    await data.activate('shapes');
+    const updates = [{ tokenId: 'shape', values: [{ platform: 'web' as const, value: [19] }] }];
+    expect(data.acceptConfirmedValues(updates)).toBe(true);
+    const next = await data.activate('shapes');
+    expect(reads.tokens).toHaveBeenCalledOnce();
+    expect(next!.snapshot.themeData.variations.shape.web.shape).toBe(19);
+    data.invalidate(new Set(['theme-tokens']));
+    expect(data.acceptConfirmedValues(updates)).toBe(false);
+    await data.activate('shapes');
+    expect(reads.tokens).toHaveBeenCalledTimes(2);
+    expect(data.acceptConfirmedValues([{ tokenId: 'missing', values: [] }])).toBe(false);
+});
+
+it('собственная правка цвета переиспользует палитру, удалённая инвалидация её обновляет', async () => {
+    const palette = { tenantId: 'theme', groups: [] } as unknown as NonNullable<ThemeEditorSnapshot['palette']>;
+    const initial = await reads.tokens(context, undefined, undefined, ['color', 'gradient']);
+    reads.tokens.mockResolvedValue({ ...initial, palette });
+    reads.tokens.mockClear();
+    const data = create();
+    await data.activate('colors');
+    data.invalidateTokenTypes(['color']);
+    await data.activate('colors');
+    expect(reads.tokens.mock.calls[1][4]).toBe(palette);
+    data.invalidate(new Set(['theme-tokens']));
+    await data.activate('colors');
+    expect(reads.tokens.mock.calls[2][4]).toBeUndefined();
+});
+
+const familyFixture = () => {
+    const value = snapshot();
+    const definition = {
+        id: 'color-id',
+        designSystemId: context.designSystemId,
+        name: 'text.default.accent',
+        type: 'color' as const,
+        displayName: 'Accent',
+        description: null,
+        enabled: true,
+        groupId: 'group',
+        position: 0,
+        publishedIn: '1.0.0',
+    };
+    value.palette = { tenantId: context.tenantId, groups: [] } as never;
+    value.tokenDefinitionsByName = { [definition.name]: definition };
+    value.tokenIdsByName = { [definition.name]: definition.id };
+    value.themeData.meta.tokens = ['light', 'dark'].map((mode) => ({
+        name: `${mode}.${definition.name}`,
+        tags: [],
+        type: 'color',
+        enabled: true,
+        displayName: 'Accent',
+    }));
+    for (const platform of ['web', 'ios', 'android'])
+        for (const mode of ['light', 'dark'])
+            (value.themeData.variations.color as unknown as Record<string, Record<string, unknown>>)[platform][
+                `${mode}.${definition.name}`
+            ] = '#112233';
+    reads.tokens.mockResolvedValue(value);
+    return { definition, data: create() };
+};
+
+it('подтверждённый перенос сохраняет значения по ID без HTTP и сохраняет publishedIn', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    reads.tokens.mockClear();
+    reads.groups.mockClear();
+    const next = { ...definition, name: 'text.default.renamed', position: 2 };
+    expect(
+        data.acceptColorStructure({
+            definitions: [next],
+            removedTokenIds: [],
+            placements: [{ id: next.id, groupId: 'group', position: 2 }],
+        }),
+    ).toBe(true);
+    const result = await data.activate('colors');
+    expect(result?.tokensChanged).toBe(true);
+    expect(data.currentSnapshot.tokenIdsByName[next.name]).toBe(definition.id);
+    expect(data.currentSnapshot.tokenIdsByName[definition.name]).toBeUndefined();
+    expect(data.currentSnapshot.themeData.variations.color.web['light.text.default.renamed']).toBe('#112233');
+    expect(reads.tokens).not.toHaveBeenCalled();
+    expect(reads.groups).not.toHaveBeenCalled();
+});
+
+it('подтверждённое создание и удаление не перечитывает соседние токены и скрытую палитру', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    reads.tokens.mockClear();
+    const next = { ...definition, id: 'new', name: 'text.default.new' };
+    const values = ['web', 'ios', 'android'].flatMap((platform) =>
+        ['light', 'dark'].map((mode) => ({
+            platform,
+            mode,
+            value: '#445566',
+            revision: 3,
+            entityId: `new-${platform}-${mode}`,
+        })),
+    );
+    expect(
+        data.acceptColorStructure({ definitions: [next], removedTokenIds: [], placements: [] }, [
+            { tokenId: 'new', type: 'color', values },
+        ] as never),
+    ).toBe(true);
+    await data.activate('colors');
+    expect(data.currentSnapshot.themeData.variations.color.web['light.text.default.new']).toBe('#445566');
+    expect(data.currentSnapshot.themeData.variations.color.web['light.text.default.accent']).toBe('#112233');
+    expect(data.acceptColorStructure({ definitions: [], removedTokenIds: ['new'], placements: [] })).toBe(true);
+    await data.activate('colors');
+    expect(data.currentSnapshot.tokenIdsByName[next.name]).toBeUndefined();
+    expect(reads.tokens).not.toHaveBeenCalled();
+    expect(reads.palette).not.toHaveBeenCalled();
+});
+
+it('свой структурный ACK не снимает более новую SSE-инвалидацию', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    data.invalidate(new Set(['theme-tokens']));
+    expect(
+        data.acceptColorStructure({
+            definitions: [{ ...definition, name: 'text.default.old-ack' }],
+            removedTokenIds: [],
+            placements: [],
+        }),
+    ).toBe(false);
+    expect(data.currentSnapshot.tokenIdsByName[definition.name]).toBe(definition.id);
+});
+
+it('запоздавший ACK не заменяет уже прочитанную более новую редакцию значения', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    data.currentSnapshot.tokenValueRevisionsByKey[`${definition.id}:web:light`] = 5;
+    expect(
+        data.acceptConfirmedValues([
+            { tokenId: definition.id, values: [{ platform: 'web', mode: 'light', value: '#000000', revision: 4 }] },
+        ]),
+    ).toBe(false);
+    expect(data.currentSnapshot.themeData.variations.color.web['light.text.default.accent']).toBe('#112233');
+});
+
+it('смена ссылки помечает палитру устаревшей и не читает её до открытия', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    expect(
+        data.acceptConfirmedValues([
+            { tokenId: definition.id, values: [{ platform: 'web', mode: 'light', value: '[general.green.500]' }] },
+        ]),
+    ).toBe(true);
+    expect(reads.palette).not.toHaveBeenCalled();
+    await data.activate('palette');
+    expect(reads.palette).toHaveBeenCalledOnce();
+});
+
+it('обычная правка HEX не перечитывает неизменившуюся палитру даже при открытии', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    expect(
+        data.acceptConfirmedValues([
+            { tokenId: definition.id, values: [{ platform: 'web', mode: 'light', value: '#445566' }] },
+        ]),
+    ).toBe(true);
+    await data.activate('palette');
+    expect(reads.palette).not.toHaveBeenCalled();
+});
+
+it('переименование сохраняет явную группу палитры по ID и обновляет поиск по имени без HTTP', async () => {
+    const { data, definition } = familyFixture();
+    const value = await reads.tokens();
+    value.palette = {
+        tenantId: context.tenantId,
+        groups: [{ id: 'custom', kind: 'custom', systemKey: null, label: 'Custom', ramps: [] }],
+        tokens: [{ tokenId: definition.id, tokenName: definition.name, groupId: 'custom', assignment: 'explicit' }],
+    };
+    reads.tokens.mockResolvedValue(value);
+    await data.activate('colors');
+    const next = { ...definition, name: 'text.default.renamed' };
+    expect(data.acceptColorStructure({ definitions: [next], removedTokenIds: [], placements: [] })).toBe(true);
+    expect(data.currentSnapshot.palette?.tokens).toMatchObject([
+        { tokenId: definition.id, tokenName: next.name, groupId: 'custom', assignment: 'explicit' },
+    ]);
+    expect(reads.palette).not.toHaveBeenCalled();
 });

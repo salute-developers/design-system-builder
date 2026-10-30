@@ -1,3 +1,8 @@
+import { defaultGroupForToken } from '../../modules/palette/domain/groups';
+import type { ConfirmedTokenValues, ConfirmedColorStructure } from '../../api/draftAutosaveActivity';
+import { storedTokenValue } from '../../api/confirmedTokenValues';
+import { tokenValueKey } from '../../api/editorHttp';
+import { tokenValueBaseRevision } from '../../api/subjectRevisions';
 import type { EditorContextKey, ThemeEditorSnapshot, TokenDefinitionDto } from '../../api/editorContracts';
 import { componentRepository } from '../../api/componentRepository';
 import { tokenRepository } from '../../api/tokenRepository';
@@ -8,6 +13,7 @@ import { paletteRepository } from '../../palette/paletteSession';
 import { sectionTokenTypes, type EditorSection } from './editorSections';
 import { mergeSectionTokens } from './mergeSectionSnapshot';
 import { componentSectionReferences } from './componentSectionReferences';
+import { getEditorMetadataRevision } from '../../api/editorReads';
 import { getDraftAutosaveRevision, getDraftAutosaveSourceStatus } from '../../api/draftAutosaveActivity';
 
 export interface SectionReadResult {
@@ -27,9 +33,12 @@ export class EditorSectionData {
     private generation = 0;
     private readonly invalidated = new Map<string, number>();
     private readonly loaded = new Map<string, number>();
+    private readonly componentReadAt = new Map<string, number>();
     private readonly componentTypes = new Map<string, TokenDefinitionDto['type'][]>();
     private chain: Promise<unknown> = Promise.resolve();
     private shellStale = false;
+    private confirmedStructurePending = false;
+    private readonly componentMetadataRevision = new Map<string, number>();
 
     constructor(context: EditorContextKey, snapshot: ThemeEditorSnapshot, signal: AbortSignal) {
         this.context = context;
@@ -45,6 +54,246 @@ export class EditorSectionData {
     }
     get currentSnapshot() {
         return this.snapshot;
+    }
+
+    acceptDraftCursor(draftId: string, draftRevision?: number) {
+        if (this.context.versionId || draftId !== this.snapshot.designSystem.draftId || draftRevision == null) return;
+        const revision = Math.max(this.snapshot.designSystem.draftRevision ?? 0, draftRevision);
+        this.snapshot = {
+            ...this.snapshot,
+            designSystem: { ...this.snapshot.designSystem, draftRevision: revision },
+            parameters: { ...this.snapshot.parameters, draftRevision: revision },
+        };
+    }
+
+    /** Неструктурный ACK обновляет уже загруженные значения, сохраняя инвалидацию удалённых изменений. */
+    acceptConfirmedValues(updates: ConfirmedTokenValues[]): boolean {
+        if (!updates.length) return false;
+        const definitions = Object.values(this.snapshot.tokenDefinitionsByName ?? {});
+        const entries = updates.map((update) => ({
+            update,
+            token: definitions.find((token) => token.id === update.tokenId),
+        }));
+        if (
+            entries.some(
+                ({ update, token }) =>
+                    !token ||
+                    this.snapshot.incompleteTokenIds.includes(update.tokenId) ||
+                    update.values.some(
+                        (value) =>
+                            value.revision !== undefined &&
+                            value.revision <
+                                (this.snapshot.tokenValueRevisionsByKey[
+                                    tokenValueKey(update.tokenId, value.platform, value.mode ?? null)
+                                ] ?? 0),
+                    ) ||
+                    (update.type !== undefined &&
+                        token.type !== update.type &&
+                        (!['color', 'gradient'].includes(token.type) ||
+                            !['color', 'gradient'].includes(update.type) ||
+                            !['web', 'ios', 'android'].every((platform) =>
+                                ['light', 'dark'].every((mode) =>
+                                    update.values.some((value) => value.platform === platform && value.mode === mode),
+                                ),
+                            ))),
+            )
+        )
+            return false;
+        const stale = entries.some(({ token }) =>
+            (Object.keys(sectionTokenTypes) as EditorSection[]).some(
+                (section) =>
+                    sectionTokenTypes[section]?.includes(token!.type) &&
+                    (!this.loaded.has(section) || this.loaded.get(section) !== (this.invalidated.get(section) ?? 0)),
+            ),
+        );
+        if (stale) return false;
+        const next = structuredClone(this.snapshot.themeData.variations);
+        const revisions = { ...this.snapshot.tokenValueRevisionsByKey };
+        const entityIds = { ...this.snapshot.tokenValueEntityIdsByKey };
+        let paletteReferencesChanged = false;
+        const overridden = { ...this.snapshot.tokenValueOverriddenByKey };
+        const definitionsByName = { ...this.snapshot.tokenDefinitionsByName };
+        let metaTokens = this.snapshot.themeData.meta.tokens;
+        for (const { update, token } of entries) {
+            const type = update.type ?? token!.type;
+            if (type !== token!.type) {
+                const previous = next[token!.type] as unknown as Record<string, Record<string, unknown>>;
+                for (const platform of ['web', 'ios', 'android'])
+                    for (const mode of ['light', 'dark']) delete previous[platform][`${mode}.${token!.name}`];
+                definitionsByName[token!.name] = { ...token!, type };
+                metaTokens = metaTokens.map((item) =>
+                    ['light', 'dark'].some((mode) => item.name === `${mode}.${token!.name}`) ? { ...item, type } : item,
+                );
+            }
+            const group = next[type] as unknown as Record<string, Record<string, unknown>>;
+            for (const value of update.values) {
+                const name = value.mode ? `${value.mode}.${token!.name}` : token!.name;
+                const previous = (
+                    this.snapshot.themeData.variations[token!.type] as unknown as Record<
+                        string,
+                        Record<string, unknown>
+                    >
+                )[value.platform]?.[name];
+                const references = (input: unknown) =>
+                    JSON.stringify(
+                        [
+                            ...new Set(
+                                JSON.stringify(input ?? null).match(/\[(?:general|additional)\.[a-z0-9.-]+\]/gi) ?? [],
+                            ),
+                        ].sort(),
+                    );
+                if (references(previous) !== references(value.value)) paletteReferencesChanged = true;
+                group[value.platform][name] = storedTokenValue(type, value.value);
+                const key = tokenValueKey(update.tokenId, value.platform, value.mode ?? null);
+                if (value.entityId) entityIds[key] = value.entityId;
+                revisions[key] =
+                    value.revision ??
+                    tokenValueBaseRevision(this.context, update.tokenId, value.platform, value.mode ?? '');
+                if (value.overridden !== undefined) overridden[key] = value.overridden;
+            }
+        }
+        this.snapshot = {
+            ...this.snapshot,
+            themeData: {
+                ...this.snapshot.themeData,
+                meta: { ...this.snapshot.themeData.meta, tokens: metaTokens },
+                variations: next,
+            },
+            tokenDefinitionsByName: definitionsByName,
+            tokenValueRevisionsByKey: revisions,
+            tokenValueEntityIdsByKey: entityIds,
+            tokenValueOverriddenByKey: overridden,
+        };
+        if (paletteReferencesChanged) this.invalidated.set('palette', ++this.generation);
+        return true;
+    }
+
+    /** Структурный ACK заменяет только затронутое семейство; удалённая инвалидация остаётся приоритетной. */
+    acceptColorStructure(structure: ConfirmedColorStructure, values?: ConfirmedTokenValues[]): boolean {
+        if (
+            this.loaded.get('colors') === undefined ||
+            this.loaded.get('colors') !== (this.invalidated.get('colors') ?? 0)
+        )
+            return false;
+        if (structure.definitions.some((token) => token.designSystemId !== this.context.designSystemId)) return false;
+        if (
+            structure.paletteGroupId &&
+            !this.snapshot.palette?.groups.some((group) => group.id === structure.paletteGroupId)
+        )
+            return false;
+        const previousSnapshot = this.snapshot;
+        const previous = Object.values(this.snapshot.tokenDefinitionsByName ?? {});
+        const previousIds = new Set(previous.map((token) => token.id));
+        if (
+            structure.definitions.some(
+                (token) =>
+                    !previousIds.has(token.id) &&
+                    !['web', 'ios', 'android'].every((platform) =>
+                        ['light', 'dark'].every((mode) =>
+                            values?.some(
+                                (update) =>
+                                    update.tokenId === token.id &&
+                                    update.values.some((value) => value.platform === platform && value.mode === mode),
+                            ),
+                        ),
+                    ),
+            )
+        )
+            return false;
+        const replaced = new Map(structure.definitions.map((token) => [token.id, token]));
+        const removed = new Set(structure.removedTokenIds);
+        const variations = structuredClone(this.snapshot.themeData.variations);
+        for (const token of previous.filter((token) => replaced.has(token.id) || removed.has(token.id))) {
+            const replacement = replaced.get(token.id);
+            for (const platform of ['web', 'ios', 'android'])
+                for (const mode of ['light', 'dark']) {
+                    const name = `${mode}.${token.name}`;
+                    const group = variations[token.type] as unknown as Record<string, Record<string, unknown>>;
+                    const value = group[platform][name];
+                    delete group[platform][name];
+                    if (replacement && value !== undefined)
+                        (variations[replacement.type] as unknown as Record<string, Record<string, unknown>>)[platform][
+                            `${mode}.${replacement.name}`
+                        ] = storedTokenValue(replacement.type, value);
+                }
+        }
+        const placements = new Map(structure.placements.map((value) => [value.id, value]));
+        const definitions = [
+            ...previous.filter((token) => !replaced.has(token.id) && !removed.has(token.id)),
+            ...structure.definitions.map((token) => ({ ...previous.find((old) => old.id === token.id), ...token })),
+        ].map((token) => ({ ...token, ...placements.get(token.id) }));
+        const affectedNames = new Set(
+            previous
+                .filter((token) => replaced.has(token.id) || removed.has(token.id))
+                .flatMap((token) => ['light', 'dark'].map((mode) => `${mode}.${token.name}`)),
+        );
+        const meta = [
+            ...this.snapshot.themeData.meta.tokens.filter((token) => !affectedNames.has(token.name)),
+            ...structure.definitions.flatMap((token) =>
+                ['light', 'dark'].map((mode) => ({
+                    type: token.type,
+                    name: `${mode}.${token.name}`,
+                    tags: `${mode}.${token.name}`.split('.'),
+                    displayName: token.displayName ?? token.name,
+                    description: token.description ?? undefined,
+                    enabled: token.enabled,
+                })),
+            ),
+        ];
+        const palette = this.snapshot.palette;
+        const assignments = new Map(
+            (palette?.tokens ?? [])
+                .filter((token) => !removed.has(token.tokenId))
+                .map((token) => [token.tokenId, token]),
+        );
+        for (const token of structure.definitions) {
+            const previous = assignments.get(token.id);
+            const explicit = previous?.assignment === 'explicit' ? previous.groupId : structure.paletteGroupId;
+            const groupId =
+                explicit ?? palette?.groups.find((group) => group.systemKey === defaultGroupForToken(token.name))?.id;
+            if (groupId)
+                assignments.set(token.id, {
+                    tokenId: token.id,
+                    tokenName: token.name,
+                    groupId,
+                    assignment: explicit ? 'explicit' : 'default',
+                });
+        }
+        this.snapshot = {
+            ...this.snapshot,
+            palette: palette ? { ...palette, tokens: [...assignments.values()] } : undefined,
+            tokenDefinitionsByName: Object.fromEntries(definitions.map((token) => [token.name, token])),
+            tokenIdsByName: Object.fromEntries(definitions.map((token) => [token.name, token.id])),
+            incompleteTokenIds: this.snapshot.incompleteTokenIds.filter((id) => !removed.has(id)),
+            themeData: {
+                ...this.snapshot.themeData,
+                meta: { ...this.snapshot.themeData.meta, tokens: meta },
+                variations,
+            },
+            tokenValueEntityIdsByKey: Object.fromEntries(
+                Object.entries(this.snapshot.tokenValueEntityIdsByKey ?? {}).filter(
+                    ([key]) => !removed.has(key.split(':')[0]),
+                ),
+            ),
+            tokenValueRevisionsByKey: Object.fromEntries(
+                Object.entries(this.snapshot.tokenValueRevisionsByKey).filter(
+                    ([key]) => !removed.has(key.split(':')[0]),
+                ),
+            ),
+            tokenValueOverriddenByKey: Object.fromEntries(
+                Object.entries(this.snapshot.tokenValueOverriddenByKey ?? {}).filter(
+                    ([key]) => !removed.has(key.split(':')[0]),
+                ),
+            ),
+        };
+        if (values?.length && !this.acceptConfirmedValues(values)) {
+            this.snapshot = previousSnapshot;
+            return false;
+        }
+        this.invalidated.set('palette', ++this.generation);
+        this.invalidated.set('components', ++this.generation);
+        this.confirmedStructurePending = true;
+        return true;
     }
 
     acceptPalette(palette: NonNullable<ThemeEditorSnapshot['palette']>) {
@@ -73,6 +322,20 @@ export class EditorSectionData {
         const colorPending = () => getDraftAutosaveSourceStatus(this.context, 'color-tokens') !== 'saved';
         if (types.some(tokenPending) || componentPending()) return;
         if (hadColors && types.includes('color') && colorPending()) return;
+        if (
+            section === 'colors' &&
+            this.confirmedStructurePending &&
+            this.loaded.get('colors') === (this.invalidated.get('colors') ?? 0)
+        ) {
+            this.confirmedStructurePending = false;
+            return {
+                snapshot: this.snapshot,
+                tokensChanged: true,
+                componentsChanged: false,
+                tokenTypes: types,
+                activityRevision: getDraftAutosaveRevision(this.context),
+            };
+        }
         const result = await this.refresh();
         if (!result) return;
         if (result.activityRevision !== getDraftAutosaveRevision(this.context)) {
@@ -88,6 +351,16 @@ export class EditorSectionData {
         return { ...result, tokenTypes: safeTypes };
     }
 
+    invalidateTokenTypes(types: TokenDefinitionDto['type'][]) {
+        if (this.context.versionId) return;
+        for (const section of Object.keys(sectionTokenTypes) as EditorSection[]) {
+            const sectionTypes = sectionTokenTypes[section];
+            if (sectionTypes?.some((type) => types.includes(type))) this.invalidated.set(section, ++this.generation);
+        }
+        // Превью зависит от значений токенов, но сами конфигурации компонентов не менялись.
+        // Их зависимости обновятся при следующем открытии через устаревшие разделы токенов.
+    }
+
     invalidate(scopes: Set<DraftInvalidationScope>) {
         if (this.context.versionId) return;
         const all = scopes.has('all') || scopes.has('design-system');
@@ -99,7 +372,7 @@ export class EditorSectionData {
         if (scopes.has('theme-metadata'))
             zones.push('settings', 'colors', 'palette', 'typography', 'shapes', 'components');
         for (const section of zones) this.invalidated.set(section, ++this.generation);
-        this.shellStale = true;
+        if (all || scopes.has('theme-metadata') || scopes.has('component-configurations')) this.shellStale = true;
     }
 
     refresh(): Promise<SectionReadResult | undefined> {
@@ -118,7 +391,12 @@ export class EditorSectionData {
         const { section, component } = selected;
         const key = section === 'components' && component ? `components:${component}` : section;
         const generation = this.invalidated.get(section) ?? 0;
-        const stale = this.loaded.get(key) !== generation;
+        const stale =
+            this.loaded.get(key) !== generation ||
+            (section === 'components' &&
+                component !== undefined &&
+                (Date.now() - (this.componentReadAt.get(key) ?? -Infinity) >= 300_000 ||
+                    this.componentMetadataRevision.get(key) !== getEditorMetadataRevision(this.context)));
         let tokensChanged = false;
         let componentsChanged = false;
         let types = sectionTokenTypes[section] ?? this.componentTypes.get(key) ?? [];
@@ -150,6 +428,7 @@ export class EditorSectionData {
                     this.signal,
                     this.snapshot.publicationVersion,
                     types,
+                    this.loaded.get('palette') === paletteGeneration ? this.snapshot.palette : undefined,
                 );
                 if (values.paletteError) throw values.paletteError;
                 this.snapshot = mergeSectionTokens(this.snapshot, values, types);
@@ -178,6 +457,12 @@ export class EditorSectionData {
                 componentsChanged = true;
             }
             this.loaded.set(key, generation);
+        } else if (section === 'components') {
+            // Конфигурация свежая, но значения зависимого раздела могли измениться локально.
+            for (const dependency of Object.keys(sectionTokenTypes) as EditorSection[]) {
+                if (sectionTokenTypes[dependency]?.some((type) => types.includes(type)))
+                    await this.read({ section: dependency });
+            }
         }
         if (this.signal.aborted) throw new Error('EDITOR_CLOSED');
         if (this.active.section !== section || this.active.component !== component) return undefined;
@@ -194,7 +479,10 @@ export class EditorSectionData {
         component: string | undefined,
         generation: number,
     ): Promise<TokenDefinitionDto['type'][]> {
-        if (this.loaded.get('components') !== generation) {
+        if (
+            this.loaded.get('components') !== generation ||
+            this.componentMetadataRevision.get('components') !== getEditorMetadataRevision(this.context)
+        ) {
             const index = await componentRepository.loadComponentIndex(this.context, this.signal);
             const existing = [...this.snapshot.componentsData, ...(this.snapshot.composeComponentsData ?? [])];
             const entries = index.map((item) => {
@@ -215,6 +503,7 @@ export class EditorSectionData {
                 composeComponentsData: markComposeComponents(entries.filter((item) => item.platform === 'compose')),
             };
             this.loaded.set('components', generation);
+            this.componentMetadataRevision.set('components', getEditorMetadataRevision(this.context));
         }
         if (!component) return [];
         const route = parseComponentRoute(component);
@@ -253,11 +542,16 @@ export class EditorSectionData {
             const cacheKey = `components:${platform === 'compose' ? 'compose-' : ''}${selectedName}`;
             const cached = this.snapshot[field]?.find((item) => item.name === selectedName);
             const response =
-                cached && this.loaded.get(cacheKey) === (this.invalidated.get('components') ?? 0)
+                cached &&
+                this.loaded.get(cacheKey) === (this.invalidated.get('components') ?? 0) &&
+                Date.now() - (this.componentReadAt.get(cacheKey) ?? -Infinity) < 300_000 &&
+                this.componentMetadataRevision.get(cacheKey) === getEditorMetadataRevision(this.context)
                     ? [cached]
                     : await componentRepository.loadComponentData(this.context, this.signal, platform, selectedName);
             const entries = platform === 'compose' ? markComposeComponents(response) : response;
             loaded.push(...entries);
+            this.componentReadAt.set(cacheKey, Date.now());
+            this.componentMetadataRevision.set(cacheKey, getEditorMetadataRevision(this.context));
             this.snapshot = {
                 ...this.snapshot,
                 [field]: (this.snapshot[field] ?? []).map((item) => {

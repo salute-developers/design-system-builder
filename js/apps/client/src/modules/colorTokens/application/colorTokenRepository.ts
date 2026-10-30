@@ -1,5 +1,24 @@
 import type { ColorMode, ColorTokenType } from '../domain';
 
+/** Подтверждение структуры только затронутого семейства и порядка его соседей. */
+export interface ColorTokenStructure {
+    definitions: Array<{
+        id: string;
+        designSystemId: string;
+        name: string;
+        type: ColorTokenType;
+        displayName: string | null;
+        description: string | null;
+        enabled: boolean;
+        groupId: string | null;
+        position: number;
+    }>;
+    /** Подтверждённая успешным create явная группа текущей темы, если она была задана командой. */
+    paletteGroupId?: string | null;
+    removedTokenIds: string[];
+    placements: Array<{ id: string; groupId: string | null; position: number }>;
+}
+
 /** Тема, в которой выполняются операции над цветовым токеном. */
 export interface ColorTokenContext {
     projectId: string;
@@ -59,7 +78,7 @@ export interface ColorTokenRepository {
         context: ColorTokenContext,
         input: CreateColorTokenInput,
         editRevision: number,
-    ): Promise<{ editRevision: number; value: ColorTokenFamilyDto }>;
+    ): Promise<{ editRevision: number; value: ColorTokenFamilyDto; structure?: ColorTokenStructure }>;
     /** Возвращает тип семейства после изменения: сервер вычисляет его по значениям всех тем. */
     updateValues(
         context: ColorTokenContext,
@@ -67,14 +86,18 @@ export interface ColorTokenRepository {
         update: ColorTokenMembersUpdate,
         editRevision: number,
     ): Promise<{ editRevision: number; type?: ColorTokenType }>;
-    delete(context: ColorTokenContext, tokenId: string, editRevision: number): Promise<{ editRevision: number }>;
+    delete(
+        context: ColorTokenContext,
+        tokenId: string,
+        editRevision: number,
+    ): Promise<{ editRevision: number; structure?: ColorTokenStructure }>;
     /** Переносит семейство в группу и на позицию, при `name` — переименовывает; идентификаторы сохраняются. */
     move(
         context: ColorTokenContext,
         tokenId: string,
         input: MoveColorTokenInput,
         editRevision: number,
-    ): Promise<{ editRevision: number; value: ColorTokenFamilyDto }>;
+    ): Promise<{ editRevision: number; value: ColorTokenFamilyDto; structure?: ColorTokenStructure }>;
 }
 
 export type ColorTokenErrorKind = 'conflict' | 'forbidden' | 'invalid' | 'not-found' | 'network';

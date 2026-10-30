@@ -1,6 +1,7 @@
 export type ProjectRole = 'viewer' | 'editor' | 'maintainer' | 'owner';
 
 export interface Project {
+    designSystemCount?: number | null;
     id: string;
     name: string;
     description?: string | null;

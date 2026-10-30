@@ -81,6 +81,60 @@ class ExposedColorTokenRepository(
             }
         }
 
+    override suspend fun confirmedStructure(
+        designSystemId: UUID,
+        tokenIds: Collection<UUID>,
+        removed: Collection<UUID>,
+        groupIds: Collection<UUID>,
+    ): com.dsbuilder.ds.themes.application.colortokens.ColorTokenStructure {
+        val definitions = (
+            if (tokenIds.isEmpty()) {
+                emptyList()
+            } else {
+                currentThemeTokenRows(
+                    designSystemId,
+                    tokenIds = tokenIds.toSet(),
+                )
+            }
+            ).map { row ->
+            com.dsbuilder.ds.themes.application.colortokens.ColorTokenDefinition(
+                row[ThemeTokensTable.id], designSystemId, row[ThemeTokenRevisionsTable.name],
+                requireNotNull(row[ThemeTokenRevisionsTable.type]), row[ThemeTokenRevisionsTable.displayName],
+                row[ThemeTokenRevisionsTable.description], row[ThemeTokenRevisionsTable.enabled],
+                row[ThemeTokenRevisionsTable.groupId], row[ThemeTokenRevisionsTable.position],
+            )
+        }
+        return com.dsbuilder.ds.themes.application.colortokens.ColorTokenStructure(
+            definitions,
+            removed.toList(),
+            placedIn(designSystemId, groupIds),
+        )
+    }
+
+    override fun confirmedValues(designSystemId: UUID, tenantId: UUID, tokenIds: Collection<UUID>):
+        List<com.dsbuilder.ds.themes.domain.TenantTokenValue> {
+        if (tokenIds.isEmpty()) return emptyList()
+        val rows = currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
+        val draft = requireNotNull(themeDraft(designSystemId))[ThemeVersionBoundariesTable.id]
+        val revisions =
+            entityEditRevisions(draft, "token-value", rows.mapTo(hashSetOf()) { it[ThemeTokenValuesTable.id] })
+        return rows.map { row ->
+            com.dsbuilder.ds.themes.domain.TenantTokenValue(
+                id = row[ThemeTokenValuesTable.id],
+                tokenId = row[ThemeTokenValuesTable.tokenId],
+                tenantId = row[ThemeTokenValuesTable.tenantId],
+                paletteId = row[ThemeTokenValueRevisionsTable.paletteId],
+                platform = row[ThemeTokenValuesTable.platform]?.wireValue,
+                mode = row[ThemeTokenValuesTable.mode]?.wireValue,
+                valueJson = row[ThemeTokenValueRevisionsTable.value]?.toString(),
+                editRevision = revisions[row[ThemeTokenValuesTable.id]] ?: 0,
+                overridden = row[ThemeTokenValueRevisionsTable.overridden],
+                createdAt = row[ThemeTokenValuesTable.createdAt],
+                updatedAt = row[ThemeTokenValueRevisionsTable.updatedAt],
+            )
+        }
+    }
+
     override fun reviseFamilyType(tokenIds: Collection<UUID>, type: ThemeTokenType) {
         val owner = currentThemeTokenRows(tokenIds = tokenIds.toSet()).firstOrNull()
             ?.get(ThemeTokensTable.designSystemId) ?: return
@@ -220,7 +274,7 @@ class ExposedColorTokenRepository(
     private fun placed(row: ResultRow) = PlacedToken(
         row[ThemeTokensTable.id],
         row[ThemeTokenRevisionsTable.name],
-        row[ThemeTokenRevisionsTable.type],
+        requireNotNull(row[ThemeTokenRevisionsTable.type]),
         row[ThemeTokenRevisionsTable.groupId],
         row[ThemeTokenRevisionsTable.position],
     )

@@ -43,6 +43,11 @@ class ColorTokenHttpPostgresIntegrationTest {
                 val initialResponse = api.call("GET", "/api/ds/design-systems/$designSystemId/changes", VIEWER)
                 assertEquals(HttpStatusCode.OK, initialResponse.status, initialResponse.bodyAsText())
                 val initialChanges = api.body(initialResponse).jsonArray
+                val initialSummary = api.read("/api/ds/design-systems/$designSystemId/changes/summary")
+                assertEquals(
+                    initialSummary.jsonObject.getValue("total").jsonPrimitive.content,
+                    initialResponse.headers["X-DS-Journal-Total"],
+                )
                 assertTrue(
                     initialChanges.none { it.text("entityType") in setOf("token", "token-value", "token-group") },
                 )
@@ -116,6 +121,10 @@ class ColorTokenHttpPostgresIntegrationTest {
                 val updated = api.call("PUT", values, EDITOR, updateBody(revision, defaultId, "#000000"))
                 assertEquals(HttpStatusCode.OK, updated.status, updated.bodyAsText())
                 assertEquals(0, api.body(updated).jsonObject.number("editRevision"))
+                val confirmed = api.body(updated).jsonObject.getValue("confirmedValues").jsonArray
+                assertTrue(confirmed.isNotEmpty())
+                assertTrue(confirmed.all { it.jsonObject.text("tenantId") == tenantA })
+                assertTrue(confirmed.all { it.jsonObject.text("tokenId") in members.values })
                 assertEquals(VALUES_PER_MEMBER, count(postgres, valueEquals(tenantA, defaultId, "#000000")))
                 assertEquals(0, count(postgres, valueEquals(tenantB, defaultId, "#000000")))
                 assertEquals(0, count(postgres, valueEquals(tenantA, hoverId, "#000000")))

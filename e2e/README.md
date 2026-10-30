@@ -24,7 +24,7 @@ Runner сначала вызывает обычный `./setup-local.sh --reset`
 после тестов не останавливается.
 
 `setup-local.sh --reset` пересоздаёт volumes обоих стеков, `ds-service` создаёт схему Flyway-миграциями в `ds-db`, затем
-`backend-kt/bootstrap-base.sh` наполняет дизайн-систему `base` через Gateway. После этого
+`backend-kt/bootstrap-base.sh` готовит проект и глобальный Web API через Gateway, без демонстрационных ДС и тем. После этого
 `e2e/seed/common.sh` создаёт через Gateway данные, общие для E2E-сценариев, и записывает только идентификаторы и имена
 пользователей в `e2e/artifacts/<run-id>/context.env`. Токены и пароли туда не записываются.
 

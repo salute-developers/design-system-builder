@@ -47,6 +47,22 @@ class ExposedDraftChangeHandler(
         return differences(designSystemId, sequenceNumber, previousSequenceNumber, limit)
     }
 
+    override fun visit(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        consume: (List<DraftSubjectChange>) -> Unit,
+    ) {
+        var afterId: UUID? = null
+        while (true) {
+            val batch = differences(designSystemId, sequenceNumber, previousSequenceNumber, 500, afterId = afterId)
+            if (batch.isEmpty()) return
+            consume(batch)
+            afterId = batch.last().entityId
+            if (batch.size < 500) return
+        }
+    }
+
     override fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =
         differences(designSystemId, sequenceNumber, previousSequenceNumber, limit = 1).isNotEmpty()
 
@@ -81,6 +97,7 @@ class ExposedDraftChangeHandler(
         previousSequenceNumber: Long,
         limit: Int?,
         entityId: UUID? = null,
+        afterId: UUID? = null,
     ): List<DraftSubjectChange> {
         val previousValue = valueExpression("previous")
         val currentValue = valueExpression("current")
@@ -88,6 +105,7 @@ class ExposedDraftChangeHandler(
         val currentResolved = resolvedValueExpression("current", currentValue)
         val limitClause = limit?.let { "LIMIT $it" }.orEmpty()
         val entityClause = if (entityId == null) "" else "AND entity.${stableId.quotedName()} = ?"
+        val afterClause = if (afterId == null) "" else "AND entity.${stableId.quotedName()} > ?"
         val sql = """
             SELECT ${stableTable.qualified(stableId)} AS entity_id,
                    previous.${revisionEntityId.quotedName()} AS previous_exists,
@@ -115,6 +133,7 @@ class ExposedDraftChangeHandler(
             ) current ON true
             WHERE entity.${stableDesignSystemId.quotedName()} = ?
               $entityClause
+              $afterClause
               AND ($previousResolved) IS DISTINCT FROM ($currentResolved)
             ORDER BY ${stableTable.qualified(stableId)}
             $limitClause
@@ -125,19 +144,19 @@ class ExposedDraftChangeHandler(
                 LongColumnType() to previousSequenceNumber,
                 LongColumnType() to sequenceNumber,
                 UUIDColumnType() to designSystemId,
-            ) + listOfNotNull(entityId?.let { UUIDColumnType() to it }),
-        ) { rows ->
-            buildList {
-                while (rows.next()) {
-                    val before = rows.snapshot("previous")?.takeUnless(DraftChangeSnapshot::deleted)?.value
-                    val after = rows.snapshot("current")?.takeUnless(DraftChangeSnapshot::deleted)?.value
-                    if (before != after) {
-                        val entityId = rows.getObject("entity_id", UUID::class.java)
-                        add(DraftSubjectChange(entityId, before, after, changedPaths(before, after)))
-                    }
-                }
+            ) + listOfNotNull(entityId?.let { UUIDColumnType() to it }, afterId?.let { UUIDColumnType() to it }),
+        ) { rows -> readDifferences(rows) }.orEmpty()
+    }
+
+    private fun readDifferences(rows: java.sql.ResultSet): List<DraftSubjectChange> = buildList {
+        while (rows.next()) {
+            val before = rows.snapshot("previous")?.takeUnless(DraftChangeSnapshot::deleted)?.value
+            val after = rows.snapshot("current")?.takeUnless(DraftChangeSnapshot::deleted)?.value
+            if (before != after) {
+                val entityId = rows.getObject("entity_id", UUID::class.java)
+                add(DraftSubjectChange(entityId, before, after, changedPaths(before, after)))
             }
-        }.orEmpty()
+        }
     }
 
     private fun valueExpression(revisionAlias: String): String {

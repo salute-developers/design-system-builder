@@ -25,6 +25,12 @@ export interface SizeTokenSession {
     loadError: string | null;
     /** Номер последнего запущенного чтения: ответ устаревшего чтения не заменяет более новое. */
     loads: number;
+    invalidation: number;
+    loadedInvalidation: number;
+    loadedAt?: number;
+    failedInvalidation?: number;
+    loading?: Promise<void>;
+    readController?: AbortController;
     /** Несохранённые значения токенов по `tokenId`: их видит пользователь, пока очередь не отправит их. */
     edits: Map<string, SizeTokenValue>;
     /** Значения, отклонённые проверкой сервера: ошибка у поля, в дереве и на борде — сохранённое значение. */
@@ -44,6 +50,8 @@ const updateData = (session: SizeTokenSession, change: (tokens: SizeToken[]) => 
 
 /** Ответ подтверждённой операции: сохранённые значения раздела и модели темы. */
 const applyResult = (session: SizeTokenSession, key: string, result: SizeTokenResult, latest: boolean) => {
+    session.loads++;
+    session.loadedAt = Date.now();
     const theme = session.live.theme;
     if (result.type === 'update') {
         updateData(session, (tokens) =>
@@ -82,6 +90,8 @@ export const createSizeTokenSession = (
         data: null,
         loadError: null,
         loads: 0,
+        invalidation: 0,
+        loadedInvalidation: -1,
         edits: new Map(),
         rejected: new Map(),
         live: { theme: null, onModelChange: () => undefined },
@@ -115,17 +125,32 @@ export const tokenSaveStatus = (session: SizeTokenSession, tokenId: string): Sav
 };
 
 /** Перечитывает раздел после отправки очереди: ответ чтения не опережает отправленные правки. */
-export const loadSizeTokens = async (session: SizeTokenSession, repository: SizeTokenRepository) => {
-    await session.autosave.flush();
-    const current = ++session.loads;
-    try {
-        const data = await repository.load(session.context);
-        if (current !== session.loads) return;
-        session.data = data;
-        session.loadError = null;
-    } catch (error) {
-        if (current !== session.loads) return;
-        session.loadError = errorText(error);
-    }
-    notifySession(session);
+export const loadSizeTokens = (session: SizeTokenSession, repository: SizeTokenRepository): Promise<void> => {
+    if (session.loading) return session.loading;
+    const controller = new AbortController();
+    session.readController = controller;
+    const run = async () => {
+        await session.autosave.flush();
+        if (controller.signal.aborted) return;
+        const current = ++session.loads;
+        const invalidation = session.invalidation;
+        try {
+            const data = await repository.load(session.context, controller.signal);
+            if (current !== session.loads || controller.signal.aborted) return;
+            session.data = data;
+            session.loadError = null;
+            session.failedInvalidation = undefined;
+            session.loadedInvalidation = invalidation;
+            session.loadedAt = Date.now();
+        } catch (error) {
+            if (current !== session.loads || controller.signal.aborted) return;
+            session.loadError = errorText(error);
+            session.failedInvalidation = invalidation;
+        }
+    };
+    session.loading = run().finally(() => {
+        session.loading = undefined;
+        notifySession(session);
+    });
+    return session.loading;
 };

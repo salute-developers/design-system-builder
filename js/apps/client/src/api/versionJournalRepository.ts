@@ -27,13 +27,27 @@ export class VersionJournalRepository {
         ).data;
     }
 
-    async listChanges(context: EditorContextKey, signal?: AbortSignal) {
+    async listChanges(context: EditorContextKey, signal?: AbortSignal, onTotal?: (total: number | undefined) => void) {
+        const response = await readEditor<DraftChangeDto[]>(
+            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes`,
+            readRequest(context, signal),
+        );
+        const raw = response.headers?.['x-ds-journal-total'];
+        const total = typeof raw === 'string' && /^\d+$/.test(raw) ? Number(raw) : undefined;
+        onTotal?.(Number.isSafeInteger(total) ? total : undefined);
+        return response.data;
+    }
+
+    async listChangedTokenIds(context: EditorContextKey, signal?: AbortSignal) {
         return (
-            await readEditor<DraftChangeDto[]>(
-                `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes`,
-                readRequest(context, signal),
+            await readEditor<{ tokenIds: string[] }>(
+                `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes/token-ids`,
+                {
+                    ...readRequest(context, signal),
+                    params: { ...readRequest(context).params, tenantId: context.tenantId },
+                },
             )
-        ).data;
+        ).data.tokenIds;
     }
 
     async listProjectActorLabels(projectId: string, signal?: AbortSignal) {
@@ -69,7 +83,7 @@ export class VersionJournalRepository {
                 },
             },
         );
-        invalidateEditorReads();
+        invalidateEditorReads(context);
         return response;
     }
 
@@ -86,7 +100,7 @@ export class VersionJournalRepository {
             { designSystemId: context.designSystemId, draftId, draftRevision, version, changelog },
             { headers: { 'Idempotency-Key': idempotencyKey } },
         );
-        invalidateEditorReads();
+        invalidateEditorReads(context);
         return response.data;
     }
 }

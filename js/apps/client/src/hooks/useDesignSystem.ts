@@ -7,6 +7,7 @@ import { applyDraftChanges, pendingDraftTokens, setActiveDraftContext } from '..
 import { loadThemeEditor, loadThemeShell } from '../api/themeEditorRepository';
 import { EditorSectionData } from '../features/themeEditor/EditorSectionData';
 import { sectionTokenTypes, type EditorSection } from '../features/themeEditor/editorSections';
+import { notifyEditorDataInvalidated } from '../api/draftInvalidationStream';
 import { invalidateEditorReads } from '../api/editorReads';
 import type { EditorContextKey, ThemeEditorSnapshot, DraftChangeDto, TokenDefinitionDto } from '../api/editorContracts';
 import type { AutosaveStatus } from '../api/tokenAutosaveQueue';
@@ -15,7 +16,14 @@ import { preservePendingComponents } from '../features/themeEditor/preservePendi
 import type { ThemePalette } from '../modules/palette';
 import { getActivePalette, setActivePalette } from '../palette/activePalette';
 import { paletteRepository, setPaletteSession } from '../palette/paletteSession';
-import { getDraftAutosaveStatus, recordDraftSave, subscribeDraftAutosaveStatus } from '../api/draftAutosaveActivity';
+import {
+    getDraftAutosaveStatus,
+    getDraftSaveTokenTypes,
+    getDraftSaveTokenValues,
+    recordDraftSave,
+    subscribeDraftAutosaveStatus,
+    getDraftSaveColorStructure,
+} from '../api/draftAutosaveActivity';
 
 const loadErrorFor = (error: unknown): 'forbidden' | 'not-found' | 'failed' => {
     if (isAxiosError(error)) {
@@ -70,16 +78,35 @@ export const useDesignSystem = (
     }, [sectionKey]);
 
     useEffect(() => {
+        const revalidate = () => {
+            if (selectionRef.current?.section === 'components') void sectionLoader.current?.();
+        };
+        window.addEventListener('focus', revalidate);
+        return () => window.removeEventListener('focus', revalidate);
+    }, []);
+
+    useEffect(() => {
         if (typeof designSystemProjectId !== 'object' || designSystemProjectId.versionId) return;
         let observedSave: number | undefined;
         return subscribeDraftAutosaveStatus(designSystemProjectId, (status, time) => {
             setAutosaveStatus(status);
             if (time !== undefined) {
                 setLastSave({ key: autosaveContextKey, time });
-                if (time !== observedSave) sectionData.current?.invalidate(new Set(['all']));
+                if (time !== observedSave) {
+                    const types = getDraftSaveTokenTypes(designSystemProjectId);
+                    const values = getDraftSaveTokenValues(designSystemProjectId);
+                    const structure = getDraftSaveColorStructure(designSystemProjectId);
+                    const applied = structure
+                        ? sectionData.current?.acceptColorStructure(structure, values)
+                        : values && sectionData.current?.acceptConfirmedValues(values);
+                    if (!applied) {
+                        if (types) sectionData.current?.invalidateTokenTypes(types);
+                        else sectionData.current?.invalidate(new Set(['theme-tokens']));
+                    }
+                }
                 observedSave = time;
             }
-            void sectionLoader.current?.();
+            if (status === 'saved') void sectionLoader.current?.();
         });
     }, [designSystemProjectId, autosaveContextKey]);
 
@@ -210,7 +237,7 @@ export const useDesignSystem = (
                             snapshot: sections.currentSnapshot,
                             signal: controller.signal,
                             sections,
-                            onSaved: () => recordDraftSave(designSystemProjectId),
+                            onSaved: (types, values) => recordDraftSave(designSystemProjectId, types, values),
                             onStatus: () => setAutosaveStatus(getDraftAutosaveStatus(designSystemProjectId)),
                             onSnapshot: (next, tokensChanged, componentsChanged) => {
                                 applySnapshot(next, tokensChanged, componentsChanged);
@@ -263,7 +290,7 @@ export const useDesignSystem = (
                             context: designSystemProjectId,
                             snapshot,
                             signal: controller.signal,
-                            onSaved: () => recordDraftSave(designSystemProjectId),
+                            onSaved: (types, values) => recordDraftSave(designSystemProjectId, types, values),
                             onStatus: () => setAutosaveStatus(getDraftAutosaveStatus(designSystemProjectId)),
                             onSnapshot: applySnapshot,
                             onDisposed: () => {
@@ -296,12 +323,14 @@ export const useDesignSystem = (
     }, [designSystemProjectId, includeExtraTokens, reloadTrigger, autosaveContextKey]);
 
     const reload = useCallback(() => {
+        if (typeof designSystemProjectId === 'object')
+            notifyEditorDataInvalidated(designSystemProjectId, new Set(['all']));
         if (sectionData.current) {
             sectionData.current.invalidate(new Set(['all']));
-            invalidateEditorReads();
+            invalidateEditorReads(typeof designSystemProjectId === 'object' ? designSystemProjectId : undefined);
             void sectionLoader.current?.();
         } else setReloadTrigger({});
-    }, []);
+    }, [designSystemProjectId]);
     const retryAutosave = useCallback(() => autosaveSession.current?.retryFailed(), []);
     const setPalette = useCallback(
         (next: ThemePalette) => {

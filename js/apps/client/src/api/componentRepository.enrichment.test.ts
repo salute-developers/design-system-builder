@@ -26,7 +26,7 @@ const getResponses: Record<string, unknown> = {
         { id: 'c-avatar-group', name: 'AvatarGroup', description: null, platform: 'web' },
         { id: 'c-avatar', name: 'Avatar', description: null, platform: 'web' },
     ],
-    [`${root}/appearances`]: [],
+    [`${root}/design-systems/ds-1/appearances`]: [],
     [`${root}/components/c-button/properties`]: [
         { id: 'p-height', name: 'height', type: 'dimension', description: null },
         { id: 'p-focus', name: 'focusColor', type: 'color', description: null },
@@ -87,6 +87,34 @@ beforeEach(() => {
 });
 
 describe('componentRepository.loadComponentData', () => {
+    it('uses existing enriched properties for one selected component without a global params read', async () => {
+        get.mockImplementation((url: string, request?: { params?: { include?: string } }) => {
+            const data =
+                getResponses[url] ??
+                (url.endsWith('/components/c-button/styles')
+                    ? getResponses[`${root}/variations/v-size/styles`]
+                    : undefined) ??
+                (url.endsWith('/appearances') ? [] : undefined);
+            if (data === undefined) throw new Error(`Unexpected GET ${url}`);
+            if (request?.params?.include === 'platformParams') {
+                const params = getResponses[`${root}/property-platform-params`] as Array<{ propertyId: string }>;
+                return Promise.resolve({
+                    data: (data as Array<{ id: string }>).map((property) => ({
+                        ...property,
+                        platformParams: params.filter((param) => param.propertyId === property.id),
+                    })),
+                });
+            }
+            return Promise.resolve({ data });
+        });
+        const [button] = await componentRepository.loadComponentData(context, undefined, 'web', 'Button');
+        expect(button.sources.api.find((item) => item.name === 'height')?.platformMappings.web).toEqual([
+            { name: 'buttonHeight', adjustment: '$1 1rem' },
+        ]);
+        expect(get.mock.calls.some(([url]) => url.endsWith('/property-platform-params'))).toBe(false);
+        expect(get.mock.calls.some(([url]) => url === `${root}/appearances`)).toBe(false);
+    });
+
     it('fills web params, declared variations and templates of the web preview', async () => {
         const meta = await componentRepository.loadComponentData(context);
         const button = meta.find((item) => item.name === 'Button')!;

@@ -10,7 +10,10 @@ import { loadJournalComponentMetadata, type JournalComponentMetadata } from '../
 
 interface JournalData {
     changes: DraftChangeDto[];
+    total?: number;
+    readAt?: number;
     tokens: TokenDefinitionDto[];
+    tokensReadAt?: number;
     actorLabels: Record<string, string>;
     componentMetadata?: JournalComponentMetadata;
     palette: PaletteDto[];
@@ -21,8 +24,9 @@ export const errorCode = (error: unknown) => {
     let result: string | undefined;
     if (isAxiosError(error)) {
         const data: unknown = error.response?.data;
-        if (data && typeof data === 'object' && 'code' in data) {
-            const candidate = data.code;
+        if (data && typeof data === 'object') {
+            const body = data as { code?: unknown; error?: unknown };
+            const candidate = body.code ?? body.error;
             if (typeof candidate === 'string') {
                 result = candidate;
             }
@@ -31,12 +35,33 @@ export const errorCode = (error: unknown) => {
     return result;
 };
 
-const loadJournal = async (context: EditorContextKey, signal?: AbortSignal): Promise<JournalData> => {
-    const [changes, tokens, actorLabels] = await Promise.all([
-        repository.listChanges(context, signal),
-        tokenRepository.listDefinitions(context, signal),
+const definitionCursor = (changes: DraftChangeDto[]) =>
+    JSON.stringify(
+        changes
+            .filter((change) => change.entityType === 'token')
+            .map((change) => [change.entityId, change.editRevision])
+            .sort(),
+    );
+
+const loadJournal = async (
+    context: EditorContextKey,
+    signal?: AbortSignal,
+    previous?: JournalData,
+): Promise<JournalData> => {
+    let total: number | undefined;
+    const [changes, actorLabels] = await Promise.all([
+        repository.listChanges(context, signal, (value) => {
+            total = value;
+        }),
         repository.listProjectActorLabels(context.projectId, signal),
     ]);
+    // Изменение значения не меняет имена/типы. Отмена определения или новая его редакция меняет cursor.
+    const reuseDefinitions =
+        previous?.tokensReadAt !== undefined &&
+        Date.now() - previous.tokensReadAt < 30_000 &&
+        definitionCursor(previous.changes) === definitionCursor(changes);
+    const tokens = reuseDefinitions ? previous.tokens : await tokenRepository.listDefinitions(context, signal);
+    const tokensReadAt = reuseDefinitions ? previous.tokensReadAt : Date.now();
     const componentMetadata = changes.some(isComponentJournalChange)
         ? await loadJournalComponentMetadata(context, signal)
         : undefined;
@@ -44,7 +69,7 @@ const loadJournal = async (context: EditorContextKey, signal?: AbortSignal): Pro
     const palette = changes.some((change) => change.previousValue?.palette_id || change.currentValue?.palette_id)
         ? await tokenRepository.listPalette(context, signal)
         : [];
-    return { changes, tokens, actorLabels, componentMetadata, palette };
+    return { changes, total, readAt: Date.now(), tokens, tokensReadAt, actorLabels, componentMetadata, palette };
 };
 
 export const useJournal = (
@@ -61,6 +86,7 @@ export const useJournal = (
     const [status, setStatus] = useState<{ key: string; pending: boolean; error?: string }>();
     const request = useRef<{ generation: number; controller: AbortController }>();
     const generation = useRef(0);
+    const confirmed = useRef<{ key: string; data: JournalData }>();
     const reloadData = useCallback(
         async (propagateFailure: boolean) => {
             if (!enabled) return;
@@ -75,9 +101,14 @@ export const useJournal = (
             }
             setStatus({ key: contextKey, pending: true });
             try {
-                const loaded = await loadJournal(context, controller.signal);
+                const loaded = await loadJournal(
+                    context,
+                    controller.signal,
+                    confirmed.current?.key === contextKey ? confirmed.current.data : undefined,
+                );
                 if (!controller.signal.aborted && request.current?.generation === currentGeneration) {
-                    setSnapshot({ key: contextKey, data: loaded });
+                    confirmed.current = { key: contextKey, data: loaded };
+                    setSnapshot(confirmed.current);
                     setStatus({ key: contextKey, pending: false });
                 }
             } catch (cause) {

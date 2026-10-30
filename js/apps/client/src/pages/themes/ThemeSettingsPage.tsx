@@ -13,14 +13,14 @@ export const ThemeSettingsPage = ({ embedded = false }: { embedded?: boolean }) 
     const { projectId = '', designSystemId = '', tenantId = '' } = useParams();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const project = useLoad(() => projectsApi.get(projectId), [projectId], `project:${projectId}`);
+    const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
     const system = useLoad(
-        () => designSystemsApi.get(projectId, designSystemId),
+        (signal) => designSystemsApi.get(projectId, designSystemId, signal),
         [projectId, designSystemId],
         `system:${projectId}:${designSystemId}`,
     );
     const themes = useLoad(
-        () => designSystemsApi.tenants(projectId, designSystemId),
+        (signal) => designSystemsApi.tenants(projectId, designSystemId, signal),
         [projectId, designSystemId],
         `themes:${projectId}:${designSystemId}`,
     );
@@ -81,8 +81,10 @@ export const ThemeSettingsPage = ({ embedded = false }: { embedded?: boolean }) 
             />
         );
     const isPublishedVersion = Boolean(searchParams.get('versionId'));
-    const canWrite = !isPublishedVersion && project.data.status === 'active' && can(project.data.effectiveRole, 'tenants:write');
-    const canDelete = !isPublishedVersion && project.data.status === 'active' && can(project.data.effectiveRole, 'tenants:delete');
+    const canWrite =
+        !isPublishedVersion && project.data.status === 'active' && can(project.data.effectiveRole, 'tenants:write');
+    const canDelete =
+        !isPublishedVersion && project.data.status === 'active' && can(project.data.effectiveRole, 'tenants:delete');
     if (system.data.isTechnical || (!canWrite && !canDelete))
         return (
             <State
@@ -177,7 +179,7 @@ export const ThemeSettingsPage = ({ embedded = false }: { embedded?: boolean }) 
                                     disabled={confirmation !== theme.name}
                                     onClick={() =>
                                         void designSystemsApi
-                                            .removeTenant(projectId, tenantId)
+                                            .removeTenant(projectId, tenantId, designSystemId)
                                             .then(() => navigate(back))
                                     }
                                 >

@@ -39,6 +39,43 @@ class ProjectUseCasesTest {
     private val identityUserLookup = InMemoryIdentityUserLookup()
 
     @Test
+    fun `catalog batches authorized projects and preserves partial failures`() = kotlinx.coroutines.runBlocking {
+        val now = Instant.now(clock)
+        repeat(501) { index ->
+            val id = "visible-$index"
+            repository.seedProject(Project(id, id, null, ProjectStatus.ACTIVE, "user", now, now))
+        }
+        repository.seedProject(Project("hidden", "Hidden", null, ProjectStatus.ACTIVE, "other", now, now))
+        val batches = mutableListOf<List<String>>()
+        val counts = com.dsbuilder.projects.feature.projects.application.port.DesignSystemCounts { ids ->
+            batches += ids
+            if (batches.size == 2) error("DS unavailable")
+            ids.associateWith { 0 }
+        }
+        val result = ListProjectsUseCase(repository, tx, policy, counts).execute(
+            ListProjectsInput(AuthenticatedActor(ActorType.USER, "user", false)),
+        )
+        assertEquals(listOf(500, 1), batches.map { it.size })
+        assertFalse(batches.flatten().contains("hidden"))
+        assertEquals(500, result.count { it.designSystemCount == 0 })
+        assertEquals(1, result.count { it.designSystemCount == null })
+    }
+
+    @Test
+    fun `catalog propagates cancellation of count query`() = kotlinx.coroutines.runBlocking<Unit> {
+        val now = Instant.now(clock)
+        repository.seedProject(Project("owned", "Owned", null, ProjectStatus.ACTIVE, "user", now, now))
+        val counts = com.dsbuilder.projects.feature.projects.application.port.DesignSystemCounts {
+            throw kotlinx.coroutines.CancellationException("cancelled")
+        }
+        kotlin.test.assertFailsWith<kotlinx.coroutines.CancellationException> {
+            ListProjectsUseCase(repository, tx, policy, counts).execute(
+                ListProjectsInput(AuthenticatedActor(ActorType.USER, "user", false)),
+            )
+        }
+    }
+
+    @Test
     fun `create project keeps owner outside members table`() {
         kotlinx.coroutines.runBlocking {
             val created = CreateProjectUseCase(repository, tx, policy, clock).execute(

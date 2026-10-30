@@ -35,6 +35,38 @@ class ExposedDraftChangeRepository(
     private val policies: List<DraftChangePolicy> = emptyList(),
     private val dependencies: List<DraftChangeDependencyValidator> = emptyList(),
 ) : DraftChangeRepository {
+    override suspend fun summary(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+    ): Int? {
+        val target = boundary(projectId, systemAdmin, designSystemId, versionId) ?: return null
+        return compactReader(designSystemId, target).summary { handler, difference ->
+            change(handler, difference, designSystemId, target, null)
+        }
+    }
+
+    override suspend fun changedTokenIds(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+        tenantId: UUID,
+    ): Set<UUID>? {
+        val target = boundary(projectId, systemAdmin, designSystemId, versionId) ?: return null
+        return compactReader(designSystemId, target).tokenIds(tenantId)
+    }
+
+    private fun compactReader(owner: DesignSystemId, target: BoundaryRow) = CompactJournalReader(
+        handlers,
+        policies,
+        owner,
+        target.id,
+        target.sequenceNumber,
+        previousSequence(owner, target.sequenceNumber),
+    )
+
     override suspend fun page(
         projectId: ProjectId,
         systemAdmin: Boolean,
@@ -60,6 +92,22 @@ class ExposedDraftChangeRepository(
             change(subject, difference, designSystemId, target, edits[subject.entityType to difference.entityId])
         }.sortedWith(compareBy(DraftChange::entityType, DraftChange::entityId))
         return changes
+    }
+
+    override suspend fun pageAndSummary(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+        read: ModelReadQuery,
+    ): com.dsbuilder.ds.designsystems.application.DraftJournalRead? {
+        val changes = list(projectId, systemAdmin, designSystemId, versionId) ?: return null
+        val target = boundary(projectId, systemAdmin, designSystemId, versionId) ?: return null
+        return com.dsbuilder.ds.designsystems.application.DraftJournalRead(
+            changes.sortedWith(compareBy<DraftChange> { it.entityType }.thenBy { it.entityId.toString() })
+                .modelReadJournalPage(read, DraftChange::entityType, DraftChange::entityId),
+            compactReader(designSystemId, target).count(changes),
+        )
     }
 
     override suspend fun hasChanges(projectId: ProjectId, designSystemId: DesignSystemId): Boolean? {
