@@ -27,10 +27,13 @@ internal class PreviewPluginPublishCliCommand(
     private val publishUseCase: PublishPreviewPluginUseCase,
 ) : CliktCommand(name = "publish") {
     private val platform: TargetPlatform by option("--platform").targetPlatform().required()
-        .help("Platform of the plugin; only compose is supported.")
+        .help("Platform of the plugin: compose or react (the web plugin).")
 
     private val from: String by option("--from").required()
-        .help("Plugin archive (preview-compose-plugin.zip) with preview-plugin.json and api-meta.json.")
+        .help(
+            "Plugin archive (preview-compose-plugin.zip or preview-web-plugin.zip) with preview-plugin.json " +
+                "and api-meta.json.",
+        )
 
     private val apiUrl: String? by option("--api-url")
         .help("Backend API URL; an explicit URL is required because the command writes to the backend.")
@@ -72,7 +75,7 @@ internal class PreviewPluginPublishCliCommand(
 /** Цель и состав печатаются до запроса; секреты и токены не выводятся. */
 private fun PublishPreviewPluginTarget.render(): String = """
     Plugin: $source
-    Build: $buildId (uikit-compose $uikitComposeVersion)
+    Build: $buildId (${platform.libraryName()} $libraryVersion)
     Components: $componentCount
     Properties: $propertyCount
     States: $stateCount
@@ -87,8 +90,14 @@ private fun PublishPreviewPluginResult.Published.render(): String = buildString 
             else -> "Outcome: $outcome"
         },
     )
-    appendLine("Build: $buildId (uikit-compose $uikitComposeVersion)")
+    appendLine("Build: $buildId (${target.platform.libraryName()} $libraryVersion)")
     appendLine("Plugin URL: $pluginUrl")
     appendLine(report.render())
     append(if (dryRun) "Status: dry run, nothing was written" else "Status: plugin build published")
+}
+
+/** Библиотека компонентов, версия которой записана в manifest плагина платформы. */
+private fun TargetPlatform.libraryName(): String = when (this) {
+    TargetPlatform.REACT -> "plasma-new-hope"
+    else -> "uikit-compose"
 }
