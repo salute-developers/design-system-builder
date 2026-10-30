@@ -11,12 +11,14 @@ services:
       VITE_CLIENT_ID: dsbuilder-api
       # Источник палитры темы: api (ds-service, по умолчанию) или local (браузер, без сервера)
       VITE_PALETTE_SOURCE: api
-      # Empty by default: the client asks the backend for the active plugin build (published by publish-compose-plugin.sh).
+      # Empty by default: the client asks the backend for the active plugin build (published by publish-preview-plugin.sh).
       # A direct address overrides it, for example the dev server of the plugin at http://localhost:8081/.
       VITE_COMPOSE_PREVIEW_PLUGIN_URL: ${VITE_COMPOSE_PREVIEW_PLUGIN_URL:-}
       VITE_COMPONENT_EDITOR_ENABLED: ${VITE_COMPONENT_EDITOR_ENABLED:-true}
-      # Web preview plugin (the preview-web-plugin service below). Empty value keeps the React preview for web components.
-      VITE_WEB_PREVIEW_PLUGIN_URL: ${VITE_WEB_PREVIEW_PLUGIN_URL-http://localhost:3011/}
+      # Empty by default: the client asks the backend for the active web plugin build (published by setup-local.sh
+      # from local-dev/web-preview). A direct address overrides it while working on the plugin itself, for example
+      # http://localhost:3011/ of `npm run build && npm run preview` in apps/preview-web-plugin.
+      VITE_WEB_PREVIEW_PLUGIN_URL: ${VITE_WEB_PREVIEW_PLUGIN_URL:-}
     ports:
       - "3002:5173"
     networks:
@@ -25,26 +27,6 @@ services:
       - ./apps/client:/app
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
-
-  # Web preview plugin (Development): a separate origin for the client iframe, Vite dev server on port 3011.
-  preview-web-plugin:
-    build:
-      context: ./apps/preview-web-plugin
-      # The plugin has no dev image of its own: the client one only installs dependencies and runs `npm run dev`.
-      dockerfile: ../client/Dockerfile.dev
-    container_name: ds-builder-preview-web-plugin-dev
-    restart: unless-stopped
-    ports:
-      - "3011:3011"
-    networks:
-      - ds-builder-network
-    volumes:
-      - ./apps/preview-web-plugin:/app
-      - /app/node_modules
-    # Собранный бандл, как он будет лежать в S3: dev-сервер Vite отдаёт зависимости без отсечения лишнего
-    # (plasma-icons 10 МБ, plasma-new-hope 3,5 МБ, сотни модулей), и плагин в iframe грузится секундами.
-    # Для работы над кодом плагина: `docker compose ... run --service-ports preview-web-plugin npm run dev -- --host 0.0.0.0`.
-    command: sh -c "npm run build && npm run preview -- --host 0.0.0.0"
 
 networks:
   ds-builder-network:
