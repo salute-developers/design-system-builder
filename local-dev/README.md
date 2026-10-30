@@ -47,6 +47,15 @@
 В PowerShell используйте `-PluginZip`, `-ComponentsPackage`, `-ThemePackage`, `-SkipPlugin` и `-SkipDesignSystem`.
 Существующие Bash-скрипты выполняются во вспомогательном Linux-контейнере, без изменений для Windows.
 
+## Посмотреть файлы в MinIO
+
+Опубликованные билды плагина лежат в локальном MinIO, бакет `compose-preview`, каталог `builds/<build-id>/`.
+
+- Веб-консоль: http://localhost:9001 (порт меняется переменной `MINIO_CONSOLE_PORT`), логин `minio`, пароль `minio123`.
+  Это фиксированные учётные данные локального контура из `backend-kt/docker-compose.local.yml`, на стендах они другие.
+- Файлы бакета открыты на чтение без логина: `http://localhost:9000/compose-preview/builds/<build-id>/index.html`
+  (порт S3 меняется переменной `MINIO_PUBLIC_PORT`, если 9000 занят).
+
 ## Обновление файлов
 
 Из чекаута plasma-android (нужны JDK 17, Node и доступ к GitHub):

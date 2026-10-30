@@ -206,9 +206,11 @@ services:
     # Without a volume the buckets are lost on a Docker restart, while the registry still lists the plugin builds.
     volumes:
       - minio-data:/data
-    # The browser loads Compose preview plugin builds straight from the bucket.
+    # The browser loads Compose preview plugin builds straight from the bucket; the web console (minio/minio123)
+    # shows the buckets for local debugging.
     ports:
       - "${MINIO_PUBLIC_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
       interval: 10s
