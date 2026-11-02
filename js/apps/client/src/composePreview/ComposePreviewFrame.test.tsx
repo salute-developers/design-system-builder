@@ -267,6 +267,30 @@ describe('ComposePreviewFrame', () => {
         expect(session.send).not.toHaveBeenCalled();
     });
 
+    it('logs warnings of a successful result and keeps the success status', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const send = vi.fn().mockReturnValue({
+            requestId: 'request-1',
+            result: Promise.resolve({
+                type: 'success',
+                requestId: 'request-1',
+                warnings: [{ code: 'font_fallback', message: 'Font is unavailable' }],
+            }),
+        });
+        const { container } = render(
+            <ComposePreviewFrame
+                pluginUrl="https://plugin.example/"
+                payload={BASIC_BUTTON_PREVIEW_FIXTURE}
+                loadManifest={vi.fn().mockResolvedValue(loadedManifest)}
+                createSession={vi.fn().mockReturnValue(createSessionStub({ send }))}
+            />,
+        );
+
+        await waitFor(() => expect(container.querySelector('[data-status="success"]')).not.toBeNull());
+        expect(warn).toHaveBeenCalledWith('Preview warning font_fallback: Font is unavailable');
+        warn.mockRestore();
+    });
+
     it('keeps the iframe mounted and shows the reason when the plugin rejects a payload', async () => {
         const send = vi
             .fn()

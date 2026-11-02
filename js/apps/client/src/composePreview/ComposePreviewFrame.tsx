@@ -202,8 +202,11 @@ export const ComposePreviewFrame = ({
         const requestedFor = subscriber;
 
         void result
-            .then(() => {
+            .then((rendered) => {
                 if (latestRequestRef.current !== requestId) return;
+                if (rendered.type === 'success') {
+                    rendered.warnings?.forEach(({ code, message }) => console.warn(`Preview warning ${code}: ${message}`));
+                }
                 setRenderedFor(requestedFor);
                 setStatus('success');
             })
