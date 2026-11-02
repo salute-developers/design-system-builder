@@ -34,6 +34,7 @@
     },
     "fontFamily.body": {
       "type": "fontFamily",
+      "family": "SB Sans Text",
       "faces": [
         {
           "assetId": "body:4",

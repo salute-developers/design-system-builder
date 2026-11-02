@@ -28,7 +28,7 @@ Format highlights:
 - property sources: `literal` and `tokenRef` (both accept `alpha` 0..1), `styleRef` (key of the
   top-level `styles` map), `assetRef` (id from `assets`);
 - theme tokens: color, dimension, shape, shadow (layers with `spread`), gradient (linear layers, `angle` in degrees by the CSS convention: 0° bottom to top, 90° left to right),
-  fontFamily, typography (optional `fontStyle`: `NORMAL` | `ITALIC`);
+  fontFamily (optional `family`: the font family name), typography (optional `fontStyle`: `NORMAL` | `ITALIC`);
 - assets: `TTF`, `OTF`, `WOFF`, `WOFF2`, `SVG`, `PNG`; a plugin that does not support a font format uses the default
   font of the family with `allowFallback: true` and answers with a warning;
 - `styles` entries are `{component, properties}`; an entry may also carry the optional `variation` (variation name),
