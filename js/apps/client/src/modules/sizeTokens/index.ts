@@ -11,3 +11,4 @@ export {
     setSizeTokenRepository,
     sizeTokenSession,
 } from './sessions';
+export { saveSizeTokenDescription } from './data/tokenDescription';

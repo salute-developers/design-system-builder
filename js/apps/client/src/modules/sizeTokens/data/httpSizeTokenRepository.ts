@@ -142,10 +142,7 @@ const valueBody = (value: SizeTokenValue) => {
 const createBody = (operation: Extract<SizeTokenOperation, { type: 'create' }>) => {
     const { request } = operation;
     if (request.kind !== 'shadow') return request;
-    return {
-        ...request,
-        variants: request.variants.map((variant) => ({ ...variant, layers: variant.layers.map(requestLayer) })),
-    };
+    return { ...request, layers: request.layers.map(requestLayer) };
 };
 
 const toError = (error: unknown) => {
@@ -200,6 +197,7 @@ const request = (command: SizeTokenCommand) => {
     const headers = command.idempotencyKey ? { 'Idempotency-Key': command.idempotencyKey } : undefined;
     if (command.method === 'PUT') return http.put(command.path, command.body, { headers });
     if (command.method === 'POST') return http.post(command.path, command.body, { headers });
+    if (command.method === 'PATCH') return http.patch(command.path, command.body, { headers });
     return http.delete(command.path, { headers, ...(command.body === undefined ? {} : { data: command.body }) });
 };
 
@@ -236,6 +234,15 @@ export const createHttpSizeTokenRepository = (): SizeTokenRepository => ({
                 body: createBody(operation),
                 idempotencyKey: crypto.randomUUID(),
             };
+        if (operation.type === 'rename')
+            return {
+                id,
+                operation: 'rename',
+                method: 'PATCH',
+                path: tokensPath(context, `/${encodeURIComponent(operation.tokenId)}`),
+                body: { name: operation.name },
+                tokenId: operation.tokenId,
+            };
         return {
             id,
             operation: 'delete',
@@ -253,6 +260,10 @@ export const createHttpSizeTokenRepository = (): SizeTokenRepository => ({
         if (command.operation === 'create') {
             const { kind, created } = data as CreateDto;
             return { type: 'create', created: created.map((dto) => fromDto(kind ?? createdKind(command), dto)) };
+        }
+        if (command.operation === 'rename') {
+            const { kind, token } = data as UpdateDto;
+            return { type: 'rename', token: fromDto(kind, token) };
         }
         return { type: 'delete', deletedTokenIds: (data as { deletedTokenIds?: string[] }).deletedTokenIds ?? [] };
     },

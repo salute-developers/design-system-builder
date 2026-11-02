@@ -5,8 +5,10 @@ import {
     applyStyleChange,
     applyUpdatedStyle,
     groupStyles,
+    lineHeightWarning,
     mergeChanges,
     parseNumber,
+    screenGroups,
     screenStyles,
     styleLabel,
     validateChange,
@@ -26,6 +28,23 @@ describe('домен стилей типографии', () => {
         expect(groupStyles(styles, 'body m').map((group) => group.styles.map(styleLabel))).toEqual([['Body M']]);
         expect(groupStyles(styles, 'HEADER')[0].styles.map(styleLabel)).toEqual(['H1']);
         expect(groupStyles(styles, 'нет')).toEqual([]);
+    });
+
+    it('показывает группы прототипа без стилей как ненастроенные, а пустой экран — без групп', () => {
+        const styles = screenStyles(typographyStyles(), 'screen-l');
+        expect(screenGroups(styles).map((group) => [group.label, group.styles.length])).toEqual([
+            ['Display', 0],
+            ['Header', 1],
+            ['Body', 1],
+            ['Text', 0],
+        ]);
+        expect(screenGroups([])).toEqual([]);
+    });
+
+    it('предупреждает, если высота строки меньше размера шрифта', () => {
+        expect(lineHeightWarning(16, 14)).toBe(TYPOGRAPHY_MESSAGES.lineHeightBelowSize);
+        expect(lineHeightWarning(16, 16)).toBeNull();
+        expect(lineHeightWarning(16, -1)).toBeNull();
     });
 
     it('объединяет правки: поздние значения заменяют ранние, веса объединяются', () => {

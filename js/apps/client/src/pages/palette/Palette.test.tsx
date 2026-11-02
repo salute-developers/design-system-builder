@@ -72,13 +72,22 @@ const renderPalette = async () => {
     return screen.findByTestId('palette-page');
 };
 
-const renderLoading = (designSystem: unknown) =>
+const renderState = (outlet: Record<string, unknown>) =>
     render(
         <MemoryRouter initialEntries={['/p/d/t/palette']}>
             <Routes>
                 <Route
                     path="/:projectId/:designSystemId/:tenantId"
-                    element={<Outlet context={{ designSystem, palette: null, paletteError: null }} />}
+                    element={
+                        <Outlet
+                            context={{
+                                designSystem: { getParameters: () => ({}) },
+                                palette: null,
+                                paletteError: null,
+                                ...outlet,
+                            }}
+                        />
+                    }
                 >
                     <Route path="palette" element={<Palette />} />
                 </Route>
@@ -111,17 +120,51 @@ describe('раздел «Палитра»', () => {
             load.mockRestore();
         }
     });
-    it('загрузка палитры: индикатор по центру холста, как у загрузки темы', () => {
-        renderLoading({ getParameters: () => ({}) });
-        expect(screen.getByRole('status')).toHaveTextContent('Загружаем палитру…');
-        expect(screen.getByTestId('palette-loading')).toHaveClass('source-palette-placeholder');
+    it('загрузка: шапка дерева на месте, скелетоны дерева, борда и инспектора', () => {
+        renderState({});
+        const loading = screen.getByTestId('palette-loading');
+        expect(loading).toHaveAttribute('role', 'status');
+        expect(loading).toHaveAccessibleName('Загружаем палитру');
+        expect(within(loading).getByText('Палитра', { selector: '.tw-tree-header-title' })).toBeInTheDocument();
+        for (const part of ['tree', 'workspace', 'inspector'])
+            expect(loading.querySelector(`[data-skeleton="${part}"]`)).not.toBeNull();
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('загрузка темы (`sectionPending`): скелетоны, даже если палитра уже есть', async () => {
+        const palette = await paletteRepository.load(context);
+        renderState({ palette, sectionPending: true });
+        expect(screen.getByTestId('palette-loading')).toBeInTheDocument();
+        expect(screen.queryByTestId('palette-page')).toBeNull();
+    });
+
+    it.each([
+        ['палитры', { paletteError: new Error('500') }],
+        ['раздела', { sectionError: new Error('500') }],
+    ])('ошибка загрузки %s: «Не удалось загрузить палитру» и «Повторить»', (_, outlet) => {
+        const reload = vi.fn();
+        renderState({ ...outlet, reload });
+        const error = screen.getByTestId('palette-error');
+        expect(within(error).getByText('Палитра', { selector: '.tw-tree-header-title' })).toBeInTheDocument();
+        const alert = within(error).getByRole('alert');
+        expect(alert).toHaveTextContent('Не удалось загрузить палитру');
+        expect(alert).toHaveTextContent('Проверьте подключение и попробуйте ещё раз.');
+        expect(alert).not.toHaveTextContent('500');
+        fireEvent.click(within(alert).getByRole('button', { name: 'Повторить' }));
+        expect(reload).toHaveBeenCalledTimes(1);
     });
 
     it('показывает группы, растяжки, баннер local и выбирает первую растяжку', async () => {
         await renderPalette();
-        const inspector = document.querySelector('.source-palette-inspector-v3') as HTMLElement;
-        // Первая растяжка выбирается эффектом после загрузки палитры.
-        expect(await within(inspector).findByText('Neutral')).toBeInTheDocument();
+        const inspector = document.querySelector('.palette-inspector') as HTMLElement;
+        // Первая растяжка выбирается эффектом после загрузки палитры: шапка — имя растяжки, описание — группа и источник.
+        expect(await within(inspector).findByText('Gray', { selector: '.tw-inspector-title' })).toBeInTheDocument();
+        expect(
+            within(inspector).getByText('Neutral · Gray', { selector: '.tw-inspector-description' }),
+        ).toBeInTheDocument();
+        expect(within(inspector).getByRole('heading', { name: 'Источник палитры' })).toBeInTheDocument();
+        expect(within(inspector).getByRole('heading', { name: /^Связанные токены · \d+$/ })).toBeInTheDocument();
+        expect(screen.getByText('Палитра', { selector: '.tw-tree-header-title' })).toBeInTheDocument();
         expect(screen.getByText('Палитра хранится в этом браузере и не публикуется')).toBeInTheDocument();
         expect(card('Gray', 'Neutral')).toBeInTheDocument();
         // Без явной привязки avatar-bg попадает в Neutral: там general.green и additional.h130 (тоже Green).
@@ -130,10 +173,7 @@ describe('раздел «Палитра»', () => {
         // Как в прототипе: в источнике только «Семейство» и «Оттенок», у токенов нет метки группы.
         expect(within(inspector).queryByText('Слот')).toBeNull();
         expect(within(inspector).queryByText('Источник')).toBeNull();
-        expect(inspector.querySelector('.source-palette-usage-group')).toBeNull();
-        const names = [...inspector.querySelectorAll('.source-palette-usage-link strong')].map(
-            (item) => item.textContent,
-        );
+        const names = [...inspector.querySelectorAll('.palette-usage-name > span')].map((item) => item.textContent);
         expect(new Set(names).size).toBe(names.length); // одна строка на токен, режимы объединены
     });
 
@@ -141,20 +181,46 @@ describe('раздел «Палитра»', () => {
         await renderPalette();
         fireEvent.click(screen.getByRole('tab', { name: 'Цвет' }));
         expect(screen.getByRole('button', { name: 'Gray, цвет 900' })).toBeInTheDocument();
+        // Заголовок дерева в режиме «Цвет» не меняется.
+        expect(screen.getByText('Палитра', { selector: '.tw-tree-header-title' })).toBeInTheDocument();
+        expect(screen.getByRole('list', { name: 'Цвета Gray' })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('tab', { name: 'Изменённые' }));
         expect(screen.getByText('Нет палитр по выбранному фильтру')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('tab', { name: 'Все' }));
-        // Поле поиска, как в прототипе, скрыто до нажатия на лупу.
+        // Поле поиска встаёт на место заголовка по кнопке поиска.
         expect(screen.queryByRole('textbox', { name: 'Найти цвет или палитру' })).toBeNull();
-        fireEvent.click(screen.getByRole('button', { name: 'Найти цвет или палитру' }));
-        fireEvent.change(screen.getByRole('textbox', { name: 'Найти цвет или палитру' }), {
-            target: { value: 'нет-такой' },
-        });
+        fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
+        const field = screen.getByRole('textbox', { name: 'Найти цвет или палитру' });
+        expect(field).toHaveAttribute('placeholder', 'Найти цвет или палитру');
+        fireEvent.change(field, { target: { value: 'нет-такой' } });
         expect(screen.getByText('Нет палитр по выбранному фильтру')).toBeInTheDocument();
-        fireEvent.click(screen.getAllByRole('button', { name: 'Показать все' })[0]);
-        expect(screen.getByText('Gray', { selector: '.source-palette-ramp-title strong' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Показать все' }));
+        expect(screen.getByText('Gray', { selector: '.palette-ramp-meta strong' })).toBeInTheDocument();
+        expect(screen.queryByRole('textbox', { name: 'Найти цвет или палитру' })).toBeNull();
+    });
+
+    it('пустой поиск: одно сообщение в дереве, борд со сбросом, инспектор без скрытой растяжки', async () => {
+        await renderPalette();
+        const inspector = document.querySelector('.palette-inspector') as HTMLElement;
+        expect(await within(inspector).findByText('Gray', { selector: '.tw-inspector-title' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Найти палитру' }), { target: { value: 'нет-такой' } });
+
+        const tree = document.querySelector('.palette-tree') as HTMLElement;
+        expect(within(tree).getAllByRole('status')).toHaveLength(1);
+        expect(within(tree).getByRole('status')).toHaveTextContent('По вашему запросу ничего не найдено');
+        expect(within(tree).queryByRole('button', { name: 'Показать все' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Создать группу' })).toBeNull();
+        expect(screen.getAllByText('Нет палитр по выбранному фильтру')).toHaveLength(1);
+
+        expect(within(inspector).queryByText('Gray', { selector: '.tw-inspector-title' })).toBeNull();
+        expect(within(inspector).getByText('Выберите палитру или цвет.')).toBeInTheDocument();
+
+        // Закрытие поиска возвращает растяжку в инспектор.
+        fireEvent.click(screen.getByRole('button', { name: 'Закрыть поиск' }));
+        expect(within(inspector).getByText('Gray', { selector: '.tw-inspector-title' })).toBeInTheDocument();
     });
 
     it('«Поменять» меняет источник только в группе', async () => {
@@ -181,11 +247,28 @@ describe('раздел «Палитра»', () => {
         expect(card('Green', 'Syntax')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Убрать Green из группы Syntax' }));
-        const remove = await screen.findByRole('alertdialog', { name: 'Убрать Green из группы?' });
+        const remove = await screen.findByRole('dialog', { name: 'Убрать Green из группы?' });
+        expect(within(remove).getByText('Группа Syntax')).toBeInTheDocument();
+        expect(within(remove).getByRole('button', { name: 'Не удалять' })).toBeInTheDocument();
         fireEvent.click(within(remove).getByRole('button', { name: 'Убрать из группы' }));
         expect(await screen.findByText('Green убрана из группы Syntax.')).toBeInTheDocument();
         expect(cards('Green', 'Syntax')).toHaveLength(0);
         expect(screen.getByRole('button', { name: 'Добавить палитру в Syntax' })).toBeInTheDocument();
+    });
+
+    it('удаление растяжки со связями: замена или «Сохранить как Custom» в окне подтверждения', async () => {
+        await renderPalette();
+        fireEvent.click(screen.getByRole('button', { name: 'Убрать Gray из группы Neutral' }));
+        const dialog = await screen.findByRole('dialog', { name: 'Убрать Gray из группы?' });
+        const confirm = within(dialog).getByRole('button', { name: 'Убрать из группы' });
+        expect(confirm).toBeDisabled();
+        fireEvent.click(within(dialog).getByRole('option', { name: /Сохранить как Custom/ }));
+        expect(confirm).toBeEnabled();
+        fireEvent.click(within(dialog).getAllByRole('option', { name: /^Azure/ })[0]);
+        expect(within(dialog).getByRole('button', { name: 'Заменить' })).toBeEnabled();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Не удалять' }));
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(card('Gray', 'Neutral')).toBeInTheDocument();
     });
 
     it('«Создать группу» сразу создаёт группу и даёт переименовать её на месте', async () => {
@@ -231,7 +314,7 @@ describe('раздел «Палитра»', () => {
         Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() }, configurable: true });
         await renderPalette();
         fireEvent.click(screen.getByRole('tab', { name: 'Цвет' }));
-        const editorOpen = () => document.querySelector('.source-palette-step-editor') !== null;
+        const editorOpen = () => document.querySelector('.palette-step-editor') !== null;
 
         fireEvent.click(screen.getByTitle(/^Gray 900 ·/));
         expect(await screen.findByRole('button', { name: 'Изменить цвет' })).toBeInTheDocument();
@@ -256,7 +339,7 @@ describe('раздел «Палитра»', () => {
         await renderPalette();
         fireEvent.click(screen.getByRole('tab', { name: 'Цвет' }));
         fireEvent.click(screen.getByTitle(/^Gray 900 ·/));
-        expect(await screen.findByText('ЦВЕТ')).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: 'Цвет' })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Изменить цвет' })).toBeNull();
     });
 
@@ -279,14 +362,14 @@ describe('раздел «Палитра»', () => {
         const swatch = within(dialog).getByRole('button', { name: 'Выбрать опорный цвет' });
         fireEvent.click(swatch);
         expect(swatch).toHaveAttribute('aria-expanded', 'true');
-        const picker = dialog.querySelector<HTMLElement>('.source-palette-rebuild-picker')!;
+        const picker = dialog.querySelector<HTMLElement>('.palette-rebuild-picker')!;
         const field = within(picker).getByRole('textbox');
         fireEvent.change(field, { target: { value: '#1f8a70' } });
         fireEvent.blur(field);
         expect(within(dialog).getByRole('textbox', { name: 'HEX опорного цвета' })).toHaveValue('1F8A70');
 
         fireEvent.click(swatch);
-        expect(dialog.querySelector('.source-palette-rebuild-picker')).toBeNull();
+        expect(dialog.querySelector('.palette-rebuild-picker')).toBeNull();
     });
 
     it('название группы сохраняется по уходу фокуса; пустое оставляет прежнее', async () => {
@@ -330,10 +413,13 @@ describe('раздел «Палитра»', () => {
         expect(await screen.findByRole('button', { name: 'Перейти в Color tokens' })).toBeInTheDocument();
     });
 
-    it('только чтение: баннер и нет действий изменения', async () => {
+    it('только чтение: баннер в инспекторе, как на экранах токенов, и нет действий изменения', async () => {
         state.canEdit = false;
         await renderPalette();
-        expect(screen.getByText('Только просмотр')).toBeInTheDocument();
+        const inspector = document.querySelector('.palette-inspector') as HTMLElement;
+        expect(within(inspector).getByText('Только просмотр')).toBeInTheDocument();
+        expect(screen.getAllByText('Только просмотр')).toHaveLength(1);
+        expect(screen.queryByRole('button', { name: /^Убрать .* из группы/ })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Создать группу' })).toBeNull();
         expect(screen.queryByRole('button', { name: /Добавить палитру в/ })).toBeNull();
         fireEvent.click(card('Green', 'Neutral'));

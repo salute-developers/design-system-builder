@@ -39,7 +39,7 @@ class TypographyStyleUseCaseTest {
     private val repository = FakeTypographyStyleRepository(
         designSystemId = UUID.randomUUID(),
         tenants = setOf(tenantA, tenantB),
-        definitions = ids.entries.associate { (name, id) -> id to (name to ThemeTokenType.TYPOGRAPHY) } +
+        initialDefinitions = ids.entries.associate { (name, id) -> id to (name to ThemeTokenType.TYPOGRAPHY) } +
             (outside to ("text.default.primary" to ThemeTokenType.COLOR)),
         values = mutableMapOf(tenantA to initialValues(), tenantB to initialValues()),
         families = listOf(TypographyFamily("display", "SB Sans Display"), TypographyFamily("body", "SB Sans Text")),

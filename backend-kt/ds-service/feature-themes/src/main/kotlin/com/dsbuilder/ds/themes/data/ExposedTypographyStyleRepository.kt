@@ -1,5 +1,8 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.TokenReferenceBinder
+import com.dsbuilder.ds.core.application.TokenReferenceCleaner
+import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.entityEditRevisions
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
 import com.dsbuilder.ds.core.data.lockDraftSubjects
@@ -15,19 +18,25 @@ import com.dsbuilder.ds.themes.domain.typography.StoredTypographyToken
 import com.dsbuilder.ds.themes.domain.typography.TypographyFamily
 import com.dsbuilder.ds.themes.domain.typography.TypographyPlatformValues
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleKey
+import com.dsbuilder.ds.themes.domain.typography.TypographyStyleNaming
 import com.dsbuilder.ds.themes.domain.typography.TypographyTokenName
 import com.dsbuilder.ds.themes.domain.typography.TypographyValueRevision
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.jdbc.insert
+import java.time.Instant
 import java.util.UUID
 
 /**
  * Exposed-хранилище стилей типографии поверх предметных редакций: определения — `token_revisions`, значения —
  * `token_value_revisions` на границе транзакции, технические редакции — `entity_edit_states`.
  */
-class ExposedTypographyStyleRepository : TypographyStyleRepository {
+class ExposedTypographyStyleRepository(
+    private val referenceCleaners: List<TokenReferenceCleaner> = emptyList(),
+    private val referenceBinders: List<TokenReferenceBinder> = emptyList(),
+) : TypographyStyleRepository {
     override suspend fun tenant(projectId: ProjectId, tenantId: UUID): TypographyTenant? =
         currentTenantRows(projectId, tenantId = tenantId).singleOrNull()
             ?.takeIf { it[ThemeDesignSystemsTable.projectId] == projectId.value }
@@ -107,6 +116,95 @@ class ExposedTypographyStyleRepository : TypographyStyleRepository {
             )
         }
     }
+
+    override suspend fun tokenNames(designSystemId: UUID): Set<String> =
+        currentThemeTokenRows(designSystemId).mapTo(hashSetOf()) { row ->
+            row[ThemeTokenRevisionsTable.name].trim().lowercase()
+        }
+
+    override suspend fun createStyle(
+        designSystemId: UUID,
+        sources: Map<TypographyTokenName, UUID>,
+    ): Map<TypographyTokenName, UUID> {
+        val tenants = currentTenantRows(designSystemId = designSystemId).mapTo(sortedSetOf()) { it[TenantsTable.id] }
+        val values = currentThemeTokenValueRows(designSystemId, tenants, sources.values.toSet())
+            .filter { it[ThemeTokenValuesTable.mode] == null && it[ThemeTokenValuesTable.platform] != null }
+            .groupBy { it[ThemeTokenValuesTable.tokenId] }
+        // Новые адреса не имеют путей, поэтому базовая редакция запроса не даёт предупреждений, а метаданные
+        // перечисляют созданные определения и значения, как у создания токенов размеров.
+        return sources.entries.sortedBy { it.key.toString() }.associate { (name, source) ->
+            val entity = UUID.randomUUID()
+            ThemeTokensTable.insert {
+                it[id] = entity
+                it[ThemeTokensTable.designSystemId] = designSystemId
+                it[createdAt] = Instant.now()
+            }
+            writeThemeTokenRevision(entity, designSystemId, payload(name), setOf("/"))
+            values[source].orEmpty()
+                .sortedWith(compareBy({ it[ThemeTokenValuesTable.tenantId] }, { it[ThemeTokenValuesTable.platform] }))
+                .forEach { row ->
+                    writeThemeValueRevision(
+                        entity = stableThemeValue(
+                            designSystemId,
+                            row[ThemeTokenValuesTable.tenantId],
+                            entity,
+                            requireNotNull(row[ThemeTokenValuesTable.platform]),
+                        ),
+                        owner = designSystemId,
+                        palette = null,
+                        data = row[ThemeTokenValueRevisionsTable.value],
+                        paths = setOf("/"),
+                        overridden = row[ThemeTokenValueRevisionsTable.overridden],
+                    )
+                }
+            name to entity
+        }
+    }
+
+    override suspend fun renameStyle(
+        designSystemId: UUID,
+        names: Map<UUID, TypographyTokenName>,
+        references: Map<UUID, Set<UUID>>,
+    ) {
+        bind(designSystemId, references)
+        names.toSortedMap().forEach { (token, name) ->
+            reviseThemeToken(token, setOf("/name", "/display_name", "/description")) {
+                it.copy(
+                    name = name.toString(),
+                    displayName = TypographyStyleNaming.displayName(name),
+                    description = TypographyStyleNaming.description(name),
+                )
+            }
+        }
+    }
+
+    override suspend fun deleteStyle(designSystemId: UUID, tokenIds: Set<UUID>, references: Map<UUID, Set<UUID>>) {
+        if (tokenIds.isEmpty()) return
+        bind(designSystemId, references)
+        // Редакция удаляемого определения не является базовой редакцией каждого зависимого значения и ссылки.
+        SubjectMutationPaths.withoutBaseComparison {
+            referenceCleaners.forEach { it.clear(designSystemId, tokenIds) }
+            deleteThemeValues(tokenIds)
+        }
+        tokenIds.sorted().forEach { token -> reviseThemeToken(token, setOf("/deleted")) { it.copy(deleted = true) } }
+    }
+
+    /** Привязывает текстовые ссылки компонентов к токенам по `token_id`: токен → строки значений. */
+    private suspend fun bind(designSystemId: UUID, references: Map<UUID, Set<UUID>>) =
+        references.toSortedMap().forEach { (token, rows) ->
+            referenceBinders.forEach { it.bind(designSystemId, token, rows) }
+        }
+
+    /** Определение нового токена стиля по правилу сида. */
+    private fun payload(name: TypographyTokenName) = ThemeTokenPayload(
+        name = name.toString(),
+        type = ThemeTokenType.TYPOGRAPHY,
+        displayName = TypographyStyleNaming.displayName(name),
+        description = TypographyStyleNaming.description(name),
+        enabled = true,
+        groupId = null,
+        position = 0,
+    )
 
     /** Токены стилей дизайн-системы на границе: идентификатор → разобранное имя. */
     private fun styleTokens(designSystemId: UUID, style: TypographyStyleKey?): Map<UUID, TypographyTokenName> =

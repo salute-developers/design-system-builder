@@ -23,6 +23,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
@@ -38,6 +39,7 @@ fun Route.sizeTokenRoutes(evaluator: PolicyEvaluator, useCases: SizeTokenUseCase
         sizeTokenReadRoute(evaluator, useCases)
         sizeTokenCreateRoute(evaluator, useCases)
         sizeTokenUpdateRoute(evaluator, useCases)
+        sizeTokenRenameRoute(evaluator, useCases)
         sizeTokenDeleteRoute(evaluator, useCases)
     }
 }
@@ -94,6 +96,21 @@ private fun Route.sizeTokenUpdateRoute(evaluator: PolicyEvaluator, useCases: Siz
     }
 }
 
+private fun Route.sizeTokenRenameRoute(evaluator: PolicyEvaluator, useCases: SizeTokenUseCases) {
+    patch("/{tokenId}") {
+        val (context, tenantId) = call.tenantTarget(evaluator) ?: return@patch
+        val tokenId = call.tokenId() ?: return@patch
+        val body = call.body<RenameSizeTokenRequest>() ?: return@patch call.respondFailure(BODY)
+        when (val result = useCases.rename.execute(context, tenantId, tokenId, body.name)) {
+            is DsResult.Success -> call.respondSuccess(
+                result,
+                RenameSizeTokenResponse(result.value.kind.wireValue, result.value.toJson()),
+            )
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}
+
 private fun Route.sizeTokenDeleteRoute(evaluator: PolicyEvaluator, useCases: SizeTokenUseCases) {
     delete("/{tokenId}") {
         val (context, tenantId) = call.tenantTarget(evaluator) ?: return@delete
@@ -113,7 +130,11 @@ private fun CreateSizeTokenRequest.toCommand(): CreateSizeToken? = SizeTokenKind
     CreateSizeToken(
         kind = tokenKind,
         name = name,
-        value = SizeValueInput(valuePx = valuePx, layers = layers, variants = variants),
+        value = SizeValueInput(
+            valuePx = valuePx,
+            layers = layers,
+            fallbackElevation = fallbackElevation,
+        ),
     )
 }
 

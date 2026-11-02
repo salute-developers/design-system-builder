@@ -8,6 +8,6 @@ import kotlinx.serialization.json.JsonElement
 data class CreateSizeTokenResponse(
     /** Раздел. */
     val kind: String,
-    /** Созданные токены в формате чтения: один радиус или отступ, четыре варианта тени. */
+    /** Созданный токен в формате чтения: радиус, отступ или тень. */
     val created: List<JsonElement>,
 )

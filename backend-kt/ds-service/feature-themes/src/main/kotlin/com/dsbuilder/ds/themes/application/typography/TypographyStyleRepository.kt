@@ -4,6 +4,7 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.domain.typography.StoredTypographyToken
 import com.dsbuilder.ds.themes.domain.typography.TypographyFamily
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleKey
+import com.dsbuilder.ds.themes.domain.typography.TypographyTokenName
 import java.util.UUID
 
 /**
@@ -44,4 +45,32 @@ interface TypographyStyleRepository {
 
     /** Записывает новые редакции значений активного черновика с путём `/value`; остальные значения не меняются. */
     suspend fun writeValues(designSystemId: UUID, values: List<TypographyValueWrite>)
+
+    /** Имена действующих токенов дизайн-системы любого типа в нижнем регистре: проверка занятого имени. */
+    suspend fun tokenNames(designSystemId: UUID): Set<String>
+
+    /**
+     * Создаёт токены стиля: новое имя → токен-источник, значения которого во всех темах копируются в новый токен;
+     * определения — по правилу сида. Результат — новое имя → идентификатор.
+     */
+    suspend fun createStyle(
+        designSystemId: UUID,
+        sources: Map<TypographyTokenName, UUID>,
+    ): Map<TypographyTokenName, UUID>
+
+    /**
+     * Переименовывает токены стиля [names] (идентификатор → новое имя) с отображаемым именем и описанием по правилу
+     * сида; перед этим привязывает по `token_id` текстовые ссылки компонентов [references] (токен → строки значений).
+     */
+    suspend fun renameStyle(
+        designSystemId: UUID,
+        names: Map<UUID, TypographyTokenName>,
+        references: Map<UUID, Set<UUID>>,
+    )
+
+    /**
+     * Логически удаляет токены стиля [tokenIds] со значениями во всех темах; текстовые ссылки компонентов
+     * [references] привязываются по `token_id` и очищаются вместе со ссылками на удаляемые токены.
+     */
+    suspend fun deleteStyle(designSystemId: UUID, tokenIds: Set<UUID>, references: Map<UUID, Set<UUID>>)
 }

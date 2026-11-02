@@ -1,13 +1,31 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type KeyboardEvent,
+    type ReactNode,
+    type RefObject,
+} from 'react';
+import { ChevronDownOutline, CloseOutline, PlusOutline, TrashOutline } from '@salutejs/sdds-icons/16';
 
+import {
+    FieldMessage,
+    InspectorHeader,
+    instancesLabel,
+    SectionHeader,
+    fieldClass,
+} from '../../../components/tokenWorkspace';
 import {
     TYPOGRAPHY_OVERRIDE_PLATFORMS,
     TYPOGRAPHY_VARIANTS,
     TYPOGRAPHY_WEIGHTS,
     formatNumber,
     groupLabel,
+    lineHeightWarning,
     parseNumber,
-    sampleText,
+    screenLabel,
     styleLabel,
     styleVariant,
     type TypographyField,
@@ -17,7 +35,6 @@ import {
     type TypographyStyleChange,
     type TypographyVariant,
 } from '../../../modules/typographyTokens';
-import { TyGlyph } from './TyGlyph';
 
 interface TypographyInspectorProps {
     style: TypographyStyle;
@@ -27,16 +44,27 @@ interface TypographyInspectorProps {
     banners: ReactNode;
     /** Выбранное начертание: общее с бордом, остаётся при выборе другого стиля. */
     variant: TypographyVariant;
+    description: string;
+    /** Подсказка пустого описания — образец текста группы. */
+    descriptionPlaceholder?: string;
+    onDescribe?: (description: string) => Promise<void>;
+    /** Переименование двойным щелчком по имени: правится размер стиля, группа не меняется. */
+    onRename?: (size: string) => Promise<void>;
+    /** Удаление стиля на всех экранах; без него кнопки нет. */
+    onDelete?: () => void;
+    /** Сброс изменений стиля в черновике: кнопку подключает экран, когда действие задано. */
+    onReset?: () => void;
+    resetDisabled?: boolean;
     onVariantChange: (variant: TypographyVariant) => void;
     error: (field: TypographyField, platform?: TypographyOverridePlatform) => string | null;
     onChange: (change: TypographyStyleChange) => void;
     onOpenComponent: (name: string) => void;
 }
 
-/** Иконки полей `typographyPropertyIcon` прототипа. */
+/** Значки полей `Inspector/TypographyPropertyIcon`: буквы «Tt», «B», «Aa» и знаки размеров из прототипа. */
 const ICONS = {
     family: <span className="typography-property-letters">Tt</span>,
-    weight: <span className="typography-property-letters is-weight">B</span>,
+    weight: <span className="typography-property-letters">B</span>,
     variant: <span className="typography-property-letters">Aa</span>,
     size: (
         <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -56,9 +84,9 @@ const ICONS = {
     ),
 } as const;
 
-const PropertyIcon = ({ name }: { name: keyof typeof ICONS }) => (
-    <span className="typography-property-icon">{ICONS[name]}</span>
-);
+type IconName = keyof typeof ICONS;
+
+const PropertyIcon = ({ name }: { name: IconName }) => <span className="typography-property-icon">{ICONS[name]}</span>;
 
 const familyTitle = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 
@@ -83,21 +111,46 @@ const useDismiss = (ref: RefObject<HTMLElement>, open: boolean, close: () => voi
     }, [ref, open, close]);
 };
 
-interface NumberFieldProps {
-    icon: keyof typeof ICONS;
+/** Открытый список прокручивается к выбранному пункту. */
+const useRevealSelected = (menu: RefObject<HTMLElement>, open: boolean) => {
+    useEffect(() => {
+        if (!open) return;
+        const selected = menu.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+        selected?.scrollIntoView?.({ block: 'nearest' });
+    }, [menu, open]);
+};
+
+type Tone = 'error' | 'warning' | null;
+
+interface FieldShellProps {
+    icon: IconName;
     /** Подпись вместо значка: «↳ iOS» у своего значения платформы. */
     lead?: ReactNode;
     /** Действие в конце поля: «×» у своего значения платформы. */
     trailing?: ReactNode;
+    tone: Tone;
+    open?: boolean;
+    disabled: boolean;
+    children: ReactNode;
+}
+
+/** Поле значения `Inspector/TypographyField`: значок, значение и действие; рамка показывает фокус и состояние. */
+const FieldShell = ({ icon, lead, trailing, tone, open, disabled, children }: FieldShellProps) => (
+    <div className={`typography-field ${fieldClass(tone)} ${open ? 'is-open' : ''} ${disabled ? 'is-disabled' : ''}`}>
+        {lead ?? <PropertyIcon name={icon} />}
+        {children}
+        {trailing}
+    </div>
+);
+
+interface NumberFieldProps extends Omit<FieldShellProps, 'children' | 'open'> {
     label: string;
     value: number;
-    error: string | null;
-    disabled: boolean;
     onCommit: (value: number) => void;
 }
 
 /** Числовое поле: правка отправляется при уходе из поля или Enter; не число возвращает прежнее значение. */
-const NumberField = ({ icon, lead, trailing, label, value, error, disabled, onCommit }: NumberFieldProps) => {
+const NumberField = ({ label, value, tone, disabled, onCommit, ...shell }: NumberFieldProps) => {
     const [text, setText] = useState(formatNumber(value));
     useEffect(() => setText(formatNumber(value)), [value]);
     const commit = () => {
@@ -106,91 +159,80 @@ const NumberField = ({ icon, lead, trailing, label, value, error, disabled, onCo
             setText(formatNumber(value));
             return;
         }
-        if (parsed !== value || error) onCommit(parsed);
+        if (parsed !== value || tone === 'error') onCommit(parsed);
     };
     return (
-        <div>
-            <div className={`typography-property-field ${error ? 'has-error' : ''}`}>
-                {lead ?? <PropertyIcon name={icon} />}
-                <div className="typography-property-value">
-                    <input
-                        value={text}
-                        aria-label={label}
-                        aria-invalid={Boolean(error)}
-                        disabled={disabled}
-                        onChange={(event) => setText(event.target.value)}
-                        onBlur={commit}
-                        onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-                            if (event.key === 'Enter') event.currentTarget.blur();
-                        }}
-                    />
-                </div>
-                {trailing}
-            </div>
-            {error && (
-                <p className="typography-field-error" role="alert">
-                    {error}
-                </p>
-            )}
-        </div>
+        <FieldShell {...shell} tone={tone} disabled={disabled}>
+            <input
+                className="typography-field-input"
+                value={text}
+                aria-label={label}
+                aria-invalid={tone === 'error'}
+                disabled={disabled}
+                onChange={(event) => setText(event.target.value)}
+                onBlur={commit}
+                onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+                    if (event.key === 'Enter') event.currentTarget.blur();
+                }}
+            />
+        </FieldShell>
     );
 };
 
-interface SelectFieldProps {
-    icon: keyof typeof ICONS;
-    lead?: ReactNode;
-    trailing?: ReactNode;
-    label: string;
+interface SelectOption {
     value: string;
-    options: Array<{ value: string; label: string }>;
-    error: string | null;
-    disabled: boolean;
+    label: ReactNode;
+}
+
+interface SelectFieldProps extends Omit<FieldShellProps, 'children' | 'open'> {
+    label: string;
+    /** Доступное имя списка, если оно отличается от имени поля. */
+    menuLabel?: string;
+    value: string;
+    /** Значение в поле, если оно отличается от подписи пункта. */
+    display?: ReactNode;
+    options: SelectOption[];
     onChange: (value: string) => void;
 }
 
 /**
- * Поле выбора `typographyPropertyField` прототипа: значок, значение и шеврон. Список — своё меню, как у семейства:
- * выпадающий список нативного `<select>` браузеры рисуют по-своему, в Chrome на Windows — светлым текстом на белом.
+ * Поле выбора: значок, значение и шеврон, список — меню `Dropdown/Menu`. Нативный `<select>` браузеры рисуют
+ * по-своему, в Chrome на Windows — светлым текстом на белом.
  */
-const SelectField = ({ icon, lead, trailing, label, value, options, error, disabled, onChange }: SelectFieldProps) => {
+const SelectField = ({ label, menuLabel, value, display, options, disabled, onChange, ...shell }: SelectFieldProps) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
+    const menu = useRef<HTMLDivElement>(null);
     const close = useCallback(() => setOpen(false), []);
     useDismiss(ref, open, close);
+    useRevealSelected(menu, open);
     const selected = options.find((option) => option.value === value);
     return (
-        <div className="typography-select-control" ref={ref}>
-            <div
-                className={`typography-property-field is-select-field ${error ? 'has-error' : ''} ${trailing ? 'has-trailing' : ''}`}
-            >
-                {lead ?? <PropertyIcon name={icon} />}
-                <div className="typography-property-value">
-                    <button
-                        type="button"
-                        className="typography-select-trigger"
-                        aria-label={label}
-                        aria-haspopup="listbox"
-                        aria-expanded={open}
-                        disabled={disabled}
-                        onClick={() => setOpen((current) => !current)}
-                    >
-                        {selected?.label ?? value}
-                    </button>
-                    <span className="typography-property-chevron">
-                        <TyGlyph name="chevron-down" />
-                    </span>
-                </div>
-                {trailing}
-            </div>
+        <div className="typography-select" ref={ref}>
+            <FieldShell {...shell} disabled={disabled} open={open && !disabled}>
+                <button
+                    type="button"
+                    className="typography-select-trigger"
+                    aria-label={label}
+                    aria-haspopup="listbox"
+                    aria-expanded={open}
+                    title={typeof selected?.label === 'string' ? selected.label : undefined}
+                    disabled={disabled}
+                    onClick={() => setOpen((current) => !current)}
+                >
+                    <span className="typography-select-value">{display ?? selected?.label ?? value}</span>
+                    {!disabled && <ChevronDownOutline className="typography-select-chevron" />}
+                </button>
+            </FieldShell>
             {open && !disabled && (
-                <div className="font-family-menu typography-select-menu" role="listbox" aria-label={label}>
+                <div className="tw-menu typography-menu" role="listbox" aria-label={menuLabel ?? label} ref={menu}>
                     {options.map((option) => (
                         <button
                             key={option.value}
                             type="button"
                             role="option"
                             aria-selected={option.value === value}
-                            className={option.value === value ? 'is-selected' : ''}
+                            className="tw-menu-item"
                             onClick={() => {
                                 setOpen(false);
                                 if (option.value !== value) onChange(option.value);
@@ -200,11 +242,6 @@ const SelectField = ({ icon, lead, trailing, label, value, options, error, disab
                         </button>
                     ))}
                 </div>
-            )}
-            {error && (
-                <p className="typography-field-error" role="alert">
-                    {error}
-                </p>
             )}
         </div>
     );
@@ -221,7 +258,7 @@ const FIELD_LABELS: Record<OverridableField, string> = {
     weight: 'Weight',
 };
 
-/** «+» у поля: меню платформ, у которых ещё нет своего значения. */
+/** «+» у поля: кнопка-иконка 24×24 видна всегда, меню — платформы, у которых ещё нет своего значения. */
 const OverrideAdd = ({
     platforms,
     onAdd,
@@ -233,25 +270,28 @@ const OverrideAdd = ({
     const ref = useRef<HTMLDivElement>(null);
     const close = useCallback(() => setOpen(false), []);
     useDismiss(ref, open, close);
-    if (!platforms.length) return null;
     return (
         <div className="typography-override-add" ref={ref}>
             <button
                 type="button"
+                className="tw-icon-button"
                 aria-label="Своё значение платформы"
                 title="Своё значение платформы"
+                aria-haspopup="menu"
                 aria-expanded={open}
+                disabled={!platforms.length}
                 onClick={() => setOpen((value) => !value)}
             >
-                <TyGlyph name="add" />
+                <PlusOutline />
             </button>
-            {open && (
-                <div className="font-family-menu typography-override-menu" role="menu">
+            {open && platforms.length > 0 && (
+                <div className="tw-menu typography-menu typography-override-menu" role="menu">
                     {platforms.map((platform) => (
                         <button
                             key={platform.id}
                             type="button"
                             role="menuitem"
+                            className="tw-menu-item"
                             onClick={() => {
                                 setOpen(false);
                                 onAdd(platform.id);
@@ -266,16 +306,41 @@ const OverrideAdd = ({
     );
 };
 
-/** Веса прототипа; вес темы вне списка добавляется, чтобы поле показывало текущее значение. */
+/**
+ * Веса прототипа; вес темы вне списка добавляется, чтобы поле показывало текущее значение. Половинное поле веса
+ * рядом с «+» показывает только число: подпись «400 / Regular» видна в списке и подсказке поля.
+ */
 const weightOptions = (weight: number | undefined) =>
-    weight === undefined || TYPOGRAPHY_WEIGHTS.some((option) => option.value === weight)
+    (weight === undefined || TYPOGRAPHY_WEIGHTS.some((option) => option.value === weight)
         ? TYPOGRAPHY_WEIGHTS
-        : [...TYPOGRAPHY_WEIGHTS, { value: weight, label: String(weight) }].sort((a, b) => a.value - b.value);
+        : [...TYPOGRAPHY_WEIGHTS, { value: weight, label: String(weight) }].sort((a, b) => a.value - b.value)
+    ).map((option) => ({ value: String(option.value), label: option.label }));
 
-/** Инспектор стиля по ветке `fonts` функции `tokenInspector` прототипа: «Стиль», «Начертания», «Влияние». */
+/** Сообщения пары полей: ошибки и предупреждение под парой на всю ширину секции. */
+interface RowMessage {
+    tone: 'error' | 'warning';
+    text: string;
+}
+
+const RowMessages = ({ messages }: { messages: RowMessage[] }) => {
+    const unique = messages.filter(
+        (message, index) => messages.findIndex((other) => other.text === message.text) === index,
+    );
+    return (
+        <>
+            {unique.map((message) => (
+                <FieldMessage key={message.text} tone={message.tone}>
+                    {message.text}
+                </FieldMessage>
+            ))}
+        </>
+    );
+};
+
+/** Инспектор стиля: шапка, секции «Стиль», «Влияние» и список компонентов. */
 export const TypographyInspector = (props: TypographyInspectorProps) => {
     const { style, families, themeCount, editable, error, onChange } = props;
-    const [menuOpen, setMenuOpen] = useState(false);
+    const disabled = !editable;
     const variant = styleVariant(style, props.variant);
     const variantLabel = TYPOGRAPHY_VARIANTS.find(({ id }) => id === variant)?.label ?? variant;
     const weight = style.variants[variant]?.weight;
@@ -301,222 +366,229 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
         if (overrideOf(platform, field) !== undefined && base !== undefined) commitOverride(platform, field, base);
     };
 
+    const errorKey = (field: OverridableField): TypographyField => (field === 'weight' ? `weights.${variant}` : field);
+    /** Предупреждение высоты строки: веб или своё значение платформы, размер — того же источника. */
+    const warningOf = (field: OverridableField, platform?: TypographyOverridePlatform) => {
+        if (field !== 'lineHeight') return null;
+        const size = (platform && overrideOf(platform, 'size')) ?? style.sizePx;
+        const lineHeight = (platform && overrideOf(platform, 'lineHeight')) ?? style.lineHeightPx;
+        return lineHeightWarning(size, lineHeight);
+    };
+    const toneOf = (field: OverridableField, platform?: TypographyOverridePlatform): Tone =>
+        error(errorKey(field), platform) ? 'error' : warningOf(field, platform) ? 'warning' : null;
+    /** Сообщения поля и его своих значений. */
+    const messagesOf = (field: OverridableField): RowMessage[] =>
+        [undefined, ...platformsWith(field).map(({ id }) => id)].flatMap((platform): RowMessage[] => {
+            const text = error(errorKey(field), platform);
+            if (text) return [{ tone: 'error' as const, text }];
+            const warning = warningOf(field, platform);
+            return warning ? [{ tone: 'warning' as const, text: warning }] : [];
+        });
+
     /** Поле с «+» и строками своих значений iOS и Android под ним. */
     const overridable = (field: OverridableField, base: ReactNode) => {
         const rows = platformsWith(field);
         const addable = TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(({ id }) => !rows.some((row) => row.id === id));
         return (
-            <div className={`typography-overridable ${field === 'weight' ? 'is-select' : ''}`}>
-                {base}
-                {!disabled && (
-                    <OverrideAdd
-                        platforms={addable}
-                        onAdd={(platform) => setAdded((keys) => [...keys, `${field}:${platform}`])}
-                    />
-                )}
+            <div className="typography-overridable">
+                <div className="typography-value-line">
+                    {base}
+                    {!disabled && (
+                        <OverrideAdd
+                            platforms={addable}
+                            onAdd={(platform) => setAdded((keys) => [...keys, `${field}:${platform}`])}
+                        />
+                    )}
+                </div>
                 {rows.map(({ id, label }) => {
                     const lead = <span className="typography-override-label">↳ {label}</span>;
                     const remove = !disabled && (
                         <button
                             type="button"
-                            className="typography-override-remove"
+                            className="typography-field-action"
                             aria-label={`Убрать своё значение ${label}`}
                             title={`Убрать своё значение ${label}`}
                             onClick={() => removeOverride(id, field)}
                         >
-                            <TyGlyph name="close" />
+                            <CloseOutline />
                         </button>
                     );
                     const value = overrideOf(id, field) ?? baseOf(field) ?? 0;
-                    return field === 'weight' ? (
-                        <SelectField
-                            key={id}
-                            icon="weight"
-                            lead={lead}
-                            trailing={remove}
-                            label={`Weight ${variantLabel} ${label}`}
-                            value={String(value)}
-                            disabled={disabled}
-                            error={error(`weights.${variant}`, id)}
-                            options={weightOptions(value).map((option) => ({
-                                value: String(option.value),
-                                label: option.label,
-                            }))}
-                            onChange={(next) => commitOverride(id, field, Number(next))}
-                        />
-                    ) : (
-                        <NumberField
-                            key={`${id}:${field}:${style.screen}:${style.group}.${style.size}`}
-                            icon={field}
-                            lead={lead}
-                            trailing={remove}
-                            label={`${FIELD_LABELS[field]} ${label}`}
-                            value={value}
-                            error={error(field, id)}
-                            disabled={disabled}
-                            onCommit={(next) => commitOverride(id, field, next)}
-                        />
+                    return (
+                        <div className="typography-value-line is-override" key={`${id}:${field}`}>
+                            {field === 'weight' ? (
+                                <SelectField
+                                    icon="weight"
+                                    lead={lead}
+                                    trailing={remove}
+                                    label={`Weight ${variantLabel} ${label}`}
+                                    value={String(value)}
+                                    display={String(value)}
+                                    disabled={disabled}
+                                    tone={toneOf(field, id)}
+                                    options={weightOptions(value)}
+                                    onChange={(next) => commitOverride(id, field, Number(next))}
+                                />
+                            ) : (
+                                <NumberField
+                                    key={`${id}:${field}:${style.screen}:${style.group}.${style.size}`}
+                                    icon={field}
+                                    lead={lead}
+                                    trailing={remove}
+                                    label={`${FIELD_LABELS[field]} ${label}`}
+                                    value={value}
+                                    tone={toneOf(field, id)}
+                                    disabled={disabled}
+                                    onCommit={(next) => commitOverride(id, field, next)}
+                                />
+                            )}
+                            {!disabled && <span className="typography-override-spacer" aria-hidden="true" />}
+                        </div>
                     );
                 })}
             </div>
         );
     };
-    const familyRef = useRef<HTMLDivElement>(null);
-    const disabled = !editable;
-    const family = families.find((item) => item.name === style.fontFamily);
-    const instances = style.components.reduce((sum, component) => sum + component.count, 0);
 
-    useEffect(() => setMenuOpen(false), [style.group, style.size]);
-    const closeMenu = useCallback(() => setMenuOpen(false), []);
-    useDismiss(familyRef, menuOpen, closeMenu);
+    const numberField = (field: Exclude<OverridableField, 'weight'>, onCommit: (value: number) => void) => (
+        <NumberField
+            key={`${field}:${style.screen}:${style.group}.${style.size}`}
+            icon={field}
+            label={FIELD_LABELS[field]}
+            value={style[OVERRIDE_PROPS[field]]}
+            tone={toneOf(field)}
+            disabled={disabled}
+            onCommit={onCommit}
+        />
+    );
+
+    const family = families.find((item) => item.name === style.fontFamily);
+    const familyError = error('fontFamily');
+    const instances = style.components.reduce((sum, component) => sum + component.count, 0);
 
     return (
         <>
-            <header className="token-inspector-header">
-                <div>
-                    <strong role="heading" aria-level={1}>
-                        {groupLabel(style.group)} / {styleLabel(style)}
-                    </strong>
-                </div>
-                <p>{sampleText(style.group)}</p>
-            </header>
+            <div
+                className="typography-inspector-head"
+                style={{ '--ty-screen-prefix': `"${screenLabel(style.screen)} экраны · "` } as CSSProperties}
+            >
+                <InspectorHeader
+                    title={`${groupLabel(style.group)} / ${styleLabel(style)}`}
+                    description={props.description}
+                    descriptionPlaceholder={props.descriptionPlaceholder}
+                    onDescribe={editable ? props.onDescribe : undefined}
+                    onRename={editable ? props.onRename : undefined}
+                    renameValue={style.size}
+                    onReset={props.onReset}
+                    resetDisabled={props.resetDisabled || disabled}
+                    actions={
+                        props.onDelete && (
+                            <button
+                                type="button"
+                                className="tw-icon-button"
+                                title="Удалить стиль"
+                                aria-label="Удалить стиль"
+                                onClick={props.onDelete}
+                            >
+                                <TrashOutline />
+                            </button>
+                        )
+                    }
+                />
+            </div>
             {props.banners}
-            <section className="inspector-section figma-inspector-group typography-style-inspector">
-                <span className="inspector-heading">СТИЛЬ</span>
-                <div className="typography-family-control" ref={familyRef}>
-                    <div className="typography-property-field">
-                        <PropertyIcon name="family" />
-                        <button
-                            type="button"
-                            className="typography-family-trigger"
-                            aria-label="Семейство шрифта"
-                            aria-expanded={menuOpen}
-                            disabled={disabled}
-                            onClick={() => setMenuOpen((open) => !open)}
-                        >
-                            <span>
+            <section className="typography-section tw-section">
+                <SectionHeader title="Стиль" />
+                <div className="typography-section-body tw-field-stack">
+                    <SelectField
+                        icon="family"
+                        label="Семейство шрифта"
+                        menuLabel="Семейства"
+                        value={style.fontFamily}
+                        display={
+                            <>
                                 {familyTitle(style.fontFamily)} <small>{family?.fontName ?? ''}</small>
-                            </span>
-                            <b>
-                                <TyGlyph name="chevron-down" />
-                            </b>
-                        </button>
-                    </div>
-                    {menuOpen && !disabled && (
-                        <div className="font-family-menu typography-family-menu" role="listbox" aria-label="Семейства">
-                            {families.map((item) => (
-                                <button
-                                    key={item.name}
-                                    type="button"
-                                    role="option"
-                                    aria-selected={item.name === style.fontFamily}
-                                    className={item.name === style.fontFamily ? 'is-selected' : ''}
-                                    onClick={() => {
-                                        setMenuOpen(false);
-                                        if (item.name !== style.fontFamily) onChange({ fontFamily: item.name });
-                                    }}
-                                >
+                            </>
+                        }
+                        disabled={disabled}
+                        tone={familyError ? 'error' : null}
+                        options={families.map((item) => ({
+                            value: item.name,
+                            label: (
+                                <>
                                     {familyTitle(item.name)} <small>{item.fontName}</small>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    {error('fontFamily') && (
-                        <p className="typography-field-error" role="alert">
-                            {error('fontFamily')}
-                        </p>
-                    )}
-                </div>
-                <div className="typography-variant-control">
+                                </>
+                            ),
+                        }))}
+                        onChange={(fontFamily) => onChange({ fontFamily })}
+                    />
+                    {familyError && <FieldMessage>{familyError}</FieldMessage>}
                     <SelectField
                         icon="variant"
                         label="Начертание"
                         value={variant}
                         disabled={disabled}
-                        error={null}
+                        tone={null}
                         options={TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map(({ id, label }) => ({
                             value: id,
                             label,
                         }))}
                         onChange={(value) => props.onVariantChange(value as TypographyVariant)}
                     />
-                    {overridable(
-                        'weight',
-                        <SelectField
-                            icon="weight"
-                            label={`Weight ${variantLabel}`}
-                            value={String(weight ?? '')}
-                            disabled={disabled || weight === undefined}
-                            error={error(`weights.${variant}`)}
-                            options={weightOptions(weight).map((option) => ({
-                                value: String(option.value),
-                                label: option.label,
-                            }))}
-                            onChange={(value) => onChange({ weights: { [variant]: Number(value) } })}
-                        />,
-                    )}
-                </div>
-                <div className="typography-field-row">
-                    {overridable(
-                        'size',
-                        <NumberField
-                            key={`size:${style.screen}:${style.group}.${style.size}`}
-                            icon="size"
-                            label="Size"
-                            value={style.sizePx}
-                            error={error('size')}
-                            disabled={disabled}
-                            onCommit={(size) => onChange({ size })}
-                        />,
-                    )}
-                    {overridable(
-                        'lineHeight',
-                        <NumberField
-                            key={`lineHeight:${style.screen}:${style.group}.${style.size}`}
-                            icon="lineHeight"
-                            label="Line Height"
-                            value={style.lineHeightPx}
-                            error={error('lineHeight')}
-                            disabled={disabled}
-                            onCommit={(lineHeight) => onChange({ lineHeight })}
-                        />,
-                    )}
-                </div>
-                <div className="typography-field-row">
-                    {overridable(
-                        'letterSpacing',
-                        <NumberField
-                            key={`letterSpacing:${style.screen}:${style.group}.${style.size}`}
-                            icon="letterSpacing"
-                            label="Letter Spacing"
-                            value={style.letterSpacingEm}
-                            error={error('letterSpacing')}
-                            disabled={disabled}
-                            onCommit={(letterSpacing) => onChange({ letterSpacing })}
-                        />,
-                    )}
+                    <div className="typography-field-row">
+                        {overridable(
+                            'weight',
+                            <SelectField
+                                icon="weight"
+                                label={`Weight ${variantLabel}`}
+                                value={String(weight ?? '')}
+                                display={weight === undefined ? undefined : String(weight)}
+                                disabled={disabled || weight === undefined}
+                                tone={toneOf('weight')}
+                                options={weightOptions(weight)}
+                                onChange={(value) => onChange({ weights: { [variant]: Number(value) } })}
+                            />,
+                        )}
+                        {overridable(
+                            'size',
+                            numberField('size', (size) => onChange({ size })),
+                        )}
+                    </div>
+                    <RowMessages messages={[...messagesOf('weight'), ...messagesOf('size')]} />
+                    <div className="typography-field-row">
+                        {overridable(
+                            'lineHeight',
+                            numberField('lineHeight', (lineHeight) => onChange({ lineHeight })),
+                        )}
+                        {overridable(
+                            'letterSpacing',
+                            numberField('letterSpacing', (letterSpacing) => onChange({ letterSpacing })),
+                        )}
+                    </div>
+                    <RowMessages messages={[...messagesOf('lineHeight'), ...messagesOf('letterSpacing')]} />
                 </div>
             </section>
-            <section className="inspector-section typography-impact">
-                <span className="inspector-heading">ВЛИЯНИЕ</span>
-                <div className="impact-line">
+            <section className="typography-section tw-section">
+                <SectionHeader title="Влияние" />
+                <div className="typography-impact-row tw-list-row">
                     Темы <b>{themeCount}</b>
                 </div>
-                <div className="impact-line">
+                <div className="typography-impact-row tw-list-row">
                     Компоненты <b>{style.components.length}</b>
                 </div>
             </section>
             {style.components.length > 0 && (
-                <section className="inspector-section component-impact typography-impact">
-                    <span className="inspector-heading">СПИСОК КОМПОНЕНТОВ · {instances} ЭКЗЕМПЛЯРОВ</span>
+                <section className="typography-section tw-section">
+                    <SectionHeader title={`Список компонентов · ${instancesLabel(instances)}`} />
                     {style.components.map((component) => (
                         <button
                             key={component.name}
                             type="button"
-                            className="impact-component"
+                            className="typography-impact-row tw-list-row is-link"
+                            title={`Открыть компонент ${component.name}`}
                             onClick={() => props.onOpenComponent(component.name)}
                         >
-                            <TyGlyph name="jump" /> {component.name} <b>{component.count}</b>
+                            {component.name} <b>{component.count}</b>
                         </button>
                     ))}
                 </section>

@@ -16,6 +16,10 @@ class SizeTokenNamingTest {
         assertEquals(SizeTokenKind.SPACING, SizeTokenNaming.kindOf(ThemeTokenType.SPACING, "spacing.4x"))
         assertEquals(SizeTokenKind.SHADOW, SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "down.soft.s"))
         assertEquals(SizeTokenKind.SHADOW, SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "up.hard.extra-l"))
+        // Имя тени произвольное: не только варианты размера `down|up.soft|hard.<размер>`.
+        assertEquals(SizeTokenKind.SHADOW, SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "card"))
+        assertEquals(SizeTokenKind.SHADOW, SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "elevated.focus-ring"))
+        assertEquals(SizeTokenKind.SHADOW, SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "left.soft.s"))
     }
 
     @Test
@@ -24,23 +28,18 @@ class SizeTokenNamingTest {
         assertNull(SizeTokenNaming.kindOf(ThemeTokenType.SPACING, "round.m"))
         assertNull(SizeTokenNaming.kindOf(ThemeTokenType.SHAPE, "round.M"))
         assertNull(SizeTokenNaming.kindOf(ThemeTokenType.SHAPE, "round.m.x"))
-        assertNull(SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "left.soft.s"))
-        assertNull(SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "down.medium.s"))
+        assertNull(SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "Card"))
+        assertNull(SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "card..m"))
+        assertNull(SizeTokenNaming.kindOf(ThemeTokenType.SHADOW, "card_m"))
         assertNull(SizeTokenNaming.kindOf(ThemeTokenType.COLOR, "round.m"))
         assertNull(SizeTokenNaming.kindOf(null, "round.m"))
     }
 
     @Test
-    fun `размер тени — четыре варианта с общим последним сегментом`() {
-        assertEquals("m", SizeTokenNaming.shadowSize("up.hard.m"))
-        assertEquals("up.hard", SizeTokenNaming.shadowVariant("up.hard.m"))
-        assertEquals(
-            listOf("down.soft.m", "down.hard.m", "up.soft.m", "up.hard.m"),
-            SizeTokenNaming.shadowSizeNames("m"),
-        )
-        assertEquals(SizeTokenNaming.shadowSizeNames("xl"), SizeTokenNaming.fullNames(SizeTokenKind.SHADOW, "xl"))
-        assertEquals(listOf("round.xxxl"), SizeTokenNaming.fullNames(SizeTokenKind.RADIUS, "xxxl"))
-        assertEquals(listOf("spacing.14x"), SizeTokenNaming.fullNames(SizeTokenKind.SPACING, "14x"))
+    fun `полное имя нового токена, у тени — само имя`() {
+        assertEquals("card", SizeTokenNaming.fullName(SizeTokenKind.SHADOW, "card"))
+        assertEquals("round.xxxl", SizeTokenNaming.fullName(SizeTokenKind.RADIUS, "xxxl"))
+        assertEquals("spacing.14x", SizeTokenNaming.fullName(SizeTokenKind.SPACING, "14x"))
     }
 
     @Test
@@ -52,6 +51,10 @@ class SizeTokenNamingTest {
         assertFalse(SizeTokenNaming.validSegment("Xl"))
         assertFalse(SizeTokenNaming.validSegment("x.l"))
         assertFalse(SizeTokenNaming.validSegment("x_l"))
+        assertTrue(SizeTokenNaming.validName(SizeTokenKind.SHADOW, "elevated.focus"))
+        assertFalse(SizeTokenNaming.validName(SizeTokenKind.SHADOW, "elevated."))
+        assertFalse(SizeTokenNaming.validName(SizeTokenKind.RADIUS, "x.l"))
+        assertEquals(SizeTokenNaming.variableKey("down.soft.m"), SizeTokenNaming.variableKey("down-soft-m"))
     }
 
     @Test

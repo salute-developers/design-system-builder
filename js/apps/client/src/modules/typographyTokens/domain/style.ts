@@ -59,6 +59,27 @@ export const groupLabel = (group: string) =>
 export const styleLabel = (style: Pick<TypographyStyle, 'group' | 'size'>) =>
     style.group === 'header' ? style.size.toUpperCase() : `${groupLabel(style.group)} ${style.size.toUpperCase()}`;
 
+/** Размер нового или переименованного стиля из ввода: латиница в нижнем регистре и цифры, остальное отбрасывается. */
+export const normalizeStyleSize = (input: string) => input.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Размер стиля группы [group] из ввода или текст ошибки: пустой размер или стиль, который уже есть на одном из
+ * экранов; стиль [except] (переименовываемый) не мешает.
+ */
+export const styleSizeRequest = (
+    group: string,
+    input: string,
+    styles: ReadonlyArray<Pick<TypographyStyle, 'group' | 'size'>>,
+    except?: string,
+): { size: string } | { error: string } => {
+    const size = normalizeStyleSize(input);
+    if (!size) return { error: 'Размер стиля — латиница и цифры, например xl.' };
+    const key = styleKey({ group, size });
+    if (key !== except && styles.some((style) => styleKey(style) === key))
+        return { error: `Стиль ${styleLabel({ group, size })} уже есть в теме.` };
+    return { size };
+};
+
 export const sampleText = (group: string) => SAMPLES[group] ?? 'Системный текстовый стиль';
 
 export const screenLabel = (screen: TypographyScreen) =>
@@ -84,6 +105,21 @@ export const groupStyles = (styles: TypographyStyle[], query = '') => {
             ),
         }))
         .filter((group) => group.styles.length > 0);
+};
+
+/**
+ * Группы экрана для дерева и борда: группы прототипа показываются всегда, у группы без стилей — пустой список
+ * («Не настроено в текущей теме»). Если на экране нет ни одного стиля, групп нет: раздел пуст.
+ */
+export const screenGroups = (styles: TypographyStyle[]) => {
+    if (!styles.length) return [];
+    const configured = groupStyles(styles);
+    const known = TYPOGRAPHY_GROUPS.map(({ id, label }) => ({
+        id,
+        label,
+        styles: configured.find((group) => group.id === id)?.styles ?? [],
+    }));
+    return [...known, ...configured.filter((group) => !known.some((item) => item.id === group.id))];
 };
 
 /** Объединяет правки одного стиля: поздние значения заменяют ранние, веса объединяются. */

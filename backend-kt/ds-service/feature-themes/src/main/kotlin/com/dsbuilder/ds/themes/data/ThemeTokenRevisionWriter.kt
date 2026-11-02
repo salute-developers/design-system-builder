@@ -3,11 +3,13 @@ package com.dsbuilder.ds.themes.data
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.lockDraftSubjects
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -142,3 +144,25 @@ internal fun latestThemeValueOverridden(entity: UUID): Boolean = ThemeTokenValue
     .limit(1)
     .singleOrNull()
     ?.get(ThemeTokenValueRevisionsTable.overridden) ?: false
+
+/** Устойчивая строка значения токена в теме и платформе без режима; создаётся, если её нет. */
+internal fun stableThemeValue(
+    designSystemId: UUID,
+    tenantId: UUID,
+    tokenId: UUID,
+    platform: ThemeTokenPlatform,
+): UUID =
+    ThemeTokenValuesTable.selectAll().where {
+        (ThemeTokenValuesTable.tenantId eq tenantId) and (ThemeTokenValuesTable.tokenId eq tokenId) and
+            (ThemeTokenValuesTable.platform eq platform) and ThemeTokenValuesTable.mode.isNull()
+    }.singleOrNull()?.get(ThemeTokenValuesTable.id) ?: UUID.randomUUID().also { id ->
+        ThemeTokenValuesTable.insert {
+            it[ThemeTokenValuesTable.id] = id
+            it[ThemeTokenValuesTable.designSystemId] = designSystemId
+            it[ThemeTokenValuesTable.tokenId] = tokenId
+            it[ThemeTokenValuesTable.tenantId] = tenantId
+            it[ThemeTokenValuesTable.platform] = platform
+            it[ThemeTokenValuesTable.mode] = null
+            it[createdAt] = Instant.now()
+        }
+    }

@@ -4132,3 +4132,87 @@ button:disabled {
 }
 .mcp-link-field button { flex-shrink: 0; }
 .mcp-link-popover [role="status"] { display: block; margin-top: 8px; }
+
+/*
+ * Оболочка по Figma (`Rail`, `Topbar`, `Back`): знак без плашки, линии `outline/general/primary`,
+ * шаг пунктов рейла 36 px, аккаунт с рамкой, крошки 12/14, кнопки «Назад / Вперёд».
+ */
+/* Свечение `Gradient_logo`: в Figma слой 705×800 лежит поверх рейла, шапки и панелей, градиент — круг радиусом
+ * √(705² + 800²) ≈ 1066 px из угла. Слой выше рабочей области (`z-index: 2`), но ниже меню и окон: у рабочей
+ * области нет своего слоя наложения, и их `z-index` от 3 выводит их над свечением. */
+.builder-shell-gradient {
+    z-index: 2;
+    background: radial-gradient(
+        circle 1066px at 0 0,
+        rgba(43, 140, 237, 0.16) 0,
+        rgba(43, 140, 237, 0.08) 10.26%,
+        rgba(43, 140, 237, 0.02) 24.55%,
+        rgba(43, 140, 237, 0) 60.43%
+    );
+}
+.builder-main {
+    z-index: auto;
+}
+/* Полная запись границ: jsdom падает, если `border-color` перекрывает запись с `var()`. */
+.builder-icon-sidebar {
+    border-right: 1px solid #3d3f42;
+}
+.builder-icon-sidebar .builder-rail-section-head,
+.builder-hierarchy-bar {
+    border-bottom: 1px solid #3d3f42;
+}
+.builder-icon-sidebar .builder-rail-logo {
+    padding: 0;
+    background: transparent;
+}
+.builder-icon-sidebar .builder-rail-logo img {
+    width: 32px;
+    height: 32px;
+}
+.builder-icon-sidebar .builder-avatar {
+    border: 1px solid #3d3f42;
+    background: transparent;
+}
+.builder-history-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: -8px;
+}
+.builder-history-buttons button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #b6b7b9;
+    cursor: pointer;
+}
+.builder-history-buttons button:hover,
+.builder-history-buttons button:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f3f3f3;
+    outline: 0;
+}
+.builder-hierarchy-path .hierarchy-product,
+.builder-hierarchy-path a,
+.builder-hierarchy-path .hierarchy-current,
+.builder-hierarchy-path .hierarchy-separator {
+    height: 14px;
+    font: 400 12px/14px Inter;
+    letter-spacing: -0.24px;
+}
+.builder-hierarchy-bar .editor-version-select .styled-select-trigger,
+.builder-hierarchy-bar .editor-version-actions > button:not(.editor-changes-button) {
+    border: 1px solid #3d3f42;
+    background: #27282c;
+}
+.builder-hierarchy-bar .editor-changes-button {
+    border: 0;
+    background: #166dc4;
+    color: #f3f3f3;
+}

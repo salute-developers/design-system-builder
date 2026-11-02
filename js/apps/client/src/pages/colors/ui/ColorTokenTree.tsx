@@ -1,4 +1,12 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import {
+    ChevronDownOutline,
+    DisclosureDownOutline,
+    DisclosureRightOutline,
+    PlusOutline,
+    SettingsFilterOutline,
+    TrashOutline,
+} from '@salutejs/sdds-icons/16';
 
 import {
     byDisplayName,
@@ -11,7 +19,7 @@ import {
     type TreeSort,
     type TreeSubgroup,
 } from '../../../modules/colorTokens';
-import { CtGlyph } from './CtGlyph';
+import { SEARCH_EMPTY_TEXT, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
 import { InlineRename } from './InlineRename';
 import { alphaSwatchStyle, rowPreview } from './swatch';
 
@@ -82,7 +90,7 @@ export const InlineInput = ({
         }
     };
     return (
-        <div className={`token-tree-input is-row ${error ? 'is-error' : ''}`}>
+        <div className={`token-tree-input tw-tree-row is-row ${error ? 'is-error' : ''}`}>
             <span className={`${row.className} token-tree-input-field`}>
                 {row.leading}
                 <input
@@ -183,6 +191,14 @@ export const ColorTokenTree = (props: TreeProps) => {
     const searching = searchOpen || Boolean(query);
     // Поиск показывает только найденные токены по алфавиту, без групп и подгрупп.
     const found = query.trim() ? tree.flatMap(treeTokens).sort(byDisplayName) : null;
+    // Пустой результат поиска или фильтра и пустой раздел: «ничего не найдено» — только при активном поиске.
+    const empty = found
+        ? !found.length && SEARCH_EMPTY_TEXT
+        : issuesOnly
+          ? !tree.length && 'Токенов с ошибками нет'
+          : !props.tokens.length && 'В теме пока нет цветовых токенов';
+    // Без токенов в теме группы показываются только для создания токена в них.
+    const groupsVisible = editable || props.tokens.length > 0;
     const [editing, setEditing] = useState<Editing | null>(null);
     const [menu, setMenu] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -352,7 +368,7 @@ export const ColorTokenTree = (props: TreeProps) => {
         canDelete && (
             <button
                 type="button"
-                className="token-tree-delete"
+                className="tw-icon-button is-danger token-tree-delete"
                 title={label}
                 aria-label={label}
                 onClick={(event) => {
@@ -360,7 +376,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                     onClick();
                 }}
             >
-                <CtGlyph name="delete" />
+                <TrashOutline />
             </button>
         );
 
@@ -370,8 +386,15 @@ export const ColorTokenTree = (props: TreeProps) => {
     );
     // Строка ввода названия группы или подгруппы — как её заголовок: стрелка и название.
     const headingLine = (level: 'group' | 'subgroup') => ({
-        className: level === 'group' ? 'token-tree-heading' : 'token-tree-heading token-tree-subheading',
-        leading: <span className="token-tree-chevron">⌄</span>,
+        className:
+            level === 'group'
+                ? 'token-tree-heading tw-tree-group'
+                : 'token-tree-heading token-tree-subheading tw-tree-group is-nested',
+        leading: (
+            <span className="token-tree-chevron tw-tree-chevron" aria-hidden="true">
+                <DisclosureDownOutline />
+            </span>
+        ),
     });
 
     const tokenRow = (container: { group: TokenGroupDto; tokens: ColorTokenView[] }, token: ColorTokenView) => {
@@ -380,9 +403,9 @@ export const ColorTokenTree = (props: TreeProps) => {
         if (editing?.kind === 'rename-token' && editing.id === token.id) {
             // Переименование на месте, как в навигаторе Xcode: та же строка, тот же чип, имя без рамки и фона.
             return (
-                <div key={token.id} className="token-row-wrap">
+                <div key={token.id} className="token-row-wrap tw-tree-row">
                     <div
-                        className={`token-row is-renaming ${selectedId === token.id ? 'is-selected' : ''}`}
+                        className={`token-row tw-tree-item is-renaming ${selectedId === token.id ? 'is-selected' : ''}`}
                         data-testid={`color-token-row-${token.id}`}
                     >
                         {swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved), severity)}
@@ -407,13 +430,13 @@ export const ColorTokenTree = (props: TreeProps) => {
         return (
             <div
                 key={token.id}
-                className={`token-row-wrap ${dropArea(container.group.id)}`}
+                className={`token-row-wrap tw-tree-row ${dropArea(container.group.id)}`}
                 {...tokenTarget(container, token)}
             >
                 {dropHint(token.id)}
                 <button
                     type="button"
-                    className={`token-row ${selectedId === token.id ? 'is-selected' : ''}`}
+                    className={`token-row tw-tree-item ${selectedId === token.id ? 'is-selected' : ''}`}
                     data-testid={`color-token-row-${token.id}`}
                     draggable={editable && !found}
                     onDragStart={(event) => {
@@ -425,11 +448,15 @@ export const ColorTokenTree = (props: TreeProps) => {
                     onDoubleClick={() => editable && startEditing({ kind: 'rename-token', id: token.id })}
                 >
                     {swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved), severity)}
-                    <span>{token.displayName}</span>
+                    <span className="tw-tree-item-label">{token.displayName}</span>
                     {token.incomplete && <b className="ct-row-flag">Нет значений</b>}
                     {save.state === 'error' && <b className="ct-row-flag is-error">Не сохранено</b>}
                 </button>
-                {deleteButton(`Удалить токен ${token.displayName}`, () => props.onDeleteToken(token))}
+                {canDelete && (
+                    <span className="tw-tree-row-actions">
+                        {deleteButton(`Удалить токен ${token.displayName}`, () => props.onDeleteToken(token))}
+                    </span>
+                )}
             </div>
         );
     };
@@ -456,7 +483,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                 : startEditing({ kind: 'new-token', groupId: group.id });
         return (
             <div
-                className={`token-tree-heading-row token-tree-${level}-row ${dropArea(group.id)}`}
+                className={`token-tree-heading-row tw-tree-row token-tree-${level}-row ${dropArea(group.id)}`}
                 {...(node.synthetic ? {} : headingTarget(node))}
             >
                 {dropHint(group.id)}
@@ -475,30 +502,40 @@ export const ColorTokenTree = (props: TreeProps) => {
                         editable && !node.synthetic && startEditing({ kind: 'rename-group', groupId: group.id })
                     }
                 >
-                    <span className="token-tree-chevron">{closed ? '›' : '⌄'}</span>
+                    <span className="token-tree-chevron tw-tree-chevron" aria-hidden="true">
+                        {closed ? <DisclosureRightOutline /> : <DisclosureDownOutline />}
+                    </span>
                     <span>{group.label}</span>
                 </button>
-                {editable && !node.synthetic && (
-                    <button
-                        type="button"
-                        className="token-group-add"
-                        title={level === 'group' ? `Добавить в ${group.label}` : `Добавить токен в ${group.label}`}
-                        aria-label={level === 'group' ? `Добавить в ${group.label}` : `Добавить токен в ${group.label}`}
-                        aria-expanded={level === 'group' ? menu === group.id : undefined}
-                        onClick={add}
-                    >
-                        <CtGlyph name="add" />
-                    </button>
+                {!node.synthetic && (editable || canDelete) && (
+                    <span className="tw-tree-row-actions">
+                        {editable && (
+                            <button
+                                type="button"
+                                className="tw-icon-button token-group-add"
+                                title={
+                                    level === 'group' ? `Добавить в ${group.label}` : `Добавить токен в ${group.label}`
+                                }
+                                aria-label={
+                                    level === 'group' ? `Добавить в ${group.label}` : `Добавить токен в ${group.label}`
+                                }
+                                aria-expanded={level === 'group' ? menu === group.id : undefined}
+                                onClick={add}
+                            >
+                                <PlusOutline />
+                            </button>
+                        )}
+                        {deleteButton(`Удалить ${level === 'group' ? 'группу' : 'подгруппу'} ${group.label}`, () =>
+                            props.onDeleteGroup(group),
+                        )}
+                    </span>
                 )}
-                {!node.synthetic &&
-                    deleteButton(`Удалить ${level === 'group' ? 'группу' : 'подгруппу'} ${group.label}`, () =>
-                        props.onDeleteGroup(group),
-                    )}
                 {menu === group.id && (
-                    <div className="reset-dropdown token-group-menu" role="menu" ref={menuRef}>
+                    <div className="tw-menu token-group-menu" role="menu" ref={menuRef}>
                         <button
                             type="button"
                             role="menuitem"
+                            className="tw-menu-item"
                             onClick={() => startEditing({ kind: 'new-token', groupId: group.id })}
                         >
                             Добавить токен
@@ -506,6 +543,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                         <button
                             type="button"
                             role="menuitem"
+                            className="tw-menu-item"
                             onClick={() => startEditing({ kind: 'new-subgroup', parentId: group.id })}
                         >
                             Добавить подгруппу
@@ -523,7 +561,7 @@ export const ColorTokenTree = (props: TreeProps) => {
         input({
             label: 'Имя нового токена',
             placeholder: 'Например, Highlight',
-            row: { className: 'token-row', leading: swatch('', 'is-placeholder') },
+            row: { className: 'token-row tw-tree-item', leading: swatch('', 'is-placeholder') },
             onSubmit: (value) => void submit(() => props.onCreateToken(groupId, value)),
         });
 
@@ -532,7 +570,7 @@ export const ColorTokenTree = (props: TreeProps) => {
         return (
             <div
                 key={item.group.id}
-                className={`token-tree-subgroup ${closed ? 'is-collapsed' : 'is-open'}`}
+                className={`token-tree-subgroup tw-tree-nested ${closed ? 'is-collapsed' : 'is-open'}`}
                 data-testid={`token-subgroup-${item.group.label}`}
             >
                 {heading(item, 'subgroup')}
@@ -544,78 +582,55 @@ export const ColorTokenTree = (props: TreeProps) => {
 
     return (
         <aside className="token-browser">
-            <div className={`token-panel-header token-menu-header sidebar-header ${searching ? 'is-searching' : ''}`}>
-                {searching ? (
-                    // Поле как поиск раздела «Палитра» (`.source-palette-family-search`), чтобы поиск выглядел одинаково.
-                    <label className="source-palette-family-search token-search-field">
-                        <span aria-hidden="true">⌕</span>
-                        <input
-                            autoFocus
-                            value={query}
-                            placeholder="Найти"
-                            aria-label="Найти токен"
-                            onChange={(event) => props.onQuery(event.target.value)}
-                        />
-                    </label>
-                ) : (
+            <TreeHeader
+                searching={searching}
+                query={query}
+                onQuery={props.onQuery}
+                onSearchOpen={props.onSearchOpen}
+                leading={
                     <button
                         type="button"
-                        className="token-sort-trigger"
+                        className="ct-sort-select"
                         aria-label="Порядок токенов"
                         aria-pressed={sort === 'az'}
                         onClick={props.onSort}
                     >
                         <span>{sort === 'az' ? 'А–Я' : 'Исходные'}</span>
-                        <CtGlyph name="chevron-down" />
+                        <ChevronDownOutline />
                     </button>
-                )}
-                <div className="sidebar-header-actions">
-                    {!searching && (
-                        <button type="button" aria-label="Поиск" onClick={() => props.onSearchOpen(true)}>
-                            <CtGlyph name="search" />
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        className={issuesOnly ? 'is-active' : ''}
-                        aria-label="Только токены с ошибками"
-                        aria-pressed={issuesOnly}
-                        title="Только токены с ошибками"
-                        onClick={props.onIssuesOnly}
-                    >
-                        <CtGlyph name="sliders" />
-                    </button>
-                    {editable && !searching && (
+                }
+                actions={
+                    <>
                         <button
                             type="button"
-                            aria-label="Добавить группу"
-                            title="Добавить группу"
-                            onClick={() => startEditing({ kind: 'new-group' })}
+                            className="tw-icon-button"
+                            aria-label="Только токены с ошибками"
+                            aria-pressed={issuesOnly}
+                            title="Только токены с ошибками"
+                            onClick={props.onIssuesOnly}
                         >
-                            <CtGlyph name="add" />
+                            <SettingsFilterOutline />
                         </button>
-                    )}
-                    {searching && (
-                        <button
-                            type="button"
-                            aria-label="Закрыть поиск"
-                            onClick={() => {
-                                props.onQuery('');
-                                props.onSearchOpen(false);
-                            }}
-                        >
-                            <CtGlyph name="close" />
-                        </button>
-                    )}
-                </div>
-            </div>
+                        {editable && !searching && (
+                            <button
+                                type="button"
+                                className="tw-icon-button"
+                                aria-label="Добавить группу"
+                                title="Добавить группу"
+                                onClick={() => startEditing({ kind: 'new-group' })}
+                            >
+                                <PlusOutline />
+                            </button>
+                        )}
+                    </>
+                }
+            />
             <div className="token-tree">
-                {(found ?? tree).length === 0 && editing?.kind !== 'new-group' && (
-                    <div className="ct-tree-empty">Ничего не найдено</div>
-                )}
+                {empty && editing?.kind !== 'new-group' && <TreeEmpty>{empty}</TreeEmpty>}
                 {found
                     ? found.map((token) => tokenRow(SEARCH_RESULTS, token))
-                    : tree.map((node) => {
+                    : groupsVisible &&
+                      tree.map((node) => {
                           const closed = Boolean(collapsed[node.group.id]);
                           return (
                               <div

@@ -11,9 +11,12 @@ import {
     applyUpdatedStyle,
     createHttpTypographyStyleRepository,
     createTypographyAutosave,
+    definedEntries,
     styleKey,
+    styleSizeRequest,
     styleValueAddresses,
     styleValueRevisions,
+    TypographyOperationError,
     validateChange,
     type TypographyAutosave,
     type TypographyContext,
@@ -56,6 +59,8 @@ interface TypographySession {
     unsubscribe: () => void;
     /** Ошибки значений у полей: `<экран>|<стиль>|<поле>` → текст. */
     fieldErrors: Record<string, string>;
+    /** Описания, сохранённые с экрана, по имени токена: показываются до перечитывания модели темы. */
+    descriptions: Record<string, string>;
     /** Тема и перерисовка открытого экрана. */
     live: { theme: Theme | null; rerender: () => void };
     listeners: Set<() => void>;
@@ -103,6 +108,8 @@ const load = (session: TypographySession): Promise<void> => {
     const run = async () => {
         await session.autosave.flush();
         if (controller.signal.aborted) return;
+        // Описания перечитываются с темой: после сброса или правки в другом месте кэш экрана устарел.
+        session.descriptions = {};
         const current = ++session.loads;
         const invalidation = session.invalidation;
         try {
@@ -178,6 +185,7 @@ const typographySession = (context: TypographyContext): TypographySession => {
         loadedInvalidation: -1,
         unsubscribe: () => {},
         fieldErrors: {},
+        descriptions: {},
         live: { theme: null, rerender: () => undefined },
         listeners: new Set(),
     };
@@ -195,7 +203,7 @@ const typographySession = (context: TypographyContext): TypographySession => {
         notify(session);
     });
     session.autosave = createTypographyAutosave({
-        repository: { load: (...args) => repository.load(...args), update: (...args) => repository.update(...args) },
+        repository: { update: (...args) => repository.update(...args) },
         context,
         onChange: () => {
             // Общий индикатор, публикация и перечитывание по сигналу ждут подтверждения очереди типографии.
@@ -305,8 +313,84 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         } else notify(session);
     };
 
+    /** Имя токена начертания стиля: `<экран>.<группа>.<размер>.<начертание>`. */
+    const tokenName = (style: TypographyStyle, variant: string) => `${style.screen}.${styleKey(style)}.${variant}`;
+
+    /** Описание стиля — описание токена его первого начертания на экране стиля. */
+    const description = (style: TypographyStyle) => {
+        const [variant] = definedEntries(style.variants).map(([id]) => id);
+        if (!variant) return '';
+        const name = tokenName(style, variant);
+        return session.descriptions[name] ?? theme.getToken(name, 'typography')?.getDescription?.() ?? '';
+    };
+
+    /** Токены стиля на всех экранах: у стиля одно описание и один сброс. */
+    const styleTokens = (style: TypographyStyle) =>
+        (session.saved?.screens ?? []).flatMap((item) =>
+            item.styles
+                .filter((candidate) => styleKey(candidate) === styleKey(style))
+                .flatMap((candidate) =>
+                    definedEntries(candidate.variants).map(([variant, view]) => ({
+                        tokenId: view.tokenId,
+                        name: tokenName(candidate, variant),
+                    })),
+                ),
+        );
+
+    /** Описание стиля пишется во все токены стиля на всех экранах: у стиля одно описание. */
+    const describe = async (style: TypographyStyle, text: string) => {
+        if (readOnly || session.context.versionId) return;
+        const tokens = styleTokens(style);
+        await Promise.all(tokens.map(({ tokenId }) => repository.describe(session.context, tokenId, text)));
+        tokens.forEach(({ name }) => {
+            session.descriptions = { ...session.descriptions, [name]: text };
+            session.live.theme?.getToken(name, 'typography')?.setDescription?.(text || undefined);
+        });
+        session.live.rerender();
+        notify(session);
+    };
+
+    /** Все стили темы на всех экранах: проверка занятого имени при создании и переименовании. */
+    const allStyles = () => (session.saved?.screens ?? []).flatMap((item) => item.styles);
+
+    /**
+     * Создание, переименование и удаление: сначала отправляется очередь правок, затем операция; после неё раздел
+     * перечитывается. Ошибка ввода или отказ сервера бросаются с текстом для поля.
+     */
+    const structural = async (operation: () => Promise<string[]>) => {
+        if (readOnly || session.context.versionId) return [];
+        await session.autosave.flush();
+        const tokenIds = await operation();
+        await load(session);
+        return tokenIds;
+    };
+    const sizeOf = (group: string, input: string, except?: string) => {
+        const result = styleSizeRequest(group, input, allStyles(), except);
+        if ('error' in result) throw new TypographyOperationError('invalid', result.error);
+        return result.size;
+    };
+    const firstToken = (style: TypographyStyle) => definedEntries(style.variants)[0]?.[1].tokenId ?? '';
+
     return {
         styles,
+        description,
+        describe,
+        /** Создаёт стиль группы [group] размера из ввода [input]; результат — ключ нового стиля. */
+        create: async (group: string, input: string) => {
+            const size = sizeOf(group, input);
+            await structural(() => repository.create(session.context, group, size));
+            return styleKey({ group, size });
+        },
+        /** Меняет размер стиля на введённый; результат — новый ключ стиля. */
+        rename: async (style: TypographyStyle, input: string) => {
+            const size = sizeOf(style.group, input, styleKey(style));
+            if (size === style.size) return styleKey(style);
+            await structural(() => repository.rename(session.context, firstToken(style), size));
+            return styleKey({ group: style.group, size });
+        },
+        /** Удаляет стиль на всех экранах. */
+        remove: (style: TypographyStyle) => structural(() => repository.remove(session.context, firstToken(style))),
+        styleTokenIds: (style: TypographyStyle) => new Set(styleTokens(style).map(({ tokenId }) => tokenId)),
         loadError: session.loadError,
         status: session.autosave.overall(),
         edit,

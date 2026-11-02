@@ -180,7 +180,7 @@ internal class ComponentConfigBuilder(
                 row[VariationPropertyValuesTable.adjustment]
             } ?: offsets[rowId],
             if (invariant) row[InvariantPropertyValuesTable.position] else row[VariationPropertyValuesTable.position],
-            row.getOrNull(ComponentTokensTable.name),
+            row.referencedName(),
             row.getOrNull(ComponentTokensTable.type),
             states[stateSetId].orEmpty(),
         )
@@ -245,7 +245,7 @@ internal class ComponentConfigBuilder(
                         row[PropertiesTable.id], row[PropertiesTable.name], row[PropertiesTable.type].wireValue, null,
                         row[StyleCombinationsTable.value], row[StyleCombinationsTable.alpha],
                         row[StyleCombinationsTable.adjustment], row[StyleCombinationsTable.position],
-                        row.getOrNull(ComponentTokensTable.name), row.getOrNull(ComponentTokensTable.type),
+                        row.referencedName(), row.getOrNull(ComponentTokensTable.type),
                         states[row[StyleCombinationsTable.stateSetId]].orEmpty(),
                     )
                 },
@@ -368,6 +368,10 @@ private data class ConfigAxis(
 )
 
 private data class ConfigAxisValue(val styleId: UUID, val name: String, val authoredId: String?)
+
+/** Имя токена ссылки строки значения по `token_id`, как его видят потребители конфигурации. */
+private fun ResultRow.referencedName() =
+    referenceName(getOrNull(ComponentTokensTable.name), getOrNull(ComponentTokensTable.type))
 
 private data class ConfigValueRow(
     val propertyId: UUID,

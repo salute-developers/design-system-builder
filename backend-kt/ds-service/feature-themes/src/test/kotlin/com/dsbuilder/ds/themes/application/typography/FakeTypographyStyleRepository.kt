@@ -18,12 +18,24 @@ internal class FakeTypographyStyleRepository(
     /** Темы дизайн-системы. */
     val tenants: Set<UUID>,
     /** Определения токенов: идентификатор → имя и тип. */
-    val definitions: Map<UUID, Pair<String, ThemeTokenType>>,
+    initialDefinitions: Map<UUID, Pair<String, ThemeTokenType>>,
     /** Тема → токен → платформа → значение. */
     val values: MutableMap<UUID, MutableMap<UUID, Map<ThemeTokenPlatform, JsonElement>>>,
     private val families: List<TypographyFamily>,
 ) : TypographyStyleRepository, TypographyUsageRepository {
     var references: List<ComponentPropertyReference> = emptyList()
+
+    /** Определения токенов: идентификатор → имя и тип; создание, переименование и удаление их меняют. */
+    val definitions = initialDefinitions.toMutableMap()
+
+    /** Текстовые ссылки компонентов: текст → строки значений. */
+    var textRows: Map<String, Set<UUID>> = emptyMap()
+
+    /** Привязанные по `token_id` ссылки: токен → строки значений. */
+    val bound = mutableMapOf<UUID, Set<UUID>>()
+
+    /** Удалённые токены. */
+    val deleted = mutableSetOf<UUID>()
 
     /** Технические редакции значений: идентификатор значения → редакция. */
     val revisions = mutableMapOf<UUID, Long>()
@@ -94,6 +106,38 @@ internal class FakeTypographyStyleRepository(
     }
 
     override suspend fun references(designSystemId: UUID): List<ComponentPropertyReference> = references
+
+    override suspend fun textReferences(designSystemId: UUID, values: Set<String>): Map<String, Set<UUID>> =
+        textRows.filterKeys { it in values }
+
+    override suspend fun tokenNames(designSystemId: UUID): Set<String> =
+        definitions.values.mapTo(hashSetOf()) { it.first.lowercase() }
+
+    override suspend fun createStyle(
+        designSystemId: UUID,
+        sources: Map<TypographyTokenName, UUID>,
+    ): Map<TypographyTokenName, UUID> = sources.mapValues { (name, source) ->
+        val id = UUID.randomUUID()
+        definitions[id] = name.toString() to ThemeTokenType.TYPOGRAPHY
+        values.values.forEach { tenant -> tenant[source]?.let { tenant[id] = it } }
+        id
+    }
+
+    override suspend fun renameStyle(
+        designSystemId: UUID,
+        names: Map<UUID, TypographyTokenName>,
+        references: Map<UUID, Set<UUID>>,
+    ) {
+        bound += references
+        names.forEach { (id, name) -> definitions[id] = name.toString() to ThemeTokenType.TYPOGRAPHY }
+    }
+
+    override suspend fun deleteStyle(designSystemId: UUID, tokenIds: Set<UUID>, references: Map<UUID, Set<UUID>>) {
+        bound += references
+        deleted += tokenIds
+        tokenIds.forEach(definitions::remove)
+        values.values.forEach { tenant -> tokenIds.forEach(tenant::remove) }
+    }
 
     companion object {
         const val PROJECT = "project-1"

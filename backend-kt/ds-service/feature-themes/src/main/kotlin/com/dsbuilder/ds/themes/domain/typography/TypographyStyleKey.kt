@@ -11,12 +11,13 @@ data class TypographyStyleKey(
 
     override fun compareTo(other: TypographyStyleKey): Int = ORDER.compare(this, other)
 
-    private companion object {
+    companion object {
+        /** Группы стилей: набор фиксирован, генератор пакета знает только их. */
         val GROUPS = listOf("display", "header", "body", "text")
-        val SIZES = listOf("xxl", "xl", "l", "m", "s", "xs", "xxs")
-        val HEADER = Regex("""^h(\d+)$""")
+        private val SIZES = listOf("xxl", "xl", "l", "m", "s", "xs", "xxs")
+        private val HEADER = Regex("""^h(\d+)$""")
 
-        val ORDER: Comparator<TypographyStyleKey> = compareBy<TypographyStyleKey>(
+        private val ORDER: Comparator<TypographyStyleKey> = compareBy<TypographyStyleKey>(
             { key -> GROUPS.indexOf(key.group).takeIf { it >= 0 } ?: GROUPS.size },
             { key -> key.group },
             { key -> sizeRank(key.size) },

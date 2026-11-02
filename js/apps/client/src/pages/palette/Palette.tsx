@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
+import { CloseOutline, ColorOutline } from '@salutejs/sdds-icons/16';
 
 import '../../styles/palette.css';
 
 import type { DesignSystem, Theme } from '../../controllers';
 import type { PaletteContext, ThemePalette } from '../../modules/palette';
 import { paletteRepository } from '../../palette/paletteSession';
+import { PanelSkeleton, usePanelWidths, WorkspaceLoadError } from '../../components/tokenWorkspace';
 import { PaletteBoard } from './PaletteBoard';
 import { PaletteDialogs } from './PaletteDialogs';
 import { PaletteInspector } from './PaletteInspector';
-import { PaletteSidebar } from './PaletteSidebar';
+import { PaletteSidebar, PALETTE_TITLE } from './PaletteSidebar';
 import { StepColorEditor } from './StepColorEditor';
-import { displaySteps, isChanged, middleStep } from './Palette.utils';
+import { displaySteps, filterGroups, isChanged, middleStep, visibleSelection } from './Palette.utils';
 import { usePaletteEditor } from './usePaletteEditor';
-import { EditorLoading } from '../../components';
 import type { DraftChangeDto } from '../../api/editorContracts';
-import railColorsIcon from '../../assets/catalog/icons/rail-colors.svg';
 
 export interface PaletteOutletContext {
     designSystem: DesignSystem | null;
@@ -26,9 +26,70 @@ export interface PaletteOutletContext {
     rerender: () => void;
     reload: () => void;
     refreshChanges: (changes: DraftChangeDto[]) => Promise<void>;
+    /** Ошибка загрузки темы для раздела: палитра показывает «Не удалось загрузить палитру» и «Повторить». */
+    sectionError?: unknown;
+    /** Тема ещё загружается: палитра показывает скелетоны. */
+    sectionPending?: boolean;
 }
 
-/** Раздел «Палитра» темы по `paletteEditorV3` прототипа SDDS Portal. */
+const PANELS_KEY = 'ds_palette_panels';
+
+/** Вкладки «Палитра / Цвет» рабочей области. */
+const MODES = [
+    { id: 'palette', label: 'Палитра', hint: 'Работа со всей цветовой растяжкой' },
+    { id: 'color', label: 'Цвет', hint: 'Работа с отдельной ступенью палитры' },
+] as const;
+
+/**
+ * Загрузка и ошибка загрузки раздела (`Palette / 01 Overview / Loading`, `/ Error`): шапка дерева на месте,
+ * при загрузке — скелетоны дерева, борда и инспектора, при ошибке рабочая область показывает «Не удалось загрузить
+ * палитру» с «Повторить».
+ */
+export const PaletteState = ({ error = false, onRetry }: { error?: boolean; onRetry?: () => void }) => (
+    <div
+        className="palette-screen"
+        data-testid={error ? 'palette-error' : 'palette-loading'}
+        role={error ? undefined : 'status'}
+        aria-label={error ? undefined : 'Загружаем палитру'}
+    >
+        <section className={`palette-workbench ${error ? 'is-failed' : ''}`}>
+            <aside className="palette-tree">
+                <div className="tw-tree-header">
+                    <strong className="tw-tree-header-title">{PALETTE_TITLE}</strong>
+                </div>
+                <PanelSkeleton part="tree" />
+            </aside>
+            {error ? (
+                <main className="palette-canvas">
+                    <WorkspaceLoadError title="Не удалось загрузить палитру" onRetry={onRetry} />
+                </main>
+            ) : (
+                <>
+                    <header className="palette-editor-header">
+                        <div className="palette-mode-tabs">
+                            {MODES.map((mode) => (
+                                <span
+                                    key={mode.id}
+                                    className={`palette-mode-tab ${mode.id === 'palette' ? 'is-active' : ''}`}
+                                >
+                                    {mode.label}
+                                </span>
+                            ))}
+                        </div>
+                    </header>
+                    <main className="palette-canvas">
+                        <PanelSkeleton part="workspace" />
+                    </main>
+                    <aside className="palette-inspector">
+                        <PanelSkeleton part="inspector" />
+                    </aside>
+                </>
+            )}
+        </section>
+    </div>
+);
+
+/** Раздел «Палитра» темы по кадрам Figma `04 · Palette · Handoff` на общей грамматике экранов токенов. */
 export const Palette = () => {
     const { projectId, designSystemId, tenantId } = useParams();
     const [searchParams] = useSearchParams();
@@ -40,32 +101,10 @@ export const Palette = () => {
     );
 
     if (!context) return null;
-    if (outlet.paletteError)
-        return (
-            <section
-                className="workspace-page source-palette-v3 source-palette-placeholder"
-                data-testid="palette-error"
-            >
-                <div className="source-palette-board-empty" role="alert">
-                    <strong>Не удалось загрузить палитру</strong>
-                    <span>{outlet.paletteError.message}</span>
-                    <button type="button" onClick={outlet.reload}>
-                        Повторить
-                    </button>
-                </div>
-            </section>
-        );
+    if (outlet.sectionError || outlet.paletteError) return <PaletteState error onRetry={outlet.reload} />;
     // Палитра прежней темы, пока загружается новая, не показывается.
-    if (!outlet.palette || outlet.palette.tenantId !== context.tenantId)
-        return (
-            <section
-                className="workspace-page source-palette-v3 source-palette-placeholder"
-                data-testid="palette-loading"
-            >
-                {/* Тот же индикатор, что у загрузки темы в редакторе, на том же месте. */}
-                <EditorLoading text="Загружаем палитру…" />
-            </section>
-        );
+    if (outlet.sectionPending || !outlet.palette || outlet.palette.tenantId !== context.tenantId)
+        return <PaletteState />;
     return <PaletteScreen context={context} palette={outlet.palette} outlet={outlet} />;
 };
 
@@ -80,6 +119,7 @@ const PaletteScreen = ({
 }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const { panels, separator } = usePanelWidths(PANELS_KEY);
     const refreshTokens = useCallback(
         () =>
             outlet.refreshChanges([
@@ -97,6 +137,12 @@ const PaletteScreen = ({
         refreshTokens,
     });
     const steps = useMemo(() => displaySteps(palette), [palette]);
+    const groups = useMemo(
+        () => filterGroups(palette, editor.search, editor.filter),
+        [palette, editor.search, editor.filter],
+    );
+    // Растяжку, скрытую поиском или фильтром, инспектор не показывает.
+    const visible = visibleSelection(groups, editor.selection);
     // Как `paletteEditCount` прототипа: число правок палитры — изменённые растяжки, как у фильтра «Изменённые».
     const changedCount = useMemo(
         () => palette.groups.reduce((total, group) => total + group.ramps.filter(isChanged).length, 0),
@@ -123,7 +169,6 @@ const PaletteScreen = ({
         else editor.setPopover(null);
     };
 
-    // Как в прототипе: при открытии выбрана первая растяжка первой непустой группы.
     useEffect(() => {
         const requestedGroup = searchParams.get('groupId');
         const requestedShade = searchParams.get('shade');
@@ -139,6 +184,7 @@ const PaletteScreen = ({
         }
     }, [searchParams, palette, editor.setSelection]);
 
+    // Как в прототипе: при открытии выбрана первая растяжка первой непустой группы.
     useEffect(() => {
         if (editor.selection) return;
         const group = palette.groups.find((item) => item.ramps.length);
@@ -155,98 +201,94 @@ const PaletteScreen = ({
             { state: { tokenName: mode ? `${mode}.${tokenName}` : tokenName } },
         );
 
-    return (
-        <section
-            className="workspace-page palette-page source-palette-page source-palette-v3"
-            data-testid="palette-page"
-        >
+    // Баннеры — в инспекторе, как на экранах токенов; при скрытом инспекторе — над бордом.
+    const banners: ReactNode = (paletteRepository.source === 'local' || !canEdit) && (
+        <div className="palette-banners">
             {paletteRepository.source === 'local' && (
                 <div className="viewer-banner" role="status">
                     <span>Палитра хранится в этом браузере и не публикуется</span>
                 </div>
             )}
-            <div className="workspace-page-header source-palette-hero">
-                <h1>Палитра</h1>
-                {palette.offBrand && (
-                    <span className="source-palette-state is-warning">Custom · вне брендовой палитры</span>
-                )}
-            </div>
             {!canEdit && (
                 <div className="viewer-banner" role="status">
                     <span>Только просмотр</span>
                 </div>
             )}
+        </div>
+    );
+
+    return (
+        <div className="palette-screen" data-testid="palette-page">
             <section
-                className={`source-palette-editor-grid ${editor.inspectorCollapsed ? 'is-inspector-collapsed' : ''} ${
+                className={`palette-workbench ${editor.inspectorCollapsed ? 'is-inspector-collapsed' : ''} ${
                     switchingMode ? 'is-mode-switching' : ''
                 }`}
+                style={{ '--panel-left': `${panels.left}px`, '--panel-right': `${panels.right}px` } as CSSProperties}
                 data-mode={paletteMode ? 'palette' : 'color'}
                 aria-label="Палитра"
             >
-                <PaletteSidebar context={context} palette={palette} editor={editor} canEdit={canEdit} steps={steps} />
-                <div className="source-palette-canvas-column">
-                    <header className="source-palette-canvas-toolbar">
-                        <div className="source-palette-mode-tabs" role="tablist" aria-label="Режим редактирования">
-                            <button
-                                type="button"
-                                id="source-palette-mode-palette"
-                                role="tab"
-                                className={paletteMode ? 'is-active' : ''}
-                                aria-selected={paletteMode}
-                                aria-controls="source-palette-mode-panel"
-                                title="Работа со всей цветовой растяжкой"
-                                onClick={() => switchMode('palette')}
-                            >
-                                Палитра
-                            </button>
-                            <button
-                                type="button"
-                                id="source-palette-mode-color"
-                                role="tab"
-                                className={paletteMode ? '' : 'is-active'}
-                                aria-selected={!paletteMode}
-                                aria-controls="source-palette-mode-panel"
-                                title="Работа с отдельной ступенью палитры"
-                                onClick={() => switchMode('color')}
-                            >
-                                Цвет
-                            </button>
-                        </div>
-                        <div className="source-palette-canvas-actions">
-                            <button
-                                type="button"
-                                className={`source-palette-color-count ${editor.inspectorCollapsed ? '' : 'is-active'}`}
-                                aria-pressed={!editor.inspectorCollapsed}
-                                title={editor.inspectorCollapsed ? 'Показать Inspector' : 'Скрыть Inspector'}
-                                aria-label={editor.inspectorCollapsed ? 'Показать Inspector' : 'Скрыть Inspector'}
-                                onClick={() => editor.setInspectorCollapsed(!editor.inspectorCollapsed)}
-                            >
-                                <img src={railColorsIcon} alt="" />
-                                <span>{changedCount}</span>
-                            </button>
-                        </div>
-                    </header>
-                    <div
-                        id="source-palette-mode-panel"
-                        className="source-palette-ramp-shell form-card"
-                        role="tabpanel"
-                        aria-labelledby={`source-palette-mode-${paletteMode ? 'palette' : 'color'}`}
-                    >
-                        <PaletteBoard
-                            context={context}
-                            palette={palette}
-                            editor={editor}
-                            canEdit={canEdit}
-                            steps={steps}
-                        />
+                <button type="button" className="panel-resizer panel-resizer-left" {...separator('left')} />
+                {!editor.inspectorCollapsed && (
+                    <button type="button" className="panel-resizer panel-resizer-right" {...separator('right')} />
+                )}
+                <PaletteSidebar context={context} palette={palette} groups={groups} editor={editor} canEdit={canEdit} />
+                <header className="palette-editor-header">
+                    <div className="palette-mode-tabs" role="tablist" aria-label="Режим редактирования">
+                        {MODES.map((mode) => {
+                            const active = editor.mode === mode.id;
+                            return (
+                                <button
+                                    key={mode.id}
+                                    type="button"
+                                    id={`palette-mode-${mode.id}`}
+                                    role="tab"
+                                    className={`palette-mode-tab ${active ? 'is-active' : ''}`}
+                                    aria-selected={active}
+                                    aria-controls="palette-mode-panel"
+                                    title={mode.hint}
+                                    onClick={() => switchMode(mode.id)}
+                                >
+                                    {mode.label}
+                                </button>
+                            );
+                        })}
                     </div>
-                </div>
+                    <button
+                        type="button"
+                        className="palette-inspector-toggle"
+                        aria-pressed={!editor.inspectorCollapsed}
+                        title={editor.inspectorCollapsed ? 'Показать Inspector' : 'Скрыть Inspector'}
+                        aria-label={editor.inspectorCollapsed ? 'Показать Inspector' : 'Скрыть Inspector'}
+                        onClick={() => editor.setInspectorCollapsed(!editor.inspectorCollapsed)}
+                    >
+                        <ColorOutline />
+                        <span>{changedCount}</span>
+                    </button>
+                </header>
+                <main
+                    id="palette-mode-panel"
+                    className="palette-canvas"
+                    role="tabpanel"
+                    aria-labelledby={`palette-mode-${editor.mode}`}
+                >
+                    {editor.inspectorCollapsed && banners}
+                    <PaletteBoard
+                        context={context}
+                        palette={palette}
+                        groups={groups}
+                        editor={editor}
+                        canEdit={canEdit}
+                        steps={steps}
+                    />
+                </main>
                 {!editor.inspectorCollapsed && (
                     <PaletteInspector
                         context={context}
                         palette={palette}
+                        selection={visible}
                         editor={editor}
                         canEdit={canEdit}
+                        banners={banners}
                         onOpenToken={openToken}
                         onOpenColors={() => navigate('../colors')}
                     />
@@ -263,17 +305,22 @@ const PaletteScreen = ({
             )}
             <PaletteDialogs context={context} palette={palette} editor={editor} />
             {editor.toast && (
-                <div className={`source-palette-toast is-${editor.toast.tone}`} role="status" aria-live="polite">
-                    <span className="source-palette-toast-indicator" />
+                <div className={`palette-toast is-${editor.toast.tone}`} role="status" aria-live="polite">
+                    <span className="palette-toast-indicator" />
                     <div>
                         <strong>{editor.toast.title}</strong>
                         <span>{editor.toast.text}</span>
                     </div>
-                    <button type="button" aria-label="Закрыть уведомление" onClick={() => editor.setToast(null)}>
-                        ×
+                    <button
+                        type="button"
+                        className="tw-icon-button"
+                        aria-label="Закрыть уведомление"
+                        onClick={() => editor.setToast(null)}
+                    >
+                        <CloseOutline />
                     </button>
                 </div>
             )}
-        </section>
+        </div>
     );
 };

@@ -7,14 +7,11 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.colortokens.requireAll
-import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenKind
-import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenNaming
 import java.util.UUID
 
 /**
- * Логически удаляет из активного черновика радиус или отступ, а для тени — размер целиком (четыре варианта), со
- * значениями во всех темах: надгробия `deleted = true`, ссылки компонентов сбрасывает общий механизм очистки ссылок
- * на токен. Опубликованные версии сохраняют данные, отмена — через журнал изменений.
+ * Логически удаляет из активного черновика радиус, отступ или тень со значениями во всех темах: надгробия
+ * `deleted = true`, ссылки компонентов сбрасывает общий механизм очистки ссылок на токен. Опубликованные версии сохраняют данные, отмена — через журнал изменений.
  */
 class DeleteSizeTokenUseCase(
     private val policy: DsAccessPolicy,
@@ -34,16 +31,9 @@ class DeleteSizeTokenUseCase(
 
     private suspend fun delete(designSystemId: UUID, tenantId: UUID, tokenId: UUID): DsResult<List<UUID>> {
         val token = tokens.token(designSystemId, tenantId, tokenId) ?: return DsResult.Failure(DsFailure.NotFound)
-        val kind = token.kind ?: return DsResult.Failure(outsideSection(tokenId))
-        val ids = if (kind == SizeTokenKind.SHADOW) {
-            val names = SizeTokenNaming.shadowSizeNames(SizeTokenNaming.shadowSize(token.name))
-            tokens.tokens(designSystemId, tenantId)
-                .filter { it.kind == SizeTokenKind.SHADOW && it.name in names }
-                .sortedBy { names.indexOf(it.name) }
-                .map(StoredSizeToken::id)
-        } else {
-            listOf(token.id)
-        }
+        if (token.kind == null) return DsResult.Failure(outsideSection(tokenId))
+        // Тень — отдельный токен, как радиус и отступ: удаляется только она, без других вариантов того же размера.
+        val ids = listOf(token.id)
         tokens.delete(designSystemId, ids)
         return DsResult.Success(ids)
     }

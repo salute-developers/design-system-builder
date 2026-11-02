@@ -3,7 +3,7 @@ package com.dsbuilder.ds.themes.application.sizetokens
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenKind
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenView
 
-/** Созданные токены: радиус, отступ или четыре варианта размера тени. */
+/** Созданный токен: радиус, отступ или тень. */
 data class CreatedSizeTokens(
     /** Раздел. */
     val kind: SizeTokenKind,

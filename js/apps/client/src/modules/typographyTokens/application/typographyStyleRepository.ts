@@ -20,6 +20,14 @@ export interface TypographyStyleRepository {
         change: TypographyStyleChange,
         values: TypographyValueAddress[],
     ): Promise<UpdatedTypographyStyle>;
+    /** Меняет описание токена [tokenId]; пустая строка снимает описание. */
+    describe(context: TypographyContext, tokenId: string, description: string): Promise<void>;
+    /** Создаёт стиль [group].[size] — девять токенов во всех темах; результат — токены стиля. */
+    create(context: TypographyContext, group: string, size: string): Promise<string[]>;
+    /** Меняет размер стиля токена [tokenId]; группа не меняется. */
+    rename(context: TypographyContext, tokenId: string, size: string): Promise<string[]>;
+    /** Удаляет стиль токена [tokenId] со всеми токенами начертаний и экранов. */
+    remove(context: TypographyContext, tokenId: string): Promise<string[]>;
 }
 
 export type TypographyErrorKind = 'forbidden' | 'invalid' | 'not-found' | 'missing-values' | 'network';

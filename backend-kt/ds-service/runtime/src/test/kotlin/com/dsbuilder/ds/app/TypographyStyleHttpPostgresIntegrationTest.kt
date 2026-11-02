@@ -68,6 +68,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 editStyles(api, db, designSystemId, tenantA, tenantB, base, read)
                 rejectEdits(api, db, designSystemId, tenantA, base, read)
                 publishedBoundary(api, db, designSystemId, tenantA, base)
+                structure(api, db, base)
             }
         }
     }
@@ -95,6 +96,39 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 "WHERE design_system_id = '$designSystemId' AND value = 'screen-l.body.l.medium'",
         )
         assertEquals("1", db.text(invariants))
+    }
+
+    /**
+     * Создание, переименование и удаление стиля: девять токенов, значения ближайшего размера, текстовые ссылки
+     * компонентов идут за переименованием по `token_id`, права удаления.
+     */
+    private suspend fun structure(api: Api, db: Db, base: String) {
+        val created = api.reject("POST", base, OWNER, """{"group":"body","size":"xl"}""", 201)
+        assertEquals(9, created.array("tokenIds").size)
+        var read = api.read(base, VIEWER)
+        assertEquals(
+            style(read, "screen-l", "body", "l").decimal("sizePx"),
+            style(read, "screen-l", "body", "xl").decimal("sizePx"),
+        )
+        api.reject("POST", base, OWNER, """{"group":"body","size":"xl"}""", 409)
+        api.reject("POST", base, OWNER, """{"group":"caption","size":"m"}""", 400)
+
+        val usage = style(read, "screen-m", "body", "xs").array("components")
+        assertTrue(usage.isNotEmpty())
+        val xsToken = style(read, "screen-s", "body", "xs").obj("variants").obj("normal").text("tokenId")
+        val bound = activeRevisionTestSql("SELECT count(*) FROM variation_property_values WHERE token_id = '$xsToken'")
+        val before = db.text(bound).toInt()
+        api.patch("$base/$xsToken/name", EDITOR, """{"size":"tiny"}""")
+        read = api.read(base, VIEWER)
+        assertEquals(usage, style(read, "screen-m", "body", "tiny").array("components"))
+        assertTrue(db.text(bound).toInt() > before)
+        assertFalse(hasStyle(read, "body", "xs"))
+
+        val xl = style(read, "screen-l", "body", "xl").obj("variants").obj("bold").text("tokenId")
+        api.reject("DELETE", "$base/$xl", EDITOR, null, 403)
+        assertEquals(9, api.reject("DELETE", "$base/$xl", OWNER, null, 200).array("tokenIds").size)
+        read = api.read(base, VIEWER)
+        assertFalse(hasStyle(read, "body", "xl"))
     }
 
     /** Чтение: стили по экранам в px, семейства, использование, редакции значений и право правки. */
@@ -296,6 +330,11 @@ class TypographyStyleHttpPostgresIntegrationTest {
         assertEquals("1.125rem", db.field(tenantA, designSystemId, "screen-l.body.m.normal", "web", "fontSize"))
         assertEquals("1.25rem", db.field(tenantA, designSystemId, "screen-l.body.m.medium", "web", "fontSize"))
     }
+
+    private fun hasStyle(styles: JsonObject, group: String, size: String): Boolean =
+        styles.array("screens").any { screen ->
+            screen.array("styles").any { it.text("group") == group && it.text("size") == size }
+        }
 
     private fun style(styles: JsonObject, screen: String, group: String, size: String): JsonObject =
         styles.array("screens").single { it.text("screen") == screen }.array("styles")

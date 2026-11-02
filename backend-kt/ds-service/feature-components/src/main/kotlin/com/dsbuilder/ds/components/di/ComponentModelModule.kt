@@ -116,8 +116,10 @@ import com.dsbuilder.ds.components.data.ExposedPropertyValueRepository
 import com.dsbuilder.ds.components.data.ExposedStateRepository
 import com.dsbuilder.ds.components.data.ExposedStyleCombinationRepository
 import com.dsbuilder.ds.components.data.ExposedStyleRepository
+import com.dsbuilder.ds.components.data.ExposedTokenReferenceBinder
 import com.dsbuilder.ds.components.data.VariationRevertDependencyValidator
 import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
+import com.dsbuilder.ds.core.application.TokenReferenceBinder
 import com.dsbuilder.ds.core.application.TokenReferenceCleaner
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
@@ -129,6 +131,7 @@ val componentModelModule = module {
     single<StyleRepository> { ExposedStyleRepository() }
     single<PropertyValueRepository> { ExposedPropertyValueRepository() }
     single<TokenReferenceCleaner> { get<PropertyValueRepository>() as ExposedPropertyValueRepository }
+    single<TokenReferenceBinder> { ExposedTokenReferenceBinder() }
     single<DraftChangeDependencyValidator>(
         named("component-token-revert"),
     ) { ComponentTokenRevertDependencyValidator() }

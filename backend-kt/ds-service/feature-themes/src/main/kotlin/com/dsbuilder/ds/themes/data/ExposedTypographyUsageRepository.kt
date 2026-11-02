@@ -60,6 +60,29 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
         }.orEmpty()
     }
 
+    override suspend fun textReferences(designSystemId: UUID, values: Set<String>): Map<String, Set<UUID>> {
+        if (values.isEmpty()) return emptyMap()
+        // Тексты ссылок — имена стилей из правила имени (`a-z`, `0-9`, точки), кавычки экранируются на всякий случай.
+        val list = values.sorted().joinToString { "'" + it.replace("'", "''") + "'" }
+        val sql = """
+            WITH variation_values AS ($variationValues),
+                 invariant_values AS ($invariantValues)
+            SELECT v.id, v.value FROM variation_values v WHERE v.token_id IS NULL AND v.value IN ($list)
+            UNION ALL
+            SELECT v.id, v.value FROM invariant_values v WHERE v.token_id IS NULL AND v.value IN ($list)
+        """.trimIndent()
+        val id = UUIDColumnType() to designSystemId
+        return TransactionManager.current().exec(
+            sql,
+            listOf(id, id),
+            explicitStatementType = StatementType.SELECT,
+        ) { rows ->
+            buildList {
+                while (rows.next()) add(rows.getString("value") to UUID.fromString(rows.getString("id")))
+            }
+        }.orEmpty().groupBy({ it.first }, { it.second }).mapValues { (_, ids) -> ids.toSet() }
+    }
+
     /**
      * Устойчивые строки [table] дизайн-системы: поля [stable] устойчивой строки и [fields] её последней не удалённой
      * редакции `<revision>_revisions` на границе `ds.version_id` или активного черновика.

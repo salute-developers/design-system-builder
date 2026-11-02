@@ -19,15 +19,15 @@ import java.util.UUID
  */
 class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
     private val variationValues =
-        resolved("variation_property_values", "variation_property_value", ", entity.appearance_id", VALUE_FIELDS)
+        resolved("variation_property_values", "variation_property_value", VALUE_KEYS, VALUE_FIELDS)
     private val invariantValues = resolved(
         "invariant_property_values",
         "invariant_property_value",
-        ", entity.appearance_id, entity.component_id",
+        "$VALUE_KEYS, entity.component_id",
         VALUE_FIELDS,
     )
     private val combinationValues =
-        resolved("style_combinations", "style_combination", ", entity.appearance_id", VALUE_FIELDS)
+        resolved("style_combinations", "style_combination", VALUE_KEYS, VALUE_FIELDS)
     private val appearances = resolved("appearances", "appearance", ", entity.component_id", "latest.name")
     private val sizeTokens = resolved("tokens", "token", "", "latest.name, latest.type")
 
@@ -55,6 +55,11 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
                     ComponentUsage(component, count)
                 }
             }
+
+    override suspend fun textReferences(designSystemId: UUID, tokenId: UUID, name: String): Set<UUID> =
+        references(designSystemId, mapOf(tokenId to name))
+            .filter(Reference::byName)
+            .mapTo(hashSetOf(), Reference::rowId)
 
     override suspend fun adjustments(designSystemId: UUID, tokens: Map<UUID, String>): Map<String, List<RadiusOffset>> {
         val references = references(designSystemId, tokens)
@@ -111,7 +116,8 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
             val tokenId = rows.getString("token_id")?.let(UUID::fromString)
             val value = rows.getString("value")
             // Ссылка через `token_id` на другой токен не считается ссылкой на токен раздела, текст — считается.
-            val token = tokenId?.let(tokens::get) ?: value?.takeIf { it in names } ?: return@query null
+            val byId = tokenId?.let(tokens::get)
+            val token = byId ?: value?.takeIf { it in names } ?: return@query null
             Reference(
                 rowId = UUID.fromString(rows.getString("row_id")),
                 source = rows.getString("source"),
@@ -120,6 +126,7 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
                 component = rows.getString("component"),
                 platform = rows.getString("platform"),
                 adjustment = rows.getString("adjustment"),
+                byName = byId == null,
             )
         }
     }
@@ -213,6 +220,8 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         val component: String,
         val platform: String,
         val adjustment: String?,
+        /** Ссылка текстом, равным имени токена, а не через `token_id`. */
+        val byName: Boolean,
     )
 
     /** Поправка платформенного параметра строки значения. */
@@ -226,15 +235,22 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         /** Число подзапросов `resolved` в запросе ссылок: у каждого свой параметр дизайн-системы. */
         const val CTE_COUNT = 6
 
+        /** Поля устойчивой строки значения свойства, которые нужны запросу использования. */
+        const val VALUE_KEYS = ", entity.appearance_id, entity.property_id"
+
         /** Поля редакции значения свойства, которые нужны запросу использования. */
         const val VALUE_FIELDS = "latest.token_id, latest.value, latest.adjustment"
 
         /**
-         * Предварительный отбор: `token_id` токена размеров или текст с префиксом имени раздела; точное совпадение
-         * имени проверяется после чтения.
+         * Предварительный отбор: `token_id` токена размеров, текст с префиксом радиуса или отступа или точное имя
+         * тени в свойстве типа `shadow` или общего типа `value`: имя тени произвольное, и короткое имя вроде `m` не
+         * должно совпадать с текстом свойств цвета, типографики, размеров и чисел. Точное совпадение имени
+         * проверяется после чтения.
          */
         const val REFERENCE_FILTER = "(v.token_id IN (SELECT id FROM size_tokens " +
-            "WHERE type IN ('shape', 'spacing', 'shadow')) OR v.value ~ '^(round|spacing|down|up)\\.')"
+            "WHERE type IN ('shape', 'spacing', 'shadow')) OR v.value ~ '^(round|spacing)\\.' " +
+            "OR (v.value IN (SELECT name FROM size_tokens WHERE type = 'shadow') " +
+            "AND EXISTS (SELECT 1 FROM properties p WHERE p.id = v.property_id AND p.type IN ('shadow', 'value'))))"
 
         val PLATFORM_PRIORITY = listOf("web", "xml", "compose", "ios")
         val DECIMAL = Regex("""[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?""")

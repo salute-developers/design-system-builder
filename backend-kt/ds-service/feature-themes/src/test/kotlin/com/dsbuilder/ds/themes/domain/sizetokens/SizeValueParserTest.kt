@@ -121,10 +121,6 @@ class SizeValueParserTest {
             listOf("layers[1].color", "platforms.ios.layers[0].color"),
             SizeValueParser.colorReferences(value).map { it.first },
         )
-        assertEquals(
-            listOf("variants[3].layers[1].color", "variants[3].platforms.ios.layers[0].color"),
-            SizeValueParser.colorReferences(value, "variants[3].").map { it.first },
-        )
         assertEquals(emptyList(), SizeValueParser.colorReferences(SizeTokenValue.Dimension(4)))
     }
 
@@ -139,20 +135,6 @@ class SizeValueParserTest {
         assertEquals("platforms.android", invalid(shadow, """{"layers":[$LAYER],"platforms":{"android":1}}""").field)
     }
 
-    @Test
-    fun `варианты нового размера тени`() {
-        fun variant(name: String) = """{"variant":"$name","layers":[$LAYER],"fallbackElevation":2}"""
-        val all = SizeTokenNaming.SHADOW_VARIANTS.joinToString(",") { variant(it) }
-        val parsed = assertIs<SizeValueCheck.Valid<List<ShadowVariantValue>>>(variants("""{"variants":[$all]}"""))
-        assertEquals(SizeTokenNaming.SHADOW_VARIANTS, parsed.value.map(ShadowVariantValue::variant))
-
-        val three = SizeTokenNaming.SHADOW_VARIANTS.drop(1).joinToString(",") { variant(it) }
-        assertEquals("variants", variantField("""{"variants":[$three]}"""))
-        assertEquals("variants", variantField("""{"variants":[$all,${variant("up.hard")}]}"""))
-        val badLayer = all.replaceFirst("#08080814", "x")
-        assertEquals("variants[0].layers[0].color", variantField("""{"variants":[$badLayer]}"""))
-    }
-
     private fun violation(field: String, message: String) = SizeValueViolation(field, message)
 
     private fun valid(kind: SizeTokenKind, body: String): SizeTokenValue =
@@ -161,10 +143,6 @@ class SizeValueParserTest {
     private fun invalid(kind: SizeTokenKind, body: String): SizeValueViolation =
         assertIs<SizeValueCheck.Invalid>(SizeValueParser.parse(kind, input(body))).violation
 
-    private fun variants(body: String) = SizeValueParser.variants(input(body))
-
-    private fun variantField(body: String) = assertIs<SizeValueCheck.Invalid>(variants(body)).violation.field
-
     private fun input(body: String): SizeValueInput {
         val fields = Json.parseToJsonElement(body) as JsonObject
         return SizeValueInput(
@@ -172,7 +150,6 @@ class SizeValueParserTest {
             layers = fields["layers"],
             fallbackElevation = fields["fallbackElevation"],
             platforms = fields["platforms"],
-            variants = fields["variants"],
         )
     }
 

@@ -64,6 +64,16 @@ const applyResult = (session: SizeTokenSession, key: string, result: SizeTokenRe
         // Повтор создания с тем же ключом возвращает сохранённый ответ: токены не добавляются дважды.
         updateData(session, (tokens) => [...tokens.filter((item) => !ids.has(item.tokenId)), ...result.created]);
         if (theme) result.created.forEach((token) => applyToTheme(theme, token));
+    } else if (result.type === 'rename') {
+        // Модель темы хранит токены по имени: прежнее имя убирается, токен добавляется под новым.
+        const previous = session.data?.tokens.find((item) => item.tokenId === result.token.tokenId);
+        updateData(session, (tokens) =>
+            tokens.map((item) => (item.tokenId === result.token.tokenId ? result.token : item)),
+        );
+        if (theme && previous) {
+            removeFromTheme(theme, [previous]);
+            applyToTheme(theme, result.token);
+        }
     } else {
         const ids = new Set(result.deletedTokenIds);
         const removed = (session.data?.tokens ?? []).filter((item) => ids.has(item.tokenId));

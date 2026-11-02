@@ -6,4 +6,10 @@ data class TypographyStyleUseCases(
     val get: GetTypographyStylesUseCase,
     /** Изменение стиля. */
     val update: UpdateTypographyStyleUseCase,
+    /** Создание стиля. */
+    val create: CreateTypographyStyleUseCase,
+    /** Переименование стиля. */
+    val rename: RenameTypographyStyleUseCase,
+    /** Удаление стиля. */
+    val delete: DeleteTypographyStyleUseCase,
 )

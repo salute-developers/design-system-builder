@@ -92,11 +92,7 @@ describe('повтор неподтверждённых команд токен�
         const session = closedPage();
         void session.autosave.run({
             type: 'create',
-            request: {
-                kind: 'shadow',
-                name: 'xl',
-                variants: [{ variant: 'down.soft', layers: [layer], fallbackElevation: 2 }],
-            },
+            request: { kind: 'shadow', name: 'card', layers: [layer], fallbackElevation: 2 },
         });
         await vi.advanceTimersByTimeAsync(0);
         const [command] = stored();
