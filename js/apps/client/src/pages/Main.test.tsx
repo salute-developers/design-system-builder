@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useOutletContext } from 'react-router-dom';
 
 const { hookState, reload, mainUtils, retryAutosave } = vi.hoisted(() => ({
     hookState: {
@@ -9,6 +9,8 @@ const { hookState, reload, mainUtils, retryAutosave } = vi.hoisted(() => ({
         components: [] as unknown[],
         hasComponents: false,
         autosaveStatus: 'saved' as 'saved' | 'saving' | 'error',
+        sectionLoading: false,
+        componentLoading: false,
     },
     reload: vi.fn(),
     retryAutosave: vi.fn(),
@@ -45,6 +47,8 @@ vi.mock('../hooks', () => ({
         retryAutosave,
         lastSavedAt: 1_000,
         reload,
+        sectionLoading: hookState.sectionLoading,
+        componentLoading: hookState.componentLoading,
     }),
 }));
 
@@ -86,6 +90,8 @@ afterEach(() => {
     hookState.components = [];
     hookState.hasComponents = false;
     hookState.autosaveStatus = 'saved';
+    hookState.sectionLoading = false;
+    hookState.componentLoading = false;
     localStorage.clear();
     vi.clearAllMocks();
     cleanup();
@@ -315,5 +321,53 @@ describe('Theme editor shell', () => {
 
             expect(screen.queryByTestId('editor-nav-components')).not.toBeInTheDocument();
         });
+    });
+
+    it('при смене компонента не размонтирует страницу раздела и передаёт ей загрузку компонента', () => {
+        hookState.hasComponents = true;
+        let mounts = 0;
+        const ComponentsPage = () => {
+            const { componentLoading } = useOutletContext<{ componentLoading?: boolean }>();
+            useState(() => {
+                mounts += 1;
+                return mounts;
+            });
+            return <div data-testid="components-page">{componentLoading ? 'загрузка компонента' : 'компонент'}</div>;
+        };
+        const tree = () => (
+            <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/components/Button']}>
+                <Routes>
+                    <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
+                        <Route path="components/:componentName" element={<ComponentsPage />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>
+        );
+        const { rerender } = render(tree());
+        const page = screen.getByTestId('components-page');
+
+        hookState.componentLoading = true;
+        rerender(tree());
+
+        expect(screen.getByTestId('components-page')).toBe(page);
+        expect(page).toHaveTextContent('загрузка компонента');
+        expect(screen.queryByRole('status', { name: 'Открываем раздел' })).not.toBeInTheDocument();
+        expect(mounts).toBe(1);
+    });
+
+    it('при загрузке раздела по-прежнему показывает общую загрузку вместо страницы', () => {
+        hookState.sectionLoading = true;
+        render(
+            <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/components/Button']}>
+                <Routes>
+                    <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
+                        <Route path="components/:componentName" element={<div data-testid="components-page" />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(screen.queryByTestId('components-page')).not.toBeInTheDocument();
+        expect(screen.getByRole('status', { name: 'Открываем раздел' })).toBeInTheDocument();
     });
 });

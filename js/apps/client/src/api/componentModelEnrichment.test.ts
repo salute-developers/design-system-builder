@@ -4,7 +4,6 @@ import type { ComponentAPI } from '../controllers/componentBuilder/type';
 import {
     collectDependencies,
     enrichApi,
-    templateLookup,
     variationNamesByProperty,
     webParamsByProperty,
 } from './componentModelEnrichment';
@@ -27,7 +26,7 @@ describe('component model enrichment', () => {
         expect(params.get('p-label')).toEqual(['buttonFontFamily', 'buttonFontSize']);
     });
 
-    it('fills web params, declared variations and the first template of the component styles', () => {
+    it('fills web params and declared variations', () => {
         const [height, focus] = enrichApi(
             [api('p-height', 'height'), api('p-focus', 'focusColor')],
             new Map([['p-height', ['buttonHeight']]]),
@@ -38,16 +37,8 @@ describe('component model enrichment', () => {
                 ],
                 new Map([['v-size', 'size']]),
             ),
-            templateLookup(
-                {
-                    componentName: 'button',
-                    name: 'Button',
-                    styles: { secondary: { templates: { height: { buttonHeight: '$1 1rem' } } } },
-                },
-                ['default', 'secondary'],
-            ),
         );
-        expect(height.platformMappings.web).toEqual([{ name: 'buttonHeight', adjustment: '$1 1rem' }]);
+        expect(height.platformMappings.web).toEqual([{ name: 'buttonHeight' }]);
         expect(height.variations).toEqual(['size']);
         // Свойство без web-параметра остаётся без маппинга: превью его не применяет.
         expect(focus.platformMappings.web).toBeNull();

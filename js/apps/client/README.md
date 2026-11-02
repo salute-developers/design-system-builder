@@ -14,6 +14,7 @@ Currently, two official plugins are available:
 | `VITE_API_GATEWAY_URL` | URL | `''` | Адрес API gateway |
 | `VITE_CLIENT_ID` | строка | — | OIDC client id |
 | `VITE_PALETTE_SOURCE` | `api` \| `local` | `api` | Источник палитры темы: `api` работает с `ds-service` (`/api/projects/{p}/ds/tenants/{t}/palette`), `local` хранит её в `localStorage` браузера (для разработки без сервера) |
+| `VITE_WEB_PREVIEW_PLUGIN_URL` | URL | не задан | Прямой адрес web-плагина превью для разработки самого плагина; без него адрес активного web-билда приходит от бэкенда. См. [Web preview plugin](#web-preview-plugin) |
 
 ## Expanding the ESLint configuration
 
@@ -105,15 +106,15 @@ There are two sources, and the first one that applies wins:
 
 1. **Direct address** `VITE_COMPOSE_PREVIEW_PLUGIN_URL`. Meant for local development (the local server below, or
    a plugin built from a feature branch). The client does not ask the backend anything. `js/docker-compose.dev.yml`
-   defaults it to `http://localhost:8081/`; set it to an empty value to use the backend instead.
+   leaves it empty by default, so the backend is used.
 2. **The active build of the backend.** Without the variable the client requests
    `GET /api/projects/{projectId}/ds/compose-preview/plugin` once per page and project and loads the plugin from
    the returned `pluginUrl`. The answer does not depend on the design system version you are viewing. The build
    and the component API meta it was built from are published together, so they match.
 
 Compose preview is offered only when one of the sources gives an address. If the backend answers `404` (nothing is
-published) or fails, Compose components are not requested, the reason is written to the console and React preview
-works as before. There is no default address in the client code.
+published) or fails, Compose components are not requested and the reason is written to the console; web components
+keep the web plugin preview. There is no default address in the client code.
 
 ### Build the plugin
 
@@ -170,7 +171,7 @@ The `iframe` is created with `sandbox="allow-scripts allow-same-origin"` and the
 The plugin is a Kotlin/Wasm application, so the browser must support WebAssembly GC and WebAssembly
 exception handling. The client checks this with `WebAssembly.validate` before loading the plugin
 (`src/composePreview/environment.ts`). When the check fails the plugin is not loaded, a notice
-explains that Compose preview is unavailable, and React preview stays available.
+explains that Compose preview is unavailable.
 
 The exception-handling probe checks the legacy `try`/`catch_all` form that Kotlin 2.1 emits. If the
 plugin is rebuilt with a Kotlin version that emits `exnref`, update the probe in `environment.ts`.
@@ -218,3 +219,56 @@ The smoke harness uses a versioned canonical fixture, while the component editor
 payload from the current `Config`, `Theme`, variation/style selections and story descriptor.
 Backend changes, deployment of the plugin to DEV/PROD, plugin publication/catalog/signatures, and
 components without explicit `Meta.preview.compose` metadata remain out of scope.
+
+## Web preview plugin
+
+Web components are rendered only by the web preview plugin (`js/apps/preview-web-plugin`) in an `iframe`; the client
+has no React stories and no web rendering of its own. The plugin keeps its own React, `@salutejs/plasma-new-hope`, the
+stories, the API meta and the templates of multi-value properties. The client sends it a Preview Protocol payload with
+`platform: "WEB"` built by the same assembler as Compose (`src/composePreview/webPreview.ts` → `draft.ts` +
+`assembler.ts`): properties by canonical name with `tokenRef`/`literal` sources and `states`, theme tokens with the web
+values converted to protocol units (`src/composePreview/webTokenValues.ts`), every style of the component and of its
+related components in `styles`, the mode colors and the body font in `theme`. The plugin translates it to CSS.
+
+- The address is resolved like the Compose one (`src/composePreview/webPluginLocation.ts`), the first source that
+  applies wins:
+  1. **Direct address** `VITE_WEB_PREVIEW_PLUGIN_URL`, for work on the plugin itself (see below). The client does not
+     ask the backend anything.
+  2. **The active web build of the backend.** Without the variable the client requests
+     `GET /api/projects/{projectId}/ds/web-preview/plugin` once per page and project and loads the plugin from the
+     returned `pluginUrl`. The answer does not depend on the design system version; a failed request is not cached.
+     The request is made only when the components section has web components (the plugin warms up there) or a web
+     component preview is shown (the component canvas of the colors section).
+- If the backend answers `404` (no web build is published) or fails, with an unavailable or incompatible manifest
+  (`platform` must be `web`), or when the manifest does not list the component, the preview area shows
+  «Превью недоступно» with the reason; the setup panel keeps working. Compose preview does not depend on the web
+  plugin address. There is no default address in the client code.
+- The web plugin is published to the backend with `dsbuilder preview-plugin publish --platform react` (the archive is
+  built by `npm run package` in `js/apps/preview-web-plugin`); the build and its web API meta are published together.
+  The local setup (`setup-local.sh`) publishes `local-dev/web-preview/preview-web-plugin.zip` into the local MinIO.
+- No WebAssembly check is done for the web plugin.
+- The web plugin has its own host layer and session next to the Compose one in the components section; the component
+  canvas of the colors section renders through the same plugin.
+- The story controls come from the plugin `describe` answer, like in Compose mode.
+- A web component with Compose metadata offers the `Renderer` switch `Плагин | Compose`.
+
+Develop the plugin itself with a direct address:
+
+```bash
+cd js/apps/preview-web-plugin
+npm install
+npm run build && npm run preview   # built bundle on http://localhost:3011/ with CORS, as it will be served from S3
+npm run dev                         # Vite dev server on the same port, only for work on the plugin itself
+```
+
+Prefer the built bundle: the dev server serves unbundled dependencies (`plasma-icons` alone is about 10 MB), and the
+plugin then takes seconds to load in the iframe; the build is one script of about 220 kB.
+
+Start the client with `VITE_WEB_PREVIEW_PLUGIN_URL=http://localhost:3011/` (for example in `.env.local`, or
+`VITE_WEB_PREVIEW_PLUGIN_URL=http://localhost:3011/ docker compose -f docker-compose.dev.yml up -d client` in `js`).
+Without the variable the client container takes the address from the backend. When the plugin is ready, pack it
+with `npm run package` and publish the archive with `dsbuilder preview-plugin publish --platform react`. `npm run package` refuses to run with uncommitted
+changes in `js/apps/preview-web-plugin` (the manifest records the source commit);
+`PREVIEW_WEB_PLUGIN_ALLOW_DIRTY=1` skips the check only to try the packaging, such an archive is marked in the
+provenance block of `local-dev/README.md` and must not be published. The deploy workflows do not set the variable: on DEV
+and PROM the preview of web components is unavailable until a web build is published to the stand.

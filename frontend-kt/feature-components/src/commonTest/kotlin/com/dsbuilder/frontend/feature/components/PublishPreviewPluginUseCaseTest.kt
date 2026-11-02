@@ -23,6 +23,7 @@ import com.dsbuilder.frontend.feature.components.application.PublishPreviewPlugi
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ComposeApiMetaNormalizer
+import com.dsbuilder.frontend.feature.components.domain.apimeta.WebApiMetaNormalizer
 import kotlinx.coroutines.test.runTest
 import okio.ByteString.Companion.encodeUtf8
 import kotlin.test.Test
@@ -33,6 +34,8 @@ import kotlin.test.assertTrue
 class PublishPreviewPluginUseCaseTest {
     private val meta = COMPOSE_API_META_CORPUS.encodeToByteArray()
     private val metaSha = COMPOSE_API_META_CORPUS.encodeUtf8().sha256().hex()
+    private val webMeta = WEB_API_META_CORPUS.encodeToByteArray()
+    private val webMetaSha = WEB_API_META_CORPUS.encodeUtf8().sha256().hex()
 
     private fun manifest(
         version: String = "0123456789ab",
@@ -43,6 +46,16 @@ class PublishPreviewPluginUseCaseTest {
         if (sha != null) append(""","apiMetaSha256":"$sha"""")
         append("}")
     }
+
+    private fun webManifest(platform: String? = "web", sha: String = webMetaSha) = buildString {
+        append("{")
+        if (platform != null) append(""""platform":"$platform",""")
+        append(""""version":"0a1b2c3d4e5f","plasmaNewHopeVersion":"0.384.0","apiMetaSha256":"$sha"}""")
+    }
+
+    private fun webArchive(manifestText: String = webManifest()) = PreviewPluginArchiveResult.Read(
+        PreviewPluginArchive("/work/preview-web-plugin.zip", byteArrayOf(4, 5, 6), manifestText, webMeta),
+    )
 
     private fun archive(manifestText: String = manifest(), metaBytes: ByteArray = meta) =
         PreviewPluginArchive("/work/preview-compose-plugin.zip", byteArrayOf(1, 2, 3), manifestText, metaBytes)
@@ -56,7 +69,7 @@ class PublishPreviewPluginUseCaseTest {
     private val published = PublishPreviewPluginRemoteResult.Published(
         outcome = "published",
         buildId = "0123456789ab",
-        uikitComposeVersion = "0.55.0",
+        libraryVersion = "0.55.0",
         pluginUrl = "https://plugins.example.test/builds/0123456789ab/",
         report = ApiMetaImportReport(1, 2, 3, 4, 0, 0, 0, 0, emptyList(), emptyList(), emptyList()),
     )
@@ -106,7 +119,10 @@ class PublishPreviewPluginUseCaseTest {
                     return remote
                 }
             },
-            normalizer = ComposeApiMetaNormalizer(),
+            normalizers = mapOf(
+                TargetPlatform.COMPOSE to ComposeApiMetaNormalizer(),
+                TargetPlatform.REACT to WebApiMetaNormalizer(),
+            ),
         )
         return useCase.execute(
             PublishPreviewPluginCommand(platform, "plugin.zip", apply, apiUrlOverride),
@@ -123,6 +139,7 @@ class PublishPreviewPluginUseCaseTest {
         assertIs<PublishPreviewPluginResult.Published>(result, "publication refused: $result")
         val command = sent.single()
         assertTrue(command.dryRun)
+        assertEquals(TargetPlatform.COMPOSE, command.platform)
         assertEquals("http://localhost:8080", command.apiUrl.value)
         assertEquals(BackendCredential.ServiceToken("service-token"), command.credential)
         assertEquals("api-meta.json", command.source)
@@ -159,18 +176,100 @@ class PublishPreviewPluginUseCaseTest {
 
         assertEquals(listOf("target", "publish"), order)
         val target = assertIs<PublishPreviewPluginResult.Published>(result).target
-        assertEquals("0123456789ab/0.55.0", "${target.buildId}/${target.uikitComposeVersion}")
+        assertEquals("0123456789ab/0.55.0", "${target.buildId}/${target.libraryVersion}")
+        assertEquals(TargetPlatform.COMPOSE, target.platform)
     }
 
     @Test
-    fun onlyTheComposePlatformIsSupported() = runTest {
+    fun platformsWithoutAPreviewPluginAreRefusedBeforeTheArchiveIsRead() = runTest {
+        listOf(TargetPlatform.ANDROID_VIEW, TargetPlatform.SWIFT_UI).forEach { platform ->
+            val touched = Touched()
+
+            val result = execute(platform = platform, touched = touched)
+
+            val message = assertIs<PublishPreviewPluginResult.Failed>(result).message
+            assertTrue(message.contains(platform.cliValue) && message.contains("compose, react"), message)
+            assertEquals(false, touched.read)
+            assertEquals(false, touched.published)
+        }
+    }
+
+    @Test
+    fun aWebPluginIsSentWithTheWebNormalizedMeta() = runTest {
+        val sent = mutableListOf<PublishPreviewPluginRemoteCommand>()
+
+        val result = execute(
+            platform = TargetPlatform.REACT,
+            apply = true,
+            archive = webArchive(),
+            remote = published.copy(buildId = "0a1b2c3d4e5f", libraryVersion = "0.384.0"),
+            onPublish = { sent += it },
+        )
+
+        val publishedWeb = assertIs<PublishPreviewPluginResult.Published>(result, "publication refused: $result")
+        val command = sent.single()
+        assertEquals(TargetPlatform.REACT, command.platform)
+        assertEquals(false, command.dryRun)
+        assertEquals(listOf("AvatarGroup", "Button", "Link", "Spinner"), command.manifest.components.map { it.name })
+        assertEquals(listOf<Byte>(4, 5, 6), command.archive.zipBytes.toList())
+        assertEquals(TargetPlatform.REACT, publishedWeb.target.platform)
+        assertEquals("0a1b2c3d4e5f/0.384.0", "${publishedWeb.target.buildId}/${publishedWeb.target.libraryVersion}")
+    }
+
+    @Test
+    fun aComposeArchiveWithTheReactPlatformNeverReachesTheBackend() = runTest {
+        val touched = Touched()
+        val composeManifest = """{"platform":"compose","version":"0123456789ab","uikitComposeVersion":"0.55.0",""" +
+            """"apiMetaSha256":"$metaSha"}"""
+
+        val result = execute(
+            platform = TargetPlatform.REACT,
+            archive = PreviewPluginArchiveResult.Read(archive(composeManifest)),
+            touched = touched,
+        )
+
+        val message = assertIs<PublishPreviewPluginResult.Failed>(result).message
+        assertTrue(message.contains("'compose'") && message.contains("'web'"), message)
+        assertEquals(false, touched.credentialResolved)
+        assertEquals(false, touched.published)
+    }
+
+    @Test
+    fun aWebArchiveWithTheComposePlatformNeverReachesTheBackend() = runTest {
         val touched = Touched()
 
-        val result = execute(platform = TargetPlatform.REACT, touched = touched)
+        val result = execute(archive = webArchive(), touched = touched)
 
-        assertTrue(assertIs<PublishPreviewPluginResult.Failed>(result).message.contains("compose"))
-        assertEquals(false, touched.read)
+        val message = assertIs<PublishPreviewPluginResult.Failed>(result).message
+        assertTrue(message.contains("'web'") && message.contains("'compose'"), message)
         assertEquals(false, touched.published)
+    }
+
+    @Test
+    fun aWebManifestNeedsItsPlatformAndThePlasmaNewHopeVersion() = runTest {
+        listOf(
+            webManifest(platform = null),
+            """{"platform":"web","version":"0a1b2c3d4e5f","uikitComposeVersion":"0.55.0",""" +
+                """"apiMetaSha256":"$webMetaSha"}""",
+            webManifest(sha = "f".repeat(64)),
+        ).forEach { manifestText ->
+            val touched = Touched()
+
+            val result = execute(platform = TargetPlatform.REACT, archive = webArchive(manifestText), touched = touched)
+
+            assertIs<PublishPreviewPluginResult.Failed>(result, manifestText)
+            assertEquals(false, touched.published, manifestText)
+        }
+    }
+
+    @Test
+    fun aComposeManifestThatNamesItsPlatformIsAccepted() = runTest {
+        val manifestText = """{"platform":"compose","version":"0123456789ab","uikitComposeVersion":"0.55.0",""" +
+            """"apiMetaSha256":"$metaSha"}"""
+
+        val result = execute(archive = PreviewPluginArchiveResult.Read(archive(manifestText)))
+
+        assertIs<PublishPreviewPluginResult.Published>(result, "publication refused: $result")
     }
 
     @Test

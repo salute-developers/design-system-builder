@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { useComponentData, useStory } from '../../../../hooks';
+import { useComponentData } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
 import { SegmentButtonItem, TextField } from '../../../../components';
 import { ComponentEditorPreview } from '../ComponentEditorPreview';
@@ -9,15 +9,7 @@ import { ComponentEditorProperties } from '../ComponentEditorProperties';
 import { ComponentEditorSetup } from '../ComponentEditorSetup';
 
 import { Root, StyledSetup, StyledHeader, StyledWrapper } from './ComponentEditor.styles';
-import {
-    createThemeVars,
-    createComponentVars,
-    createRelatedComponentVars,
-    createRelatedComponents,
-    componentPreviewRequest,
-    modeList,
-    resolveComponentPreview,
-} from './ComponentEditor.utils';
+import { componentPreviewRequest, modeList, resolveComponentPreview } from './ComponentEditor.utils';
 
 interface ComponentEditorProps {
     designSystem: DesignSystem;
@@ -32,8 +24,6 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     const config = configs?.[0];
 
-    const { storyArgs, Story, items: storyItems, selectedStory, setSelectedStory } = useStory(config?.getPlatform() === 'web' ? config.getName() : undefined);
-
     const [
         selectedVariation,
         setSelectedVariation,
@@ -41,7 +31,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setSelectedStyle,
         componentProps,
         setComponentProps,
-    ] = useComponentData(config, storyArgs);
+    ] = useComponentData(config);
 
     const location = useLocation();
     const preview = useMemo(() => componentPreviewRequest(location.state), [location.state]);
@@ -60,7 +50,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setSelectedStyle(selection.styleID);
         setComponentProps((current) => ({ ...current, [selection.variationName]: selection.styleID }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [config, storyArgs, preview]);
+    }, [config, preview]);
     // Стабильная ссылка: от неё зависит пересборка payload Compose-превью.
     const resolveStyleReference = useCallback(
         (reference: string) => designSystem.resolveComposeStyleReference(reference),
@@ -114,23 +104,9 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setComponentProps({ ...componentProps, [name]: value as string });
     };
 
-    const themeVars = useMemo(() => createThemeVars(theme, themeMode.value), [theme, themeMode]);
-
     if (!config) {
         return null;
     }
-
-    const relatedVars = createRelatedComponentVars(
-        designSystem,
-        config,
-        componentProps,
-        theme,
-        themeMode.value,
-        relatedConfigs,
-    );
-    const componentVars = { ...relatedVars, ...createComponentVars(config, theme, componentProps, themeMode.value) };
-
-    const relatedComponents = createRelatedComponents(designSystem, config, theme, themeMode.value, relatedConfigs);
 
     return (
         <Root>
@@ -164,16 +140,10 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 theme={theme}
                 config={config}
                 args={componentProps}
-                storyArgs={storyArgs}
-                relatedComponents={relatedComponents}
-                storyItems={storyItems}
-                selectedStory={selectedStory}
-                Story={Story}
-                componentVars={componentVars}
-                themeVars={themeVars}
+                designSystem={designSystem}
+                relatedConfigs={relatedConfigs}
                 themeModeList={modeList}
                 themeMode={themeMode}
-                onStorySelect={setSelectedStory}
                 onChange={onChangeComponentControlValue}
                 onUpdateThemeMode={setThemeMode}
                 resolveStyleReference={resolveStyleReference}

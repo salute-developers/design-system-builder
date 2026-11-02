@@ -18,6 +18,7 @@ interface ColorsOutletContextProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
+    loadComponent?: (name?: string) => Promise<void>;
 }
 
 /** Раздел «Цвета» темы: экран Color Tokens по прототипу SDDS Portal с автосохранением правок. */
@@ -55,6 +56,7 @@ export const Colors = () => {
             updated={outlet.updated}
             rerender={outlet.rerender}
             reload={outlet.reload}
+            loadComponent={outlet.loadComponent}
         />
     );
 };

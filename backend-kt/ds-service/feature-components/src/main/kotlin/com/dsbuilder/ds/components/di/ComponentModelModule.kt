@@ -5,6 +5,7 @@ import com.dsbuilder.ds.components.application.AddAppearanceAxisValueUseCase
 import com.dsbuilder.ds.components.application.AddStyleCombinationMemberUseCase
 import com.dsbuilder.ds.components.application.AppearanceEditorRepository
 import com.dsbuilder.ds.components.application.AppearanceRepository
+import com.dsbuilder.ds.components.application.ComponentEditorBundleRepository
 import com.dsbuilder.ds.components.application.ComponentModelRepository
 import com.dsbuilder.ds.components.application.CreateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.CreateAppearanceUseCase
@@ -42,6 +43,7 @@ import com.dsbuilder.ds.components.application.GetAppearanceEditorModelUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationValueUseCase
+import com.dsbuilder.ds.components.application.GetComponentEditorBundleUseCase
 import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPropertyValueUseCase
@@ -111,6 +113,7 @@ import com.dsbuilder.ds.components.application.UpdateVariationUseCase
 import com.dsbuilder.ds.components.data.ComponentTokenRevertDependencyValidator
 import com.dsbuilder.ds.components.data.ExposedAppearanceEditorRepository
 import com.dsbuilder.ds.components.data.ExposedAppearanceRepository
+import com.dsbuilder.ds.components.data.ExposedComponentEditorBundleRepository
 import com.dsbuilder.ds.components.data.ExposedComponentModelRepository
 import com.dsbuilder.ds.components.data.ExposedPropertyValueRepository
 import com.dsbuilder.ds.components.data.ExposedStateRepository
@@ -142,6 +145,10 @@ val componentModelModule = module {
     factory { GetResolvedComponentPropertiesUseCase(get(), get(), get()) }
     factory { GetComponentTokenReferencesUseCase(get(), get(), get()) }
     factory { ListComponentConfigurationsUseCase(get(), get(), get()) }
+    single<ComponentEditorBundleRepository> {
+        ExposedComponentEditorBundleRepository(get(), get(), get(), get(), get(), get())
+    }
+    factory { GetComponentEditorBundleUseCase(get(), get(), get()) }
     factory { AddAppearanceAxisUseCase(get(), get(), get(), get()) }
     factory { RemoveAppearanceAxisUseCase(get(), get(), get()) }
     factory { ReorderAppearanceAxesUseCase(get(), get(), get()) }

@@ -23,18 +23,19 @@ import kotlinx.serialization.json.JsonPrimitive
 import okio.ByteString.Companion.toByteString
 
 /**
- * Отправляет билд Compose preview plugin на бэкенд: архив и нормализованную мету из него одним запросом.
+ * Отправляет билд preview plugin (Compose или web) на бэкенд: архив и нормализованную мету из него одним запросом.
  *
- * Файлы в хранилище и запись версий выполняет бэкенд. CLI проверяет архив локально (sha256 меты должен
- * совпасть с `apiMetaSha256` manifest) и до обращения к сети отказывает при любом несоответствии. Как и
- * `components import-api`, команда требует явный API URL и по умолчанию делает пробную отправку.
+ * Файлы в хранилище и запись версий выполняет бэкенд. CLI проверяет архив локально по правилам своей платформы
+ * (`platform` и версия библиотеки в manifest, sha256 меты должен совпасть с `apiMetaSha256`) и до обращения к
+ * сети отказывает при любом несоответствии. Мета нормализуется тем же нормализатором платформы, что и в
+ * `components import-api`. Как и там, команда требует явный API URL и по умолчанию делает пробную отправку.
  */
 public class PublishPreviewPluginUseCase internal constructor(
     private val credentialProvider: CredentialProvider,
     private val apiUrlResolver: ApiUrlResolver,
     private val archiveSource: PreviewPluginArchiveSource,
     private val remoteSource: PreviewPluginRemoteSource,
-    private val normalizer: ApiMetaNormalizer,
+    private val normalizers: Map<TargetPlatform, ApiMetaNormalizer>,
 ) {
     /**
      * Выполняет отправку.
@@ -58,6 +59,7 @@ public class PublishPreviewPluginUseCase internal constructor(
         onTarget(target)
         val remote = remoteSource.publish(
             PublishPreviewPluginRemoteCommand(
+                platform = command.platform,
                 apiUrl = ProjectApiUrl(prepared.apiUrl.value),
                 credential = credential,
                 archive = prepared.archive,
@@ -72,7 +74,7 @@ public class PublishPreviewPluginUseCase internal constructor(
             is PublishPreviewPluginRemoteResult.Published -> PublishPreviewPluginResult.Published(
                 outcome = remote.outcome,
                 buildId = remote.buildId,
-                uikitComposeVersion = remote.uikitComposeVersion,
+                libraryVersion = remote.libraryVersion,
                 pluginUrl = remote.pluginUrl,
                 report = remote.report,
                 target = target,
@@ -86,16 +88,18 @@ public class PublishPreviewPluginUseCase internal constructor(
         data class Rejected(val message: String) : Preparation
 
         class Ready(
+            val platform: TargetPlatform,
             val apiUrl: ResolvedApiUrl,
             val archive: PreviewPluginArchive,
             val identity: ManifestCheck.Valid,
             val normalized: ApiMetaNormalizationResult.Normalized,
         ) : Preparation {
             fun target(dryRun: Boolean) = PublishPreviewPluginTarget(
+                platform = platform,
                 apiUrl = apiUrl,
                 source = archive.path,
                 buildId = identity.version,
-                uikitComposeVersion = identity.uikitComposeVersion,
+                libraryVersion = identity.libraryVersion,
                 componentCount = normalized.manifest.components.size,
                 propertyCount = normalized.manifest.propertyCount,
                 stateCount = normalized.manifest.stateCount,
@@ -106,9 +110,12 @@ public class PublishPreviewPluginUseCase internal constructor(
 
     @Suppress("ReturnCount")
     private fun prepare(command: PublishPreviewPluginCommand): Preparation {
-        if (command.platform != TargetPlatform.COMPOSE) {
+        val rules = PLATFORM_RULES[command.platform]
+        val normalizer = normalizers[command.platform]
+        if (rules == null || normalizer == null) {
             return Preparation.Rejected(
-                "Error: preview-plugin publish supports only platform '${TargetPlatform.COMPOSE.cliValue}'.",
+                "Error: preview-plugin publish does not support platform '${command.platform.cliValue}'. " +
+                    "Supported: ${SUPPORTED_PLATFORMS.joinToString { it.cliValue }}.",
             )
         }
         val apiUrl = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
@@ -119,7 +126,7 @@ public class PublishPreviewPluginUseCase internal constructor(
             is PreviewPluginArchiveResult.Failed -> return Preparation.Rejected(read.message)
             is PreviewPluginArchiveResult.Read -> read.archive
         }
-        val identity = when (val checked = checkManifest(archive)) {
+        val identity = when (val checked = checkManifest(archive, rules)) {
             is ManifestCheck.Invalid -> return Preparation.Rejected(checked.message)
             is ManifestCheck.Valid -> checked
         }
@@ -132,24 +139,33 @@ public class PublishPreviewPluginUseCase internal constructor(
             )
             is ApiMetaNormalizationResult.Normalized -> result
         }
-        return Preparation.Ready(apiUrl, archive, identity, normalized)
+        return Preparation.Ready(command.platform, apiUrl, archive, identity, normalized)
     }
 
     private sealed interface ManifestCheck {
-        data class Valid(val version: String, val uikitComposeVersion: String) : ManifestCheck
+        data class Valid(val version: String, val libraryVersion: String) : ManifestCheck
 
         data class Invalid(val message: String) : ManifestCheck
     }
 
     @Suppress("ReturnCount")
-    private fun checkManifest(archive: PreviewPluginArchive): ManifestCheck {
+    private fun checkManifest(archive: PreviewPluginArchive, rules: PlatformRules): ManifestCheck {
         val root = runCatching { Json.parseToJsonElement(archive.manifestText) }.getOrNull() as? JsonObject
             ?: return ManifestCheck.Invalid("Error: $MANIFEST_FILE of ${archive.path} is not a JSON object.")
         fun text(name: String): String? = (root[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        val declaredPlatform = text("platform")
+        if (declaredPlatform != rules.manifestPlatform && (rules.platformRequired || declaredPlatform != null)) {
+            return ManifestCheck.Invalid(
+                "Error: $MANIFEST_FILE of ${archive.path} is for platform '${declaredPlatform ?: "<none>"}', " +
+                    "expected '${rules.manifestPlatform}'.",
+            )
+        }
         val version = text("version")
             ?: return ManifestCheck.Invalid("Error: $MANIFEST_FILE of ${archive.path} has no 'version'.")
-        val uikit = text("uikitComposeVersion")
-            ?: return ManifestCheck.Invalid("Error: $MANIFEST_FILE of ${archive.path} has no 'uikitComposeVersion'.")
+        val library = text(rules.libraryVersionField)
+            ?: return ManifestCheck.Invalid(
+                "Error: $MANIFEST_FILE of ${archive.path} has no '${rules.libraryVersionField}'.",
+            )
         val declared = text("apiMetaSha256")
             ?: return ManifestCheck.Invalid("Error: $MANIFEST_FILE of ${archive.path} has no 'apiMetaSha256'.")
         val actual = archive.metaBytes.toByteString().sha256().hex()
@@ -159,7 +175,7 @@ public class PublishPreviewPluginUseCase internal constructor(
                     "the file has $actual.",
             )
         }
-        return ManifestCheck.Valid(version, uikit)
+        return ManifestCheck.Valid(version, library)
     }
 
     /** Служебная учётка из окружения либо сессия администратора; ключ проекта не используется. */
@@ -180,16 +196,36 @@ public class PublishPreviewPluginUseCase internal constructor(
             message
         }
 
+    /**
+     * Правила manifest платформы.
+     *
+     * @property manifestPlatform значение `platform` в `preview-plugin.json`.
+     * @property platformRequired обязано ли поле `platform`: архивы Compose, собранные до его появления, его
+     *   не содержат, поэтому для Compose проверяется только несовпадение.
+     * @property libraryVersionField поле версии библиотеки компонентов.
+     */
+    private class PlatformRules(
+        val manifestPlatform: String,
+        val platformRequired: Boolean,
+        val libraryVersionField: String,
+    )
+
     private companion object {
         const val MANIFEST_FILE = "preview-plugin.json"
         const val META_FILE = "api-meta.json"
+
+        val PLATFORM_RULES = mapOf(
+            TargetPlatform.COMPOSE to PlatformRules("compose", platformRequired = false, "uikitComposeVersion"),
+            TargetPlatform.REACT to PlatformRules("web", platformRequired = true, "plasmaNewHopeVersion"),
+        )
+        val SUPPORTED_PLATFORMS = PLATFORM_RULES.keys.toList()
     }
 }
 
 /**
  * Запрос на отправку билда плагина.
  *
- * @property platform платформа плагина; поддерживается только `compose`.
+ * @property platform платформа плагина: `compose` или `react` (web-плагин).
  * @property from путь архива плагина.
  * @property apply записывать ли билд; без этого выполняется пробная отправка.
  * @property apiUrlOverride backend API URL, переданный аргументом.
@@ -204,20 +240,22 @@ public data class PublishPreviewPluginCommand(
 /**
  * Цель и состав отправки, печатаемые до запроса.
  *
+ * @property platform платформа плагина.
  * @property apiUrl разрешённый backend API URL вместе с источником.
  * @property source абсолютный путь архива.
  * @property buildId идентификатор билда из manifest.
- * @property uikitComposeVersion версия `uikit-compose` из manifest.
+ * @property libraryVersion версия библиотеки компонентов из manifest: `uikit-compose` или `plasma-new-hope`.
  * @property componentCount число компонентов меты.
  * @property propertyCount число свойств меты.
  * @property stateCount число состояний меты.
  * @property dryRun пробная ли отправка.
  */
 public data class PublishPreviewPluginTarget(
+    public val platform: TargetPlatform,
     public val apiUrl: ResolvedApiUrl,
     public val source: String,
     public val buildId: String,
-    public val uikitComposeVersion: String,
+    public val libraryVersion: String,
     public val componentCount: Int,
     public val propertyCount: Int,
     public val stateCount: Int,
@@ -231,7 +269,7 @@ public sealed interface PublishPreviewPluginResult {
      *
      * @property outcome `published`, `activated` или `unchanged`.
      * @property buildId идентификатор билда.
-     * @property uikitComposeVersion версия `uikit-compose` билда.
+     * @property libraryVersion версия библиотеки компонентов билда.
      * @property pluginUrl публичный адрес каталога билда.
      * @property report отчёт импорта меты.
      * @property target цель отправки.
@@ -240,7 +278,7 @@ public sealed interface PublishPreviewPluginResult {
     public data class Published(
         public val outcome: String,
         public val buildId: String,
-        public val uikitComposeVersion: String,
+        public val libraryVersion: String,
         public val pluginUrl: String,
         public val report: ApiMetaImportReport,
         public val target: PublishPreviewPluginTarget,

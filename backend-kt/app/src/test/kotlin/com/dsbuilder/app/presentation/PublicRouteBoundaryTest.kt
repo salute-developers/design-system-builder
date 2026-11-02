@@ -31,6 +31,12 @@ class PublicRouteBoundaryTest {
     }
 
     @Test
+    fun `preview plugin publication is public for both platforms`() {
+        assertEquals(true, publicGatewayPath("/api/admin/compose-preview/plugin-builds"))
+        assertEquals(true, publicGatewayPath("/api/admin/web-preview/plugin-builds"))
+    }
+
+    @Test
     fun `inventory rejects internal routes below nested branches`() = testApplication {
         application {
             routing {

@@ -8,7 +8,9 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.insertReturning
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
@@ -57,6 +59,23 @@ class ExposedStyleRepository : StyleRepository {
                 (ComponentStylesTable.designSystemId eq designSystemId) and
                 ComponentOwnership.readableDesignSystem(ComponentStylesTable.designSystemId, projectId, systemAdmin) and
                 ComponentOwnership.readableVariation(ComponentStylesTable.variationId, projectId, systemAdmin)
+        }.map(::styleModel)
+    }
+
+    override suspend fun listByComponentAndDesignSystem(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        componentId: UUID,
+        designSystemId: UUID,
+    ): List<ComponentStyleSummary> {
+        val variationIds = VariationsTable.select(VariationsTable.id).where {
+            (VariationsTable.designSystemId eq designSystemId) and (VariationsTable.componentId eq componentId)
+        }.map { it[VariationsTable.id] }
+        if (variationIds.isEmpty()) return emptyList()
+        return ComponentStylesTable.selectAll().where {
+            (ComponentStylesTable.designSystemId eq designSystemId) and
+                (ComponentStylesTable.variationId inList variationIds) and
+                ComponentOwnership.readableDesignSystem(ComponentStylesTable.designSystemId, projectId, systemAdmin)
         }.map(::styleModel)
     }
 

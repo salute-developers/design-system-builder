@@ -600,7 +600,7 @@ internal object PluginBuildsTable : Table("compose_preview_plugin_builds") {
         ComponentPlatformDb::fromWire,
         ComponentPlatformDb::wireValue,
     )
-    val uikitComposeVersion = text("uikit_compose_version")
+    val libraryVersion = text("library_version")
     val metaSha256 = text("meta_sha256")
     val commitSha = text("commit_sha")
     val protocolVersion = integer("protocol_version")

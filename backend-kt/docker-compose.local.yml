@@ -87,8 +87,11 @@ services:
       MINIO_ROOT_PASSWORD: minio123
     volumes:
     - monolith_minio-data:/data
+    # The browser loads Compose and web preview plugin builds straight from their buckets; the web console
+    # (minio/minio123) shows the buckets for local debugging.
     ports:
     - "${MINIO_PUBLIC_PORT:-9000}:9000"
+    - "${MINIO_CONSOLE_PORT:-9001}:9001"
     healthcheck:
       test:
       - CMD-SHELL
@@ -106,7 +109,8 @@ services:
     - "-c"
     - mc alias set local http://minio:9000 minio minio123 && mc mb --ignore-existing
       local/documentation-bundles && mc mb --ignore-existing local/compose-preview
-      && mc anonymous set download local/compose-preview
+      && mc anonymous set download local/compose-preview && mc mb --ignore-existing
+      local/web-preview && mc anonymous set download local/web-preview
     depends_on:
       minio:
         condition: service_healthy
@@ -142,6 +146,9 @@ services:
       DS_PLUGIN_S3_PATH_STYLE: 'true'
       DS_PLUGIN_S3_PREFIX: "${DS_PLUGIN_S3_PREFIX:-}"
       DS_PLUGIN_PUBLIC_BASE_URL: "${DS_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/compose-preview}"
+      DS_WEB_PLUGIN_S3_BUCKET: web-preview
+      DS_WEB_PLUGIN_S3_PREFIX: "${DS_WEB_PLUGIN_S3_PREFIX:-}"
+      DS_WEB_PLUGIN_PUBLIC_BASE_URL: "${DS_WEB_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/web-preview}"
       DOCUMENTATION_DATABASE_URL: jdbc:postgresql://documentation-db:5432/documentation_service
       DOCUMENTATION_POSTGRES_USER: documentation
       DOCUMENTATION_POSTGRES_PASSWORD: documentation

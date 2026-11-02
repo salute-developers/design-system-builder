@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('../../api/index', () => ({ http: { get, put: vi.fn() }, PROJECTS_URL: '/api/projects' }));
 vi.mock('../../api/http', () => ({ http: { get, post } }));
+// Канвас компонента рисует web-плагин превью; экрану достаточно знать, что канвас показан.
+vi.mock('./ui/ComponentCanvas', () => ({
+    ComponentCanvas: () => <div data-testid="color-tokens-component-canvas" />,
+}));
 vi.mock('../../api/editorReads', () => ({
     readEditor: (url: string, config: unknown, body?: unknown) =>
         // Дополнения модели компонентов (web-параметры, вариации свойств, шаблоны, связи) — пустые списки.
@@ -167,7 +171,13 @@ const renderScreen = async (
     role = 'maintainer',
     missing: string[] = [],
     components: Config[] = [],
-    options: { palette?: ThemePalette; versionId?: string; cachedGroups?: boolean; entry?: string } = {},
+    options: {
+        palette?: ThemePalette;
+        versionId?: string;
+        cachedGroups?: boolean;
+        entry?: string;
+        loadComponent?: (name?: string) => Promise<void>;
+    } = {},
 ) => {
     get.mockImplementation((url: string) => Promise.resolve(reply(role, missing)(url)));
     const loadContext = { ...context, ...(options.versionId ? { versionId: options.versionId } : {}) };
@@ -207,6 +217,7 @@ const renderScreen = async (
                 updated={{ updated }}
                 rerender={rerender}
                 reload={() => undefined}
+                loadComponent={options.loadComponent}
             />
         );
     };
@@ -284,6 +295,22 @@ describe('ColorTokensScreen', () => {
         await waitFor(() =>
             expect(within(inspector()).getByRole('heading', { name: 'textHighlight' })).toBeInTheDocument(),
         );
+    });
+
+    it('канвас загружает список компонентов при открытии выбора и компонент при выборе, до загрузки показывает её', async () => {
+        let finish: () => void = () => undefined;
+        const loadComponent = vi.fn((name?: string) =>
+            name ? new Promise<void>((resolve) => (finish = resolve)) : Promise.resolve(),
+        );
+        await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')], { loadComponent });
+        fireEvent.click(await screen.findByTitle('Представление рабочей области'));
+        expect(loadComponent).toHaveBeenCalledWith();
+        fireEvent.click(screen.getByRole('button', { name: 'Button' }));
+        expect(loadComponent).toHaveBeenLastCalledWith('Button');
+        expect(screen.getByTestId('color-tokens-canvas-loading')).toHaveTextContent('Загружаем компонент');
+        await act(async () => finish());
+        expect(screen.queryByTestId('color-tokens-canvas-loading')).toBeNull();
+        expect(screen.getByTestId('color-tokens-component-canvas')).toBeInTheDocument();
     });
 
     it('использует группы раздела без повторного чтения групп и определений', async () => {

@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.components.application
 
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 
@@ -38,6 +39,7 @@ internal sealed interface PreviewPluginArchiveResult {
 /**
  * Запрос на отправку билда плагина.
  *
+ * @property platform платформа плагина: от неё зависят маршрут и `platform` меты.
  * @property apiUrl разрешённый backend API URL.
  * @property credential служебная учётка или сессия администратора.
  * @property archive архив плагина.
@@ -46,6 +48,7 @@ internal sealed interface PreviewPluginArchiveResult {
  * @property dryRun пробная отправка без записи.
  */
 internal class PublishPreviewPluginRemoteCommand(
+    val platform: TargetPlatform,
     val apiUrl: ProjectApiUrl,
     val credential: BackendCredential,
     val archive: PreviewPluginArchive,
@@ -67,14 +70,14 @@ internal sealed interface PublishPreviewPluginRemoteResult {
      *
      * @property outcome `published`, `activated` или `unchanged`.
      * @property buildId идентификатор билда.
-     * @property uikitComposeVersion версия `uikit-compose` билда.
+     * @property libraryVersion версия библиотеки компонентов билда.
      * @property pluginUrl публичный адрес каталога билда.
      * @property report отчёт импорта меты.
      */
     data class Published(
         val outcome: String,
         val buildId: String,
-        val uikitComposeVersion: String,
+        val libraryVersion: String,
         val pluginUrl: String,
         val report: ApiMetaImportReport,
     ) : PublishPreviewPluginRemoteResult

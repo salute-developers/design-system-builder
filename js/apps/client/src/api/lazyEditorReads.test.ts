@@ -138,7 +138,11 @@ it('данные C50 читаются адресно и стили всех ег
     expect(urls.filter((url) => /\/variations\/axis\d\/styles/.test(url))).toHaveLength(0);
     expect(http.get).toHaveBeenCalledTimes(8);
     expect(http.get.mock.calls.some(([url]) => url.endsWith('/property-platform-params'))).toBe(false);
-    expect(http.post).toHaveBeenCalledTimes(2);
+    // Только экспорт: web-шаблоны клиент не читает, они лежат в web-плагине превью.
+    expect(http.post).toHaveBeenCalledTimes(1);
+    expect(http.post.mock.calls.map(([url]) => url)).not.toContain(
+        '/api/projects/project/ds/component-config/web-adapter',
+    );
 });
 
 it('типографика фильтруется сервером и не запускает чтение палитры или компонентов', async () => {

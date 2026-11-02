@@ -3,6 +3,7 @@ package com.dsbuilder.ds.components.application
 import com.dsbuilder.ds.components.domain.ApiMetaImportReport
 import com.dsbuilder.ds.components.domain.NewPluginBuild
 import com.dsbuilder.ds.components.domain.PluginBuild
+import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
@@ -11,26 +12,33 @@ import kotlinx.coroutines.CancellationException
 import java.time.Instant
 
 /**
- * Принимает архив плагина и мету, кладёт файлы в хранилище, импортирует мету и записывает билд как активный.
+ * Принимает архив плагина платформы и мету, кладёт файлы в хранилище платформы, импортирует мету и записывает билд
+ * как активный билд платформы. Билды и файлы других платформ публикация и очистка не трогают.
  *
  * Файлы заливаются до транзакции БД: откат БД не оставляет активным билд без файлов, а оставшиеся без строки
  * каталоги убирает очистка. Роль публикации проверяется до разбора архива.
  */
 class PublishPluginBuildUseCase(
     private val transactions: TransactionRunner,
-    private val storage: PluginBuildStorage,
+    private val storages: PluginBuildStorages,
     private val builds: PluginBuildRepository,
     private val apiMeta: ApiMetaRepository,
-    private val settings: PluginBuildSettings,
 ) {
-    /** Выполняет публикацию. */
+    /** Выполняет публикацию билда [platform]. */
     @Suppress("ReturnCount")
-    suspend fun execute(context: DsRequestContext, command: PublishPluginBuild): DsResult<PublishResult> {
+    suspend fun execute(
+        platform: PreviewPluginPlatform,
+        context: DsRequestContext,
+        command: PublishPluginBuild,
+    ): DsResult<PublishResult> {
         if (!context.principal.systemAdmin && !context.principal.composePreviewPublisher) {
             return DsResult.Failure(DsFailure.Forbidden)
         }
-        if (!storage.configured) return DsResult.Failure(DsFailure.DependencyUnavailable(STORAGE_DEPENDENCY))
-        val prepared = when (val result = prepare(command.archive)) {
+        val target = storages.configured(platform)
+            ?.let { Target(platform, it.storage, it.settings) }
+            ?: return DsResult.Failure(DsFailure.DependencyUnavailable(storageDependency(platform)))
+        if (command.meta.platform != platform.wire) return DsResult.Failure(DsFailure.InvalidRequest(INVALID_BODY))
+        val prepared = when (val result = prepare(target, command.archive)) {
             is DsResult.Failure -> return result
             is DsResult.Success -> result.value
         }
@@ -38,8 +46,8 @@ class PublishPluginBuildUseCase(
         val manifest = prepared.manifest
         val newBuild = NewPluginBuild(
             buildId = manifest.version,
-            platform = PLATFORM,
-            uikitComposeVersion = manifest.uikitComposeVersion,
+            platform = platform.wire,
+            libraryVersion = manifest.libraryVersion,
             metaSha256 = manifest.apiMetaSha256,
             commit = manifest.commit,
             protocolVersion = manifest.protocolVersion,
@@ -48,10 +56,23 @@ class PublishPluginBuildUseCase(
             fileCount = archive.files.size,
             publishedBy = context.principal.actorId,
         )
-        return if (command.dryRun) dryRun(command, newBuild) else publish(command, archive, newBuild)
+        return if (command.dryRun) dryRun(target, command, newBuild) else publish(target, command, archive, newBuild)
     }
 
+    /** Платформа публикации с её хранилищем и настройками. */
+    private class Target(
+        val platform: PreviewPluginPlatform,
+        val storage: PluginBuildStorage,
+        val settings: PluginBuildSettings,
+    )
+
     private fun classify(existing: PluginBuild?, newBuild: NewPluginBuild): DsResult<PublishKind> = when {
+        existing != null && existing.platform != newBuild.platform -> DsResult.Failure(
+            DsFailure.Conflict(
+                code = BUILD_PLATFORM_CONFLICT,
+                message = "Билд ${existing.buildId} уже опубликован для платформы ${existing.platform}",
+            ),
+        )
         existing != null && existing.zipSha256 != newBuild.zipSha256 -> DsResult.Failure(
             DsFailure.Conflict(
                 code = BUILD_CONTENT_CHANGED,
@@ -67,12 +88,12 @@ class PublishPluginBuildUseCase(
     private class Prepared(val archive: PluginArchive, val manifest: PluginManifest)
 
     @Suppress("ReturnCount")
-    private fun prepare(bytes: ByteArray): DsResult<Prepared> {
-        val archive = when (val read = PluginArchiveReader.read(bytes, settings.limits)) {
+    private fun prepare(target: Target, bytes: ByteArray): DsResult<Prepared> {
+        val archive = when (val read = PluginArchiveReader.read(bytes, target.settings.limits)) {
             is PluginArchiveResult.Invalid -> return invalidRequest(read.code, read.message)
             is PluginArchiveResult.Valid -> read.archive
         }
-        val manifest = when (val parsed = PluginManifestParser.parse(archive)) {
+        val manifest = when (val parsed = PluginManifestParser.parse(archive, target.platform)) {
             is PluginManifestResult.Invalid -> return invalidRequest(parsed.code, parsed.message)
             is PluginManifestResult.Valid -> parsed.manifest
         }
@@ -83,7 +104,11 @@ class PublishPluginBuildUseCase(
         DsResult.Failure(DsFailure.InvalidRequest(code = code, message = message))
 
     @Suppress("ReturnCount")
-    private suspend fun dryRun(command: PublishPluginBuild, newBuild: NewPluginBuild): DsResult<PublishResult> {
+    private suspend fun dryRun(
+        target: Target,
+        command: PublishPluginBuild,
+        newBuild: NewPluginBuild,
+    ): DsResult<PublishResult> {
         val existing = when (val found = transactions.readOnly { DsResult.Success(builds.find(newBuild.buildId)) }) {
             is DsResult.Failure -> return found
             is DsResult.Success -> found.value
@@ -98,7 +123,7 @@ class PublishPluginBuildUseCase(
                 PublishResult(
                     kind,
                     existing ?: predicted(newBuild),
-                    settings.pluginUrl(newBuild.buildId),
+                    target.settings.pluginUrl(newBuild.buildId),
                     reportResult.value,
                 ),
             )
@@ -110,6 +135,7 @@ class PublishPluginBuildUseCase(
      * параллельная публикация того же `buildId` с другим архивом не перезапишет принятые файлы.
      */
     private suspend fun publish(
+        target: Target,
         command: PublishPluginBuild,
         archive: PluginArchive,
         newBuild: NewPluginBuild,
@@ -119,14 +145,16 @@ class PublishPluginBuildUseCase(
             val existing = builds.find(newBuild.buildId)
             when (val kind = classify(existing, newBuild)) {
                 is DsResult.Failure -> kind
-                is DsResult.Success -> register(command, archive, newBuild, existing, kind.value)
+                is DsResult.Success -> register(target, command, archive, newBuild, existing, kind.value)
             }
         }
-        if (written is DsResult.Success) cleanup()
+        if (written is DsResult.Success) cleanup(target)
         return written
     }
 
+    @Suppress("LongParameterList")
     private suspend fun register(
+        target: Target,
         command: PublishPluginBuild,
         archive: PluginArchive,
         newBuild: NewPluginBuild,
@@ -134,21 +162,21 @@ class PublishPluginBuildUseCase(
         kind: PublishKind,
     ): DsResult<PublishResult> {
         if (existing == null) {
-            val uploaded = upload(archive, newBuild.buildId)
+            val uploaded = upload(target, archive, newBuild.buildId)
             if (uploaded is DsResult.Failure) return uploaded
         }
         return when (val report = importMeta(command.meta.copy(dryRun = false))) {
             is DsResult.Failure -> report
             is DsResult.Success -> {
                 val build = if (existing == null) builds.insertActive(newBuild) else builds.activate(newBuild.buildId)
-                DsResult.Success(PublishResult(kind, build, settings.pluginUrl(build.buildId), report.value))
+                DsResult.Success(PublishResult(kind, build, target.settings.pluginUrl(build.buildId), report.value))
             }
         }
     }
 
-    private suspend fun upload(archive: PluginArchive, buildId: String): DsResult<Unit> = try {
+    private suspend fun upload(target: Target, archive: PluginArchive, buildId: String): DsResult<Unit> = try {
         archive.files.forEach { (path, bytes) ->
-            storage.putFile(
+            target.storage.putFile(
                 buildId,
                 path,
                 bytes,
@@ -160,7 +188,7 @@ class PublishPluginBuildUseCase(
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
-        DsResult.Failure(DsFailure.DependencyUnavailable(STORAGE_DEPENDENCY))
+        DsResult.Failure(DsFailure.DependencyUnavailable(storageDependency(target.platform)))
     }
 
     private suspend fun importMeta(meta: ImportApiMeta): DsResult<ApiMetaImportReport> =
@@ -171,27 +199,29 @@ class PublishPluginBuildUseCase(
         }
 
     /**
-     * Удаляет лишние билды и осиротевшие каталоги под той же блокировкой, что и публикация: билд, который в этот
-     * момент активируется откатом, не попадёт в удаление. Строка снимается раньше файлов, чтобы билд без файлов
-     * нельзя было активировать; ошибки не влияют на результат публикации.
+     * Удаляет лишние билды и осиротевшие каталоги платформы под той же блокировкой, что и публикация: билд, который
+     * в этот момент активируется откатом, не попадёт в удаление. Строка снимается раньше файлов, чтобы билд без файлов
+     * нельзя было активировать; ошибки не влияют на результат публикации. Осиротевшие каталоги ищутся только
+     * в хранилище платформы, поэтому файлы других платформ им не считаются.
      */
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun cleanup() {
+    private suspend fun cleanup(target: Target) {
+        val settings = target.settings
         try {
             transactions.required {
                 builds.lockPublications()
-                val recent = builds.listByRecency(PLATFORM)
+                val recent = builds.listByRecency(target.platform.wire)
                 val inactive = recent.filterNot(PluginBuild::active)
                 val keep = (recent.filter(PluginBuild::active) + inactive.take(settings.keepBuilds))
                     .map { it.buildId }.toSet()
                 recent.filter { it.buildId !in keep }.forEach { stale ->
                     builds.delete(stale.buildId)
-                    discard(stale.buildId)
+                    discard(target, stale.buildId)
                 }
                 val known = recent.map { it.buildId }.toSet()
                 val threshold = Instant.now().minus(settings.orphanGrace)
-                storage.listBuilds().filter { it.buildId !in known && it.lastModified.isBefore(threshold) }
-                    .forEach { discard(it.buildId) }
+                target.storage.listBuilds().filter { it.buildId !in known && it.lastModified.isBefore(threshold) }
+                    .forEach { discard(target, it.buildId) }
                 DsResult.Success(Unit)
             }
         } catch (cancelled: CancellationException) {
@@ -203,9 +233,9 @@ class PublishPluginBuildUseCase(
 
     /** Файлы без строки в реестре уже не используются: сбой удаления подберёт проверка осиротевших каталогов. */
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun discard(buildId: String) {
+    private suspend fun discard(target: Target, buildId: String) {
         try {
-            storage.deleteBuild(buildId)
+            target.storage.deleteBuild(buildId)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -216,7 +246,7 @@ class PublishPluginBuildUseCase(
     private fun predicted(build: NewPluginBuild) = PluginBuild(
         buildId = build.buildId,
         platform = build.platform,
-        uikitComposeVersion = build.uikitComposeVersion,
+        libraryVersion = build.libraryVersion,
         metaSha256 = build.metaSha256,
         commit = build.commit,
         protocolVersion = build.protocolVersion,
@@ -230,13 +260,16 @@ class PublishPluginBuildUseCase(
 
     /** Константы публикации. */
     companion object {
-        /** Платформа реестра. */
-        const val PLATFORM = "compose"
-
         /** Код конфликта содержимого билда. */
         const val BUILD_CONTENT_CHANGED = "BUILD_CONTENT_CHANGED"
 
-        /** Имя недоступной зависимости. */
-        const val STORAGE_DEPENDENCY = "compose-preview-storage"
+        /** Код конфликта: `buildId` уже записан для другой платформы. */
+        const val BUILD_PLATFORM_CONFLICT = "BUILD_PLATFORM_CONFLICT"
+
+        /** Код отказа для меты чужой платформы, как у маршрута при негодном теле. */
+        const val INVALID_BODY = "invalid_body"
+
+        /** Имя недоступной зависимости: хранилище платформы (`compose-preview-storage`, `web-preview-storage`). */
+        fun storageDependency(platform: PreviewPluginPlatform): String = "${platform.wire}-preview-storage"
     }
 }
