@@ -42,7 +42,7 @@ React, `styled-components`, `@salutejs/plasma-new-hope` и `@salutejs/plasma-ico
 `sdds.preview.describe` сообщением `sdds.preview.description`, а на `sdds.preview.payload` — сообщением
 `sdds.preview.result` с тем же `requestId`, в тех же форматах, что ожидает `ComposePreviewSession`.
 Плагин SHALL принимать сообщения только от родительского окна. Ответ SHALL отправляться в origin
-отправителя. `success` SHALL отправляться после отрисовки компонента.
+отправителя. `success` SHALL отправляться после отрисовки компонента и завершения подготовки шрифтов темы.
 
 #### Scenario: Отрисовка по payload
 
@@ -236,4 +236,56 @@ story (`src/stories`, `useStory`), отображения в CSS-перемен�
 - **THEN** описание MUST содержать `storyVariant`, а не `variant`
 - **WHEN** payload содержит `example.props.storyVariant = "tight"`
 - **THEN** story MUST получить пропс `variant: "tight"`
+
+### Requirement: Web-плагин дожидается шрифтов темы
+
+Плагин SHALL запрашивать загрузку каждого начертания токенов `fontFamily` и SHALL отвечать на payload только после
+завершения всех загрузок, но не позже чем через 5 секунд. Начертание, не загруженное за это время или с ошибкой,
+SHALL считаться недоступным.
+
+#### Scenario: Шрифт загружается
+
+- **WHEN** загрузка начертания ещё не завершена
+- **THEN** плагин MUST NOT отправлять `success` до её завершения
+
+#### Scenario: Подмена шрифта разрешена
+
+- **WHEN** начертание недоступно и у токена `allowFallback: true`
+- **THEN** плагин MUST ответить `success` с warning `font_fallback` и путём токена
+
+#### Scenario: Подмена шрифта не разрешена
+
+- **WHEN** начертание недоступно и у токена нет `allowFallback: true`
+- **THEN** плагин MUST ответить `failure` с кодом `font_unavailable` и путём токена
+
+#### Scenario: Загрузка зависла
+
+- **WHEN** загрузка начертания не завершилась за 5 секунд
+- **THEN** плагин MUST ответить так же, как при ошибке загрузки, до истечения таймаута хоста
+
+### Requirement: Web-плагин использует настоящее имя шрифта
+
+Плагин SHALL называть семейство в `@font-face` значением `family` токена, а без него — идентификатором токена.
+Значения свойства `font-family` SHALL содержать запасное семейство `sans-serif`.
+Токены с разными файлами шрифтов SHALL отображаться разными семействами, даже если их `family` совпадает.
+
+#### Scenario: Имя задано
+
+- **WHEN** токен `fontFamily.body` содержит `family: "SB Sans Text"`
+- **THEN** `@font-face` MUST объявлять семейство `"SB Sans Text"`, а шрифт области превью MUST быть `"SB Sans Text", sans-serif`
+
+#### Scenario: Имя не задано
+
+- **WHEN** токен `fontFamily.body` не содержит `family`
+- **THEN** `@font-face` MUST объявлять семейство `"fontFamily.body"`, а шрифт области превью MUST быть `"fontFamily.body", sans-serif`
+
+#### Scenario: Одно имя, одинаковые файлы
+
+- **WHEN** два токена содержат одно `family` и одинаковые файлы, веса и стили
+- **THEN** оба MUST использовать это имя, а правила `@font-face` MUST NOT повторяться
+
+#### Scenario: Одно имя, разные файлы
+
+- **WHEN** два токена содержат одно `family` и разные файлы
+- **THEN** первый токен MUST использовать это имя, а второй MUST использовать своё имя токена со своими файлами
 
