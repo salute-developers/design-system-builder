@@ -173,6 +173,13 @@ jobs:
         with:
           name: cli-release-tools
           path: release-tools
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          path: stable-source
+          sparse-checkout: frontend-kt/cli/distribution/stable.json
+      - name: Check stable version selected in master
+        run: python3 release-tools/release.py stable-version --stable-file stable-source/frontend-kt/cli/distribution/stable.json
       - run: python3 -m pip install s3cmd==2.4.0
       - name: Prepare and upload release
         run: |
@@ -188,4 +195,4 @@ jobs:
             --notes 'CLI distributions are available through the configured public download URL. JVM asset is retained for CI compatibility.'
           gh release upload "$CLI_RELEASE_TAG" distributions/dsbuilder-cli-jvm.zip --clobber
       - name: Promote only the complete verified release
-        run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions
+        run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions --stable-file stable-source/frontend-kt/cli/distribution/stable.json

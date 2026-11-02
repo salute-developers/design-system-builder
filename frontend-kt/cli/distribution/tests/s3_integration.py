@@ -45,6 +45,8 @@ def main():
         for target in release.TARGETS:
             make_archive(directory, target)
         release.prepare(directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
+        stable_file = directory / 'stable.json'
+        stable_file.write_bytes(release.json_bytes({'schemaVersion': 1, 'version': '1.2.3'}))
         store.put('stable.json', release.json_bytes({'schemaVersion': 1, 'version': '1.0.0'}))
         original_put = store.put
 
@@ -68,16 +70,21 @@ def main():
         assert (directory / 'dsbuilder-cli-jvm.zip').read_bytes() == store.get(
             'releases/1.2.3/dsbuilder-cli-jvm.zip')
         release.upload(store, directory, '1.2.3')
-        release.promote(store, directory, '1.2.3')
+        release.promote(store, directory, '1.2.3', stable_file)
         assert json.loads(store.get('stable.json'))['version'] == '1.2.3'
         key = 'releases/1.2.3/dsbuilder-cli-jvm.zip'
         store.put(key, b'outdated')
         release.upload(store, directory, '1.2.3')
         assert store.get(key) == (directory / 'dsbuilder-cli-jvm.zip').read_bytes()
-        store.put('stable.json', release.json_bytes({'schemaVersion': 1, 'version': '1.10.0'}))
-        release.promote(store, directory, '1.2.3')
-        assert json.loads(store.get('stable.json'))['version'] == '1.10.0'
-        print('S3 integration passed: v2 signature, interrupted upload, full retry, replacement, verification, no downgrade')
+        stable_file.write_bytes(release.json_bytes({'schemaVersion': 1, 'version': '1.0.0'}))
+        try:
+            release.sync_stable(store, stable_file)
+        except RuntimeError as error:
+            assert 'manifest is missing' in str(error)
+        else:
+            raise AssertionError('Missing release was selected as stable')
+        assert json.loads(store.get('stable.json'))['version'] == '1.2.3'
+        print('S3 integration passed: v2 signature, interrupted upload, full retry, replacement, verification, guarded stable sync')
 
 
 if __name__ == '__main__':

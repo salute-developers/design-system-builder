@@ -64,6 +64,11 @@ class ReleaseTest(unittest.TestCase):
             make_archive(self.directory, target)
         release.prepare(self.directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
         self.store = MemoryStore()
+        self.stable_file = self.directory / 'stable.json'
+        self.select_stable('1.2.3')
+
+    def select_stable(self, selected):
+        self.stable_file.write_bytes(release.json_bytes({'schemaVersion': 1, 'version': selected}))
 
     def test_tag_validation(self):
         self.assertEqual('1.2.3', release.tag_version('cli-v1.2.3'))
@@ -117,7 +122,7 @@ class ReleaseTest(unittest.TestCase):
         for name in release.release_files(self.directory):
             self.assertEqual(2, self.store.writes.count(f'releases/1.2.3/{name}'))
         self.assertNotIn('stable.json', self.store.data)
-        release.promote(self.store, self.directory, '1.2.3')
+        release.promote(self.store, self.directory, '1.2.3', self.stable_file)
         self.assertEqual('1.2.3', json.loads(self.store.get('stable.json'))['version'])
 
     def test_upload_replaces_existing_file(self):
@@ -139,15 +144,45 @@ class ReleaseTest(unittest.TestCase):
         release.upload(self.store, self.directory, '1.2.3')
         self.assertEqual((self.directory / 'dsbuilder-cli-jvm.zip').read_bytes(),
                          self.store.get('releases/1.2.3/dsbuilder-cli-jvm.zip'))
-        release.promote(self.store, self.directory, '1.2.3')
+        release.promote(self.store, self.directory, '1.2.3', self.stable_file)
 
-    def test_older_release_does_not_downgrade(self):
+    def test_release_does_not_override_selected_stable(self):
         pointer = release.json_bytes({'schemaVersion': 1, 'version': '1.10.0'})
         self.store.data['stable.json'] = pointer
+        self.select_stable('1.10.0')
         release.upload(self.store, self.directory, '1.2.3')
-        release.promote(self.store, self.directory, '1.2.3')
+        release.promote(self.store, self.directory, '1.2.3', self.stable_file)
         self.assertEqual(pointer, self.store.get('stable.json'))
         self.assertNotIn('install.sh', self.store.data)
+
+    def test_stable_source_requires_published_version(self):
+        self.select_stable(None)
+        with self.assertRaisesRegex(ValueError, 'Set stable.json version'):
+            release.stable_version(self.stable_file)
+        self.select_stable(123)
+        with self.assertRaises(ValueError):
+            release.stable_version(self.stable_file)
+
+    def test_sync_stable_requires_complete_release_and_supports_rollback(self):
+        release.upload(self.store, self.directory, '1.2.3')
+        release.sync_stable(self.store, self.stable_file)
+        self.assertEqual('1.2.3', json.loads(self.store.get('stable.json'))['version'])
+        self.select_stable('1.0.0')
+        with self.assertRaisesRegex(RuntimeError, 'manifest is missing'):
+            release.sync_stable(self.store, self.stable_file)
+        self.assertEqual('1.2.3', json.loads(self.store.get('stable.json'))['version'])
+        with tempfile.TemporaryDirectory() as temporary:
+            older = Path(temporary)
+            for target in release.TARGETS:
+                make_archive(older, target)
+            release.prepare(older, '1.0.0', 'https://example.invalid/cli', DIST / 'bootstrap')
+            release.upload(self.store, older, '1.0.0')
+        release.sync_stable(self.store, self.stable_file)
+        self.assertEqual('1.0.0', json.loads(self.store.get('stable.json'))['version'])
+        self.assertEqual('stable.json', self.store.writes[-1])
+        self.store.data['releases/1.0.0/dsbuilder-cli-jvm.zip'] = b'broken'
+        with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+            release.sync_stable(self.store, self.stable_file)
 
     def test_remote_verification_is_required(self):
         self.store.put = lambda key, data: None

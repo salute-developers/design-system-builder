@@ -6,6 +6,7 @@ on:
       - 'frontend-kt/**'
       - '.github/workflows/validate-frontend-kt.yml'
       - '.github/workflows/publish-cli-release.yml'
+      - '.github/workflows/sync-cli-stable.yml'
       - 'backend-kt/docker/minio/Dockerfile'
   push:
     branches:
@@ -15,6 +16,7 @@ on:
       - 'frontend-kt/**'
       - '.github/workflows/validate-frontend-kt.yml'
       - '.github/workflows/publish-cli-release.yml'
+      - '.github/workflows/sync-cli-stable.yml'
       - 'backend-kt/docker/minio/Dockerfile'
   workflow_dispatch:
 

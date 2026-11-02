@@ -1098,6 +1098,33 @@ class DsBuilderCliTest {
     }
 
     @Test
+    fun themeFetchAcceptsNullTokenDisplayNameAndDescription() {
+        val fileSystem = initializedFileSystem()
+        val results = successfulThemeHttpResults().toMutableMap()
+        val tokenPath = "/api/projects/project-a/ds/design-systems/design-system-a/tokens"
+        val response = tokensResponse()
+            .replace("\"displayName\": \"iOS primary\"", "\"displayName\": null")
+            .replace("\"description\": \"iOS primary color\"", "\"description\": null")
+        assertTrue(response.contains("\"displayName\": null"))
+        assertTrue(response.contains("\"description\": null"))
+        results[tokenPath] = AuthenticatedHttpResult.Success(response)
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "test-key"),
+                httpResults = results,
+            ),
+        ).execute(listOf("theme", "fetch"))
+
+        assertEquals(0, result.exitCode, result.output)
+        val meta = Json.parseToJsonElement(fileSystem.readText("/repo/.sdds/tenants/sdds_cs/meta.json")).jsonObject
+        val token = meta.getValue("tokens").jsonArray
+            .single { it.jsonObject.getValue("id").jsonPrimitive.content == "ios-color-token" }.jsonObject
+        assertEquals("color.ios.primary", token.getValue("displayName").jsonPrimitive.content)
+        assertEquals("", token.getValue("description").jsonPrimitive.content)
+    }
+
+    @Test
     fun componentsFetchDoesNotRequestLegacyEndpointAndKeepsExistingSnapshot() {
         val fileSystem = initializedFileSystem()
         fileSystem.writeText("/repo/.sdds/component-configs.json", "old configs")

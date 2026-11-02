@@ -18,7 +18,7 @@ IOS_TAG = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]*')
 
 
 def version(value):
-    if not VERSION.fullmatch(value):
+    if not isinstance(value, str) or not VERSION.fullmatch(value):
         raise ValueError('Version must be X.Y.Z without leading zeros')
     return value
 
@@ -193,6 +193,41 @@ def release_files(directory):
     ]}
 
 
+def stable_version(path):
+    stable = json.loads(path.read_bytes())
+    if (not isinstance(stable, dict) or set(stable) != {'schemaVersion', 'version'} or
+            type(stable['schemaVersion']) is not int or stable['schemaVersion'] != 1):
+        raise ValueError('Invalid stable.json source')
+    if stable['version'] is None:
+        raise ValueError('Set stable.json version before publishing')
+    return version(stable['version'])
+
+
+def verified_remote_release(store, release_version):
+    prefix = f'releases/{release_version}/'
+    manifest_data = store.get(prefix + 'release.json')
+    if manifest_data is None:
+        raise RuntimeError('Stable release manifest is missing in S3')
+    manifest = json.loads(manifest_data)
+    if (not isinstance(manifest, dict) or manifest.get('schemaVersion') != 1 or
+            manifest.get('version') != release_version):
+        raise ValueError('Stable release manifest does not match version')
+    if not isinstance(manifest.get('artifacts'), dict) or set(manifest['artifacts']) != set(TARGETS):
+        raise ValueError('Stable release manifest has wrong targets')
+    checksums = []
+    for target in TARGETS:
+        name = f'dsbuilder-cli-{target}.zip'
+        data = store.get(prefix + name)
+        if data is None:
+            raise RuntimeError(f'Stable release archive is missing: {name}')
+        sha = digest(data)
+        if manifest['artifacts'][target] != {'file': name, 'sha256': sha}:
+            raise ValueError(f'Stable release checksum mismatch: {name}')
+        checksums.append(f'{sha}  {name}\n')
+    if store.get(prefix + 'SHA256SUMS') != ''.join(checksums).encode():
+        raise ValueError('Stable release SHA256SUMS mismatch')
+
+
 def upload(store, directory, release_version):
     """При каждом запуске загружает и проверяет полный комплект версии."""
     prefix = f'releases/{version(release_version)}/'
@@ -202,32 +237,49 @@ def upload(store, directory, release_version):
             raise RuntimeError(f'Remote verification failed: {name}')
 
 
-def promote(store, directory, release_version):
+def promote(store, directory, release_version, stable_file):
     release_version = version(release_version)
+    desired_version = stable_version(stable_file)
     for name, data in release_files(directory).items():
         if store.get(f'releases/{release_version}/{name}') != data:
             raise RuntimeError('Cannot promote incomplete release')
-    previous = store.get('stable.json')
-    if previous is not None:
-        pointer = json.loads(previous)
-        if pointer.get('schemaVersion') != 1:
-            raise ValueError('Invalid stable manifest')
-        previous_version = version(pointer['version'])
-        if tuple(map(int, previous_version.split('.'))) > tuple(map(int, release_version.split('.'))):
-            print('Older release uploaded; stable pointer unchanged')
-            return
+    if desired_version != release_version:
+        print(f'Release uploaded; stable.json in Git selects {desired_version}, pointer unchanged')
+        return
     # Совместимые сетевые установщики обновляются до указателя, после проверки полного выпуска.
     for name in ('install.sh', 'install.ps1'):
         store.put(name, (directory / name).read_bytes())
-    store.put('stable.json', json_bytes({'schemaVersion': 1, 'version': release_version}))
+    stable_data = json_bytes({'schemaVersion': 1, 'version': desired_version})
+    store.put('stable.json', stable_data)
+    if store.get('stable.json') != stable_data:
+        raise RuntimeError('Stable pointer verification failed')
+
+
+def sync_stable(store, stable_file):
+    desired_version = stable_version(stable_file)
+    verified_remote_release(store, desired_version)
+    stable_data = json_bytes({'schemaVersion': 1, 'version': desired_version})
+    store.put('stable.json', stable_data)
+    if store.get('stable.json') != stable_data:
+        raise RuntimeError('Stable pointer verification failed')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['version', 'prepare', 'upload', 'promote', 'validate'])
-    parser.add_argument('--tag', required=True)
+    parser.add_argument('operation', choices=['version', 'prepare', 'upload', 'promote', 'validate',
+                                              'stable-version', 'sync-stable'])
+    parser.add_argument('--tag')
     parser.add_argument('--directory', type=Path, default=Path('build/distributions'))
+    parser.add_argument('--stable-file', type=Path, default=Path(__file__).parent / 'stable.json')
     args = parser.parse_args()
+    if args.operation == 'stable-version':
+        print(stable_version(args.stable_file))
+        return
+    if args.operation == 'sync-stable':
+        sync_stable(S3Store(), args.stable_file)
+        return
+    if not args.tag:
+        parser.error('--tag is required for this operation')
     release_version = tag_version(args.tag)
     if args.operation == 'version':
         print(release_version)
@@ -238,7 +290,10 @@ def main():
             validate_archive(args.directory / f'dsbuilder-cli-{target}.zip', target)
     else:
         store = S3Store()
-        {'upload': upload, 'promote': promote}[args.operation](store, args.directory, release_version)
+        if args.operation == 'promote':
+            promote(store, args.directory, release_version, args.stable_file)
+        else:
+            upload(store, args.directory, release_version)
 
 
 if __name__ == '__main__':
