@@ -4,6 +4,8 @@ set -eu
 
 SOURCE=$1
 KIND=$2
+IOS_ARCHIVE=${3:-}
+IOS_TAG=${4:-}
 INSTALL_DIR=${DSBUILDER_INSTALL_DIR:-"$HOME/.dsbuilder/cli/$KIND"}
 BIN_DIR=${DSBUILDER_BIN_DIR:-"$HOME/.local/bin"}
 case "$INSTALL_DIR" in /*) ;; *) echo 'Install directory must be absolute' >&2; exit 1 ;; esac
@@ -20,14 +22,40 @@ if [ "$KIND" = jvm ]; then
 else
     [ -f "$SOURCE" ] || { echo 'Cannot find bundled dsbuilder binary' >&2; exit 1; }
 fi
+IOS_ROOT="$HOME/.dsbuilder/toolchains/ios"
+IOS_TARGET="$IOS_ROOT/$IOS_TAG"
+if [ -n "$IOS_ARCHIVE" ]; then
+    [ "$KIND" = macos ] && [ -f "$IOS_ARCHIVE" ] || { echo 'Invalid bundled iOS CLI archive' >&2; exit 1; }
+    case "$IOS_TAG" in ''|current|[!A-Za-z0-9]*|*[!A-Za-z0-9._-]*) echo 'Invalid bundled iOS CLI release tag' >&2; exit 1 ;; esac
+    [ ! -L "$IOS_TARGET" ] || { echo 'iOS CLI version must not be a symlink' >&2; exit 1; }
+    if [ -e "$IOS_ROOT/current" ] && [ ! -L "$IOS_ROOT/current" ]; then
+        echo 'iOS CLI current must be a symlink' >&2
+        exit 1
+    fi
+fi
 mkdir -p "$(dirname "$INSTALL_DIR")" "$BIN_DIR"
 WORK=$(mktemp -d "$(dirname "$INSTALL_DIR")/.dsbuilder-install.XXXXXX")
 LINK_WORK=$(mktemp -d "$BIN_DIR/.dsbuilder-link.XXXXXX")
 HAD_OLD=0
 REPLACED=0
+LINK_REPLACED=0
+OLD_LINK_TARGET=
+IOS_ATTEMPTED=0
+IOS_HAD_OLD=0
+IOS_OLD_LINK_TARGET=
 SUCCESS=0
 cleanup() {
     if [ "$SUCCESS" = 0 ]; then
+        if [ "$IOS_ATTEMPTED" = 1 ]; then
+            rm -f "$IOS_ROOT/current"
+            rm -rf "$IOS_TARGET"
+            if [ "$IOS_HAD_OLD" = 1 ]; then mv "$WORK/old-ios" "$IOS_TARGET"; fi
+            if [ -n "$IOS_OLD_LINK_TARGET" ]; then ln -s "$IOS_OLD_LINK_TARGET" "$IOS_ROOT/current"; fi
+        fi
+        if [ "$LINK_REPLACED" = 1 ]; then
+            rm -f "$COMMAND_PATH"
+            if [ -n "$OLD_LINK_TARGET" ]; then ln -s "$OLD_LINK_TARGET" "$COMMAND_PATH"; fi
+        fi
         if [ "$REPLACED" = 1 ]; then rm -rf "$INSTALL_DIR"; fi
         if [ "$HAD_OLD" = 1 ]; then mv "$WORK/old" "$INSTALL_DIR"; fi
     fi
@@ -41,6 +69,7 @@ if [ -d "$COMMAND_PATH" ] || { [ -e "$COMMAND_PATH" ] && [ ! -L "$COMMAND_PATH" 
     echo "Refusing to replace directory or non-symlink: $COMMAND_PATH" >&2
     exit 1
 fi
+if [ -L "$COMMAND_PATH" ]; then OLD_LINK_TARGET=$(readlink "$COMMAND_PATH"); fi
 mkdir "$WORK/new"
 if [ -d "$INSTALL_DIR" ]; then cp -R "$INSTALL_DIR/." "$WORK/new/"; fi
 if [ "$KIND" = jvm ]; then
@@ -61,6 +90,14 @@ mv "$WORK/new" "$INSTALL_DIR"
 REPLACED=1
 # Ссылки на каталоги отвергнуты до замены установки.
 mv -f "$LINK_WORK/dsbuilder" "$COMMAND_PATH"
+LINK_REPLACED=1
+if [ -n "$IOS_ARCHIVE" ]; then
+    mkdir -p "$IOS_ROOT"
+    if [ -L "$IOS_ROOT/current" ]; then IOS_OLD_LINK_TARGET=$(readlink "$IOS_ROOT/current"); fi
+    if [ -d "$IOS_TARGET" ]; then mv "$IOS_TARGET" "$WORK/old-ios"; IOS_HAD_OLD=1; fi
+    IOS_ATTEMPTED=1
+    "$EXECUTABLE" toolchain install ios --version "$IOS_TAG" --from "$IOS_ARCHIVE"
+fi
 SUCCESS=1
 printf 'Installed dsbuilder to %s\n' "$EXECUTABLE"
 case ":$PATH:" in

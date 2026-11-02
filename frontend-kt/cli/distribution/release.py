@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+from io import BytesIO
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ import zipfile
 
 TARGETS = ('macos-arm64', 'macos-x64', 'windows-x64', 'jvm')
 VERSION = re.compile(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)')
+IOS_TAG = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]*')
 
 
 def version(value):
@@ -33,6 +35,22 @@ def digest(data):
 
 def json_bytes(value):
     return (json.dumps(value, separators=(',', ':')) + '\n').encode()
+
+
+def validate_ios_archive(data):
+    with zipfile.ZipFile(BytesIO(data)) as ios:
+        for entry in ios.infolist():
+            if (not entry.filename.startswith('dsbuilder-ios-cli/') or
+                    not re.fullmatch(r'[A-Za-z0-9_./-]+', entry.filename) or
+                    any(part in ('.', '..') for part in entry.filename.split('/')) or
+                    (entry.external_attr >> 16) & 0o170000 == 0o120000):
+                raise ValueError('Unsafe iOS CLI archive entry')
+        for name in ('dsbuilder-ios', 'ios-api-meta.json'):
+            entry = ios.getinfo(f'dsbuilder-ios-cli/{name}')
+            if entry.is_dir():
+                raise ValueError(f'iOS CLI archive has no {name}')
+        if ios.testzip() is not None:
+            raise ValueError('Corrupt iOS CLI archive')
 
 
 def validate_archive(path, target):
@@ -63,6 +81,17 @@ def validate_archive(path, target):
                 raise ValueError(f'Executable permission missing: {name}')
         if target == 'jvm' and not any(n.startswith(root + '/lib/') and n.endswith('.jar') for n in names):
             raise ValueError('JVM libraries missing')
+        if target == 'macos-arm64':
+            tag = archive.read(f'{root}/ios-release.txt').decode('ascii').strip()
+            if not IOS_TAG.fullmatch(tag) or tag == 'current':
+                raise ValueError('Invalid bundled iOS CLI release tag')
+            name = f'{root}/ios/dsbuilder-ios-cli-{tag}.zip'
+            entry = archive.getinfo(name)
+            if entry.is_dir() or entry.file_size > 100_000_000:
+                raise ValueError('Invalid bundled iOS CLI archive')
+            validate_ios_archive(archive.read(name))
+        elif any(name == f'{root}/ios-release.txt' or name.startswith(f'{root}/ios/') for name in names):
+            raise ValueError('iOS CLI is only supported in the macOS arm64 distribution')
 
 
 def prepare(directory, release_version, base_url, bootstrap):
@@ -165,16 +194,10 @@ def release_files(directory):
 
 
 def upload(store, directory, release_version):
-    """Проверяет конфликты до записи; повторный запуск дополняет незавершённый выпуск."""
-    files = release_files(directory)
+    """При каждом запуске загружает и проверяет полный комплект версии."""
     prefix = f'releases/{version(release_version)}/'
-    existing = {name: store.get(prefix + name) for name in files}
-    for name, data in existing.items():
-        if data is not None and data != files[name]:
-            raise ValueError(f'Immutable release conflict: {name}')
-    for name, data in files.items():
-        if existing[name] is None:
-            store.put(prefix + name, data)
+    for name, data in release_files(directory).items():
+        store.put(prefix + name, data)
         if store.get(prefix + name) != data:
             raise RuntimeError(f'Remote verification failed: {name}')
 

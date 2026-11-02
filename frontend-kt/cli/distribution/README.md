@@ -8,11 +8,19 @@
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`. Новые vars: `CLI_S3_PREFIX` и
 `CLI_DOWNLOAD_BASE_URL` (публичный HTTPS-корень, без credentials).
 `CLI_RELEASE_TAG=cli-vX.Y.Z` задаёт версию сборки; без него используется `0.1.0`.
+GitHub variable `IOS_CLI_RELEASE_TAG` задаёт точный тег релиза plasma-ios. Workflow скачивает
+ассет `dsbuilder-ios-cli-<tag>.zip`, сверяет его SHA-256 с GitHub release API и включает
+только в `dsbuilder-cli-macos-arm64.zip`. Локальный установщик ставит его из вложенного
+архива через `dsbuilder toolchain install ios --from`; сеть для этого не нужна.
+macOS x64, Windows x64 и JVM архивы iOS CLI не содержат. Web-генератор `js/cli`
+публикуется отдельно в npm и в эти ZIP не входит.
 
 Из frontend-kt:
 
 ```sh
 ./gradlew :cli:distributionTests
+# Для packageMacosArm64Cli сначала положите ассет в cli/build/ios-cli/:
+# dsbuilder-ios-cli-$IOS_CLI_RELEASE_TAG.zip
 ./gradlew :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli
 python3 cli/distribution/release.py validate --tag cli-v1.2.3 --directory cli/build/distributions
 ```
@@ -49,3 +57,10 @@ AWS-настройки, не требует ручного создания buck
 
 Публикация разделена на `prepare`, `upload`, GitHub JVM asset и `promote`.
 Команды upload/promote изменяют удалённое хранилище и не входят в локальную сборку.
+Ручной повторный запуск workflow выбирает существующий `cli-vX.Y.Z` тег как ref и
+передаёт тот же тег во входном параметре. GitHub разрешает такой запуск только
+пользователям с правом записи в репозиторий. Каждый запуск заново загружает все
+четыре архива, контрольные суммы и манифест версии, проверяет содержимое в S3,
+заменяет JVM asset в GitHub Release и только затем обновляет `stable.json`.
+При загрузке файлы одной версии могут кратковременно различаться по ревизии;
+сетевые установщики отклоняют архив, если его SHA-256 не совпадает с манифестом.

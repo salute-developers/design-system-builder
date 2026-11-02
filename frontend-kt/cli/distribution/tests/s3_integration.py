@@ -62,24 +62,22 @@ def main():
             raise AssertionError('Interruption was not exercised')
         assert json.loads(store.get('stable.json'))['version'] == '1.0.0'
         store.put = original_put
+        make_archive(directory, 'jvm', binary=b'#!/bin/sh\necho rebuilt\n')
+        release.prepare(directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
         release.upload(store, directory, '1.2.3')
+        assert (directory / 'dsbuilder-cli-jvm.zip').read_bytes() == store.get(
+            'releases/1.2.3/dsbuilder-cli-jvm.zip')
         release.upload(store, directory, '1.2.3')
         release.promote(store, directory, '1.2.3')
         assert json.loads(store.get('stable.json'))['version'] == '1.2.3'
-        archive = directory / 'dsbuilder-cli-jvm.zip'
-        original = archive.read_bytes()
-        archive.write_bytes(b'conflict')
-        try:
-            release.upload(store, directory, '1.2.3')
-        except ValueError:
-            pass
-        else:
-            raise AssertionError('Immutable conflict was not rejected')
-        archive.write_bytes(original)
+        key = 'releases/1.2.3/dsbuilder-cli-jvm.zip'
+        store.put(key, b'outdated')
+        release.upload(store, directory, '1.2.3')
+        assert store.get(key) == (directory / 'dsbuilder-cli-jvm.zip').read_bytes()
         store.put('stable.json', release.json_bytes({'schemaVersion': 1, 'version': '1.10.0'}))
         release.promote(store, directory, '1.2.3')
         assert json.loads(store.get('stable.json'))['version'] == '1.10.0'
-        print('S3 integration passed: v2 signature, interrupted upload, retry, conflict, verification, no downgrade')
+        print('S3 integration passed: v2 signature, interrupted upload, full retry, replacement, verification, no downgrade')
 
 
 if __name__ == '__main__':

@@ -14,6 +14,23 @@ val cliVersion = providers.environmentVariable("CLI_RELEASE_TAG").map { tag ->
     tag.removePrefix("cli-v")
 }.orElse("0.1.0")
 
+val iosReleaseTag = providers.environmentVariable("IOS_CLI_RELEASE_TAG").map { tag ->
+    require(Regex("[A-Za-z0-9][A-Za-z0-9._-]*").matches(tag) && tag != "current") {
+        "IOS_CLI_RELEASE_TAG must be a safe release tag, not current"
+    }
+    tag
+}
+val iosReleaseMetadata = layout.buildDirectory.file("generated/ios-release.txt")
+val generateIosReleaseMetadata by tasks.registering {
+    inputs.property("iosReleaseTag", iosReleaseTag)
+    outputs.file(iosReleaseMetadata)
+    doLast {
+        val output = iosReleaseMetadata.get().asFile
+        output.parentFile.mkdirs()
+        output.writeText("${iosReleaseTag.get()}\n")
+    }
+}
+
 val generatedVersionDirectory = layout.buildDirectory.dir("generated/cliVersion")
 val generateCliVersion by tasks.registering {
     inputs.property("cliVersion", cliVersion)
@@ -174,6 +191,23 @@ fun registerMacosCliPackage(
         }
         from(layout.projectDirectory.file("USAGE.md")) {
             into(packageRoot)
+        }
+        if (classifier == "arm64") {
+            dependsOn(generateIosReleaseMetadata)
+            val iosArchive = iosReleaseTag.map { tag ->
+                layout.buildDirectory.file("ios-cli/dsbuilder-ios-cli-$tag.zip").get().asFile
+            }
+            from(iosReleaseMetadata) {
+                into(packageRoot)
+            }
+            from(iosArchive) {
+                into("$packageRoot/ios")
+            }
+            doFirst {
+                require(iosArchive.get().isFile) {
+                    "Missing iOS CLI archive: ${iosArchive.get()}"
+                }
+            }
         }
     }
 }

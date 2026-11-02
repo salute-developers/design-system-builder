@@ -19,7 +19,10 @@ cd dsbuilder-cli-macos-arm64
 ```
 
 По умолчанию скрипт устанавливает бинарник в `~/.dsbuilder/cli/macos/dsbuilder`
-и создает symlink `~/.local/bin/dsbuilder`.
+и создает symlink `~/.local/bin/dsbuilder`. Архив macOS arm64 также содержит
+`dsbuilder-ios`: установщик кладёт его в `~/.dsbuilder/toolchains/ios/<версия>`
+и переключает `current`. Установка не скачивает iOS CLI из сети. В архиве macOS x64
+iOS CLI пока нет; его можно установить отдельно командой `dsbuilder toolchain install ios`.
 
 Пути можно переопределить:
 

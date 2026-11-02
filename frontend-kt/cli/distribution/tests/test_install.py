@@ -135,12 +135,64 @@ class InstallTest(unittest.TestCase):
         self.run_install(success=False)
 
     def test_native_architecture_selection(self):
+        log = Path(self.env['HOME']) / 'ios-install-args'
         for machine, target in [('arm64', 'macos-arm64'), ('x86_64', 'macos-x64')]:
             self.tool('uname', f'#!/bin/sh\ncase "$1" in -s) echo Darwin ;; *) echo {machine} ;; esac\n')
-            self.archive = make_archive(self.version_dir, target)
+            binary = (b'#!/bin/sh\nif [ "$1" = toolchain ]; then '\
+                      b'mkdir -p "$HOME"; printf "%s\\n" "$*" >> "$HOME/ios-install-args"; fi\n')
+            self.archive = make_archive(self.version_dir, target, binary)
             self.update_sums()
             self.run_install()
             self.assertTrue((Path(self.env['DSBUILDER_INSTALL_DIR']) / 'dsbuilder').exists())
+            if target == 'macos-arm64':
+                self.assertIn('toolchain install ios --version release-14-10-2026 --from', log.read_text())
+            else:
+                self.assertEqual(1, len(log.read_text().splitlines()))
+
+    def test_ios_install_failure_restores_previous_cli(self):
+        self.tool('uname', '#!/bin/sh\ncase "$1" in -s) echo Darwin ;; *) echo arm64 ;; esac\n')
+        self.archive = make_archive(self.version_dir, 'macos-arm64')
+        self.update_sums()
+        self.run_install()
+        binary = Path(self.env['DSBUILDER_INSTALL_DIR']) / 'dsbuilder'
+        previous = binary.read_bytes()
+        self.archive = make_archive(self.version_dir, 'macos-arm64', b'#!/bin/sh\nexit 1\n')
+        self.update_sums()
+        self.run_install(success=False)
+        self.assertEqual(previous, binary.read_bytes())
+
+    def test_first_ios_install_failure_removes_cli_and_link(self):
+        self.tool('uname', '#!/bin/sh\ncase "$1" in -s) echo Darwin ;; *) echo arm64 ;; esac\n')
+        self.archive = make_archive(self.version_dir, 'macos-arm64', b'#!/bin/sh\nexit 1\n')
+        self.update_sums()
+        self.run_install(success=False)
+        self.assertFalse(Path(self.env['DSBUILDER_INSTALL_DIR']).exists())
+        self.assertFalse((Path(self.env['DSBUILDER_BIN_DIR']) / 'dsbuilder').is_symlink())
+
+    def test_failed_ios_upgrade_restores_previous_toolchain(self):
+        self.tool('uname', '#!/bin/sh\ncase "$1" in -s) echo Darwin ;; *) echo arm64 ;; esac\n')
+        ios_root = Path(self.env['HOME']) / '.dsbuilder/toolchains/ios'
+        old_version = ios_root / 'release-14-10-2026'
+        old_version.mkdir(parents=True)
+        (old_version / 'dsbuilder-ios').write_text('previous iOS tool')
+        (ios_root / 'current').symlink_to(old_version)
+        binary = (b'#!/bin/sh\n'
+                  b'rm -rf "$HOME/.dsbuilder/toolchains/ios/release-14-10-2026" '
+                  b'"$HOME/.dsbuilder/toolchains/ios/current"\nexit 1\n')
+        self.archive = make_archive(self.version_dir, 'macos-arm64', binary)
+        self.update_sums()
+        self.run_install(success=False)
+        self.assertEqual('previous iOS tool', (old_version / 'dsbuilder-ios').read_text())
+        self.assertEqual(old_version.resolve(), (ios_root / 'current').resolve())
+
+    def test_invalid_bundled_ios_tag_is_rejected_before_installation(self):
+        self.tool('uname', '#!/bin/sh\ncase "$1" in -s) echo Darwin ;; *) echo arm64 ;; esac\n')
+        for tag in ('..', 'current'):
+            with self.subTest(tag=tag):
+                self.archive = make_archive(self.version_dir, 'macos-arm64', ios_tag=tag)
+                self.update_sums()
+                self.assertIn('Invalid bundled iOS CLI release tag', self.run_install(success=False).stderr)
+                self.assertFalse(Path(self.env['DSBUILDER_INSTALL_DIR']).exists())
 
     def test_local_installer_needs_no_network(self):
         package = self.root / 'unpacked'
