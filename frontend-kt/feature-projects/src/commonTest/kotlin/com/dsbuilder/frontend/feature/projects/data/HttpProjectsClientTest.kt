@@ -76,12 +76,12 @@ class HttpProjectsClientTest {
     }
 
     @Test
-    fun malformedBodyMapsToBackendUnavailable() = runTest {
+    fun malformedBodyMapsToInvalidBackendResponse() = runTest {
         val client = HttpProjectsClient(factory { HttpStatusCode.OK to "not-json" })
 
         val result = client.listProjects("https://gateway.example.com", BackendCredential.Bearer("access-a"))
 
         assertIs<ProjectsReadResult.Failed>(result)
-        assertEquals(ProjectsReadErrorCode.BACKEND_UNAVAILABLE, result.code)
+        assertEquals(ProjectsReadErrorCode.INVALID_BACKEND_RESPONSE, result.code)
     }
 }

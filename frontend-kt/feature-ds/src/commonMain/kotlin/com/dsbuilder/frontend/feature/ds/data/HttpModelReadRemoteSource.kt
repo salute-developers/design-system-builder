@@ -27,7 +27,7 @@ internal class HttpModelReadRemoteSource(private val clients: AuthenticatedHttpC
     }
 }
 
-private fun modelReadFailure(status: Int?): ModelReadResult.Failed = ModelReadResult.Failed(
+internal fun modelReadFailure(status: Int?): ModelReadResult.Failed = ModelReadResult.Failed(
     when (status) {
         400 -> "INVALID_QUERY"
         401 -> "AUTH_REQUIRED"

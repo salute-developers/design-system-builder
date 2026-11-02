@@ -9,6 +9,8 @@ internal fun interface ProjectConfigWriter {
     /**
      * Сохраняет project config без raw secrets.
      */
+    fun checkTarget(targetDirectory: String): String? = null
+
     fun create(command: CreateProjectConfigCommand): ProjectConfigWriteResult
 }
 

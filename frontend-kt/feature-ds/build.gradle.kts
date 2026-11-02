@@ -10,7 +10,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(projects.coreApplication)
-            implementation(projects.coreNetwork)
+            api(projects.coreAuth)
+            api(projects.coreNetwork)
             api(libs.kotlinx.serialization.json)
             // GenerateDesignSystemCommand.platform публично оперирует TargetPlatform.
             api(projects.coreDomain)
@@ -21,6 +22,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }

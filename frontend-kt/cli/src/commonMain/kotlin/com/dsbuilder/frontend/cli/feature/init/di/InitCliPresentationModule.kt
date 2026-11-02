@@ -15,6 +15,9 @@ public fun initCliPresentationModule(): Module = module {
         InitCliCommand(
             initProjectUseCase = get<InitProjectUseCase>(),
             fileSystem = get<WorkspaceFileSystem>(),
+            projects = get(),
+            systems = get(),
+            menu = get(),
         )
     }
     single<CliktCommand> { get<InitCliCommand>() }

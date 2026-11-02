@@ -24,7 +24,7 @@ internal fun readOnlyMcpToolDefinitions(): List<McpToolDefinition> = (
             )
             ),
     )
-}
+} + discoveryMcpTools()
 
 private fun tool(name: String, description: String, vararg inputs: String): McpToolDefinition =
     McpToolDefinition(

@@ -1,6 +1,6 @@
 package com.dsbuilder.frontend.feature.projects
 
-import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
+import com.dsbuilder.frontend.core.application.UserSessionAccess
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.feature.projects.application.ListProjectsUseCase
@@ -17,7 +17,7 @@ public fun projectsApplicationModule(): Module = module {
     single {
         ListProjectsUseCase(
             apiUrlResolver = get<ApiUrlResolver>(),
-            sessionResolver = get<UserSessionCredentialResolver>(),
+            sessionResolver = get<UserSessionAccess>(),
             projectsClient = get<ProjectsClient>(),
         )
     }

@@ -1,9 +1,17 @@
 package com.dsbuilder.frontend.feature.projects.application
 
+import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialRequest
+import com.dsbuilder.frontend.core.application.CredentialResult
+import com.dsbuilder.frontend.core.application.UserSessionAccess
+import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.RefreshTokenStore
 import com.dsbuilder.frontend.core.auth.UserOAuthTokens
 import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
+import com.dsbuilder.frontend.core.domain.CredentialEnvName
+import com.dsbuilder.frontend.core.domain.CredentialPolicy
+import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -38,6 +46,29 @@ class ListProjectsUseCaseTest {
         val resolver = UserSessionCredentialResolver(NoOpRefreshTokenStore())
         resolver.applyTokens(UserOAuthTokens(token, "refresh", 300))
         return resolver
+    }
+
+    @Test
+    fun forbiddenSessionRefreshRemainsForbiddenWithoutCatalogRequest() = runTest {
+        val provider = object : CredentialProvider {
+            override suspend fun resolve(
+                apiUrl: ProjectApiUrl,
+                projectKeyOverride: String?,
+                credentialEnvName: CredentialEnvName,
+            ): CredentialResult = error("Must use explicit user-session policy")
+
+            override suspend fun resolve(request: CredentialRequest): CredentialResult {
+                assertEquals(CredentialPolicy.USER_SESSION, request.policy)
+                return CredentialResult.Failed(AuthErrorCode.FORBIDDEN, "fixture-secret")
+            }
+        }
+        val useCase = ListProjectsUseCase(
+            apiUrlResolver,
+            UserSessionAccess(provider),
+            ProjectsClient { _, _ -> error("No HTTP after refresh denied") },
+        )
+        val result = assertIs<ProjectsReadResult.Failed>(useCase.execute())
+        assertEquals(ProjectsReadErrorCode.FORBIDDEN, result.code)
     }
 
     @Test

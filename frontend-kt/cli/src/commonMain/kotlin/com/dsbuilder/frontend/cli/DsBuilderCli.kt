@@ -7,6 +7,8 @@ import com.dsbuilder.frontend.cli.feature.components.di.componentsCliPresentatio
 import com.dsbuilder.frontend.cli.feature.docs.di.docsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.ds.di.dsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.init.di.initCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.init.presentation.InitSelectionMenu
+import com.dsbuilder.frontend.cli.feature.init.presentation.MordantInitSelectionMenu
 import com.dsbuilder.frontend.cli.feature.mcp.di.mcpCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.previewplugin.di.previewPluginCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.status.di.statusCliPresentationModule
@@ -23,6 +25,7 @@ import com.dsbuilder.frontend.feature.components.componentsApplicationModule
 import com.dsbuilder.frontend.feature.docs.docsApplicationModule
 import com.dsbuilder.frontend.feature.ds.dsApplicationModule
 import com.dsbuilder.frontend.feature.init.initApplicationModule
+import com.dsbuilder.frontend.feature.projects.projectsApplicationModule
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
@@ -33,6 +36,7 @@ import com.github.ajalt.mordant.rendering.AnsiLevel
 import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.terminal.TerminalRecorder
 import org.koin.dsl.koinApplication
+import org.koin.dsl.module
 
 /**
  * Результат обработки CLI-вызова `dsbuilder`.
@@ -50,6 +54,7 @@ public data class CliResult(
  */
 public class DsBuilderCli(
     private val runtime: ClientRuntime = defaultClientRuntime(),
+    private val initMenu: InitSelectionMenu? = null,
 ) {
     /**
      * Обрабатывает аргументы CLI и возвращает детерминированный результат.
@@ -90,6 +95,10 @@ public class DsBuilderCli(
         val koin = koinApplication {
             modules(
                 coreApplicationModule(runtime),
+                projectsApplicationModule(),
+                module {
+                    single<InitSelectionMenu> { initMenu ?: MordantInitSelectionMenu(runtime.environmentReader) }
+                },
                 corePlatformModule(),
                 platformDelegatesModule(),
                 authApplicationModule(),
