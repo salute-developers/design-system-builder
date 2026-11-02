@@ -13,6 +13,8 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.ErrorResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
@@ -39,10 +41,10 @@ fun Route.componentConfigRoutes(
     getWebAdapter: GetComponentWebAdapterUseCase,
     json: Json,
 ) {
-    route("/api/ds/component-config") {
+    route(dsRoutePath("/api/ds/component-config")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -72,7 +74,7 @@ fun Route.componentConfigRoutes(
 
         post("/export") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -101,7 +103,7 @@ fun Route.componentConfigRoutes(
         // в `.sdds/web/web-adapter.json`.
         post("/web-adapter") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers, evaluator, call.request.queryParameters["versionId"],
+                call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val id = runCatching { call.receive<ComponentWebAdapterRequest>() }.getOrNull()
@@ -115,7 +117,7 @@ fun Route.componentConfigRoutes(
 
         post("/import") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

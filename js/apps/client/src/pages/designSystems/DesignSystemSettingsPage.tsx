@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { designSystemsApi, projectsApi } from '../../api';
 import { SettingsFrame } from '../../components/BuilderShell/BuilderShell';
 import { Field, State } from '../../components/Catalog/Catalog';
@@ -12,16 +12,19 @@ import { isAccessDenied, useLoad } from '../../shared/data/useLoad';
 export const DesignSystemSettingsPage = () => {
     const { projectId = '', designSystemId = '' } = useParams();
     const navigate = useNavigate();
-    const project = useLoad(() => projectsApi.get(projectId), [projectId], `project:${projectId}`);
+    const [params] = useSearchParams();
+    const needsThemes = params.get('section') === 'delete';
+    const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
     const system = useLoad(
-        () => designSystemsApi.get(projectId, designSystemId),
+        (signal) => designSystemsApi.get(projectId, designSystemId, signal),
         [projectId, designSystemId],
         `system:${projectId}:${designSystemId}`,
     );
     const themes = useLoad(
-        () => designSystemsApi.tenants(projectId, designSystemId),
+        (signal) => designSystemsApi.tenants(projectId, designSystemId, signal),
         [projectId, designSystemId],
         `themes:${projectId}:${designSystemId}`,
+        needsThemes,
     );
     const [message, setMessage] = useState('');
     const [confirmation, setConfirmation] = useState('');
@@ -52,7 +55,7 @@ export const DesignSystemSettingsPage = () => {
                 }}
             />
         );
-    if (!project.data || !system.data || !themes.data)
+    if (!project.data || !system.data)
         return (
             <State
                 text="Загружаем настройки…"
@@ -63,7 +66,7 @@ export const DesignSystemSettingsPage = () => {
                 kind="system"
             />
         );
-    const themeCount = themes.data.length;
+    const themeCount = themes.data?.length ?? system.data.tenantCount;
     if (
         any(
             system.data.isTechnical,
@@ -147,7 +150,7 @@ export const DesignSystemSettingsPage = () => {
                             <button
                                 type="button"
                                 className="ps-button ps-button-danger"
-                                disabled={confirmation !== system.data.name}
+                                disabled={confirmation !== system.data.name || (needsThemes && !themes.data)}
                                 onClick={() =>
                                     void designSystemsApi
                                         .remove(projectId, designSystemId)

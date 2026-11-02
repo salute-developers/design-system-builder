@@ -256,7 +256,7 @@ class ColorTokenUseCaseTest {
         assertEquals(DsFailure.Forbidden, failure(delete.execute(tokensOnly, current, id, 0)))
         val full = key("tenants:write", "tokens:write", "tokens:delete")
         assertEquals(1, success(create.execute(full, current, command())).editRevision)
-        assertEquals(2, success(delete.execute(full, current, id, 1)))
+        assertEquals(2, success(delete.execute(full, current, id, 1)).editRevision)
     }
 
     @Test
@@ -266,7 +266,7 @@ class ColorTokenUseCaseTest {
         val kept = tokens.define("text.default.primary")
         tokens.values[other to base] = complete("#111111")
 
-        assertEquals(1, success(delete.execute(context("maintainer"), current, base, 0)))
+        assertEquals(1, success(delete.execute(context("maintainer"), current, base, 0)).editRevision)
         assertEquals(listOf(kept), tokens.definitions.map { it.id })
         assertTrue(tokens.values.isEmpty())
         assertEquals(mapOf(current to 1, other to 1), tokens.revisions)

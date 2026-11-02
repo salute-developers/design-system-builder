@@ -96,9 +96,21 @@ internal data class GatewayAuthInput(
     val projectId: String,
 )
 
-internal sealed interface GatewayAuthDecision {
+/** Результат проверки учётных данных и проектной границы. */
+sealed interface GatewayAuthDecision {
+    /** Разрешение с нормализованным контекстом.
+     * @property trustedHeaders Проверенные поля участника.
+     */
     data class Allowed(val trustedHeaders: TrustedHeaders) : GatewayAuthDecision
+
+    /** Отсутствующие или недействительные учётные данные.
+     * @property reason Безопасная причина отказа.
+     */
     data class Unauthorized(val reason: String) : GatewayAuthDecision
+
+    /** Отказ в доступе к запрошенному проекту.
+     * @property reason Безопасная причина отказа.
+     */
     data class Forbidden(val reason: String) : GatewayAuthDecision
 }
 

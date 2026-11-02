@@ -13,7 +13,9 @@ import kotlin.test.assertTrue
 class ComponentSeedsResourceTest {
     @Test
     fun `canonical component configurations contain references but no property definitions`() {
-        val bytes = requireNotNull(javaClass.getResourceAsStream("/component-seeds.json")).use { it.readBytes() }
+        val bytes = requireNotNull(javaClass.getResourceAsStream("/dsbuilder/ds/seeds/component-seeds.json")).use {
+            it.readBytes()
+        }
         val root = Json.parseToJsonElement(bytes.decodeToString()).jsonObject
         val components = root.getValue("components").jsonArray
 
@@ -32,7 +34,9 @@ class ComponentSeedsResourceTest {
 
     @Test
     fun `list divider property follows the global metadata name`() {
-        val text = requireNotNull(javaClass.getResourceAsStream("/component-seeds.json")).use { it.readBytes() }
+        val text = requireNotNull(javaClass.getResourceAsStream("/dsbuilder/ds/seeds/component-seeds.json")).use {
+            it.readBytes()
+        }
             .decodeToString()
         val list = Json.parseToJsonElement(text).jsonObject.getValue("components").jsonArray
             .single { it.jsonObject.getValue("name").jsonPrimitive.content == "List" }.jsonObject
@@ -45,7 +49,9 @@ class ComponentSeedsResourceTest {
 
     @Test
     fun `properties without a web parameter are not referenced`() {
-        val text = requireNotNull(javaClass.getResourceAsStream("/component-seeds.json")).use { it.readBytes() }
+        val text = requireNotNull(javaClass.getResourceAsStream("/dsbuilder/ds/seeds/component-seeds.json")).use {
+            it.readBytes()
+        }
             .decodeToString()
         val components = Json.parseToJsonElement(text).jsonObject.getValue("components").jsonArray
             .associateBy { it.jsonObject.getValue("name").jsonPrimitive.content }

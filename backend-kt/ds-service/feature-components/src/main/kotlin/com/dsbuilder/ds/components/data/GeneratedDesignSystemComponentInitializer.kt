@@ -542,7 +542,9 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
     }
 
     private val seeds: ComponentSeedPackage by lazy {
-        val text = requireNotNull(javaClass.classLoader.getResourceAsStream("component-seeds.json")) {
+        val text = requireNotNull(
+            javaClass.classLoader.getResourceAsStream("dsbuilder/ds/seeds/component-seeds.json"),
+        ) {
             "Component seed resource is missing"
         }.bufferedReader().use { it.readText() }
         Json.decodeFromString<ComponentSeedPackage>(text)

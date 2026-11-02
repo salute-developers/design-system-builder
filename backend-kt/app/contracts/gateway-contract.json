@@ -1,0 +1,788 @@
+{
+  "version": 1,
+  "profiles": {
+    "local": {
+      "source": "identity-gateway/gateway/nginx.local.conf",
+      "sha256": "631f6e454094749261572205c9b50d69d3e7226a7b417d1e844d7bde594e9a30",
+      "locations": [
+        {
+          "selector": "= /health",
+          "directives": [
+            "access_log off;",
+            "return 200 \"ok\\n\";"
+          ]
+        },
+        {
+          "selector": "= /auth/login",
+          "directives": [
+            "return 404;"
+          ]
+        },
+        {
+          "selector": "= /auth/token",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak/realms/dsbuilder/protocol/openid-connect/token;"
+          ]
+        },
+        {
+          "selector": "= /auth/register",
+          "directives": [
+            "return 404;"
+          ]
+        },
+        {
+          "selector": "= /auth/account",
+          "directives": [
+            "return 302 /realms/dsbuilder/account/;"
+          ]
+        },
+        {
+          "selector": "= /auth/logout",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak/realms/dsbuilder/protocol/openid-connect/logout;"
+          ]
+        },
+        {
+          "selector": "= /admin",
+          "directives": [
+            "return 308 /admin/;"
+          ]
+        },
+        {
+          "selector": "/admin/",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak;"
+          ]
+        },
+        {
+          "selector": "/auth/",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak/;"
+          ]
+        },
+        {
+          "selector": "= /realms/dsbuilder/protocol/openid-connect/registrations",
+          "directives": [
+            "return 404;"
+          ]
+        },
+        {
+          "selector": "= /realms/dsbuilder/login-actions/registration",
+          "directives": [
+            "return 404;"
+          ]
+        },
+        {
+          "selector": "/realms/",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak;"
+          ]
+        },
+        {
+          "selector": "/resources/",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak;"
+          ]
+        },
+        {
+          "selector": "/internal/",
+          "directives": [
+            "return 403;"
+          ]
+        },
+        {
+          "selector": "~ ^/api/projects(?:/member-candidates)?$",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "auth_request /_auth_user;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api(/projects(?:/member-candidates)?)$ $1 break;",
+            "proxy_pass http://projects_api;"
+          ]
+        },
+        {
+          "selector": "= /api/projects/",
+          "directives": [
+            "return 308 /api/projects;"
+          ]
+        },
+        {
+          "selector": "= /api/admin/component-config/import-api-meta",
+          "directives": [
+            "client_max_body_size 16m;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "auth_request /_auth_user;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id \"global\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host ds-service;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api/admin/component-config/import-api-meta$ /api/ds/admin/component-config/import-api-meta break;",
+            "proxy_pass http://ds_service_api;"
+          ]
+        },
+        {
+          "selector": "= /api/admin/compose-preview/plugin-builds",
+          "directives": [
+            "client_max_body_size 64m;",
+            "proxy_read_timeout 120s;",
+            "proxy_send_timeout 120s;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "auth_request /_auth_user;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "auth_request_set $trusted_compose_preview_publisher $upstream_http_x_compose_preview_publisher;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id \"global\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher $trusted_compose_preview_publisher;",
+            "proxy_set_header Host ds-service;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api/admin/compose-preview/plugin-builds$ /api/ds/admin/compose-preview/plugin-builds break;",
+            "proxy_pass http://ds_service_api;"
+          ]
+        },
+        {
+          "selector": "~ ^/api/projects/([^/]+)/ds(/.*)?$",
+          "directives": [
+            "set $project_id $1;",
+            "client_max_body_size 16m;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "limit_conn ds_route_connections 16;",
+            "auth_request /_auth_project;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_project_id $upstream_http_x_project_id;",
+            "auth_request_set $trusted_project_role $upstream_http_x_project_role;",
+            "auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;",
+            "auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id $trusted_project_id;",
+            "proxy_set_header X-Project-Role $trusted_project_role;",
+            "proxy_set_header X-Project-Key-Id $trusted_project_key_id;",
+            "proxy_set_header X-Project-Scopes $trusted_project_scopes;",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host ds-service;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;",
+            "proxy_pass http://ds_service_api;"
+          ]
+        },
+        {
+          "selector": "~ ^/api/projects/([^/]+)/documentation(/.*)?$",
+          "directives": [
+            "set $project_id $1;",
+            "client_max_body_size 101m;",
+            "proxy_request_buffering off;",
+            "proxy_buffering off;",
+            "proxy_connect_timeout 10s;",
+            "proxy_send_timeout 300s;",
+            "proxy_read_timeout 300s;",
+            "auth_request /_auth_project;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_project_id $upstream_http_x_project_id;",
+            "auth_request_set $trusted_project_role $upstream_http_x_project_role;",
+            "auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;",
+            "auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id $trusted_project_id;",
+            "proxy_set_header X-Project-Role $trusted_project_role;",
+            "proxy_set_header X-Project-Key-Id $trusted_project_key_id;",
+            "proxy_set_header X-Project-Scopes $trusted_project_scopes;",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header X-Request-Id $request_id;",
+            "proxy_set_header Host documentation-service;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api/projects/[^/]+/documentation(/.*)?$ /documentation$1 break;",
+            "proxy_pass http://documentation_service_api;"
+          ]
+        },
+        {
+          "selector": "~ ^/api/projects/([^/]+)(/.*)?$",
+          "directives": [
+            "set $project_id $1;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "auth_request /_auth_project;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_project_id $upstream_http_x_project_id;",
+            "auth_request_set $trusted_project_role $upstream_http_x_project_role;",
+            "auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;",
+            "auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id $trusted_project_id;",
+            "proxy_set_header X-Project-Role $trusted_project_role;",
+            "proxy_set_header X-Project-Key-Id $trusted_project_key_id;",
+            "proxy_set_header X-Project-Scopes $trusted_project_scopes;",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api(/projects(?:/.*)?)$ $1 break;",
+            "proxy_pass http://projects_api;"
+          ]
+        },
+        {
+          "selector": "= /_auth_project",
+          "directives": [
+            "internal;",
+            "proxy_pass_request_body off;",
+            "proxy_set_header Content-Length \"\";",
+            "proxy_set_header Authorization $http_authorization;",
+            "proxy_set_header X-Original-URI $request_uri;",
+            "proxy_pass http://auth_helper/internal/auth/projects/$project_id;"
+          ]
+        },
+        {
+          "selector": "= /_auth_user",
+          "directives": [
+            "internal;",
+            "client_max_body_size 64m;",
+            "proxy_pass_request_body off;",
+            "proxy_set_header Content-Length \"\";",
+            "proxy_set_header Authorization $http_authorization;",
+            "proxy_set_header X-Original-URI $request_uri;",
+            "proxy_pass http://auth_helper/internal/auth/user;"
+          ]
+        },
+        {
+          "selector": "@gateway_unauthorized",
+          "directives": [
+            "add_header Access-Control-Allow-Origin $cors_allowed_origin always;",
+            "add_header Access-Control-Allow-Methods \"GET, POST, PUT, PATCH, DELETE, OPTIONS\" always;",
+            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
+            "add_header Vary Origin always;",
+            "return 401;"
+          ]
+        },
+        {
+          "selector": "@gateway_forbidden",
+          "directives": [
+            "add_header Access-Control-Allow-Origin $cors_allowed_origin always;",
+            "add_header Access-Control-Allow-Methods \"GET, POST, PUT, PATCH, DELETE, OPTIONS\" always;",
+            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
+            "add_header Vary Origin always;",
+            "return 403;"
+          ]
+        }
+      ]
+    },
+    "production": {
+      "source": "identity-gateway/gateway/nginx.prod.conf.template",
+      "sha256": "613f8bd9fa625e03ed954dd6c41bd6df963161b15bdd6120653814b5029c2977",
+      "locations": [
+        {
+          "selector": "= /health",
+          "directives": [
+            "access_log off;",
+            "return 200 \"ok\\n\";"
+          ]
+        },
+        {
+          "selector": "= /auth/login",
+          "directives": [
+            "return 404;"
+          ]
+        },
+        {
+          "selector": "= /auth/token",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token;"
+          ]
+        },
+        {
+          "selector": "= /auth/register",
+          "directives": [
+            "return 404;"
+          ]
+        },
+        {
+          "selector": "= /auth/account",
+          "directives": [
+            "return 302 /realms/${KEYCLOAK_REALM}/account/;"
+          ]
+        },
+        {
+          "selector": "= /auth/logout",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout;"
+          ]
+        },
+        {
+          "selector": "= /admin",
+          "directives": [
+            "return 308 /admin/;"
+          ]
+        },
+        {
+          "selector": "/admin/",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak;"
+          ]
+        },
+        {
+          "selector": "/auth/",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak/;"
+          ]
+        },
+        {
+          "selector": "= /realms/${KEYCLOAK_REALM}/protocol/openid-connect/registrations",
+          "directives": [
+            "return 404;"
+          ]
+        },
+        {
+          "selector": "= /realms/${KEYCLOAK_REALM}/login-actions/registration",
+          "directives": [
+            "return 404;"
+          ]
+        },
+        {
+          "selector": "/realms/",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak;"
+          ]
+        },
+        {
+          "selector": "/resources/",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "proxy_set_header X-Actor-Type \"\";",
+            "proxy_set_header X-User-Id \"\";",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin \"\";",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $http_host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Host $forwarded_host;",
+            "proxy_set_header X-Forwarded-Port $forwarded_port;",
+            "proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+            "proxy_pass http://keycloak;"
+          ]
+        },
+        {
+          "selector": "/internal/",
+          "directives": [
+            "return 403;"
+          ]
+        },
+        {
+          "selector": "~ ^/api/projects(?:/member-candidates)?$",
+          "directives": [
+            "limit_req zone=project_api burst=20 nodelay;",
+            "auth_request /_auth_user;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id \"\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api(/projects(?:/member-candidates)?)$ $1 break;",
+            "proxy_pass http://projects_api;"
+          ]
+        },
+        {
+          "selector": "= /api/projects/",
+          "directives": [
+            "return 308 /api/projects;"
+          ]
+        },
+        {
+          "selector": "= /api/admin/component-config/import-api-meta",
+          "directives": [
+            "client_max_body_size 16m;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "auth_request /_auth_user;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id \"global\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api/admin/component-config/import-api-meta$ /api/ds/admin/component-config/import-api-meta break;",
+            "proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;"
+          ]
+        },
+        {
+          "selector": "= /api/admin/compose-preview/plugin-builds",
+          "directives": [
+            "client_max_body_size 64m;",
+            "proxy_read_timeout 120s;",
+            "proxy_send_timeout 120s;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "auth_request /_auth_user;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "auth_request_set $trusted_compose_preview_publisher $upstream_http_x_compose_preview_publisher;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id \"global\";",
+            "proxy_set_header X-Project-Role \"\";",
+            "proxy_set_header X-Project-Key-Id \"\";",
+            "proxy_set_header X-Project-Scopes \"\";",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher $trusted_compose_preview_publisher;",
+            "proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api/admin/compose-preview/plugin-builds$ /api/ds/admin/compose-preview/plugin-builds break;",
+            "proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;"
+          ]
+        },
+        {
+          "selector": "~ ^/api/projects/([^/]+)/ds(/.*)?$",
+          "directives": [
+            "set $project_id $1;",
+            "client_max_body_size 16m;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "limit_conn ds_route_connections 16;",
+            "auth_request /_auth_project;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_project_id $upstream_http_x_project_id;",
+            "auth_request_set $trusted_project_role $upstream_http_x_project_role;",
+            "auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;",
+            "auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id $trusted_project_id;",
+            "proxy_set_header X-Project-Role $trusted_project_role;",
+            "proxy_set_header X-Project-Key-Id $trusted_project_key_id;",
+            "proxy_set_header X-Project-Scopes $trusted_project_scopes;",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;",
+            "proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;"
+          ]
+        },
+        {
+          "selector": "~ ^/api/projects/([^/]+)/documentation(/.*)?$",
+          "directives": [
+            "set $project_id $1;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "client_max_body_size ${DOCUMENTATION_MAX_REQUEST_SIZE};",
+            "proxy_request_buffering off;",
+            "proxy_buffering off;",
+            "proxy_connect_timeout 10s;",
+            "proxy_send_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;",
+            "proxy_read_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;",
+            "auth_request /_auth_project;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_project_id $upstream_http_x_project_id;",
+            "auth_request_set $trusted_project_role $upstream_http_x_project_role;",
+            "auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;",
+            "auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id $trusted_project_id;",
+            "proxy_set_header X-Project-Role $trusted_project_role;",
+            "proxy_set_header X-Project-Key-Id $trusted_project_key_id;",
+            "proxy_set_header X-Project-Scopes $trusted_project_scopes;",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header X-Request-Id $request_id;",
+            "proxy_set_header Host ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api/projects/[^/]+/documentation(/.*)?$ /documentation$1 break;",
+            "proxy_ssl_server_name on;",
+            "proxy_ssl_name ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};",
+            "proxy_pass ${DOCUMENTATION_SERVICE_UPSTREAM_SCHEME}://documentation_service_api;"
+          ]
+        },
+        {
+          "selector": "~ ^/api/projects/([^/]+)(/.*)?$",
+          "directives": [
+            "set $project_id $1;",
+            "limit_req zone=project_api burst=20 nodelay;",
+            "auth_request /_auth_project;",
+            "auth_request_set $trusted_actor_type $upstream_http_x_actor_type;",
+            "auth_request_set $trusted_user_id $upstream_http_x_user_id;",
+            "auth_request_set $trusted_project_id $upstream_http_x_project_id;",
+            "auth_request_set $trusted_project_role $upstream_http_x_project_role;",
+            "auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;",
+            "auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;",
+            "auth_request_set $trusted_system_admin $upstream_http_x_system_admin;",
+            "proxy_set_header X-Actor-Type $trusted_actor_type;",
+            "proxy_set_header X-User-Id $trusted_user_id;",
+            "proxy_set_header X-Project-Id $trusted_project_id;",
+            "proxy_set_header X-Project-Role $trusted_project_role;",
+            "proxy_set_header X-Project-Key-Id $trusted_project_key_id;",
+            "proxy_set_header X-Project-Scopes $trusted_project_scopes;",
+            "proxy_set_header X-System-Admin $trusted_system_admin;",
+            "proxy_set_header X-Compose-Preview-Publisher \"\";",
+            "proxy_set_header Host $host;",
+            "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+            "proxy_set_header X-Forwarded-Proto $scheme;",
+            "rewrite ^/api(/projects(?:/.*)?)$ $1 break;",
+            "proxy_pass http://projects_api;"
+          ]
+        },
+        {
+          "selector": "= /_auth_project",
+          "directives": [
+            "internal;",
+            "proxy_pass_request_body off;",
+            "proxy_set_header Content-Length \"\";",
+            "proxy_set_header Authorization $http_authorization;",
+            "proxy_set_header X-Original-URI $request_uri;",
+            "proxy_pass http://auth_helper/internal/auth/projects/$project_id;"
+          ]
+        },
+        {
+          "selector": "= /_auth_user",
+          "directives": [
+            "internal;",
+            "client_max_body_size 64m;",
+            "proxy_pass_request_body off;",
+            "proxy_set_header Content-Length \"\";",
+            "proxy_set_header Authorization $http_authorization;",
+            "proxy_set_header X-Original-URI $request_uri;",
+            "proxy_pass http://auth_helper/internal/auth/user;"
+          ]
+        },
+        {
+          "selector": "@gateway_unauthorized",
+          "directives": [
+            "add_header Access-Control-Allow-Origin $cors_allowed_origin always;",
+            "add_header Access-Control-Allow-Methods \"GET, POST, PUT, PATCH, DELETE, OPTIONS\" always;",
+            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
+            "add_header Vary Origin always;",
+            "return 401;"
+          ]
+        },
+        {
+          "selector": "@gateway_forbidden",
+          "directives": [
+            "add_header Access-Control-Allow-Origin $cors_allowed_origin always;",
+            "add_header Access-Control-Allow-Methods \"GET, POST, PUT, PATCH, DELETE, OPTIONS\" always;",
+            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
+            "add_header Vary Origin always;",
+            "return 403;"
+          ]
+        }
+      ]
+    }
+  }
+}

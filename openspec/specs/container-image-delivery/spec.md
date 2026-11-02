@@ -4,6 +4,7 @@
 Публикация полного набора производственных контейнерных образов из разрешённых веток с проверкой версий и политикой тегов.
 
 ## Requirements
+
 ### Requirement: Ручной запуск публикации из разрешённой ветки
 Система MUST предоставлять ручной GitHub Actions workflow, который использует выбранный в GitHub ref и допускает публикацию только из веток `dev` и `master`.
 
@@ -35,14 +36,14 @@
 - **THEN** система MUST завершить workflow до публикации образов
 
 ### Requirement: Полный набор production-образов
-Workflow MUST собирать и публиковать образы `projects-service`, `auth-helper`, `documentation-service`, `ds-service`, `gateway`, `keycloak` и `keycloak-bootstrap` из соответствующих production Dockerfile репозитория. Образы `generator`, `publisher`, `documentation-generator` и `db-service` MUST NOT собираться и публиковаться.
+Workflow MUST собирать и публиковать образы `backend`, `keycloak` и `keycloak-bootstrap` из соответствующих production Dockerfile репозитория. Образы `projects-service`, `auth-helper`, `documentation-service`, `ds-service`, `gateway`, `generator`, `publisher`, `documentation-generator` и `db-service` MUST NOT собираться и публиковаться.
 
 #### Scenario: Успешная сборка набора
-- **WHEN** все семь production Dockerfile успешно собираются для выбранного commit
-- **THEN** registry MUST содержать все семь образов с тегами, определёнными политикой выбранной ветки
+- **WHEN** все три production Dockerfile успешно собираются для выбранного commit
+- **THEN** registry MUST содержать все три образа с тегами, определёнными политикой выбранной ветки
 
 #### Scenario: Ошибка одного образа
-- **WHEN** сборка или push хотя бы одного из семи образов завершается ошибкой
+- **WHEN** сборка или push хотя бы одного из трёх образов завершается ошибкой
 - **THEN** workflow MUST завершиться неуспешно и MUST NOT вызывать Coolify deploy webhook
 
 #### Scenario: Удалённые сервисы не публикуются
@@ -75,15 +76,15 @@ Workflow MUST собирать и публиковать образы `projects-
 - **THEN** второй workflow MUST ожидать завершения первого
 
 ### Requirement: Image-only production compose
-`docker-compose.prod.yml` MUST запускать восемь production-сервисов из `${REGISTRY_HOST}/${REGISTRY_NAMESPACE}/<image>:${IMAGE_TAG}` и MUST NOT требовать checkout исходников или локальный Docker build.
+`docker-compose.prod.yml` MUST запускать монолитный `backend` и необходимую внешнюю инфраструктуру из `${REGISTRY_HOST}/${REGISTRY_NAMESPACE}/<image>:${IMAGE_TAG}` и MUST NOT требовать checkout исходников или локальный Docker build.
 
 #### Scenario: DEV compose deployment
 - **WHEN** Coolify разворачивает compose с `IMAGE_TAG=dev`
-- **THEN** все восемь сервисов MUST использовать соответствующие registry images с тегом `dev`
+- **THEN** все сервисы с образами из registry MUST использовать соответствующие registry images с тегом `dev`
 
 #### Scenario: PROD compose deployment
 - **WHEN** Coolify разворачивает compose с `IMAGE_TAG=release`
-- **THEN** все восемь сервисов MUST использовать соответствующие registry images с тегом `release`
+- **THEN** все сервисы с образами из registry MUST использовать соответствующие registry images с тегом `release`
 
 #### Scenario: Обновление mutable tag
 - **WHEN** Coolify повторно разворачивает compose после изменения manifest за существующим `IMAGE_TAG`
@@ -91,8 +92,8 @@ Workflow MUST собирать и публиковать образы `projects-
 
 #### Scenario: Gateway без удалённых сервисов
 - **WHEN** Coolify разворачивает compose
-- **THEN** compose MUST NOT содержать сервисы `generator`, `publisher` и `docs-generator` и том `docs_output`
-- **THEN** `gateway` MUST запускаться без переменных `GENERATOR_SERVICE_UPSTREAM_*`, `PUBLISHER_SERVICE_UPSTREAM_*` и `DOCS_SERVICE_UPSTREAM_*`
+- **THEN** compose MUST NOT содержать сервисы `projects-service`, `auth-helper`, `documentation-service`, `ds-service`, `gateway`, `generator`, `publisher` и `docs-generator` и том `docs_output`
+- **THEN** единственный прикладной сервис `backend` MUST запускаться без nginx и внутренних HTTP upstream отдельных приложений
 
 ### Requirement: Разделение frontend и backend deployment
 Production compose MUST исключать `admin` и `client`, а существующие S3 frontend deployment workflow MUST оставаться независимыми от публикации backend/infra образов.
@@ -102,7 +103,7 @@ Production compose MUST исключать `admin` и `client`, а сущест�
 - **THEN** compose MUST NOT создавать компоненты `admin` и `client`
 
 ### Requirement: Отсутствие host port conflicts
-Production compose MUST оставлять backend-компоненты внутренними и предоставлять публичный доступ через назначенный Coolify domain компонента `gateway` на порту `8080` без фиксированного host port.
+Production compose MUST оставлять backend-компоненты внутренними и предоставлять публичный доступ через назначенный Coolify domain компонента `backend` на порту `8080` без фиксированного host port.
 
 #### Scenario: DEV и PROD на одном server
 - **WHEN** DEV и PROD resource развернуты на одном Coolify server
@@ -112,11 +113,11 @@ Production compose MUST оставлять backend-компоненты внут
 После успешной публикации полного набора workflow MUST вызвать authenticated deploy webhook DEV для ветки `dev` или PROD для ветки `master` с `force=false`.
 
 #### Scenario: Успешная DEV-публикация
-- **WHEN** все восемь образов с тегом `dev` успешно опубликованы
+- **WHEN** все три образа с тегом `dev` успешно опубликованы
 - **THEN** workflow MUST вызвать `COOLIFY_DEV_WEBHOOK` с Bearer token
 
 #### Scenario: Успешная PROD-публикация
-- **WHEN** все восемь образов с versioned-тегом и alias `release` успешно опубликованы
+- **WHEN** все три образа с versioned-тегом и alias `release` успешно опубликованы
 - **THEN** workflow MUST вызвать `COOLIFY_PROD_WEBHOOK` с Bearer token
 
 #### Scenario: Coolify отклоняет запрос
@@ -144,4 +145,3 @@ Production deployment documentation MUST описывать GHCR namespace и pa
 #### Scenario: Подготовка нового deployment server
 - **WHEN** оператор следует production deployment documentation
 - **THEN** он MUST получить проверяемый путь от создания `read:packages` credential до успешного pull приватного GHCR-образа на Coolify server
-

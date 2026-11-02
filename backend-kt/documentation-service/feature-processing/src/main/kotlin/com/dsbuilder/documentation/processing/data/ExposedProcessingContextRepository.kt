@@ -51,7 +51,7 @@ class ExposedProcessingContextRepository(
     }
 
     private suspend fun bundle(job: IngestionJob) = withContext(Dispatchers.IO) {
-        transaction(database) {
+        transaction(db = database) {
             Bundles.select(Bundles.columns)
                 .where { Bundles.id eq job.bundleId }
                 .singleOrNull()

@@ -12,6 +12,7 @@ Usage:
   ./setup-local.sh --down
 
 Options:
+  --backend-only  Start only the Kotlin backend and its infrastructure; leave JS containers untouched.
   --reset  Delete the data of the local Docker stacks (all volumes) before the setup.
            Without it the existing data is kept.
   --down   Stop the local Docker stacks without deleting their volumes.
@@ -22,25 +23,25 @@ Options:
   --skip-plugin
            Do not publish the Compose preview plugin.
   --components-package DIR
-           Component package (meta.json and *_config.json) to load into a new design system with a theme, so the
-           editor lists the Compose components with their preview. Env: COMPOSE_COMPONENTS_PACKAGE. Default: the
-           package bundled in local-dev/design-system/components.
+           Explicitly create a demo design system and import this component package (meta.json and *_config.json).
+           Env: COMPOSE_COMPONENTS_PACKAGE. Without an explicit package no demo design system or theme is seeded.
   --theme-package DIR
            Theme package of theme-converter whose Android token values replace the values of the new theme.
-           Default: local-dev/design-system/theme.
+           Requires --components-package. Default: local-dev/design-system/theme.
   --skip-design-system
            Do not create the design system and do not load the components.
   --help   Show this help.
 
 The setup starts the Kotlin backend, whose ds-service creates the schema of its own database
-with Flyway, fills the design system 'base' through the gateway (backend-kt/bootstrap-base.sh)
+with Flyway, prepares a project and global Web API through the gateway (backend-kt/bootstrap-base.sh)
 and starts the client.
 
 The Compose preview plugin archive and the component package are bundled in local-dev/ (see
 local-dev/README.md; ./refresh-local-dev-assets.sh updates them from a plasma-android checkout). The setup
-publishes the plugin with ./publish-compose-plugin.sh, which also imports the Compose API meta from the archive,
-and ./seed-local-design-system.sh then creates a design system with a theme and loads the component
-configurations, so the editor shows the Compose preview right after the setup.
+publishes the plugin with ./publish-compose-plugin.sh, which also imports the Compose API meta from the archive.
+User design systems and themes are created in the editor with backend defaults.
+Only an explicit --components-package (or COMPOSE_COMPONENTS_PACKAGE) invokes ./seed-local-design-system.sh
+to create a demo design system and import token values and component configurations.
 USAGE
 }
 
@@ -57,6 +58,7 @@ require() {
 
 ACTION="setup"
 RESET=0
+BACKEND_ONLY=0
 PLUGIN_ZIP="${COMPOSE_PREVIEW_PLUGIN_ZIP:-}"
 PLUGIN_ZIP_EXPLICIT=0
 SKIP_PLUGIN=0
@@ -66,11 +68,14 @@ COMPONENTS_PACKAGE_EXPLICIT=0
 THEME_PACKAGE_ARGS=()
 SKIP_DESIGN_SYSTEM=0
 [[ -n "$COMPONENTS_PACKAGE" ]] && COMPONENTS_PACKAGE_EXPLICIT=1
-BUNDLED_COMPONENTS_PACKAGE="$ROOT_DIR/local-dev/design-system/components"
 BUNDLED_PLUGIN_ZIP="$ROOT_DIR/local-dev/compose-preview/preview-compose-plugin.zip"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --backend-only)
+      BACKEND_ONLY=1
+      shift
+      ;;
     --down)
       ACTION="down"
       shift
@@ -113,6 +118,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && "$SKIP_DESIGN_SYSTEM" == "0" && "${#THEME_PACKAGE_ARGS[@]}" -gt 0 && "$COMPONENTS_PACKAGE_EXPLICIT" == "0" ]]; then
+  echo "[local-setup] --theme-package requires --components-package (or COMPOSE_COMPONENTS_PACKAGE)" >&2
+  exit 2
+fi
+
 require docker
 
 if ! docker compose version >/dev/null 2>&1; then
@@ -131,8 +141,10 @@ js_compose() {
 if [[ "$ACTION" == "down" ]]; then
   log "Stopping Kotlin backend"
   "$ROOT_DIR/backend-kt/start-local.sh" --down
-  log "Stopping the client"
-  js_compose down --remove-orphans
+  if [[ "$BACKEND_ONLY" == "0" ]]; then
+    log "Stopping the client"
+    js_compose down --remove-orphans
+  fi
   log "Local stacks are stopped"
   exit 0
 fi
@@ -141,15 +153,19 @@ if [[ "$RESET" == "1" ]]; then
   log "Resetting local data: removing the volumes of both stacks"
   docker compose -f "$ROOT_DIR/backend-kt/docker-compose.local.yml" down -v
   # --remove-orphans: контейнеры прежнего JS-стека (db-service и его Postgres на порту 5433) больше не описаны в compose.
-  js_compose down -v --remove-orphans
-else
+  if [[ "$BACKEND_ONLY" == "0" ]]; then js_compose down -v --remove-orphans; fi
+elif [[ "$BACKEND_ONLY" == "0" ]]; then
   js_compose down --remove-orphans
 fi
 
 log "Starting Kotlin backend (Flyway creates the schema in ds-db)"
 DS_FLYWAY_ADOPT_EXISTING=false "$ROOT_DIR/backend-kt/start-local.sh" --detach
+if [[ "$BACKEND_ONLY" == "1" ]]; then
+  log "Backend started; JS stack and seed data were left untouched"
+  exit 0
+fi
 
-log "Filling the design system 'base' through the gateway"
+log "Preparing the project and global Web API through the gateway"
 "$ROOT_DIR/backend-kt/bootstrap-base.sh"
 
 log "Starting the client"
@@ -176,21 +192,16 @@ if [[ "$SKIP_PLUGIN" == "0" ]]; then
 fi
 
 # The components of the package must already exist in the global layer: the plugin publication above imports them.
-if [[ "$SKIP_DESIGN_SYSTEM" == "0" ]]; then
-  if [[ -z "$COMPONENTS_PACKAGE" && -f "$BUNDLED_COMPONENTS_PACKAGE/meta.json" ]]; then
-    COMPONENTS_PACKAGE="$BUNDLED_COMPONENTS_PACKAGE"
-  fi
+if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; then
   if [[ -n "$COMPONENTS_PACKAGE" ]]; then
     log "Creating the design system with a theme and loading the components"
     if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}"; then
-      if [[ "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; then
-        echo "[local-setup] The requested component package could not be loaded" >&2
-        exit 1
-      fi
-      log "The design system could not be seeded; create it in the editor"
+      echo "[local-setup] The requested component package could not be loaded" >&2
+      exit 1
     fi
   else
-    log "No component package: restore local-dev/design-system or pass --components-package"
+    echo "[local-setup] The requested component package path is empty" >&2
+    exit 2
   fi
 fi
 

@@ -5,6 +5,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenMutation
@@ -32,7 +34,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /** Регистрирует операции над цветовым токеном `/api/ds/tenants/{tenantId}/color-tokens`. */
 fun Route.colorTokenRoutes(evaluator: PolicyEvaluator, useCases: ColorTokenUseCases) {
-    route("/api/ds/tenants/{tenantId}/color-tokens") {
+    route(dsRoutePath("/api/ds/tenants/{tenantId}/color-tokens")) {
         post {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
             val command = call.body<CreateColorTokenRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)
@@ -117,7 +119,7 @@ private fun uuid(value: String?): UUID? = value?.let { runCatching { UUID.fromSt
 
 /** Контекст запроса и тема; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.tenantTarget(evaluator: PolicyEvaluator): Pair<DsRequestContext, UUID>? {
-    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"])
+    val context = TrustedDsRequestContextMapper.map(dsTrustedHeaders(), evaluator, request.queryParameters["versionId"])
         ?: return null.also { respondFailure(DsFailure.Forbidden) }
     val tenantId = uuid(parameters["tenantId"]) ?: return null.also { respondFailure(TENANT) }
     return context to tenantId
@@ -140,7 +142,7 @@ private suspend fun ApplicationCall.respondFamily(
     is DsResult.Success -> respondSuccess(
         result,
         status,
-        ColorTokenMutationResponse(0, ColorTokenFamilyDto.from(result.value.value)),
+        familyResponse(result.value),
     )
     is DsResult.Failure -> respondFailure(result.error)
 }
@@ -151,8 +153,14 @@ private suspend fun ApplicationCall.respondValues(result: DsResult<ColorTokenMut
         is DsResult.Failure -> respondFailure(result.error)
     }
 
-private suspend fun ApplicationCall.respondRevision(result: DsResult<Int>) = when (result) {
-    is DsResult.Success -> respondSuccess(result, ColorTokenRevisionResponse(result.value))
+private suspend fun ApplicationCall.respondRevision(result: DsResult<ColorTokenMutation<Int>>) = when (result) {
+    is DsResult.Success -> respondSuccess(
+        result,
+        ColorTokenRevisionResponse(
+            result.value.editRevision,
+            result.value.structure?.let(ColorTokenStructureResponse::from),
+        ),
+    )
     is DsResult.Failure -> respondFailure(result.error)
 }
 
@@ -163,7 +171,7 @@ private val BODY = DsFailure.InvalidRequest("invalid_body", message = "Неко�
 
 private fun ApplicationCall.familyContext(context: DsRequestContext, body: Any, status: Int = 200) =
     repeatableThemeMutation(context, body, status) { value: ColorTokenMutation<StoredColorTokenFamily> ->
-        ColorTokenMutationResponse(0, ColorTokenFamilyDto.from(value.value))
+        familyResponse(value)
     }
 
 private fun ApplicationCall.valuesContext(context: DsRequestContext, body: Any) =
@@ -172,4 +180,13 @@ private fun ApplicationCall.valuesContext(context: DsRequestContext, body: Any) 
     }
 
 private fun ApplicationCall.revisionContext(context: DsRequestContext, body: Any) =
-    repeatableThemeMutation(context, body) { value: Int -> ColorTokenRevisionResponse(value) }
+    repeatableThemeMutation(context, body) { value: ColorTokenMutation<Int> ->
+        ColorTokenRevisionResponse(value.editRevision, value.structure?.let(ColorTokenStructureResponse::from))
+    }
+
+private fun familyResponse(value: ColorTokenMutation<StoredColorTokenFamily>) = ColorTokenMutationResponse(
+    0,
+    ColorTokenFamilyDto.from(value.value),
+    value.structure?.let(ColorTokenStructureResponse::from),
+    value.confirmedValues?.map(com.dsbuilder.ds.themes.presentation.TenantTokenValueResponse::from),
+)

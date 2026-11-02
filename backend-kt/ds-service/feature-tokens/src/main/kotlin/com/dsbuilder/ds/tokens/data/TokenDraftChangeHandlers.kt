@@ -65,6 +65,15 @@ private fun tokenDefinitionDraftChangeHandler(listeners: List<TokenRevertListene
             return if (limit == null) visible else visible.take(limit)
         }
 
+        override fun visit(
+            designSystemId: UUID,
+            sequenceNumber: Long,
+            previousSequenceNumber: Long,
+            consume: (List<DraftSubjectChange>) -> Unit,
+        ) = delegate.visit(designSystemId, sequenceNumber, previousSequenceNumber) { batch ->
+            consume(batch.mapNotNull(::withoutDerivedType))
+        }
+
         override fun describeEntity(
             designSystemId: UUID,
             sequenceNumber: Long,

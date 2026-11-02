@@ -193,7 +193,7 @@ class ExposedDocumentationSearchRepository(private val database: Database) :
     }
 
     private suspend fun <T> query(block: JdbcTransaction.() -> T): T =
-        withContext(Dispatchers.IO) { transaction(database) { block() } }
+        withContext(Dispatchers.IO) { transaction(db = database) { block() } }
 }
 
 private fun structuredLexicalSql(subjectSql: String): String =

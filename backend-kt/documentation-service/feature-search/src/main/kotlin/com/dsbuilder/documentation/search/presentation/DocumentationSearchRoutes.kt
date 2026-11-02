@@ -37,7 +37,7 @@ fun Route.documentationSearchRoutes(
     limits: DocumentationSearchLimits = DocumentationSearchLimits(),
     evaluator: PolicyEvaluator = PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded()),
 ) {
-    get("/documentation/search") {
+    get(searchRoutePath("/documentation/search")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val parameters = call.request.queryParameters
         val designSystemId = parameters["designSystemId"].nonBlank()
@@ -81,7 +81,7 @@ fun Route.documentationSearchRoutes(
             DocumentationSearchOutcome.PublicationNotFound -> call.respond(HttpStatusCode.NotFound)
         }
     }
-    get("/documentation/kb/fetch") {
+    get(searchRoutePath("/documentation/kb/fetch")) {
         val projectId = call.requireDocumentationRead(evaluator)?.projectId ?: return@get
         val url = call.request.queryParameters["url"].nonBlank()
             ?: return@get call.respond(HttpStatusCode.BadRequest)
@@ -128,13 +128,13 @@ private suspend fun ApplicationCall.requireDocumentationRead(evaluator: PolicyEv
 
 private fun ApplicationCall.trustedPrincipal(evaluator: PolicyEvaluator): ProjectPrincipal? {
     return TrustedProjectPrincipalFactory.create(
-        actorType = request.headers[ACTOR_TYPE_HEADER],
-        projectId = request.headers[PROJECT_ID_HEADER],
-        userId = request.headers[USER_ID_HEADER],
-        projectKeyId = request.headers[PROJECT_KEY_ID_HEADER],
-        projectRole = request.headers[PROJECT_ROLE_HEADER],
-        projectScopes = request.headers[PROJECT_SCOPES_HEADER],
-        systemAdmin = request.headers[SYSTEM_ADMIN_HEADER],
+        actorType = searchTrustedHeaders()[ACTOR_TYPE_HEADER],
+        projectId = searchTrustedHeaders()[PROJECT_ID_HEADER],
+        userId = searchTrustedHeaders()[USER_ID_HEADER],
+        projectKeyId = searchTrustedHeaders()[PROJECT_KEY_ID_HEADER],
+        projectRole = searchTrustedHeaders()[PROJECT_ROLE_HEADER],
+        projectScopes = searchTrustedHeaders()[PROJECT_SCOPES_HEADER],
+        systemAdmin = searchTrustedHeaders()[SYSTEM_ADMIN_HEADER],
         policy = evaluator.policy,
     )
 }

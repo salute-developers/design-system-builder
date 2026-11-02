@@ -1,6 +1,11 @@
-import type { EditorContextKey } from './editorContracts';
+import type { EditorContextKey, TokenDefinitionDto } from './editorContracts';
 import { invalidateEditorReads } from './editorReads';
-import { recordDraftSave, setDraftAutosaveActivity } from './draftAutosaveActivity';
+import {
+    recordDraftSave,
+    setDraftAutosaveActivity,
+    type ConfirmedTokenValues,
+    type ConfirmedColorStructure,
+} from './draftAutosaveActivity';
 import { parseMutationMetadata } from './editorHttp';
 import { observeSubjectRevisions, acceptSubjectAddress } from './subjectRevisions';
 import { authService } from './authService';
@@ -23,6 +28,9 @@ export async function subjectMutation<T>(
     context: EditorContextKey,
     operation: () => Promise<T>,
     subject?: { address: string; entityType: string },
+    tokenTypes?: TokenDefinitionDto['type'][],
+    confirmedValues?: (result: T) => ConfirmedTokenValues[] | undefined,
+    confirmedStructure?: (result: T) => ConfirmedColorStructure | undefined,
 ): Promise<T> {
     if (context.versionId) throw new Error('Опубликованная версия доступна только для чтения');
     const generation = sessionGeneration;
@@ -41,8 +49,8 @@ export async function subjectMutation<T>(
             const primary = metadata.filter((item) => item.entityType === subject?.entityType);
             if (subject && primary.length === 1) acceptSubjectAddress(context, subject.address, primary[0].revision);
         }
-        invalidateEditorReads();
-        recordDraftSave(context);
+        invalidateEditorReads(context);
+        recordDraftSave(context, tokenTypes, confirmedValues?.(result), confirmedStructure?.(result));
         return result;
     } finally {
         activity.count -= 1;

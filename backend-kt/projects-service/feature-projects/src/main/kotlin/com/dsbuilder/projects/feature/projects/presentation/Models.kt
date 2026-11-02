@@ -17,7 +17,6 @@ import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.application
-import io.ktor.server.request.header
 import io.ktor.server.response.respond
 import kotlinx.serialization.Serializable
 
@@ -198,13 +197,13 @@ internal fun CreateProjectAccessKeyRequest.normalizedScopes(): Set<AccessKeyScop
     }.toSet()
 
 internal fun ApplicationCall.requireActor(): AuthenticatedActor {
-    val actorType = request.header(ACTOR_TYPE_HEADER)
+    val actorType = projectsTrustedHeaders()[ACTOR_TYPE_HEADER]
         ?.let { rawValue -> ActorType.entries.firstOrNull { it.name.equals(rawValue, ignoreCase = true) } }
         ?: ActorType.USER
-    val userId = request.header(USER_ID_HEADER)
+    val userId = projectsTrustedHeaders()[USER_ID_HEADER]
         ?: throw InvalidProjectRequestException("Missing $USER_ID_HEADER header")
-    val isSystemAdmin = request.header(SYSTEM_ADMIN_HEADER)?.toBooleanStrictOrNull() ?: false
-    val projectScopes = request.header(PROJECT_SCOPES_HEADER)
+    val isSystemAdmin = projectsTrustedHeaders()[SYSTEM_ADMIN_HEADER]?.toBooleanStrictOrNull() ?: false
+    val projectScopes = projectsTrustedHeaders()[PROJECT_SCOPES_HEADER]
         ?.split(',')
         ?.filter { it.isNotBlank() }
         ?.map { scope -> AccessKeyScope.parse(scope) ?: throw InvalidProjectRequestException("Invalid scope '$scope'") }
@@ -214,8 +213,8 @@ internal fun ApplicationCall.requireActor(): AuthenticatedActor {
         type = actorType,
         userId = userId,
         isSystemAdmin = isSystemAdmin,
-        projectId = request.header(PROJECT_ID_HEADER),
-        projectKeyId = request.header(PROJECT_KEY_ID_HEADER),
+        projectId = projectsTrustedHeaders()[PROJECT_ID_HEADER],
+        projectKeyId = projectsTrustedHeaders()[PROJECT_KEY_ID_HEADER],
         scopes = projectScopes,
     )
 }
@@ -224,7 +223,7 @@ internal fun ApplicationCall.requireInternalAccess(expectedApiKey: String?) {
     if (expectedApiKey.isNullOrBlank()) {
         return
     }
-    val actualApiKey = request.header(INTERNAL_API_KEY_HEADER)
+    val actualApiKey = projectsTrustedHeaders()[INTERNAL_API_KEY_HEADER]
     if (actualApiKey != expectedApiKey) {
         throw ForbiddenProjectActionException("Invalid internal API key")
     }

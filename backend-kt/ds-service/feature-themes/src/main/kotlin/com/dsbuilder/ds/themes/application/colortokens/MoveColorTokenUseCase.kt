@@ -79,7 +79,17 @@ class MoveColorTokenUseCase(
         val renamed = stored.members.entries.associate { (name, id) ->
             ColorTokenNaming.rename(name, family.group, family.name) to id
         }
-        return DsResult.Success(ColorTokenMutation(revision, StoredColorTokenFamily(family, renamed)))
+        return DsResult.Success(
+            ColorTokenMutation(
+                revision,
+                StoredColorTokenFamily(family, renamed),
+                tokens.confirmedStructure(
+                    lock.designSystemId,
+                    renamed.values,
+                    groupIds = members.mapNotNull { it.groupId } + target.id,
+                ),
+            ),
+        )
     }
 }
 

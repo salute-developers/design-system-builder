@@ -8,6 +8,9 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.ErrorResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRequestBodyConsumed
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
@@ -32,9 +35,9 @@ fun Route.pluginBuildPublishRoutes(
     publish: PublishPluginBuildUseCase,
     maxArchiveBytes: Long,
 ) {
-    route("/api/ds/admin/compose-preview") {
+    route(dsRoutePath("/api/ds/admin/compose-preview")) {
         post("/plugin-builds") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             // Роль проверяется до чтения тела: отказанный вызывающий ничего не загружает.
             if (!context.principal.systemAdmin && !context.principal.composePreviewPublisher) {
@@ -42,6 +45,7 @@ fun Route.pluginBuildPublishRoutes(
             }
             val dryRun = call.request.queryParameters["dryRun"]?.toBooleanStrictOrNull() ?: true
             val upload = call.readPluginUpload(maxArchiveBytes)
+            call.dsRequestBodyConsumed()
             if (upload.tooLarge) {
                 return@post call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Payload too large"))
             }
@@ -91,10 +95,10 @@ private suspend fun ApplicationCall.readPluginUpload(maxArchiveBytes: Long): Plu
 
 /** Выдача адреса активного билда плагина участнику проекта. */
 fun Route.activePluginBuildRoutes(evaluator: PolicyEvaluator, active: GetActivePluginBuildUseCase) {
-    route("/api/ds/compose-preview") {
+    route(dsRoutePath("/api/ds/compose-preview")) {
         get("/plugin") {
             // `versionId` намеренно не передаётся: активный билд не зависит от версии дизайн-системы.
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = active.execute(context)) {
                 is DsResult.Success -> call.respond(ActivePluginBuildResponse.from(result.value))

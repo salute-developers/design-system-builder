@@ -55,7 +55,9 @@ class GeneratedTokenDefinitionInitializer(
     }
 
     private val definitions: List<Definition> by lazy {
-        val text = requireNotNull(javaClass.classLoader.getResourceAsStream("token-definitions.json")) {
+        val text = requireNotNull(
+            javaClass.classLoader.getResourceAsStream("dsbuilder/ds/seeds/token-definitions.json"),
+        ) {
             "Generated token definitions resource is missing"
         }.bufferedReader().use { it.readText() }
         Json.parseToJsonElement(text).jsonArray.mapNotNull { element ->

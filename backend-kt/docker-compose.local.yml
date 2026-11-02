@@ -1,85 +1,32 @@
+---
 services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.6.1
     command:
-      - start-dev
-      - --import-realm
-      - --http-port=8080
+    - start-dev
+    - "--import-realm"
+    - "--http-port=8080"
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      KC_HEALTH_ENABLED: "true"
-      KC_METRICS_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${KEYCLOAK_ADMIN:-admin}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:-admin}"
+      KC_HEALTH_ENABLED: 'true'
+      KC_METRICS_ENABLED: 'true'
       KC_PROXY_HEADERS: xforwarded
     ports:
-      - "8090:8080"
+    - "${KEYCLOAK_LOCAL_PORT:-8090}:8080"
     volumes:
-      - ./identity-gateway/keycloak/dsbuilder-realm.json:/opt/keycloak/data/import/dsbuilder-realm.json:ro
-      - ./identity-gateway/keycloak/themes/dsbuilder:/opt/keycloak/themes/dsbuilder:ro
+    - "./identity-gateway/keycloak/dsbuilder-realm.json:/opt/keycloak/data/import/dsbuilder-realm.json:ro"
+    - "./identity-gateway/keycloak/themes/dsbuilder:/opt/keycloak/themes/dsbuilder:ro"
+    - monolith_keycloak_data:/opt/keycloak/data
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
+      test:
+      - CMD-SHELL
+      - 'exec 3<>/dev/tcp/127.0.0.1/9000; printf ''GET /health/ready HTTP/1.1\r\nHost:
+        localhost\r\n\r\n'' >&3; grep -q ''200'' <&3'
       interval: 15s
       timeout: 5s
       start_period: 40s
       retries: 10
-
-  auth-helper:
-    image: ${AUTH_HELPER_IMAGE:-auth-helper:dev}
-    build:
-      context: ./identity-gateway/app
-      dockerfile: Dockerfile.local
-    environment:
-      AUTH_HELPER_PORT: 8091
-      KEYCLOAK_ISSUER: http://localhost:8080/realms/dsbuilder
-      KEYCLOAK_AUDIENCE: dsbuilder-api
-      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/dsbuilder/protocol/openid-connect/certs
-      PROJECT_ACCESS_MODE: ${PROJECT_ACCESS_MODE:-http}
-      PROJECT_ACCESS_DEFAULT_ROLE: ${PROJECT_ACCESS_DEFAULT_ROLE:-viewer}
-      PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL:-http://projects-service:8082}
-      PROJECT_ACCESS_TIMEOUT_MS: 1500
-      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:-local-projects-internal-key}
-    ports:
-      - "8091:8091"
-    depends_on:
-      keycloak:
-        condition: service_healthy
-      projects-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      start_period: 20s
-      retries: 5
-
-  gateway:
-    image: nginx:1.27-alpine
-    environment:
-      DOCUMENTATION_SERVICE_UPSTREAM_SCHEME: http
-      DOCUMENTATION_SERVICE_UPSTREAM_HOST: documentation-service
-      DOCUMENTATION_SERVICE_UPSTREAM_PORT: 8084
-      DOCUMENTATION_MAX_REQUEST_SIZE: 101m
-    ports:
-      - "8080:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - ./identity-gateway/gateway/nginx.local.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      auth-helper:
-        condition: service_healthy
-      projects-service:
-        condition: service_healthy
-      documentation-service:
-        condition: service_healthy
-      ds-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-
   projects-db:
     image: postgres:16-alpine
     environment:
@@ -87,172 +34,134 @@ services:
       POSTGRES_USER: projects
       POSTGRES_PASSWORD: projects
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U projects -d projects_service"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U projects -d projects_service
       interval: 10s
       timeout: 5s
       retries: 10
-
-  projects-service:
-    image: ${PROJECTS_SERVICE_IMAGE:-projects-service:dev}
-    build:
-      context: ./projects-service/app
-      dockerfile: Dockerfile.local
-    environment:
-      PROJECTS_SERVICE_PORT: 8082
-      PROJECTS_DATABASE_URL: jdbc:postgresql://projects-db:5432/projects_service
-      PROJECTS_POSTGRES_USER: projects
-      PROJECTS_POSTGRES_PASSWORD: projects
-      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:-local-projects-internal-key}
-      PROJECT_AUTHORIZATION_POLICY_PATH: /app/authorization/policy.json
-      PROJECTS_IDENTITY_KEYCLOAK_BASE_URL: ${PROJECTS_IDENTITY_KEYCLOAK_BASE_URL:-http://keycloak:8080}
-      PROJECTS_IDENTITY_KEYCLOAK_REALM: ${PROJECTS_IDENTITY_KEYCLOAK_REALM:-dsbuilder}
-      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:-projects-service}
-      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:-projects-service-secret}
-    expose:
-      - "8082"
     volumes:
-      - ../authorization/policy.json:/app/authorization/policy.json:ro
-    depends_on:
-      projects-db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      start_period: 20s
-      retries: 5
-
+    - monolith_projects_db_data:/var/lib/postgresql/data
   ds-db:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ds_registry
-      POSTGRES_USER: ${DS_DATABASE_USER:-postgres}
-      POSTGRES_PASSWORD: ${DS_DATABASE_PASSWORD:-postgres}
-    # Хостовый порт для psql и инструментов разработчика; схему создаёт только Flyway в ds-service.
+      POSTGRES_USER: "${DS_DATABASE_USER:-postgres}"
+      POSTGRES_PASSWORD: "${DS_DATABASE_PASSWORD:-postgres}"
     ports:
-      - "${DS_DB_PORT:-5433}:5432"
+    - "${DS_DB_PORT:-5433}:5432"
     volumes:
-      - ds_db_data:/var/lib/postgresql/data
+    - monolith_ds_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DS_DATABASE_USER:-postgres} -d ds_registry"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${DS_DATABASE_USER:-postgres} -d ds_registry
       interval: 10s
       timeout: 5s
       retries: 10
-
-  ds-service:
-    build:
-      context: ./ds-service/app
-      dockerfile: Dockerfile.local
-    environment:
-      DS_SERVICE_PORT: 8085
-      DS_DATABASE_URL: ${DS_DATABASE_URL:-jdbc:postgresql://ds-db:5432/ds_registry}
-      DS_DATABASE_USER: ${DS_DATABASE_USER:-postgres}
-      DS_DATABASE_PASSWORD: ${DS_DATABASE_PASSWORD:-postgres}
-      DS_DATABASE_POOL_SIZE: 10
-      DS_DATABASE_CONNECTION_TIMEOUT_MS: 5000
-      DS_FLYWAY_ENABLED: "true"
-      # Локальная база создаётся Flyway с нуля; принятие готовой схемы включается явно.
-      DS_FLYWAY_ADOPT_EXISTING: ${DS_FLYWAY_ADOPT_EXISTING:-false}
-      DS_EXPECTED_SCHEMA_SHA256: ${DS_EXPECTED_SCHEMA_SHA256:-7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55}
-      AUTHORIZATION_POLICY_PATH: /app/authorization/policy.json
-      DS_PLUGIN_S3_ENDPOINT: http://minio:9000
-      DS_PLUGIN_S3_REGION: us-east-1
-      DS_PLUGIN_S3_BUCKET: compose-preview
-      DS_PLUGIN_S3_ACCESS_KEY: minio
-      DS_PLUGIN_S3_SECRET_KEY: minio123
-      DS_PLUGIN_S3_PATH_STYLE: "true"
-      DS_PLUGIN_S3_PREFIX: ${DS_PLUGIN_S3_PREFIX:-}
-      DS_PLUGIN_PUBLIC_BASE_URL: ${DS_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/compose-preview}
-    expose:
-      - "8085"
-    volumes:
-      - ../authorization/policy.json:/app/authorization/policy.json:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      ds-db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8085/ready || exit 1"]
-      interval: 15s
-      timeout: 5s
-      start_period: 30s
-      retries: 5
-
   documentation-db:
     image: postgres:16-alpine
-#    Удалить
     ports:
-      - "5434:5432"
+    - "${DOCUMENTATION_DB_PORT:-5434}:5432"
     environment:
       POSTGRES_DB: documentation_service
       POSTGRES_USER: documentation
       POSTGRES_PASSWORD: documentation
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U documentation -d documentation_service"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U documentation -d documentation_service
       interval: 10s
       timeout: 5s
       retries: 10
-
+    volumes:
+    - monolith_documentation_db_data:/var/lib/postgresql/data
   minio:
     build:
-      context: ./docker/minio
+      context: "./docker/minio"
       dockerfile: Dockerfile
     image: dsbuilder-minio:local
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123
-    # Without a volume the buckets are lost on a Docker restart, while the registry still lists the plugin builds.
     volumes:
-      - minio-data:/data
-    # The browser loads Compose preview plugin builds straight from the bucket.
+    - monolith_minio-data:/data
     ports:
-      - "${MINIO_PUBLIC_PORT:-9000}:9000"
+    - "${MINIO_PUBLIC_PORT:-9000}:9000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:9000/minio/health/live || exit 1
       interval: 10s
       timeout: 5s
       retries: 10
-
   minio-init:
     build:
-      context: ./docker/minio
+      context: "./docker/minio"
       dockerfile: Dockerfile.mc
     image: dsbuilder-minio-mc:local
-    entrypoint: ["/bin/sh", "-c", "mc alias set local http://minio:9000 minio minio123 && mc mb --ignore-existing local/documentation-bundles && mc mb --ignore-existing local/compose-preview && mc anonymous set download local/compose-preview"]
+    entrypoint:
+    - "/bin/sh"
+    - "-c"
+    - mc alias set local http://minio:9000 minio minio123 && mc mb --ignore-existing
+      local/documentation-bundles && mc mb --ignore-existing local/compose-preview
+      && mc anonymous set download local/compose-preview
     depends_on:
       minio:
         condition: service_healthy
-
-  documentation-service:
-    build:
-      context: ./documentation-service/app
-      dockerfile: Dockerfile.local
+  backend:
+    mem_limit: "${BACKEND_MEMORY_LIMIT:-2g}"
     environment:
-      DOCUMENTATION_SERVICE_PORT: 8084
-      PROJECT_AUTHORIZATION_POLICY_PATH: /app/authorization/policy.json
+      JAVA_TOOL_OPTIONS: "${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=60.0}"
+      KEYCLOAK_ISSUER: "${KEYCLOAK_ISSUER:-http://localhost:8080/realms/dsbuilder}"
+      KEYCLOAK_AUDIENCE: dsbuilder-api
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/dsbuilder/protocol/openid-connect/certs
+      PROJECTS_DATABASE_URL: jdbc:postgresql://projects-db:5432/projects_service
+      PROJECTS_POSTGRES_USER: projects
+      PROJECTS_POSTGRES_PASSWORD: projects
+      PROJECT_AUTHORIZATION_POLICY_PATH: "/app/authorization/policy.json"
+      PROJECTS_IDENTITY_KEYCLOAK_BASE_URL: "${PROJECTS_IDENTITY_KEYCLOAK_BASE_URL:-http://keycloak:8080}"
+      PROJECTS_IDENTITY_KEYCLOAK_REALM: "${PROJECTS_IDENTITY_KEYCLOAK_REALM:-dsbuilder}"
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: "${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:-projects-service}"
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: "${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:-projects-service-secret}"
+      DS_DATABASE_URL: "${DS_DATABASE_URL:-jdbc:postgresql://ds-db:5432/ds_registry}"
+      DS_DATABASE_USER: "${DS_DATABASE_USER:-postgres}"
+      DS_DATABASE_PASSWORD: "${DS_DATABASE_PASSWORD:-postgres}"
+      DS_DATABASE_POOL_SIZE: 10
+      DS_DATABASE_CONNECTION_TIMEOUT_MS: 5000
+      DS_FLYWAY_ENABLED: 'true'
+      DS_FLYWAY_ADOPT_EXISTING: "${DS_FLYWAY_ADOPT_EXISTING:-false}"
+      DS_EXPECTED_SCHEMA_SHA256: "${DS_EXPECTED_SCHEMA_SHA256:-7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55}"
+      AUTHORIZATION_POLICY_PATH: "/app/authorization/policy.json"
+      DS_PLUGIN_S3_ENDPOINT: http://minio:9000
+      DS_PLUGIN_S3_REGION: us-east-1
+      DS_PLUGIN_S3_BUCKET: compose-preview
+      DS_PLUGIN_S3_ACCESS_KEY: minio
+      DS_PLUGIN_S3_SECRET_KEY: minio123
+      DS_PLUGIN_S3_PATH_STYLE: 'true'
+      DS_PLUGIN_S3_PREFIX: "${DS_PLUGIN_S3_PREFIX:-}"
+      DS_PLUGIN_PUBLIC_BASE_URL: "${DS_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/compose-preview}"
       DOCUMENTATION_DATABASE_URL: jdbc:postgresql://documentation-db:5432/documentation_service
       DOCUMENTATION_POSTGRES_USER: documentation
       DOCUMENTATION_POSTGRES_PASSWORD: documentation
-      DS_SERVICE_BASE_URL: http://ds-service:8085
-      DOCUMENTATION_TEMP_DIRECTORY: /var/tmp/documentation
+      DOCUMENTATION_TEMP_DIRECTORY: "/var/tmp/documentation"
       DOCUMENTATION_S3_ENDPOINT: http://minio:9000
       DOCUMENTATION_S3_REGION: us-east-1
       DOCUMENTATION_S3_BUCKET: documentation-bundles
       DOCUMENTATION_S3_ACCESS_KEY: minio
       DOCUMENTATION_S3_SECRET_KEY: minio123
-      DOCUMENTATION_S3_PATH_STYLE_ACCESS: "true"
+      DOCUMENTATION_S3_PATH_STYLE_ACCESS: 'true'
       DOCUMENTATION_S3_PREFIX: raw
-      DOCUMENTATION_PUBLICATION_S3_PREFIX: ""
-      DOCUMENTATION_WORKER_ENABLED: "true"
+      DOCUMENTATION_PUBLICATION_S3_PREFIX: ''
+      DOCUMENTATION_WORKER_ENABLED: 'true'
       DOCUMENTATION_WORKER_POLLING_MS: 1000
       DOCUMENTATION_WORKER_LEASE_SECONDS: 60
       DOCUMENTATION_WORKER_HEARTBEAT_SECONDS: 20
       DOCUMENTATION_WORKER_MAX_ATTEMPTS: 3
-      DOCUMENTATION_CLEANUP_ENABLED: ${DOCUMENTATION_CLEANUP_ENABLED:-false}
-      DOCUMENTATION_CLEANUP_GRACE_SECONDS: ${DOCUMENTATION_CLEANUP_GRACE_SECONDS:-86400}
-      DOCUMENTATION_CLEANUP_POLLING_MS: ${DOCUMENTATION_CLEANUP_POLLING_MS:-5000}
+      DOCUMENTATION_CLEANUP_ENABLED: "${DOCUMENTATION_CLEANUP_ENABLED:-false}"
+      DOCUMENTATION_CLEANUP_GRACE_SECONDS: "${DOCUMENTATION_CLEANUP_GRACE_SECONDS:-86400}"
+      DOCUMENTATION_CLEANUP_POLLING_MS: "${DOCUMENTATION_CLEANUP_POLLING_MS:-5000}"
       DOCUMENTATION_MAX_COMPRESSED_BYTES: 104857600
       DOCUMENTATION_MAX_UNCOMPRESSED_BYTES: 524288000
       DOCUMENTATION_MAX_ENTRY_BYTES: 104857600
@@ -270,24 +179,49 @@ services:
       DOCUMENTATION_PAGINATION_MAX_LIMIT: 100
       DOCUMENTATION_SEARCH_MAX_QUERY_BYTES: 1024
       DOCUMENTATION_SEARCH_MAX_SUBJECTS: 50
+      COMPOSE_PLUGIN_TIMEOUT_SECONDS: "${COMPOSE_PLUGIN_TIMEOUT_SECONDS:-120}"
+      DOCUMENTATION_MAX_REQUEST_SIZE: "${DOCUMENTATION_MAX_REQUEST_SIZE:-101m}"
+      GATEWAY_PROXY_TIMEOUT_SECONDS: "${GATEWAY_PROXY_TIMEOUT_SECONDS:-300}"
+      BACKEND_PORT: '8080'
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      BACKEND_SHUTDOWN_TIMEOUT_MS: "${BACKEND_SHUTDOWN_TIMEOUT_MS:-30000}"
+      DOCUMENTATION_WORKER_PARALLELISM: "${DOCUMENTATION_WORKER_PARALLELISM:-1}"
+      PROJECTS_DATABASE_POOL_SIZE: "${PROJECTS_DATABASE_POOL_SIZE:-10}"
+      DOCUMENTATION_DATABASE_POOL_SIZE: "${DOCUMENTATION_DATABASE_POOL_SIZE:-10}"
+      BACKEND_PUBLIC_URL: "${BACKEND_PUBLIC_URL:-http://localhost:8080}"
+    restart: unless-stopped
     expose:
-      - "8084"
+    - '8080'
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://127.0.0.1:8080/ready || exit 1
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+    build:
+      context: ".."
+      dockerfile: backend-kt/app/Dockerfile.local
+    image: "${BACKEND_IMAGE:-dsbuilder-backend:dev}"
+    ports:
+    - "${BACKEND_HTTP_PORT:-8080}:8080"
     volumes:
-      - ../authorization/policy.json:/app/authorization/policy.json:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    - "../authorization/policy.json:/app/authorization/policy.json:ro"
     depends_on:
+      keycloak:
+        condition: service_healthy
+      projects-db:
+        condition: service_healthy
+      ds-db:
+        condition: service_healthy
       documentation-db:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health/ready || exit 1"]
-      interval: 15s
-      timeout: 5s
-      start_period: 30s
-      retries: 5
-
 volumes:
-  ds_db_data:
-  minio-data:
+  monolith_ds_db_data:
+  monolith_minio-data:
+  monolith_projects_db_data: {}
+  monolith_documentation_db_data: {}
+  monolith_keycloak_data: {}

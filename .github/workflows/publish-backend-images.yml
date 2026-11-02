@@ -78,21 +78,9 @@ jobs:
           - image: keycloak-bootstrap
             context: backend-kt
             file: backend-kt/identity-gateway/keycloak/Dockerfile.bootstrap
-          - image: gateway
-            context: backend-kt
-            file: backend-kt/identity-gateway/gateway/Dockerfile
-          - image: auth-helper
-            context: backend-kt
-            file: backend-kt/identity-gateway/app/Dockerfile
-          - image: projects-service
+          - image: backend
             context: .
-            file: backend-kt/projects-service/app/Dockerfile
-          - image: ds-service
-            context: .
-            file: backend-kt/ds-service/app/Dockerfile
-          - image: documentation-service
-            context: .
-            file: backend-kt/documentation-service/app/Dockerfile
+            file: backend-kt/app/Dockerfile
     env:
       IMAGE_REF: ghcr.io/${{ needs.prepare.outputs.image_namespace }}/${{ matrix.image }}
       DEPLOYMENT_TAG: ${{ needs.prepare.outputs.deployment_tag }}

@@ -36,10 +36,16 @@ import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 import org.koin.ktor.ext.inject
 
 /** Регистрирует публичные endpoints проектов и internal endpoint для access-check. */
-fun Application.projectsRoutes(internalApiKey: String?) {
+fun Application.projectsRoutes(internalApiKey: String?, publicEntry: Boolean = false) {
     val createProject by inject<CreateProjectUseCase>()
     val listProjects by inject<ListProjectsUseCase>()
     val getProject by inject<GetProjectUseCase>()
@@ -58,20 +64,25 @@ fun Application.projectsRoutes(internalApiKey: String?) {
     val getEffectiveProjectRole by inject<GetEffectiveProjectRoleUseCase>()
 
     routing {
-        get("/health") {
-            call.respond(HttpStatusCode.OK)
-        }
+        val mount = if (publicEntry) projectsPublicEntry() else this
+        mount.route(if (publicEntry) "/api" else "/") {
+            if (!publicEntry) {
+                get("/health") {
+                    call.respond(HttpStatusCode.OK)
+                }
+            }
 
-        projectCrudRoutes(listProjects, createProject, getProject, updateProject, archiveProject, restoreProject)
-        projectMemberRoutes(
-            listProjectMembers,
-            searchProjectMemberCandidates,
-            addProjectMember,
-            updateProjectMemberRole,
-            removeProjectMember,
-        )
-        projectAccessKeyRoutes(createProjectAccessKey, listProjectAccessKeys, revokeProjectAccessKey)
-        internalProjectRoutes(getEffectiveProjectRole, verifyProjectAccessKey, internalApiKey)
+            projectCrudRoutes(listProjects, createProject, getProject, updateProject, archiveProject, restoreProject)
+            projectMemberRoutes(
+                listProjectMembers,
+                searchProjectMemberCandidates,
+                addProjectMember,
+                updateProjectMemberRole,
+                removeProjectMember,
+            )
+            projectAccessKeyRoutes(createProjectAccessKey, listProjectAccessKeys, revokeProjectAccessKey)
+            if (!publicEntry) internalProjectRoutes(getEffectiveProjectRole, verifyProjectAccessKey, internalApiKey)
+        }
     }
 }
 
@@ -83,7 +94,7 @@ private fun Route.projectCrudRoutes(
     archiveProject: ArchiveProjectUseCase,
     restoreProject: RestoreProjectUseCase,
 ) {
-    route("/projects") {
+    route(projectsRoutePath("/projects")) {
         listProjectsRoute(listProjects)
 
         post {
@@ -147,7 +158,14 @@ private fun Route.listProjectsRoute(listProjects: ListProjectsUseCase) {
         runCatching {
             listProjects.execute(ListProjectsInput(actor = call.requireActor()))
         }.onSuccess { projects ->
-            call.respond(projects.map { it.project.toResponse(it.effectiveRole) })
+            call.respond(
+                projects.map {
+                    JsonObject(
+                        Json.encodeToJsonElement(it.project.toResponse(it.effectiveRole)).jsonObject +
+                            ("designSystemCount" to (it.designSystemCount?.let(::JsonPrimitive) ?: JsonNull)),
+                    )
+                },
+            )
         }.onFailure { call.respondProjectError(it) }
     }
 }
@@ -159,7 +177,7 @@ private fun Route.projectMemberRoutes(
     updateProjectMemberRole: UpdateProjectMemberRoleUseCase,
     removeProjectMember: RemoveProjectMemberUseCase,
 ) {
-    get("/projects/member-candidates") {
+    get(projectsRoutePath("/projects/member-candidates")) {
         runCatching {
             searchProjectMemberCandidates.execute(
                 call.requireActor(),
@@ -170,7 +188,7 @@ private fun Route.projectMemberRoutes(
         }.onFailure { call.respondProjectError(it) }
     }
 
-    route("/projects/{projectId}/members") {
+    route(projectsRoutePath("/projects/{projectId}/members")) {
         get {
             runCatching {
                 listProjectMembers.execute(call.requireActor(), call.parameters["projectId"].orEmpty())
@@ -227,7 +245,7 @@ private fun Route.projectAccessKeyRoutes(
     listProjectAccessKeys: ListProjectAccessKeysUseCase,
     revokeProjectAccessKey: RevokeProjectAccessKeyUseCase,
 ) {
-    route("/projects/{projectId}/access-keys") {
+    route(projectsRoutePath("/projects/{projectId}/access-keys")) {
         get {
             runCatching {
                 listProjectAccessKeys.execute(call.requireActor(), call.parameters["projectId"].orEmpty())

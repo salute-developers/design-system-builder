@@ -119,7 +119,10 @@ const invalidFieldOf = (error: ColorTokenOperationError | null, definitions: Tok
     const name = [...definitions].find(([, definition]) => definition.id === tokenId)?.[0];
     if (!name || !['web', 'ios', 'android'].includes(platform)) return null;
     const context = contextOfSubgroup(parseMemberName(name)?.subgroup ?? '');
-    return { field: (context ? `${context}-${mode}` : mode) as FieldId, platform: platform as PickerTarget['platform'] };
+    return {
+        field: (context ? `${context}-${mode}` : mode) as FieldId,
+        platform: platform as PickerTarget['platform'],
+    };
 };
 
 /** Экран Color Tokens темы по ветке `editorTab === 'colors'` функции `editor` прототипа. */
@@ -310,7 +313,6 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         } catch (error) {
             throw operationError(error, parsed.name);
         }
-        await refreshPalette();
         setSelectedId(tokenId(key));
         if (requestedTokenId) {
             const next = new URLSearchParams(searchParams);
@@ -402,7 +404,6 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
         try {
             await editor.remove(view);
-            await refreshPalette();
             setDeleting(null);
             setSelectedId(null);
             clearDeletedTokenAddress([view]);

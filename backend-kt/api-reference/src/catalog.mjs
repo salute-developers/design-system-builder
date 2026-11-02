@@ -11,7 +11,7 @@ export const serviceSources = [
     title: 'Authentication',
     specPath: path.join(
       repositoryRoot,
-      'backend-kt/identity-gateway/app/src/main/resources/openapi/public-authentication.yaml',
+      'backend-kt/identity-gateway/runtime/src/main/resources/openapi/public-authentication.yaml',
     ),
     sourcePrefix: '/auth',
     gatewayPrefix: '/auth',
@@ -23,7 +23,7 @@ export const serviceSources = [
     title: 'Projects',
     specPath: path.join(
       repositoryRoot,
-      'backend-kt/projects-service/app/src/main/resources/openapi/documentation.yaml',
+      'backend-kt/projects-service/runtime/src/main/resources/openapi/documentation.yaml',
     ),
     sourcePrefix: '/projects',
     gatewayPrefix: '/api/projects',
@@ -35,7 +35,7 @@ export const serviceSources = [
     title: 'Design systems',
     specPath: path.join(
       repositoryRoot,
-      'backend-kt/ds-service/app/src/main/resources/openapi/documentation.yaml',
+      'backend-kt/ds-service/runtime/src/main/resources/openapi/documentation.yaml',
     ),
     sourcePrefix: '/api/ds',
     gatewayPrefix: '/api/projects/{projectId}/ds',
@@ -47,7 +47,7 @@ export const serviceSources = [
     title: 'Documentation',
     specPath: path.join(
       repositoryRoot,
-      'backend-kt/documentation-service/app/src/main/resources/openapi/documentation.yaml',
+      'backend-kt/documentation-service/runtime/src/main/resources/openapi/documentation.yaml',
     ),
     sourcePrefix: '/documentation',
     gatewayPrefix: '/api/projects/{projectId}/documentation',

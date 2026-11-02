@@ -97,7 +97,21 @@ class CreateColorTokenUseCase(
                 is DsResult.Success -> tokens.bumpRevisions(lock.tenantIds - tenantId).let { assigned.value }
             }
         }
-        return DsResult.Success(ColorTokenMutation(revision, StoredColorTokenFamily(family.copy(type = type), ids)))
+        val values = tokens.confirmedValues(lock.designSystemId, tenantId, ids.values)?.let { values ->
+            com.dsbuilder.ds.themes.application.TokenValuePublisher(
+                tenantId,
+                palette.snapshot(context.projectId, tenantId),
+            )
+                .publish(values.map { it.copy(tokenType = type) })
+        }
+        return DsResult.Success(
+            ColorTokenMutation(
+                revision,
+                StoredColorTokenFamily(family.copy(type = type), ids),
+                tokens.confirmedStructure(lock.designSystemId, ids.values, groupIds = listOfNotNull(command.groupId)),
+                values,
+            ),
+        )
     }
 
     /** `404` — группы нет в дизайн-системе, `400` — группа другого вида или её код не совпадает с группой имени. */

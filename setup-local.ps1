@@ -28,6 +28,9 @@ if (-not $componentsWereExplicit -and $componentsFromEnvironment) {
     $ComponentsPackage = $componentsFromEnvironment
     $componentsWereExplicit = $true
 }
+if (-not $Down -and -not $SkipDesignSystem -and $themeWasExplicit -and -not $componentsWereExplicit) {
+    throw '-ThemePackage requires -ComponentsPackage (or COMPOSE_COMPONENTS_PACKAGE)'
+}
 $projectName = if ($env:DSBUILDER_JS_COMPOSE_PROJECT_NAME) { $env:DSBUILDER_JS_COMPOSE_PROJECT_NAME } else { 'design-system-builder' }
 
 function Write-SetupLog([string]$message) { Write-Host "[local-setup] $message" }
@@ -194,7 +197,7 @@ Write-SetupLog 'Building local setup tools container'
 Invoke-Checked 'Local setup tools build' 'docker' @('build', '-t', $toolsImage,
     '-f', (Join-Path $root 'local-dev/Dockerfile.setup-tools'), (Join-Path $root 'local-dev'))
 
-Write-SetupLog "Filling the design system 'base' through the gateway"
+Write-SetupLog 'Preparing the project and global Web API through the gateway'
 $metaMounts = @()
 $metaEnvironment = @()
 if ($env:DSBUILDER_WEB_API_META) {
@@ -227,12 +230,12 @@ if (-not $SkipPlugin) {
     }
 }
 
-if (-not $SkipDesignSystem) {
+if (-not $SkipDesignSystem -and $componentsWereExplicit) {
     if ($themeWasExplicit -and $ThemePackage -and
         -not (Test-Path -LiteralPath (Join-Path $ThemePackage 'android/android_color.json') -PathType Leaf)) {
         throw "Theme package has no android/android_color.json: $ThemePackage"
     }
-    if (-not $ComponentsPackage) { $ComponentsPackage = Join-Path $root 'local-dev/design-system/components' }
+    if (-not $ComponentsPackage) { throw 'The requested component package path is empty' }
     if (Test-Path -LiteralPath (Join-Path $ComponentsPackage 'meta.json')) {
         $mounts = @()
         $package = Convert-InputPath $ComponentsPackage '/input/components' ([ref]$mounts)
@@ -243,16 +246,10 @@ if (-not $SkipDesignSystem) {
                 $seedArgs += @('--theme-package', $theme)
             } else { $seedArgs += @('--theme-package', '') }
         }
-        try {
-            Write-SetupLog 'Creating the design system with a theme and components'
-            Invoke-SetupTool 'seed-local-design-system.sh' $seedArgs $mounts
-        } catch {
-            if ($componentsWereExplicit -or $themeWasExplicit) { throw }
-            Write-SetupLog "The bundled design system could not be seeded: $_"
-        }
+        Write-SetupLog 'Creating the design system with a theme and components'
+        Invoke-SetupTool 'seed-local-design-system.sh' $seedArgs $mounts
     } else {
-        if ($componentsWereExplicit) { throw "Component package not found: $ComponentsPackage" }
-        Write-SetupLog 'No component package; continuing without local Compose components'
+        throw "Component package not found: $ComponentsPackage"
     }
 }
 

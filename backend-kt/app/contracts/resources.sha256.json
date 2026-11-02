@@ -1,0 +1,22 @@
+{
+  "dsbuilder/ds/db/migration/V13__compose_preview_plugin_builds.sql": "7378f13e1e6037bacb965cc1a5a7208621ee0b8a64df72ad1e73fb1c229b20c4",
+  "dsbuilder/ds/db/migration/V2__complete_legacy_transition.sql": "fc82e0ab3a768eba74656a5d0f0b288dc3c9b425c85a15d2416399f61c61169d",
+  "dsbuilder/ds/db/migration/V10__scope_design_system_name_validation.sql": "b0e0f17e478ea1c19b48fe0c001dfd67b35cddf4c1a43b3e096c3e5a798cacab",
+  "dsbuilder/ds/db/migration/V5__tenant_palette.sql": "ad1eb77a64a994885880b68d76543b28d5770e936709077a9f05d11393172e7a",
+  "dsbuilder/ds/db/migration/V1__db_service_baseline.sql": "61c787e3e031bc1457acbc41f559583158fc07d98ba5b247681cb6d7c2f4f890",
+  "dsbuilder/ds/db/migration/V4__drop_saved_queries.sql": "500d0563d1b2d897a5f626f013c4c5045394e8a6c4e10abdb07879e6141aa627",
+  "dsbuilder/ds/db/migration/V8__restore_resolved_revision_integrity.sql": "039d776c945a6adcef0229945a8a94a9ef5983525049e5a8a7bfd1dc7cbb35c2",
+  "dsbuilder/ds/db/migration/V6__token_groups.sql": "52cf4778b6f332a2cd4bc53ec0ceb9c333e8b5880003f264e77f22d3f731b4b0",
+  "dsbuilder/ds/db/migration/V9__independent_draft_transaction_markers.sql": "d8d3554f1df2ff0ae929234c651b20ce4ae4529f31b907cf4f8eabadf162f8f5",
+  "dsbuilder/ds/db/migration/V11__persist_idempotent_mutation_metadata.sql": "2fa235c2628f6f3dbb306e3295ffa597c3bf47cba4f498508ca58b4cb11b3c68",
+  "dsbuilder/ds/db/migration/V14__per_design_system_variation_axes.sql": "dcfb6a12c38f028295049f94df2c2be9e56fa456a5b6e2248243d69af27ae9c4",
+  "dsbuilder/ds/db/migration/V12__appearance_editor_model.sql": "861d9ef0a045412dad8971689474011781956ce1a312db211ee38f2331641870",
+  "dsbuilder/ds/db/migration/V7__version_design_system_state.sql": "e25cd78a81df1260ea84a7ab16c411a6e544f0306e1e44ba045c98e5ea971936",
+  "dsbuilder/ds/db/migration/V3__component_platform_split_and_axis_roles.sql": "13157f195d639a432a87cb1d4dd8a3f55abe10cd3b7aa402074bd5f430597c40",
+  "dsbuilder/documentation/db/migration/V2__publication_cleanup_lifecycle.sql": "008004e079bce961e66968b08ff803a6c60875195264c30f1b52efbb422e56c3",
+  "dsbuilder/documentation/db/migration/V1__documentation_schema.sql": "5046df4e1b0dff31e6c37c5d809eaa3670f7b97c4a15d86032ceee22b6c462d1",
+  "dsbuilder/ds/seeds/token-definitions.json": "f903bb82952b8458bc0ff4c37fed0b794c4fab6b1d17c59e29f39fd97d4a253c",
+  "dsbuilder/ds/seeds/token-initial-values.json": "676ee3d49cb5ddafc0060bacd012a2498b8f756ed355494cd692387872e15f0b",
+  "dsbuilder/ds/seeds/component-seeds.json": "b9e3453e07266c205b7e015ffe128af33783e3d67c9b9e5b2e9e79323108572f",
+  "dsbuilder/ds/db/migration/V15__color_token_value_kind.sql": "26f655db2b65b6ab01a3a4d79f449a359c059c93f1d743d1fda5828391c0346a"
+}

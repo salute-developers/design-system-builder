@@ -261,7 +261,12 @@ CLI SHALL проверять имена тем из их `meta.json` до зап
 ### Requirement: Брейкпоинты типографики из project config
 
 `npm run generate:theme` и `npm run generate:ds` SHALL брать брейкпоинты медиазапросов адаптивной
-типографики из необязательного массива `breakpoints` в `.sdds/config.json`. Элемент массива SHALL
+типографики из необязательного массива `breakpoints` в `.sdds/config.json`.
+
+#### Scenario: Формат брейкпоинтов и медиазапросов
+
+- **WHEN** CLI читает массив `breakpoints` из `.sdds/config.json`
+- **THEN** Элемент массива SHALL
 быть объектом с полем `name` — одним из `screenS`, `screenM`, `screenL` — и необязательными целыми
 неотрицательными границами `from` и `to` в пикселях, где отсутствующий ключ и `null` означают
 отсутствие границы. `from` SHALL означать минимальную ширину экрана, `to` — максимальную. Медиазапрос

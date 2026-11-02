@@ -23,3 +23,6 @@ rootProject.name = "identity-gateway"
 includeBuild("../build-system")
 include(":app")
 include(":feature-auth")
+
+include(":runtime")
+includeBuild("../runtime-contracts")

@@ -5,6 +5,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -36,7 +38,7 @@ fun Route.designSystemVersionRoutes(
     publish: CreateDesignSystemVersionUseCase,
     json: Json,
 ) {
-    route("/api/ds/design-system-versions") {
+    route(dsRoutePath("/api/ds/design-system-versions")) {
         get {
             val context = context(evaluator) ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
@@ -67,7 +69,7 @@ fun Route.designSystemVersionRoutes(
             val request = call.receive<CreateDesignSystemVersionRequest>()
             val designSystemId = request.designSystemId.uuid()
             val draftId = request.draftId.uuid()
-            val idempotencyKey = call.request.headers["Idempotency-Key"]
+            val idempotencyKey = call.dsTrustedHeaders()["Idempotency-Key"]
             if (
                 designSystemId == null || draftId == null || request.draftRevision < 0 ||
                 !VERSION_PATTERN.matches(request.version) ||
@@ -98,7 +100,7 @@ fun Route.designSystemVersionRoutes(
 }
 
 private fun io.ktor.server.routing.RoutingContext.context(evaluator: PolicyEvaluator) =
-    TrustedDsRequestContextMapper.map(call.request.headers, evaluator, call.request.queryParameters["versionId"])
+    TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"])
 
 private fun String.uuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
 

@@ -3,3 +3,5 @@ plugins {
     id("convention.detekt")
     id("convention.spotless")
 }
+
+dependencies { implementation(libs.hikari) }

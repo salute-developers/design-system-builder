@@ -5,6 +5,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.sizetokens.CreateSizeToken
@@ -32,7 +34,7 @@ import kotlin.coroutines.cancellation.CancellationException
  * принимает `versionId`; мутации пишут предметные редакции и отдают их в `X-DS-Mutation-Metadata`.
  */
 fun Route.sizeTokenRoutes(evaluator: PolicyEvaluator, useCases: SizeTokenUseCases) {
-    route("/api/ds/tenants/{tenantId}/size-tokens") {
+    route(dsRoutePath("/api/ds/tenants/{tenantId}/size-tokens")) {
         sizeTokenReadRoute(evaluator, useCases)
         sizeTokenCreateRoute(evaluator, useCases)
         sizeTokenUpdateRoute(evaluator, useCases)
@@ -121,7 +123,7 @@ private fun uuid(value: String?): UUID? = value?.let { runCatching { UUID.fromSt
 
 /** Контекст запроса с `versionId` и тема; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.tenantTarget(evaluator: PolicyEvaluator): Pair<DsRequestContext, UUID>? {
-    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"])
+    val context = TrustedDsRequestContextMapper.map(dsTrustedHeaders(), evaluator, request.queryParameters["versionId"])
         ?: return null.also { respondFailure(DsFailure.Forbidden) }
     val tenantId = uuid(parameters["tenantId"]) ?: return null.also { respondFailure(TENANT) }
     return context to tenantId

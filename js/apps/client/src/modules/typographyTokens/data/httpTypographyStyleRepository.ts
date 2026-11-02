@@ -3,6 +3,14 @@ import axios from 'axios';
 import { http } from '../../../api/http';
 import { readRequest } from '../../../api/editorHttp';
 import { subjectMutation } from '../../../api/subjectMutation';
+
+const tokenMutation = <T>(context: Parameters<typeof subjectMutation>[0], operation: () => Promise<T>) =>
+    subjectMutation(context, operation, undefined, ['typography', 'fontFamily'], (response) => {
+        const data = (response as { data?: import('../domain').UpdatedTypographyStyle }).data;
+        return data?.tokens?.length
+            ? data.tokens.map((token) => ({ tokenId: token.tokenId, values: token.values }))
+            : undefined;
+    });
 import { tokenValueBaseRevision } from '../../../api/subjectRevisions';
 import type { TypographyField } from '../domain';
 import {
@@ -59,7 +67,7 @@ export const createHttpTypographyStyleRepository = (): TypographyStyleRepository
     load: (context, signal) => call(() => http.get(stylesPath(context), readRequest(context, signal))),
     update: (context, tokenId, change, values) =>
         call(() =>
-            subjectMutation(context, () =>
+            tokenMutation(context, () =>
                 http.patch(stylesPath(context, `/${encodeURIComponent(tokenId)}`), {
                     ...change,
                     // Редакции берутся в момент отправки: их обновили метаданные предыдущих подтверждённых операций.

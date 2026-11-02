@@ -32,7 +32,7 @@ fun Route.documentationBundleRoutes(
     evaluator: PolicyEvaluator = PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded()),
 ) {
     val log = LoggerFactory.getLogger("DocumentationBundleAcceptance")
-    post("/documentation/bundles") {
+    post(ingestionRoutePath("/documentation/bundles")) {
         call.acceptBundle(useCase, uploader, evaluator, log)
     }
 }
@@ -47,7 +47,7 @@ private suspend fun ApplicationCall.acceptBundle(
     if (useCase == null || uploader == null) {
         return safeError(HttpStatusCode.ServiceUnavailable, "SERVICE_NOT_CONFIGURED", "Сервис приемки не настроен.")
     }
-    val actor = TrustedActorContextMapper.map(request.headers, evaluator.policy)
+    val actor = TrustedActorContextMapper.map(ingestionTrustedHeaders(), evaluator.policy)
         ?: return safeError(
             HttpStatusCode.BadRequest,
             "INVALID_TRUSTED_CONTEXT",
@@ -116,7 +116,7 @@ private suspend fun ApplicationCall.respondTo(result: AcceptanceResult, actor: A
         is AcceptanceResult.Accepted -> {
             log.info(
                 ACCEPTED_LOG,
-                request.headers[REQUEST_ID_HEADER],
+                ingestionTrustedHeaders()[REQUEST_ID_HEADER],
                 actor.projectId,
                 result.bundleId,
                 result.jobId,
@@ -126,7 +126,7 @@ private suspend fun ApplicationCall.respondTo(result: AcceptanceResult, actor: A
         is AcceptanceResult.Rejected -> {
             log.warn(
                 REJECTED_LOG,
-                request.headers[REQUEST_ID_HEADER],
+                ingestionTrustedHeaders()[REQUEST_ID_HEADER],
                 actor.projectId,
                 result.errors.firstOrNull()?.code,
             )

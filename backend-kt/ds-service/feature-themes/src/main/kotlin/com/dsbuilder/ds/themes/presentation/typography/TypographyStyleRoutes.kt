@@ -5,6 +5,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.typography.TypographyBaseRevision
@@ -24,7 +26,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /** Регистрирует чтение и изменение стилей типографии `/api/ds/tenants/{tenantId}/typography-styles`. */
 fun Route.typographyStyleRoutes(evaluator: PolicyEvaluator, useCases: TypographyStyleUseCases) {
-    route("/api/ds/tenants/{tenantId}/typography-styles") {
+    route(dsRoutePath("/api/ds/tenants/{tenantId}/typography-styles")) {
         get {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@get
             when (val result = useCases.get.execute(context, tenantId)) {
@@ -75,7 +77,7 @@ private fun uuid(value: String?): UUID? = value?.let { runCatching { UUID.fromSt
 
 /** Контекст запроса и тема; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.tenantTarget(evaluator: PolicyEvaluator): Pair<DsRequestContext, UUID>? {
-    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"])
+    val context = TrustedDsRequestContextMapper.map(dsTrustedHeaders(), evaluator, request.queryParameters["versionId"])
         ?: return null.also { respondFailure(DsFailure.Forbidden) }
     val tenantId = uuid(parameters["tenantId"]) ?: return null.also { respondFailure(TENANT) }
     return context to tenantId

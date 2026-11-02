@@ -22,6 +22,18 @@ interface DraftChangeHandler {
         limit: Int? = null,
     ): List<DraftSubjectChange>
 
+    /** Обрабатывает предметные отличия порциями без накопления полного журнала.
+     * Реализации хранилища переопределяют метод для ограниченной SQL-выборки.
+     */
+    fun visit(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        consume: (List<DraftSubjectChange>) -> Unit,
+    ) {
+        describe(designSystemId, sequenceNumber, previousSequenceNumber).chunked(500).forEach(consume)
+    }
+
     /** Описывает одну сущность без вычисления остальных предметных отличий ДС. */
     fun describeEntity(
         designSystemId: UUID,
