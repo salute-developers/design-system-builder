@@ -86,7 +86,7 @@ export type PreviewThemeValue =
           weight: number;
           fontStyle?: 'NORMAL' | 'ITALIC';
       }
-    | { type: 'fontFamily'; faces: PreviewFontFace[]; allowFallback: boolean };
+    | { type: 'fontFamily'; family?: string; faces: PreviewFontFace[]; allowFallback: boolean };
 export interface PreviewComponent {
     id: string;
     variations: Record<string, string>;

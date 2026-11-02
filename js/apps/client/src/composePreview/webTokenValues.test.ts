@@ -144,6 +144,7 @@ describe('normalizeWebTokenValue', () => {
         );
         expect(result.value).toEqual({
             type: 'fontFamily',
+            family: 'SB Sans Text',
             faces: [
                 { assetId: 'body:0', weight: 700, style: 'NORMAL' },
                 { assetId: 'body:1', weight: 400, style: 'ITALIC' },

@@ -159,7 +159,11 @@ describe('assembler for the WEB platform', () => {
         expect(payload.surface.background).toBe('light.background.default.primary');
         expect(payload.theme['light.background.default.primary']).toMatchObject({ type: 'color' });
         expect(payload.theme['light.text.default.primary']).toMatchObject({ type: 'color' });
-        expect(payload.theme['fontFamily.body']).toMatchObject({ type: 'fontFamily', allowFallback: true });
+        expect(payload.theme['fontFamily.body']).toMatchObject({
+            type: 'fontFamily',
+            family: 'SB Sans Text',
+            allowFallback: true,
+        });
         expect(Object.keys(payload.theme).some((id) => id.startsWith('dark.'))).toBe(false);
     });
 

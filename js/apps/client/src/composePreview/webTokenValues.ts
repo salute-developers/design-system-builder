@@ -256,7 +256,7 @@ const fontSources = (font: { [key: string]: JsonValue }): string[] => {
 };
 
 /**
- * Семейство `{name, fonts[{src, fontWeight, fontStyle}]}` → `fontFamily.faces` и ресурсы шрифтов. Из источников
+ * Семейство `{name, fonts[{src, fontWeight, fontStyle}]}` → `fontFamily` с именем `family`, `faces` и ресурсы шрифтов. Из источников
  * начертания берётся лучший поддержанный формат: WOFF2, затем WOFF, TTF, OTF.
  */
 const normalizeFontFamily = (raw: JsonValue, tokenId: string): WebTokenNormalization => {
@@ -280,7 +280,8 @@ const normalizeFontFamily = (raw: JsonValue, tokenId: string): WebTokenNormaliza
         faces.push({ assetId: asset.id, weight, style: fontStyleOf(font.fontStyle ?? font.style) ?? 'NORMAL' });
     }
     // Шрифт, который браузер не скачал, не должен ронять отрисовку: плагин подставит шрифт по умолчанию.
-    return { ok: true, value: { type: 'fontFamily', faces, allowFallback: true }, assets };
+    const family = typeof raw.name === 'string' && raw.name.trim() ? { family: raw.name.trim() } : {};
+    return { ok: true, value: { type: 'fontFamily', ...family, faces, allowFallback: true }, assets };
 };
 
 /** Web-значение хранения токена темы → значение токена Preview Protocol. */
