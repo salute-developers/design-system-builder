@@ -45,6 +45,7 @@ export const resolvePayload = (
     const themeVars = themeVariables(payload.theme);
     const fontFamily = bodyFontFamily(payload);
     const background = surfaceBackground(payload);
+    const fonts = fontFaces(payload, warnings);
 
     return {
         variables: { ...relatedVariables, ...componentVariables, ...themeVars },
@@ -52,7 +53,8 @@ export const resolvePayload = (
         relatedVariables,
         themeVariables: themeVars,
         relatedComponents,
-        fontFaces: fontFaces(payload, warnings),
+        fontFaces: fonts.rules,
+        fontLoads: fonts.loads,
         ...(fontFamily ? { fontFamily } : {}),
         ...(background ? { background } : {}),
         warnings: warnings.list,

@@ -153,10 +153,21 @@ export const startBridge = (win: Window, options: BridgeOptions = {}): (() => vo
 
         const outcome = await getRenderer().render(request, story);
         if (outcome.ok) {
+            const warnings = [...request.warnings, ...(outcome.warnings ?? [])];
             sendResult(target, origin, {
                 type: 'success',
                 requestId: request.requestId,
-                ...(request.warnings.length ? { warnings: request.warnings } : {}),
+                ...(warnings.length ? { warnings } : {}),
+            });
+            return;
+        }
+        if (outcome.code !== undefined) {
+            sendResult(target, origin, {
+                type: 'failure',
+                requestId: request.requestId,
+                code: outcome.code,
+                message: outcome.message,
+                ...(outcome.path ? { path: outcome.path } : {}),
             });
             return;
         }

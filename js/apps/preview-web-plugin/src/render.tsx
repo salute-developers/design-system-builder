@@ -2,11 +2,16 @@ import { Component, useEffect, useMemo, type CSSProperties, type ErrorInfo, type
 import { createRoot, type Root } from 'react-dom/client';
 
 import { storyArgName, storyDefaults } from './describe';
-import type { WebPreviewRequest } from './protocol';
+import { waitForFonts } from './fonts';
+import type { PreviewWarning, ResolvedFontLoad, WebPreviewRequest } from './protocol';
 import { buildRelatedComponents } from './registry';
+import { pathKey } from './resolve/warnings';
 import type { WebStory } from './stories/types';
 
-export type RenderOutcome = { ok: true } | { ok: false; message: string; stack?: string; componentStack?: string };
+export type RenderOutcome =
+    | { ok: true; warnings?: PreviewWarning[] }
+    | { ok: false; code: string; message: string; path?: string }
+    | { ok: false; code?: undefined; message: string; stack?: string; componentStack?: string };
 
 /** Имя стиля `true` у логической вариации — пропс `true`, как `toStoryArg` в `ComponentEditorPreview` клиента. */
 const toStoryArg = (styleName: string) => (styleName === 'true' ? true : styleName);
@@ -70,14 +75,23 @@ class RenderErrorBoundary extends Component<BoundaryProps, BoundaryState> {
     }
 }
 
-/** Сообщает об отрисовке после коммита и ближайшего кадра; в скрытом iframe кадр может не прийти, поэтому есть таймер. */
-const RenderedSignal = ({ renderId, onRendered }: { renderId: number; onRendered: () => void }) => {
+interface RenderedSignalProps {
+    renderId: number;
+    fontLoads: ResolvedFontLoad[];
+    onRendered: (unavailableFonts: ResolvedFontLoad[]) => void;
+}
+
+/**
+ * Сообщает об отрисовке после коммита, ближайшего кадра и загрузки шрифтов темы. В скрытом iframe кадр может не прийти,
+ * поэтому есть таймер.
+ */
+const RenderedSignal = ({ renderId, fontLoads, onRendered }: RenderedSignalProps) => {
     useEffect(() => {
         let done = false;
         const finish = () => {
             if (done) return;
             done = true;
-            onRendered();
+            void waitForFonts(fontLoads).then(onRendered);
         };
         const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(finish) : undefined;
         const timer = setTimeout(finish, 50);
@@ -95,7 +109,7 @@ interface PreviewSurfaceProps {
     renderId: number;
     request: WebPreviewRequest;
     story: WebStory;
-    onRendered: () => void;
+    onRendered: (unavailableFonts: ResolvedFontLoad[]) => void;
     onCrash: (error: unknown, info: ErrorInfo) => void;
 }
 
@@ -107,7 +121,7 @@ export const PreviewSurface = ({ renderId, request, story, onRendered, onCrash }
         () => buildRelatedComponents(request.resolved.relatedComponents),
         [request.resolved.relatedComponents],
     );
-    const { fontFaces, fontFamily } = request.resolved;
+    const { fontFaces, fontFamily, fontLoads } = request.resolved;
 
     return (
         <div data-preview-surface style={surfaceStyle(request)}>
@@ -115,7 +129,7 @@ export const PreviewSurface = ({ renderId, request, story, onRendered, onCrash }
             <div data-preview style={{ display: 'contents', fontFamily }}>
                 <RenderErrorBoundary renderId={renderId} onCrash={onCrash}>
                     <Story {...storyProps(request, story)} relatedComponents={relatedComponents} />
-                    <RenderedSignal renderId={renderId} onRendered={onRendered} />
+                    <RenderedSignal renderId={renderId} fontLoads={fontLoads} onRendered={onRendered} />
                 </RenderErrorBoundary>
             </div>
         </div>
@@ -128,6 +142,30 @@ const toOutcome = (error: unknown, info?: ErrorInfo): RenderOutcome => ({
     ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
     ...(info?.componentStack ? { componentStack: info.componentStack } : {}),
 });
+
+const fontDescription = ({ tokenId, weight, style }: ResolvedFontLoad) => `${tokenId} (${weight} ${style})`;
+
+/** Итог отрисовки по недоступным начертаниям: подмена шрифта только с разрешения токена, иначе отказ. */
+const fontOutcome = (unavailable: ResolvedFontLoad[]): RenderOutcome => {
+    const required = unavailable.find((font) => !font.allowFallback);
+    if (required) {
+        return {
+            ok: false,
+            code: 'font_unavailable',
+            message: `Font ${fontDescription(required)} is unavailable`,
+            path: `$.theme${pathKey(required.tokenId)}`,
+        };
+    }
+    if (!unavailable.length) return { ok: true };
+    return {
+        ok: true,
+        warnings: unavailable.map((font) => ({
+            code: 'font_fallback',
+            message: `Font ${fontDescription(font)} is unavailable, a fallback font is used`,
+            path: `$.theme${pathKey(font.tokenId)}`,
+        })),
+    };
+};
 
 export interface PreviewRenderer {
     render(request: WebPreviewRequest, story: WebStory): Promise<RenderOutcome>;
@@ -155,7 +193,7 @@ export const createPreviewRenderer = (container: Element): PreviewRenderer => {
                             renderId={currentId}
                             request={request}
                             story={story}
-                            onRendered={() => settle({ ok: true })}
+                            onRendered={(unavailableFonts) => settle(fontOutcome(unavailableFonts))}
                             onCrash={(error, info) => settle(toOutcome(error, info))}
                         />,
                     );

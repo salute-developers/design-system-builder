@@ -1,4 +1,4 @@
-import type { PreviewAsset, PreviewPayload } from '../protocol';
+import type { PreviewAsset, PreviewPayload, ResolvedFontLoad } from '../protocol';
 import { fontFamilyName, toCssColor, type ThemeTokens } from './tokens';
 import { typographyValues, type TypographyPart } from './typography';
 import { pathKey, type WarningSink } from './warnings';
@@ -102,9 +102,13 @@ const cssString = (value: string) => `'${value.replace(/['\\]/g, (char) => `\\${
  * по токену (`fontFamilyName`), как его пишут параметры ядра. Ресурс другого типа или без записи в `assets`
  * пропускается с предупреждением: браузер возьмёт шрифт по умолчанию.
  */
-export const fontFaces = (payload: PreviewPayload, warnings: WarningSink): string => {
+export const fontFaces = (
+    payload: PreviewPayload,
+    warnings: WarningSink,
+): { rules: string; loads: ResolvedFontLoad[] } => {
     const assets = new Map(payload.assets.map((asset) => [asset.id, asset]));
     const rules: string[] = [];
+    const loads: ResolvedFontLoad[] = [];
     for (const [tokenId, token] of Object.entries(payload.theme)) {
         if (token.type !== 'fontFamily') continue;
         for (const face of token.faces) {
@@ -120,18 +124,20 @@ export const fontFaces = (payload: PreviewPayload, warnings: WarningSink): strin
                 );
                 continue;
             }
-            rules.push(
-                [
-                    '@font-face {',
-                    `    font-family: ${fontFamilyName(tokenId)};`,
-                    `    src: url(${cssString(asset.url)}) format('${format}');`,
-                    `    font-weight: ${face.weight};`,
-                    `    font-style: ${face.style === 'ITALIC' ? 'italic' : 'normal'};`,
-                    '    font-display: swap;',
-                    '}',
-                ].join('\n'),
-            );
+            const family = fontFamilyName(tokenId);
+            const style = face.style === 'ITALIC' ? 'italic' : 'normal';
+            const rule = [
+                '@font-face {',
+                `    font-family: ${family};`,
+                `    src: url(${cssString(asset.url)}) format('${format}');`,
+                `    font-weight: ${face.weight};`,
+                `    font-style: ${style};`,
+                '    font-display: swap;',
+                '}',
+            ].join('\n');
+            rules.push(rule);
+            loads.push({ tokenId, family, weight: face.weight, style, allowFallback: token.allowFallback === true });
         }
     }
-    return rules.join('\n');
+    return { rules: rules.join('\n'), loads };
 };

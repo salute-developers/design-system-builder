@@ -244,6 +244,65 @@ describe('startBridge', () => {
         );
     });
 
+    describe('шрифты темы', () => {
+        const fontsLoad = vi.fn();
+
+        beforeEach(() => {
+            fontsLoad.mockReset();
+            Object.defineProperty(document, 'fonts', { configurable: true, value: { load: fontsLoad } });
+        });
+
+        afterEach(() => {
+            delete (document as { fonts?: unknown }).fonts;
+        });
+
+        it('не отправляет success, пока шрифт загружается', async () => {
+            let loaded: (faces: Array<{ status: string }>) => void = () => undefined;
+            fontsLoad.mockReturnValue(new Promise((resolve) => (loaded = resolve)));
+
+            send(payloadEnvelope(webButtonPayload('font-1')));
+            await vi.waitFor(() => expect(fontsLoad).toHaveBeenCalledWith('normal 600 16px "fontFamily.body"'));
+            expect(postMessage.mock.calls.some(([message]) => message.type === 'sdds.preview.result')).toBe(false);
+
+            loaded([{ status: 'loaded' }]);
+
+            const [message] = await lastMessage('sdds.preview.result');
+            expect(message.result).toEqual({ type: 'success', requestId: 'font-1' });
+        });
+
+        it('разрешённая подмена шрифта — success с warning font_fallback', async () => {
+            fontsLoad.mockRejectedValue(new Error('network'));
+
+            send(payloadEnvelope(webButtonPayload('font-2')));
+
+            const [message] = await lastMessage('sdds.preview.result');
+            expect(message.result).toMatchObject({
+                type: 'success',
+                warnings: [{ code: 'font_fallback', path: '$.theme["fontFamily.body"]' }],
+            });
+        });
+
+        it('запрещённая подмена шрифта — failure font_unavailable', async () => {
+            fontsLoad.mockRejectedValue(new Error('network'));
+            const payload = webButtonPayload('font-3');
+            const theme = payload.theme as Record<string, Record<string, unknown>>;
+
+            send(
+                payloadEnvelope({
+                    ...payload,
+                    theme: { ...theme, 'fontFamily.body': { ...theme['fontFamily.body'], allowFallback: false } },
+                }),
+            );
+
+            const [message] = await lastMessage('sdds.preview.result');
+            expect(message.result).toMatchObject({
+                type: 'failure',
+                code: 'font_unavailable',
+                path: '$.theme["fontFamily.body"]',
+            });
+        });
+    });
+
     it('игнорирует сообщения не от родительского окна', async () => {
         const other = document.createElement('iframe');
         document.body.appendChild(other);

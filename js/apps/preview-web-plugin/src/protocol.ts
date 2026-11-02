@@ -145,11 +145,22 @@ export interface ResolvedPreview {
     relatedComponents: Record<string, ResolvedRelatedComponent>;
     /** Правила `@font-face` по ресурсам шрифтов. */
     fontFaces: string;
+    /** Начертания из `fontFaces`, которых плагин дожидается перед ответом. */
+    fontLoads: ResolvedFontLoad[];
     /** `font-family` области превью: шрифт тела. */
     fontFamily?: string;
     /** CSS-значение фона области превью. */
     background?: string;
     warnings: PreviewWarning[];
+}
+
+/** Начертание токена `fontFamily`, подключённое правилом `@font-face`. */
+export interface ResolvedFontLoad {
+    tokenId: string;
+    family: string;
+    weight: number;
+    style: 'normal' | 'italic';
+    allowFallback: boolean;
 }
 
 /** Payload `WEB` после проверки и разрешения. */
