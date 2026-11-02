@@ -1,5 +1,5 @@
 import type { PreviewAsset, PreviewPayload, ResolvedFontLoad } from '../protocol';
-import { fontFamilyName, toCssColor, type ThemeTokens } from './tokens';
+import { fontFaceName, fontFamilyCss, toCssColor, type ThemeTokens } from './tokens';
 import { typographyValues, type TypographyPart } from './typography';
 import { pathKey, type WarningSink } from './warnings';
 
@@ -78,14 +78,16 @@ const BODY_FONT_TOKENS = ['fontFamily.body', 'body'];
  * (`defaults.text.style`).
  */
 export const bodyFontFamily = (payload: PreviewPayload): string | undefined => {
-    const bodyId = BODY_FONT_TOKENS.find((id) => payload.theme[id]?.type === 'fontFamily');
-    if (bodyId) return fontFamilyName(bodyId);
+    for (const id of BODY_FONT_TOKENS) {
+        const token = payload.theme[id];
+        if (token?.type === 'fontFamily') return fontFamilyCss(id, token);
+    }
     const styleId = payload.defaults?.text?.style;
     const style = styleId ? payload.theme[styleId] : undefined;
-    if (style?.type === 'typography' && payload.theme[style.fontFamilyTokenId]?.type === 'fontFamily') {
-        return fontFamilyName(style.fontFamilyTokenId);
-    }
-    return undefined;
+    const family = style?.type === 'typography' ? payload.theme[style.fontFamilyTokenId] : undefined;
+    return style?.type === 'typography' && family?.type === 'fontFamily'
+        ? fontFamilyCss(style.fontFamilyTokenId, family)
+        : undefined;
 };
 
 const FONT_FORMATS: Partial<Record<PreviewAsset['type'], string>> = {
@@ -98,9 +100,30 @@ const FONT_FORMATS: Partial<Record<PreviewAsset['type'], string>> = {
 const cssString = (value: string) => `'${value.replace(/['\\]/g, (char) => `\\${char}`)}'`;
 
 /**
+ * Снимает `family` с токенов, чьё имя уже занято другими файлами: они называются по токену, и разные значения шрифта
+ * не смешиваются в одно семейство. Сравниваются URL, а не `assetId`: идентификаторы содержат токен и всегда различаются.
+ */
+export const uniqueFontFamilies = (theme: ThemeTokens, assets: PreviewAsset[]): ThemeTokens => {
+    const urls = new Map(assets.map((asset) => [asset.id, asset.url]));
+    const owners = new Map<string, string>();
+    return Object.fromEntries(
+        Object.entries(theme).map(([tokenId, token]) => {
+            if (token.type !== 'fontFamily' || !token.family) return [tokenId, token];
+            const files = token.faces
+                .map((face) => `${urls.get(face.assetId)}|${face.weight}|${face.style ?? 'NORMAL'}`)
+                .sort()
+                .join('\n');
+            const owner = owners.get(token.family) ?? files;
+            owners.set(token.family, owner);
+            return [tokenId, owner === files ? token : { ...token, family: undefined }];
+        }),
+    );
+};
+
+/**
  * `@font-face` по начертаниям токенов `fontFamily` из `assets` (`WOFF2`, `WOFF`, `TTF`, `OTF`). Семейство называется
- * по токену (`fontFamilyName`), как его пишут параметры ядра. Ресурс другого типа или без записи в `assets`
- * пропускается с предупреждением: браузер возьмёт шрифт по умолчанию.
+ * `fontFaceName`, токены одного семейства с одинаковыми файлами дают одно правило. Ресурс другого типа или без записи
+ * в `assets` пропускается с предупреждением: браузер возьмёт шрифт по умолчанию.
  */
 export const fontFaces = (
     payload: PreviewPayload,
@@ -124,7 +147,7 @@ export const fontFaces = (
                 );
                 continue;
             }
-            const family = fontFamilyName(tokenId);
+            const family = fontFaceName(tokenId, token);
             const style = face.style === 'ITALIC' ? 'italic' : 'normal';
             const rule = [
                 '@font-face {',
@@ -135,6 +158,7 @@ export const fontFaces = (
                 '    font-display: swap;',
                 '}',
             ].join('\n');
+            if (rules.includes(rule)) continue;
             rules.push(rule);
             loads.push({ tokenId, family, weight: face.weight, style, allowFallback: token.allowFallback === true });
         }

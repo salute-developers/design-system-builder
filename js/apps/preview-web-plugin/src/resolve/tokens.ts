@@ -52,8 +52,15 @@ export const parseAdjustedTokenId = (id: string) => {
     return match ? { baseId: match[1], adjustment: Number(match[2]) } : undefined;
 };
 
-/** Имя семейства шрифта в CSS для токена `fontFamily`: в протоколе имени нет, поэтому семейство называется по токену. */
-export const fontFamilyName = (tokenId: string) => `"${tokenId.replace(/["\\]/g, '')}"`;
+type FontFamilyToken = Extract<PreviewTokenValue, { type: 'fontFamily' }>;
+
+/** Имя семейства в `@font-face`: настоящее имя `family`, а без него — идентификатор токена. */
+export const fontFaceName = (tokenId: string, token: FontFamilyToken) =>
+    `"${(token.family ?? tokenId).replace(/["\\]/g, '')}"`;
+
+/** Значение `font-family` с запасным семейством, как в сгенерированной теме. */
+export const fontFamilyCss = (tokenId: string, token: FontFamilyToken) =>
+    `${fontFaceName(tokenId, token)}, sans-serif`;
 
 export type ThemeTokens = Record<string, PreviewTokenValue>;
 
@@ -80,7 +87,7 @@ export const tokenToCss = (tokenId: string, token: PreviewTokenValue, theme: The
         case 'gradient':
             return gradientToCss(token.layers);
         case 'fontFamily':
-            return fontFamilyName(tokenId);
+            return fontFamilyCss(tokenId, token);
         default:
             return undefined;
     }

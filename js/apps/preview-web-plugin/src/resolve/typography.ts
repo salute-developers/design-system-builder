@@ -1,6 +1,6 @@
 import type { PreviewTokenValue } from '../protocol';
 import type { ApiMetaParam } from './meta';
-import { fontFamilyName, toRem, type ThemeTokens } from './tokens';
+import { fontFamilyCss, toRem, type ThemeTokens } from './tokens';
 
 /** Поля типографики ядра в порядке объекта значения прежнего `TypographyProp` (`fontFamily`, затем web-токен). */
 export const TYPOGRAPHY_PARTS = ['fontFamily', 'fontWeight', 'fontStyle', 'fontSize', 'lineHeight', 'letterSpacing'] as const;
@@ -27,7 +27,7 @@ const letterSpacingEm = (px: number, fontSize: number) =>
 export const typographyValues = (token: TypographyToken, theme: ThemeTokens): TypographyValues => {
     const family = theme[token.fontFamilyTokenId];
     return {
-        ...(family?.type === 'fontFamily' ? { fontFamily: fontFamilyName(token.fontFamilyTokenId) } : {}),
+        ...(family?.type === 'fontFamily' ? { fontFamily: fontFamilyCss(token.fontFamilyTokenId, family) } : {}),
         fontWeight: String(token.weight),
         ...(token.fontStyle ? { fontStyle: token.fontStyle.toLowerCase() } : {}),
         fontSize: toRem(token.fontSize),

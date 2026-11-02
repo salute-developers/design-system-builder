@@ -99,7 +99,7 @@ describe('typography.ts', () => {
 
     it('токен typography → поля ядра; letterSpacing px → em от fontSize, 0 → normal', () => {
         expect(typographyValues(token, theme)).toEqual({
-            fontFamily: '"fontFamily.body"',
+            fontFamily: '"fontFamily.body", sans-serif',
             fontWeight: '600',
             fontStyle: 'normal',
             fontSize: '1rem',
@@ -147,7 +147,7 @@ describe('resolvePayload: компонент', () => {
             '--plasma-button-height': '3rem',
             '--plasma-button-padding': '1.25rem',
             '--plasma-button-radius': '0.75rem',
-            '--plasma-button-font-family': '"fontFamily.body"',
+            '--plasma-button-font-family': '"fontFamily.body", sans-serif',
             '--plasma-button-font-size': '1rem',
             '--plasma-button-font-style': 'normal',
             '--plasma-button-font-weight': '600',
@@ -340,10 +340,65 @@ describe('resolvePayload: окружение (theme.ts)', () => {
         });
         expect(resolved.variables).toMatchObject({ ...resolved.componentVariables, ...resolved.themeVariables });
         expect(resolved.background).toBe('#000000FF');
-        expect(resolved.fontFamily).toBe('"fontFamily.body"');
+        expect(resolved.fontFamily).toBe('"fontFamily.body", sans-serif');
         expect(resolved.fontFaces).toContain('font-family: "fontFamily.body";');
         expect(resolved.fontFaces).toContain("src: url('https://cdn.test/fonts/Body-Semibold.woff2') format('woff2');");
         expect(resolved.fontFaces).toContain('font-weight: 600;');
+    });
+
+    describe('имя семейства шрифта', () => {
+        const family = (id: string, url: string, name = 'SB Sans Text'): Partial<PreviewPayload> => ({
+            theme: {
+                [id]: {
+                    type: 'fontFamily',
+                    family: name,
+                    faces: [{ assetId: `${id}:0`, weight: 400, style: 'NORMAL' }],
+                    allowFallback: true,
+                },
+            },
+            assets: [{ id: `${id}:0`, type: 'WOFF2', url }],
+        });
+
+        const resolveFonts = (...parts: Array<Partial<PreviewPayload>>) => {
+            const payload = webButtonPayload() as unknown as PreviewPayload;
+            return resolvePayload({
+                ...payload,
+                theme: { ...payload.theme, ...Object.assign({}, ...parts.map((part) => part.theme)) },
+                assets: [...payload.assets, ...parts.flatMap((part) => part.assets ?? [])],
+            });
+        };
+
+        const faceCount = (css: string, name: string) => css.split(`font-family: "${name}";`).length - 1;
+
+        it('family задаёт имя в @font-face, а шрифт области — со sans-serif', () => {
+            const resolved = resolveFonts(family('fontFamily.body', 'https://cdn.test/a.woff2'));
+
+            expect(resolved.fontFamily).toBe('"SB Sans Text", sans-serif');
+            expect(faceCount(resolved.fontFaces, 'SB Sans Text')).toBe(1);
+            expect(resolved.fontLoads).toContainEqual(expect.objectContaining({ family: '"SB Sans Text"' }));
+        });
+
+        it('одно имя и одинаковые файлы — одно правило', () => {
+            const resolved = resolveFonts(
+                family('fontFamily.body', 'https://cdn.test/a.woff2'),
+                family('fontFamily.text', 'https://cdn.test/a.woff2'),
+            );
+
+            expect(faceCount(resolved.fontFaces, 'SB Sans Text')).toBe(1);
+            expect(resolved.fontLoads.filter((font) => font.family === '"SB Sans Text"')).toHaveLength(1);
+        });
+
+        it('одно имя и разные файлы — разные семейства', () => {
+            const resolved = resolveFonts(
+                family('fontFamily.body', 'https://cdn.test/a.woff2'),
+                family('fontFamily.text', 'https://cdn.test/b.woff2'),
+            );
+
+            expect(faceCount(resolved.fontFaces, 'SB Sans Text')).toBe(1);
+            expect(faceCount(resolved.fontFaces, 'fontFamily.text')).toBe(1);
+            expect(resolved.fontFaces).toMatch(/"fontFamily\.text";\n\s+src: url\('https:\/\/cdn\.test\/b\.woff2'\)/);
+            expect(resolved.fontFamily).toBe('"SB Sans Text", sans-serif');
+        });
     });
 
     it('переменные типографики темы: имя токена через дефис без normal, поля и семейство группы', () => {
@@ -467,7 +522,7 @@ describe('resolvePayload: связанные компоненты (related.ts)',
                 },
             },
             invariants: {
-                '--plasma-button-font-family': '"fontFamily.body"',
+                '--plasma-button-font-family': '"fontFamily.body", sans-serif',
                 '--plasma-button-font-size': '1rem',
                 '--plasma-button-font-style': 'normal',
                 '--plasma-button-font-weight': '600',

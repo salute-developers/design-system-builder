@@ -119,7 +119,7 @@ describe('ButtonGroup со связанным Button из styles', () => {
                 },
                 size: { m: { '--plasma-button-height': '3rem' } },
             },
-            invariants: expect.objectContaining({ '--plasma-button-font-family': '"fontFamily.body"', '--plasma-button-font-size': '1rem' }),
+            invariants: expect.objectContaining({ '--plasma-button-font-family': '"fontFamily.body", sans-serif', '--plasma-button-font-size': '1rem' }),
         });
     });
 

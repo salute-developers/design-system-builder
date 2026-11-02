@@ -4,7 +4,7 @@ import { apiMeta, indexMeta, type ApiMeta, type MetaIndex } from './meta';
 import { resolveComponentParams, type ResolveContext } from './properties';
 import { groupRelatedStyles, resolveComposeVariables, resolveRelatedComponents } from './related';
 import { indexTemplates, webAdapter, type WebAdapter } from './templates';
-import { bodyFontFamily, fontFaces, surfaceBackground, themeVariables } from './theme';
+import { bodyFontFamily, fontFaces, surfaceBackground, themeVariables, uniqueFontFamilies } from './theme';
 import { pathKey, WarningSink } from './warnings';
 
 export type { ApiMeta, ApiMetaComponent, ApiMetaParam } from './meta';
@@ -22,10 +22,11 @@ export { webAdapter } from './templates';
  * Порядок перекрытия `variables` — как у прежнего React-превью клиента: `compose`-зависимости, компонент, тема.
  */
 export const resolvePayload = (
-    payload: PreviewPayload,
+    source: PreviewPayload,
     meta: ApiMeta = apiMeta,
     adapter: WebAdapter = webAdapter,
 ): ResolvedPreview => {
+    const payload = { ...source, theme: uniqueFontFamilies(source.theme, source.assets) };
     const warnings = new WarningSink();
     const ctx: ResolveContext = {
         meta: indexMeta(meta),

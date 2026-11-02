@@ -60,7 +60,7 @@ export type PreviewTokenValue =
     | { type: 'dimension'; value: number }
     | { type: 'shape'; cornerRadii: [number, number, number, number] }
     | { type: 'shadow'; layers: PreviewShadowLayer[] }
-    | { type: 'fontFamily'; faces: PreviewFontFace[]; allowFallback?: boolean }
+    | { type: 'fontFamily'; family?: string; faces: PreviewFontFace[]; allowFallback?: boolean }
     | {
           type: 'typography';
           fontFamilyTokenId: string;

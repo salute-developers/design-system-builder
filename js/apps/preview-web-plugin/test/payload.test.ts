@@ -114,4 +114,11 @@ describe('parseWebPayload: проверка формата', () => {
             }),
         ).toMatchObject({ ok: false, code: 'style_ref_cycle' });
     });
+
+    it('отклоняет пустое имя семейства шрифта', () => {
+        const payload = webButtonPayload() as { theme: Record<string, Record<string, unknown>> };
+        payload.theme['fontFamily.body'] = { ...payload.theme['fontFamily.body'], family: '' };
+
+        expect(parseWebPayload(payload)).toMatchObject({ ok: false, code: 'invalid_payload' });
+    });
 });

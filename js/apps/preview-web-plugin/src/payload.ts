@@ -142,6 +142,7 @@ const parseToken = (value: unknown, path: string): PreviewTokenValue => {
             ) {
                 invalid('faces');
             }
+            if (value.family !== undefined && (typeof value.family !== 'string' || !value.family)) invalid('family');
             break;
         case 'typography':
             if (typeof value.fontFamilyTokenId !== 'string') invalid('fontFamilyTokenId');
