@@ -205,6 +205,10 @@ class VersionedPalettePostgresIntegrationTest {
             fixture.rebuild("#DDAA33")
             fixture.rebuild("#3355AA")
             val changes = assertNotNull(fixture.read { fixture.journal.list(PROJECT, false, fixture.system, null) })
+            assertEquals(
+                com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(changes, emptyMap()),
+                fixture.read { fixture.journal.summary(PROJECT, false, fixture.system, null) },
+            )
             val rebuilt = changes.single()
             assertEquals("palette-ramp", rebuilt.entityType)
             assertNotNull(rebuilt.previousValue?.get("steps"))
@@ -254,6 +258,10 @@ class VersionedPalettePostgresIntegrationTest {
             }
             assertIs<DraftChangeRevertResult.Stale>(stale)
             val changes = assertNotNull(fixture.read { fixture.journal.list(PROJECT, false, fixture.system, null) })
+            assertEquals(
+                com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(changes, emptyMap()),
+                fixture.read { fixture.journal.summary(PROJECT, false, fixture.system, null) },
+            )
             assertEquals(setOf("palette-ramp", "palette-step"), changes.map { it.entityType }.toSet())
             val rebuilt = changes.single { it.entityType == "palette-ramp" }
             val reverted = fixture.mutate {
@@ -304,6 +312,10 @@ class VersionedPalettePostgresIntegrationTest {
             val rebuilt = fixture.snapshot()
             fixture.editStep(500, "#ABCDEF")
             val changes = assertNotNull(fixture.read { fixture.journal.list(PROJECT, false, fixture.system, null) })
+            assertEquals(
+                com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(changes, emptyMap()),
+                fixture.read { fixture.journal.summary(PROJECT, false, fixture.system, null) },
+            )
             assertEquals(2, changes.size)
             val manual = changes.single { it.entityType == "palette-step" }
             assertEquals(JsonPrimitive(fixture.color(rebuilt, 500)), manual.previousValue?.get("value"))
@@ -514,6 +526,10 @@ class VersionedPalettePostgresIntegrationTest {
                 fixture.read(published) { references.listInvariant(PROJECT, false).associateBy { it.id } },
             )
             val changes = assertNotNull(fixture.read { fixture.journal.list(PROJECT, false, fixture.system, null) })
+            assertEquals(
+                com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(changes, emptyMap()),
+                fixture.read { fixture.journal.summary(PROJECT, false, fixture.system, null) },
+            )
             assertEquals(261, changes.count { it.entityType == "invariant-property-value" })
             val reference = changes.single { it.entityType == "invariant-property-value" && it.entityId == valueId }
             val variationReference = changes.single { it.entityType == "variation-property-value" }
@@ -657,6 +673,10 @@ class VersionedPalettePostgresIntegrationTest {
             assertEquals(original, fixture.snapshot(published))
 
             val changes = assertNotNull(fixture.read { fixture.journal.list(PROJECT, false, fixture.system, null) })
+            assertEquals(
+                com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(changes, emptyMap()),
+                fixture.read { fixture.journal.summary(PROJECT, false, fixture.system, null) },
+            )
             val token = changes.single { it.entityType == "token" }
             val value = changes.single { it.entityType == "token-value" }
             suspend fun revert(change: com.dsbuilder.ds.designsystems.domain.DraftChange) = fixture.mutate {
@@ -711,6 +731,10 @@ class VersionedPalettePostgresIntegrationTest {
                 fixture.palette.save(fixture.tenant, before.state, before.state.copy(ramps = emptyList()))
             }
             val changes = assertNotNull(fixture.read { fixture.journal.list(PROJECT, false, fixture.system, null) })
+            assertEquals(
+                com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(changes, emptyMap()),
+                fixture.read { fixture.journal.summary(PROJECT, false, fixture.system, null) },
+            )
             val token = changes.single { it.entityType == "token-value" }
             suspend fun revert(change: com.dsbuilder.ds.designsystems.domain.DraftChange) = fixture.mutate {
                 fixture.journal.revert(PROJECT, false, fixture.system, change.changeId, change.editRevision, emptySet())
@@ -750,6 +774,10 @@ class VersionedPalettePostgresIntegrationTest {
                 )
             }
             val changes = assertNotNull(fixture.read { fixture.journal.list(PROJECT, false, fixture.system, null) })
+            assertEquals(
+                com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(changes, emptyMap()),
+                fixture.read { fixture.journal.summary(PROJECT, false, fixture.system, null) },
+            )
             val renamed = changes.single { it.entityId.toString() == group.id }
             val reverted = fixture.mutate {
                 fixture.journal.revert(
@@ -802,6 +830,10 @@ class VersionedPalettePostgresIntegrationTest {
                 )
             }
             val changes = assertNotNull(fixture.read { fixture.journal.list(PROJECT, false, fixture.system, null) })
+            assertEquals(
+                com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(changes, emptyMap()),
+                fixture.read { fixture.journal.summary(PROJECT, false, fixture.system, null) },
+            )
             assertEquals(1, changes.size)
             val changed = changes.single()
             assertEquals("token-value", changed.entityType)

@@ -39,7 +39,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ProjectResponse'
+                  $ref: '#/components/schemas/ProjectCatalogResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -578,6 +578,17 @@ components:
           type: integer
           format: int64
           nullable: true
+    ProjectCatalogResponse:
+      allOf:
+        - $ref: '#/components/schemas/ProjectResponse'
+        - type: object
+          required: [designSystemCount]
+          properties:
+            designSystemCount:
+              type: integer
+              minimum: 0
+              nullable: true
+              description: Number of nontechnical design systems; null when unavailable.
     ProjectResponse:
       type: object
       required: [id, name, status, ownerUserId, effectiveRole, createdAt, updatedAt]

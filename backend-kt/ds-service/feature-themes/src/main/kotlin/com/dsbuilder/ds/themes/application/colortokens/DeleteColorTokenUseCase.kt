@@ -14,7 +14,12 @@ class DeleteColorTokenUseCase(
     private val tokens: ColorTokenRepository,
 ) {
     /** Удаление семейства токена [tokenId] из дизайн-системы темы [tenantId]; результат — новая ревизия темы. */
-    suspend fun execute(context: DsRequestContext, tenantId: UUID, tokenId: UUID, editRevision: Int): DsResult<Int> {
+    suspend fun execute(
+        context: DsRequestContext,
+        tenantId: UUID,
+        tokenId: UUID,
+        editRevision: Int,
+    ): DsResult<ColorTokenMutation<Int>> {
         val allowed = policy.requireAll(context, ProjectScope.TENANTS_WRITE, ProjectScope.TOKENS_DELETE)
         if (allowed is DsResult.Failure) return allowed
         return transactions.required(context) {
@@ -29,7 +34,20 @@ class DeleteColorTokenUseCase(
                         groupIds.forEach { group ->
                             tokens.arrange(group, tokens.placedIn(lock.designSystemId, listOf(group)).slots())
                         }
-                        DsResult.Success(tokens.bumpRevisions(lock.tenantIds).getValue(tenantId))
+                        tokens.bumpRevisions(lock.tenantIds).getValue(tenantId).let { revision ->
+                            DsResult.Success(
+                                ColorTokenMutation(
+                                    revision,
+                                    revision,
+                                    tokens.confirmedStructure(
+                                        lock.designSystemId,
+                                        emptyList(),
+                                        found.value.members.values,
+                                        groupIds,
+                                    ),
+                                ),
+                            )
+                        }
                     }
                 }
                 else -> DsResult.Failure(requireNotNull(lock.failure()))

@@ -19,6 +19,23 @@ interface DraftChangeRepository {
         versionId: DesignSystemVersionId?,
     ): List<DraftChange>?
 
+    /** Считает отображаемые строки порциями, независимо от предела полного журнала. */
+    suspend fun summary(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+    ): Int? = error("Compact journal projection is not implemented")
+
+    /** Возвращает только уникальные ID видимо изменённых токенов выбранной темы. */
+    suspend fun changedTokenIds(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+        tenantId: UUID,
+    ): Set<UUID>? = error("Compact token projection is not implemented")
+
     /** Сохраняет предел вычисления журнала до применения страницы. */
     suspend fun page(
         projectId: ProjectId,
@@ -28,6 +45,18 @@ interface DraftChangeRepository {
         read: ModelReadQuery,
     ): ModelReadItems<DraftChange>? = list(projectId, systemAdmin, designSystemId, versionId)
         ?.let { ModelReadItems(it) }
+
+    /** Журнал вместе с точным числом отображаемых строк той же границы чтения. */
+    suspend fun pageAndSummary(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+        read: ModelReadQuery,
+    ): DraftJournalRead? =
+        page(projectId, systemAdmin, designSystemId, versionId, read)?.let {
+            DraftJournalRead(it, null)
+        }
 
     /** Проверяет, содержит ли выбранный активный черновик хотя бы одно предметное изменение. */
     suspend fun hasChanges(projectId: ProjectId, designSystemId: DesignSystemId): Boolean?

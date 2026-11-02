@@ -38,6 +38,9 @@ import java.util.UUID
 
 /** Dependency bindings owned by the design-systems feature. */
 val designSystemsModule = module {
+    single<com.dsbuilder.ds.designsystems.application.DesignSystemCatalogCounts> {
+        com.dsbuilder.ds.designsystems.data.ExposedDesignSystemCatalogCounts(get())
+    }
     single<DraftChangeHandler>(named("design-system")) { designSystemDraftChangeHandler() }
     single<DesignSystemRepository> { ExposedDesignSystemRepository() }
     single<DesignSystemVersionRepository> { ExposedDesignSystemVersionRepository(get()) }
@@ -68,6 +71,6 @@ val designSystemsModule = module {
     factory { ListDesignSystemComponentStylesUseCase(get(), get(), get()) }
     factory { ListDesignSystemTenantsUseCase(get(), get(), get()) }
     factory { ListDesignSystemAppearancesUseCase(get(), get(), get()) }
-    factory { ListDraftChangesUseCase(get(), get(), get(), get()) }
+    factory { ListDraftChangesUseCase(get(), get(), get()) }
     factory { RevertDraftChangeUseCase(get(), get(), get(), get()) }
 }

@@ -36,6 +36,12 @@ import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 import org.koin.ktor.ext.inject
 
 /** Регистрирует публичные endpoints проектов и internal endpoint для access-check. */
@@ -152,7 +158,14 @@ private fun Route.listProjectsRoute(listProjects: ListProjectsUseCase) {
         runCatching {
             listProjects.execute(ListProjectsInput(actor = call.requireActor()))
         }.onSuccess { projects ->
-            call.respond(projects.map { it.project.toResponse(it.effectiveRole) })
+            call.respond(
+                projects.map {
+                    JsonObject(
+                        Json.encodeToJsonElement(it.project.toResponse(it.effectiveRole)).jsonObject +
+                            ("designSystemCount" to (it.designSystemCount?.let(::JsonPrimitive) ?: JsonNull)),
+                    )
+                },
+            )
         }.onFailure { call.respondProjectError(it) }
     }
 }

@@ -62,7 +62,7 @@ object ProjectsModule {
         single<ProjectRepository> { ExposedProjectRepository() }
         single<TransactionManager> { JdbcTransactionManager(get()) }
         single { CreateProjectUseCase(get(), get(), get(), get()) }
-        single { ListProjectsUseCase(get(), get(), get()) }
+        single { ListProjectsUseCase(get(), get(), get(), getOrNull()) }
         single { GetProjectUseCase(get(), get(), get(), get()) }
         single { UpdateProjectUseCase(get(), get(), get(), get()) }
         single { ArchiveProjectUseCase(get(), get(), get(), get()) }

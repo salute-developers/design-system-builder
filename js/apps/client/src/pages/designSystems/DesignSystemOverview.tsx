@@ -9,14 +9,14 @@ import { ThemeCard } from '../themes/ThemeCard';
 
 export const DesignSystemPage = () => {
     const { projectId = '', designSystemId = '' } = useParams();
-    const project = useLoad(() => projectsApi.get(projectId), [projectId], `project:${projectId}`);
+    const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
     const system = useLoad(
-        () => designSystemsApi.get(projectId, designSystemId),
+        (signal) => designSystemsApi.get(projectId, designSystemId, signal),
         [projectId, designSystemId],
         `system:${projectId}:${designSystemId}`,
     );
     const themes = useLoad(
-        () => designSystemsApi.tenants(projectId, designSystemId),
+        (signal) => designSystemsApi.tenants(projectId, designSystemId, signal),
         [projectId, designSystemId],
         `themes:${projectId}:${designSystemId}`,
     );

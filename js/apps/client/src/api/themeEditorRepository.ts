@@ -18,7 +18,7 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
     const request = readRequest(context, signal);
     const [project, designSystem, tenant, links, version] = await Promise.all([
         readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
-        readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request),
+        readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request, undefined, 30_000),
         readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
         readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
         context.versionId
@@ -26,7 +26,8 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
             : Promise.resolve(undefined),
     ]);
     if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
-    if (version && version.data.designSystemId !== context.designSystemId) throw new Error('VERSION_DESIGN_SYSTEM_MISMATCH');
+    if (version && version.data.designSystemId !== context.designSystemId)
+        throw new Error('VERSION_DESIGN_SYSTEM_MISMATCH');
     const types = ['color', 'gradient', 'typography', 'fontFamily', 'shape', 'spacing', 'shadow'];
     const empty = {
         mode: [],

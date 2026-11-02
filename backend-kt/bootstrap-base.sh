@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# Наполняет локальный контур дизайн-системой `base` через Gateway и ds-service.
-#
-# Порядок: проект пользователя → глобальный слой web-компонентов (импорт API-меты
-# по web-api-meta.json) → дизайн-система `base` с темой `base_default`. Версию скрипт не публикует: `base`
-# остаётся черновиком, версии публикует пользователь из журнала.
-# Определения и значения токенов, палитру и компоненты темы ds-service заводит сам из своих ресурсов,
-# но компоненты — только при полном глобальном слое, поэтому import-api идёт до создания темы.
-# Повторный запуск ничего не дублирует. К базе напрямую скрипт не обращается.
+# Готовит проект пользователя и глобальный слой Web API через Gateway.
+# Дизайн-системы и темы создаёт пользователь; их начальные данные инициализирует backend.
+# Повторный запуск не импортирует пользовательские значения и конфигурации компонентов.
+# К базе напрямую скрипт не обращается.
 #
 # Environment (всё необязательно):
 #   DSBUILDER_GATEWAY_URL        Gateway, default http://localhost:8080
@@ -25,8 +21,6 @@ PROJECT_NAME="${DSBUILDER_PROJECT_NAME:-Base}"
 REALM="${DSBUILDER_REALM:-dsbuilder}"
 CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-api}"
 WEB_API_META="${DSBUILDER_WEB_API_META:-$ROOT_DIR/js/cli/.sdds/web/web-api-meta.json}"
-DESIGN_SYSTEM_NAME="base"
-TENANT_NAME="base_default"
 
 log() { echo "[bootstrap-base] $*"; }
 fail() { echo "[bootstrap-base] ERROR: $*" >&2; exit 1; }
@@ -159,78 +153,10 @@ import_global_layer() {
     log "Web component layer imported"
 }
 
-# ─── Дизайн-система base ────────────────────────────────────────────────────
-
-ensure_design_system() {
-    local body existing
-    DESIGN_SYSTEM_ID=""
-    DS_ROOT="/api/projects/$PROJECT_ID/ds"
-    body="$(http GET "$DS_ROOT/design-systems")"
-    expect_status 200 "Design system listing failed" "$body"
-    existing="$(printf '%s' "$body" | python3 -c '
-import json, sys
-items = json.load(sys.stdin)
-items = items if isinstance(items, list) else items.get("items", [])
-for name in sys.argv[1:]:
-    for ds in items:
-        if ds.get("name") == name:
-            print(ds["id"], name); sys.exit(0)
-' "$DESIGN_SYSTEM_NAME" "base-${PROJECT_ID:0:8}")"
-    if [[ -n "$existing" ]]; then
-        read -r DESIGN_SYSTEM_ID DESIGN_SYSTEM_NAME <<< "$existing"
-    fi
-    if [[ -n "$DESIGN_SYSTEM_ID" ]]; then
-        log "Design system '$DESIGN_SYSTEM_NAME': $DESIGN_SYSTEM_ID (existing)"
-    else
-        body="$(http POST "$DS_ROOT/design-systems" "$(python3 -c 'import json, sys; print(json.dumps({"name": sys.argv[1], "projectName": sys.argv[2], "description": "Default design system for creating base components"}, ensure_ascii=False))' "$DESIGN_SYSTEM_NAME" "$PROJECT_NAME")")"
-        if [[ "$(tail -c 3 "$STATUS_FILE")" == "409" ]]; then
-            DESIGN_SYSTEM_NAME="base-${PROJECT_ID:0:8}"
-            log "Name 'base' is already used in another project; creating '$DESIGN_SYSTEM_NAME'"
-            body="$(http POST "$DS_ROOT/design-systems" "$(python3 -c 'import json, sys; print(json.dumps({"name": sys.argv[1], "projectName": sys.argv[2], "description": "Default design system for creating base components"}, ensure_ascii=False))' "$DESIGN_SYSTEM_NAME" "$PROJECT_NAME")")"
-        fi
-        expect_status 201 "Design system creation failed" "$body"
-        DESIGN_SYSTEM_ID="$(printf '%s' "$body" | json_field id)"
-        log "Design system '$DESIGN_SYSTEM_NAME' created: $DESIGN_SYSTEM_ID"
-    fi
-
-    body="$(http GET "$DS_ROOT/design-systems/$DESIGN_SYSTEM_ID/tenants")"
-    expect_status 200 "Tenant listing failed" "$body"
-    TENANT_ID="$(printf '%s' "$body" | python3 -c '
-import json, sys
-items = json.load(sys.stdin)
-items = items if isinstance(items, list) else items.get("items", [])
-for tenant in items:
-    if tenant.get("name") == sys.argv[1] and tenant.get("designSystemId") == sys.argv[2]:
-        print(tenant["id"]); break
-' "$TENANT_NAME" "$DESIGN_SYSTEM_ID")"
-    if [[ -n "$TENANT_ID" ]]; then
-        log "Theme '$TENANT_NAME': $TENANT_ID (existing)"
-    else
-        body="$(http POST "$DS_ROOT/tenants" "$(python3 -c 'import json, sys; print(json.dumps({"designSystemId": sys.argv[1], "name": sys.argv[2]}))' "$DESIGN_SYSTEM_ID" "$TENANT_NAME")")"
-        expect_status 201 "Theme creation failed" "$body"
-        TENANT_ID="$(printf '%s' "$body" | json_field id)"
-        log "Theme '$TENANT_NAME' created: $TENANT_ID"
-    fi
-}
-
-verify() {
-    local body components values
-    body="$(http POST "$DS_ROOT/component-config/export" "$(python3 -c 'import json, sys; print(json.dumps({"designSystemId": sys.argv[1], "platform": "web"}))' "$DESIGN_SYSTEM_ID")")"
-    expect_status 200 "Component export failed" "$body"
-    components="$(printf '%s' "$body" | python3 -c 'import json, sys; print(len(json.load(sys.stdin)["components"]))')"
-    [[ "$components" != "0" ]] || fail "Design system '$DESIGN_SYSTEM_NAME' has no components: the web component layer was incomplete when the theme was created. Check the API meta import output, then recreate the contour with './setup-local.sh --reset'."
-    body="$(http GET "$DS_ROOT/tenants/$TENANT_ID/token-values")"
-    expect_status 200 "Token values listing failed" "$body"
-    values="$(printf '%s' "$body" | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))')"
-    [[ "$values" != "0" ]] || fail "Theme '$TENANT_NAME' has no token values"
-    log "Design system '$DESIGN_SYSTEM_NAME' is ready: $components components, $values token values in '$TENANT_NAME'"
-}
-
 ensure_web_api_meta
 wait_for_gateway
 obtain_token
 wait_for_projects_api
 ensure_project
 import_global_layer
-ensure_design_system
-verify
+log "Project and global Web API are ready; create a design system in the editor"

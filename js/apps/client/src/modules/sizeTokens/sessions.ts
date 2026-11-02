@@ -1,9 +1,11 @@
+import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
 import { authService } from '../../api/authService';
 import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import type { SizeTokenCommand, SizeTokenContext, SizeTokenRepository } from './application/sizeTokenRepository';
 import {
     createSizeTokenSession,
     loadSizeTokens,
+    notifySession,
     SIZE_TOKENS_ACTIVITY_SOURCE,
     type SizeTokenSession,
 } from './application/session';
@@ -12,15 +14,19 @@ import { createLocalPendingSizeTokenCommands } from './data/localPendingSizeToke
 
 let repository: SizeTokenRepository = createHttpSizeTokenRepository();
 const sessions = new Map<string, SizeTokenSession>();
+const subscriptions = new Map<string, () => void>();
 
 const sessionKey = ({ projectId, designSystemId, tenantId, versionId }: SizeTokenContext) =>
     `${projectId}:${designSystemId}:${tenantId}:${versionId ?? ''}`;
 
 const clearSessions = () => {
     sessions.forEach((session) => {
+        session.readController?.abort();
         session.autosave.dispose();
         if (!session.context.versionId) setDraftAutosaveActivity(session.context, SIZE_TOKENS_ACTIVITY_SOURCE, null);
     });
+    subscriptions.forEach((unsubscribe) => unsubscribe());
+    subscriptions.clear();
     sessions.clear();
 };
 authService.onSessionReset(clearSessions);
@@ -34,6 +40,21 @@ export const setSizeTokenRepository = (value: SizeTokenRepository) => {
 /** Сессия раздела темы; создаётся при первом обращении и переиспользуется до смены темы или версии. */
 export const sizeTokenSession = (context: SizeTokenContext): SizeTokenSession => {
     const key = sessionKey(context);
+    for (const [id, cached] of sessions) {
+        if (
+            id !== key &&
+            !cached.listeners.size &&
+            !cached.loading &&
+            cached.loadedAt !== undefined &&
+            Date.now() - cached.loadedAt >= 300_000 &&
+            !cached.autosave.hasUnsaved()
+        ) {
+            subscriptions.get(id)?.();
+            subscriptions.delete(id);
+            cached.autosave.dispose();
+            sessions.delete(id);
+        }
+    }
     const existing = sessions.get(key);
     if (existing) return existing;
     const session = createSizeTokenSession(
@@ -44,6 +65,16 @@ export const sizeTokenSession = (context: SizeTokenContext): SizeTokenSession =>
             send: (...args) => repository.send(...args),
         },
         createLocalPendingSizeTokenCommands(context),
+    );
+    subscriptions.set(
+        key,
+        subscribeEditorDataInvalidation(context, (scopes, types) => {
+            if (types && !types.some((type) => ['shape', 'spacing', 'shadow', 'color', 'gradient'].includes(type)))
+                return;
+            if (!scopes.size) return;
+            session.invalidation++;
+            notifySession(session);
+        }),
     );
     sessions.set(key, session);
     return session;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EditorContextKey } from '../../api/editorContracts';
 import { apiRoot, readRequest } from '../../api/editorHttp';
+import { reloadWhenDraftAutosaveIsIdle } from '../../api/draftAutosaveActivity';
 import { readEditor } from '../../api/editorReads';
 
 /** Счётчик оболочки не загружает записи, значения и справочники полного журнала. */
@@ -24,8 +25,12 @@ export function useJournalSummary(context: EditorContextKey | undefined, refresh
         }
     }, [key, enabled]);
     useEffect(() => {
-        void reload();
-        return () => controller.current?.abort();
+        if (!context || !enabled) return;
+        const cancel = reloadWhenDraftAutosaveIsIdle(context, () => void reload());
+        return () => {
+            cancel();
+            controller.current?.abort();
+        };
     }, [reload, refreshKey]);
     return { total: state?.key === key ? state.total : 0, error: state?.key === key ? state.error : undefined, reload };
 }

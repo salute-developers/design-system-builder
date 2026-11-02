@@ -122,7 +122,7 @@ export const componentRepository = {
         const root = apiRoot(context.projectId);
         const request = readRequest(context, signal);
         const [catalog, appearances] = await Promise.all([
-            readEditor<ComponentDto[]>(`${root}/components`, request),
+            readEditor<ComponentDto[]>(`${root}/components`, request, undefined, 300_000),
             readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
         ]);
         const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
@@ -180,8 +180,8 @@ export const componentRepository = {
         const [links, catalog, appearances, exported, params, propertyVariations, adapter, dependencies] =
             await Promise.all([
                 readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-                readEditor<ComponentDto[]>(`${root}/components`, request),
-                readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+                readEditor<ComponentDto[]>(`${root}/components`, request, undefined, 300_000),
+                readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
                 Promise.all(
                     [platform].map((platform) =>
                         readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
@@ -191,21 +191,24 @@ export const componentRepository = {
                         }),
                     ),
                 ),
-                isWeb || isCompose
-                    ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
+                !componentName && (isWeb || isCompose)
+                    ? readEditor<PropertyPlatformParamDto[]>(
+                          `${root}/property-platform-params`,
+                          request,
+                          undefined,
+                          300_000,
+                      )
                     : empty<PropertyPlatformParamDto>(),
                 isWeb
-                    ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request)
+                    ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
                     : empty<PropertyVariationDto>(),
                 isWeb
                     ? readEditor<WebAdapterComponentDto[]>(`${root}/component-config/web-adapter`, request, {
                           designSystemId: context.designSystemId,
                       })
                     : empty<WebAdapterComponentDto>(),
-                readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request),
+                readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request, undefined, 300_000),
             ]);
-        const webParams = webParamsByProperty(params.data);
-        const composeParams = composeParamsByProperty(params.data);
         const adapterByName = new Map(adapter.data.map((entry) => [entry.name, entry]));
         const linkedIds = new Set(
             links.data.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
@@ -232,7 +235,21 @@ export const componentRepository = {
             components.map(async (component) => {
                 const [properties, variations] = await Promise.all([
                     limitedRequest(() =>
-                        readEditor<ComponentPropertyDto[]>(`${root}/components/${component.id}/properties`, request),
+                        readEditor<(ComponentPropertyDto & { platformParams?: PropertyPlatformParamDto[] })[]>(
+                            `${root}/components/${component.id}/properties`,
+                            componentName
+                                ? {
+                                      ...request,
+                                      params: {
+                                          ...request.params,
+                                          designSystemId: context.designSystemId,
+                                          include: 'platformParams',
+                                      },
+                                  }
+                                : request,
+                            undefined,
+                            300_000,
+                        ),
                     ),
                     limitedRequest(() =>
                         readEditor<ComponentVariationDto[]>(
@@ -260,6 +277,11 @@ export const componentRepository = {
                               ),
                           )
                       ).flatMap((response) => response.data);
+                const propertyParams = componentName
+                    ? properties.data.flatMap((property) => property.platformParams ?? [])
+                    : params.data;
+                const webParams = webParamsByProperty(propertyParams);
+                const composeParams = composeParamsByProperty(propertyParams);
                 const propertyByName = new Map(properties.data.map((property) => [property.name, property]));
                 const variationByName = new Map(variations.data.map((variation) => [variation.name, variation]));
                 const stylesByVariation = new Map<string, ComponentStyleDto[]>();
@@ -417,7 +439,7 @@ export const componentRepository = {
             ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
         });
         const acceptMetadata = (headers: unknown) => {
-            invalidateEditorReads();
+            invalidateEditorReads(context);
             const raw = (headers as Record<string, unknown> | undefined)?.['x-ds-mutation-metadata'];
             parseMutationMetadata(raw).forEach((item) => {
                 revisions[`${item.entityType}:${item.entityId}`] = item.revision;

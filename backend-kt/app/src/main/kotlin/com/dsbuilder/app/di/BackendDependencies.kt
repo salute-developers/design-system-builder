@@ -30,6 +30,9 @@ fun Application.installBackendDependencies(
             listOf(
                 module {
                     single { evaluator }
+                    single<com.dsbuilder.projects.feature.projects.application.port.DesignSystemCounts> {
+                        com.dsbuilder.app.data.InProcessDesignSystemCounts(get())
+                    }
                     single<ProjectContextResolver> { InProcessProjectContext(get()) }
                     single<ProjectAccessKeyVerifier> { InProcessProjectKey(get()) }
                 },

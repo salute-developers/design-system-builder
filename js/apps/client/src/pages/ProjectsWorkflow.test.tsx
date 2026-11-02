@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ApiError, authService, designSystemsApi, projectsApi, type ProjectDto } from '../api';
@@ -31,6 +31,7 @@ import errorStateImage from '../assets/catalog/error-state.png';
 const project = (role: ProjectDto['effectiveRole'], status: ProjectDto['status'] = 'active'): ProjectDto => ({
     id: 'project-1',
     name: 'Platform',
+    designSystemCount: 1,
     description: 'Shared UI',
     status,
     ownerUserId: 'owner-1',
@@ -150,7 +151,7 @@ describe('project workflow', () => {
         const loading = at('/projects', <ProjectsPage />);
         expect(screen.getByText('Загружаем проекты…')).toBeInTheDocument();
         expect(loading.container.querySelector('.builder-shell .catalog-loading-grid.is-project')).toBeInTheDocument();
-        cleanup();
+        await act(async () => cleanup());
         vi.spyOn(projectsApi, 'list').mockRejectedValue(new ApiError(500));
         const failed = at('/projects', <ProjectsPage />);
         expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
@@ -221,6 +222,42 @@ describe('project workflow', () => {
         expect(screen.queryByRole('menuitemradio', { name: 'Название А–Я' })).not.toBeInTheDocument();
     });
 
+    it.each([1, 10, 50])('loads %s project cards with one catalog request and no per-card systems', async (count) => {
+        vi.spyOn(projectsApi, 'list').mockResolvedValue(
+            Array.from({ length: count }, (_, index) => ({
+                ...project('owner'),
+                id: `project-${index}`,
+                name: `Project ${index}`,
+                designSystemCount: 0,
+            })),
+        );
+        at('/projects', <ProjectsPage />);
+        expect(await screen.findAllByText('0 дизайн-систем')).toHaveLength(count);
+        expect(projectsApi.list).toHaveBeenCalledTimes(1);
+        expect(designSystemsApi.list).not.toHaveBeenCalled();
+    });
+
+    it('loads settings dependencies on section entry and preserves unsaved general input', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
+        vi.spyOn(projectsApi, 'members').mockResolvedValue([]);
+        at('/projects/project-1/settings', <ProjectSettingsPage />);
+        const name = await screen.findByLabelText('Название');
+        fireEvent.change(name, { target: { value: 'Unsaved name' } });
+        expect(projectsApi.members).not.toHaveBeenCalled();
+        expect(designSystemsApi.list).not.toHaveBeenCalled();
+        expect(projectsApi.accessKeys).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Участники и роли' }));
+        await waitFor(() => expect(projectsApi.members).toHaveBeenCalledOnce());
+        expect(designSystemsApi.list).not.toHaveBeenCalled();
+        expect(projectsApi.accessKeys).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Основное' }));
+        expect(screen.getByLabelText('Название')).toHaveValue('Unsaved name');
+        fireEvent.click(screen.getByRole('button', { name: 'Администрирование' }));
+        await waitFor(() => expect(designSystemsApi.list).toHaveBeenCalledOnce());
+        await waitFor(() => expect(projectsApi.accessKeys).toHaveBeenCalledOnce());
+        expect(projectsApi.members).toHaveBeenCalledOnce();
+    });
+
     it('separates archived projects and shows the design-system count instead of description and status', async () => {
         vi.spyOn(projectsApi, 'list').mockResolvedValue([
             project('owner'),
@@ -233,6 +270,7 @@ describe('project workflow', () => {
         at('/projects', <ProjectsPage />);
 
         expect(await screen.findAllByText('1 дизайн-система')).toHaveLength(2);
+        expect(designSystemsApi.list).not.toHaveBeenCalled();
         expect(screen.getByRole('heading', { name: 'Архивные' })).toBeInTheDocument();
         expect(screen.queryByText(/Shared UI|Legacy|Активный|Архивный/)).not.toBeInTheDocument();
     });
@@ -423,6 +461,8 @@ describe('project workflow', () => {
         expect(await screen.findByText('Platform')).toBeInTheDocument();
         cleanup();
         vi.spyOn(projectsApi, 'list').mockRejectedValue(new ApiError(403));
+        const currentTime = Date.now();
+        vi.spyOn(Date, 'now').mockReturnValue(currentTime + 31_000);
         at('/projects', <ProjectsPage />);
         expect(screen.getByText('Platform')).toBeInTheDocument();
         expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
@@ -595,7 +635,7 @@ describe('project workflow', () => {
         expect(view.container.querySelector('.ps-search .ui-glyph')).toBeInTheDocument();
         expect(view.container.querySelector('.ps-search')).not.toHaveTextContent('⌕');
         expect(workflowCss).toMatch(/\.settings-section \.ps-search input[^}]*padding:\s*4px 30px/);
-        expect(screen.getByText('Alex User')).toBeInTheDocument();
+        expect(await screen.findByText('Alex User')).toBeInTheDocument();
         expect(screen.getByText('alex · alex@example.com')).toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('Найти участника'), { target: { value: 'alex@example.com' } });
         expect(screen.getByText('Alex User')).toBeInTheDocument();
@@ -940,7 +980,7 @@ describe('design system and Theme workflow', () => {
         expect(screen.getByRole('button', { name: 'Удалить тему' })).toBeDisabled();
         fireEvent.change(confirmation, { target: { value: 'Brand' } });
         fireEvent.click(screen.getByRole('button', { name: 'Удалить тему' }));
-        await waitFor(() => expect(remove).toHaveBeenCalledWith('project-1', 'theme-1'));
+        await waitFor(() => expect(remove).toHaveBeenCalledWith('project-1', 'theme-1', 'ds-1'));
     });
 
     it('does not create a second shell for embedded theme settings, including loading', async () => {
@@ -1283,7 +1323,7 @@ describe('design system and Theme workflow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Удаление' }));
         expect(screen.queryByRole('link', { name: 'Готово' })).not.toBeInTheDocument();
         expect(screen.getByText('Опасная зона')).toHaveClass('ps-danger-title');
-        expect(screen.getByText('1 тема')).toBeInTheDocument();
+        expect(await screen.findByText('1 тема')).toBeInTheDocument();
         const confirmation = screen.getAllByRole('textbox').at(-1)!;
         fireEvent.change(confirmation, { target: { value: 'DS' } });
         fireEvent.click(screen.getByRole('button', { name: 'Удалить полностью' }));
@@ -1320,7 +1360,7 @@ describe('design system and Theme workflow', () => {
         );
         expect(screen.getByTestId('design-system-preview')).toHaveAttribute('data-count', '1');
         expect(screen.getByTestId('design-system-preview')).toHaveTextContent('BrandТема');
-        expect(screen.getByText('1 тема')).toBeInTheDocument();
+        expect(await screen.findByText('1 тема')).toBeInTheDocument();
         const settings = screen.getByRole('link', { name: 'Настройки проекта' });
         expect(settings).toHaveAttribute('title', 'Настройки проекта');
         expect(settings).not.toHaveTextContent('Настройки');
@@ -1434,7 +1474,7 @@ describe('design system and Theme workflow', () => {
         ]);
         at('/projects/project-1/settings', <ProjectSettingsPage />);
         fireEvent.click(await screen.findByRole('button', { name: 'Администрирование' }));
-        expect(screen.getByText('1 дизайн-систем')).toBeInTheDocument();
+        expect(await screen.findByText('1 дизайн-систем')).toBeInTheDocument();
         expect(screen.getByText('2 тем')).toBeInTheDocument();
         expect(screen.queryByText('11 тем')).not.toBeInTheDocument();
     });

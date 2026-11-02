@@ -10,6 +10,34 @@ export type DraftInvalidationScope =
     | 'design-system'
     | 'all';
 
+type DataInvalidationListener = (scopes: Set<DraftInvalidationScope>, types?: string[]) => void;
+const dataInvalidationListeners = new Map<string, Set<DataInvalidationListener>>();
+const dataKey = (context: EditorContextKey) => `${context.projectId}:${context.designSystemId}`;
+
+/** Подписка кеша раздела на уже обработанные события; отдельного SSE-соединения не создаёт. */
+export const subscribeEditorDataInvalidation = (context: EditorContextKey, listener: DataInvalidationListener) => {
+    if (context.versionId) return () => {};
+    const key = dataKey(context);
+    const listeners = dataInvalidationListeners.get(key) ?? new Set<DataInvalidationListener>();
+    listeners.add(listener);
+    dataInvalidationListeners.set(key, listeners);
+    return () => {
+        listeners.delete(listener);
+        if (!listeners.size) dataInvalidationListeners.delete(key);
+    };
+};
+
+/** Инвалидация только помечает кеши; загрузкой владеет открытый раздел. */
+export const notifyEditorDataInvalidated = (
+    context: EditorContextKey,
+    scopes: Set<DraftInvalidationScope>,
+    types?: string[],
+) => {
+    if (!context.versionId)
+        dataInvalidationListeners.get(dataKey(context))?.forEach((listener) => listener(scopes, types));
+};
+authService.onSessionReset(() => dataInvalidationListeners.clear());
+
 export interface DraftInvalidationEvent {
     eventId?: string;
     designSystemId: string;

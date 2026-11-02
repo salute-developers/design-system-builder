@@ -99,8 +99,29 @@ class VersionedJournalPublicationPostgresIntegrationTest {
                 )
             }
             fun currentChange() = transaction(database) {
-                runBlocking { journal.list(ProjectId("project"), false, DesignSystemId(fixture.designSystemId), null) }
-                    ?.single { it.entityType == "token-value" }
+                val full = runBlocking {
+                    journal.list(
+                        ProjectId("project"),
+                        false,
+                        DesignSystemId(fixture.designSystemId),
+                        null,
+                    )
+                }!!
+                assertEquals(
+                    com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount(
+                        full,
+                        mapOf(fixture.tokenId to "color"),
+                    ),
+                    runBlocking {
+                        journal.summary(
+                            ProjectId("project"),
+                            false,
+                            DesignSystemId(fixture.designSystemId),
+                            null,
+                        )
+                    },
+                )
+                full.single { it.entityType == "token-value" }
             }!!
             val change = currentChange()
             transaction(database) {

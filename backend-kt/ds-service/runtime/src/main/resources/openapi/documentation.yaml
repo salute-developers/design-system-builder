@@ -576,6 +576,7 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -591,8 +592,44 @@ paths:
           description: Нет права чтения
         '404':
           description: ДС или версия недоступна
-        '422':
-          description: Превышен поддерживаемый предел журнала
+      x-permission: design-systems:read
+  /api/ds/design-systems/{id}/changes/token-ids:
+    get:
+      tags: [Design Systems]
+      summary: Unique changed token IDs for visible indicators, independent of the full journal limit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: tenantId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/ModelVersion'
+        - $ref: '#/components/parameters/VersionId'
+      responses:
+        '200':
+          description: Unique IDs at the boundary reported by X-DS-Read-Context
+          headers:
+            X-DS-Read-Context:
+              $ref: '#/components/headers/ReadContext'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tokenIds]
+                properties:
+                  tokenIds:
+                    type: array
+                    uniqueItems: true
+                    items: { type: string, format: uuid }
+        '400':
+          description: Invalid tenant or version selector
+        '403':
+          description: Read access denied
+        '404':
+          description: Design system, version or tenant not accessible
       x-permission: design-systems:read
   /api/ds/design-systems/{id}/changes:
     get:
@@ -615,6 +652,11 @@ paths:
         '200':
           description: List of items
           headers:
+            X-DS-Journal-Total:
+              description: Точное число отображаемых строк того же снимка, вычисленное по уже прочитанному журналу.
+              schema:
+                type: integer
+                minimum: 0
             X-DS-Read-Context:
               $ref: '#/components/headers/ReadContext'
             X-DS-Page-Limit:
@@ -11949,6 +11991,68 @@ components:
         - group
         - name
         - members
+    ColorTokenDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        designSystemId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [color, gradient]
+        displayName:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
+        position:
+          type: integer
+      required: [id, designSystemId, name, type, enabled, position]
+    ColorTokenStructure:
+      type: object
+      properties:
+        definitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColorTokenDefinition'
+        removedTokenIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        placements:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              groupId:
+                type: string
+                format: uuid
+                nullable: true
+              position:
+                type: integer
+            required:
+              - id
+              - position
+      required:
+        - definitions
+        - removedTokenIds
+        - placements
     ColorTokenMutation:
       type: object
       properties:
@@ -11957,6 +12061,13 @@ components:
           minimum: 0
         value:
           $ref: '#/components/schemas/ColorTokenFamily'
+        structure:
+          $ref: '#/components/schemas/ColorTokenStructure'
+        confirmedValues:
+          description: Полные подтверждённые значения текущей темы из транзакции команды, включая технические редакции.
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantTokenValue'
       required:
         - editRevision
         - value
@@ -11966,6 +12077,8 @@ components:
         editRevision:
           type: integer
           minimum: 0
+        structure:
+          $ref: '#/components/schemas/ColorTokenStructure'
       required:
         - editRevision
     ColorTokenValues:
@@ -11981,6 +12094,11 @@ components:
             - color
             - gradient
           description: Тип семейства после изменения, вычисленный по значениям всех тем.
+        confirmedValues:
+          description: Полные подтверждённые значения текущей темы из транзакции команды, включая технические редакции.
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantTokenValue'
       required:
         - editRevision
         - type

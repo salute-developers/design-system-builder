@@ -21,9 +21,9 @@ import { getCreateThemeError } from './createThemeError';
 export const CreateThemePage = () => {
     const { projectId = '', designSystemId = '' } = useParams();
     const navigate = useNavigate();
-    const project = useLoad(() => projectsApi.get(projectId), [projectId], `project:${projectId}`);
+    const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
     const system = useLoad(
-        () => designSystemsApi.get(projectId, designSystemId),
+        (signal) => designSystemsApi.get(projectId, designSystemId, signal),
         [projectId, designSystemId],
         `system:${projectId}:${designSystemId}`,
     );
@@ -195,7 +195,9 @@ export const CreateThemePage = () => {
                                                 required
                                                 value={palette[index]}
                                                 aria-invalid={Boolean(customPaletteError)}
-                                                aria-describedby={customPaletteError ? 'custom-palette-error' : undefined}
+                                                aria-describedby={
+                                                    customPaletteError ? 'custom-palette-error' : undefined
+                                                }
                                                 onChange={(e) => {
                                                     setPalette(
                                                         palette.map((value, i) =>
@@ -209,7 +211,11 @@ export const CreateThemePage = () => {
                                     ))}
                                 </div>
                                 <Visible when={Boolean(customPaletteError)}>
-                                    <p className="form-error custom-palette-error" id="custom-palette-error" role="alert">
+                                    <p
+                                        className="form-error custom-palette-error"
+                                        id="custom-palette-error"
+                                        role="alert"
+                                    >
                                         {customPaletteError}
                                     </p>
                                 </Visible>

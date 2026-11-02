@@ -119,7 +119,14 @@ internal class GatewayRequestHandler(
         } else {
             Regex("http://(localhost|127\\.0\\.0\\.1):[0-9]+").matches(origin)
         }
-        if (allowed) call.response.header(HttpHeaders.AccessControlAllowOrigin, origin!!)
+        if (allowed) {
+            call.response.header(HttpHeaders.AccessControlAllowOrigin, origin!!)
+            val path = call.request.path()
+            val publicPath = publicGatewayPath(path) && !path.startsWith("/internal/") && !invalidPath(path)
+            if (call.request.httpMethod == HttpMethod.Options && publicPath) {
+                call.response.header(HttpHeaders.AccessControlMaxAge, "600")
+            }
+        }
         call.response.header(HttpHeaders.Vary, "Origin")
         call.response.header(HttpHeaders.AccessControlAllowMethods, "GET, POST, PUT, PATCH, DELETE, OPTIONS")
         call.response.header(
@@ -129,7 +136,7 @@ internal class GatewayRequestHandler(
         )
         call.response.header(
             HttpHeaders.AccessControlExposeHeaders,
-            "X-DS-Mutation-Metadata, X-DS-Mutation-Metadata-Truncated, " +
+            "X-DS-Journal-Total, X-DS-Mutation-Metadata, X-DS-Mutation-Metadata-Truncated, " +
                 "X-DS-Read-Context, X-DS-Page-Limit, X-DS-Next-Cursor",
         )
         call.response.header("X-Request-Id", UUID.randomUUID().toString())

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 
 import { reloadWhenDraftAutosaveIsIdle } from '../../api/draftAutosaveActivity';
 import type { Theme } from '../../controllers';
@@ -24,20 +24,27 @@ export const useSizeTokenEditor = ({ context, theme, rerender }: EditorInput) =>
 
     useEffect(() => {
         session.listeners.add(refresh);
-        // Раздел перечитывается при каждом открытии: значения могли измениться в другом месте.
-        void reloadSizeTokens(session);
+        session.failedInvalidation = undefined;
+        if (session.loadedAt !== undefined && Date.now() - session.loadedAt >= 30_000) session.invalidation++;
         return () => {
             session.listeners.delete(refresh);
+            queueMicrotask(() => {
+                if (!session.listeners.size) session.readController?.abort();
+            });
         };
     }, [session]);
 
-    // Новая модель темы — сигнал об изменении черновика в другом месте: раздел перечитывается после локальных очередей.
-    const loadedTheme = useRef(theme);
     useEffect(() => {
-        if (loadedTheme.current === theme) return;
-        loadedTheme.current = theme;
-        return reloadWhenDraftAutosaveIsIdle(session.context, () => void reloadSizeTokens(session));
-    }, [session, theme]);
+        if (
+            session.loadedInvalidation === session.invalidation ||
+            session.failedInvalidation === session.invalidation ||
+            session.loading
+        )
+            return;
+        return reloadWhenDraftAutosaveIsIdle(session.context, () => {
+            void reloadSizeTokens(session);
+        });
+    }, [session, session.invalidation, session.loadedInvalidation, Boolean(session.loading)]);
 
     // Уход со страницы: очередь отправляется сразу, а несохранённые правки предупреждают браузер.
     useEffect(() => {
