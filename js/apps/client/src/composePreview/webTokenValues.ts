@@ -168,11 +168,17 @@ const normalizeGradientLayer = (layer: string): PreviewGradientLayer | string =>
     };
 };
 
-/** `linear-gradient(…)` (по слоям) или однотонный цвет → `gradient.layers`. */
+/** Строка CSS слоя: сама строка или `background` сплошного слоя `color`, который готовит черновик превью. */
+const gradientLayerString = (item: JsonValue): string | undefined => {
+    if (typeof item === 'string') return item;
+    return isRecord(item) && item.kind === 'color' && typeof item.background === 'string' ? item.background : undefined;
+};
+
+/** `linear-gradient(…)` (по слоям), однотонный цвет или сплошной слой `color` → `gradient.layers`. */
 const normalizeGradient = (raw: JsonValue): WebTokenNormalization => {
-    const strings = Array.isArray(raw) ? raw : [raw];
-    if (!strings.length || strings.some((item) => typeof item !== 'string')) {
-        return fail('gradient value must be a CSS string or a list of CSS strings');
+    const strings = (Array.isArray(raw) ? raw : [raw]).map(gradientLayerString);
+    if (!strings.length || strings.some((item) => item === undefined)) {
+        return fail('gradient value must be a CSS string, a solid color layer or a list of them');
     }
     const layers: PreviewGradientLayer[] = [];
     for (const layer of strings as string[]) {

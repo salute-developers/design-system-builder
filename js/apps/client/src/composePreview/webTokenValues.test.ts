@@ -78,6 +78,16 @@ describe('normalizeWebTokenValue', () => {
         expect(normalizeWebTokenValue('gradient', ['radial-gradient(#000, #fff)'], 'g')).toMatchObject({ ok: false });
     });
 
+    it('parses the solid color layer of a gradient value', () => {
+        expect(normalized('gradient', [{ kind: 'color', background: '#666666FF' }]).value).toEqual(
+            normalized('gradient', ['#666666FF']).value,
+        );
+        expect(normalizeWebTokenValue('gradient', [{ kind: 'color', background: 'not-a-color' }], 'g')).toMatchObject({
+            ok: false,
+        });
+        expect(normalizeWebTokenValue('gradient', [{ kind: 'linear' }], 'g')).toMatchObject({ ok: false });
+    });
+
     it('converts typography: rem to px, letterSpacing normal to 0 and em to px, weight and fontStyle', () => {
         expect(
             normalized('typography', {

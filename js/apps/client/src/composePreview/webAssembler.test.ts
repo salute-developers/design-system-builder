@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Config } from '../controllers';
+import { restorePaletteColor } from '../palette/activePalette';
 import { caseArgs, loadWebBaseFixture } from './__fixtures__/webBaseSnapshot';
 import { assembleComposePreviewPayload } from './assembler';
 import { createComponentPreviewDraft } from './draft';
-import type { PreviewPayloadInput } from './types';
+import type { PreviewPayloadInput, PreviewPropertyDraft } from './types';
 import { DEFAULT_WEB_STORY_ID, assembleWebPreviewPayload } from './webPreview';
+import { parseWebColor } from './webTokenValues';
 
 const fixture = loadWebBaseFixture();
+
+interface ThemeGradientToken {
+    getName(): string;
+    getValue(platform: string): unknown;
+    setValue(platform: string, value: unknown): void;
+}
 
 const assemble = (component: string, selections: Record<string, string> = {}, mode = 'dark'): PreviewPayloadInput => {
     const config = fixture.config(component);
@@ -45,6 +53,76 @@ describe('assembler for the WEB platform', () => {
         });
         expect(payload.component.properties.height).toEqual({ base: { type: 'literal', value: 56 } });
         expect(JSON.stringify(payload.component.properties)).not.toMatch(/rem|var\(--|Hover"|Active"/);
+    });
+
+    const assembleGradientToken = (tokenId: string) => {
+        const config = fixture.config('Button');
+        const created = createComponentPreviewDraft({
+            config,
+            theme: fixture.theme,
+            rendererPlatform: 'WEB',
+            previewMetadata: { componentId: config.getName(), storyId: DEFAULT_WEB_STORY_ID },
+            args: caseArgs(config, {}),
+            themeMode: 'dark',
+            themeValuePlatform: 'web',
+            surface: { width: 360, height: 160, background: 'dark.background.default.primary' },
+        });
+        if (!created.ok) throw new Error(JSON.stringify(created.diagnostics));
+        const property: PreviewPropertyDraft = {
+            id: 'solid-gradient',
+            name: 'solidGradient',
+            type: 'color',
+            value: tokenId,
+            states: [],
+            composeParameters: [],
+            webParameters: ['solidGradient'],
+        };
+        return assembleComposePreviewPayload({
+            ...created.draft,
+            invariantProperties: [...created.draft.invariantProperties, property],
+        });
+    };
+
+    const solidLayer = (color: string) => ({
+        kind: 'linear',
+        angle: 180,
+        stops: [
+            { color, position: 0 },
+            { color, position: 1 },
+        ],
+    });
+
+    it('assembles a solid gradient token from the draft to the protocol', () => {
+        const result = assembleGradientToken('outline.default.accent-gradient-active');
+
+        if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+        expect(result.payload.theme['outline.default.accent-gradient-active']).toEqual({
+            type: 'gradient',
+            layers: [solidLayer('#666666FF')],
+        });
+    });
+
+    it('resolves a palette reference of a solid gradient value', () => {
+        const name = 'dark.outline.default.accent-gradient-active';
+        const token = (fixture.theme.getTokens().gradient as never as Array<ThemeGradientToken>).find(
+            (item) => item.getName() === name,
+        )!;
+        const stored = token.getValue('web');
+        const reference = '[general.red.500]';
+        token.setValue('web', [reference]);
+
+        try {
+            const result = assembleGradientToken('outline.default.accent-gradient-active');
+
+            if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+            const color = parseWebColor(restorePaletteColor(reference, -1, name))!;
+            expect(result.payload.theme['outline.default.accent-gradient-active']).toEqual({
+                type: 'gradient',
+                layers: [solidLayer(color)],
+            });
+        } finally {
+            token.setValue('web', stored);
+        }
     });
 
     it('puts web theme values into protocol units', () => {
