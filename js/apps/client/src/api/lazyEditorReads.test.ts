@@ -100,6 +100,31 @@ it('метаданные холодного журнала читаются па
     expect(http.post).not.toHaveBeenCalled();
 });
 
+it('оставляет раздел компонентов, когда все компоненты скрыты, но у них есть оформления', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') ? { data: [] } : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(true);
+    expect(http.get.mock.calls.map(([url]) => url)).toContain(
+        '/api/projects/project/ds/design-systems/system/appearances',
+    );
+});
+
+it('убирает раздел компонентов, когда у дизайн-системы нет ни связей, ни оформлений', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') || url.endsWith('/appearances') ? { data: [] } : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(false);
+});
+
 it('оболочка читает только метаданные, не значения, конфигурации или историю', async () => {
     const shell = await loadThemeShell(context);
     expect(shell.parameters).toMatchObject(context);
