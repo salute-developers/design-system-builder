@@ -204,11 +204,41 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun compositionRootRegistersTheIosInstaller() {
+    fun compositionRootRegistersTheIosAndWebInstallers() {
         val registry = cli().toolchainInstallerRegistry()
 
-        assertEquals(listOf(ToolchainId("ios")), registry.all.map { it.toolchain })
+        assertEquals(listOf(ToolchainId("ios"), ToolchainId("web")), registry.all.map { it.toolchain })
         assertNull(registry.forToolchain(ToolchainId("android")))
+    }
+
+    @Test
+    fun toolchainInstallWebInstallsTheGeneratorIntoTheUserDirectory() {
+        val generator = "/home/me/.dsbuilder/toolchains/web/bin/dsbuilder-web-generator"
+        val fileSystem = RecordingFileSystem(files = mapOf("/usr/bin/npm" to "", generator to ""))
+        val started = mutableListOf<ProcessRequest>()
+
+        val result = cli(
+            fileSystem,
+            ProcessRunner {
+                started += it
+                ProcessResult(0, if (it.args == listOf("--version")) "0.1.0\n" else "")
+            },
+            environment = mapOf("PATH" to "/usr/bin", "HOME" to "/home/me"),
+        ).execute(listOf("toolchain", "install", "web"))
+
+        assertEquals(0, result.exitCode, result.output)
+        // Глобальный prefix npm часто принадлежит root: генератор ставится в каталог пользователя.
+        assertEquals(
+            listOf(
+                "install",
+                "--global",
+                "--prefix",
+                "/home/me/.dsbuilder/toolchains/web",
+                "@sddsjs/design-system-builder-generator@latest",
+            ),
+            started.first().args,
+        )
+        assertTrue(result.output.contains("Installed web 0.1.0 at $generator"), result.output)
     }
 
     @Test

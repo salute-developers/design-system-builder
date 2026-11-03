@@ -13,16 +13,14 @@ import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessRunner
 
 /**
- * Делегат платформы React: запускает npm-скрипты web-генератора `js/cli` репозитория DS Builder.
+ * Делегат платформы React: запускает web-генератор.
  *
- * Тема и компоненты генерируются раздельно, как у Android: `THEME` — `generate:theme`,
- * `COMPONENTS` — `generate:components`; `DESIGN_SYSTEM` — `generate:ds`, обе части одним запуском
- * (с `--package` — один полный пакет). Генератору передаются `.sdds` рабочей копии и каталог результата:
- * заданный `--output` или `output` в рабочей копии. Без него генератор писал бы в свой каталог, потому что
- * запускается из него. Остальные аргументы (например, `--package`) передаются как есть.
- *
- * Инструмент ищется только по явному пути (`--tool` или `DSBUILDER_WEB_TOOL`): установщика нет,
- * генератор живёт в репозитории и запускается рядом с ним.
+ * Тема и компоненты генерируются раздельно, как у Android: `THEME`, `COMPONENTS`; `DESIGN_SYSTEM` — обе
+ * части одним запуском (с `--package` — один полный пакет). Генератор берётся из каталога `js/cli`
+ * (`--tool` или `DSBUILDER_WEB_TOOL`, запуск `npm run generate:*` из этого каталога) либо глобально
+ * установленный `dsbuilder-web-generator` (запуск из рабочей копии). В обоих случаях генератору
+ * передаются `.sdds` рабочей копии и каталог результата: заданный `--output` или `output` в рабочей
+ * копии. Остальные аргументы (например, `--package`) передаются как есть, окружение — от `dsbuilder`.
  */
 public class WebNpmDelegate internal constructor(
     private val processRunner: ProcessRunner,
@@ -32,78 +30,80 @@ public class WebNpmDelegate internal constructor(
 
     override val platforms: Set<TargetPlatform> = setOf(TargetPlatform.REACT)
 
-    override val capabilities: Set<Capability> =
-        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DESIGN_SYSTEM)
+    override val capabilities: Set<Capability> = COMMANDS.keys
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
-        val (tool, npm) = when (val located = locate(toolOverride)) {
-            is Located.Missing -> return ToolchainStatus.Missing(located.hint)
-            is Located.Found -> located
+        val tool = when (val lookup = locator.locate(toolOverride)) {
+            is WebToolLookup.Missing -> return ToolchainStatus.Missing(lookup.hint)
+            is WebToolLookup.Found -> lookup.tool
+        }
+        val (executable, workingDirectory, label) = when (tool) {
+            // Версии у генератора в репозитории нет: сообщается версия npm, которым он запускается.
+            is WebTool.Directory -> Triple(tool.npm, tool.path, NPM_EXECUTABLE)
+            is WebTool.Global -> Triple(tool.executable, workspace.workspaceDir, WEB_GENERATOR_EXECUTABLE)
         }
 
         val result = try {
             processRunner.run(
                 ProcessRequest(
-                    executable = npm,
+                    executable = executable,
                     args = listOf("--version"),
-                    workingDirectory = tool,
+                    workingDirectory = workingDirectory,
                     inheritStdio = false,
                 ),
             )
         } catch (error: ProcessLaunchException) {
-            return ToolchainStatus.Missing("$npm cannot be started: ${error.message}")
+            return ToolchainStatus.Missing("$executable cannot be started: ${error.message}")
         }
         return if (result.exitCode == 0) {
-            // Версии у генератора нет: он живёт в репозитории; сообщается версия npm, которым он запускается.
-            ToolchainStatus.Ready(executable = tool, version = "npm ${result.output.trim()}")
+            val location = if (tool is WebTool.Directory) tool.path else executable
+            ToolchainStatus.Ready(executable = location, version = "$label ${result.output.trim()}")
         } else {
-            ToolchainStatus.Missing("$npm --version failed with exit code ${result.exitCode}.")
+            ToolchainStatus.Missing("$executable --version failed with exit code ${result.exitCode}.")
         }
     }
 
     override fun run(invocation: DelegateInvocation): DelegateResult {
-        val script = SCRIPTS[invocation.capability]
+        val command = COMMANDS[invocation.capability]
             ?: return DelegateResult.Unsupported(
                 "Toolchain 'web' does not support ${invocation.capability.label} for platform 'react'.",
             )
-        val (tool, npm) = when (val located = locate(invocation.toolOverride)) {
-            is Located.Missing -> return DelegateResult.ToolchainMissing(located.hint)
-            is Located.Found -> located
+        val tool = when (val lookup = locator.locate(invocation.toolOverride)) {
+            is WebToolLookup.Missing -> return DelegateResult.ToolchainMissing(lookup.hint)
+            is WebToolLookup.Found -> lookup.tool
+        }
+        val request = when (tool) {
+            // Скрипты разрешают код генератора относительно каталога пакета.
+            is WebTool.Directory -> ProcessRequest(
+                executable = tool.npm,
+                args = listOf("run", "generate:$command", "--") + generatorArguments(invocation),
+                workingDirectory = tool.path,
+            )
+            is WebTool.Global -> ProcessRequest(
+                executable = tool.executable,
+                args = listOf(command) + generatorArguments(invocation),
+                workingDirectory = invocation.workspace.workspaceDir,
+            )
+        }
+        val described = when (tool) {
+            is WebTool.Directory -> "npm run generate:$command"
+            is WebTool.Global -> "$WEB_GENERATOR_EXECUTABLE $command"
         }
 
         return try {
-            val result = processRunner.run(
-                ProcessRequest(executable = npm, args = arguments(script, invocation), workingDirectory = tool),
-            )
+            val result = processRunner.run(request)
             if (result.exitCode == 0) {
-                DelegateResult.Completed(summary = "$script completed from ${invocation.workspace.sddsDir}.")
+                DelegateResult.Completed(summary = "$described completed from ${invocation.workspace.sddsDir}.")
             } else {
-                DelegateResult.Failed(exitCode = result.exitCode, message = "see the output of npm run $script above")
+                DelegateResult.Failed(exitCode = result.exitCode, message = "see the output of $described above")
             }
         } catch (error: ProcessLaunchException) {
-            DelegateResult.ToolchainMissing("$npm cannot be started: ${error.message}")
+            DelegateResult.ToolchainMissing("${request.executable} cannot be started: ${error.message}")
         }
     }
 
-    /** Каталог генератора и `npm` либо подсказка, чего не хватает. */
-    private fun locate(toolOverride: String?): Located {
-        val tool = locator.locateTool(toolOverride) ?: return Located.Missing(missingToolHint(toolOverride))
-        val npm = locator.locateNpm() ?: return Located.Missing(MISSING_NPM_HINT)
-        return Located.Found(tool, npm)
-    }
-
-    /** Результат поиска инструмента. */
-    private sealed interface Located {
-        data class Found(val tool: String, val npm: String) : Located
-
-        data class Missing(val hint: String) : Located
-    }
-
-    /** `npm run <script> -- --sdds <.sdds> --out <output> <passthrough>`. */
-    private fun arguments(script: String, invocation: DelegateInvocation): List<String> = buildList {
-        add("run")
-        add(script)
-        add("--")
+    /** `--sdds <.sdds> --out <output> <passthrough>`: одинаково для скрипта и глобальной команды. */
+    private fun generatorArguments(invocation: DelegateInvocation): List<String> = buildList {
         add("--sdds")
         add(invocation.workspace.sddsDir)
         add("--out")
@@ -113,27 +113,13 @@ public class WebNpmDelegate internal constructor(
         addAll(invocation.passthrough)
     }
 
-    /** Названный в `--tool` путь важнее переменной окружения: проверялся именно он. */
-    private fun missingToolHint(toolOverride: String?): String = if (toolOverride != null) {
-        "The web generator (package.json) was not found at $toolOverride, the path given by --tool."
-    } else {
-        locator.configuredTool()?.let {
-            "The web generator (package.json) was not found at $it, the path given by $WEB_TOOL_ENV."
-        }
-            ?: (
-                "The web generator was not found. Set $WEB_TOOL_ENV or pass --tool with the path to js/cli " +
-                    "of the DS Builder repository."
-                )
-    }
-
     private companion object {
-        val SCRIPTS: Map<Capability, String> = mapOf(
-            Capability.THEME to "generate:theme",
-            Capability.COMPONENTS to "generate:components",
-            Capability.DESIGN_SYSTEM to "generate:ds",
+        /** Команда генератора по capability: `generate:<команда>` в репозитории, подкоманда глобально. */
+        val COMMANDS: Map<Capability, String> = mapOf(
+            Capability.THEME to "theme",
+            Capability.COMPONENTS to "components",
+            Capability.DESIGN_SYSTEM to "ds",
         )
-
-        const val MISSING_NPM_HINT = "$NPM_EXECUTABLE was not found in PATH. Install Node.js."
 
         /** Каталог результата в рабочей копии, когда `--output` не задан; совпадает с умолчанием `js/cli`. */
         const val DEFAULT_OUTPUT_DIRECTORY = "output"

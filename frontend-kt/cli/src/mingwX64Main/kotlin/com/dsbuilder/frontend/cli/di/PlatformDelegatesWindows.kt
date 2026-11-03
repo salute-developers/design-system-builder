@@ -4,6 +4,7 @@ import com.dsbuilder.frontend.core.platform.PlatformDelegate
 import com.dsbuilder.frontend.core.platform.ToolchainInstaller
 import com.dsbuilder.frontend.platform.android.AndroidGradleDelegate
 import com.dsbuilder.frontend.platform.web.WebNpmDelegate
+import com.dsbuilder.frontend.platform.web.WebToolchainInstaller
 import org.koin.core.scope.Scope
 
 internal actual fun Scope.platformDelegates(): List<PlatformDelegate> = listOf(
@@ -11,4 +12,4 @@ internal actual fun Scope.platformDelegates(): List<PlatformDelegate> = listOf(
     get<WebNpmDelegate>(),
 )
 
-internal actual fun Scope.toolchainInstallers(): List<ToolchainInstaller> = emptyList()
+internal actual fun Scope.toolchainInstallers(): List<ToolchainInstaller> = listOf(get<WebToolchainInstaller>())
