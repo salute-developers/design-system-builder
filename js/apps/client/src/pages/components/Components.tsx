@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import {
     ComposePreviewHostProvider,
@@ -11,18 +11,30 @@ import {
     useWebPreviewPluginLocation,
 } from '../../composePreview';
 import type { ComponentRoute, ComposePreviewComponentGroup } from '../../composePreview';
-import { SegmentButton, SegmentButtonItem } from '../../components';
-import { getComposeMenuItems, getOldMenuItems } from '../../utils';
-import type { Data } from '../../types';
+import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
+import { usePanelWidth } from '../../hooks';
+import { getComponentGroup, getComponentGroups, isEditableComponent } from '../../utils';
 import { DesignSystem, Theme, Config } from '../../controllers';
-import { MenuOld, Workspace } from '../../layouts';
+import { Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
-import { componentRepository as repository } from '../../api/componentRepository';
+import { componentRepository as repository, type ComponentCatalogEntry } from '../../api/componentRepository';
 import { fetchWebPreviewPluginDescriptor } from '../../api/webPreviewPluginRepository';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
+import '../../styles/component-tree.css';
+
 import { ComponentEditor } from './features/ComponentEditor';
-import { PlatformSwitch } from './Components.styles';
+import {
+    PLATFORM_FILTERS,
+    buildComponentTree,
+    emptyTreeMessage,
+    entryPlatform,
+    type ComponentPlatformFilter,
+    type ComponentTreeEntry,
+} from './componentTree';
+import { ComponentHideDialog } from './ui/ComponentHideDialog';
+import { ComponentRestoreDialog, type HiddenComponent } from './ui/ComponentRestoreDialog';
+import { ComponentTree } from './ui/ComponentTree';
 
 import { AutosaveIndicator } from '../../components/AutosaveIndicator';
 import { EditorLoading } from '../../components/EditorLoading';
@@ -36,6 +48,8 @@ interface ComponentsOutletContextProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
+    /** Без имени перечитывает только индекс компонентов, не трогая данные открытого компонента. */
+    loadComponent?: (name?: string) => Promise<void>;
     /** Раздел загружен, грузится выбранный компонент: загрузка показывается только в настройке и превью. */
     componentLoading?: boolean;
     /** Ошибка загрузки выбранного компонента; меню и хост Compose-плагина остаются на экране. */
@@ -44,15 +58,11 @@ interface ComponentsOutletContextProps {
 
 type Platform = ComponentRoute['platform'];
 
-const platformItems: Record<Platform, SegmentButtonItem> = {
-    web: { label: 'Web', value: 'web' },
-    compose: { label: 'Compose', value: 'compose' },
-};
-const platformOrder: Platform[] = ['web', 'compose'];
+const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-/** Вкладки платформ показываются всегда; платформа, для которой у дизайн-системы нет компонентов, отключена. */
-export const platformSwitchItems = (available: Platform[]): SegmentButtonItem[] =>
-    platformOrder.map((platform) => ({ ...platformItems[platform], disabled: !available.includes(platform) }));
+/** Ширина панели компонентов: те же границы, что у сайдбаров «Цветов» и «Типографики». */
+const PANEL_LIMITS = { min: 220, max: 320, initial: 280 };
+
 type PendingComponentSave = PendingComponentMutation &
     AutosaveOperation & {
         metadataKey: string;
@@ -68,6 +78,7 @@ export const Components = () => {
         updated,
         rerender,
         reload,
+        loadComponent,
         componentLoading,
         componentError,
     } = useOutletContext<ComponentsOutletContextProps>();
@@ -95,26 +106,90 @@ export const Components = () => {
         };
     }, [composeComponents]);
 
-    // В меню попадают только платформы, для которых у дизайн-системы есть компоненты; остальные вкладки отключены.
-    const menus = useMemo<Partial<Record<Platform, Data | undefined>>>(
+    const componentGroups = useMemo(
         () => ({
-            ...(components?.length ? { web: getOldMenuItems(components, 'components') } : {}),
-            ...(composeComponents?.length ? { compose: getComposeMenuItems(composeComponents, pluginGroups) } : {}),
+            web: getComponentGroups(components ?? []),
+            compose: getComponentGroups(composeComponents ?? [], pluginGroups),
         }),
         [theme, components, composeComponents, pluginGroups],
     );
-    const platforms = (Object.keys(menus) as Platform[]).sort((a, b) => (a === 'web' ? -1 : b === 'web' ? 1 : 0));
-    const routePlatform = componentName ? parseComponentRoute(componentName).platform : undefined;
-    const platform: Platform | undefined = routePlatform && menus[routePlatform] ? routePlatform : platforms[0];
-    const data = platform ? menus[platform] : undefined;
+    const platforms = (['web', 'compose'] as const).filter((item) => componentGroups[item].length > 0);
+    const routeTarget = componentName ? parseComponentRoute(componentName) : undefined;
+    const platform: Platform | undefined =
+        routeTarget && componentGroups[routeTarget.platform].length ? routeTarget.platform : platforms[0];
+    const selectedConfig =
+        platform && routeTarget
+            ? componentGroups[platform]
+                  .flatMap(({ items }) => items)
+                  .find((item) => sameName(item.getName(), routeTarget.name))
+            : undefined;
 
-    const firstEnabledRoute = (target: Platform) => {
-        const item = menus[target]?.groups?.[0]?.data
-            ?.flatMap(({ items }) => items)
-            .find((candidate) => !candidate.disabled);
+    const firstRoute = (target: Platform) => {
+        const item = componentGroups[target][0]?.items[0];
 
-        return item ? toComponentRoute(target, item.name) : undefined;
+        return item ? toComponentRoute(target, item.getName()) : undefined;
     };
+
+    const [platformFilter, setPlatformFilter] = useState<ComponentPlatformFilter>('all');
+    const [query, setQuery] = useState('');
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+    const [catalog, setCatalog] = useState<ComponentCatalogEntry[]>();
+    const [catalogBusy, setCatalogBusy] = useState(false);
+    const [catalogError, setCatalogError] = useState<string>();
+    const [restoreOpen, setRestoreOpen] = useState(false);
+    const [hideCandidate, setHideCandidate] = useState<ComponentTreeEntry>();
+    // Отправленные скрытия: имя компонента и записи платформ, которые должны пропасть из состава и меню.
+    const [hiding, setHiding] = useState<ReadonlyMap<string, { componentId: string; platform: Platform }[]>>(new Map());
+    const removing = useMemo<ReadonlySet<string>>(() => new Set(hiding.keys()), [hiding]);
+    const panel = usePanelWidth({
+        storageKey: 'ds_components_panel',
+        limits: PANEL_LIMITS,
+        scope: (resizer) => resizer.closest<HTMLElement>('.component-editor-screen'),
+    });
+    // Возвращённый компонент появляется в меню после перечитывания: до этого переход на первый доступный не нужен.
+    const pendingRoute = useRef<{ platform: Platform; name: string }>();
+
+    const tree = useMemo(
+        () => buildComponentTree(componentGroups, platformFilter, query),
+        [componentGroups, platformFilter, query],
+    );
+    const hiddenComponents = useMemo<HiddenComponent[]>(() => {
+        const hidden = new Map<string, HiddenComponent>();
+        catalog
+            ?.filter(({ linkId, name, platform: item }) => !linkId && isEditableComponent(name, item))
+            .forEach(({ name, platform: entryPlatformId, componentId }) => {
+                const item = hidden.get(name) ?? {
+                    name,
+                    group: getComponentGroup(name, pluginGroups),
+                    platforms: [],
+                };
+                item.platforms.push({ platform: entryPlatformId, componentId });
+                hidden.set(name, item);
+            });
+        return [...hidden.values()].sort((a, b) => a.name.localeCompare(b.name));
+    }, [catalog, pluginGroups]);
+    // Возврат компонента возвращает и скрытые компоненты, от которых он зависит, иначе его превью и сборка ломаются.
+    const withHiddenDependencies = (componentIds: string[]) => {
+        const result = [...componentIds];
+        for (let index = 0; index < result.length; index += 1) {
+            catalog
+                ?.find(({ componentId }) => componentId === result[index])
+                ?.dependsOn.forEach((childId) => {
+                    const child = catalog.find(({ componentId }) => componentId === childId);
+                    if (child && !child.linkId && !result.includes(childId)) result.push(childId);
+                });
+        }
+        return result;
+    };
+    const hiddenDependencyNames = (componentIds: string[]) => [
+        ...new Set(
+            withHiddenDependencies(componentIds)
+                .filter((id) => !componentIds.includes(id))
+                .map((id) => catalog?.find(({ componentId }) => componentId === id)?.name)
+                .filter((name): name is string => Boolean(name)),
+        ),
+    ];
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('saved');
     const [lastSave, setLastSave] = useState<{ key: string; time: number }>();
     const confirmedConfig = useRef<{
@@ -123,70 +198,44 @@ export const Components = () => {
     }>();
     const autosaveQueue = useRef<TokenAutosaveQueue<PendingComponentSave, Record<string, number>> | null>(null);
 
-    // TODO: Маппинг имени компонента в индексы — временный мост к MenuOld, который работает
-    // на индексах [tab, group, item]. Когда MenuOld заменят на новый Menu, выбирающий по имени,
-    // этот блок и onItemSelect ниже нужно переделать на прямую работу с именем из URL.
-    // У компонентов всегда один таб, поэтому имя компонента однозначно определяет группу и позицию.
-    const groups = data?.groups?.[0]?.data;
-
-    const selectedItemIndexes = useMemo<[number, number, number]>(() => {
-        if (!groups || !componentName) {
-            return [0, 0, 0];
-        }
-
-        const { name } = parseComponentRoute(componentName);
-        const groupIndex = groups.findIndex(({ items }) =>
-            items.some((item) => item.name.toLowerCase() === name.toLowerCase()),
-        );
-
-        if (groupIndex === -1) {
-            return [0, 0, 0];
-        }
-
-        const itemIndex = groups[groupIndex].items.findIndex((item) => item.name.toLowerCase() === name.toLowerCase());
-
-        return [0, groupIndex, itemIndex];
-    }, [groups, componentName]);
-
-    // Если компонент не задан в URL или его нет в меню (например, у него нет конфигурации) — переходим на первый доступный.
+    // Если компонент не задан в URL или его нет в меню (например, он скрыт) — переходим на первый доступный.
     useEffect(() => {
-        if (!platform || !data) {
+        const pending = pendingRoute.current;
+
+        if (pending) {
+            const restored = componentGroups[pending.platform]
+                .flatMap(({ items }) => items)
+                .some((item) => sameName(item.getName(), pending.name));
+
+            if (!restored) return;
+
+            pendingRoute.current = undefined;
+            navigate(
+                componentNavigationTarget(
+                    `../components/${toComponentRoute(pending.platform, pending.name)}`,
+                    location.search,
+                ),
+            );
             return;
         }
 
-        if (componentName) {
-            const { name } = parseComponentRoute(componentName);
-            const inMenu = groups?.some(({ items }) =>
-                items.some((item) => item.name.toLowerCase() === name.toLowerCase()),
-            );
-
-            if (inMenu) {
-                return;
-            }
+        if (!platform || selectedConfig) {
+            return;
         }
 
-        const route = firstEnabledRoute(platform);
+        const route = firstRoute(platform);
 
         if (route) {
-            // С параметром маршрута относительный путь считается от него, поэтому, как в onItemSelect, идём через `../components`.
+            // С параметром маршрута относительный путь считается от него, поэтому, как в onTreeSelect, идём через `../components`.
             navigate(componentNavigationTarget(componentName ? `../components/${route}` : route, location.search), {
                 replace: true,
             });
         }
-    }, [platform, menus, componentName, navigate, location.search]);
+    }, [platform, componentGroups, selectedConfig, componentName, navigate, location.search]);
 
     useEffect(() => {
-        if (!data) {
-            return;
-        }
-
-        const [tabIndex, groupIndex, itemIndex] = selectedItemIndexes;
-        const selectedConfigs = data.groups?.[tabIndex]?.data?.[groupIndex]?.items?.[itemIndex]?.data as
-            | Config[]
-            | undefined;
-
-        setConfigs(selectedConfigs);
-    }, [theme, data, selectedItemIndexes]);
+        setConfigs(selectedConfig ? [selectedConfig] : undefined);
+    }, [theme, selectedConfig]);
 
     const config = configs?.[0];
     const parameters = designSystem?.getParameters();
@@ -198,6 +247,81 @@ export const Components = () => {
             tenantId: parameters.tenantId,
         };
     }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId]);
+    const designSystemReadOnly = parameters?.readOnly === true;
+
+    // Состав перечитывается вместе с меню (в том числе после отката в журнале), после каждого скрытия и возврата
+    // и при открытии диалога возврата: меню после записи может не измениться, а состав должен быть свежим.
+    const [catalogRevision, setCatalogRevision] = useState(0);
+    const refreshCatalog = () => setCatalogRevision((value) => value + 1);
+    useEffect(() => {
+        if (!editorContext || !components) return;
+
+        const controller = new AbortController();
+        repository
+            .loadComponentCatalog(editorContext, controller.signal)
+            .then(setCatalog)
+            .catch(() => {
+                if (!controller.signal.aborted) setCatalogError('Не удалось загрузить состав дизайн-системы.');
+            });
+
+        return () => controller.abort();
+    }, [editorContext, components, composeComponents, catalogRevision]);
+
+    // Меню перечитывается при открытии страницы и после изменений извне (например, отката в журнале): загрузчик раздела
+    // пропускает обновление, пока у открытого компонента не сохранены правки, а индекс от этих правок не зависит.
+    useEffect(() => {
+        if (!editorContext) return;
+
+        void loadComponent?.().catch(() => undefined);
+        return subscribeEditorDataInvalidation(editorContext, (scopes) => {
+            if (!['all', 'design-system', 'component-configurations'].some((scope) => scopes.has(scope as never)))
+                return;
+            void loadComponent?.().catch(() => undefined);
+            refreshCatalog();
+        });
+    }, [editorContext, loadComponent]);
+
+    // Самопроверка: если меню расходится с составом (например, откат в журнале не смог обновить данные редактора),
+    // данные редактора перечитываются принудительно. Попыток немного, чтобы устойчивое расхождение не зациклило загрузку.
+    const syncAttempts = useRef({ catalog: undefined as ComponentCatalogEntry[] | undefined, count: 0 });
+    useEffect(() => {
+        if (!catalog || hiding.size || syncAttempts.current.catalog === catalog || syncAttempts.current.count >= 3)
+            return;
+        const inMenu = (platform: Platform, name: string) =>
+            componentGroups[platform].some(({ items }) => items.some((item) => sameName(item.getName(), name)));
+        const editable = catalog.filter(
+            ({ name, platform: item }) => (item === 'web' || item === 'compose') && isEditableComponent(name, item),
+        );
+        const mismatch = editable.some(
+            ({ name, platform: item, linkId }) => Boolean(linkId) !== inMenu(item as Platform, name),
+        );
+        if (!mismatch) return;
+        syncAttempts.current = { catalog, count: syncAttempts.current.count + 1 };
+        reload();
+        void loadComponent?.().catch(() => undefined);
+    }, [catalog, componentGroups, hiding, loadComponent, reload]);
+
+    // Строка остаётся заблокированной, пока скрытие не видно и в составе, и в меню: они перечитываются разными
+    // запросами, и меню обновляется позже состава.
+    useEffect(
+        () =>
+            setHiding((current) => {
+                const next = new Map(
+                    [...current].filter(([name, targets]) =>
+                        targets.some(
+                            ({ componentId, platform: target }) =>
+                                Boolean(catalog?.find((item) => item.componentId === componentId)?.linkId) ||
+                                componentGroups[target].some(({ items }) =>
+                                    items.some((item) => sameName(item.getName(), name)),
+                                ),
+                        ),
+                    ),
+                );
+                return next.size === current.size ? current : next;
+            }),
+        [catalog, componentGroups],
+    );
+
     // Compose-плагин живёт на уровне раздела: запускается при входе, переживает смену компонента и уничтожается
     // при уходе из раздела, смене адреса плагина или контекста дизайн-системы.
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
@@ -360,82 +484,196 @@ export const Components = () => {
         autosaveQueue.current?.enqueue(pending);
     }, [config, parameters?.readOnly, rerender, storagePrefix]);
 
-    const onItemSelect = (groupIndex: number, itemIndex: number) => {
-        const name = groups?.[groupIndex]?.items?.[itemIndex]?.name;
+    const openComponent = (target: Platform, name: string) => {
+        navigate(componentNavigationTarget(`../components/${toComponentRoute(target, name)}`, location.search));
+    };
 
-        if (name && platform) {
-            navigate(componentNavigationTarget(`../components/${toComponentRoute(platform, name)}`, location.search));
+    const onPlatformFilter = (next: ComponentPlatformFilter) => {
+        setPlatformFilter(next);
+
+        if ((next === 'web' || next === 'compose') && next !== platform) {
+            const route = firstRoute(next);
+
+            if (route) {
+                navigate(componentNavigationTarget(`../components/${route}`, location.search));
+            }
         }
     };
 
-    const onPlatformSelect = (item: SegmentButtonItem) => {
-        const route = firstEnabledRoute(item.value as Platform);
+    const onTreeSelect = (entry: ComponentTreeEntry) => openComponent(entryPlatform(entry, platformFilter), entry.name);
 
-        if (route) {
-            navigate(componentNavigationTarget(`../components/${route}`, location.search));
+    // Связи, которые снимет скрытие: на вкладке платформы — только её, на «Все» — все платформы компонента.
+    const hiddenLinks = (entry: ComponentTreeEntry) =>
+        (catalog ?? []).filter(
+            ({ name, platform: item, linkId }) =>
+                linkId && name === entry.name && (platformFilter === 'all' || item === platformFilter),
+        );
+
+    const onTreeRemove = async (entry: ComponentTreeEntry) => {
+        if (!editorContext || removing.has(entry.name)) return;
+
+        const links = hiddenLinks(entry);
+        // Компонент, который используют видимые компоненты, не скрывается: диалог это объясняет.
+        if (links.some(({ usedBy }) => usedBy.some((name) => name !== entry.name))) return;
+
+        setHiding((current) =>
+            new Map(current).set(
+                entry.name,
+                links.map(({ componentId, platform: target }) => ({ componentId, platform: target as Platform })),
+            ),
+        );
+        setCatalogError(undefined);
+        try {
+            for (const { linkId } of links) {
+                await repository.hideComponent(editorContext, linkId!);
+            }
+        } catch {
+            setCatalogError('Не удалось скрыть компонент. Проверьте права на удаление компонентов.');
+            setHiding((current) => {
+                const next = new Map(current);
+                next.delete(entry.name);
+                return next;
+            });
+        } finally {
+            reload();
+            // `reload` не обновляет раздел, пока у открытого компонента не сохранены правки: меню перечитывается отдельно.
+            void loadComponent?.().catch(() => undefined);
+            refreshCatalog();
+        }
+    };
+
+    const onRestore = async (names: string[], componentIds: string[]) => {
+        if (!editorContext) return;
+
+        setCatalogBusy(true);
+        setCatalogError(undefined);
+        try {
+            for (const componentId of withHiddenDependencies(componentIds)) {
+                await repository.restoreComponent(editorContext, componentId);
+            }
+            const restored = catalog?.find((item) => item.componentId === componentIds[0]);
+            pendingRoute.current = restored ? { platform: restored.platform as Platform, name: names[0] } : undefined;
+            setRestoreOpen(false);
+            setPlatformFilter('all');
+        } catch {
+            setCatalogError('Не удалось вернуть компонент.');
+        } finally {
+            setCatalogBusy(false);
+            reload();
+            // `reload` не обновляет раздел, пока у открытого компонента не сохранены правки: меню перечитывается отдельно.
+            void loadComponent?.().catch(() => undefined);
+            refreshCatalog();
         }
     };
 
     const section =
-        !data || !designSystem || !theme || !components ? null : !platform ? (
-            <Navigate to={componentNavigationTarget('../colors', location.search)} replace />
-        ) : (
-            <Workspace
-                section="components"
-                readOnly={designSystem.getParameters()?.readOnly}
-                menuBackground={'transparent'}
-                menu={
-                    <MenuOld
-                        // Развёрнутая группа берётся из выбора при монтировании: с группами плагина меню собирается заново.
-                        key={`${platform}-${pluginGroups ? 'plugin-groups' : 'default-groups'}`}
-                        header={designSystem.getParameters()?.projectName}
-                        subheader={designSystem.getParameters()?.packagesName}
-                        data={data}
-                        canAdd={false}
-                        canDisable={false}
-                        sectionTitle="Компоненты"
-                        selectedItemIndexes={selectedItemIndexes}
-                        onItemSelect={onItemSelect}
-                        toolbar={
-                            <PlatformSwitch>
-                                <SegmentButton
-                                    label="Платформа"
-                                    items={platformSwitchItems(platforms)}
-                                    selected={platformItems[platform]}
-                                    onSelect={onPlatformSelect}
-                                />
-                            </PlatformSwitch>
-                        }
-                    />
-                }
-                content={
-                    <>
-                        <AutosaveIndicator
-                            status={autosaveStatus}
-                            retry={() => autosaveQueue.current?.retryFailed()}
-                            lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
-                        />
-                        {componentLoading ? (
-                            <EditorLoading text="Загружаем компонент…" />
-                        ) : componentError ? (
-                            <div role="alert">
-                                Не удалось загрузить компонент{' '}
-                                <button type="button" onClick={reload}>
-                                    Повторить
-                                </button>
-                            </div>
-                        ) : (
-                            <ComponentEditor
-                                designSystem={designSystem}
-                                theme={theme}
-                                configs={configs}
-                                updated={updated}
-                                onConfigUpdate={onConfigUpdate}
+        !designSystem || !theme || !components ? null : (
+            <div className="component-editor-screen" style={panel.style as CSSProperties}>
+                <Workspace
+                    section="components"
+                    readOnly={designSystem.getParameters()?.readOnly}
+                    menuBackground={'transparent'}
+                    menuWidth="var(--panel-left, 280px)"
+                    menu={
+                        <>
+                            <ComponentTree
+                                groups={tree}
+                                platform={platformFilter}
+                                selected={selectedConfig?.getName()}
+                                query={query}
+                                searchOpen={searchOpen}
+                                collapsed={collapsed}
+                                editable={!designSystemReadOnly && Boolean(catalog)}
+                                busy={catalogBusy}
+                                removing={removing}
+                                resizer={
+                                    <button
+                                        type="button"
+                                        className="panel-resizer component-tree-resizer"
+                                        aria-label="Ширина панели компонентов"
+                                        title="Изменить ширину панели компонентов"
+                                        {...panel.resizerProps}
+                                    />
+                                }
+                                error={restoreOpen ? undefined : catalogError}
+                                emptyMessage={emptyTreeMessage(
+                                    platforms.length,
+                                    buildComponentTree(componentGroups, platformFilter, '').length,
+                                    platformFilter,
+                                    query,
+                                )}
+                                onPlatform={onPlatformFilter}
+                                onSelect={onTreeSelect}
+                                onRemove={setHideCandidate}
+                                onAdd={() => {
+                                    setCatalogError(undefined);
+                                    refreshCatalog();
+                                    setRestoreOpen(true);
+                                }}
+                                onQuery={setQuery}
+                                onSearchOpen={setSearchOpen}
+                                onToggle={(group) => setCollapsed((value) => ({ ...value, [group]: !value[group] }))}
                             />
-                        )}
-                    </>
-                }
-            />
+                            {hideCandidate && (
+                                <ComponentHideDialog
+                                    name={hideCandidate.name}
+                                    platforms={hiddenLinks(hideCandidate).map(
+                                        ({ platform: item }) =>
+                                            PLATFORM_FILTERS.find(({ id }) => id === item)?.label ?? item,
+                                    )}
+                                    usedBy={[
+                                        ...new Set(hiddenLinks(hideCandidate).flatMap(({ usedBy }) => usedBy)),
+                                    ].filter((name) => name !== hideCandidate.name)}
+                                    onCancel={() => setHideCandidate(undefined)}
+                                    onConfirm={() => {
+                                        setHideCandidate(undefined);
+                                        void onTreeRemove(hideCandidate);
+                                    }}
+                                />
+                            )}
+                            {restoreOpen && (
+                                <ComponentRestoreDialog
+                                    components={hiddenComponents}
+                                    dependenciesOf={hiddenDependencyNames}
+                                    busy={catalogBusy}
+                                    error={catalogError}
+                                    onCancel={() => setRestoreOpen(false)}
+                                    onConfirm={(names, componentIds) => void onRestore(names, componentIds)}
+                                />
+                            )}
+                        </>
+                    }
+                    content={
+                        <>
+                            <AutosaveIndicator
+                                status={autosaveStatus}
+                                retry={() => autosaveQueue.current?.retryFailed()}
+                                lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
+                            />
+                            {!platform ? (
+                                <div role="status">Нет компонента для предпросмотра.</div>
+                            ) : componentLoading ? (
+                                <EditorLoading text="Загружаем компонент…" />
+                            ) : componentError ? (
+                                <div role="alert">
+                                    Не удалось загрузить компонент{' '}
+                                    <button type="button" onClick={reload}>
+                                        Повторить
+                                    </button>
+                                </div>
+                            ) : (
+                                <ComponentEditor
+                                    designSystem={designSystem}
+                                    theme={theme}
+                                    configs={configs}
+                                    updated={updated}
+                                    onConfigUpdate={onConfigUpdate}
+                                />
+                            )}
+                        </>
+                    }
+                />
+            </div>
         );
 
     return (

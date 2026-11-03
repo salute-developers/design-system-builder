@@ -12,15 +12,7 @@ const mocks = vi.hoisted(() => ({
     },
 }));
 
-vi.mock('../../utils', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('../../utils')>()),
-    getOldMenuItems: () => ({
-        groups: [{ data: [{ items: [{ name: 'Button', disabled: false, data: [mocks.config] }] }] }],
-    }),
-}));
-
 vi.mock('../../layouts', () => ({
-    MenuOld: () => <nav aria-label="Компоненты">меню</nav>,
     Workspace: ({ menu, content }: { menu: ReactNode; content: ReactNode }) => (
         <>
             {menu}
@@ -34,7 +26,7 @@ vi.mock('./features/ComponentEditor', () => ({
 }));
 
 vi.mock('../../api/componentRepository', () => ({
-    componentRepository: { saveComponentMutation: vi.fn() },
+    componentRepository: { saveComponentMutation: vi.fn(), loadComponentCatalog: vi.fn(async () => []) },
 }));
 
 vi.mock('../../api/webPreviewPluginRepository', () => ({
@@ -87,7 +79,7 @@ describe('Components: загрузка выбранного компонента
     it('показывает загрузку только вместо настройки и превью, меню остаётся', () => {
         renderPage({ componentLoading: true });
 
-        expect(screen.getByRole('navigation', { name: 'Компоненты' })).toBeInTheDocument();
+        expect(screen.getByRole('complementary', { name: 'Компоненты дизайн-системы' })).toBeInTheDocument();
         expect(screen.getByText('Загружаем компонент…').closest('[role="status"]')).not.toBeNull();
         expect(screen.queryByText('настройка и превью')).not.toBeInTheDocument();
     });
@@ -95,7 +87,7 @@ describe('Components: загрузка выбранного компонента
     it('показывает ошибку компонента с повтором, меню остаётся', () => {
         const reload = renderPage({ componentError: 'сбой' });
 
-        expect(screen.getByRole('navigation', { name: 'Компоненты' })).toBeInTheDocument();
+        expect(screen.getByRole('complementary', { name: 'Компоненты дизайн-системы' })).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
         expect(reload).toHaveBeenCalledTimes(1);
         expect(screen.queryByText('настройка и превью')).not.toBeInTheDocument();
@@ -140,7 +132,7 @@ describe('Components: загрузка выбранного компонента
 
         await vi.waitFor(() => expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledTimes(1));
         expect(screen.queryByTestId('web-preview-host')).not.toBeInTheDocument();
-        expect(screen.getByRole('navigation', { name: 'Компоненты' })).toBeInTheDocument();
+        expect(screen.getByRole('complementary', { name: 'Компоненты дизайн-системы' })).toBeInTheDocument();
     });
 
     it('не спрашивает адрес web-плагина, если в разделе нет web-компонентов', async () => {

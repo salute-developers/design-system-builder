@@ -1,0 +1,508 @@
+/* Корень страницы компонентов без своего фона: свечение оболочки проходит сквозь него и прозрачную панель. */
+.component-editor-screen {
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex: 1;
+}
+
+/* Панель компонентов: разметка и значения боковых панелей страниц токенов, ограниченные своей областью. */
+.component-tree-panel {
+    /* Как у панелей страниц токенов: фон оболочки экрана и прозрачные поверхности поверх него. */
+    --panel: transparent;
+    --panel-control: #ffffff08;
+    --panel-line: #ffffff1a;
+    --panel-text: #f3f3f3;
+    --panel-muted: #9e9fa2;
+    --panel-accent: #6baeff;
+
+    box-sizing: border-box;
+    margin: 0 -0.75rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--panel);
+    color: var(--panel-text);
+    font: 400 12px/16px Inter, system-ui, sans-serif;
+}
+.component-tree-panel {
+    position: relative;
+}
+/* Разделитель ширины — как `panel-resizer` «Типографики»: линия по правому краю панели. */
+.component-tree-panel .component-tree-resizer {
+    position: absolute;
+    top: 0;
+    right: -5px;
+    bottom: 0;
+    z-index: 6;
+    width: 9px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: col-resize;
+}
+.component-tree-panel .component-tree-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 4px;
+    width: 1px;
+    background: transparent;
+    transition: background 0.15s;
+}
+.component-tree-panel .component-tree-resizer:hover::after {
+    background: #4d82ff;
+}
+.component-tree-panel .component-tree-resizer:focus-visible {
+    outline: 2px solid #4d82ff;
+    outline-offset: -2px;
+}
+.component-tree-panel button {
+    font: inherit;
+    cursor: pointer;
+}
+.component-tree-panel button:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+.component-tree-panel .ui-glyph,
+.component-dialog .ui-glyph {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.component-dialog .ui-glyph {
+    stroke-width: 1.8;
+}
+.component-tree-panel .sidebar-header {
+    height: 40px;
+    min-height: 40px;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--panel-line);
+}
+.component-tree-panel .sidebar-header > strong {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    font-weight: 400;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.component-tree-panel .sidebar-header-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+.component-tree-panel .sidebar-header-actions > button {
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+    display: grid;
+    flex: none;
+    place-items: center;
+    box-sizing: border-box;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--panel-muted);
+}
+.component-tree-panel .sidebar-header-actions > button:hover:not(:disabled) {
+    background: var(--panel-control);
+    color: var(--panel-text);
+}
+.component-tree-panel .sidebar-search-field {
+    min-width: 0;
+    flex: 1;
+    height: 24px;
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-sizing: border-box;
+    border: 1px solid #3d3f42;
+    border-radius: 4px;
+    background: var(--panel-control);
+    color: var(--panel-muted);
+}
+.component-tree-panel .sidebar-search-field:focus-within {
+    border-color: var(--panel-accent);
+}
+.component-tree-panel .sidebar-search-field input {
+    min-width: 0;
+    height: 16px;
+    padding: 0;
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--panel-text);
+    font: inherit;
+}
+.component-platform-filter {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: center;
+    height: 40px;
+    min-height: 40px;
+    padding: 7px 12px;
+    gap: 4px;
+    border-bottom: 1px solid var(--panel-line);
+}
+.component-platform-filter > button {
+    width: 100%;
+    height: 24px;
+    min-width: 0;
+    padding: 4px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 5px;
+    color: var(--panel-muted);
+    background: transparent;
+}
+.component-platform-filter > button:hover,
+.component-platform-filter > button.is-active {
+    color: var(--panel-text);
+    background: #ffffff0f;
+}
+.component-platform-filter > button:focus-visible {
+    outline: 1px solid var(--panel-accent);
+    outline-offset: 2px;
+}
+.component-tree-panel .token-tree {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0 12px;
+}
+/* Заголовок группы и строки — вычисленные значения `sdds-component-category-heading` и `sdds-lib-row` прототипа. */
+.component-tree-panel .token-tree-heading {
+    width: 100%;
+    height: 24px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 0;
+    background: transparent;
+    color: #8691a0;
+    font-weight: 600;
+    font-size: 10px;
+    line-height: 12px;
+    letter-spacing: 0.45px;
+    text-align: left;
+    text-transform: uppercase;
+}
+.component-tree-panel .token-tree-heading:hover {
+    color: var(--panel-text);
+}
+.component-tree-panel .token-tree-heading > i {
+    width: 16px;
+    height: 16px;
+    display: grid;
+    flex: 0 0 12px;
+    place-items: center;
+}
+.component-tree-panel .token-tree-heading .ui-glyph {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.8;
+}
+.component-tree-panel .token-row {
+    position: relative;
+    height: 32px;
+    /* Подложка выбора и наведения начинается по краю фильтра платформ (его отступ 12px). */
+    margin: 0 12px;
+    /* Иконка крестика (13px в кнопке 23px) отстоит от правого края на те же 12px, что и текст слева. */
+    padding: 0 7px 0 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 23px;
+    align-items: center;
+    border-radius: 6px;
+}
+.component-tree-panel .token-row:hover {
+    background: var(--panel-control);
+}
+.component-tree-panel .token-row.is-selected {
+    background: #303d50;
+}
+.component-tree-row-main {
+    min-width: 0;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--panel-text);
+    font-size: 12px;
+    line-height: 16px;
+    text-align: left;
+}
+.component-tree-row-main > span {
+    display: block;
+    padding-left: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.component-tree-remove {
+    width: 23px;
+    height: 23px;
+    padding: 4px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--panel-muted);
+    opacity: 0;
+}
+.component-tree-panel .token-row:hover .component-tree-remove:not(:disabled),
+.component-tree-panel .component-tree-remove:focus-visible {
+    opacity: 1;
+}
+/* Общее правило для отключённых кнопок панели не должно показывать скрытые крестики всех строк. */
+.component-tree-panel .component-tree-remove:disabled {
+    opacity: 0;
+}
+.component-tree-panel .token-row.is-removing {
+    opacity: 0.5;
+}
+.component-tree-remove:hover {
+    background: #4b3439;
+    color: #ffb7bf;
+}
+.component-tree-panel .component-tree-remove .ui-glyph {
+    width: 13px;
+    height: 13px;
+}
+.component-tree-empty {
+    margin: 0;
+    padding: 12px;
+    color: var(--panel-muted);
+}
+.component-tree-error {
+    margin: 8px 12px;
+    color: #ff8f98;
+    font-size: 12px;
+    line-height: 16px;
+}
+/* Диалог возврата — вычисленные значения `component-add-dialog` прототипа; чекбоксы добавлены к строкам. */
+/* Диалоги панели на общем `Modal` (`.modal`): значения `component-add-dialog` прототипа поверх его базовых стилей. */
+.modal.component-dialog {
+    width: min(600px, calc(100vw - 32px));
+    max-height: min(720px, calc(100vh - 32px));
+    display: flex;
+    flex-direction: column;
+    border-color: #49525e;
+    background: #252b33;
+    color: #e8edf4;
+    font: 400 16px/1.45 Inter, Arial, sans-serif;
+}
+/* Без специфичности: размеры кнопок задают правила своих блоков. */
+:where(.modal.component-dialog) button {
+    font: inherit;
+    cursor: pointer;
+}
+.modal.component-dialog > header {
+    height: auto;
+    padding: 18px 20px 12px;
+    align-items: flex-start;
+    border-bottom: 1px solid #3a424d;
+}
+.modal.component-dialog > header h2 {
+    margin: 0 0 4px;
+    font: 700 17px/1.45 Inter, Arial, sans-serif;
+}
+.modal.component-dialog > header p {
+    margin: 0;
+    color: #99a4b2;
+    font-size: 11px;
+    line-height: 1.45;
+}
+.modal.component-dialog > header button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    flex: none;
+    place-items: center;
+    border-radius: 5px;
+    color: #aeb8c5;
+}
+.component-restore-toolbar {
+    margin: 12px 12px 8px 21px;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+}
+/* Общий чекбокс в колонке чекбоксов строк: отступ списка 12px и строки 9px. */
+.component-restore-toolbar > input,
+.component-restore-item > input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex: none;
+    accent-color: var(--p-accent, #2b8ced);
+}
+.component-restore-search {
+    height: 34px;
+    min-width: 0;
+    flex: 1;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #3e4652;
+    border-radius: 7px;
+    background: #20252c;
+    color: #8994a3;
+}
+.component-restore-search input {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #e6ebf2;
+    font-size: 12px;
+    font-weight: 600;
+}
+.component-restore-platforms {
+    min-width: 0;
+    margin: 0 20px 10px;
+    padding: 8px 10px;
+    border: 1px solid #3d4652;
+    border-radius: 7px;
+}
+.component-restore-platforms legend {
+    padding: 0 4px;
+    color: #9ba6b4;
+    font-size: 10px;
+    line-height: 1.45;
+}
+.component-restore-platforms > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.component-restore-platforms button {
+    height: 26px;
+    padding: 0 9px;
+    border: 1px solid #3a414b;
+    border-radius: 6px;
+    background: transparent;
+    color: #9fa9b7;
+    font-size: 11px;
+    line-height: 1.45;
+}
+.component-restore-platforms button.is-active {
+    border-color: #46659a;
+    background: #2d3c53;
+    color: #e2ecff;
+}
+.component-restore-platforms button:disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+.component-restore-list {
+    min-height: 140px;
+    overflow: auto;
+    padding: 2px 12px 10px;
+}
+.component-restore-item {
+    width: 100%;
+    min-height: 46px;
+    padding: 6px 9px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-sizing: border-box;
+    border-radius: 6px;
+    color: #dce2ea;
+    cursor: pointer;
+}
+.component-restore-item:hover,
+.component-restore-item.is-selected {
+    background: #303a48;
+}
+.component-restore-item > span {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+.component-restore-item strong {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.45;
+}
+.component-restore-item small {
+    color: #8f9aaa;
+    font-size: 9px;
+    line-height: 1.45;
+    text-transform: uppercase;
+}
+.component-restore-list p {
+    margin: 8px 9px;
+    color: #99a4b2;
+    font-size: 12px;
+}
+.component-dialog > .component-tree-error {
+    margin: 0 20px 10px;
+}
+.modal.component-dialog > footer {
+    padding: 12px 20px 16px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    border-top: 1px solid #3a424d;
+    background: #11161c;
+}
+.modal.component-dialog > footer button {
+    padding: 9px 14px;
+    border: 1px solid #1b1d22;
+    border-radius: 6px;
+    background: #1b1d22;
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.45;
+}
+.modal.component-dialog > footer button.secondary {
+    background: #fff;
+    color: #1b1d22;
+}
+.modal.component-dialog > footer button:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+.modal.component-hide-dialog {
+    width: min(440px, calc(100vw - 32px));
+}
+.component-dialog-text {
+    margin: 0;
+    padding: 16px 20px;
+    color: #c4ccd7;
+    font-size: 12px;
+    line-height: 1.45;
+}
+.component-restore-note {
+    margin: 0 20px 10px;
+    color: #c4ccd7;
+    font-size: 12px;
+    line-height: 1.45;
+}

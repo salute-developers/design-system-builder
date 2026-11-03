@@ -144,29 +144,23 @@ const readComponentLists = async (
     const isWeb = platform === 'web';
     const isCompose = platform === 'compose';
     const empty = <T>() => Promise.resolve({ data: [] as T[] });
-    const [links, catalog, appearances, exported, params, propertyVariations, dependencies] =
-        await Promise.all([
-            readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-            readEditor<ComponentDto[]>(`${root}/components`, request, undefined, 300_000),
-            readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
-            readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-                designSystemId: context.designSystemId,
-                platform,
-                ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
-            }),
-            !componentName && (isWeb || isCompose)
-                ? readEditor<PropertyPlatformParamDto[]>(
-                      `${root}/property-platform-params`,
-                      request,
-                      undefined,
-                      300_000,
-                  )
-                : empty<PropertyPlatformParamDto>(),
-            isWeb
-                ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
-                : empty<PropertyVariationDto>(),
-            readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request, undefined, 300_000),
-        ]);
+    const [links, catalog, appearances, exported, params, propertyVariations, dependencies] = await Promise.all([
+        readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+        readEditor<ComponentDto[]>(`${root}/components`, request, undefined, 300_000),
+        readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
+        readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
+            designSystemId: context.designSystemId,
+            platform,
+            ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
+        }),
+        !componentName && (isWeb || isCompose)
+            ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request, undefined, 300_000)
+            : empty<PropertyPlatformParamDto>(),
+        isWeb
+            ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
+            : empty<PropertyVariationDto>(),
+        readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request, undefined, 300_000),
+    ]);
     const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
     return {
         links: links.data,
@@ -261,34 +255,62 @@ const readEditorBundle = async (
     };
 };
 
+export interface ComponentCatalogEntry {
+    componentId: string;
+    name: string;
+    platform: ComponentDto['platform'];
+    /** Связь с дизайн-системой; `null` — компонент скрыт. */
+    linkId: string | null;
+    /** Компоненты дизайн-системы, которые используют этот: пока они в составе, скрывать его нельзя. */
+    usedBy: string[];
+    /** Идентификаторы компонентов, от которых зависит этот: скрытые возвращаются вместе с ним. */
+    dependsOn: string[];
+}
+
+const readComponentCatalog = async (context: EditorContextKey, signal?: AbortSignal) => {
+    const root = apiRoot(context.projectId);
+    const request = readRequest(context, signal);
+    const [catalog, appearances, links, dependencies] = await Promise.all([
+        readEditor<ComponentDto[]>(`${root}/components`, request, undefined, 300_000),
+        readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
+        readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+        readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request, undefined, 300_000),
+    ]);
+    const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
+    // Без активного билда (и без прямого адреса) Compose-компоненты в навигации не показываются; адрес плагина
+    // запрашивается только когда в каталоге есть настроенные Compose-компоненты.
+    const hasCompose = catalog.data.some(
+        (component) => component.platform === 'compose' && configured.has(component.id),
+    );
+    const pluginUrl = hasCompose
+        ? await resolveComposePreviewPluginUrl(context.projectId, fetchComposePreviewPluginDescriptor).catch(
+              () => undefined,
+          )
+        : undefined;
+    return {
+        components: catalog.data.filter(
+            (component) =>
+                configured.has(component.id) &&
+                (component.platform === 'web' || (component.platform === 'compose' && Boolean(pluginUrl))),
+        ),
+        appearances: appearances.data,
+        dependencies: dependencies.data,
+        linkByComponent: new Map(
+            links.data
+                .filter((link) => link.designSystemId === context.designSystemId)
+                .map((link) => [link.componentId, link.id]),
+        ),
+    };
+};
+
 /** Предметный клиент с ограниченным набором операций. */
 export const componentRepository = {
-    /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей. */
+    /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей: только компоненты, связанные с дизайн-системой. */
     async loadComponentIndex(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
-        const root = apiRoot(context.projectId);
-        const request = readRequest(context, signal);
-        const [catalog, appearances] = await Promise.all([
-            readEditor<ComponentDto[]>(`${root}/components`, request, undefined, 300_000),
-            readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
-        ]);
-        const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
-        // Без активного билда (и без прямого адреса) Compose-компоненты в навигации не показываются; адрес плагина
-        // запрашивается только когда в каталоге есть настроенные Compose-компоненты.
-        const hasCompose = catalog.data.some(
-            (component) => component.platform === 'compose' && configured.has(component.id),
-        );
-        const pluginUrl = hasCompose
-            ? await resolveComposePreviewPluginUrl(context.projectId, fetchComposePreviewPluginDescriptor).catch(
-                  () => undefined,
-              )
-            : undefined;
-        return catalog.data
-            .filter(
-                (component) =>
-                    configured.has(component.id) &&
-                    (component.platform === 'web' || (component.platform === 'compose' && Boolean(pluginUrl))),
-            )
+        const { components, appearances, linkByComponent } = await readComponentCatalog(context, signal);
+        return components
+            .filter((component) => linkByComponent.has(component.id))
             .map(
                 (component) =>
                     ({
@@ -298,15 +320,50 @@ export const componentRepository = {
                         serverBinding: {
                             componentId: component.id,
                             appearanceId:
-                                appearances.data.find((appearance) => appearance.componentId === component.id)?.id ??
-                                '',
-                            appearanceNames: appearances.data
+                                appearances.find((appearance) => appearance.componentId === component.id)?.id ?? '',
+                            appearanceNames: appearances
                                 .filter((appearance) => appearance.componentId === component.id)
                                 .map((appearance) => appearance.name ?? 'default'),
                         },
                         sources: { api: [], variations: [], configs: [] },
                     }) as Meta,
             );
+    },
+
+    /** Состав дизайн-системы: скрытый компонент сохраняет оформление, но не имеет связи. */
+    async loadComponentCatalog(context: EditorContextKey, signal?: AbortSignal): Promise<ComponentCatalogEntry[]> {
+        if (!isComponentEditorEnabled()) return [];
+        const { components, dependencies, linkByComponent } = await readComponentCatalog(context, signal);
+        const names = new Map(components.map((component) => [component.id, component.name]));
+        return components.map((component) => ({
+            componentId: component.id,
+            name: component.name,
+            platform: component.platform,
+            linkId: linkByComponent.get(component.id) ?? null,
+            usedBy: [
+                ...new Set(
+                    dependencies
+                        .filter(({ childId, parentId }) => childId === component.id && linkByComponent.has(parentId))
+                        .map(({ parentId }) => names.get(parentId))
+                        .filter((name): name is string => Boolean(name)),
+                ),
+            ].sort(),
+            dependsOn: dependencies
+                .filter(({ parentId, childId }) => parentId === component.id && names.has(childId))
+                .map(({ childId }) => childId),
+        }));
+    },
+
+    async hideComponent(context: EditorContextKey, linkId: string): Promise<void> {
+        await http.delete(`${apiRoot(context.projectId)}/design-system-components/${linkId}`);
+    },
+
+    async restoreComponent(context: EditorContextKey, componentId: string): Promise<void> {
+        await http.post(
+            `${apiRoot(context.projectId)}/design-system-components`,
+            { designSystemId: context.designSystemId, componentId },
+            { headers: { 'Idempotency-Key': crypto.randomUUID() } },
+        );
     },
 
     async loadComponentData(
