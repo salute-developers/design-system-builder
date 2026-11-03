@@ -129,20 +129,24 @@ class TypographyStyleHttpPostgresIntegrationTest {
         assertTrue(db.text(bound).toInt() > before)
         assertFalse(hasStyle(read, "body", "xs"))
 
-        // Комбинация стилей ссылается на удаляемый стиль текстом: после удаления ссылка пустая, а не имя стиля.
-        val combination = db.addCombination(designSystemId, "body.xl.normal")
-        val xl = style(read, "screen-l", "body", "xl").obj("variants").obj("bold").text("tokenId")
-        api.reject("DELETE", "$base/$xl", EDITOR, null, 403)
-        assertEquals(9, api.reject("DELETE", "$base/$xl", OWNER, null, 200).array("tokenIds").size)
-        read = api.read(base, VIEWER)
-        assertFalse(hasStyle(read, "body", "xl"))
-        assertEquals(
-            "",
-            db.text(
-                "SELECT value FROM style_combination_revisions WHERE style_combination_id = '$combination' " +
-                    "ORDER BY version_sequence_number DESC, updated_at DESC LIMIT 1",
-            ),
+        // Комбинации стилей ссылаются на удаляемый стиль текстом и по `token_id`. Текстовую ссылку переименование
+        // привязывает по `token_id`, сохраняя текст; после удаления обе ссылки пустые, а не имя стиля.
+        val medium = style(read, "screen-s", "body", "xl").obj("variants").obj("medium").text("tokenId")
+        val combinations = listOf(
+            db.addCombination(designSystemId, "body.xl.normal"),
+            db.addCombination(designSystemId, "body.xl.medium", medium, slot = 1),
         )
+        api.patch("$base/$medium/name", EDITOR, """{"size":"xxl"}""")
+        val renamed = combinations.map { db.combination(it) }
+        assertTrue(renamed.all { it.second != null }, renamed.toString())
+        assertEquals(listOf("body.xl.normal", "body.xl.medium"), renamed.map { it.first })
+        read = api.read(base, VIEWER)
+        val xxl = style(read, "screen-l", "body", "xxl").obj("variants").obj("bold").text("tokenId")
+        api.reject("DELETE", "$base/$xxl", EDITOR, null, 403)
+        assertEquals(9, api.reject("DELETE", "$base/$xxl", OWNER, null, 200).array("tokenIds").size)
+        read = api.read(base, VIEWER)
+        assertFalse(hasStyle(read, "body", "xxl"))
+        assertEquals(listOf("" to null, "" to null), combinations.map { db.combination(it) })
     }
 
     /**
@@ -555,13 +559,14 @@ class TypographyStyleHttpPostgresIntegrationTest {
         }
 
         /**
-         * Новая комбинация стилей в черновике со значением [value] у свойства первого значения вариации дизайн-системы;
-         * результат — идентификатор комбинации.
+         * Новая комбинация стилей в черновике со значением [value] и ссылкой [tokenId] у свойства значения вариации
+         * дизайн-системы номер [slot]; результат — идентификатор комбинации.
          */
-        fun addCombination(designSystemId: String, value: String): String {
+        fun addCombination(designSystemId: String, value: String, tokenId: String? = null, slot: Int = 0): String {
             val source = activeRevisionTestSql(
                 "SELECT property_id || ',' || style_id || ',' || appearance_id || ',' || state_set_id " +
-                    "FROM variation_property_values WHERE design_system_id = '$designSystemId' ORDER BY id LIMIT 1",
+                    "FROM variation_property_values WHERE design_system_id = '$designSystemId' " +
+                    "ORDER BY id LIMIT 1 OFFSET $slot",
             )
             val (property, style, appearance, stateSet) = text(source).split(',')
             val draft = text(
@@ -578,10 +583,10 @@ class TypographyStyleHttpPostgresIntegrationTest {
                         INSERT INTO style_combinations(id, property_id, appearance_id, design_system_id)
                             VALUES ('$combination', '$property', '$appearance', '$designSystemId');
                         INSERT INTO style_combination_revisions(style_combination_id, design_system_id,
-                            design_system_version_id, version_sequence_number, combination_key, value, position,
-                            state_set_id)
+                            design_system_version_id, version_sequence_number, combination_key, value, token_id,
+                            position, state_set_id)
                             VALUES ('$combination', '$designSystemId', '${draft[0]}', ${draft[1]}, '$style',
-                                '$value', 0, '$stateSet');
+                                '$value', ${tokenId?.let { "'$it'" } ?: "NULL"}, 0, '$stateSet');
                         INSERT INTO style_combination_members(id, combination_id, design_system_id)
                             VALUES ('$member', '$combination', '$designSystemId');
                         INSERT INTO style_combination_member_revisions(style_combination_member_id, design_system_id,
@@ -594,6 +599,12 @@ class TypographyStyleHttpPostgresIntegrationTest {
             }
             return combination
         }
+
+        /** Текст и `token_id` последней редакции комбинации [combination]. */
+        fun combination(combination: String): Pair<String, String?> = query(
+            "SELECT value, token_id FROM style_combination_revisions WHERE style_combination_id = '$combination' " +
+                "ORDER BY version_sequence_number DESC, updated_at DESC LIMIT 1",
+        ) { rows -> rows.next().let { rows.getString(1) to rows.getString(2) } }
 
         /** Использование стиля [style] по выборке из действующих значений свойств компонентов дизайн-системы. */
         fun usage(designSystemId: String, style: String, tokenId: String): Map<String, Int> {

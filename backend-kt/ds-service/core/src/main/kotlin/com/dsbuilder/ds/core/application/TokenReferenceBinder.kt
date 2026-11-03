@@ -16,4 +16,11 @@ interface TokenReferenceBinder {
      * меняются: их очищает [TokenReferenceCleaner].
      */
     suspend fun detach(designSystemId: UUID, rowIds: Set<UUID>)
+
+    /**
+     * Делает пустыми ссылки комбинаций стилей на удаляемые токены [tokenIds] по `token_id` вместе с их текстом:
+     * общая очистка оставляет текст комбинации запасным значением, а для токенов, имя которых повторяет текст
+     * (стиль типографики), запасное значение было бы ссылкой на удалённый токен.
+     */
+    suspend fun detachCombinations(designSystemId: UUID, tokenIds: Set<UUID>)
 }

@@ -22,6 +22,34 @@ class ExposedTokenReferenceBinder : TokenReferenceBinder {
 
     override suspend fun detach(designSystemId: UUID, rowIds: Set<UUID>) = write(designSystemId, null, rowIds)
 
+    override suspend fun detachCombinations(designSystemId: UUID, tokenIds: Set<UUID>) {
+        if (tokenIds.isEmpty()) return
+        val table = StyleCombinationsTable
+        fun rows(ids: Collection<UUID>? = null) = table.selectAll().where {
+            val bound = (table.designSystemId eq designSystemId) and (table.tokenId inList tokenIds)
+            if (ids == null) bound else bound and (table.id inList ids)
+        }.map { it[table.id] to it }.sortedBy { it.first }
+        val ids = rows().map { it.first }
+        if (ids.isEmpty()) return
+        check(lockDraftSubjects(designSystemId, "style-combination", ids))
+        SubjectMutationPaths.withoutBaseComparison {
+            // После блокировки читаем заново: параллельное редактирование могло уже сменить ссылку.
+            StyleCombinationRevisionsTable.detachTokenReferences(
+                StyleCombinationRevisionsTable.entityId,
+                designSystemId,
+                rows(ids),
+            ) { statement, current ->
+                statement[tokenId] = null
+                statement[combinationKey] = current[table.combinationKey]
+                statement[value] = ""
+                statement[alpha] = current[table.alpha]
+                statement[adjustment] = current[table.adjustment]
+                statement[position] = current[table.position]
+                statement[stateSetId] = current[table.stateSetId]
+            }
+        }
+    }
+
     /** Привязка к токену [tokenId] или, при `null`, пустая ссылка вместо текста. */
     private fun write(designSystemId: UUID, tokenId: UUID?, rowIds: Set<UUID>) {
         if (rowIds.isEmpty()) return
