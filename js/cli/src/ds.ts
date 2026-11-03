@@ -7,14 +7,16 @@ import { generateComponentsFiles } from './generator/generate.ts';
 import { CORE_VERSION, cliDirectory, writePackagePart } from './package-output.ts';
 import { readThemeSetSource } from './theme-source.ts';
 import { resolveLocalThemes } from './local-theme-source.ts';
+import { isEntrypoint } from './entrypoint.ts';
 
 /**
  * Генерирует дизайн-систему целиком: тему и компоненты из .sdds одним запуском.
  * Без `--package` в `output` заменяются `src/theme` и `src/components`; с `--package` в `output` пишется
  * папка полного пакета без сборки. К бэкенду CLI не обращается.
  */
-async function main() {
+export async function main(args: string[] = process.argv.slice(2)) {
     const { values } = parseArgs({
+        args,
         options: {
             sdds: { type: 'string', default: join(cliDirectory, '.sdds') },
             components: { type: 'string' },
@@ -85,7 +87,9 @@ the package files and replaces src. Build it with npm install && npm run build, 
     console.log(`Generated ${result}`);
 }
 
-main().catch((error) => {
-    console.error('Failed to generate the design system:', error);
-    process.exitCode = 1;
-});
+if (isEntrypoint(import.meta.url)) {
+    main().catch((error) => {
+        console.error('Failed to generate the design system:', error);
+        process.exitCode = 1;
+    });
+}

@@ -17,7 +17,18 @@ import {
 
 import { BaseFileStructure, ComponentManifest, ComponentsFiles } from './types/index.ts';
 import { Config, Meta } from './componentBuilder/index.ts';
-import { getPlasmaConfigName, NPM_PACKAGE_SCOPE } from './utils/index.ts';
+import { getPlasmaConfigName, resolveNpmPackageScope } from './utils/index.ts';
+
+/**
+ * Служебные файлы заготовки хранятся без точки: npm не включает `.gitignore` и `.npmrc` в опубликованный
+ * генератор, а вложенный `.npmignore` исключил бы `tsconfig.json` заготовки. Имя с точкой
+ * возвращается при копировании в пакет.
+ */
+const TEMPLATE_DOTFILES: Record<string, string> = {
+    gitignore: '.gitignore',
+    npmignore: '.npmignore',
+    npmrc: '.npmrc',
+};
 
 export const generateBaseFileStructure = async ({
     pathToDir,
@@ -27,6 +38,9 @@ export const generateBaseFileStructure = async ({
     hasComponents,
     hasTheme = true,
 }: BaseFileStructure) => {
+    // Scope проверяется до очистки каталога: неверная переменная не должна стирать прошлый результат.
+    const packageScope = resolveNpmPackageScope();
+
     // Полностью очищаем прошлый результат: иначе остаются старые node_modules/package-lock.json
     // и `npm install` при сборке подтягивает устаревшую версию @salutejs/plasma-new-hope.
     await fs.remove(pathToDir);
@@ -34,6 +48,9 @@ export const generateBaseFileStructure = async ({
 
     const constantsDir = path.join(import.meta.dirname, 'constants');
     await fs.copy(constantsDir, pathToDir);
+    for (const [stored, name] of Object.entries(TEMPLATE_DOTFILES)) {
+        await fs.move(path.join(pathToDir, stored), path.join(pathToDir, name), { overwrite: true });
+    }
 
     const packageJSON = createPackageJSON({
         packageName,
@@ -41,7 +58,7 @@ export const generateBaseFileStructure = async ({
         coreVersion,
         hasComponents,
         hasTheme,
-        packageScope: NPM_PACKAGE_SCOPE,
+        packageScope,
     });
     await fs.writeFile(`${pathToDir}/package.json`, packageJSON);
 

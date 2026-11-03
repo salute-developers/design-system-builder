@@ -5,9 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-// `utils` генератора требует scope пакета при импорте; скрипты берут его из js/.env, тест задаёт сам.
-process.env.NPM_PACKAGE_SCOPE ??= '@test-scope';
-const { cliDirectory, writePackagePart } = await import('./package-output.ts');
+import { resolveNpmPackageScope } from './generator/utils/index.ts';
+import { TEMPORARY_PREFIX, writePackagePart } from './package-output.ts';
 
 let output: string;
 
@@ -48,7 +47,7 @@ const runWithOpenStdin = (command: string, cwd: string, timeoutMs: number) =>
         });
     });
 
-const temporaryDirectories = async () => (await readdir(cliDirectory)).filter((name) => name.startsWith('result-'));
+const temporaryDirectories = async () => (await readdir(tmpdir())).filter((name) => name.startsWith(TEMPORARY_PREFIX));
 
 beforeEach(async () => {
     output = join(await mkdtemp(join(tmpdir(), 'dsbuilder-package-')), 'output');
@@ -83,7 +82,7 @@ describe('writePackagePart', () => {
         const packageJson = JSON.parse(await readFile(join(output, 'package.json'), 'utf8'));
         assert.equal(packageJson.scripts.lint, undefined);
         assert.doesNotMatch(packageJson.scripts.build, /lint/);
-        assert.equal(packageJson.name, `${process.env.NPM_PACKAGE_SCOPE}/brand`);
+        assert.equal(packageJson.name, `${resolveNpmPackageScope()}/brand`);
         assert.equal(packageJson.version, '1.2.3');
         // src — ровно части нового пакета; прочее содержимое output остаётся.
         assert.deepEqual((await readdir(join(output, 'src'))).sort(), ['index.ts', 'theme']);

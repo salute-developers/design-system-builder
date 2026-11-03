@@ -6,14 +6,17 @@
 содержимое файлов может отличаться от удалённого `cli/theme-builder` в обработке отсутствующих значений,
 старых токенов Plasma и форматировании.
 Нужны только зависимости самого CLI (`npm ci` в `js/cli`).
-`generate:theme`, `generate:components` и `generate:ds` загружают `js/.env`, если он есть: генератору нужен
-`NPM_PACKAGE_SCOPE` (scope пакета). `generate:api-meta` переменных окружения не требует.
+`generate:theme`, `generate:components` и `generate:ds` загружают `js/.env`, если он есть. Scope
+генерируемого пакета задаёт необязательная `NPM_PACKAGE_SCOPE`, по умолчанию `@sddsjs`; переменная
+действует и при запуске через `dsbuilder` (`NPM_PACKAGE_SCOPE=@acme dsbuilder ds generate --platform react`).
+`generate:api-meta` переменных окружения не требует.
 
 Тема и компоненты генерируются раздельно, как у Android: `generate:theme` — только тема,
 `generate:components` — только компоненты; `generate:ds` — обе части одним запуском, а с `--package` —
 папка одного полного пакета (`dsbuilder ds generate`). Из общего CLI их запускает
 `dsbuilder theme generate --platform react` и `dsbuilder components generate --platform react`:
-делегат платформы `web` ищет этот каталог по `--tool` или переменной `DSBUILDER_WEB_TOOL`.
+делегат платформы `web` берёт этот каталог по `--tool` или переменной `DSBUILDER_WEB_TOOL`, а без них —
+установленный пакет (см. «npm-пакет»).
 
 Из `js/cli`:
 
@@ -85,6 +88,45 @@ npm run generate:ds -- --package --name base
 и `npm pack`. Сборка копирует CSS темы, собирает компоненты babel, CSS-версию rollup и типы tsc;
 eslint в ней нет, и `src` она не меняет. CLI не обращается к бэкенду и не публикует пакет.
 `component-configs.json` генерацией не используется.
+
+# npm-пакет
+
+`js/cli` публикуется в npm как `@sddsjs/design-system-builder-generator` с командой
+`dsbuilder-web-generator`. Её ставит `dsbuilder toolchain install web` в `~/.dsbuilder/toolchains/web`
+(`npm install --global --prefix`, без `sudo`), и через неё делегат `web` генерирует React без клона
+репозитория. Нужны Node.js 22+ и npm.
+
+```sh
+dsbuilder-web-generator theme|components|ds [опции npm run generate:*]
+dsbuilder-web-generator --version
+```
+
+Подкоманды повторяют `generate:theme`, `generate:components` и `generate:ds` с теми же опциями; без
+`--sdds` и `--out` команда читает `./.sdds` и пишет в `./output` текущего каталога. Точка входа —
+`bin/dsbuilder-web-generator.js`: она подключает загрузчик `tsx` и вызывает `main(args)` из `src/*.ts`.
+Поэтому `tsx`, `typescript`, `@salutejs/plasma-new-hope`, `@salutejs/plasma-tokens-utils`, `fs-extra`,
+а также `react` и `react-dom` лежат в `dependencies`: последние две закрепляют peer-зависимости
+`plasma-new-hope`, без них `npm install --global` зацикливается на подборе версии React.
+Временный каталог сборки создаётся в системном `tmpdir`, а не в каталоге пакета.
+
+Служебные файлы заготовки пакета (`src/generator/constants`) хранятся без точки — `gitignore`,
+`npmignore`, `npmrc` — и получают её при копировании в сгенерированный пакет: npm не включает
+`.gitignore` и `.npmrc` в опубликованный архив, а вложенный `.npmignore` исключил бы `tsconfig.json`.
+
+## Публикация
+
+Пакет публикуется вручную владельцем scope `@salutejs`:
+
+1. Поднять `version` в `package.json` (`npm version patch --no-git-tag-version`) и закоммитить.
+2. Проверить архив: `npm pack --dry-run` (нет тестов, `.sdds`, `output`; есть `bin`, `src`, шаблоны
+   и `src/generator/constants`) и `sh scripts/check-global-install.sh` — глобальная установка архива в
+   отдельный prefix и генерация из постороннего каталога; с путём к `.sdds` в аргументе генерируется
+   дизайн-система целиком.
+3. `npm publish` в `js/cli`: `prepublishOnly` запускает проверку типов и тесты, `publishConfig.access`
+   равен `public`.
+
+Сначала публикуется генератор, затем выпускается `dsbuilder` (`cli-vX.Y.Z`), который его ставит:
+иначе установщики CLI выведут предупреждение о ненайденном пакете.
 
 # Метаданные Style API
 

@@ -1,4 +1,5 @@
 import { cp, mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,6 +9,9 @@ import { CORE_VERSION } from './generator/utils/index.ts';
 export { CORE_VERSION };
 
 export const cliDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Префикс временного каталога сборки в системном `tmpdir`. */
+export const TEMPORARY_PREFIX = 'dsbuilder-web-build-';
 
 /** Служебное имя временного пакета, когда собираются только исходники. */
 const SOURCES_ONLY_PACKAGE_NAME = 'design-system';
@@ -33,7 +37,8 @@ export interface PackagePartOptions {
 /**
  * Генерирует части пакета и кладёт результат в `output`.
  *
- * Пакет целиком собирается во временном каталоге `result-*` внутри `js/cli`. Без `pack` в `output`
+ * Пакет целиком собирается во временном каталоге `dsbuilder-web-build-*` системного `tmpdir`: каталог
+ * установленного генератора может быть недоступен для записи. Без `pack` в `output`
  * попадают только исходники частей (`src/theme`, `src/components` и корневой индекс), остальные части
  * не трогаются. С `pack` — вся папка пакета без сборки: файлы заготовки и `package.json` перезаписываются,
  * `src` заменяется целиком, прочее содержимое `output` (например, `node_modules`) остаётся.
@@ -43,7 +48,7 @@ export async function writePackagePart(options: PackagePartOptions): Promise<str
     if (pack && !options.packageName) {
         throw new Error('--name is required with --package: it is the name of the published package.');
     }
-    const pathToDir = await mkdtemp(join(cliDirectory, 'result-'));
+    const pathToDir = await mkdtemp(join(tmpdir(), TEMPORARY_PREFIX));
     try {
         await generateBaseFileStructure({
             pathToDir,
