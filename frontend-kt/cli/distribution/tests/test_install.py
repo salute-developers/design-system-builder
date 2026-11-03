@@ -203,6 +203,35 @@ class InstallTest(unittest.TestCase):
         result = subprocess.run(['sh', str(installer)], env=self.env, capture_output=True, text=True)
         self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_local_macos_installer_works_without_ios_cli(self):
+        self.archive = make_archive(self.version_dir, 'macos-arm64', include_ios=False)
+        package = self.root / 'unpacked-macos'
+        with zipfile.ZipFile(self.archive) as archive:
+            archive.extractall(package)
+        self.stop_server()
+
+        installer = package / 'dsbuilder-cli-macos-arm64/install.sh'
+        result = subprocess.run(['sh', str(installer)], env=self.env, capture_output=True, text=True)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue((Path(self.env['DSBUILDER_INSTALL_DIR']) / 'dsbuilder').exists())
+        self.assertFalse((Path(self.env['HOME']) / '.dsbuilder/toolchains/ios').exists())
+
+    def test_release_macos_installer_can_skip_bundled_ios_cli(self):
+        self.archive = make_archive(self.version_dir, 'macos-arm64')
+        package = self.root / 'unpacked-macos-release'
+        with zipfile.ZipFile(self.archive) as archive:
+            archive.extractall(package)
+        self.stop_server()
+
+        installer = package / 'dsbuilder-cli-macos-arm64/install.sh'
+        result = subprocess.run(['sh', str(installer), '--without-ios'], env=self.env,
+                                capture_output=True, text=True)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue((Path(self.env['DSBUILDER_INSTALL_DIR']) / 'dsbuilder').exists())
+        self.assertFalse((Path(self.env['HOME']) / '.dsbuilder/toolchains/ios').exists())
+
     def test_link_failure_rolls_back_binary(self):
         self.run_install('--target', 'jvm')
         old = (Path(self.env['DSBUILDER_INSTALL_DIR']) / 'bin/dsbuilder').read_bytes()

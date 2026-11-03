@@ -12,7 +12,7 @@ release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 
 
-def make_archive(directory, target, binary=b'#!/bin/sh\necho fixture\n', ios_tag='release-14-10-2026'):
+def make_archive(directory, target, binary=b'#!/bin/sh\necho fixture\n', ios_tag='release-14-10-2026', include_ios=True):
     root = f'dsbuilder-cli-{target}'
     files = {'USAGE.md': b'fixture'}
     if target == 'windows-x64':
@@ -23,7 +23,7 @@ def make_archive(directory, target, binary=b'#!/bin/sh\necho fixture\n', ios_tag
         files['bin/dsbuilder' if target == 'jvm' else 'dsbuilder'] = binary
         if target == 'jvm':
             files['lib/fixture.jar'] = b'fixture'
-        if target == 'macos-arm64':
+        if target == 'macos-arm64' and include_ios:
             ios_data = BytesIO()
             with zipfile.ZipFile(ios_data, 'w') as ios:
                 ios.writestr('dsbuilder-ios-cli/dsbuilder-ios', b'ios fixture')
@@ -78,11 +78,23 @@ class ReleaseTest(unittest.TestCase):
 
     def test_manifest_and_rendered_scripts(self):
         manifest = json.loads((self.directory / 'release.json').read_bytes())
+        self.assertEqual('release-14-10-2026', manifest['iosCliReleaseTag'])
         self.assertEqual(set(release.TARGETS), set(manifest['artifacts']))
         for artifact in manifest['artifacts'].values():
             self.assertEqual(release.digest((self.directory / artifact['file']).read_bytes()), artifact['sha256'])
         self.assertIn('https://example.invalid/cli', (self.directory / 'install.sh').read_text())
         self.assertNotIn('@CLI_DOWNLOAD_BASE_URL@', (self.directory / 'install.ps1').read_text())
+
+    def test_stable_sync_rejects_ios_tag_that_differs_from_archived_tool(self):
+        release.upload(self.store, self.directory, '1.2.3')
+        key = 'releases/1.2.3/release.json'
+        manifest = json.loads(self.store.data[key])
+        manifest['iosCliReleaseTag'] = 'different-release'
+        self.store.data[key] = release.json_bytes(manifest)
+
+        with self.assertRaisesRegex(ValueError, 'iOS CLI tag does not match'):
+            release.sync_stable(self.store, self.stable_file)
+        self.assertNotIn('stable.json', self.store.data)
 
     def test_missing_archive_prevents_preparation(self):
         (self.directory / 'dsbuilder-cli-jvm.zip').unlink()
@@ -103,6 +115,9 @@ class ReleaseTest(unittest.TestCase):
 
     def test_arm64_requires_valid_ios_cli_and_other_targets_exclude_it(self):
         arm = self.directory / 'dsbuilder-cli-macos-arm64.zip'
+        make_archive(self.directory, 'macos-arm64', include_ios=False)
+        with self.assertRaisesRegex(ValueError, 'missing its bundled iOS CLI'):
+            release.validate_archive(arm, 'macos-arm64')
         for tag in ('unsafe/tag', 'current'):
             with self.subTest(tag=tag):
                 make_archive(self.directory, 'macos-arm64', ios_tag=tag)

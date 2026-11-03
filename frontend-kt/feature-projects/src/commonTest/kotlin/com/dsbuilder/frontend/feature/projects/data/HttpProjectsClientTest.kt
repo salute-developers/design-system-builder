@@ -1,7 +1,9 @@
 package com.dsbuilder.frontend.feature.projects.data
 
 import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.network.KtorAuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.feature.projects.application.Project
 import com.dsbuilder.frontend.feature.projects.application.ProjectsReadErrorCode
@@ -83,5 +85,46 @@ class HttpProjectsClientTest {
 
         assertIs<ProjectsReadResult.Failed>(result)
         assertEquals(ProjectsReadErrorCode.INVALID_BACKEND_RESPONSE, result.code)
+    }
+
+    @Test
+    fun backendFailureKeepsTheHttpStatusForDiagnosis() = runTest {
+        val client = HttpProjectsClient(factory { HttpStatusCode.InternalServerError to "fixture-secret" })
+
+        val result = assertIs<ProjectsReadResult.Failed>(
+            client.listProjects("https://gateway.example.com", BackendCredential.Bearer("access-a")),
+        )
+
+        assertEquals(ProjectsReadErrorCode.BACKEND_UNAVAILABLE, result.code)
+        kotlin.test.assertTrue(result.message.contains("HTTP 500"), result.message)
+        kotlin.test.assertTrue(!result.message.contains("fixture-secret"), result.message)
+    }
+
+    @Test
+    fun transportFailureKeepsTheSafeDiagnostic() = runTest {
+        val factory = object : AuthenticatedHttpClientFactory {
+            override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient = create(
+                apiUrl,
+                BackendCredential.ProjectKey(apiKey),
+            )
+
+            override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =
+                object : AuthenticatedHttpClient {
+                    override suspend fun get(path: String): AuthenticatedHttpResult =
+                        AuthenticatedHttpResult.Failure("Status: failed. Connection refused.")
+
+                    override suspend fun post(path: String, body: String): AuthenticatedHttpResult =
+                        error("Unexpected POST")
+                }
+        }
+        val result = assertIs<ProjectsReadResult.Failed>(
+            HttpProjectsClient(factory).listProjects(
+                "https://gateway.example.com",
+                BackendCredential.Bearer("access-a"),
+            ),
+        )
+
+        assertEquals(ProjectsReadErrorCode.BACKEND_UNAVAILABLE, result.code)
+        assertEquals("Status: failed. Connection refused.", result.message)
     }
 }

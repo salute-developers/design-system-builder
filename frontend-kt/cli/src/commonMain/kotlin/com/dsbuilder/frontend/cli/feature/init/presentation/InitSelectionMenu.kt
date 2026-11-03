@@ -23,6 +23,9 @@ public interface InitSelectionMenu {
 
     /** Выбирает ID; null означает Ctrl+C либо закрытый ввод. */
     public fun select(terminal: Terminal, title: String, choices: List<InitChoice>): String?
+
+    /** Выбирает несколько ID; пустой список означает пропуск, null — отмену. */
+    public fun selectMultiple(terminal: Terminal, title: String, choices: List<InitChoice>): List<String>?
 }
 
 /** Оконное меню поверх готовых событий клавиатуры Mordant. */
@@ -63,6 +66,60 @@ internal class MordantInitSelectionMenu(private val environment: EnvironmentRead
         }
     }
 
+    override fun selectMultiple(terminal: Terminal, title: String, choices: List<InitChoice>): List<String>? {
+        require(choices.isNotEmpty())
+        val guard = preserveInitConsole()
+        val cursor = InitMenuCursor(choices.size)
+        val selected = mutableSetOf<String>()
+        fun snapshot() = InitMultiSelection(cursor.index, selected.toSet())
+        val display = terminal.animation<InitMultiSelection> { state ->
+            val width = (terminal.size.width - 4).coerceAtLeast(1)
+            val rows = (terminal.size.height - 5).coerceIn(1, 12)
+            val first = (state.cursor - rows + 1).coerceAtLeast(0)
+            SelectList(
+                entries = choices.drop(first).take(rows).map { choice ->
+                    val marker = if (choice.id in state.selected) "[x]" else "[ ]"
+                    SelectList.Entry(safeMenuText("$marker ${choice.name}").take(width), description = null as String?)
+                },
+                title = Text(safeMenuText(title).take(width)),
+                cursorIndex = state.cursor - first,
+                captionBottom = Text(
+                    "↑/↓, Space — отметить, Enter — далее, Ctrl+C — отменить (${state.selected.size})".take(width),
+                ),
+            )
+        }
+        try {
+            terminal.enterRawMode().use { input ->
+                display.update(snapshot())
+                return readMultipleSelection(input, choices, cursor, selected) { display.update(snapshot()) }
+            }
+        } finally {
+            try { display.clear() } finally { guard.close() }
+        }
+    }
+
+    private fun readMultipleSelection(
+        input: RawModeScope,
+        choices: List<InitChoice>,
+        cursor: InitMenuCursor,
+        selected: MutableSet<String>,
+        update: () -> Unit,
+    ): List<String>? {
+        while (true) {
+            val event = input.readKey()
+            when {
+                event.isCtrlC || (event.ctrl && event.key == "d") -> return null
+                event.key == "Enter" -> return choices.filter { it.id in selected }.map { it.id }
+                event.key == " " || event.key == "Space" -> {
+                    val id = choices[cursor.index].id
+                    if (!selected.add(id)) selected.remove(id)
+                }
+                else -> cursor.move(event.key)
+            }
+            update()
+        }
+    }
+
     private fun readSelection(
         input: RawModeScope,
         choices: List<InitChoice>,
@@ -82,6 +139,8 @@ internal class MordantInitSelectionMenu(private val environment: EnvironmentRead
         }
     }
 }
+
+private data class InitMultiSelection(val cursor: Int, val selected: Set<String>)
 
 /** Ограниченный курсор списка, независимый от терминального ввода. */
 internal class InitMenuCursor(private val count: Int) {

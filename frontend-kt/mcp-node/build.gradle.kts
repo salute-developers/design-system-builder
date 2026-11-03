@@ -35,6 +35,10 @@ kotlin {
             implementation(libs.ktor.client.js)
             implementation(libs.okio)
         }
+        jsTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+        }
     }
 }
 

@@ -91,6 +91,7 @@ class DesignSystemsDiscoveryTest {
         val result = assertIs<DesignSystemsReadResult.Failed>(useCase.execute("project"))
         assertEquals(DesignSystemsReadErrorCode.FORBIDDEN, result.code)
         assertFalse(result.message.contains("fixture-secret"))
+        assertFalse(result.message.contains("auth login"))
     }
 
     @Test

@@ -17,6 +17,7 @@ import com.dsbuilder.frontend.cli.feature.toolchain.di.toolchainCliPresentationM
 import com.dsbuilder.frontend.cli.presentation.RootCliCommand
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.application.coreApplicationModule
+import com.dsbuilder.frontend.core.auth.CredentialStoreLockException
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
 import com.dsbuilder.frontend.core.platform.ToolchainInstallerRegistry
 import com.dsbuilder.frontend.core.platform.corePlatformModule
@@ -193,6 +194,9 @@ private fun RootCliCommand.executeForResult(args: List<String>): CliResult {
     } catch (error: CliktError) {
         echoFormattedHelp(error)
         exitCode = error.statusCode
+    } catch (error: CredentialStoreLockException) {
+        echo(error.message)
+        exitCode = 1
     }
 
     return CliResult(
@@ -208,6 +212,9 @@ private fun RootCliCommand.executeDirectly(args: List<String>): Int {
     } catch (error: CliktError) {
         echoFormattedHelp(error)
         exitCode = error.statusCode
+    } catch (error: CredentialStoreLockException) {
+        echo(error.message)
+        exitCode = 1
     }
     return exitCode
 }

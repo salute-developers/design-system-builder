@@ -8,20 +8,33 @@
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`. Новые vars: `CLI_S3_PREFIX` и
 `CLI_DOWNLOAD_BASE_URL` (публичный HTTPS-корень, без credentials).
 `CLI_RELEASE_TAG=cli-vX.Y.Z` задаёт версию сборки; без него используется `0.1.0`.
-GitHub variable `IOS_CLI_RELEASE_TAG` задаёт точный тег релиза plasma-ios. Workflow скачивает
-ассет `dsbuilder-ios-cli-<tag>.zip`, сверяет его SHA-256 с GitHub release API и включает
+Файл `ios-cli-release.txt` в Git задаёт точный тег релиза plasma-ios для данного
+тега CLI. Workflow читает его после checkout тега CLI, скачивает ассет
+`dsbuilder-ios-cli-<tag>.zip`, сверяет его SHA-256 с GitHub release API и включает
 только в `dsbuilder-cli-macos-arm64.zip`. Локальный установщик ставит его из вложенного
 архива через `dsbuilder toolchain install ios --from`; сеть для этого не нужна.
+Для смены версии iOS CLI измените файл до создания нового тега `cli-vX.Y.Z`.
+Повторный запуск старого тега читает прежнее значение из этого тега.
 macOS x64, Windows x64 и JVM архивы iOS CLI не содержат. Web-генератор `js/cli`
 публикуется отдельно в npm и в эти ZIP не входит.
+Локальная сборка macOS arm64 по умолчанию не включает iOS CLI; установка такого
+ZIP работает без него. Для включения задайте `-PbundleIosCli=true` и положите
+ассет закреплённого тега в `cli/build/ios-cli/`. Релизный workflow всегда включает
+iOS CLI в arm64-архив; проверка релиза отклоняет архив без него. На Intel Mac
+обычная установка CLI работает без iOS CLI; только команда `toolchain install ios`
+отказывает из-за несовместимости опубликованного arm64-бинарника.
+Из релизного arm64 ZIP основной CLI можно установить без iOS CLI командой
+`./install.sh --without-ios`; без этого флага устанавливаются оба инструмента.
 
 Из frontend-kt:
 
 ```sh
 ./gradlew :cli:distributionTests
-# Для packageMacosArm64Cli сначала положите ассет в cli/build/ios-cli/:
-# dsbuilder-ios-cli-$IOS_CLI_RELEASE_TAG.zip
+# Чтобы включить iOS CLI, положите в cli/build/ios-cli/ ассет тега из
+# cli/distribution/ios-cli-release.txt и добавьте -PbundleIosCli=true.
 ./gradlew :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli
+# Для локального macOS arm64 ZIP с iOS CLI после размещения ассета:
+./gradlew :cli:packageMacosArm64Cli -PbundleIosCli=true
 python3 cli/distribution/release.py validate --tag cli-v1.2.3 --directory cli/build/distributions
 ```
 

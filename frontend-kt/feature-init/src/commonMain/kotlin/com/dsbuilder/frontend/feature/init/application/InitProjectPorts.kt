@@ -6,11 +6,10 @@ import com.dsbuilder.frontend.core.domain.ProjectConfigDraft
  * Port записи локального project config.
  */
 internal fun interface ProjectConfigWriter {
-    /**
-     * Сохраняет project config без raw secrets.
-     */
+    /** Проверяет возможность создать config без изменения файлов. */
     fun checkTarget(targetDirectory: String): String? = null
 
+    /** Сохраняет project config без raw secrets. */
     fun create(command: CreateProjectConfigCommand): ProjectConfigWriteResult
 }
 

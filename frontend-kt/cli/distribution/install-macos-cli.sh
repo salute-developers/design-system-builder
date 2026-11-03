@@ -1,8 +1,13 @@
 #!/bin/sh
 set -eu
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SKIP_IOS=0
+if [ "${1:-}" = --without-ios ]; then
+    SKIP_IOS=1
+    shift
+fi
 IOS_TAG_FILE="$SCRIPT_DIR/ios-release.txt"
-if [ -f "$IOS_TAG_FILE" ]; then
+if [ "$SKIP_IOS" = 0 ] && [ -f "$IOS_TAG_FILE" ]; then
     IOS_TAG=$(cat "$IOS_TAG_FILE")
     case "$IOS_TAG" in
         ''|current|[!A-Za-z0-9]*|*[!A-Za-z0-9._-]*) echo 'Invalid bundled iOS CLI release tag' >&2; exit 1 ;;

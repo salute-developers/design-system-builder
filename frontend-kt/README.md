@@ -125,6 +125,12 @@ Release-архив собирается Gradle-задачами модуля `:c
 - скрипт установки `install.sh`;
 - инструкцию `USAGE.md`.
 
+Локальная arm64-сборка по умолчанию не включает iOS CLI. Чтобы добавить его,
+положите `dsbuilder-ios-cli-<тег>.zip` в `cli/build/ios-cli/`, где тег закреплён
+в `cli/distribution/ios-cli-release.txt`, и запустите сборку с
+`-PbundleIosCli=true`. Релизный workflow требует этот ассет в arm64-архиве.
+На Intel Mac обычная сборка и установка x64 CLI работают без iOS CLI.
+
 После распаковки архива:
 
 ```bash

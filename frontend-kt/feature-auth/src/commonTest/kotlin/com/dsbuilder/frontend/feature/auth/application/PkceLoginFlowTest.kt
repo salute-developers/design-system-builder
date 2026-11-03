@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.auth.application
 
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
+import com.dsbuilder.frontend.core.auth.CredentialStoreLockException
 import com.dsbuilder.frontend.core.auth.INTERACTIVE_CLIENT_ID
 import com.dsbuilder.frontend.core.auth.OAuthCallback
 import com.dsbuilder.frontend.core.auth.OAuthCallbackListener
@@ -14,6 +15,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -22,6 +24,18 @@ import kotlin.test.fail
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PkceLoginFlowTest {
+    @Test
+    fun credentialLockFailureReachesCliAndNodePresentationAfterCallbackCleanup() = runTest {
+        val platform = FlowPlatform()
+        val failure = assertFailsWith<CredentialStoreLockException> {
+            PkceLoginFlow(platform).execute<String>("https://example.com", INTERACTIVE_CLIENT_ID) {
+                throw CredentialStoreLockException("session.lock")
+            }
+        }
+        assertTrue(failure.message!!.contains("Stop other CLI/MCP processes"))
+        assertEquals(listOf("failure", "closed"), platform.events)
+    }
+
     @Test
     fun acceptsOnlyVerifiedCodeAndBindsOriginalRedirectAndVerifier() = runTest {
         val platform = FlowPlatform()

@@ -107,6 +107,14 @@ CLI and MCP share refresh sessions; IDE sessions remain separate. `auth status`
 reports local metadata only. For CI use a project key. `serve` and tools never
 open a browser. HTTPS is required except for localhost and 127.0.0.1.
 
+CLI and Node MCP use the same PID-owned session lock. Locks left by terminated
+processes are recovered automatically. The `.lock` directory stays in place; its
+`held` child is the actual lock. Update CLI and Node MCP together and restart
+running clients; older clients cannot use this lock protocol.
+An old empty `.json.lock` file has no owner information and is not removed
+automatically: stop old CLI/MCP processes before removing that lock file and retrying.
+Keep the adjacent `.json` session file.
+
 Браузерный вход завершается русской страницей результата DS Builder. После
 сообщения «Вы успешно авторизованы. Можете закрыть вкладку.» сессия уже сохранена.
 При отказе callback, обмена кода или сохранения показывается страница ошибки;

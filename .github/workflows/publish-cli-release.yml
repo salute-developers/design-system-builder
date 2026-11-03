@@ -19,7 +19,6 @@ concurrency:
 
 env:
   CLI_RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-  IOS_CLI_RELEASE_TAG: ${{ vars.IOS_CLI_RELEASE_TAG }}
 
 jobs:
   build:
@@ -49,20 +48,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ ! "$IOS_CLI_RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || "$IOS_CLI_RELEASE_TAG" == current ]]; then
-            echo 'Set IOS_CLI_RELEASE_TAG to an exact plasma-ios release tag' >&2
+          ios_tag=$(cat frontend-kt/cli/distribution/ios-cli-release.txt)
+          if [[ ! "$ios_tag" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || "$ios_tag" == current ]]; then
+            echo 'Set an exact plasma-ios release tag in cli/distribution/ios-cli-release.txt' >&2
             exit 1
           fi
-          asset="dsbuilder-ios-cli-$IOS_CLI_RELEASE_TAG.zip"
+          asset="dsbuilder-ios-cli-$ios_tag.zip"
           archive="frontend-kt/cli/build/ios-cli/$asset"
-          digest=$(gh api "repos/salute-developers/plasma-ios/releases/tags/$IOS_CLI_RELEASE_TAG" \
+          digest=$(gh api "repos/salute-developers/plasma-ios/releases/tags/$ios_tag" \
             --jq ".assets[] | select(.name == \"$asset\") | .digest")
           if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "Missing SHA-256 digest for $asset" >&2
             exit 1
           fi
           mkdir -p "$(dirname "$archive")"
-          gh release download "$IOS_CLI_RELEASE_TAG" --repo salute-developers/plasma-ios \
+          gh release download "$ios_tag" --repo salute-developers/plasma-ios \
             --pattern "$asset" --dir "$(dirname "$archive")"
           printf '%s  %s\n' "${digest#sha256:}" "$archive" | shasum -a 256 -c -
           unzip -p "$archive" dsbuilder-ios-cli/dsbuilder-ios > "$RUNNER_TEMP/dsbuilder-ios"
@@ -70,7 +70,7 @@ jobs:
       - name: Build and check distributions
         working-directory: frontend-kt
         run: |
-          ./gradlew :cli:distributionTests :cli:jvmTest :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli
+          ./gradlew :cli:distributionTests :cli:jvmTest :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli -PbundleIosCli=true
           python3 cli/distribution/release.py validate --tag "$CLI_RELEASE_TAG" --directory cli/build/distributions
       - uses: actions/upload-artifact@v4
         with:

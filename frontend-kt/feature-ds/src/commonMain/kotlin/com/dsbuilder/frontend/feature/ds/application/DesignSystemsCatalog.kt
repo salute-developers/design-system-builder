@@ -76,7 +76,11 @@ public class ListDesignSystemsUseCase(
             is CredentialResult.Selected -> client.list(apiUrl, access.credential, projectId)
             is CredentialResult.Failed -> DesignSystemsReadResult.Failed(
                 SYSTEM_SESSION_FAILURES[access.code] ?: DesignSystemsReadErrorCode.BACKEND_UNAVAILABLE,
-                "Cannot authorize discovery. Run dsbuilder auth login and retry.",
+                if (access.code == AuthErrorCode.AUTH_REQUIRED) {
+                    "Cannot authorize discovery. Run dsbuilder auth login and retry."
+                } else {
+                    "Cannot authorize discovery: ${access.code}."
+                },
             )
         }
     }

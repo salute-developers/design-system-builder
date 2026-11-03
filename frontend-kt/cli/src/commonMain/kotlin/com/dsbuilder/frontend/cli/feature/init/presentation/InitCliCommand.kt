@@ -21,7 +21,7 @@ import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import kotlinx.coroutines.runBlocking
 
-/** Последовательный выбор проекта и его системы либо совместимый явный режим. */
+/** Последовательный выбор проекта, системы и платформ либо совместимый явный режим. */
 internal class InitCliCommand(
     private val initProjectUseCase: InitProjectUseCase,
     private val fileSystem: WorkspaceFileSystem,
@@ -47,6 +47,7 @@ internal class InitCliCommand(
             fail("Error: interactive selection is unavailable; provide ${missing.joinToString(" and ")}.")
         }
         val (project, system) = if (interactive) runBlocking { discover() } else projectId!! to designSystemId!!
+        val selectedPlatforms = platformsFor(interactive)
         val credential = if (interactive && apiKeyEnv == null) {
             InitCredentialSelection.UserSession
         } else {
@@ -59,7 +60,7 @@ internal class InitCliCommand(
                     system,
                     apiKeyEnv ?: DEFAULT_API_KEY_ENV,
                     directory,
-                    platforms,
+                    selectedPlatforms,
                     credential,
                 ),
             )
@@ -110,6 +111,26 @@ internal class InitCliCommand(
         return selected
     }
 
+    private fun choosePlatforms(): List<TargetPlatform> {
+        val choices = TargetPlatform.entries.map { platform ->
+            InitChoice(platform.cliValue, platform.cliValue, null)
+        }
+        val selected = try {
+            menu.selectMultiple(terminal, "Выберите платформы (можно пропустить)", choices)
+        } catch (_: UnsupportedOperationException) {
+            fail("Error: interactive platform selection is unavailable; provide --platform.")
+        } catch (_: IllegalStateException) {
+            fail("Error: selection cancelled or terminal input closed.")
+        } ?: fail("Error: selection cancelled or terminal input closed.")
+        if (selected.size != selected.distinct().size) fail("Error: invalid platform selection.")
+        return selected.map { id ->
+            TargetPlatform.fromCliValue(id) ?: fail("Error: invalid platform selection.")
+        }
+    }
+
+    private fun platformsFor(interactive: Boolean): List<TargetPlatform> =
+        if (interactive && platforms.isEmpty()) choosePlatforms() else platforms
+
     private fun fail(message: String): Nothing {
         echo(message)
         throw ProgramResult(1)
@@ -117,5 +138,6 @@ internal class InitCliCommand(
 
     override fun help(context: Context): String =
         "Create local project config. Omit IDs for arrow-key selection after dsbuilder auth login. " +
+            "Use Space to mark platforms and Enter to continue; --platform skips that step. " +
             "Explicit IDs work offline; --api-key-env selects an environment credential."
 }

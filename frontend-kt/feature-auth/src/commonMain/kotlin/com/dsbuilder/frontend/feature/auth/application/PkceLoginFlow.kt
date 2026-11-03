@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.auth.application
 
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
+import com.dsbuilder.frontend.core.auth.CredentialStoreLockException
 import com.dsbuilder.frontend.core.auth.OAuthCallbackListener
 import com.dsbuilder.frontend.core.auth.PkcePlatform
 import com.dsbuilder.frontend.core.network.allowsInteractiveAuth
@@ -77,6 +78,8 @@ public class PkceLoginFlow(private val platform: PkcePlatform) {
         } catch (exception: TimeoutCancellationException) {
             AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Время ожидания входа истекло (180 секунд).")
         } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: CredentialStoreLockException) {
             throw exception
         } catch (exception: Exception) {
             AuthResult.Failed(

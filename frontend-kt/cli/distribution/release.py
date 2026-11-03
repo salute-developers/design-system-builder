@@ -82,16 +82,21 @@ def validate_archive(path, target):
         if target == 'jvm' and not any(n.startswith(root + '/lib/') and n.endswith('.jar') for n in names):
             raise ValueError('JVM libraries missing')
         if target == 'macos-arm64':
+            if f'{root}/ios-release.txt' not in names:
+                raise ValueError('macOS arm64 release distribution is missing its bundled iOS CLI')
             tag = archive.read(f'{root}/ios-release.txt').decode('ascii').strip()
             if not IOS_TAG.fullmatch(tag) or tag == 'current':
                 raise ValueError('Invalid bundled iOS CLI release tag')
             name = f'{root}/ios/dsbuilder-ios-cli-{tag}.zip'
+            if name not in names:
+                raise ValueError('macOS arm64 release distribution is missing its bundled iOS CLI archive')
             entry = archive.getinfo(name)
             if entry.is_dir() or entry.file_size > 100_000_000:
                 raise ValueError('Invalid bundled iOS CLI archive')
             validate_ios_archive(archive.read(name))
         elif any(name == f'{root}/ios-release.txt' or name.startswith(f'{root}/ios/') for name in names):
             raise ValueError('iOS CLI is only supported in the macOS arm64 distribution')
+        return tag if target == 'macos-arm64' else None
 
 
 def prepare(directory, release_version, base_url, bootstrap):
@@ -102,15 +107,18 @@ def prepare(directory, release_version, base_url, bootstrap):
         raise ValueError('Public download base must be an HTTPS URL without credentials/query/fragment')
     artifacts = {}
     checksums = []
+    ios_tag = None
     for target in TARGETS:
         name = f'dsbuilder-cli-{target}.zip'
         path = directory / name
-        validate_archive(path, target)
+        bundled_ios_tag = validate_archive(path, target)
+        if target == 'macos-arm64':
+            ios_tag = bundled_ios_tag
         sha = digest(path.read_bytes())
         artifacts[target] = {'file': name, 'sha256': sha}
         checksums.append(f'{sha}  {name}\n')
     (directory / 'release.json').write_bytes(json_bytes({
-        'schemaVersion': 1, 'version': release_version, 'artifacts': artifacts,
+        'schemaVersion': 1, 'version': release_version, 'iosCliReleaseTag': ios_tag, 'artifacts': artifacts,
     }))
     (directory / 'SHA256SUMS').write_text(''.join(checksums))
     for name in ('install.sh', 'install.ps1'):
@@ -214,6 +222,9 @@ def verified_remote_release(store, release_version):
         raise ValueError('Stable release manifest does not match version')
     if not isinstance(manifest.get('artifacts'), dict) or set(manifest['artifacts']) != set(TARGETS):
         raise ValueError('Stable release manifest has wrong targets')
+    ios_tag = manifest.get('iosCliReleaseTag')
+    if ios_tag is not None and (not isinstance(ios_tag, str) or not IOS_TAG.fullmatch(ios_tag)):
+        raise ValueError('Stable release manifest has an invalid iOS CLI tag')
     checksums = []
     for target in TARGETS:
         name = f'dsbuilder-cli-{target}.zip'
@@ -223,6 +234,11 @@ def verified_remote_release(store, release_version):
         sha = digest(data)
         if manifest['artifacts'][target] != {'file': name, 'sha256': sha}:
             raise ValueError(f'Stable release checksum mismatch: {name}')
+        if target == 'macos-arm64' and ios_tag is not None:
+            with zipfile.ZipFile(BytesIO(data)) as archive:
+                archived_tag = archive.read('dsbuilder-cli-macos-arm64/ios-release.txt').decode('ascii').strip()
+            if archived_tag != ios_tag:
+                raise ValueError('Stable release iOS CLI tag does not match the archive')
         checksums.append(f'{sha}  {name}\n')
     if store.get(prefix + 'SHA256SUMS') != ''.join(checksums).encode():
         raise ValueError('Stable release SHA256SUMS mismatch')

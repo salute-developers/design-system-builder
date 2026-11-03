@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.mcpnode
 
+import com.dsbuilder.frontend.core.auth.CredentialStoreLockException
 import com.dsbuilder.frontend.feature.auth.application.AuthStatusCommand
 import com.dsbuilder.frontend.feature.auth.application.AuthStatusResult
 import com.dsbuilder.frontend.feature.auth.application.AuthStatusUseCase
@@ -26,16 +27,22 @@ internal fun runAuth(args: List<String>): Int? {
     val runtime = defaultNodeRuntime()
     val koin = nodeKoin(runtime)
     MainScope().launch {
-        val exitCode = when (args.first()) {
-            "login" -> authLogin(args.drop(1), koin)
-            "status" -> authStatus(args.drop(1), koin)
-            "logout" -> authLogout(args.drop(1), koin)
-            else -> {
-                println("Error: unknown auth command `${args.first()}`.")
-                1
+        val exitCode = try {
+            when (args.first()) {
+                "login" -> authLogin(args.drop(1), koin)
+                "status" -> authStatus(args.drop(1), koin)
+                "logout" -> authLogout(args.drop(1), koin)
+                else -> {
+                    println("Error: unknown auth command `${args.first()}`.")
+                    1
+                }
             }
+        } catch (error: CredentialStoreLockException) {
+            println(error.message)
+            1
+        } finally {
+            runtime.close()
         }
-        runtime.close()
         nodeProcess.exit(exitCode)
     }
     return null

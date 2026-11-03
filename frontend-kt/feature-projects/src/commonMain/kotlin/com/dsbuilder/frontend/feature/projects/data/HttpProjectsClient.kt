@@ -28,7 +28,11 @@ public class HttpProjectsClient(
         val client = httpClientFactory.create(apiUrl, credential)
         return when (val result = client.get("/api/projects")) {
             is AuthenticatedHttpResult.Success -> decode(result.body)
-            is AuthenticatedHttpResult.Failure -> PROJECT_HTTP_FAILURES[result.statusCode] ?: PROJECT_BACKEND_FAILURE
+            is AuthenticatedHttpResult.Failure -> PROJECT_HTTP_FAILURES[result.statusCode]
+                ?: ProjectsReadResult.Failed(
+                    ProjectsReadErrorCode.BACKEND_UNAVAILABLE,
+                    result.statusCode?.let { "Cannot read projects: backend returned HTTP $it." } ?: result.message,
+                )
         }
     }
 
@@ -52,11 +56,6 @@ private data class ProjectDto(
     val id: String,
     val name: String,
     val description: String? = null,
-)
-
-private val PROJECT_BACKEND_FAILURE = ProjectsReadResult.Failed(
-    ProjectsReadErrorCode.BACKEND_UNAVAILABLE,
-    "Cannot read projects.",
 )
 
 private val PROJECT_HTTP_FAILURES = mapOf(

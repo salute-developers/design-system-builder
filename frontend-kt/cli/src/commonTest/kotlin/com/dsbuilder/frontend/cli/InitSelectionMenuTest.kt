@@ -92,4 +92,47 @@ class InitSelectionMenuTest {
             assertTrue(input.restored)
         }
     }
+
+    @Test
+    fun multiSelectTogglesWithSpaceAndConfirmsInChoiceOrder() {
+        val input = FakeTerminal(
+            mutableListOf(
+                KeyboardEvent("ArrowDown"),
+                KeyboardEvent(" "),
+                KeyboardEvent("ArrowDown"),
+                KeyboardEvent(" "),
+                KeyboardEvent("ArrowUp"),
+                KeyboardEvent(" "),
+                KeyboardEvent("ArrowDown"),
+                KeyboardEvent("ArrowDown"),
+                KeyboardEvent("Space"),
+                KeyboardEvent("Enter"),
+            ),
+        )
+        val choices = (0..3).map { InitChoice("id-$it", "Platform $it", null) }
+        assertEquals(
+            listOf("id-2", "id-3"),
+            menu.selectMultiple(Terminal(terminalInterface = input), "Platforms", choices),
+        )
+        assertTrue(input.restored)
+        assertTrue(input.output.contains("[x]"))
+    }
+
+    @Test
+    fun multiSelectCanBeEmptyAndCancellationOrEofRestoresInput() {
+        val choices = listOf(InitChoice("compose", "Compose", null))
+        for ((events, expected) in listOf<Pair<List<KeyboardEvent>, List<String>?>>(
+            listOf(KeyboardEvent("Enter")) to emptyList(),
+            listOf(KeyboardEvent("c", ctrl = true)) to null,
+        )) {
+            val input = FakeTerminal(events.toMutableList())
+            assertEquals(expected, menu.selectMultiple(Terminal(terminalInterface = input), "Platforms", choices))
+            assertTrue(input.restored)
+        }
+        val closed = FakeTerminal(mutableListOf())
+        assertFailsWith<IllegalStateException> {
+            menu.selectMultiple(Terminal(terminalInterface = closed), "Platforms", choices)
+        }
+        assertTrue(closed.restored)
+    }
 }

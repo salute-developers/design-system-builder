@@ -16,6 +16,7 @@ import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 
 private class NoOpRefreshTokenStore : RefreshTokenStore {
@@ -69,6 +70,32 @@ class ListProjectsUseCaseTest {
         )
         val result = assertIs<ProjectsReadResult.Failed>(useCase.execute())
         assertEquals(ProjectsReadErrorCode.FORBIDDEN, result.code)
+        assertFalse(result.message.contains("auth login"))
+        assertFalse(result.message.contains("fixture-secret"))
+    }
+
+    @Test
+    fun unavailableSessionDoesNotRecommendLoggingInAgain() = runTest {
+        val provider = object : CredentialProvider {
+            override suspend fun resolve(
+                apiUrl: ProjectApiUrl,
+                projectKeyOverride: String?,
+                credentialEnvName: CredentialEnvName,
+            ): CredentialResult = error("Must use explicit user-session policy")
+
+            override suspend fun resolve(request: CredentialRequest): CredentialResult =
+                CredentialResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "fixture-secret")
+        }
+        val result = assertIs<ProjectsReadResult.Failed>(
+            ListProjectsUseCase(
+                apiUrlResolver,
+                UserSessionAccess(provider),
+                ProjectsClient { _, _ -> error("No request expected") },
+            ).execute(),
+        )
+        assertEquals(ProjectsReadErrorCode.BACKEND_UNAVAILABLE, result.code)
+        assertFalse(result.message.contains("auth login"))
+        assertFalse(result.message.contains("fixture-secret"))
     }
 
     @Test
