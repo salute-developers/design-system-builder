@@ -62,17 +62,18 @@ interface DraftChangeRepository {
     suspend fun hasChanges(projectId: ProjectId, designSystemId: DesignSystemId): Boolean?
 
     /**
-     * Текущая техническая редакция записи [changeId] активного черновика — та же, что `editRevision` журнала.
-     * `null` — записи нет (или нет доступа); при превышении защитного предела журнала бросает
-     * [DraftChangeLimitExceededException]. Ничего не блокирует: изменение записи после чтения обнаружит
-     * сериализуемая транзакция вызывающего.
+     * Откатывает записи [changes] активного черновика одним пакетом в присланном порядке (от новой к старой).
+     * Сначала все записи сверяются с редакциями снимка журнала клиента — до первого отката; затем записи
+     * откатываются по редакции на своём шаге, а запись, исчезнувшая из-за предыдущих откатов пакета, считается
+     * отменённой. Предметные действия после отката, проверка зависимостей и ограничений выполняются один раз для
+     * итогового состояния. При отказе вызывающий откатывает транзакцию.
      */
-    suspend fun currentRevision(
+    suspend fun revertAll(
         projectId: ProjectId,
         systemAdmin: Boolean,
         designSystemId: DesignSystemId,
-        changeId: UUID,
-    ): Long? = error("Draft change revision lookup is not implemented")
+        changes: List<DraftChangeRevertTarget>,
+    ): DraftChangeBatchRevertResult = error("Batch draft change revert is not implemented")
 
     /** Откатывает актуальную черновую редакцию одной устойчивой сущности. */
     suspend fun revert(

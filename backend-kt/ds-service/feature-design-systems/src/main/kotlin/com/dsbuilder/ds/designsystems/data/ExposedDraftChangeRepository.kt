@@ -7,12 +7,15 @@ import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.DraftSubjectChange
 import com.dsbuilder.ds.core.application.ModelReadItems
 import com.dsbuilder.ds.core.application.ModelReadQuery
+import com.dsbuilder.ds.core.data.DraftRevertBatch
 import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.modelReadJournalPage
 import com.dsbuilder.ds.core.domain.ProjectId
+import com.dsbuilder.ds.designsystems.application.DraftChangeBatchRevertResult
 import com.dsbuilder.ds.designsystems.application.DraftChangeLimitExceededException
 import com.dsbuilder.ds.designsystems.application.DraftChangeRepository
+import com.dsbuilder.ds.designsystems.application.DraftChangeRevertTarget
 import com.dsbuilder.ds.designsystems.domain.ChangeOperation
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
@@ -120,25 +123,135 @@ class ExposedDraftChangeRepository(
         }
     }
 
-    override suspend fun currentRevision(
+    override suspend fun revertAll(
         projectId: ProjectId,
         systemAdmin: Boolean,
         designSystemId: DesignSystemId,
-        changeId: UUID,
-    ): Long? {
-        val target = boundary(projectId, systemAdmin, designSystemId, versionId = null) ?: return null
-        val lookup = trackedSubject(target.id, designSystemId.value, changeId)
-        if (lookup.exceeded) throw DraftChangeLimitExceededException()
-        val tracked = lookup.subject ?: return null
-        return visibleEntity(target, designSystemId, tracked)?.let { difference ->
-            change(
-                tracked.handler,
-                difference,
+        changes: List<DraftChangeRevertTarget>,
+    ): DraftChangeBatchRevertResult {
+        val target = boundary(projectId, systemAdmin, designSystemId, versionId = null)
+            ?: return DraftChangeBatchRevertResult.Failed(0, DraftChangeRevertResult.NotFound)
+        val tracked = trackedSubjects(target.id, designSystemId.value, changes.mapTo(hashSetOf()) { it.changeId })
+            ?: return DraftChangeBatchRevertResult.Failed(null, DraftChangeRevertResult.LimitExceeded)
+        val previous = previousSequence(designSystemId, target.sequenceNumber)
+        // Снимок клиента сверяется до первого отката: откат одной записи сам сдвигает редакции других.
+        return verifySnapshot(target, designSystemId, previous, changes, tracked) ?: inBatchSavepoint {
+            revertInOrder(
+                projectId,
+                systemAdmin,
                 designSystemId,
                 target,
-                editState(target.id, tracked.handler.entityType, difference.entityId),
-            ).editRevision
+                previous,
+                changes.map { tracked.getValue(it.changeId) },
+            )
         }
+    }
+
+    /** Отказ первой записи [changes], которой нет или редакция которой не совпала со снимком клиента. */
+    private fun verifySnapshot(
+        target: BoundaryRow,
+        designSystemId: DesignSystemId,
+        previous: Long,
+        changes: List<DraftChangeRevertTarget>,
+        tracked: Map<UUID, TrackedSubject>,
+    ): DraftChangeBatchRevertResult.Failed? = changes.withIndex().firstNotNullOfOrNull { (index, change) ->
+        val current = tracked[change.changeId]
+            ?.let { currentChange(target, designSystemId, previous, it) }
+            ?.editRevision
+        when {
+            current == null -> DraftChangeBatchRevertResult.Failed(index, DraftChangeRevertResult.NotFound)
+            current != change.expectedRevision ->
+                DraftChangeBatchRevertResult.Failed(index, DraftChangeRevertResult.Stale(current))
+            else -> null
+        }
+    }
+
+    /**
+     * Выполняет пакет [block] в точке сохранения с открытым [DraftRevertBatch]; отказ или нарушение ограничений
+     * базы откатывает пакет до точки сохранения.
+     */
+    private suspend fun inBatchSavepoint(
+        block: suspend () -> DraftChangeBatchRevertResult,
+    ): DraftChangeBatchRevertResult {
+        val transaction = TransactionManager.current()
+        transaction.exec("SAVEPOINT batch_revert")
+        DraftRevertBatch.begin()
+        val result = try {
+            block()
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            if (listOf("23503", "23505", "23514").none(failure::hasSqlState)) {
+                DraftRevertBatch.cancel()
+                transaction.exec("ROLLBACK TO SAVEPOINT batch_revert")
+                transaction.exec("RELEASE SAVEPOINT batch_revert")
+                throw failure
+            }
+            DraftChangeBatchRevertResult.Failed(null, DraftChangeRevertResult.DependencyConflict)
+        }
+        if (result != DraftChangeBatchRevertResult.Reverted) {
+            DraftRevertBatch.cancel()
+            transaction.exec("ROLLBACK TO SAVEPOINT batch_revert")
+        }
+        transaction.exec("RELEASE SAVEPOINT batch_revert")
+        return result
+    }
+
+    /**
+     * Откатывает записи [subjects] по порядку под блокировкой, затем один раз выполняет отложенные действия
+     * обработчиков, проверку зависимостей итогового состояния и ограничения базы.
+     */
+    @Suppress("ReturnCount") // Каждый отказ относится к своей записи пакета.
+    private suspend fun revertInOrder(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        target: BoundaryRow,
+        previous: Long,
+        subjects: List<TrackedSubject>,
+    ): DraftChangeBatchRevertResult {
+        val reverted = mutableListOf<Pair<Int, TrackedSubject>>()
+        subjects.forEachIndexed { index, subject ->
+            // Запись исчезла из-за предыдущих откатов пакета: её отличие уже снято.
+            currentChange(target, designSystemId, previous, subject) ?: return@forEachIndexed
+            if (!subject.handler.prepareRevert(designSystemId.value, subject.entityId) ||
+                !lockDraftSubject(designSystemId.value, subject.handler.entityType, subject.entityId)
+            ) {
+                return DraftChangeBatchRevertResult.Failed(index, DraftChangeRevertResult.NotFound)
+            }
+            // Публикация между чтением границы и первой блокировкой меняет черновик: пакет к нему не относится.
+            if (reverted.isEmpty() && boundary(projectId, systemAdmin, designSystemId, null)?.id != target.id) {
+                return DraftChangeBatchRevertResult.Failed(index, DraftChangeRevertResult.NotFound)
+            }
+            val change = currentChange(target, designSystemId, previous, subject) ?: return@forEachIndexed
+            val result = applyRevert(subject.handler, target.id, change, emptySet())
+            if (result != DraftChangeRevertResult.Reverted) return DraftChangeBatchRevertResult.Failed(index, result)
+            reverted += index to subject
+        }
+        DraftRevertBatch.complete()
+        val entities = reverted.map { (_, subject) -> subject.handler.entityType to subject.entityId }
+        dependencies.firstNotNullOfOrNull { it.firstInvalid(designSystemId.value, entities) }?.let { invalid ->
+            return DraftChangeBatchRevertResult.Failed(
+                reverted[invalid].first,
+                DraftChangeRevertResult.DependencyConflict,
+            )
+        }
+        checkConstraints()
+        return DraftChangeBatchRevertResult.Reverted
+    }
+
+    /** Действующая запись журнала устойчивой сущности [subject] или `null`, если её отличия больше нет. */
+    private fun currentChange(
+        target: BoundaryRow,
+        designSystemId: DesignSystemId,
+        previous: Long,
+        subject: TrackedSubject,
+    ): DraftChange? = visibleEntity(target, designSystemId, subject, previous)?.let { difference ->
+        change(
+            subject.handler,
+            difference,
+            designSystemId,
+            target,
+            editState(target.id, subject.handler.entityType, difference.entityId),
+        )
     }
 
     override suspend fun revert(
@@ -205,8 +318,8 @@ class ExposedDraftChangeRepository(
         target: BoundaryRow,
         designSystemId: DesignSystemId,
         tracked: TrackedSubject,
+        previous: Long = previousSequence(designSystemId, target.sequenceNumber),
     ): DraftSubjectChange? {
-        val previous = previousSequence(designSystemId, target.sequenceNumber)
         fun related(type: String, id: UUID): DraftSubjectChange? = handlers.firstOrNull { it.entityType == type }
             ?.describeEntity(designSystemId.value, target.sequenceNumber, previous, id)
         var candidate = related(tracked.handler.entityType, tracked.entityId)
@@ -217,9 +330,18 @@ class ExposedDraftChangeRepository(
         return candidate.change
     }
 
-    private fun trackedSubject(versionId: UUID, owner: UUID, changeId: UUID): SubjectLookup {
+    private fun trackedSubject(versionId: UUID, owner: UUID, changeId: UUID): SubjectLookup =
+        trackedSubjects(versionId, owner, setOf(changeId))
+            ?.let { SubjectLookup(it[changeId]) }
+            ?: SubjectLookup(null, exceeded = true)
+
+    /**
+     * Устойчивые сущности записей [changeIds] одним проходом по техническим состояниям черновика; записи без
+     * сущности в ответ не попадают. `null` — защитный предел журнала превышен раньше, чем найдены все записи.
+     */
+    private fun trackedSubjects(versionId: UUID, owner: UUID, changeIds: Set<UUID>): Map<UUID, TrackedSubject>? {
         val byType = handlers.associateBy(DraftChangeHandler::entityType)
-        if (byType.isEmpty()) return SubjectLookup(null)
+        if (byType.isEmpty()) return emptyMap()
         val types = byType.keys.sorted()
         val sql = """
             SELECT entity_type, entity_id FROM entity_edit_states
@@ -232,18 +354,16 @@ class ExposedDraftChangeRepository(
             listOf(UUIDColumnType() to versionId, UUIDColumnType() to owner) + types.map { TextColumnType() to it },
         ) { rows ->
             var count = 0
-            var found: TrackedSubject? = null
-            while (rows.next()) {
-                if (++count > MAX_JOURNAL_CANDIDATES_PER_TYPE) return@exec SubjectLookup(null, exceeded = true)
+            val found = hashMapOf<UUID, TrackedSubject>()
+            while (found.size < changeIds.size && rows.next()) {
+                if (++count > MAX_JOURNAL_CANDIDATES_PER_TYPE) return@exec null
                 val type = rows.getString("entity_type")
                 val entity = rows.getObject("entity_id", UUID::class.java)
-                if (stableChangeId(versionId, type, entity) == changeId) {
-                    found = TrackedSubject(requireNotNull(byType[type]), entity)
-                    break
-                }
+                val changeId = stableChangeId(versionId, type, entity)
+                if (changeId in changeIds) found[changeId] = TrackedSubject(requireNotNull(byType[type]), entity)
             }
-            SubjectLookup(found)
-        } ?: SubjectLookup(null)
+            found
+        }
     }
 
     private fun applyRevert(
@@ -276,11 +396,7 @@ class ExposedDraftChangeRepository(
         return try {
             val result = operation()
             if (result == DraftChangeRevertResult.Reverted) {
-                // Отмена обязана проверить итоговый граф до сохранения успешного ответа, а не при COMMIT.
-                transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
-                transaction.exec("SET CONSTRAINTS ALL IMMEDIATE")
-                transaction.exec("SET CONSTRAINTS ALL DEFERRED")
-                transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
+                checkConstraints()
             } else {
                 transaction.exec("ROLLBACK TO SAVEPOINT checked_revert")
             }
@@ -295,6 +411,15 @@ class ExposedDraftChangeRepository(
                 throw failure
             }
         }
+    }
+
+    /** Отмена обязана проверить итоговый граф до сохранения успешного ответа, а не при COMMIT. */
+    private fun checkConstraints() {
+        val transaction = TransactionManager.current()
+        transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
+        transaction.exec("SET CONSTRAINTS ALL IMMEDIATE")
+        transaction.exec("SET CONSTRAINTS ALL DEFERRED")
+        transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
     }
 
     private fun revertFields(

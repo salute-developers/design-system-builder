@@ -12,21 +12,17 @@ import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
 import com.dsbuilder.ds.core.application.RequestHash
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
-import com.dsbuilder.ds.designsystems.domain.DraftChangeRevertResult
-import java.util.UUID
 
 /**
  * Откатывает несколько записей активного черновика одной транзакцией — например, все записи токена при сбросе из
  * инспектора вместо последовательных одиночных откатов.
  *
- * Семантика редакций: [DraftChangeRevertTarget.expectedRevision] берётся из одного снимка журнала и сверяется с
- * состоянием **до пакета** — сначала проверяются все записи, и только если каждая существует с ожидаемой редакцией,
- * записи откатываются по очереди в присланном порядке (от новой к старой) существующим
- * [DraftChangeRepository.revert]. Откат одной записи может сам сдвинуть редакцию другой записи того же пакета:
- * откат значения цветового токена пересчитывает тип семейства и создаёт ревизию определения токена. Поэтому на
- * своём шаге запись откатывается по редакции, прочитанной в этой же транзакции, а запись, исчезнувшая из журнала
- * из-за предыдущих откатов пакета, считается уже отменённой. Чужую правку между проверкой и откатом исключает
- * сериализуемая транзакция: такой конфликт повторяет транзакцию, и повторная проверка вернёт `DRAFT_CHANGE_STALE`.
+ * Семантика редакций — [DraftChangeRepository.revertAll]: [DraftChangeRevertTarget.expectedRevision] берётся из одного
+ * снимка журнала и сверяется с состоянием **до пакета**, затем записи откатываются по очереди в присланном порядке
+ * (от новой к старой) по редакции на своём шаге: откат значения цветового токена сам сдвигает редакцию определения.
+ * Запись, исчезнувшая из-за предыдущих откатов пакета, считается отменённой. Предметные действия после отката
+ * (пересчёт типа семейства), проверка зависимостей и ограничений базы выполняются один раз для итогового состояния,
+ * а не после каждой записи. Чужую правку между проверкой и откатом исключает сериализуемая транзакция.
  *
  * Пакет атомарен: первая неудача возвращает отказ этой записи тем же маппингом, что одиночный откат, а
  * [TransactionRunner.required] откатывает всю транзакцию, в том числе уже отменённые записи. У конфликтов
@@ -80,10 +76,16 @@ class RevertDraftChangesUseCase(
             is IdempotentRequestLookup.Replayed -> throw IdempotentReplayException(previous.response)
             IdempotentRequestLookup.New -> Unit
         }
-        val outcome = try {
-            verifySnapshot(context, designSystemId, changes) ?: revertInOrder(context, designSystemId, changes)
-        } catch (_: DraftChangeLimitExceededException) {
-            DraftChangeRevertResult.LimitExceeded.toFailure()
+        val outcome = when (
+            val result = repository.revertAll(
+                context.projectId,
+                context.principal.systemAdmin,
+                designSystemId,
+                changes,
+            )
+        ) {
+            DraftChangeBatchRevertResult.Reverted -> null
+            is DraftChangeBatchRevertResult.Failed -> result.result.toFailure(result.index)
         }
         if (outcome != null) return DsResult.Failure(outcome)
         repeatedRequests.save(
@@ -100,43 +102,6 @@ class RevertDraftChangesUseCase(
         )
         return DsResult.Success(Unit)
     }
-
-    /** Все записи существуют с редакциями снимка клиента; иначе — отказ первой несовпавшей записи. */
-    private suspend fun verifySnapshot(
-        context: DsRequestContext,
-        designSystemId: DesignSystemId,
-        changes: List<DraftChangeRevertTarget>,
-    ): DsFailure? {
-        changes.forEachIndexed { index, target ->
-            val current = currentRevision(context, designSystemId, target.changeId)
-                ?: return DraftChangeRevertResult.NotFound.toFailure(index)
-            if (current != target.expectedRevision) return DraftChangeRevertResult.Stale(current).toFailure(index)
-        }
-        return null
-    }
-
-    private suspend fun revertInOrder(
-        context: DsRequestContext,
-        designSystemId: DesignSystemId,
-        changes: List<DraftChangeRevertTarget>,
-    ): DsFailure? {
-        changes.forEachIndexed { index, target ->
-            // Запись исчезла из-за предыдущих откатов этого же пакета: её отличие уже снято.
-            val current = currentRevision(context, designSystemId, target.changeId) ?: return@forEachIndexed
-            val result = repository.revert(
-                context.projectId,
-                context.principal.systemAdmin,
-                designSystemId,
-                target.changeId,
-                current,
-            )
-            if (result != DraftChangeRevertResult.Reverted) return result.toFailure(index)
-        }
-        return null
-    }
-
-    private suspend fun currentRevision(context: DsRequestContext, designSystemId: DesignSystemId, changeId: UUID) =
-        repository.currentRevision(context.projectId, context.principal.systemAdmin, designSystemId, changeId)
 
     private companion object {
         const val OPERATION = "revert-draft-changes"
