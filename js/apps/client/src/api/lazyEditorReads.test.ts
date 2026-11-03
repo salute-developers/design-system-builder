@@ -117,11 +117,11 @@ it('оболочка читает только метаданные, не зна
     expect(http.post).not.toHaveBeenCalled();
 });
 
-it('список ста компонентов требует только каталога и кратких оформлений', async () => {
+it('список ста компонентов требует только каталога, кратких оформлений, связей и зависимостей', async () => {
     const index = await componentRepository.loadComponentIndex(context);
     expect(index).toHaveLength(100);
     expect(index.every((item) => item.sources.configs.length === 0)).toBe(true);
-    expect(http.get).toHaveBeenCalledTimes(2);
+    expect(http.get).toHaveBeenCalledTimes(4);
     expect(http.post).not.toHaveBeenCalled();
 });
 
