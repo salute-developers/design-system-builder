@@ -128,8 +128,8 @@ jobs:
           export HOME="$RUNNER_TEMP/CLI home"
           mkdir -p "$HOME"
           installer=$(find extracted -name install.sh -type f)
-          sh "$installer"
-          sh "$installer"
+          sh "$installer" --without-web
+          sh "$installer" --without-web
           "$DSBUILDER_BIN_DIR/dsbuilder" --help
           test "$("$DSBUILDER_BIN_DIR/dsbuilder" --version)" = "dsbuilder version ${CLI_RELEASE_TAG#cli-v}"
           if [ "$TARGET" = macos-arm64 ]; then
@@ -143,8 +143,8 @@ jobs:
           Expand-Archive archives/dsbuilder-cli-windows-x64.zip extracted
           $env:DSBUILDER_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'CLI install'
           $installer = 'extracted/dsbuilder-cli-windows-x64/install.ps1'
-          & $installer
-          & $installer
+          & $installer -WithoutWeb
+          & $installer -WithoutWeb
           $binary = Join-Path $env:DSBUILDER_INSTALL_DIR 'dsbuilder.exe'
           & $binary --help
           if ($LASTEXITCODE -ne 0) { throw 'CLI help failed' }

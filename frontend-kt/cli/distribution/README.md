@@ -15,8 +15,12 @@
 архива через `dsbuilder toolchain install ios --from`; сеть для этого не нужна.
 Для смены версии iOS CLI измените файл до создания нового тега `cli-vX.Y.Z`.
 Повторный запуск старого тега читает прежнее значение из этого тега.
-macOS x64, Windows x64 и JVM архивы iOS CLI не содержат. Web-генератор `js/cli`
-публикуется отдельно в npm и в эти ZIP не входит.
+macOS x64, Windows x64 и JVM архивы iOS CLI не содержат. Web-генератор
+(`@sddsjs/design-system-builder-generator`) публикуется отдельно в npm и в эти ZIP не входит:
+локальные установщики после установки CLI вызывают `dsbuilder toolchain install web`. Шаг
+пропускается флагом `--without-web` (`-WithoutWeb`) или переменной `DSBUILDER_WITHOUT_WEB=1`, без `npm`
+в `PATH` и при ошибке npm выводит предупреждение и не меняет код возврата. Smoke-проверки релиза
+ставят CLI с `--without-web`, сам шаг проверяют тесты установщиков с поддельным npm.
 Локальная сборка macOS arm64 по умолчанию не включает iOS CLI; установка такого
 ZIP работает без него. Для включения задайте `-PbundleIosCli=true` и положите
 ассет закреплённого тега в `cli/build/ios-cli/`. Релизный workflow всегда включает

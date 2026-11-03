@@ -41,6 +41,9 @@ class InstallTest(unittest.TestCase):
                         DSBUILDER_BIN_DIR=str(self.root / 'CLI bin'),
                         PATH=str(self.bin) + os.pathsep + os.environ['PATH'])
         self.env.pop('JAVA_HOME', None)
+        # Шаг web-генератора зависит от npm на машине; его проверяют отдельные тесты с поддельным npm.
+        self.env['DSBUILDER_WITHOUT_WEB'] = '1'
+        self.web_paths = 0
         self.tool('java', '#!/bin/sh\necho \'openjdk version "17.0.2"\' >&2\n')
         self.webroot = self.root / 'web'
         self.version_dir = self.webroot / 'releases/1.2.3'
@@ -231,6 +234,101 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertTrue((Path(self.env['DSBUILDER_INSTALL_DIR']) / 'dsbuilder').exists())
         self.assertFalse((Path(self.env['HOME']) / '.dsbuilder/toolchains/ios').exists())
+
+    # Шаг установки web-генератора: dsbuilder записывает свои аргументы, чтобы тест видел вызов.
+    RECORDING_BINARY = b'#!/bin/sh\nprintf "%s\\n" "$*" >> "$DSBUILDER_CALLS"\n[ "$*" != "toolchain install web" ] || exit "${WEB_EXIT:-0}"\n'
+
+    def unpack_local(self, target, binary=None):
+        self.archive = make_archive(self.version_dir, target, **({'binary': binary} if binary else {}))
+        package = self.root / f'unpacked-{target}'
+        with zipfile.ZipFile(self.archive) as archive:
+            archive.extractall(package)
+        return package / f'dsbuilder-cli-{target}/install.sh'
+
+    def web_environment(self, npm=True):
+        """PATH из тестовых инструментов и ссылок на системные; npm только поддельный и только по запросу."""
+        self.web_paths += 1
+        limited = self.root / f'path-{self.web_paths}'
+        limited.mkdir()
+        for tool in ('sh', 'cat', 'chmod', 'cp', 'dirname', 'ln', 'mkdir', 'mktemp', 'mv', 'readlink', 'rm', 'sed', 'head'):
+            executable = shutil.which(tool)
+            if executable:
+                (limited / tool).symlink_to(executable)
+        shutil.copyfile(self.bin / 'java', limited / 'java')
+        (limited / 'java').chmod(0o755)
+        if npm:
+            (limited / 'npm').write_text('#!/bin/sh\nexit 0\n')
+            (limited / 'npm').chmod(0o755)
+        calls = self.root / 'dsbuilder-calls.txt'
+        calls.write_text('')
+        env = dict(self.env, PATH=str(limited), DSBUILDER_CALLS=str(calls))
+        env.pop('DSBUILDER_WITHOUT_WEB')
+        return env, calls
+
+    def test_web_generator_is_installed_after_cli(self):
+        for target in ('jvm', 'macos-arm64'):
+            with self.subTest(target=target):
+                installer = self.unpack_local(target, self.RECORDING_BINARY)
+                env, calls = self.web_environment()
+                result = subprocess.run(['/bin/sh', str(installer)], env=env, capture_output=True, text=True)
+
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn('toolchain install web', calls.read_text().splitlines())
+
+    def test_web_generator_failure_keeps_cli_and_exits_zero(self):
+        installer = self.unpack_local('jvm', self.RECORDING_BINARY)
+        env, _ = self.web_environment()
+        env['WEB_EXIT'] = '7'
+
+        result = subprocess.run(['/bin/sh', str(installer)], env=env, capture_output=True, text=True)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn('Retry with: dsbuilder toolchain install web', result.stderr)
+        self.assertTrue((Path(self.env['DSBUILDER_INSTALL_DIR']) / 'bin/dsbuilder').exists())
+
+    def test_without_npm_cli_is_installed_with_warning(self):
+        installer = self.unpack_local('jvm', self.RECORDING_BINARY)
+        env, calls = self.web_environment(npm=False)
+
+        result = subprocess.run(['/bin/sh', str(installer)], env=env, capture_output=True, text=True)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn('Install Node.js 22+ and run: dsbuilder toolchain install web', result.stderr)
+        self.assertNotIn('toolchain install web', calls.read_text())
+
+    def test_without_web_skips_npm_in_any_order_with_without_ios(self):
+        for args in (['--without-web'], ['--without-web', '--without-ios'], ['--without-ios', '--without-web']):
+            with self.subTest(args=args):
+                installer = self.unpack_local('macos-arm64', self.RECORDING_BINARY)
+                env, calls = self.web_environment()
+                result = subprocess.run(['/bin/sh', str(installer), *args], env=env, capture_output=True, text=True)
+
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertNotIn('toolchain install web', calls.read_text())
+                ios_skipped = '--without-ios' in args
+                self.assertEqual(ios_skipped, not any('toolchain install ios' in line for line in calls.read_text().splitlines()))
+                shutil.rmtree(Path(self.env['DSBUILDER_INSTALL_DIR']))
+
+    def test_unknown_local_option_is_rejected(self):
+        installer = self.unpack_local('jvm')
+        result = subprocess.run(['sh', str(installer), '--without-everything'], env=self.env,
+                                capture_output=True, text=True)
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn('Unknown option: --without-everything', result.stderr)
+
+    def test_network_installer_forwards_without_web(self):
+        self.archive = make_archive(self.version_dir, 'jvm', binary=self.RECORDING_BINARY)
+        self.update_sums()
+        calls = self.root / 'dsbuilder-calls.txt'
+        calls.write_text('')
+        self.env['DSBUILDER_CALLS'] = str(calls)
+        self.env.pop('DSBUILDER_WITHOUT_WEB')
+        self.tool('npm', '#!/bin/sh\nexit 0\n')
+
+        self.run_install('--target', 'jvm', '--without-web')
+
+        self.assertNotIn('toolchain install web', calls.read_text())
 
     def test_link_failure_rolls_back_binary(self):
         self.run_install('--target', 'jvm')

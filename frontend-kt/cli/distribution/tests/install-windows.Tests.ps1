@@ -20,8 +20,8 @@ try {
     Set-Content -LiteralPath $source -Value 'first'
     $env:DSBUILDER_INSTALL_DIR = Join-Path $work 'CLI install'
     $installer = Join-Path $distribution 'install-windows-cli.ps1'
-    & $installer -Source $source
-    & $installer -Source $source
+    & $installer -Source $source -WithoutWeb
+    & $installer -Source $source -WithoutWeb
     $entries = @([Environment]::GetEnvironmentVariable('Path', 'User') -split ';' |
         Where-Object { $_ -eq $env:DSBUILDER_INSTALL_DIR })
     if ($entries.Count -ne 1) { throw 'PATH duplicated' }
@@ -43,6 +43,21 @@ try {
         if (-not $failed) { throw 'Locked executable should prevent replacement' }
     } finally { $locked.Dispose() }
     if ((Get-Content -LiteralPath $binary).Trim() -ne 'second') { throw 'Failed replacement lost old CLI' }
+    # Шаг web-генератора: с поддельным npm.cmd он запускается, его ошибка не отменяет установку CLI.
+    $fakeNode = Join-Path $work 'fake node'
+    New-Item -ItemType Directory -Path $fakeNode | Out-Null
+    Set-Content -LiteralPath (Join-Path $fakeNode 'npm.cmd') -Value '@exit /b 0'
+    $pathBeforeNode = $env:Path
+    $env:Path = "$fakeNode;$env:Path"
+    try {
+        $warnings = & $installer -Source $source 3>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+        if (-not ($warnings | Where-Object { $_.Message -like '*Retry with: dsbuilder toolchain install web*' })) {
+            throw 'Failed web generator step was not reported'
+        }
+        if ((Get-Content -LiteralPath $binary).Trim() -ne 'second') { throw 'Web generator step changed installed CLI' }
+        $skipped = & $installer -Source $source -WithoutWeb 3>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+        if ($skipped) { throw '-WithoutWeb still ran the web generator step' }
+    } finally { $env:Path = $pathBeforeNode }
     # Сетевой уровень проверяется через реальный loopback HTTP-сервер и ZIP.
     $web = Join-Path $work 'web'
     $release = Join-Path $web 'releases/1.2.3'
@@ -74,8 +89,8 @@ try {
     }
     if (-not $ready) { throw 'Test HTTP server unavailable' }
     $bootstrap = Join-Path $distribution 'bootstrap/install.ps1'
-    & $bootstrap
-    & $bootstrap -Version 1.2.3
+    & $bootstrap -WithoutWeb
+    & $bootstrap -Version 1.2.3 -WithoutWeb
     $normalBase = $env:CLI_DOWNLOAD_BASE_URL
     $env:CLI_DOWNLOAD_BASE_URL = "$normalBase/redirect"
     $requestsLog = Join-Path $web 'requests.log'

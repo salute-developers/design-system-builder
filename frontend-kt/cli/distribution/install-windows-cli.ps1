@@ -1,5 +1,7 @@
 param(
-    [string]$Source = (Join-Path $PSScriptRoot 'dsbuilder.exe')
+    [string]$Source = (Join-Path $PSScriptRoot 'dsbuilder.exe'),
+    # Не ставить web-генератор: он нужен только для React и требует Node.js и сети.
+    [switch]$WithoutWeb
 )
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) { throw "Cannot find dsbuilder.exe at $Source" }
@@ -39,3 +41,21 @@ try {
 }
 Write-Host "Installed dsbuilder.exe to $installed"
 Write-Host 'Open a new terminal to use dsbuilder from any directory.'
+# Web-генератор ставится после установки CLI и не отменяет её: шагу нужны npm и сеть.
+if (-not $WithoutWeb) {
+    if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
+        Write-Warning 'npm was not found, the React generator was not installed. Install Node.js 22+ and run: dsbuilder toolchain install web'
+    } else {
+        $webInstalled = $false
+        try {
+            & $installed toolchain install web
+            $webInstalled = $LASTEXITCODE -eq 0
+        } catch {
+            Write-Warning $_.Exception.Message
+        }
+        if (-not $webInstalled) {
+            Write-Warning 'The React generator was not installed, see the output above. dsbuilder is installed. Retry with: dsbuilder toolchain install web'
+        }
+        $global:LASTEXITCODE = 0
+    }
+}
