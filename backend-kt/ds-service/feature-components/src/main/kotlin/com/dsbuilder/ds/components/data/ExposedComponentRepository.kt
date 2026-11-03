@@ -21,7 +21,7 @@ import java.util.UUID
 /** Exposed component repository with ownership resolved through design-system links. */
 class ExposedComponentRepository : ComponentRepository {
     override suspend fun listAccessible(projectId: ProjectId, systemAdmin: Boolean): List<Component> {
-        val ids = ComponentOwnership.readableComponentIds(projectId, systemAdmin)
+        val ids = ComponentOwnership.catalogComponentIds(projectId, systemAdmin)
         if (ids.isEmpty()) return emptyList()
         return ComponentsTable.selectAll().where { ComponentsTable.id inList ids }.map(::component)
     }
