@@ -24,6 +24,15 @@ public enum class ProjectsReadErrorCode {
 
     /** Backend недоступен или вернул неожиданный ответ. */
     BACKEND_UNAVAILABLE,
+
+    /** Доступ запрещён. */
+    FORBIDDEN,
+
+    /** Ресурс не найден. */
+    NOT_FOUND,
+
+    /** Формат ответа неверен. */
+    INVALID_BACKEND_RESPONSE,
 }
 
 /**

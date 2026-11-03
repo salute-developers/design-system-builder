@@ -2,7 +2,10 @@ package com.dsbuilder.frontend.mcpserver
 
 import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
+import com.dsbuilder.frontend.feature.ds.application.DiscoverDesignSystemVersionsUseCase
+import com.dsbuilder.frontend.feature.ds.application.ListDesignSystemsUseCase
 import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
+import com.dsbuilder.frontend.feature.projects.application.ListProjectsUseCase
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusCommand
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusErrorCode
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
@@ -146,13 +149,29 @@ public class DsBuilderMcpServerCore(
     private val componentReadUseCases: ComponentReadUseCases? = null,
     private val modelReadUseCase: ReadDesignSystemModelUseCase? = null,
     private val json: Json = Json { encodeDefaults = true },
+    private val listProjectsUseCase: ListProjectsUseCase? = null,
+    private val listDesignSystemsUseCase: ListDesignSystemsUseCase? = null,
+    private val discoverVersionsUseCase: DiscoverDesignSystemVersionsUseCase? = null,
 ) {
     private val readContext = McpReadToolContext(config, json)
     private val documentationMcpTools = DocumentationMcpTools(docsReadUseCases, readContext)
     private val codeBindingMcpTools = CodeBindingMcpTools(docsReadUseCases, readContext)
     private val componentMcpTools = ComponentMcpTools(componentReadUseCases, readContext)
-    private val modelMcpTools = ModelMcpTools(modelReadUseCase, readContext)
+    private val modelMcpTools = ModelMcpTools(
+        modelReadUseCase,
+        readContext,
+        discoverVersionsUseCase,
+        config.apiUrlOverride,
+    )
+    private val discovery = DiscoveryMcpTools(
+        listProjectsUseCase,
+        listDesignSystemsUseCase,
+        readContext,
+        config.apiUrlOverride,
+    )
     private val nonModelHandlers: Map<String, suspend (JsonObject) -> McpToolResult> = mapOf(
+        "projects_list" to discovery::projects,
+        "design_systems_list" to discovery::systems,
         "project_get_status" to ::projectGetStatus,
         "documentation_search" to documentationMcpTools::documentationSearch,
         "documentation_publications_list" to documentationMcpTools::publicationsList,

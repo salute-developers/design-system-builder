@@ -65,8 +65,8 @@ val componentsModule = module {
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
     single<ApiMetaRepository> { ExposedApiMetaRepository() }
     single<PluginBuildRepository> { ExposedPluginBuildRepository() }
-    factory { PublishPluginBuildUseCase(get(), get(), get(), get(), get()) }
-    factory { GetActivePluginBuildUseCase(get(), get(), get(), get(), get()) }
+    factory { PublishPluginBuildUseCase(get(), get(), get(), get()) }
+    factory { GetActivePluginBuildUseCase(get(), get(), get(), get()) }
     single<ComponentWebAdapterRepository> { ExposedComponentWebAdapterRepository() }
     single<DesignSystemComponentRepository> { ExposedDesignSystemComponentRepository() }
     single<ComponentDependencyRepository> { ExposedComponentDependencyRepository() }

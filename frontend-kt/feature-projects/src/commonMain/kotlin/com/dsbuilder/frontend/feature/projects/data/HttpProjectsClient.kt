@@ -12,8 +12,6 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
-private const val HTTP_UNAUTHORIZED = 401
-
 /**
  * Ktor-реализация [ProjectsClient] поверх `GET /api/projects`. `public` — единственная
  * production-реализация порта, которую non-Koin composition root (`:plugins:android-studio`)
@@ -30,14 +28,11 @@ public class HttpProjectsClient(
         val client = httpClientFactory.create(apiUrl, credential)
         return when (val result = client.get("/api/projects")) {
             is AuthenticatedHttpResult.Success -> decode(result.body)
-            is AuthenticatedHttpResult.Failure -> ProjectsReadResult.Failed(
-                code = if (result.statusCode == HTTP_UNAUTHORIZED) {
-                    ProjectsReadErrorCode.AUTH_REQUIRED
-                } else {
-                    ProjectsReadErrorCode.BACKEND_UNAVAILABLE
-                },
-                message = result.message,
-            )
+            is AuthenticatedHttpResult.Failure -> PROJECT_HTTP_FAILURES[result.statusCode]
+                ?: ProjectsReadResult.Failed(
+                    ProjectsReadErrorCode.BACKEND_UNAVAILABLE,
+                    result.statusCode?.let { "Cannot read projects: backend returned HTTP $it." } ?: result.message,
+                )
         }
     }
 
@@ -46,7 +41,7 @@ public class HttpProjectsClient(
             json.decodeFromString<List<ProjectDto>>(body)
         } catch (exception: SerializationException) {
             return ProjectsReadResult.Failed(
-                ProjectsReadErrorCode.BACKEND_UNAVAILABLE,
+                ProjectsReadErrorCode.INVALID_BACKEND_RESPONSE,
                 "Error: failed to parse project list.",
             )
         }
@@ -61,4 +56,13 @@ private data class ProjectDto(
     val id: String,
     val name: String,
     val description: String? = null,
+)
+
+private val PROJECT_HTTP_FAILURES = mapOf(
+    401 to ProjectsReadResult.Failed(
+        ProjectsReadErrorCode.AUTH_REQUIRED,
+        "Run dsbuilder auth login and retry.",
+    ),
+    403 to ProjectsReadResult.Failed(ProjectsReadErrorCode.FORBIDDEN, "Cannot read projects."),
+    404 to ProjectsReadResult.Failed(ProjectsReadErrorCode.NOT_FOUND, "Cannot read projects."),
 )

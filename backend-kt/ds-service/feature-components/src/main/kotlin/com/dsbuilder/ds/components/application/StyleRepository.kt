@@ -30,6 +30,17 @@ interface StyleRepository {
         designSystemId: UUID,
     ): List<ComponentStyleSummary>?
 
+    /**
+     * Стили вариаций компонента в дизайн-системе: тот же состав, что у
+     * `GET /api/ds/design-systems/{id}/components/{componentId}/styles`.
+     */
+    suspend fun listByComponentAndDesignSystem(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        componentId: UUID,
+        designSystemId: UUID,
+    ): List<ComponentStyleSummary>
+
     /** Performs the create accessible operation. */
     suspend fun createAccessible(projectId: ProjectId, systemAdmin: Boolean, command: Create): ComponentStyleSummary?
 

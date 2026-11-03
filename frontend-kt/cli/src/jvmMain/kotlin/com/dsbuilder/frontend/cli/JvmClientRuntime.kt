@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.core.auth.CredentialStoreFileSystem
 import com.dsbuilder.frontend.core.auth.CredentialStoreLock
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.auth.FileCredentialStore
+import com.dsbuilder.frontend.core.auth.ProcessCredentialStoreLock
 import com.dsbuilder.frontend.core.network.KtorAuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.KtorTokenClient
 import com.dsbuilder.frontend.core.process.ProcessLaunchException
@@ -14,7 +15,6 @@ import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
-import kotlinx.coroutines.delay
 import okio.BufferedSink
 import okio.buffer
 import okio.sink
@@ -43,9 +43,6 @@ public actual fun defaultClientRuntime(): ClientRuntime {
         close = { httpClient.close() },
     )
 }
-
-private const val CREDENTIAL_LOCK_TIMEOUT_MILLIS = 30_000L
-private const val CREDENTIAL_LOCK_RETRY_MILLIS = 50L
 
 /**
  * Запуск процессов через `ProcessBuilder`.
@@ -163,21 +160,4 @@ private object JvmCredentialStoreFileSystem : CredentialStoreFileSystem {
         }
 }
 
-private object JvmCredentialStoreLock : CredentialStoreLock {
-    override suspend fun <T> withLock(lockPath: String, block: suspend () -> T): T {
-        val lockFile = File(lockPath)
-        lockFile.parentFile?.mkdirs()
-        val deadline = System.currentTimeMillis() + CREDENTIAL_LOCK_TIMEOUT_MILLIS
-        while (!lockFile.createNewFile()) {
-            if (System.currentTimeMillis() >= deadline) {
-                error("Timed out waiting for credential store lock: $lockPath")
-            }
-            delay(CREDENTIAL_LOCK_RETRY_MILLIS)
-        }
-        try {
-            return block()
-        } finally {
-            lockFile.delete()
-        }
-    }
-}
+internal object JvmCredentialStoreLock : CredentialStoreLock by ProcessCredentialStoreLock(JvmCredentialLockPlatform)

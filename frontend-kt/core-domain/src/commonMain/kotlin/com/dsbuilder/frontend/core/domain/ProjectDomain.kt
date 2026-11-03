@@ -85,6 +85,10 @@ public data class ProjectConfigDraft(
     public val designSystemId: DesignSystemId,
     public val credentialEnvName: CredentialEnvName,
     public val platforms: List<TargetPlatform> = emptyList(),
+    /** Авторизация записываемой конфигурации. */
+    public val credentialSelection: InitCredentialSelection = InitCredentialSelection.Environment(
+        credentialEnvName.value,
+    ),
 )
 
 /**

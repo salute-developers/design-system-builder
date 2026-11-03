@@ -47,6 +47,7 @@ import com.dsbuilder.ds.components.application.GetAppearanceVariationValueUseCas
 import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependenciesWithReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
+import com.dsbuilder.ds.components.application.GetComponentEditorBundleUseCase
 import com.dsbuilder.ds.components.application.GetComponentPropertiesWithPlatformParamsUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCase
@@ -102,8 +103,8 @@ import com.dsbuilder.ds.components.application.ListVariationPropertyValuesByStyl
 import com.dsbuilder.ds.components.application.ListVariationPropertyValuesUseCase
 import com.dsbuilder.ds.components.application.ListVariationStylesUseCase
 import com.dsbuilder.ds.components.application.ListVariationsUseCase
-import com.dsbuilder.ds.components.application.PluginBuildSettings
 import com.dsbuilder.ds.components.application.PluginBuildStorage
+import com.dsbuilder.ds.components.application.PluginBuildStorages
 import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisValueUseCase
@@ -131,6 +132,7 @@ import com.dsbuilder.ds.components.application.UpdateVariationPropertyValueUseCa
 import com.dsbuilder.ds.components.application.UpdateVariationUseCase
 import com.dsbuilder.ds.components.di.componentModelModule
 import com.dsbuilder.ds.components.di.componentsModule
+import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import com.dsbuilder.ds.components.presentation.activePluginBuildRoutes
 import com.dsbuilder.ds.components.presentation.apiMetaImportRoutes
 import com.dsbuilder.ds.components.presentation.appearanceEditorRoutes
@@ -139,6 +141,7 @@ import com.dsbuilder.ds.components.presentation.appearanceVariationRoutes
 import com.dsbuilder.ds.components.presentation.appearanceVariationValueRoutes
 import com.dsbuilder.ds.components.presentation.componentConfigRoutes
 import com.dsbuilder.ds.components.presentation.componentDependencyRoutes
+import com.dsbuilder.ds.components.presentation.componentEditorBundleRoutes
 import com.dsbuilder.ds.components.presentation.componentReuseConfigRoutes
 import com.dsbuilder.ds.components.presentation.componentRoutes
 import com.dsbuilder.ds.components.presentation.designSystemComponentRoutes
@@ -283,7 +286,7 @@ import com.dsbuilder.ds.components.application.ListDesignSystemComponentsUseCase
 /** Installs the DS runtime and HTTP endpoints. */
 fun Application.module(
     configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment(),
-    pluginStorage: PluginBuildStorage? = null,
+    pluginStorages: Map<PreviewPluginPlatform, PluginBuildStorage> = emptyMap(),
 ) {
     com.dsbuilder.ds.core.presentation.configureDsLegacyEntry(this)
     val runtime = createDsRuntime(configuration)
@@ -294,7 +297,7 @@ fun Application.module(
         ignoreUnknownKeys = false
         explicitNulls = true
     }
-    installDependencyGraph(configuration, runtime, pluginStorage)
+    installDependencyGraph(configuration, runtime, pluginStorages)
     installDsHttpPlugins(json, runtime.metrics)
     installDsRoutes(runtime, json)
 }
@@ -303,13 +306,12 @@ fun Application.module(
 fun dsDependencyModules(
     configuration: DsServiceConfiguration,
     runtime: DsRuntime,
-    pluginStorage: PluginBuildStorage? = null,
+    pluginStorages: Map<PreviewPluginPlatform, PluginBuildStorage> = emptyMap(),
     registerSharedPolicy: Boolean = true,
 ): List<org.koin.core.module.Module> = listOf(
     module {
         single { configuration }
-        single<PluginBuildStorage> { pluginStorage ?: configuration.composePreviewPlugin.createStorage() }
-        single<PluginBuildSettings> { configuration.composePreviewPlugin.settings() }
+        single<PluginBuildStorages> { configuration.composePreviewPlugin.createStorages(pluginStorages) }
         single { runtime.database }
         if (registerSharedPolicy) single { runtime.evaluator }
         single { runtime.accessPolicy }
@@ -340,11 +342,11 @@ fun dsDependencyModules(
 private fun Application.installDependencyGraph(
     configuration: DsServiceConfiguration,
     runtime: DsRuntime,
-    pluginStorage: PluginBuildStorage?,
+    pluginStorages: Map<PreviewPluginPlatform, PluginBuildStorage>,
 ) {
     install(Koin) {
         slf4jLogger()
-        modules(dsDependencyModules(configuration, runtime, pluginStorage))
+        modules(dsDependencyModules(configuration, runtime, pluginStorages))
     }
 }
 
@@ -447,7 +449,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
     pluginBuildPublishRoutes(
         runtime.evaluator,
         koin.get<PublishPluginBuildUseCase>(),
-        koin.get<PluginBuildSettings>().limits.maxCompressedBytes,
+        koin.get<DsServiceConfiguration>().composePreviewPlugin.limits.maxCompressedBytes,
     )
     activePluginBuildRoutes(runtime.evaluator, koin.get<GetActivePluginBuildUseCase>())
     componentConfigRoutes(
@@ -587,6 +589,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<DuplicateAppearanceConfigurationUseCase>(),
         json,
     )
+    componentEditorBundleRoutes(runtime.evaluator, koin.get<GetComponentEditorBundleUseCase>())
     appearanceVariationRoutes(
         runtime.evaluator,
         koin.get<ListAppearanceVariationsUseCase>(),

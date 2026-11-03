@@ -15,6 +15,7 @@ kotlin {
             implementation(projects.coreApplication)
             implementation(projects.featureComponents)
             implementation(projects.featureDs)
+            implementation(projects.featureProjects)
             implementation(projects.featureDocs)
             implementation(projects.featureStatus)
             implementation(libs.kotlinx.serialization.json)

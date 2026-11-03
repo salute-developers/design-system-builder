@@ -290,11 +290,13 @@ class DsBuilderMcpServerCoreTest {
 
         val tools = server.tools()
 
-        assertEquals(27, tools.size)
+        assertEquals(29, tools.size)
         assertEquals(
             setOf(
                 "design_system_get_context",
                 "project_get_status",
+                "projects_list",
+                "design_systems_list",
                 "design_system_versions_list",
                 "design_system_version_get",
                 "design_system_changes_list",
@@ -532,7 +534,7 @@ class DsBuilderMcpServerCoreTest {
                 CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Authentication required")
         }
         val core = server(modelReadUseCase = modelReader(provider = provider) { _, _, _ -> error("No backend call") })
-        assertEquals(27, core.tools().size)
+        assertEquals(29, core.tools().size)
         assertErrorCode("AUTH_REQUIRED", core.callTool("design_system_get_context"))
     }
 

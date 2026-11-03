@@ -10,20 +10,20 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
             val page = command.operation in PAGE_OPERATIONS || isPublishedVersion(command)
             val limit = if (command.operation == ModelReadOperation.VERSION && page) 1 else command.limit ?: 50
             val query = parameters(command, designSystemId, page, limit).entries.joinToString("&") {
-                "${encode(it.key)}=${encode(it.value)}"
+                "${encodeModelSegment(it.key)}=${encodeModelSegment(it.value)}"
             }
-            val url = "/api/projects/${encode(projectId)}/ds/${path(command, designSystemId)}" +
+            val url = "/api/projects/${encodeModelSegment(projectId)}/ds/${path(command, designSystemId)}" +
                 if (query.isEmpty()) "" else "?$query"
             return ModelReadHttpRequest(url, page, limit)
         }
         private fun path(command: ModelReadCommand, designSystemId: String): String {
-            val id = encode(command.resourceId.orEmpty())
-            val ds = "design-systems/${encode(designSystemId)}"
+            val id = encodeModelSegment(command.resourceId.orEmpty())
+            val ds = "design-systems/${encodeModelSegment(designSystemId)}"
             return when (command.operation) {
                 ModelReadOperation.CONTEXT -> ds
                 ModelReadOperation.VERSIONS ->
                     "design-system-versions/by-design-system/" +
-                        "${encode(designSystemId)}"
+                        "${encodeModelSegment(designSystemId)}"
                 ModelReadOperation.VERSION -> versionPath(command, designSystemId, ds)
                 ModelReadOperation.CHANGES -> "$ds/changes"
                 ModelReadOperation.TENANTS -> "$ds/tenants"
@@ -50,7 +50,7 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
             if (command.version == "draft") {
                 ds
             } else {
-                "design-system-versions/by-design-system/${encode(designSystemId)}"
+                "design-system-versions/by-design-system/${encodeModelSegment(designSystemId)}"
             }
 
         private fun parameters(
@@ -91,7 +91,7 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
     }
 }
 
-private fun encode(value: String): String = buildString {
+internal fun encodeModelSegment(value: String): String = buildString {
     value.encodeToByteArray().forEach {
         val byte = it.toInt() and 0xff
         val letter = byte in 'a'.code..'z'.code || byte in 'A'.code..'Z'.code

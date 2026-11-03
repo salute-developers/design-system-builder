@@ -1,14 +1,10 @@
 package com.dsbuilder.frontend.mcpnode
 
 import com.dsbuilder.frontend.core.auth.CredentialStoreFileSystem
-import com.dsbuilder.frontend.core.auth.CredentialStoreLock
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
-import kotlinx.coroutines.delay
 import okio.BufferedSink
 import org.koin.core.component.get
 
-private const val CREDENTIAL_LOCK_TIMEOUT_MILLIS = 30_000L
-private const val CREDENTIAL_LOCK_RETRY_MILLIS = 50L
 private val nodePath: dynamic = js("require('path')")
 private val nodeOs: dynamic = js("require('os')")
 private val nodeFs: dynamic = js("require('fs')")
@@ -95,32 +91,3 @@ internal object NodeCredentialStoreFileSystem : CredentialStoreFileSystem {
         nodeFs.chmodSync(path, js("parseInt")(mode, 8))
     }
 }
-
-internal object NodeCredentialStoreLock : CredentialStoreLock {
-    override suspend fun <T> withLock(lockPath: String, block: suspend () -> T): T {
-        NodeCredentialStoreFileSystem.createDirectories(nodePath.dirname(lockPath) as String)
-        val deadline = currentTimeMillis() + CREDENTIAL_LOCK_TIMEOUT_MILLIS
-        while (!tryAcquire(lockPath)) {
-            if (currentTimeMillis() >= deadline) {
-                error("Timed out waiting for credential store lock: $lockPath")
-            }
-            delay(CREDENTIAL_LOCK_RETRY_MILLIS)
-        }
-        try {
-            return block()
-        } finally {
-            NodeCredentialStoreFileSystem.deleteFile(lockPath)
-        }
-    }
-
-    private fun tryAcquire(lockPath: String): Boolean =
-        try {
-            val descriptor = nodeFs.openSync(lockPath, "wx") as Int
-            nodeFs.closeSync(descriptor)
-            true
-        } catch (exception: Throwable) {
-            false
-        }
-}
-
-private fun currentTimeMillis(): Long = NodePkcePlatform.currentTimeMillis()

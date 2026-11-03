@@ -1,19 +1,26 @@
 package com.dsbuilder.frontend.plugin.androidstudio.tokens
 
+import com.dsbuilder.frontend.core.application.UserSessionAccess
+import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.RefreshTokenStore
+import com.dsbuilder.frontend.core.auth.UserOAuthTokens
+import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
+import com.dsbuilder.frontend.core.network.ApiUrlResolver
+import com.dsbuilder.frontend.feature.ds.application.DesignSystemSummary
+import com.dsbuilder.frontend.feature.ds.application.DesignSystemsClient
+import com.dsbuilder.frontend.feature.ds.application.DesignSystemsReadResult.Success
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import com.dsbuilder.frontend.feature.ds.application.ListDesignSystemsUseCase as SharedListDesignSystemsUseCase
 
 private const val TENANT_A = "tenant-a"
 
 private class FakeDesignSystemDataClient(
-    private val designSystems: List<DesignSystem> = emptyList(),
     private val tokens: List<DesignToken> = emptyList(),
     private val tokenValues: List<TokenValue> = emptyList(),
 ) : DesignSystemDataClient {
-    override suspend fun listDesignSystems(projectId: String): List<DesignSystem> = designSystems
-
     override suspend fun listTokens(projectId: String): List<DesignToken> = tokens
 
     override suspend fun listTokenValues(projectId: String): List<TokenValue> = tokenValues
@@ -23,7 +30,24 @@ class ListDesignSystemsUseCaseTest {
     @Test
     fun returnsDesignSystemsForProject() = runBlocking<Unit> {
         val designSystems = listOf(DesignSystem(id = "ds1", name = "sdds_serv", description = null))
-        val useCase = ListDesignSystemsUseCase(FakeDesignSystemDataClient(designSystems = designSystems))
+        val session = UserSessionCredentialResolver(object : RefreshTokenStore {
+            override fun save(refreshToken: String) = Unit
+            override fun load(): String? = null
+            override fun clear() = Unit
+        }).apply { applyTokens(UserOAuthTokens("test-access", "test-refresh", 3600)) }
+        val catalog = SharedListDesignSystemsUseCase(
+            ApiUrlResolver(EnvironmentReader { null }),
+            UserSessionAccess(session),
+            DesignSystemsClient { _, _, project ->
+                assertEquals("project-a", project)
+                Success(
+                    designSystems.map {
+                        DesignSystemSummary(it.id, it.name, it.description)
+                    },
+                )
+            },
+        )
+        val useCase = ListDesignSystemsUseCase(catalog)
 
         assertEquals(designSystems, useCase.execute("project-a"))
     }

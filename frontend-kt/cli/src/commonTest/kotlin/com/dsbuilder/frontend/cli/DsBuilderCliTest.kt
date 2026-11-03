@@ -1,10 +1,13 @@
 package com.dsbuilder.frontend.cli
 
+import com.dsbuilder.frontend.cli.feature.init.presentation.InitChoice
+import com.dsbuilder.frontend.cli.feature.init.presentation.InitSelectionMenu
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.CredentialStore
+import com.dsbuilder.frontend.core.auth.CredentialStoreLockException
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
@@ -23,6 +26,7 @@ import com.dsbuilder.frontend.core.workspace.ProjectConfigCodec
 import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
 import com.dsbuilder.frontend.core.workspace.ProjectConfigTenant
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import com.github.ajalt.mordant.terminal.Terminal
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -352,6 +356,19 @@ class DsBuilderCliTest {
     }
 
     @Test
+    fun credentialLockTimeoutIsPrintedWithoutUncaughtException() {
+        val store = object : CredentialStore {
+            override suspend fun read(apiUrl: String): UserSession? = throw CredentialStoreLockException("session.lock")
+            override suspend fun save(session: UserSession) = Unit
+            override suspend fun delete(apiUrl: String) = Unit
+        }
+        val result = DsBuilderCli(fakeRuntime(credentialStore = store)).execute(listOf("auth", "status"))
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("timed out waiting for credential store lock"), result.output)
+        assertTrue(result.output.contains("Stop other CLI/MCP processes"), result.output)
+    }
+
+    @Test
     fun authLoginRejectsPasswordArgumentBeforeParsing() {
         val result = DsBuilderCli(fakeRuntime()).execute(
             listOf("auth", "login", "--username", "alice", "--password", "secret"),
@@ -395,7 +412,7 @@ class DsBuilderCliTest {
         val result = DsBuilderCli(fakeRuntime()).execute(listOf("--version"))
 
         assertEquals(0, result.exitCode)
-        assertEquals("dsbuilder version 0.1.0", result.output)
+        assertEquals("dsbuilder version $VERSION", result.output)
     }
 
     @Test
@@ -674,7 +691,7 @@ class DsBuilderCliTest {
         val help = DsBuilderCli(runtime).execute(listOf("--help"))
 
         assertEquals(1, missingOption.exitCode)
-        assertTrue(missingOption.output.contains("missing option --project-id"))
+        assertTrue(missingOption.output.contains("--project-id"))
         assertEquals(1, unknown.exitCode)
         assertTrue(unknown.output.contains("unknown-command"))
         assertEquals(0, help.exitCode)
@@ -694,7 +711,7 @@ class DsBuilderCliTest {
 
         assertEquals(0, help.exitCode)
         assertEquals(0, version.exitCode)
-        assertEquals("dsbuilder version 0.1.0", version.output)
+        assertEquals("dsbuilder version $VERSION", version.output)
     }
 
     @Test
@@ -1092,6 +1109,33 @@ class DsBuilderCliTest {
         assertFalse(fileSystem.readText("/repo/.sdds/config.json").contains("secret-value"))
         assertFalse(fileSystem.readText("/repo/.sdds/config.json").contains("apiUrl"))
         assertThemeFetchCalls(calls)
+    }
+
+    @Test
+    fun themeFetchAcceptsNullTokenDisplayNameAndDescription() {
+        val fileSystem = initializedFileSystem()
+        val results = successfulThemeHttpResults().toMutableMap()
+        val tokenPath = "/api/projects/project-a/ds/design-systems/design-system-a/tokens"
+        val response = tokensResponse()
+            .replace("\"displayName\": \"iOS primary\"", "\"displayName\": null")
+            .replace("\"description\": \"iOS primary color\"", "\"description\": null")
+        assertTrue(response.contains("\"displayName\": null"))
+        assertTrue(response.contains("\"description\": null"))
+        results[tokenPath] = AuthenticatedHttpResult.Success(response)
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "test-key"),
+                httpResults = results,
+            ),
+        ).execute(listOf("theme", "fetch"))
+
+        assertEquals(0, result.exitCode, result.output)
+        val meta = Json.parseToJsonElement(fileSystem.readText("/repo/.sdds/tenants/sdds_cs/meta.json")).jsonObject
+        val token = meta.getValue("tokens").jsonArray
+            .single { it.jsonObject.getValue("id").jsonPrimitive.content == "ios-color-token" }.jsonObject
+        assertEquals("color.ios.primary", token.getValue("displayName").jsonPrimitive.content)
+        assertEquals("", token.getValue("description").jsonPrimitive.content)
     }
 
     @Test
@@ -1642,6 +1686,181 @@ class DsBuilderCliTest {
         val fileSystem = FakeFileSystem(currentDirectory = "/repo/src")
         fileSystem.writeText("/repo/.sdds/config.json", ProjectConfigCodec().encode(projectConfig()))
         return fileSystem
+    }
+
+    @Test
+    fun interactiveInitSelectsProjectThenItsSystemsUsingUserSessionDespiteProjectKey() {
+        val fs = FakeFileSystem(currentDirectory = "/repo")
+        val events = mutableListOf<String>()
+        val credentials = mutableListOf<BackendCredential>()
+        val menu = object : InitSelectionMenu {
+            override fun supported(terminal: Terminal) = true
+            override fun select(
+                terminal: Terminal,
+                title: String,
+                choices: List<InitChoice>,
+            ): String {
+                events += "menu:${choices.map { it.id }}"
+                return choices.last().id
+            }
+            override fun selectMultiple(terminal: Terminal, title: String, choices: List<InitChoice>): List<String> =
+                error("Explicit --platform must skip platform menu")
+        }
+        val runtime = fakeRuntime(
+            fileSystem = fs,
+            environment = mapOf("DSBUILDER_API_KEY" to "ignored-key"),
+            credentialStore = testSessionStore(),
+            tokenClient = testTokenClient(),
+            onCredential = { credentials += it },
+            onGet = { events += it },
+            httpResults = mapOf(
+                "/api/projects" to AuthenticatedHttpResult.Success(
+                    """[{"id":"p1","name":"Same"},{"id":"p2","name":"Same","description":"second"}]""",
+                ),
+                "/api/projects/p2/ds/design-systems" to AuthenticatedHttpResult.Success(
+                    """[{"id":"s2","name":"System","description":"chosen"}]""",
+                ),
+            ),
+        )
+        val result = DsBuilderCli(runtime, menu).execute(listOf("init", "--platform", "swiftui"))
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(
+            listOf(
+                "/api/projects",
+                "menu:[p1, p2]",
+                "/api/projects/p2/ds/design-systems",
+                "menu:[s2]",
+            ),
+            events,
+        )
+        assertTrue(credentials.all { it is BackendCredential.Bearer })
+        val config = ProjectConfigCodec().decode(fs.readText("/repo/.sdds/config.json"))
+        assertEquals("p2", config.projectId)
+        assertEquals("s2", config.designSystemId)
+        assertEquals(CredentialReferenceType.USER_SESSION, config.credential.type)
+        assertEquals(listOf("swiftui"), config.platforms)
+        assertFalse(fs.readText("/repo/.sdds/config.json").contains("access-token"))
+    }
+
+    @Test
+    fun interactiveInitHandlesPartialIdsCancellationEmptyListsAndMembershipWithoutWritingConfig() {
+        for (scenario in listOf("cancel", "empty", "foreign", "no-session", "closed")) {
+            val fs = FakeFileSystem(currentDirectory = "/repo")
+            val calls = mutableListOf<String>()
+            val menu = object : InitSelectionMenu {
+                override fun supported(terminal: Terminal) = true
+                override fun select(
+                    terminal: Terminal,
+                    title: String,
+                    choices: List<InitChoice>,
+                ): String? {
+                    if (scenario == "closed") throw IllegalStateException("fixture EOF")
+                    return null
+                }
+                override fun selectMultiple(
+                    terminal: Terminal,
+                    title: String,
+                    choices: List<InitChoice>,
+                ): List<String> = error("Platform menu must not run after failed selection")
+            }
+            val runtime = fakeRuntime(
+                fileSystem = fs,
+                credentialStore = if (scenario == "no-session") null else testSessionStore(),
+                tokenClient = testTokenClient(),
+                onGet = { calls += it },
+                httpResults = mapOf(
+                    "/api/projects/p1/ds/design-systems" to AuthenticatedHttpResult.Success(
+                        if (scenario == "empty") "[]" else """[{"id":"s1","name":"One"}]""",
+                    ),
+                    "/api/projects" to AuthenticatedHttpResult.Success("""[{"id":"p1","name":"One"}]"""),
+                ),
+            )
+            val args = if (scenario == "foreign") {
+                listOf("init", "--design-system-id", "foreign")
+            } else {
+                listOf("init", "--project-id", "p1")
+            }
+            val result = DsBuilderCli(runtime, menu).execute(args)
+            assertEquals(1, result.exitCode, scenario)
+            assertFalse(fs.exists("/repo/.sdds/config.json"), scenario)
+            if (scenario != "foreign") assertFalse("/api/projects" in calls)
+            if (scenario == "no-session") assertTrue(result.output.contains("auth login"))
+        }
+    }
+
+    @Test
+    fun interactiveInitChecksExistingConfigBeforeNetworkAndHonorsExplicitEnv() {
+        val fs = FakeFileSystem(currentDirectory = "/repo")
+        fs.writeText("/repo/.sdds/config.json", ProjectConfigCodec().encode(projectConfig()))
+        val runtime = fakeRuntime(fileSystem = fs, onGet = { error("No network before config check") })
+        val result = DsBuilderCli(runtime).execute(listOf("init"))
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("already exists"))
+        val fresh = FakeFileSystem(currentDirectory = "/repo")
+        val menu = object : InitSelectionMenu {
+            override fun supported(terminal: Terminal) = true
+            override fun select(
+                terminal: Terminal,
+                title: String,
+                choices: List<InitChoice>,
+            ) = choices.single().id
+            override fun selectMultiple(terminal: Terminal, title: String, choices: List<InitChoice>): List<String> =
+                listOf("compose")
+        }
+        val selected = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fresh,
+                credentialStore = testSessionStore(),
+                tokenClient = testTokenClient(),
+                httpResult = AuthenticatedHttpResult.Success("""[{"id":"s1","name":"One"}]"""),
+            ),
+            menu,
+        )
+            .execute(listOf("init", "--project-id", "p1", "--api-key-env", "CUSTOM_KEY"))
+        assertEquals(0, selected.exitCode, selected.output)
+        assertEquals(
+            CredentialReference(CredentialReferenceType.ENV, "CUSTOM_KEY"),
+            ProjectConfigCodec().decode(fresh.readText("/repo/.sdds/config.json")).credential,
+        )
+        assertEquals(
+            listOf("compose"),
+            ProjectConfigCodec().decode(fresh.readText("/repo/.sdds/config.json")).platforms,
+        )
+    }
+
+    @Test
+    fun interactiveInitAllowsSkippingPlatformsAndCancellingBeforeConfigWrite() {
+        for (selection in listOf<List<String>?>(emptyList(), null)) {
+            val fs = FakeFileSystem(currentDirectory = "/repo")
+            val menu = object : InitSelectionMenu {
+                override fun supported(terminal: Terminal) = true
+                override fun select(terminal: Terminal, title: String, choices: List<InitChoice>) = choices.single().id
+                override fun selectMultiple(
+                    terminal: Terminal,
+                    title: String,
+                    choices: List<InitChoice>,
+                ): List<String>? {
+                    assertEquals(listOf("compose", "android-view", "swiftui", "react"), choices.map { it.id })
+                    return selection
+                }
+            }
+            val result = DsBuilderCli(
+                fakeRuntime(
+                    fileSystem = fs,
+                    credentialStore = testSessionStore(),
+                    tokenClient = testTokenClient(),
+                    httpResult = AuthenticatedHttpResult.Success("""[{"id":"s1","name":"One"}]"""),
+                ),
+                menu,
+            ).execute(listOf("init", "--project-id", "p1"))
+            if (selection == null) {
+                assertEquals(1, result.exitCode)
+                assertFalse(fs.exists("/repo/.sdds/config.json"))
+            } else {
+                assertEquals(0, result.exitCode, result.output)
+                assertEquals(emptyList(), ProjectConfigCodec().decode(fs.readText("/repo/.sdds/config.json")).platforms)
+            }
+        }
     }
 
     private fun fakeRuntime(

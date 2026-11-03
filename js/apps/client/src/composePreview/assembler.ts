@@ -16,6 +16,7 @@ import type {
     PreviewStyleDraft,
     PreviewThemeTokenDraft,
 } from './draft';
+import { isTokenName, normalizeWebTokenValue, parseWebColor } from './webTokenValues';
 
 export type AssemblyResult =
     | { ok: true; payload: PreviewPayloadInput }
@@ -44,6 +45,7 @@ const sourceFor = (
     property: PreviewPropertyDraft,
     raw: string | number | undefined,
     adjusted = false,
+    web = false,
 ): PreviewPropertySource | AssemblyDiagnostic => {
     if (raw === undefined) return diagnostic('incompatible_value', `Property ${property.id} has no value`, property.id);
     const numeric = typeof raw === 'number' ? raw : Number(raw);
@@ -53,6 +55,10 @@ const sourceFor = (
     // Свойство типа `value` хранит значение без темы (имя константы enum, флаг): это литерал, а не токен.
     // Иконка — имя в формате данных (`disclosure.down.fill.16`); плагин находит по нему иконку, токена темы нет.
     if (!adjusted && (property.type === 'value' || property.type === 'icon')) return { type: 'literal', value: raw };
+    // Web-значение, которое не имя токена (`transparent`, `#F3A912`, `auto`), — литерал; цвет — в `#RRGGBBAA`.
+    if (!adjusted && web && typeof raw === 'string' && !isTokenName(raw)) {
+        return { type: 'literal', value: (property.type === 'color' && parseWebColor(raw)) || raw };
+    }
     if (!adjusted && typeof raw === 'string' && property.type !== 'float') {
         return { type: 'tokenRef', tokenId: raw };
     }
@@ -83,10 +89,10 @@ const withAlpha = (
 const isEmptyIcon = (property: PreviewPropertyDraft) =>
     property.type === 'icon' && (property.value === undefined || property.value === '');
 
-const effectiveProperty = (property: PreviewPropertyDraft): PreviewPropertyValue | AssemblyDiagnostic => {
+const effectiveProperty = (property: PreviewPropertyDraft, web = false): PreviewPropertyValue | AssemblyDiagnostic => {
     if (property.styleRef) return { base: { type: 'styleRef', styleId: property.styleRef } };
     if (property.assetRef) return { base: { type: 'assetRef', assetId: property.assetRef } };
-    const plainBase = sourceFor(property, property.value, property.adjustment !== undefined);
+    const plainBase = sourceFor(property, property.value, property.adjustment !== undefined, web);
     if ('code' in plainBase) return plainBase;
     const base = withAlpha(plainBase, property.alpha, property.id);
     if ('code' in base) return base;
@@ -94,7 +100,8 @@ const effectiveProperty = (property: PreviewPropertyDraft): PreviewPropertyValue
     // В конфигурации (как в Android ColorStateList) побеждает первое совпадение, а в протоколе при равном числе состояний
     // последняя запись: порядок разворачивается, чтобы `pressed` перед `hovered` выигрывал при нажатии с наведением.
     for (const { names, value, alpha } of [...property.states].reverse()) {
-        const plain = sourceFor(property, value, property.adjustment !== undefined);
+        // Состояние без значения не передаётся: производные токены темы (`-hover`, `-active`) web-плагин выводит сам.
+        const plain = sourceFor(property, value, property.adjustment !== undefined, web);
         if ('code' in plain) continue;
         const source = withAlpha(plain, alpha, property.id);
         if ('code' in source) return source;
@@ -116,7 +123,11 @@ interface CollectedStyles {
 }
 
 /** Собирает транзитивно достижимые вложенные стили, проверяя неизвестные ссылки и циклы. */
-const collectStyles = (roots: Record<string, PreviewPropertyValue>, drafts: PreviewStyleDraft[]): CollectedStyles => {
+const collectStyles = (
+    roots: Record<string, PreviewPropertyValue>,
+    drafts: PreviewStyleDraft[],
+    web = false,
+): CollectedStyles => {
     const index = new Map(drafts.map((style) => [style.id, style]));
     const styles: Record<string, PreviewStyle> = {};
     const stack: string[] = [];
@@ -134,7 +145,7 @@ const collectStyles = (roots: Record<string, PreviewPropertyValue>, drafts: Prev
                 const nested: Record<string, PreviewPropertyValue> = {};
                 for (const property of draftStyle.properties) {
                     if (isEmptyIcon(property)) continue;
-                    const effective = effectiveProperty(property);
+                    const effective = effectiveProperty(property, web);
                     if ('code' in effective) return effective;
                     nested[property.name] = effective;
                 }
@@ -173,18 +184,34 @@ export const assembleComposePreviewPayload = (draft: ComponentPreviewDraft): Ass
     return assemble({ ...draft, defaults: undefined });
 };
 
+/** Параметры свойства на платформе draft и признак параметров других платформ. */
+const platformMapping = (property: PreviewPropertyDraft, web: boolean) =>
+    web
+        ? { parameters: property.webParameters ?? [], other: Boolean(property.hasNonWebMappings) }
+        : { parameters: property.composeParameters, other: Boolean(property.hasNonComposeMappings) };
+
+/** Все токены, на которые ссылаются источники свойства. */
+const tokenRefsOf = (property: PreviewPropertyValue) =>
+    sourcesOf(property).flatMap((source) => (source.type === 'tokenRef' ? [source.tokenId] : []));
+
 const assemble = (draft: ComponentPreviewDraft): AssemblyResult => {
+    const web = draft.rendererPlatform === 'WEB';
     const properties: Record<string, PreviewPropertyValue> = {};
     const propertySources: Record<string, string> = {};
     for (const property of [...draft.selectedStyleProperties, ...draft.invariantProperties]) {
         if (isEmptyIcon(property)) continue;
-        if (!property.composeParameters.length) {
-            if (property.hasNonComposeMappings) continue;
+        const mapping = platformMapping(property, web);
+        if (!mapping.parameters.length) {
+            if (mapping.other) continue;
             return failure(
-                diagnostic('missing_mapping', `Property ${property.id} has no Compose mapping`, property.id),
+                diagnostic(
+                    'missing_mapping',
+                    `Property ${property.id} has no ${web ? 'web' : 'Compose'} mapping`,
+                    property.id,
+                ),
             );
         }
-        const effective = effectiveProperty(property);
+        const effective = effectiveProperty(property, web);
         if ('code' in effective) return failure(effective);
         const previousPropertyId = propertySources[property.name];
         if (
@@ -214,7 +241,7 @@ const assemble = (draft: ComponentPreviewDraft): AssemblyResult => {
             styleId ? [[`defaults.${kind}`, { base: { type: 'styleRef', styleId } } as PreviewPropertyValue]] : [],
         ),
     );
-    const collected = collectStyles({ ...properties, ...defaultStyleRoots }, draft.styles ?? []);
+    const collected = collectStyles({ ...properties, ...defaultStyleRoots }, draft.styles ?? [], web);
     if (collected.error) return failure(collected.error);
     const roots = new Set<string>();
     const assets = new Map<string, PreviewAsset>();
@@ -296,7 +323,10 @@ const assemble = (draft: ComponentPreviewDraft): AssemblyResult => {
             );
         }
         visiting.push(requestedId);
-        const normalized = normalizeToken(token, raw, resolve, draft.assets, assets);
+        // Платформа `WEB` хранит значения CSS-строками; Compose-путь получает структурированные значения.
+        const normalized = web
+            ? normalizeWebToken(token, raw, resolve, draft.assets, assets)
+            : normalizeToken(token, raw, resolve, draft.assets, assets);
         visiting.pop();
         if ('code' in normalized) return normalized;
         theme[requestedId] = normalized;
@@ -306,25 +336,74 @@ const assemble = (draft: ComponentPreviewDraft): AssemblyResult => {
         if (error) return failure(error);
     }
     const defaults = buildDefaults(draft.defaults, collected.styles, resolve);
+    const related = web ? buildRelatedStyles(draft.relatedStyles ?? [], resolve) : {};
+    if (web) {
+        // Окружение story: цветовые токены выбранного режима, типографика экрана (значения свойств ДС ссылаются на её
+        // CSS-переменные), шрифт тела и фон области. Типографика идёт под именем без экрана, как у ссылок свойств.
+        // Недоступный токен окружения не ломает превью компонента: плагин оставит значение по умолчанию.
+        for (const token of draft.themeTokens) {
+            if (!token.enabled) continue;
+            if (token.type === 'color' && token.id.startsWith(`${draft.themeMode}.`)) resolve(token.id);
+            if (token.type === 'typography') resolve(token.id.replace(/^screen-[a-z]+\./, ''));
+        }
+        resolve(WEB_BODY_FONT_TOKEN);
+        resolve(draft.surface.background);
+    }
+    const styles = { ...collected.styles, ...related };
     return {
         ok: true,
         payload: {
             protocolVersion: 1,
-            platform: 'COMPOSE',
+            platform: draft.rendererPlatform,
             assets: [...assets.values()].sort((a, b) => a.id.localeCompare(b.id)),
             theme,
             component: {
                 id: draft.componentId,
-                variations: { ...draft.variationSelections },
+                variations: { ...(draft.componentVariations ?? draft.variationSelections) },
                 properties,
             },
-            ...(Object.keys(collected.styles).length ? { styles: collected.styles } : {}),
+            ...(Object.keys(styles).length ? { styles } : {}),
             ...(defaults ? { defaults } : {}),
             example: draft.example,
             surface: draft.surface,
         },
     };
 };
+
+/** Токен шрифта тела: семейство, которым web-story рисует текст окружения. */
+export const WEB_BODY_FONT_TOKEN = 'fontFamily.body';
+
+/**
+ * Стили связанных компонентов для `WEB` целиком: свойства с web-параметром, нормализованные как свойства компонента.
+ * Свойство, токен которого не разрешается, пропускается: связанный стиль вспомогательный и не ломает превью.
+ */
+const buildRelatedStyles = (
+    drafts: PreviewStyleDraft[],
+    resolve: (id: string) => AssemblyDiagnostic | undefined,
+): Record<string, PreviewStyle> =>
+    Object.fromEntries(
+        drafts.map((style) => {
+            const properties: Record<string, PreviewPropertyValue> = {};
+            for (const property of style.properties) {
+                if (isEmptyIcon(property) || !property.webParameters?.length) continue;
+                const effective = effectiveProperty(property, true);
+                if ('code' in effective || effective.base.type === 'styleRef' || effective.base.type === 'assetRef') {
+                    continue;
+                }
+                if (tokenRefsOf(effective).some((tokenId) => resolve(tokenId))) continue;
+                properties[property.name] = effective;
+            }
+            const entry: PreviewStyle = {
+                component: style.componentId,
+                ...(style.variation ? { variation: style.variation } : {}),
+                ...(style.name ? { name: style.name } : {}),
+                ...(style.default ? { default: true } : {}),
+                ...(style.invariant ? { invariant: true } : {}),
+                properties,
+            };
+            return [style.id, entry];
+        }),
+    );
 
 const defaultStyleEntries = (styles: object | undefined) =>
     Object.entries(styles ?? {}) as Array<[string, string | undefined]>;
@@ -425,7 +504,38 @@ const normalizeToken = (
             style: String(font.fontStyle ?? font.style ?? 'normal').toUpperCase() === 'ITALIC' ? 'ITALIC' : 'NORMAL',
         });
     }
-    return { type: 'fontFamily', faces, allowFallback: fonts.length === 0 };
+    // Шрифт, который браузер не скачал (CDN недоступен, блокировщик), не должен ронять весь render:
+    // плагин заменяет такую family на шрифт по умолчанию.
+    return { type: 'fontFamily', faces, allowFallback: true };
+};
+
+/** Web-значение токена: разбор формата хранения (`webTokenValues`), ссылка типографики на шрифт, ресурсы шрифтов. */
+const normalizeWebToken = (
+    token: PreviewThemeTokenDraft,
+    raw: JsonValue,
+    resolve: (id: string) => AssemblyDiagnostic | undefined,
+    availableAssets: PreviewAsset[],
+    assets: Map<string, PreviewAsset>,
+): PreviewThemeValue | AssemblyDiagnostic => {
+    const normalized = normalizeWebTokenValue(token.type, raw, token.id);
+    if (!normalized.ok) {
+        return diagnostic('incompatible_value', `Invalid ${token.type} value for ${token.id}: ${normalized.message}`, token.id);
+    }
+    if (normalized.value.type === 'typography') {
+        const error = resolve(normalized.value.fontFamilyTokenId);
+        if (error) return error;
+    }
+    if (normalized.value.type !== 'fontFamily') return normalized.value;
+    const ids = new Map<string, string>();
+    for (const asset of normalized.assets ?? []) {
+        const known = availableAssets.find((item) => item.url === asset.url) ?? asset;
+        assets.set(known.id, known);
+        ids.set(asset.id, known.id);
+    }
+    return {
+        ...normalized.value,
+        faces: normalized.value.faces.map((face) => ({ ...face, assetId: ids.get(face.assetId) ?? face.assetId })),
+    };
 };
 
 const objectsOf = (raw: JsonValue): Array<{ [key: string]: JsonValue }> =>

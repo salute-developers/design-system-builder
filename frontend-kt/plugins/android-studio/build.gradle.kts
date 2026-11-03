@@ -19,6 +19,7 @@ dependencies {
     implementation(projects.coreAuth)
     implementation(projects.coreApplication)
     implementation(projects.featureProjects)
+    implementation(projects.featureDs)
     implementation(projects.featureTheme)
     implementation(projects.featureAuth)
     implementation("io.github.salute-developers:sdds-serv-compose:0.43.0")

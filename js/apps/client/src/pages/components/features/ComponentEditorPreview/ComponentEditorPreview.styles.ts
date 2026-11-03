@@ -53,8 +53,12 @@ export const StyledComponentWrapper = styled.div<{ background: string }>`
     align-items: center;
 `;
 
-export const StyledStoryScope = styled.div`
-    display: contents;
+/** Сообщение о недоступности превью: область остаётся, панель настройки работает. */
+export const StyledPreviewUnavailable = styled.div`
+    max-width: 24rem;
+    padding: 1rem;
+    text-align: center;
+    color: rgb(255 255 255 / 72%);
 `;
 
 export const StyledStorySelector = styled.div`

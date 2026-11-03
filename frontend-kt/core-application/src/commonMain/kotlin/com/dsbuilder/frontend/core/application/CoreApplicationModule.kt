@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.auth.PkcePlatform
 import com.dsbuilder.frontend.core.auth.TokenClient
+import com.dsbuilder.frontend.core.auth.UserAccessTokenCache
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.process.ProcessRunner
@@ -18,7 +19,7 @@ import org.koin.dsl.module
  */
 public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
     single<ClientRuntime> { runtime }
-    single<com.dsbuilder.frontend.core.auth.UserAccessTokenCache> { runtime.accessTokenCache }
+    single<UserAccessTokenCache> { runtime.accessTokenCache }
     single<PkcePlatform> { runtime.pkcePlatform }
     single<WorkspaceFileSystem> { get<ClientRuntime>().fileSystem }
     single<EnvironmentReader> { get<ClientRuntime>().environmentReader }
@@ -27,12 +28,13 @@ public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
             get<ClientRuntime>().httpClientFactory,
             get<CredentialProvider>(),
             get<CredentialStore>(),
-            get<com.dsbuilder.frontend.core.auth.UserAccessTokenCache>(),
+            get<UserAccessTokenCache>(),
         )
     }
     single<ProcessRunner> { get<ClientRuntime>().processRunner }
     single<CredentialStore> { get<ClientRuntime>().credentialStore }
     single<TokenClient> { get<ClientRuntime>().tokenClient }
+    single { UserSessionAccess(get<CredentialProvider>()) }
     single { ProjectConfigStore(get<WorkspaceFileSystem>()) }
     single { ProjectEnvironmentLoader(get<WorkspaceFileSystem>()) }
     single { ApiKeyResolver(get<EnvironmentReader>()) }
@@ -48,7 +50,7 @@ public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
             credentialStore = get<CredentialStore>(),
             tokenClient = get<TokenClient>(),
             environment = get<EnvironmentReader>(),
-            cache = get<com.dsbuilder.frontend.core.auth.UserAccessTokenCache>(),
+            cache = get<UserAccessTokenCache>(),
         )
     }
 }

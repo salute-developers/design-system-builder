@@ -2,7 +2,7 @@ import {
     LoadedComposePreviewManifest,
     PREVIEW_MESSAGE_TYPES,
     PREVIEW_PROTOCOL_VERSION,
-    PreviewPayload,
+    PreviewPayloadInput,
     PreviewPayloadEnvelope,
     PreviewComponentDescription,
     PreviewComponentDescriptionResult,
@@ -77,7 +77,7 @@ export class ComposePreviewSession {
         });
         void this.readyPromise.catch(() => undefined);
         this.readyTimer = setTimeout(
-            () => this.rejectReady(new ComposePreviewTimeoutError('Compose preview ready timed out')),
+            () => this.rejectReady(new ComposePreviewTimeoutError('Preview plugin ready timed out')),
             this.timeoutMs,
         );
         this.hostWindow.addEventListener('message', this.handleMessage);
@@ -87,19 +87,19 @@ export class ComposePreviewSession {
         return this.readyPromise;
     }
 
-    send(payload: Omit<PreviewPayload, 'requestId'>): { requestId: string; result: Promise<PreviewResult> } {
+    send(payload: PreviewPayloadInput): { requestId: string; result: Promise<PreviewResult> } {
         if (this.disposed) {
-            throw new ComposePreviewDisposedError('Compose preview session is disposed');
+            throw new ComposePreviewDisposedError('Preview plugin session is disposed');
         }
         if (!this.isReady) {
-            throw new ComposePreviewError('Compose preview session is not ready');
+            throw new ComposePreviewError('Preview plugin session is not ready');
         }
 
         const requestId = this.createRequestId();
         const result = new Promise<PreviewResult>((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(requestId);
-                reject(new ComposePreviewTimeoutError(`Compose preview request ${requestId} timed out`));
+                reject(new ComposePreviewTimeoutError(`Preview plugin request ${requestId} timed out`));
             }, this.requestTimeoutMs);
             this.pending.set(requestId, { resolve, reject, timer });
         });
@@ -107,29 +107,33 @@ export class ComposePreviewSession {
             type: PREVIEW_MESSAGE_TYPES.payload,
             protocolVersion: PREVIEW_PROTOCOL_VERSION,
             requestId,
-            payload: { ...payload, requestId },
+            payload: { ...payload, requestId } as PreviewPayloadEnvelope['payload'],
         };
         this.targetWindow.postMessage(envelope, this.targetOrigin);
 
         return { requestId, result };
     }
 
-    describeComponent(componentId: string): { requestId: string; result: Promise<PreviewComponentDescription> } {
+    /** Описание компонента; `storyId` выбирает story (без него плагин описывает story по умолчанию). */
+    describeComponent(
+        componentId: string,
+        storyId?: string,
+    ): { requestId: string; result: Promise<PreviewComponentDescription> } {
         if (this.disposed) {
-            throw new ComposePreviewDisposedError('Compose preview session is disposed');
+            throw new ComposePreviewDisposedError('Preview plugin session is disposed');
         }
         if (!this.isReady) {
-            throw new ComposePreviewError('Compose preview session is not ready');
+            throw new ComposePreviewError('Preview plugin session is not ready');
         }
         if (!componentId.trim()) {
-            throw new ComposePreviewError('Compose preview componentId must not be empty');
+            throw new ComposePreviewError('Preview plugin componentId must not be empty');
         }
 
         const requestId = this.createRequestId();
         const result = new Promise<PreviewComponentDescription>((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pendingDescriptions.delete(requestId);
-                reject(new ComposePreviewTimeoutError(`Compose preview description ${requestId} timed out`));
+                reject(new ComposePreviewTimeoutError(`Preview plugin description ${requestId} timed out`));
             }, this.requestTimeoutMs);
             this.pendingDescriptions.set(requestId, { componentId, resolve, reject, timer });
         });
@@ -138,6 +142,7 @@ export class ComposePreviewSession {
             protocolVersion: PREVIEW_PROTOCOL_VERSION,
             requestId,
             componentId,
+            ...(storyId !== undefined ? { storyId } : {}),
         };
         this.targetWindow.postMessage(envelope, this.targetOrigin);
 
@@ -146,8 +151,8 @@ export class ComposePreviewSession {
 
     reload(): void {
         if (this.disposed) return;
-        this.rejectPending(new ComposePreviewReloadedError('Compose preview iframe reloaded'));
-        this.rejectPendingDescriptions(new ComposePreviewReloadedError('Compose preview iframe reloaded'));
+        this.rejectPending(new ComposePreviewReloadedError('Preview plugin iframe reloaded'));
+        this.rejectPendingDescriptions(new ComposePreviewReloadedError('Preview plugin iframe reloaded'));
         this.resetReady();
     }
 
@@ -156,7 +161,7 @@ export class ComposePreviewSession {
         this.disposed = true;
         this.hostWindow.removeEventListener('message', this.handleMessage);
         clearTimeout(this.readyTimer);
-        const error = new ComposePreviewDisposedError('Compose preview session is disposed');
+        const error = new ComposePreviewDisposedError('Preview plugin session is disposed');
         if (!this.isReady) this.rejectReady(error);
         this.rejectPending(error);
         this.rejectPendingDescriptions(error);
@@ -171,7 +176,7 @@ export class ComposePreviewSession {
         });
         void this.readyPromise.catch(() => undefined);
         this.readyTimer = setTimeout(
-            () => this.rejectReady(new ComposePreviewTimeoutError('Compose preview ready timed out')),
+            () => this.rejectReady(new ComposePreviewTimeoutError('Preview plugin ready timed out')),
             this.timeoutMs,
         );
     }
@@ -264,19 +269,34 @@ const validateDescription = (
 ): string | undefined => {
     const description = result.description;
     if (!description || description.protocolVersion !== PREVIEW_PROTOCOL_VERSION) {
-        return 'Compose preview returned an incompatible component description';
+        return 'Preview plugin returned an incompatible component description';
     }
     if (description.componentId !== componentId || !description.storyId.trim() || !Array.isArray(description.properties)) {
-        return 'Compose preview returned a malformed component description';
+        return 'Preview plugin returned a malformed component description';
+    }
+    if (description.stories !== undefined) {
+        if (
+            !Array.isArray(description.stories) ||
+            !description.stories.every(
+                (story) =>
+                    story &&
+                    typeof story.id === 'string' &&
+                    story.id.trim() !== '' &&
+                    typeof story.name === 'string' &&
+                    story.name.trim() !== '',
+            )
+        ) {
+            return 'Preview plugin returned malformed component stories';
+        }
     }
     const names = new Set<string>();
     for (const property of description.properties) {
         if (!property || typeof property.name !== 'string' || !property.name.trim() || names.has(property.name)) {
-            return 'Compose preview returned a malformed component description';
+            return 'Preview plugin returned a malformed component description';
         }
         names.add(property.name);
         if (property.name === 'variant' || property.name === 'appearance') {
-            return `Compose preview description contains forbidden property ${property.name}`;
+            return `Preview plugin description contains forbidden property ${property.name}`;
         }
         if (
             (property.type === 'string' && typeof property.defaultValue !== 'string') ||
@@ -284,7 +304,7 @@ const validateDescription = (
             (property.type === 'int' && (!Number.isInteger(property.defaultValue))) ||
             (property.type === 'float' && typeof property.defaultValue !== 'number')
         ) {
-            return `Compose preview property ${property.name} has an incompatible default value`;
+            return `Preview plugin property ${property.name} has an incompatible default value`;
         }
         if (property.type === 'singleChoice') {
             if (
@@ -293,10 +313,10 @@ const validateDescription = (
                 !property.variants.every((variant) => typeof variant === 'string') ||
                 !property.variants.includes(property.defaultValue)
             ) {
-                return `Compose preview property ${property.name} has incompatible variants`;
+                return `Preview plugin property ${property.name} has incompatible variants`;
             }
         } else if (!['string', 'boolean', 'int', 'float'].includes(property.type)) {
-            return `Compose preview property ${property.name} has unsupported type`;
+            return `Preview plugin property ${property.name} has unsupported type`;
         }
     }
     return undefined;
