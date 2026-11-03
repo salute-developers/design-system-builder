@@ -187,6 +187,19 @@ internal object ComponentOwnership {
     } else {
         readableComponents(p).mapTo(linkedSetOf()) { it[DesignSystemComponentsTable.componentId] }
     }
+
+    /**
+     * Читаемые компоненты вместе со скрытыми из дизайн-систем проекта: связи у скрытого нет,
+     * а оформление остаётся, и без него компонент нечем назвать при возврате.
+     */
+    fun catalogComponentIds(p: ProjectId, admin: Boolean): Set<UUID> = if (admin) {
+        readableComponentIds(p, admin = true)
+    } else {
+        readableComponentIds(p, admin = false) + ComponentAppearancesTable
+            .select(ComponentAppearancesTable.componentId)
+            .where { ComponentAppearancesTable.designSystemId inSubQuery readableDs(p) }
+            .map { it[ComponentAppearancesTable.componentId] }
+    }
     fun writableComponentIds(
         p: ProjectId,
         admin: Boolean,
