@@ -336,6 +336,48 @@ class ComponentPlatformHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `dependencies of hidden components stay readable`() = withService {
+        val designSystem =
+            id(
+                post(
+                    "/api/ds/design-systems",
+                    """{"name":"deps","projectName":"deps"}""",
+                    owner = true,
+                ).bodyAsText(),
+            )
+        val group =
+            id(post("/api/ds/components", """{"name":"AvatarGroup","platform":"compose"}""", admin = true).bodyAsText())
+        val avatar =
+            id(post("/api/ds/components", """{"name":"Avatar","platform":"compose"}""", admin = true).bodyAsText())
+        val links = listOf(group, avatar).map { component ->
+            val link = id(
+                post(
+                    "/api/ds/design-system-components",
+                    """{"designSystemId":"$designSystem","componentId":"$component"}""",
+                    editor = true,
+                ).bodyAsText(),
+            )
+            post(
+                "/api/ds/appearances",
+                """{"designSystemId":"$designSystem","componentId":"$component","name":"default"}""",
+                owner = true,
+            )
+            link
+        }
+        val dependency = post(
+            "/api/ds/component-deps",
+            """{"parentId":"$group","childId":"$avatar","type":"compose"}""",
+            admin = true,
+        )
+        assertTrue(dependency.status.isSuccess(), dependency.bodyAsText())
+
+        links.forEach { link -> assertTrue(delete("/api/ds/design-system-components/$link").status.isSuccess()) }
+
+        val dependencies = get("/api/ds/component-deps").bodyAsText()
+        assertTrue(dependencies.contains(group) && dependencies.contains(avatar), dependencies)
+    }
+
+    @Test
     fun `a component linked only in another project stays unreadable`() = withService {
         val designSystem =
             id(
