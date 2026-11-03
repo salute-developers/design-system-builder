@@ -19,6 +19,7 @@ private const val RM: String = "/bin/rm"
 private const val MV: String = "/bin/mv"
 private const val LN: String = "/bin/ln"
 private const val CHMOD: String = "/bin/chmod"
+private const val SYSCTL: String = "/usr/sbin/sysctl"
 
 /**
  * Установщик iOS-инструмента: кладёт релиз plasma-ios в `~/.dsbuilder/toolchains/ios/<версия>`
@@ -38,6 +39,11 @@ public class IosToolchainInstaller internal constructor(
     override fun install(request: ToolchainInstallRequest): ToolchainInstallResult {
         val home = environmentReader.get("HOME")?.takeIf { it.isNotBlank() }
             ?: return ToolchainInstallResult.Failed("Cannot install the toolchain: HOME is not set.")
+        if (!supportsArm64(home)) {
+            return ToolchainInstallResult.Failed(
+                "The published dsbuilder-ios CLI requires Apple Silicon (arm64); it cannot be installed on this Mac.",
+            )
+        }
         val root = fileSystem.resolve(home, MANAGED_TOOLCHAIN_ROOT)
         // Каталог установок — рабочая директория всех запусков, включая самый первый: без него
         // процесс не стартует, а первая установка происходит именно на пустой машине.
@@ -47,6 +53,21 @@ public class IosToolchainInstaller internal constructor(
             is SourceRead.Failed -> ToolchainInstallResult.Failed(source.message)
             is SourceRead.Resolved -> download(source, root)
         }
+    }
+
+    /** The currently published iOS executable is arm64-only, including for manual --from installs. */
+    private fun supportsArm64(home: String): Boolean = try {
+        val result = processRunner.run(
+            ProcessRequest(
+                executable = SYSCTL,
+                args = listOf("-n", "hw.optional.arm64"),
+                workingDirectory = home,
+                inheritStdio = false,
+            ),
+        )
+        result.exitCode == 0 && result.output.trim() == "1"
+    } catch (_: ProcessLaunchException) {
+        false
     }
 
     /** `--from` ставит готовый архив и в сеть за релизом не ходит. */

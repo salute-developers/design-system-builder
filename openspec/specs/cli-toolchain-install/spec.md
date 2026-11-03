@@ -98,3 +98,8 @@ CLI SHALL install the `ios` toolchain from the plasma-ios GitHub release asset t
 - **WHEN** extraction succeeds
 - **THEN** the installed `dsbuilder-ios` MUST be executable
 - **THEN** `ios-api-meta.json` MUST sit next to it, because the tool reads it from its own directory
+
+#### Scenario: Текущий iOS-ассет несовместим с Intel Mac
+
+- **WHEN** пользователь запускает `toolchain install ios` на Intel Mac
+- **THEN** installer MUST reject the arm64-only asset before contacting the release host or changing the installed toolchain

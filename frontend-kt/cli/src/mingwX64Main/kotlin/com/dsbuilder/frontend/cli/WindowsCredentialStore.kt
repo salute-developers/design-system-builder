@@ -5,14 +5,13 @@ package com.dsbuilder.frontend.cli
 import com.dsbuilder.frontend.cli.winsecurity.ConvertStringSecurityDescriptorToSecurityDescriptorW
 import com.dsbuilder.frontend.core.auth.CredentialStoreFileSystem
 import com.dsbuilder.frontend.core.auth.CredentialStoreLock
+import com.dsbuilder.frontend.core.auth.ProcessCredentialStoreLock
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.sizeOf
 import kotlinx.cinterop.value
-import kotlinx.coroutines.delay
 import platform.windows.CREATE_NEW
-import platform.windows.CloseHandle
 import platform.windows.CreateFileW
 import platform.windows.DACL_SECURITY_INFORMATION
 import platform.windows.DeleteFileW
@@ -21,7 +20,6 @@ import platform.windows.ERROR_PATH_NOT_FOUND
 import platform.windows.FILE_ATTRIBUTE_NORMAL
 import platform.windows.GENERIC_WRITE
 import platform.windows.GetLastError
-import platform.windows.INVALID_HANDLE_VALUE
 import platform.windows.LocalFree
 import platform.windows.MOVEFILE_REPLACE_EXISTING
 import platform.windows.MOVEFILE_WRITE_THROUGH
@@ -29,7 +27,6 @@ import platform.windows.MoveFileExW
 import platform.windows.PSECURITY_DESCRIPTORVar
 import platform.windows.SECURITY_ATTRIBUTES
 import platform.windows.SetFileSecurityW
-import kotlin.time.Clock
 
 /** Windows session files share the Node launcher format and location. */
 internal object WindowsCredentialStoreFileSystem : CredentialStoreFileSystem {
@@ -88,7 +85,7 @@ internal object WindowsCredentialStoreFileSystem : CredentialStoreFileSystem {
         }
     }
 
-    /** Creates the exclusive Node-compatible lock with its restrictive ACL already in place. */
+    /** Creates an owner file with its restrictive ACL already in place. */
     fun createExclusiveLock(path: String): platform.windows.HANDLE? = memScoped {
         val descriptor = alloc<PSECURITY_DESCRIPTORVar>()
         check(ConvertStringSecurityDescriptorToSecurityDescriptorW(FILE_SDDL, 1u, descriptor.ptr, null) != 0)
@@ -115,39 +112,6 @@ internal object WindowsCredentialStoreFileSystem : CredentialStoreFileSystem {
     private const val FILE_SDDL = "D:P(A;;FA;;;OW)(A;;FA;;;BA)(A;;FA;;;SY)"
 }
 
-internal object WindowsCredentialStoreLock : CredentialStoreLock {
-    override suspend fun <T> withLock(lockPath: String, block: suspend () -> T): T {
-        WindowsCredentialStoreFileSystem.createDirectories(
-            requireNotNull(WindowsWorkspaceFileSystem.parent(lockPath)),
-        )
-        WindowsCredentialStoreFileSystem.setPosixPermissions(
-            requireNotNull(WindowsWorkspaceFileSystem.parent(lockPath)),
-            "0700",
-        )
-        val deadline = Clock.System.now().toEpochMilliseconds() + 30_000L
-        while (true) {
-            val handle = WindowsCredentialStoreFileSystem.createExclusiveLock(lockPath)
-            if (handle != INVALID_HANDLE_VALUE) {
-                var failure: Throwable? = null
-                try {
-                    return block()
-                } catch (error: Throwable) {
-                    failure = error
-                    throw error
-                } finally {
-                    CloseHandle(handle)
-                    try {
-                        WindowsCredentialStoreFileSystem.deleteFile(lockPath)
-                    } catch (cleanupError: Throwable) {
-                        if (failure == null) throw cleanupError
-                        failure.addSuppressed(cleanupError)
-                    }
-                }
-            }
-            if (Clock.System.now().toEpochMilliseconds() >= deadline) {
-                error("Timed out waiting for credential store lock: $lockPath")
-            }
-            delay(50L)
-        }
-    }
-}
+internal object WindowsCredentialStoreLock : CredentialStoreLock by ProcessCredentialStoreLock(
+    WindowsCredentialLockPlatform,
+)

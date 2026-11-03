@@ -54,6 +54,11 @@ CLI `theme fetch` SHALL load remote data through the DS Builder project-scoped b
 - **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens`
 - **THEN** CLI MUST parse the response as a JSON array of `Token` objects with fields `id`, `designSystemId`, `name`, `type`, `displayName`, `description`, `enabled`, `createdAt`, and `updatedAt`
 
+#### Scenario: Необязательные подпись и описание токена
+
+- **WHEN** backend возвращает `displayName: null` или `description: null` для токена
+- **THEN** `theme fetch` MUST использовать `name` как локальный `displayName` и пустую строку как локальный `description`
+
 #### Scenario: Theme fetch загружает palette
 
 - **WHEN** developer runs `dsbuilder theme fetch`

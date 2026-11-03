@@ -55,7 +55,7 @@ class McpCliLauncherContractTest {
             assertTrue(contextResponse.contains("AUTH_REQUIRED"), contextResponse)
             val registry = Json.parseToJsonElement(toolsListResponse).jsonObject
                 .getValue("result").jsonObject.getValue("tools").jsonArray
-            assertEquals(27, registry.size)
+            assertEquals(29, registry.size)
             val names = registry.map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
             assertTrue("component_configurations_list" in names)
             assertTrue("component_tokens_get" in names)

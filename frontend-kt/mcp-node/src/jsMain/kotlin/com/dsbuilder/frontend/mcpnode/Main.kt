@@ -63,6 +63,9 @@ private fun serve(args: List<String>) {
         projectStatusReader = CheckProjectStatusMcpReader(koin.get<CheckProjectStatusUseCase>()),
         docsReadUseCases = koin.get<DocsReadUseCases>(),
         modelReadUseCase = koin.get<ReadDesignSystemModelUseCase>(),
+        listProjectsUseCase = koin.get(),
+        listDesignSystemsUseCase = koin.get(),
+        discoverVersionsUseCase = koin.get(),
         componentReadUseCases = koin.get<ComponentReadUseCases>(),
     )
     MainScope().launch {

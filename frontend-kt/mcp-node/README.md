@@ -36,6 +36,7 @@ An explicit `designSystem` link does not read the local project's `.env`.
 
 ## Read-only tools
 
+- `projects_list`, `design_systems_list`
 - `design_system_get_context`, `project_get_status`
 - `design_system_versions_list`, `design_system_version_get`, `design_system_changes_list`
 - `tenants_list`, `token_groups_list`, `palette_get`
@@ -48,9 +49,19 @@ An explicit `designSystem` link does not read the local project's `.env`.
 Documentation and code-binding tools read published documentation artifacts. Token and component tools read the
 authoritative DS Builder model API through `/api/projects/{projectId}/ds/...`.
 
+## Choosing a project and design system
+
+Without a workspace, call `projects_list`, ask the user to choose a project, then call
+`design_systems_list` with its `projectId`. Ask the user to choose a system and pass both
+`projectId` and `designSystemId` to `design_system_versions_list`. Published items include a
+canonical `designSystem` URI with a version for subsequent reads. These discovery calls use
+only the user session of the selected backend (`dsbuilder auth login`), never a project key,
+and do not write workspace files or store a global selection. Both IDs must be supplied together;
+combining them with a URI is rejected. Existing URI/workspace calls continue to work.
+
 ## Model and documentation reads
 
-Both launchers expose the same 27 read-only tools. Discovery (`initialize`, `tools/list`) works without credentials;
+Both launchers expose the same 29 read-only tools. Discovery (`initialize`, `tools/list`) works without credentials;
 model reads, including `design_system_get_context`, require the selected credential.
 
 Versioned reads use an exact `major.minor.patch` or `draft`. An explicit `version` overrides the URI version;
@@ -95,6 +106,14 @@ are no longer supported. Repeat browser login once to replace legacy sessions.
 CLI and MCP share refresh sessions; IDE sessions remain separate. `auth status`
 reports local metadata only. For CI use a project key. `serve` and tools never
 open a browser. HTTPS is required except for localhost and 127.0.0.1.
+
+CLI and Node MCP use the same PID-owned session lock. Locks left by terminated
+processes are recovered automatically. The `.lock` directory stays in place; its
+`held` child is the actual lock. Update CLI and Node MCP together and restart
+running clients; older clients cannot use this lock protocol.
+An old empty `.json.lock` file has no owner information and is not removed
+automatically: stop old CLI/MCP processes before removing that lock file and retrying.
+Keep the adjacent `.json` session file.
 
 Браузерный вход завершается русской страницей результата DS Builder. После
 сообщения «Вы успешно авторизованы. Можете закрыть вкладку.» сессия уже сохранена.

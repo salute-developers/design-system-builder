@@ -25,6 +25,7 @@ kotlin {
             implementation(projects.featureAuth)
             implementation(projects.featureComponents)
             implementation(projects.featureDs)
+            implementation(projects.featureProjects)
             implementation(projects.featureDocs)
             implementation(projects.featureStatus)
             implementation(projects.mcpServerCore)
@@ -33,6 +34,10 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.js)
             implementation(libs.okio)
+        }
+        jsTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }
@@ -212,11 +217,12 @@ tasks.register("npmPackMcpNodeSmoke") {
             }
             val modelToolNames = Regex(""""name":"([a-z_]+)"""")
                 .findAll(toolsResponse).map { it.groupValues[1] }.toList()
-            check(modelToolNames.size == 27 && modelToolNames.toSet().size == 27) {
-                "Expected exactly 27 distinct tools: $modelToolNames"
+            check(modelToolNames.size == 29 && modelToolNames.toSet().size == 29) {
+                "Expected exactly 29 distinct tools: $modelToolNames"
             }
             listOf(
                 "design_system_versions_list", "design_system_version_get", "design_system_changes_list",
+                "projects_list", "design_systems_list",
                 "tenants_list", "token_groups_list", "palette_get",
                 "documentation_publications_list", "component_configurations_list", "component_tokens_get",
             ).forEach { name -> check(name in modelToolNames) { "Missing tool: $name" } }

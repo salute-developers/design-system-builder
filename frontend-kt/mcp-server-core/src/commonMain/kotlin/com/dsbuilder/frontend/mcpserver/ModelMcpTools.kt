@@ -1,5 +1,7 @@
 package com.dsbuilder.frontend.mcpserver
 
+import com.dsbuilder.frontend.feature.ds.application.DiscoverDesignSystemVersionsCommand
+import com.dsbuilder.frontend.feature.ds.application.DiscoverDesignSystemVersionsUseCase
 import com.dsbuilder.frontend.feature.ds.application.ModelReadCommand
 import com.dsbuilder.frontend.feature.ds.application.ModelReadOperation
 import com.dsbuilder.frontend.feature.ds.application.ModelReadResult
@@ -13,12 +15,17 @@ import kotlinx.serialization.json.JsonPrimitive
 internal class ModelMcpTools(
     private val useCase: ReadDesignSystemModelUseCase?,
     private val context: McpReadToolContext,
+    private val discovery: DiscoverDesignSystemVersionsUseCase?,
+    private val apiUrlOverride: String?,
 ) {
     suspend fun read(name: String, arguments: JsonObject): McpToolResult = with(context) {
         val operation = modelToolOperations.getValue(name)
         val schema = modelMcpTools().single { it.name == name }.inputSchema
         val argumentError = modelArgumentError(arguments, schema)
         if (argumentError != null) return@with toolError("INVALID_QUERY", argumentError)
+        if (operation == ModelReadOperation.VERSIONS && ("projectId" in arguments || "designSystemId" in arguments)) {
+            return@with discover(arguments)
+        }
         val idName = modelResourceArgument(operation)
         val id = idName?.let { arguments.required(it) }
         if (idName != null && id == null) return@with toolError("INVALID_QUERY", "$idName is required")
@@ -47,6 +54,29 @@ internal class ModelMcpTools(
                 },
             )
             is ModelReadResult.Failed -> toolError(result.code, result.message)
+        }
+    }
+
+    private suspend fun discover(arguments: JsonObject): McpToolResult = with(context) {
+        val project = arguments.required("projectId")
+        val system = arguments.required("designSystemId")
+        if (project == null || system == null || "designSystem" in arguments) {
+            return@with toolError("INVALID_QUERY", "Supply both projectId and designSystemId without designSystem URI.")
+        }
+        val reader = discovery ?: return@with backendReaderUnavailable()
+        when (
+            val result = reader.execute(
+                DiscoverDesignSystemVersionsCommand(
+                    project,
+                    system,
+                    arguments.optional("limit")?.toIntOrNull(),
+                    arguments.optional("cursor"),
+                ),
+                apiUrlOverride,
+            )
+        ) {
+            is ModelReadResult.Failed -> toolError(result.code, result.message)
+            is ModelReadResult.Success -> success(result.value.toString())
         }
     }
 
@@ -113,6 +143,14 @@ internal fun modelMcpTools(): List<McpToolDefinition> = modelToolOperations.map 
         properties["version"] = McpToolInputDefinition(
             description = "Exact major.minor.patch or draft. Explicit value overrides the selected context version; " +
                 "without either, reads the draft. The result reports the actual selected version.",
+        )
+    }
+    if (operation == ModelReadOperation.VERSIONS) {
+        properties["projectId"] = McpToolInputDefinition(
+            description = "Project ID; requires designSystemId, excludes URI.",
+        )
+        properties["designSystemId"] = McpToolInputDefinition(
+            description = "System ID from design_systems_list; requires projectId.",
         )
     }
     val id = modelResourceArgument(operation)
@@ -201,7 +239,11 @@ private fun addModelFilters(
 
 private fun modelDescription(name: String, operation: ModelReadOperation): String = when (operation) {
     ModelReadOperation.VERSIONS ->
-        "List published design-system model versions with server cursor pagination."
+        "List published model versions with server cursor pagination. Without context, first call projects_list, " +
+            "then design_systems_list(projectId), then pass both projectId and designSystemId here. " +
+            "Use each returned designSystem URI in subsequent reads. " +
+            "User session required; run dsbuilder auth login. " +
+            "Alternatively retain existing URI/workspace calls. No global selection is stored."
     ModelReadOperation.TOKEN_GROUPS ->
         "List token groups and subgroups in tree position order with server cursor pagination. " +
             "Use a group ID to filter tokens_list or palette_get."

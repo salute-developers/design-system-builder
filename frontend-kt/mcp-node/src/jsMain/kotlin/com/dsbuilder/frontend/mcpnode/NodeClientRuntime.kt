@@ -10,6 +10,7 @@ import com.dsbuilder.frontend.feature.auth.authApplicationModule
 import com.dsbuilder.frontend.feature.components.componentsApplicationModule
 import com.dsbuilder.frontend.feature.docs.docsApplicationModule
 import com.dsbuilder.frontend.feature.ds.dsApplicationModule
+import com.dsbuilder.frontend.feature.projects.projectsApplicationModule
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
@@ -27,6 +28,7 @@ internal fun nodeKoin(runtime: ClientRuntime): Koin =
             statusApplicationModule(),
             docsApplicationModule(),
             dsApplicationModule(),
+            projectsApplicationModule(),
             componentsApplicationModule(),
         )
     }.koin

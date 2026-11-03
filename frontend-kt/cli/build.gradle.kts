@@ -7,6 +7,44 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val cliVersion = providers.environmentVariable("CLI_RELEASE_TAG").map { tag ->
+    require(Regex("cli-v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)").matches(tag)) {
+        "CLI_RELEASE_TAG must be cli-vX.Y.Z"
+    }
+    tag.removePrefix("cli-v")
+}.orElse("0.1.0")
+
+val iosReleaseTagFile = layout.projectDirectory.file("distribution/ios-cli-release.txt")
+val iosReleaseTag = providers.fileContents(iosReleaseTagFile).asText.map { content ->
+    val tag = content.trim()
+    require(Regex("[A-Za-z0-9][A-Za-z0-9._-]*").matches(tag) && tag != "current") {
+        "distribution/ios-cli-release.txt must contain one exact plasma-ios release tag"
+    }
+    tag
+}
+val bundleIosCli = providers.gradleProperty("bundleIosCli").map { it.toBooleanStrict() }.orElse(false)
+val iosReleaseMetadata = layout.buildDirectory.file("generated/ios-release.txt")
+val generateIosReleaseMetadata by tasks.registering {
+    inputs.property("iosReleaseTag", iosReleaseTag)
+    outputs.file(iosReleaseMetadata)
+    doLast {
+        val output = iosReleaseMetadata.get().asFile
+        output.parentFile.mkdirs()
+        output.writeText("${iosReleaseTag.get()}\n")
+    }
+}
+
+val generatedVersionDirectory = layout.buildDirectory.dir("generated/cliVersion")
+val generateCliVersion by tasks.registering {
+    inputs.property("cliVersion", cliVersion)
+    outputs.dir(generatedVersionDirectory)
+    doLast {
+        val output = generatedVersionDirectory.get().file("com/dsbuilder/frontend/cli/CliVersion.kt").asFile
+        output.parentFile.mkdirs()
+        output.writeText("package com.dsbuilder.frontend.cli\n\ninternal const val VERSION = \"${cliVersion.get()}\"\n")
+    }
+}
+
 kotlin {
     jvm {
         binaries {
@@ -43,6 +81,9 @@ kotlin {
     }
 
     sourceSets {
+        commonMain {
+            kotlin.srcDir(generateCliVersion.map { generatedVersionDirectory.get() })
+        }
         commonMain.dependencies {
             implementation(projects.coreNetwork)
             implementation(projects.coreAuth)
@@ -59,11 +100,14 @@ kotlin {
             implementation(projects.featureComponents)
             implementation(projects.featureToolchain)
             implementation(projects.featureDs)
+            implementation(projects.featureProjects)
             implementation(projects.platformIos)
             implementation(projects.mcpServerCore)
             implementation(projects.platformAndroid)
             implementation(projects.platformWeb)
             implementation(libs.clikt)
+            // InitSelectionMenu публично принимает Terminal для инъекции терминала.
+            api(libs.mordant)
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
@@ -128,8 +172,7 @@ fun registerMacosCliPackage(
 
         val packageRoot = "dsbuilder-cli-macos-$classifier"
 
-        archiveBaseName.set("dsbuilder-cli")
-        archiveClassifier.set("macos-$classifier")
+        archiveFileName.set("dsbuilder-cli-macos-$classifier.zip")
         destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 
         from(layout.buildDirectory.file("bin/$targetName/releaseExecutable/dsbuilder.kexe")) {
@@ -146,8 +189,28 @@ fun registerMacosCliPackage(
                 unix("rwxr-xr-x")
             }
         }
+        from(layout.projectDirectory.file("distribution/install-unix-common.sh")) {
+            into(packageRoot)
+        }
         from(layout.projectDirectory.file("USAGE.md")) {
             into(packageRoot)
+        }
+        if (classifier == "arm64" && bundleIosCli.get()) {
+            dependsOn(generateIosReleaseMetadata)
+            val iosArchive = iosReleaseTag.map { tag ->
+                layout.buildDirectory.file("ios-cli/dsbuilder-ios-cli-$tag.zip").get().asFile
+            }
+            from(iosReleaseMetadata) {
+                into(packageRoot)
+            }
+            from(iosArchive) {
+                into("$packageRoot/ios")
+            }
+            doFirst {
+                require(iosArchive.get().isFile) {
+                    "Missing iOS CLI archive: ${iosArchive.get()}"
+                }
+            }
         }
     }
 }
@@ -172,8 +235,7 @@ tasks.register<Zip>("packageWindowsX64Cli") {
 
     dependsOn("linkReleaseExecutableMingwX64")
     val packageRoot = "dsbuilder-cli-windows-x64"
-    archiveBaseName.set("dsbuilder-cli")
-    archiveClassifier.set("windows-x64")
+    archiveFileName.set("dsbuilder-cli-windows-x64.zip")
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 
     from(layout.buildDirectory.file("bin/mingwX64/releaseExecutable/dsbuilder.exe")) {
@@ -212,4 +274,37 @@ tasks.register("packageMacosCli") {
     }
 
     dependsOn(currentArchPackageTask)
+}
+
+// Добавляется в корень существующего JVM-дистрибутива без изменения bin/lib.
+extensions.configure<org.gradle.api.distribution.DistributionContainer> {
+    named("jvm") {
+        contents {
+            from(layout.projectDirectory.file("distribution/install-unix-common.sh"))
+            from(layout.projectDirectory.file("distribution/install-jvm-cli.sh")) {
+                rename { "install.sh" }
+                filePermissions { unix("rwxr-xr-x") }
+            }
+        }
+    }
+}
+
+val distributionTests by tasks.registering(Exec::class) {
+    group = "verification"
+    workingDir(layout.projectDirectory.dir("distribution"))
+    commandLine("python3", "-m", "unittest", "discover", "-s", "tests", "-v")
+}
+tasks.named("check") { dependsOn(distributionTests) }
+tasks.named("allTests") { dependsOn(distributionTests) }
+
+tasks.withType<org.gradle.api.tasks.bundling.AbstractArchiveTask>().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
+
+val distributionS3Test by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs CLI delivery against an isolated temporary MinIO (requires Docker)."
+    workingDir(layout.projectDirectory.dir("distribution"))
+    commandLine("python3", "tests/run_s3_integration.py")
 }

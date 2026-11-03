@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.plugin.androidstudio
 
+import com.dsbuilder.frontend.core.application.UserSessionAccess
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
@@ -9,6 +10,7 @@ import com.dsbuilder.frontend.feature.auth.application.OAuthLoginUseCase
 import com.dsbuilder.frontend.feature.auth.application.OAuthLogoutUseCase
 import com.dsbuilder.frontend.feature.auth.application.RefreshUserSessionUseCase
 import com.dsbuilder.frontend.feature.auth.data.JvmRedirectListenerFactory
+import com.dsbuilder.frontend.feature.ds.data.HttpDesignSystemsClient
 import com.dsbuilder.frontend.feature.projects.application.ListProjectsUseCase
 import com.dsbuilder.frontend.feature.projects.application.ProjectsReadErrorCode
 import com.dsbuilder.frontend.feature.projects.application.ProjectsReadResult
@@ -27,8 +29,10 @@ import com.dsbuilder.frontend.plugin.androidstudio.auth.PasswordSafeRefreshToken
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.GetDesignSystemTokensUseCase
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.HttpDesignSystemDataClient
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.ListDesignSystemsUseCase
+import com.dsbuilder.frontend.plugin.androidstudio.ui.PluginRootScreen
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import com.dsbuilder.frontend.feature.ds.application.ListDesignSystemsUseCase as SharedListDesignSystemsUseCase
 
 private const val CLIENT_ID = "dsbuilder-studio-plugin"
 
@@ -56,7 +60,7 @@ public object PluginServices {
     /**
      * Тихое обновление сессии по сохранённому refresh token — используется и для retry на `401`
      * в [authenticatedApiClient], и для восстановления сессии при открытии tool window
-     * (см. [com.dsbuilder.frontend.plugin.androidstudio.ui.PluginRootScreen]), чтобы не заставлять
+     * (см. [PluginRootScreen]), чтобы не заставлять
      * пользователя логиниться заново в каждом новом процессе, если сессия ещё жива.
      */
     public val refreshUserSession: RefreshUserSessionUseCase by lazy {
@@ -111,7 +115,14 @@ public object PluginServices {
 
     /** Use case списка дизайн-систем проекта. */
     public val listDesignSystems: ListDesignSystemsUseCase by lazy {
-        ListDesignSystemsUseCase(HttpDesignSystemDataClient(authenticatedApiClient))
+        ListDesignSystemsUseCase(
+            SharedListDesignSystemsUseCase(
+                apiUrlResolver,
+                UserSessionAccess(sessionResolver),
+                HttpDesignSystemsClient(httpClientFactory),
+            ),
+            refresh = { refreshUserSession.execute() },
+        )
     }
 
     /** Use case получения токенов дизайн-системы со значениями для платформы и tenant. */

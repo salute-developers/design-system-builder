@@ -47,8 +47,8 @@ class IosToolchainInstallerTest {
         installer.install(ToolchainInstallRequest(version = "release-19-08-2026"))
 
         assertTrue(
-            requests.first().args.any { it.endsWith("/releases/tags/release-19-08-2026") },
-            requests.first().args.toString(),
+            requests.first { it.executable == CURL }.args.any { it.endsWith("/releases/tags/release-19-08-2026") },
+            requests.first { it.executable == CURL }.args.toString(),
         )
     }
 
@@ -65,7 +65,10 @@ class IosToolchainInstallerTest {
         installer.install(ToolchainInstallRequest())
 
         assertEquals(root, fileSystem.created.first())
-        assertTrue(requests.all { it.workingDirectory == root }, requests.map { it.workingDirectory }.toString())
+        assertTrue(
+            requests.filterNot { it.executable == "/usr/sbin/sysctl" }.all { it.workingDirectory == root },
+            requests.map { it.workingDirectory }.toString(),
+        )
     }
 
     @Test
@@ -104,7 +107,7 @@ class IosToolchainInstallerTest {
         val result = installer.install(ToolchainInstallRequest(archive = "/tmp/absent.zip"))
 
         assertTrue(assertIs<ToolchainInstallResult.Failed>(result).message.contains("/tmp/absent.zip"))
-        assertTrue(requests.isEmpty(), requests.toString())
+        assertTrue(requests.none { it.executable != "/usr/sbin/sysctl" }, requests.toString())
     }
 
     /** Неудачная распаковка не должна оставлять `current`, указывающий на полупустое дерево. */
@@ -115,6 +118,7 @@ class IosToolchainInstallerTest {
             requests = requests,
             runner = { request ->
                 when {
+                    request.executable == "/usr/sbin/sysctl" -> ProcessResult(exitCode = 0, output = "1\n")
                     request.executable.endsWith("/unzip") -> ProcessResult(exitCode = 1, output = "broken archive")
                     request.executable == CURL -> ProcessResult(exitCode = 0, output = RELEASE_BODY)
                     else -> ProcessResult(exitCode = 0, output = "")
@@ -164,6 +168,25 @@ class IosToolchainInstallerTest {
         assertTrue(failed.message.contains("HOME"), failed.message)
     }
 
+    @Test
+    fun intelMacIsRejectedBeforeDownloadingOrChangingToolchain() {
+        val requests = mutableListOf<ProcessRequest>()
+        val fileSystem = FakeFileSystem(setOf("$unpacked/dsbuilder-ios"), mapOf(unpacked to emptyList()))
+        val installer = installer(
+            requests = requests,
+            fileSystem = fileSystem,
+            runner = { request ->
+                assertEquals("/usr/sbin/sysctl", request.executable)
+                ProcessResult(exitCode = 0, output = "0\n")
+            },
+        )
+
+        val failed = assertIs<ToolchainInstallResult.Failed>(installer.install(ToolchainInstallRequest()))
+        assertTrue(failed.message.contains("Apple Silicon"), failed.message)
+        assertEquals(listOf("/usr/sbin/sysctl"), requests.map { it.executable })
+        assertTrue(fileSystem.created.isEmpty())
+    }
+
     private fun installer(
         requests: MutableList<ProcessRequest> = mutableListOf(),
         runner: ProcessRunner? = null,
@@ -176,6 +199,7 @@ class IosToolchainInstallerTest {
         val recording = ProcessRunner { request ->
             requests += request
             runner?.run(request) ?: when (request.executable) {
+                "/usr/sbin/sysctl" -> ProcessResult(exitCode = 0, output = "1\n")
                 CURL -> ProcessResult(exitCode = 0, output = releaseBody)
                 else -> ProcessResult(exitCode = 0, output = "")
             }

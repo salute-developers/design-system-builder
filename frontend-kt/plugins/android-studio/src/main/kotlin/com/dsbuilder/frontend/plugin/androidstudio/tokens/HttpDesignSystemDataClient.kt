@@ -14,13 +14,6 @@ private const val RGB_HEX_LENGTH = 7
 private const val HEX_RADIX = 16
 
 @Serializable
-internal data class DesignSystemDto(
-    val id: String,
-    val name: String,
-    val description: String? = null,
-)
-
-@Serializable
 internal data class TokenDto(
     val id: String,
     val designSystemId: String? = null,
@@ -53,11 +46,6 @@ internal data class PaletteDto(
 public class HttpDesignSystemDataClient(
     private val apiClient: AuthenticatedApiClient,
 ) : DesignSystemDataClient {
-    override suspend fun listDesignSystems(projectId: String): List<DesignSystem> {
-        val dtos = getList<DesignSystemDto>("/api/projects/$projectId/ds/design-systems")
-        return dtos.map { DesignSystem(id = it.id, name = it.name, description = it.description) }
-    }
-
     override suspend fun listTokens(projectId: String): List<DesignToken> {
         val dtos = getList<TokenDto>("/api/projects/$projectId/ds/tokens")
         return dtos.map {

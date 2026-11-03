@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.init.application
 
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.DesignSystemId
+import com.dsbuilder.frontend.core.domain.InitCredentialSelection
 import com.dsbuilder.frontend.core.domain.ProjectConfigDraft
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.domain.TargetPlatform
@@ -12,6 +13,9 @@ import com.dsbuilder.frontend.core.domain.TargetPlatform
 public class InitProjectUseCase internal constructor(
     private val projectConfigWriter: ProjectConfigWriter,
 ) {
+    /** Проверяет возможность записи до запуска мастера. */
+    public fun checkTarget(targetDirectory: String): String? = projectConfigWriter.checkTarget(targetDirectory)
+
     /**
      * Создает `.sdds/config.json` с project metadata и env credential reference.
      */
@@ -23,6 +27,7 @@ public class InitProjectUseCase internal constructor(
                     designSystemId = DesignSystemId(command.designSystemId),
                     credentialEnvName = CredentialEnvName(command.apiKeyEnv),
                     platforms = command.platforms,
+                    credentialSelection = command.credentialSelection,
                 ),
                 targetDirectory = command.targetDirectory,
             ),
@@ -50,6 +55,8 @@ public data class InitProjectCommand(
     public val apiKeyEnv: String,
     public val targetDirectory: String,
     public val platforms: List<TargetPlatform> = emptyList(),
+    /** Авторизация записи; старые вызовы сохраняют env-режим. */
+    public val credentialSelection: InitCredentialSelection = InitCredentialSelection.Environment(apiKeyEnv),
 )
 
 /**
