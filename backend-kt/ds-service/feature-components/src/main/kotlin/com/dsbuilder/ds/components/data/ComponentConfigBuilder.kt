@@ -243,7 +243,7 @@ internal class ComponentConfigBuilder(
                 ).map { row ->
                     ConfigValueRow(
                         row[PropertiesTable.id], row[PropertiesTable.name], row[PropertiesTable.type].wireValue, null,
-                        row[StyleCombinationsTable.value], row[StyleCombinationsTable.alpha],
+                        row.combinationValue(), row[StyleCombinationsTable.alpha],
                         row[StyleCombinationsTable.adjustment], row[StyleCombinationsTable.position],
                         row.referencedName(), row.getOrNull(ComponentTokensTable.type),
                         states[row[StyleCombinationsTable.stateSetId]].orEmpty(),
@@ -320,6 +320,9 @@ internal class ComponentConfigBuilder(
             },
         )
     }
+
+    /** Значение комбинации: пустой текст обязательного значения — пустая ссылка после удаления токена, как `null`. */
+    private fun ResultRow.combinationValue(): String? = this[StyleCombinationsTable.value].takeUnless(String::isEmpty)
 
     private fun derivedType(row: ConfigValueRow, where: String, underived: MutableSet<String>): String {
         if (row.propertyType == "color" && row.tokenName != null && row.tokenType == null) underived += where

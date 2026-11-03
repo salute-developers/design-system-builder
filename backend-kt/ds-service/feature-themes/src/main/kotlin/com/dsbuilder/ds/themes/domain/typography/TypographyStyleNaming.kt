@@ -21,6 +21,20 @@ object TypographyStyleNaming {
     /** Системная ли группа: Display, Header, Body и Text не переименовываются и не удаляются. */
     fun systemGroup(group: String): Boolean = group in TypographyStyleKey.GROUPS
 
+    /**
+     * Ключи переменных пакета стиля [style] — по одному на начертание. Генератор называет переменные
+     * `--plasma-typo-<группа>-<имя>[-medium|-bold]` (`display` → `dspl`, `header` опускается) и JS-константы в
+     * camelCase, поэтому ключ — имя переменной без дефисов: `header.body-m` и `body.m`, `body.m-bold` и
+     * начертание bold у `body.m` дали бы одни переменные.
+     */
+    fun variableKeys(style: TypographyStyleKey): Set<String> {
+        val prefix = GENERATOR_PREFIXES[style.group] ?: style.group
+        val base = listOf(prefix, style.size).filter(String::isNotEmpty).joinToString("-")
+        return TypographyVariant.entries
+            .map { variant -> if (variant == TypographyVariant.NORMAL) base else "$base-${variant.wireValue}" }
+            .mapTo(linkedSetOf()) { it.replace("-", "") }
+    }
+
     /** Девять токенов стиля [style]: экраны от крупного к мелкому, начертания по порядку. */
     fun names(style: TypographyStyleKey): List<TypographyTokenName> = TypographyScreen.entries.flatMap { screen ->
         TypographyVariant.entries.map { variant -> TypographyTokenName(screen, style, variant) }
@@ -57,6 +71,9 @@ object TypographyStyleNaming {
     /** Токен, к которому ссылка на начертание привязывается по `token_id`: экран `screen-s`. */
     fun anchor(style: TypographyStyleKey, variant: TypographyVariant) =
         TypographyTokenName(TypographyScreen.S, style, variant)
+
+    /** Начала имён переменных системных групп в генераторе пакета (`createTypographyTokens.ts`). */
+    private val GENERATOR_PREFIXES = mapOf("display" to "dspl", "header" to "", "body" to "body", "text" to "text")
 
     private fun capitalize(value: String) = value.replaceFirstChar(Char::uppercaseChar)
 

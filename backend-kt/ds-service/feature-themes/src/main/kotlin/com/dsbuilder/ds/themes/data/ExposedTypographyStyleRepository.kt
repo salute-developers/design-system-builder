@@ -188,7 +188,9 @@ class ExposedTypographyStyleRepository(
 
     override suspend fun deleteStyle(designSystemId: UUID, tokenIds: Set<UUID>, references: Map<UUID, Set<UUID>>) {
         if (tokenIds.isEmpty()) return
-        bind(designSystemId, references)
+        // Текстовые ссылки на стиль становятся пустыми, ссылки по `token_id` очищает общий механизм удаления.
+        val texts = references.values.flatten().toSet()
+        referenceBinders.forEach { it.detach(designSystemId, texts) }
         // Редакция удаляемого определения не является базовой редакцией каждого зависимого значения и ссылки.
         SubjectMutationPaths.withoutBaseComparison {
             referenceCleaners.forEach { it.clear(designSystemId, tokenIds) }

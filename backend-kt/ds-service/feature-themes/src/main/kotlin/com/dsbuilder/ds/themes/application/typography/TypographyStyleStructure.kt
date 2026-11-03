@@ -15,6 +15,9 @@ import java.util.UUID
 /** Тот же предметный ключ уникальности, что у общего создания токена. */
 private const val TOKEN_KEY = "token"
 
+/** Ключ уникальности переменной пакета стиля типографии. */
+private const val VARIABLE_KEY = "typography-variable"
+
 /** Токены стиля после создания, переименования или удаления. */
 data class TypographyStyleTokens(
     /** Идентификаторы токенов стиля. */
@@ -41,20 +44,32 @@ internal fun invalidGroupName() = DsFailure.InvalidRequest(
 )
 
 /**
- * Блокирует ключи имён девяти токенов стиля [style] в устойчивом порядке и проверяет, что они свободны; токены
- * [except] (переименовываемые) не мешают.
+ * Блокирует ключи имён девяти токенов стиля [style] и ключи его переменных пакета в устойчивом порядке и проверяет,
+ * что они свободны: имена токенов — среди действующих токенов, кроме [except] (переименовываемых), переменные — среди
+ * стилей [others].
  */
 internal suspend fun TypographyStyleRepository.claimStyle(
     uniqueKeys: UniqueKeyLockRepository,
     designSystemId: UUID,
     style: TypographyStyleKey,
+    others: Collection<TypographyStyleKey>,
     except: Set<String> = emptySet(),
 ): DsFailure? {
     val names = TypographyStyleNaming.names(style).map { it.toString() }
     names.sorted().forEach { uniqueKeys.lock(designSystemId, TOKEN_KEY, it) }
+    val variables = TypographyStyleNaming.variableKeys(style)
+    variables.sorted().forEach { uniqueKeys.lock(designSystemId, VARIABLE_KEY, it) }
     val taken = tokenNames(designSystemId) - except
-    if (names.none { it in taken }) return null
-    return DsFailure.Conflict(TOKEN_NAME_CONFLICT, message = "Стиль $style уже есть в дизайн-системе")
+    if (names.any { it in taken }) {
+        return DsFailure.Conflict(TOKEN_NAME_CONFLICT, message = "Стиль $style уже есть в дизайн-системе")
+    }
+    val clash = others.firstOrNull { other ->
+        other != style && TypographyStyleNaming.variableKeys(other).any { it in variables }
+    } ?: return null
+    return DsFailure.Conflict(
+        TOKEN_NAME_CONFLICT,
+        message = "Стиль $style даст в пакете те же переменные, что стиль $clash",
+    )
 }
 
 /** Отказ для системной группы [group]: Display, Header, Body и Text не переименовываются и не удаляются. */

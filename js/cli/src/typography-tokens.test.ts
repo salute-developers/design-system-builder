@@ -48,4 +48,29 @@ describe('createTypographyTokens', () => {
         assert.match(light.screenS, /--plasma-typo-h1-bold-font-size: 1rem;/);
         assert.match(light.screenS, /--plasma-typo-caption-promo-title-medium-font-size: 1rem;/);
     });
+
+    it('называет переменные своей группы `constructor` её именем, а не свойством Object.prototype', () => {
+        const names = ['screen-s.constructor.m.normal'];
+        const typography = { 'screen-s.constructor.m.normal': value('constructor') };
+        const fontFamily = { constructor: { name: 'SB Sans Constructor' } };
+
+        const css = createTypographyTokens(typography, fontFamily, names.map(token)).light;
+        const js = createTypographyTokens(typography, fontFamily, names.map(token), true).light;
+
+        assert.match(css.root, /--plasma-typo-constructor-font-family: 'SB Sans Constructor', sans-serif;/);
+        assert.match(css.screenS, /--plasma-typo-constructor-m-font-size: 1rem;/);
+        assert.match(js.screenS, /export const constructorM = \{/);
+        assert.doesNotMatch(js.screenS, /native code/);
+    });
+
+    it('прерывает генерацию, если два стиля дают одну переменную', () => {
+        const typography = {
+            'screen-s.body.m.normal': value('body'),
+            'screen-s.header.body-m.normal': value('header'),
+        };
+        assert.throws(
+            () => createTypographyTokens(typography, {}, Object.keys(typography).map(token)),
+            /screen-s\.body\.m\.normal и screen-s\.header\.body-m\.normal дают одну переменную пакета body-m/,
+        );
+    });
 });

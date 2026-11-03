@@ -49,8 +49,9 @@ class CreateTypographyStyleUseCase(
         tenantId: UUID,
         style: TypographyStyleKey,
     ): DsResult<CreatedTypographyStyle> {
-        repository.claimStyle(uniqueKeys, designSystemId, style)?.let { return DsResult.Failure(it) }
         val tokens = repository.styles(designSystemId, tenantId)
+        repository.claimStyle(uniqueKeys, designSystemId, style, tokens.map { it.name.style }.distinct())
+            ?.let { return DsResult.Failure(it) }
         val source = source(tokens, style)
             ?: return DsResult.Failure(invalidTypographyStyle("В дизайн-системе нет стиля, у которого взять значения"))
         val sources = TypographyStyleNaming.names(style).associateWith { name ->

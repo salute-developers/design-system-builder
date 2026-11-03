@@ -26,7 +26,8 @@ const groupPrefix: Record<string, string> = {
 
 const formattedTokenName = (nameParts: string[]) => {
     const tokenName = [...nameParts];
-    tokenName[0] = groupPrefix[tokenName[0]] ?? tokenName[0];
+    // Только собственные ключи: своя группа `constructor` не должна находить свойство `Object.prototype`.
+    tokenName[0] = Object.hasOwn(groupPrefix, tokenName[0]) ? groupPrefix[tokenName[0]] : tokenName[0];
     tokenName[2] = fontWeightMap[tokenName[2]];
 
     return tokenName.filter(Boolean).join('-');
@@ -34,7 +35,29 @@ const formattedTokenName = (nameParts: string[]) => {
 
 /** Семейство значения: системное — переменная своей группы, своё — переменная группы стиля [group]. */
 const fontFamilyVariable = (familyRef: string, group: string) =>
-    fontMap[familyRef.split('.')[1]] ?? `var(--plasma-typo-${group}-font-family)`;
+    Object.hasOwn(fontMap, familyRef.split('.')[1])
+        ? fontMap[familyRef.split('.')[1]]
+        : `var(--plasma-typo-${group}-font-family)`;
+
+/** Имя шрифта семейства [familyRef] по собственным ключам: семейство `constructor` — не `Object.prototype`. */
+const familyName = (fontFamily: any, familyRef: string) =>
+    Object.hasOwn(fontFamily ?? {}, familyRef.split('.')[1]) ? fontFamily[familyRef.split('.')[1]].name : undefined;
+
+/**
+ * Прерывает генерацию, если два токена одного экрана дают одну переменную пакета (CSS или JS-константу camelCase):
+ * сервер не даёт создать такие стили, проверка защищает от данных в обход него.
+ */
+const assertUniqueVariables = (tokens: TokenType[]) => {
+    const keys = tokens.map((token) => {
+        const [screen, ...rest] = token.name.split('.');
+        return `${screen}:${formattedTokenName(rest).replaceAll('-', '').toLowerCase()}`;
+    });
+    const repeated = keys.findIndex((key, index) => keys.indexOf(key) !== index);
+    if (repeated < 0) return;
+    const first = tokens[keys.indexOf(keys[repeated])].name;
+    const name = formattedTokenName(tokens[repeated].name.split('.').slice(1));
+    throw new Error(`Стили типографики ${first} и ${tokens[repeated].name} дают одну переменную пакета ${name}`);
+};
 
 const geBaseFonts = (fonts: Record<string, string>) =>
     [
@@ -59,11 +82,11 @@ const getTypographyBase = (typography: any, fontFamily: any, tokens: TokenType[]
             const kind = rest[0];
             const value = typography?.[token.name];
 
-            if (acc[kind] || !value) {
+            if (Object.hasOwn(acc, kind) || !value) {
                 return acc;
             }
 
-            const fontFamilyRef = fontFamily?.[value.fontFamilyRef.split('.')[1]]?.name;
+            const fontFamilyRef = familyName(fontFamily, value.fontFamilyRef);
 
             return {
                 [kind]: fontFamilyRef,
@@ -155,6 +178,8 @@ export const createTypographyTokens = (typography: any, fontFamily: any, tokens?
             },
         };
     }
+
+    assertUniqueVariables(tokens);
 
     const rootTypography = `${getTypographyBase(typography, fontFamily, tokens, 'screen-s')}\n${getTypographyRoot(
         typography,

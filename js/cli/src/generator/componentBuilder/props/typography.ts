@@ -23,9 +23,12 @@ export class TypographyProp extends Prop {
             header: '',
         };
 
+        // Только собственные ключи: своя группа вроде `constructor` не должна находить свойство `Object.prototype`.
+        const own = (record: Record<string, string>, key: string) =>
+            Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined;
         const tokenValue = [...nameParts];
-        tokenValue[0] = nameMap[tokenValue[0]] ?? tokenValue[0];
-        tokenValue[2] = fontWeightMap[tokenValue[2]];
+        tokenValue[0] = own(nameMap, tokenValue[0]) ?? tokenValue[0];
+        tokenValue[2] = own(fontWeightMap, tokenValue[2]) ?? '';
 
         return tokenValue.filter(Boolean).join('-');
     }

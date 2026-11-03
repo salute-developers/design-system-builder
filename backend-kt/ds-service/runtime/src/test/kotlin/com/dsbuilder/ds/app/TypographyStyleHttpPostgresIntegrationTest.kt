@@ -68,7 +68,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 editStyles(api, db, designSystemId, tenantA, tenantB, base, read)
                 rejectEdits(api, db, designSystemId, tenantA, base, read)
                 publishedBoundary(api, db, designSystemId, tenantA, base)
-                structure(api, db, base)
+                structure(api, db, designSystemId, base)
                 groups(api, db, designSystemId, base)
             }
         }
@@ -103,7 +103,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
      * Создание, переименование и удаление стиля: девять токенов, значения ближайшего размера, текстовые ссылки
      * компонентов идут за переименованием по `token_id`, права удаления.
      */
-    private suspend fun structure(api: Api, db: Db, base: String) {
+    private suspend fun structure(api: Api, db: Db, designSystemId: String, base: String) {
         val created = api.reject("POST", base, OWNER, """{"group":"body","size":"xl"}""", 201)
         assertEquals(9, created.array("tokenIds").size)
         // Ответ создания — стиль на каждом экране в формате чтения.
@@ -129,11 +129,20 @@ class TypographyStyleHttpPostgresIntegrationTest {
         assertTrue(db.text(bound).toInt() > before)
         assertFalse(hasStyle(read, "body", "xs"))
 
+        // Комбинация стилей ссылается на удаляемый стиль текстом: после удаления ссылка пустая, а не имя стиля.
+        val combination = db.addCombination(designSystemId, "body.xl.normal")
         val xl = style(read, "screen-l", "body", "xl").obj("variants").obj("bold").text("tokenId")
         api.reject("DELETE", "$base/$xl", EDITOR, null, 403)
         assertEquals(9, api.reject("DELETE", "$base/$xl", OWNER, null, 200).array("tokenIds").size)
         read = api.read(base, VIEWER)
         assertFalse(hasStyle(read, "body", "xl"))
+        assertEquals(
+            "",
+            db.text(
+                "SELECT value FROM style_combination_revisions WHERE style_combination_id = '$combination' " +
+                    "ORDER BY version_sequence_number DESC, updated_at DESC LIMIT 1",
+            ),
+        )
     }
 
     /**
@@ -543,6 +552,47 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 }
                 connection.commit()
             }
+        }
+
+        /**
+         * Новая комбинация стилей в черновике со значением [value] у свойства первого значения вариации дизайн-системы;
+         * результат — идентификатор комбинации.
+         */
+        fun addCombination(designSystemId: String, value: String): String {
+            val source = activeRevisionTestSql(
+                "SELECT property_id || ',' || style_id || ',' || appearance_id || ',' || state_set_id " +
+                    "FROM variation_property_values WHERE design_system_id = '$designSystemId' ORDER BY id LIMIT 1",
+            )
+            val (property, style, appearance, stateSet) = text(source).split(',')
+            val draft = text(
+                "SELECT id || ',' || sequence_number FROM design_system_versions " +
+                    "WHERE design_system_id = '$designSystemId' AND status = 'draft'",
+            ).split(',')
+            val combination = UUID.randomUUID().toString()
+            val member = UUID.randomUUID().toString()
+            DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                connection.autoCommit = false
+                connection.createStatement().use {
+                    it.execute(
+                        """
+                        INSERT INTO style_combinations(id, property_id, appearance_id, design_system_id)
+                            VALUES ('$combination', '$property', '$appearance', '$designSystemId');
+                        INSERT INTO style_combination_revisions(style_combination_id, design_system_id,
+                            design_system_version_id, version_sequence_number, combination_key, value, position,
+                            state_set_id)
+                            VALUES ('$combination', '$designSystemId', '${draft[0]}', ${draft[1]}, '$style',
+                                '$value', 0, '$stateSet');
+                        INSERT INTO style_combination_members(id, combination_id, design_system_id)
+                            VALUES ('$member', '$combination', '$designSystemId');
+                        INSERT INTO style_combination_member_revisions(style_combination_member_id, design_system_id,
+                            design_system_version_id, version_sequence_number, style_id)
+                            VALUES ('$member', '$designSystemId', '${draft[0]}', ${draft[1]}, '$style');
+                        """.trimIndent(),
+                    )
+                }
+                connection.commit()
+            }
+            return combination
         }
 
         /** Использование стиля [style] по выборке из действующих значений свойств компонентов дизайн-системы. */

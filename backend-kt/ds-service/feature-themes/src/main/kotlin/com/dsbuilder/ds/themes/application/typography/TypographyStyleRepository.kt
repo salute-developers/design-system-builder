@@ -72,7 +72,7 @@ interface TypographyStyleRepository {
 
     /**
      * Логически удаляет токены стиля [tokenIds] со значениями во всех темах; текстовые ссылки компонентов
-     * [references] привязываются по `token_id` и очищаются вместе со ссылками на удаляемые токены.
+     * [references] становятся пустыми, как и ссылки по `token_id` на удаляемые токены.
      */
     suspend fun deleteStyle(designSystemId: UUID, tokenIds: Set<UUID>, references: Map<UUID, Set<UUID>>)
 }

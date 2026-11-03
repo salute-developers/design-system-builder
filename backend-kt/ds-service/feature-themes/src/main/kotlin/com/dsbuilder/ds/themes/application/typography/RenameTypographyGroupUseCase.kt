@@ -61,8 +61,9 @@ class RenameTypographyGroupUseCase(
             return DsResult.Failure(groupTaken(name))
         }
         val current = tokens.mapTo(hashSetOf()) { it.name.toString() }
+        val others = all.map { it.name.style }.filter { it.group != group }.distinct()
         tokens.map { it.name.style }.distinct().sorted().forEach { style ->
-            repository.claimStyle(uniqueKeys, designSystemId, style.copy(group = name), except = current)
+            repository.claimStyle(uniqueKeys, designSystemId, style.copy(group = name), others, except = current)
                 ?.let { return DsResult.Failure(it) }
         }
         val references = usage.groupReferences(designSystemId, tokens)

@@ -13,12 +13,19 @@ import java.util.UUID
 /**
  * Переводит текстовые ссылки значений свойств вариаций, инвариантов и комбинаций стилей на токен в ссылки по
  * `token_id` черновыми редакциями с путями `/token_id` и `/value` (у комбинаций — `/token_id`, текст значения
- * обязателен и остаётся). Строки, у которых ссылка уже по `token_id`, не меняются.
+ * обязателен и остаётся) или делает их пустыми при удалении токена (путь `/value`, у комбинаций — пустая строка).
+ * Строки, у которых ссылка уже по `token_id`, не меняются.
  */
 class ExposedTokenReferenceBinder : TokenReferenceBinder {
-    override suspend fun bind(designSystemId: UUID, tokenId: UUID, rowIds: Set<UUID>) {
+    override suspend fun bind(designSystemId: UUID, tokenId: UUID, rowIds: Set<UUID>) =
+        write(designSystemId, tokenId, rowIds)
+
+    override suspend fun detach(designSystemId: UUID, rowIds: Set<UUID>) = write(designSystemId, null, rowIds)
+
+    /** Привязка к токену [tokenId] или, при `null`, пустая ссылка вместо текста. */
+    private fun write(designSystemId: UUID, tokenId: UUID?, rowIds: Set<UUID>) {
         if (rowIds.isEmpty()) return
-        // Редакция переименованного токена не является базовой редакцией зависимого свойства.
+        // Редакция переименованного или удаляемого токена не является базовой редакцией зависимого свойства.
         SubjectMutationPaths.withoutBaseComparison {
             bindInvariants(designSystemId, tokenId, rowIds)
             bindCombinations(designSystemId, tokenId, rowIds)
@@ -26,7 +33,7 @@ class ExposedTokenReferenceBinder : TokenReferenceBinder {
         }
     }
 
-    private fun bindVariations(designSystemId: UUID, token: UUID, rowIds: Set<UUID>) {
+    private fun bindVariations(designSystemId: UUID, token: UUID?, rowIds: Set<UUID>) {
         val table = VariationPropertyValuesTable
         fun rows(ids: Collection<UUID>) = table.selectAll().where {
             (table.id inList ids) and (table.designSystemId eq designSystemId) and table.tokenId.isNull()
@@ -39,6 +46,7 @@ class ExposedTokenReferenceBinder : TokenReferenceBinder {
             VariationPropertyValueRevisionsTable.entityId,
             designSystemId,
             rows(ids),
+            changedPaths = valuePaths(token),
         ) { statement, current ->
             statement[tokenId] = token
             statement[value] = null
@@ -49,7 +57,7 @@ class ExposedTokenReferenceBinder : TokenReferenceBinder {
         }
     }
 
-    private fun bindInvariants(designSystemId: UUID, token: UUID, rowIds: Set<UUID>) {
+    private fun bindInvariants(designSystemId: UUID, token: UUID?, rowIds: Set<UUID>) {
         val table = InvariantPropertyValuesTable
         fun rows(ids: Collection<UUID>) = table.selectAll().where {
             (table.id inList ids) and (table.designSystemId eq designSystemId) and table.tokenId.isNull()
@@ -61,6 +69,7 @@ class ExposedTokenReferenceBinder : TokenReferenceBinder {
             InvariantPropertyValueRevisionsTable.entityId,
             designSystemId,
             rows(ids),
+            changedPaths = valuePaths(token),
         ) { statement, current ->
             statement[tokenId] = token
             statement[value] = null
@@ -71,7 +80,7 @@ class ExposedTokenReferenceBinder : TokenReferenceBinder {
         }
     }
 
-    private fun bindCombinations(designSystemId: UUID, token: UUID, rowIds: Set<UUID>) {
+    private fun bindCombinations(designSystemId: UUID, token: UUID?, rowIds: Set<UUID>) {
         val table = StyleCombinationsTable
         fun rows(ids: Collection<UUID>) = table.selectAll().where {
             (table.id inList ids) and (table.designSystemId eq designSystemId) and table.tokenId.isNull()
@@ -83,16 +92,19 @@ class ExposedTokenReferenceBinder : TokenReferenceBinder {
             StyleCombinationRevisionsTable.entityId,
             designSystemId,
             rows(ids),
-            changedPaths = setOf("/token_id"),
+            changedPaths = if (token == null) setOf("/value") else setOf("/token_id"),
         ) { statement, current ->
             statement[tokenId] = token
             statement[combinationKey] = current[table.combinationKey]
-            // У комбинации значение обязательно: текст остаётся, ссылку определяет `token_id`.
-            statement[value] = current[table.value]
+            // У комбинации значение обязательно: при привязке текст остаётся, ссылку определяет `token_id`; при
+            // удалении токена пустая строка — пустая ссылка.
+            statement[value] = if (token == null) "" else current[table.value]
             statement[alpha] = current[table.alpha]
             statement[adjustment] = current[table.adjustment]
             statement[position] = current[table.position]
             statement[stateSetId] = current[table.stateSetId]
         }
     }
+
+    private fun valuePaths(token: UUID?) = if (token == null) setOf("/value") else setOf("/token_id", "/value")
 }

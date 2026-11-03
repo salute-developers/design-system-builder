@@ -56,7 +56,9 @@ class RenameTypographyStyleUseCase(
         if (size == style.size) return DsResult.Success(TypographyStyleTokens(tokens.map { it.id }))
         val target = TypographyStyleKey(style.group, size)
         val current = tokens.mapTo(hashSetOf()) { it.name.toString() }
-        repository.claimStyle(uniqueKeys, designSystemId, target, except = current)?.let { return DsResult.Failure(it) }
+        val others = repository.styles(designSystemId, tenantId).map { it.name.style }.distinct() - style
+        repository.claimStyle(uniqueKeys, designSystemId, target, others, except = current)
+            ?.let { return DsResult.Failure(it) }
         val references = usage.anchoredReferences(designSystemId, style, tokens)
         repository.renameStyle(designSystemId, tokens.associate { it.id to it.name.copy(style = target) }, references)
         return DsResult.Success(TypographyStyleTokens(tokens.map { it.id }))

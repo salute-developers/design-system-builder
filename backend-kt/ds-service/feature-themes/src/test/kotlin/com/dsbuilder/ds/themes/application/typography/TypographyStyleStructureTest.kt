@@ -58,7 +58,8 @@ class TypographyStyleStructureTest {
         val created = success(create.execute(context("maintainer"), tenantA, TypographyStyleKey("body", "xl")))
 
         assertEquals(9, created.tokenIds.size)
-        assertEquals(9, keys.size)
+        // Девять имён токенов и три переменные пакета — по одной на начертание.
+        assertEquals(12, keys.size)
         val bold = TypographyTokenName.parse("screen-l.body.xl.bold")!!
         val boldId = repository.definitions.entries.single { it.value.first == bold.toString() }.key
         // Ближайший размер к `xl` — `l`: значение того же экрана и начертания.
@@ -100,6 +101,10 @@ class TypographyStyleStructureTest {
         assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("caption2", "m")))
         assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("body", "x_l")))
         assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("body", "-xl")))
+        // Те же переменные пакета: группа header опускается в имени, начертание bold дописывается через дефис.
+        assertEquals("TOKEN_NAME_CONFLICT", code(TypographyStyleKey("header", "body-m")))
+        assertEquals("TOKEN_NAME_CONFLICT", code(TypographyStyleKey("body", "m-bold")))
+        assertEquals("TOKEN_NAME_CONFLICT", code(TypographyStyleKey("bod", "y-m")))
         assertEquals(DsFailure.Forbidden.toString(), code(TypographyStyleKey("body", "xs"), "viewer"))
         assertEquals(18, repository.definitions.size)
     }
