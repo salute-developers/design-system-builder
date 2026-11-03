@@ -11,10 +11,13 @@ import { PanelSkeleton, TreeEmpty, TreeHeader } from '../../../components/tokenW
 import {
     TYPOGRAPHY_SCREENS,
     formatNumber,
+    groupLabel,
     groupStyles,
+    isSystemGroup,
     screenGroups,
     styleKey,
     styleLabel,
+    styleTitle,
     type TypographyScreen,
     type TypographyStyle,
 } from '../../../modules/typographyTokens';
@@ -42,17 +45,23 @@ interface TypographyTreeProps {
     onQuery: (query: string) => void;
     onSearchOpen: (open: boolean) => void;
     onToggle: (group: string) => void;
-    /** Правка структуры: «+» у группы и переименование двойным щелчком. */
+    /** Правка структуры: «+» у группы, «Добавить группу» и переименование двойным щелчком. */
     editable?: boolean;
     /** Удаление при наведении на строку — по правилам кнопки удаления в инспекторе. */
     canDelete?: boolean;
     /** Строка нового стиля внизу группы, открытая «+». */
     creating?: CreatingStyle | null;
+    /** Новая группа без стилей: показывается, пока не создан её первый стиль. */
+    pendingGroup?: string | null;
     onAdd?: (group: string) => void;
     onCreate?: (group: string, size: string) => void;
     onCancelCreate?: () => void;
     onRename?: (style: TypographyStyle, size: string) => Promise<void>;
     onDelete?: (style: TypographyStyle) => void;
+    /** Новая группа из ввода; ошибка ввода бросается с текстом для поля. */
+    onCreateGroup?: (name: string) => void;
+    onRenameGroup?: (group: string, name: string) => Promise<void>;
+    onDeleteGroup?: (group: string) => void;
 }
 
 /** Строка нового стиля внизу группы: открыта «+», как строка нового токена «Размеров». */
@@ -101,8 +110,8 @@ const StyleRow = ({
                 <button
                     type="button"
                     className="tw-icon-button is-danger"
-                    title={`Удалить стиль ${styleLabel(style)}`}
-                    aria-label={`Удалить стиль ${styleLabel(style)}`}
+                    title={`Удалить стиль ${styleTitle(style)}`}
+                    aria-label={`Удалить стиль ${styleTitle(style)}`}
                     onClick={onDelete}
                 >
                     <TrashOutline />
@@ -117,20 +126,32 @@ export const TypographyTree = (props: TypographyTreeProps) => {
     const { styles, screen, selectedKey, query, collapsed } = props;
     const searching = props.searchOpen || Boolean(query);
     const search = query.trim();
+    // Строка стиля `<группа>.<имя>` или заголовок группы `group:<группа>`, открытые для переименования.
     const [renaming, setRenaming] = useState<{ key: string; busy: boolean; error: string | null } | null>(null);
+    const [newGroup, setNewGroup] = useState<{ error: string | null } | null>(null);
     // Enter и уход фокуса могут прийти подряд: переименование отправляется один раз.
     const running = useRef(false);
-    const rename = async (style: TypographyStyle, size: string) => {
-        if (running.current || !props.onRename) return;
+    const submitRename = async (key: string, operation: () => Promise<void>) => {
+        if (running.current) return;
         running.current = true;
-        setRenaming({ key: styleKey(style), busy: true, error: null });
+        setRenaming({ key, busy: true, error: null });
         try {
-            await props.onRename(style, size);
+            await operation();
             setRenaming(null);
         } catch (error) {
-            setRenaming({ key: styleKey(style), busy: false, error: errorText(error) });
+            setRenaming({ key, busy: false, error: errorText(error) });
         } finally {
             running.current = false;
+        }
+    };
+    const rename = (style: TypographyStyle, size: string) =>
+        props.onRename && void submitRename(styleKey(style), () => props.onRename!(style, size));
+    const createGroup = (name: string) => {
+        try {
+            props.onCreateGroup?.(name);
+            setNewGroup(null);
+        } catch (error) {
+            setNewGroup({ error: errorText(error) });
         }
     };
     const row = (style: TypographyStyle) => {
@@ -141,11 +162,11 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                     <div className="typography-token-row tw-tree-item is-selected is-renaming">
                         <TypographyOutline />
                         <InlineRename
-                            label={`Новый размер ${styleLabel(style)}`}
+                            label={`Новое имя ${styleTitle(style)}`}
                             initial={style.size}
                             busy={renaming.busy}
                             error={renaming.error}
-                            onSubmit={(size) => void rename(style, size)}
+                            onSubmit={(size) => rename(style, size)}
                             onCancel={() => setRenaming(null)}
                         />
                     </div>
@@ -164,9 +185,7 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                 changed={props.changedStyles.has(key)}
                 onSelect={props.onSelect}
                 onRename={
-                    props.editable && props.onRename
-                        ? () => setRenaming({ key, busy: false, error: null })
-                        : undefined
+                    props.editable && props.onRename ? () => setRenaming({ key, busy: false, error: null }) : undefined
                 }
                 onDelete={props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined}
             />
@@ -180,44 +199,92 @@ export const TypographyTree = (props: TypographyTreeProps) => {
             const found = groupStyles(styles, search).flatMap((group) => group.styles);
             return found.length ? found.map(row) : <TreeEmpty />;
         }
-        return screenGroups(styles).map((group) => {
+        const groups = screenGroups(styles);
+        const pending = props.pendingGroup;
+        if (pending && !groups.some((group) => group.id === pending))
+            groups.push({ id: pending, label: groupLabel(pending), styles: [] });
+        return groups.map((group) => {
             const closed = Boolean(collapsed[group.id]);
+            const own = !isSystemGroup(group.id) && group.id !== pending;
+            const renameKey = `group:${group.id}`;
             return (
                 <div key={group.id} className="typography-token-group" data-testid={`typography-group-${group.id}`}>
-                    <div className="tw-tree-row">
-                        <button
-                            type="button"
-                            className="typography-group-heading tw-tree-group"
-                            aria-expanded={!closed}
-                            onClick={() => props.onToggle(group.id)}
-                        >
-                            {closed ? <ChevronRightOutline /> : <ChevronDownOutline />}
-                            <span>{group.label}</span>
-                        </button>
-                        {props.editable && props.onAdd && (
-                            <span className="tw-tree-row-actions">
-                                <button
-                                    type="button"
-                                    className="tw-icon-button"
-                                    title={`Добавить стиль в ${group.label}`}
-                                    aria-label={`Добавить стиль в ${group.label}`}
-                                    onClick={() => props.onAdd?.(group.id)}
-                                >
-                                    <PlusOutline />
-                                </button>
-                            </span>
-                        )}
-                    </div>
+                    {renaming?.key === renameKey ? (
+                        <div className="tw-tree-row">
+                            <div className="typography-group-heading tw-tree-group is-renaming">
+                                <ChevronDownOutline />
+                                <InlineRename
+                                    label={`Новое имя группы ${group.label}`}
+                                    initial={group.id}
+                                    busy={renaming.busy}
+                                    error={renaming.error}
+                                    onSubmit={(name) =>
+                                        void submitRename(renameKey, () => props.onRenameGroup!(group.id, name))
+                                    }
+                                    onCancel={() => setRenaming(null)}
+                                />
+                            </div>
+                            {renaming.error && (
+                                <span className="token-tree-input-error" role="alert">
+                                    {renaming.error}
+                                </span>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="tw-tree-row">
+                            <button
+                                type="button"
+                                className="typography-group-heading tw-tree-group"
+                                aria-expanded={!closed}
+                                onClick={() => props.onToggle(group.id)}
+                                onDoubleClick={() =>
+                                    props.editable &&
+                                    own &&
+                                    props.onRenameGroup &&
+                                    setRenaming({ key: renameKey, busy: false, error: null })
+                                }
+                            >
+                                {closed ? <ChevronRightOutline /> : <ChevronDownOutline />}
+                                <span>{group.label}</span>
+                            </button>
+                            {props.editable && (props.onAdd || (own && props.canDelete && props.onDeleteGroup)) && (
+                                <span className="tw-tree-row-actions">
+                                    {props.onAdd && (
+                                        <button
+                                            type="button"
+                                            className="tw-icon-button"
+                                            title={`Добавить стиль в ${group.label}`}
+                                            aria-label={`Добавить стиль в ${group.label}`}
+                                            onClick={() => props.onAdd?.(group.id)}
+                                        >
+                                            <PlusOutline />
+                                        </button>
+                                    )}
+                                    {own && props.canDelete && props.onDeleteGroup && (
+                                        <button
+                                            type="button"
+                                            className="tw-icon-button is-danger"
+                                            title={`Удалить группу ${group.label}`}
+                                            aria-label={`Удалить группу ${group.label}`}
+                                            onClick={() => props.onDeleteGroup?.(group.id)}
+                                        >
+                                            <TrashOutline />
+                                        </button>
+                                    )}
+                                </span>
+                            )}
+                        </div>
+                    )}
                     {!closed &&
                         (group.styles.length ? (
                             group.styles.map(row)
-                        ) : (
+                        ) : group.id === pending ? null : (
                             <p className="typography-unconfigured">{UNCONFIGURED_TEXT}</p>
                         ))}
                     {!closed && props.creating?.group === group.id && (
                         <InlineInput
-                            label="Размер нового стиля"
-                            placeholder="Например, xl"
+                            label="Имя нового стиля"
+                            placeholder="Например, xl или promo-title"
                             busy={props.creating.busy}
                             error={props.creating.error}
                             row={{ className: 'typography-token-row tw-tree-item', leading: <TypographyOutline /> }}
@@ -237,6 +304,21 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                 query={query}
                 onQuery={props.onQuery}
                 onSearchOpen={props.onSearchOpen}
+                actions={
+                    props.editable &&
+                    props.onCreateGroup &&
+                    !searching && (
+                        <button
+                            type="button"
+                            className="tw-icon-button"
+                            aria-label="Добавить группу"
+                            title="Добавить группу"
+                            onClick={() => setNewGroup({ error: null })}
+                        >
+                            <PlusOutline />
+                        </button>
+                    )
+                }
             />
             <div className="typography-screen-control" role="tablist" aria-label="Размер экрана">
                 {TYPOGRAPHY_SCREENS.map((item) => (
@@ -252,7 +334,20 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                     </button>
                 ))}
             </div>
-            <div className="typography-tree-body">{body()}</div>
+            <div className="typography-tree-body">
+                {body()}
+                {newGroup && !search && (
+                    <InlineInput
+                        label="Имя новой группы"
+                        placeholder="Например, caption"
+                        busy={false}
+                        error={newGroup.error}
+                        row={{ className: 'typography-group-heading tw-tree-group', leading: <ChevronDownOutline /> }}
+                        onSubmit={createGroup}
+                        onCancel={() => setNewGroup(null)}
+                    />
+                )}
+            </div>
         </aside>
     );
 };

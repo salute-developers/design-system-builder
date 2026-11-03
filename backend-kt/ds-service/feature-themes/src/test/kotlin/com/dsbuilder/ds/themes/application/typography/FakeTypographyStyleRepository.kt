@@ -34,6 +34,9 @@ internal class FakeTypographyStyleRepository(
     /** Привязанные по `token_id` ссылки: токен → строки значений. */
     val bound = mutableMapOf<UUID, Set<UUID>>()
 
+    /** Семейства, которые подставляло создание стиля: `null` — значения скопированы как есть. */
+    val createdFamilies = mutableListOf<String?>()
+
     /** Удалённые токены. */
     val deleted = mutableSetOf<UUID>()
 
@@ -116,7 +119,9 @@ internal class FakeTypographyStyleRepository(
     override suspend fun createStyle(
         designSystemId: UUID,
         sources: Map<TypographyTokenName, UUID>,
+        family: String?,
     ): Map<TypographyTokenName, UUID> = sources.mapValues { (name, source) ->
+        createdFamilies += family
         val id = UUID.randomUUID()
         definitions[id] = name.toString() to ThemeTokenType.TYPOGRAPHY
         values.values.forEach { tenant -> tenant[source]?.let { tenant[id] = it } }

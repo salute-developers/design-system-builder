@@ -376,8 +376,10 @@ describe('ColorTokensScreen', () => {
         expect(light('accent-0')?.value).toEqual(['#123456']);
         // OnLight наследует Light: правка уходит в связанную подтему той же операцией.
         expect(light('accent-2')?.value).toEqual(['#123456']);
-        await waitFor(() => expect(screen.getByTestId('color-tokens-save-status')).toHaveTextContent('Сохранено'));
-        expect(designSystem.getParameters()?.editRevision).toBe(4);
+        await waitFor(() => expect(designSystem.getParameters()?.editRevision).toBe(4));
+        // Состояние сохранения — значок в тулбаре приложения; в шапке рабочей области его нет.
+        expect(screen.queryByTestId('color-tokens-save-status')).toBeNull();
+        expect(screen.queryByRole('button', { name: /Палитра/ })).toBeNull();
     });
 
     it('показывает отказ сервера и повторяет отправку по «Повторить»', async () => {
@@ -395,11 +397,9 @@ describe('ColorTokensScreen', () => {
 
         commitLight('#123456');
 
-        const status = screen.getByTestId('color-tokens-save-status');
-        await waitFor(() => expect(status).toHaveTextContent('Не сохранено'));
-        expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent(
-            'Не сохранено: Значение не прошло проверку (По умолчанию · web · Light)',
-        );
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toBeInTheDocument());
+        const status = screen.getByTestId('color-tokens-save-error');
+        expect(status).toHaveTextContent('Не сохранено: Значение не прошло проверку (По умолчанию · web · Light)');
         // Ошибка значения — и под полем, на всю ширину секции.
         expect(within(inspector()).getByRole('alert')).toHaveTextContent('Значение не прошло проверку');
         expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute(
@@ -414,7 +414,7 @@ describe('ColorTokensScreen', () => {
 
         fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
 
-        await waitFor(() => expect(status).toHaveTextContent('Сохранено'));
+        await waitFor(() => expect(screen.queryByTestId('color-tokens-save-error')).toBeNull());
         expect(repository.updateValues).toHaveBeenCalledTimes(2);
         expect(within(inspector()).queryByRole('alert')).toBeNull();
     });
@@ -466,14 +466,15 @@ describe('ColorTokensScreen', () => {
         const { reloadTheme } = await renderScreen();
 
         commitLight('#123456');
-        const status = screen.getByTestId('color-tokens-save-status');
-        await waitFor(() => expect(status).toHaveTextContent('Не сохранено'));
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Не сохранено'));
 
         await reloadTheme();
         expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveValue('123456');
 
-        fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
-        await waitFor(() => expect(status).toHaveTextContent('Сохранено'));
+        fireEvent.click(
+            within(screen.getByTestId('color-tokens-save-error')).getByRole('button', { name: 'Повторить' }),
+        );
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
         const light = repository.updateValues.mock.calls[1][2].members
             .find((member) => member.tokenId === 'accent-0')
             ?.values.find((value) => value.mode === 'light');
@@ -529,7 +530,7 @@ describe('ColorTokensScreen', () => {
         const dark = within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0];
         fireEvent.change(dark, { target: { value: '#123456' } });
         fireEvent.keyDown(dark, { key: 'Enter' });
-        await waitFor(() => expect(screen.getByTestId('color-tokens-save-status')).toHaveTextContent('Не сохранено'));
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Не сохранено'));
 
         // Light изменён в другой вкладке: новая загрузка темы приносит его значение.
         await reloadTheme((theme) =>
@@ -1003,7 +1004,7 @@ describe('ColorTokensScreen', () => {
         });
     });
 
-    it('удаляет пустую подгруппу сразу, а группу с токенами — после подтверждения', async () => {
+    it('удаляет пустую подгруппу и группу с токенами только после подтверждения', async () => {
         groupRepository.remove.mockImplementation(async (_context, groupId) => {
             groupState = groupState.filter((item) => item.id !== groupId && item.parentId !== groupId);
             if (groupId === 'g-text') definitionState = [];
@@ -1015,7 +1016,10 @@ describe('ColorTokensScreen', () => {
         await screen.findByTestId('token-subgroup-Status');
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить подгруппу Status' }));
-        expect(screen.queryByRole('dialog')).toBeNull();
+        const empty = screen.getByRole('dialog');
+        expect(within(empty).getByTestId('delete-group-tokens')).toHaveTextContent('Группа пустая');
+        expect(groupRepository.remove).not.toHaveBeenCalled();
+        fireEvent.click(within(empty).getByRole('button', { name: 'Удалить группу' }));
         await waitFor(() => expect(screen.queryByTestId('token-subgroup-Status')).toBeNull());
         expect(screen.getByTestId('route-search')).toHaveTextContent('tokenId=accent-0');
 
@@ -1030,13 +1034,16 @@ describe('ColorTokensScreen', () => {
         expect(groupRepository.remove).toHaveBeenLastCalledWith(expect.anything(), 'g-text', 4);
     });
 
-    it('удаляет токен без связей с компонентами без подтверждения', async () => {
+    it('удаляет токен без связей с компонентами тоже после подтверждения', async () => {
         repository.delete.mockResolvedValue({ editRevision: 4 });
         await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-0' });
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
 
-        expect(screen.queryByRole('dialog')).toBeNull();
+        const dialog = screen.getByRole('dialog');
+        expect(dialog).toHaveTextContent('Токен не используется в компонентах дизайн-системы.');
+        expect(repository.delete).not.toHaveBeenCalled();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
         await waitFor(() => expect(repository.delete).toHaveBeenCalledWith(expect.anything(), 'accent-0', 3));
         await waitFor(() => expect(screen.queryByTestId('color-token-row-text.accent')).toBeNull());
         await waitFor(() => expect(screen.getByTestId('route-search')).toBeEmptyDOMElement());
@@ -1047,8 +1054,11 @@ describe('ColorTokensScreen', () => {
         await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-0' });
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
+        const dialog = screen.getByRole('dialog');
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
 
-        expect(await screen.findByText('Не удалось удалить токен: Удаление отклонено')).toBeInTheDocument();
+        // Ошибка остаётся в окне подтверждения.
+        expect(await within(dialog).findByText(/Удаление отклонено/)).toBeInTheDocument();
         expect(screen.getByTestId('route-search')).toHaveTextContent('tokenId=accent-0');
     });
 

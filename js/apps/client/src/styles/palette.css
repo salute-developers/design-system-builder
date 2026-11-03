@@ -264,7 +264,7 @@
     outline: 1px solid var(--tw-accent);
 }
 
-/* Кнопка-счётчик `panel-item`: без фона, `ColorOutline` 16 и число изменённых растяжек 12/16. */
+/* Кнопка `panel-item`: без фона, `ColorOutline` 16 показывает и скрывает инспектор. */
 .palette-editor-header .palette-inspector-toggle {
     display: inline-flex;
     align-items: center;

@@ -785,7 +785,7 @@ describe('SizeTokensScreen', () => {
         expect(row('round.xxxl')).toBeInTheDocument();
     });
 
-    it('удаляет используемый токен после подтверждения, а неиспользуемый — сразу', async () => {
+    it('удаляет используемый и неиспользуемый токен после подтверждения', async () => {
         const { values } = await renderScreen();
         commit(valueField(), '13');
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Удалить токен' }));
@@ -807,8 +807,11 @@ describe('SizeTokensScreen', () => {
 
         fireEvent.click(row('spacing.4x'));
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Удалить токен' }));
+        const unused = screen.getByRole('dialog');
+        expect(unused).toHaveTextContent('Токен не используется в компонентах дизайн-системы.');
+        expect(sent('delete')).toHaveLength(1);
+        fireEvent.click(within(unused).getByRole('button', { name: 'Удалить токен' }));
         await waitFor(() => expect(sent('delete')).toHaveLength(2));
-        expect(screen.queryByRole('dialog')).toBeNull();
         await waitFor(() => expect(row('spacing.4x')).toBeNull());
     });
 
@@ -832,12 +835,13 @@ describe('SizeTokensScreen', () => {
         expect(board().querySelector('[aria-label="down.hard.m"]')).toBeNull();
     });
 
-    it('удаляет тень без подтверждения, если её не используют компоненты', async () => {
+    it('удаляет тень, которую не используют компоненты, тоже после подтверждения', async () => {
         await renderScreen();
         fireEvent.click(row('down.soft.s'));
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Удалить токен' }));
+        expect(sent('delete')).toHaveLength(0);
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить токен' }));
         await waitFor(() => expect(sent('delete')).toHaveLength(1));
-        expect(screen.queryByRole('dialog')).toBeNull();
     });
 
     it('не показывает удаление роли Editor', async () => {
@@ -888,11 +892,13 @@ describe('SizeTokensScreen', () => {
     });
     it('удаляет токен кнопкой в строке дерева по правилам инспектора', async () => {
         await renderScreen();
-        // Неиспользуемый токен удаляется сразу, выбор не меняется.
+        // Неиспользуемый токен — тоже после подтверждения, выбор не меняется.
         fireEvent.click(within(tree()).getByRole('button', { name: 'Удалить токен spacing.4x' }));
+        expect(sent('delete')).toHaveLength(0);
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить токен' }));
         await waitFor(() => expect(sent('delete')).toHaveLength(1));
         expect(sent('delete')[0]).toMatchObject({ tokenId: 'id-spacing.4x' });
-        expect(screen.queryByRole('dialog')).toBeNull();
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
         await waitFor(() => expect(row('spacing.4x')).toBeNull());
         expect(title()).toHaveTextContent('round.m');
 

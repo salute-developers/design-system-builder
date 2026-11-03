@@ -13,6 +13,7 @@ import {
     createTypographyAutosave,
     definedEntries,
     styleKey,
+    groupNameRequest,
     styleSizeRequest,
     styleValueAddresses,
     styleValueRevisions,
@@ -369,19 +370,24 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         if ('error' in result) throw new TypographyOperationError('invalid', result.error);
         return result.size;
     };
+    const groupNameOf = (input: string, except?: string) => {
+        const result = groupNameRequest(input, [...new Set(allStyles().map((style) => style.group))], except);
+        if ('error' in result) throw new TypographyOperationError('invalid', result.error);
+        return result.name;
+    };
     const firstToken = (style: TypographyStyle) => definedEntries(style.variants)[0]?.[1].tokenId ?? '';
 
     return {
         styles,
         description,
         describe,
-        /** Создаёт стиль группы [group] размера из ввода [input]; результат — ключ нового стиля. */
+        /** Создаёт стиль группы [group] с именем из ввода [input]; новая группа появляется с ним. Результат — ключ стиля. */
         create: async (group: string, input: string) => {
             const size = sizeOf(group, input);
             await structural(() => repository.create(session.context, group, size));
             return styleKey({ group, size });
         },
-        /** Меняет размер стиля на введённый; результат — новый ключ стиля. */
+        /** Меняет имя стиля в группе на введённое; результат — новый ключ стиля. */
         rename: async (style: TypographyStyle, input: string) => {
             const size = sizeOf(style.group, input, styleKey(style));
             if (size === style.size) return styleKey(style);
@@ -390,6 +396,17 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         },
         /** Удаляет стиль на всех экранах. */
         remove: (style: TypographyStyle) => structural(() => repository.remove(session.context, firstToken(style))),
+        /** Имя новой группы из ввода; ошибка ввода бросается с текстом для поля. Группа появится с первым стилем. */
+        groupName: (input: string) => groupNameOf(input),
+        /** Переименовывает свою группу [group] в имя из ввода; результат — новое имя группы. */
+        renameGroup: async (group: string, input: string) => {
+            const name = groupNameOf(input, group);
+            if (name === group) return group;
+            await structural(() => repository.renameGroup(session.context, group, name));
+            return name;
+        },
+        /** Удаляет свою группу со всеми её стилями на всех экранах. */
+        removeGroup: (group: string) => structural(() => repository.removeGroup(session.context, group)),
         styleTokenIds: (style: TypographyStyle) => new Set(styleTokens(style).map(({ tokenId }) => tokenId)),
         loadError: session.loadError,
         status: session.autosave.overall(),

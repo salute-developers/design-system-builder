@@ -20,10 +20,14 @@ export class TokenResetError extends Error {}
 const CREATED_IN_DRAFT = 'Токен создан в этом черновике: отменить его можно только удалением токена.';
 const RESET_FAILED = 'Не удалось сбросить изменения токена. Данные обновлены.';
 
+/** Предел записей одного пакетного отката на сервере. */
+const REVERT_BATCH_LIMIT = 200;
+
 /**
- * Откатывает изменения токенов [tokenIds] в черновике темы теми же операциями, что журнал: от новой записи к
- * старой. Возвращает число отменённых записей. Токен, созданный в черновике, не откатывается: откат его записи
- * удалил бы токен во всех темах, а значения других тем помешали бы откату на полпути.
+ * Откатывает изменения токенов [tokenIds] в черновике темы пакетным откатом журнала: от новой записи к старой, одним
+ * запросом и одной транзакцией — либо все записи, либо ни одной. Возвращает число отменённых записей. Больше
+ * [REVERT_BATCH_LIMIT] записей уходит несколькими пакетами, атомарен каждый пакет. Токен, созданный в черновике,
+ * не откатывается: откат его записи удалил бы токен во всех темах.
  */
 export const resetTokenChanges = async (context: EditorContextKey, tokenIds: ReadonlySet<string>) => {
     await waitForDraftAutosaveIdle(context, 10_000);
@@ -32,7 +36,8 @@ export const resetTokenChanges = async (context: EditorContextKey, tokenIds: Rea
         .sort((a, b) => b.changedAt.localeCompare(a.changedAt));
     if (changes.some((change) => change.entityType === 'token' && change.operation === 'created'))
         throw new TokenResetError(CREATED_IN_DRAFT);
-    for (const change of changes) await repository.revertChange(context, change);
+    for (let start = 0; start < changes.length; start += REVERT_BATCH_LIMIT)
+        await repository.revertChanges(context, changes.slice(start, start + REVERT_BATCH_LIMIT));
     return changes.length;
 };
 

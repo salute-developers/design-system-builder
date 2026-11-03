@@ -9,15 +9,16 @@ import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.core.application.UniqueKeyLockRepository
 import com.dsbuilder.ds.themes.application.colortokens.requireAll
 import com.dsbuilder.ds.themes.domain.typography.StoredTypographyToken
+import com.dsbuilder.ds.themes.domain.typography.TypographyStyleBuilder
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleKey
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleNaming
 import java.util.UUID
 import kotlin.math.abs
 
 /**
- * Создаёт в активном черновике стиль типографии — девять токенов `<экран>.<группа>.<размер>.<начертание>` — одной
- * транзакцией. Значения во всех темах копируются у ближайшего размера той же группы того же экрана и начертания,
- * в пустой группе — у `body.m`.
+ * Создаёт в активном черновике стиль типографии — девять токенов `<экран>.<группа>.<имя>.<начертание>` — одной
+ * транзакцией; новая группа появляется с первым стилем. Значения во всех темах копируются у ближайшего размера той же
+ * группы того же экрана и начертания, в пустой группе — у `body.m`, а семейство — `fontFamily.<группа>`, если оно есть.
  */
 class CreateTypographyStyleUseCase(
     private val policy: DsAccessPolicy,
@@ -30,7 +31,7 @@ class CreateTypographyStyleUseCase(
         context: DsRequestContext,
         tenantId: UUID,
         style: TypographyStyleKey,
-    ): DsResult<TypographyStyleTokens> {
+    ): DsResult<CreatedTypographyStyle> {
         val allowed = policy.requireAll(context, ProjectScope.TENANTS_WRITE, ProjectScope.TOKENS_WRITE)
         if (allowed is DsResult.Failure) return allowed
         invalidStyleName(style.group, style.size)?.let { return DsResult.Failure(it) }
@@ -47,7 +48,7 @@ class CreateTypographyStyleUseCase(
         designSystemId: UUID,
         tenantId: UUID,
         style: TypographyStyleKey,
-    ): DsResult<TypographyStyleTokens> {
+    ): DsResult<CreatedTypographyStyle> {
         repository.claimStyle(uniqueKeys, designSystemId, style)?.let { return DsResult.Failure(it) }
         val tokens = repository.styles(designSystemId, tenantId)
         val source = source(tokens, style)
@@ -57,8 +58,12 @@ class CreateTypographyStyleUseCase(
             tokens.firstOrNull { it.name == name.copy(style = source) }?.id
                 ?: return DsResult.Failure(invalidTypographyStyle(missing))
         }
-        val created = repository.createStyle(designSystemId, sources)
-        return DsResult.Success(TypographyStyleTokens(created.values.toList()))
+        // Стиль из другой группы несёт её семейство: новая группа берёт своё, если оно есть в дизайн-системе.
+        val own = source.group != style.group &&
+            repository.families(designSystemId, tenantId).any { it.name == style.group }
+        val created = repository.createStyle(designSystemId, sources, style.group.takeIf { own })
+        val screens = TypographyStyleBuilder.screens(repository.styles(designSystemId, tenantId, style), emptyMap())
+        return DsResult.Success(CreatedTypographyStyle(created.values.toList(), screens))
     }
 
     /** Стиль, у которого берутся значения: ближайший размер группы по шкале, иначе `body.m`, иначе первый стиль. */

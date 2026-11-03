@@ -4,28 +4,49 @@ import { bodyM, typographyStyles } from '../testFixtures';
 import {
     applyStyleChange,
     applyUpdatedStyle,
+    groupNameRequest,
     groupStyles,
     lineHeightWarning,
+    normalizeStyleSize,
     mergeChanges,
     parseNumber,
     screenGroups,
     screenStyles,
     styleLabel,
+    styleSizeRequest,
+    styleTitle,
     validateChange,
     TYPOGRAPHY_MESSAGES,
 } from '.';
 
 describe('домен стилей типографии', () => {
-    it('называет стили как прототип', () => {
-        expect(styleLabel({ group: 'body', size: 'm' })).toBe('Body M');
-        expect(styleLabel({ group: 'header', size: 'h1' })).toBe('H1');
-        expect(styleLabel({ group: 'display', size: 'l' })).toBe('Display L');
+    it('называет стиль его именем в группе, как радиус, а полное название — с группой', () => {
+        expect(styleLabel({ size: 'm' })).toBe('M');
+        expect(styleLabel({ size: 'h1' })).toBe('H1');
+        expect(styleLabel({ size: 'xxl' })).toBe('XXL');
+        expect(styleLabel({ size: 'promo-title' })).toBe('promo-title');
+        expect(styleTitle({ group: 'body', size: 'm' })).toBe('Body M');
+        expect(styleTitle({ group: 'caption', size: 'promo-title' })).toBe('Caption promo-title');
+    });
+
+    it('разбирает произвольное имя стиля и имя своей группы', () => {
+        expect(normalizeStyleSize(' Promo  Title ')).toBe('promo-title');
+        expect(normalizeStyleSize('--x_l--')).toBe('xl');
+        const styles = [{ group: 'body', size: 'm' }];
+        expect(styleSizeRequest('body', 'M', styles)).toEqual({ error: 'Стиль Body M уже есть в теме.' });
+        expect(styleSizeRequest('body', 'm', styles, 'body.m')).toEqual({ size: 'm' });
+        expect(groupNameRequest('Caption', [])).toEqual({ name: 'caption' });
+        expect(groupNameRequest('dspl', [])).toHaveProperty('error');
+        expect(groupNameRequest('body', [])).toEqual({ error: 'Группа Body уже есть в теме.' });
+        expect(groupNameRequest('note', ['note'])).toHaveProperty('error');
+        expect(groupNameRequest('note', ['note'], 'note')).toEqual({ name: 'note' });
+        expect(groupNameRequest('123', [])).toHaveProperty('error');
     });
 
     it('группирует стили в порядке прототипа и ищет по группе и названию', () => {
         const styles = screenStyles(typographyStyles(), 'screen-l');
         expect(groupStyles(styles).map((group) => group.label)).toEqual(['Header', 'Body']);
-        expect(groupStyles(styles, 'body m').map((group) => group.styles.map(styleLabel))).toEqual([['Body M']]);
+        expect(groupStyles(styles, 'body m').map((group) => group.styles.map(styleTitle))).toEqual([['Body M']]);
         expect(groupStyles(styles, 'HEADER')[0].styles.map(styleLabel)).toEqual(['H1']);
         expect(groupStyles(styles, 'нет')).toEqual([]);
     });

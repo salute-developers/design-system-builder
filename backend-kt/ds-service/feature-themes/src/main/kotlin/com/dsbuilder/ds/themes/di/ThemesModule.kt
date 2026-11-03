@@ -57,8 +57,10 @@ import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupUseCases
 import com.dsbuilder.ds.themes.application.tokengroups.UpdateTokenGroupUseCase
 import com.dsbuilder.ds.themes.application.typography.CreateTypographyStyleUseCase
+import com.dsbuilder.ds.themes.application.typography.DeleteTypographyGroupUseCase
 import com.dsbuilder.ds.themes.application.typography.DeleteTypographyStyleUseCase
 import com.dsbuilder.ds.themes.application.typography.GetTypographyStylesUseCase
+import com.dsbuilder.ds.themes.application.typography.RenameTypographyGroupUseCase
 import com.dsbuilder.ds.themes.application.typography.RenameTypographyStyleUseCase
 import com.dsbuilder.ds.themes.application.typography.TypographyStyleRepository
 import com.dsbuilder.ds.themes.application.typography.TypographyStyleUseCases
@@ -164,5 +166,7 @@ val themesModule = module {
     factory { CreateTypographyStyleUseCase(get(), get(), get(), get()) }
     factory { RenameTypographyStyleUseCase(get(), get(), get(), get(), get()) }
     factory { DeleteTypographyStyleUseCase(get(), get(), get(), get()) }
-    factory { TypographyStyleUseCases(get(), get(), get(), get(), get()) }
+    factory { RenameTypographyGroupUseCase(get(), get(), get(), get(), get()) }
+    factory { DeleteTypographyGroupUseCase(get(), get(), get(), get()) }
+    factory { TypographyStyleUseCases(get(), get(), get(), get(), get(), get(), get()) }
 }

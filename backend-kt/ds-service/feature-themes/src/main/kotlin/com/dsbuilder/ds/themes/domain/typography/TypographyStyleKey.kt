@@ -2,7 +2,7 @@ package com.dsbuilder.ds.themes.domain.typography
 
 /** Стиль без экрана: группа и размер, например `body.m`. */
 data class TypographyStyleKey(
-    /** Группа: `display`, `header`, `body`, `text`. */
+    /** Группа: системная `display`, `header`, `body`, `text` или своя группа дизайн-системы. */
     val group: String,
     /** Размер внутри группы: `m`, `h1`. */
     val size: String,
@@ -12,7 +12,7 @@ data class TypographyStyleKey(
     override fun compareTo(other: TypographyStyleKey): Int = ORDER.compare(this, other)
 
     companion object {
-        /** Группы стилей: набор фиксирован, генератор пакета знает только их. */
+        /** Системные группы в порядке дерева; свои группы идут после них по имени. */
         val GROUPS = listOf("display", "header", "body", "text")
         private val SIZES = listOf("xxl", "xl", "l", "m", "s", "xs", "xxs")
         private val HEADER = Regex("""^h(\d+)$""")

@@ -14,7 +14,7 @@ interface DeleteDialogProps {
     onConfirm: () => void;
 }
 
-/** Подтверждение удаления токена, который используют компоненты, — общее окно экранов токенов. */
+/** Подтверждение удаления токена — общее окно экранов токенов; компоненты со ссылками на токен перечисляются. */
 export const DeleteSizeTokenDialog = ({
     title,
     names,
@@ -40,12 +40,16 @@ export const DeleteSizeTokenDialog = ({
                 : 'Токен удалится из черновика дизайн-системы'}{' '}
             вместе со значениями во всех темах. До публикации удаление можно отменить в журнале изменений.
         </p>
-        <p data-testid="delete-size-token-components">
-            Используется в компонентах:{' '}
-            {components
-                .map((usage) => (names.length > 1 ? `${usage.name} (${usage.tokens.join(', ')})` : usage.name))
-                .join(', ')}
-            . Ссылки компонентов на токен будут сброшены.
-        </p>
+        {components.length > 0 ? (
+            <p data-testid="delete-size-token-components">
+                Используется в компонентах:{' '}
+                {components
+                    .map((usage) => (names.length > 1 ? `${usage.name} (${usage.tokens.join(', ')})` : usage.name))
+                    .join(', ')}
+                . Ссылки компонентов на токен будут сброшены.
+            </p>
+        ) : (
+            <p>{names.length > 1 ? 'Токены не используются' : 'Токен не используется'} в компонентах дизайн-системы.</p>
+        )}
     </ConfirmDeleteDialog>
 );

@@ -23,6 +23,7 @@ import com.dsbuilder.ds.designsystems.application.ListDesignSystemsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.ListVersionsByDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.RevertDraftChangeUseCase
+import com.dsbuilder.ds.designsystems.application.RevertDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.UpdateDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.VersionBoundaryRepository
 import com.dsbuilder.ds.designsystems.data.ExposedDesignSystemAggregateRepository
@@ -73,4 +74,5 @@ val designSystemsModule = module {
     factory { ListDesignSystemAppearancesUseCase(get(), get(), get()) }
     factory { ListDraftChangesUseCase(get(), get(), get()) }
     factory { RevertDraftChangeUseCase(get(), get(), get(), get()) }
+    factory { RevertDraftChangesUseCase(get(), get(), get(), get()) }
 }

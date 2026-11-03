@@ -395,15 +395,16 @@ describe('раздел «Палитра»', () => {
         expect(screen.getByRole('tab', { name: 'Все' })).toHaveAttribute('aria-selected', 'true');
     });
 
-    it('пустая пользовательская группа предлагает перейти в Color tokens; кнопка инспектора считает изменённые растяжки', async () => {
+    it('пустая пользовательская группа предлагает перейти в Color tokens; кнопка инспектора без счётчика', async () => {
         await renderPalette();
         const toggle = screen.getByRole('button', { name: 'Скрыть Inspector' });
-        expect(toggle).toHaveTextContent('0');
+        expect(toggle).toHaveTextContent('');
         fireEvent.click(card('Green', 'Neutral'));
         fireEvent.click(
             within(await screen.findByRole('dialog', { name: 'Настройка палитры Green' })).getByText('Azure'),
         );
-        await waitFor(() => expect(toggle).toHaveTextContent('1'));
+        await waitFor(() => expect(card('Azure', 'Neutral')).toBeInTheDocument());
+        expect(toggle).toHaveTextContent('');
         fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
         fireEvent.keyDown(await screen.findByRole('textbox', { name: 'Название группы' }), { key: 'Escape' });
         fireEvent.click(screen.getByRole('button', { name: 'Добавить палитру в Новая группа' }));

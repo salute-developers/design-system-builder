@@ -1200,29 +1200,6 @@
     border-radius: 6px;
     letter-spacing: 0;
 }
-.color-tokens-screen .editor-header-controls {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--tw-space-m);
-}
-.color-tokens-screen .editor-canvas-picker {
-    position: relative;
-    min-width: 0;
-}
-
-.color-tokens-screen .editor-canvas-menu {
-    left: auto;
-    right: 0;
-    display: block;
-    min-width: 170px;
-    max-height: 320px;
-    overflow: auto;
-}
-.color-tokens-screen .editor-canvas-menu button.is-selected {
-    background: var(--builder-ui-bg-secondary);
-}
 .color-tokens-screen .playground-workbench .properties-panel {
     grid-column: 3;
     grid-row: 1 / 3;
@@ -1307,48 +1284,7 @@
     height: 100%;
 }
 
-/* Состояние сохранения в панели инструментов и строке токена. */
-.color-tokens-screen .ct-save-status {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--tw-space-s);
-    margin-left: auto;
-    padding: 0 var(--tw-space-m);
-    font-size: 12px;
-    color: var(--builder-ui-text-paragraph);
-    white-space: nowrap;
-}
-
-/* На узком канвасе состояние сохранения сжимается первым, выбор вида канваса не сжимается. */
-.color-tokens-screen .editor-header-controls .ct-save-status {
-    min-width: 0;
-}
-
-.color-tokens-screen .ct-save-label {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.color-tokens-screen .editor-header-controls .editor-canvas-picker {
-    flex: none;
-}
-
-/* Если управление не помещается, оно уходит вправо под край панели, как в прототипе, а не налезает на вкладки:
- * `safe` выравнивает по началу при переполнении, `overflow-x: clip` обрезает по ширине и не обрезает меню вниз. */
-.color-tokens-screen .editor-toolbar {
-    overflow-x: clip;
-}
-
-.color-tokens-screen .editor-toolbar .editor-header-controls {
-    justify-content: safe flex-end;
-}
-
-.color-tokens-screen .ct-save-status.is-error {
-    color: var(--builder-ui-negative, #ff6b5f);
-}
-
-.color-tokens-screen .ct-save-status button,
+.color-tokens-screen .ct-toolbar-error button,
 .color-tokens-screen .ct-inline-action {
     padding: var(--tw-space-2xs) var(--tw-space-m);
     border: 1px solid var(--builder-ui-outline-primary);
@@ -1652,6 +1588,9 @@
 }
 
 .color-tokens-screen .ct-toolbar-error {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-m);
     padding: var(--tw-space-s) var(--tw-space-l);
     border-bottom: 1px solid var(--builder-ui-outline-transparent-primary);
     color: var(--builder-ui-negative, #ff6b5f);
@@ -1785,16 +1724,6 @@
 
 .color-tokens-screen .ct-tab.is-active {
     background: var(--tw-surface-selected);
-}
-
-.color-tokens-screen .editor-canvas-menu {
-    position: absolute;
-    top: 30px;
-    right: 0;
-    z-index: 40;
-    min-width: 160px;
-    max-height: 320px;
-    overflow: auto;
 }
 
 /* Канвас: одна линия между канвасом и инспектором — у инспектора. */

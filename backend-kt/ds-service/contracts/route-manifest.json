@@ -23,7 +23,8 @@
         ["GET", "/design-systems/{id}/tenants", null, "Tenant[]", 200, "tenants:read", null],
         ["GET", "/design-systems/{id}/appearances", null, "Appearance[]", 200, "components:variations:read", null],
         ["GET", "/design-systems/{id}/changes", null, "DesignSystemChange[]", 200, "design-systems:read", null],
-        ["GET", "/design-systems/{id}/changes/token-ids", "ChangedTokenIdsQuery", "ChangedTokenIdsResponse", 200, "design-systems:read", null]
+        ["GET", "/design-systems/{id}/changes/token-ids", "ChangedTokenIdsQuery", "ChangedTokenIdsResponse", 200, "design-systems:read", null],
+        ["POST", "/design-systems/{id}/changes/revert", "RevertDraftChangesRequest", "OkResponse", 200, "design-systems:write", null]
       ]
     },
     {
@@ -108,10 +109,12 @@
       "ownership": "via-design-system",
       "operations": [
         ["GET", "/tenants/{tenantId}/typography-styles", null, "TypographyStyles", 200, "tenants:read", null],
-        ["POST", "/tenants/{tenantId}/typography-styles", "CreateTypographyStyleRequest", "TypographyStyleTokens", 201, "tenants:write", "tenant-edit-revision"],
+        ["POST", "/tenants/{tenantId}/typography-styles", "CreateTypographyStyleRequest", "CreatedTypographyStyle", 201, "tenants:write", "tenant-edit-revision"],
         ["PATCH", "/tenants/{tenantId}/typography-styles/{tokenId}", "UpdateTypographyStyleRequest", "UpdatedTypographyStyle", 200, "tenants:write", "tenant-edit-revision"],
         ["DELETE", "/tenants/{tenantId}/typography-styles/{tokenId}", null, "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
-        ["PATCH", "/tenants/{tenantId}/typography-styles/{tokenId}/name", "RenameTypographyStyleRequest", "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"]
+        ["PATCH", "/tenants/{tenantId}/typography-styles/{tokenId}/name", "RenameTypographyStyleRequest", "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/tenants/{tenantId}/typography-groups/{group}", "RenameTypographyGroupRequest", "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/tenants/{tenantId}/typography-groups/{group}", null, "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {

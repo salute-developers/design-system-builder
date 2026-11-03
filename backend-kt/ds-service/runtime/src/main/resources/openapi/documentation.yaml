@@ -2514,8 +2514,11 @@ paths:
       description: >-
         Требует tenants:write и tokens:write. Создаёт в активном черновике стиль group.size — девять токенов
         screen-(s|m|l).group.size.(normal|medium|bold) — со значениями ближайшего размера той же группы во всех темах
-        (в пустой группе — body.m). Группа — display, header, body или text; размер — a-z и 0-9. Повтор с тем же
-        Idempotency-Key возвращает сохранённый ответ. Мутация с versionId отклоняется historical_version_read_only.
+        (в пустой группе — body.m с семейством fontFamily.group, если оно есть). Группа — системная (display, header,
+        body, text) или своя: a-z до 32 знаков, кроме dspl; новая группа появляется с первым стилем. Имя стиля
+        произвольное: a-z, 0-9 и дефис между ними. Ответ — идентификаторы токенов и стиль на каждом экране в формате
+        чтения. Повтор с тем же Idempotency-Key возвращает сохранённый ответ. Мутация с versionId отклоняется
+        historical_version_read_only.
       parameters:
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
@@ -2533,7 +2536,7 @@ paths:
               $ref: '#/components/schemas/CreateTypographyStyleRequest'
       responses:
         '201':
-          description: Tokens of the created style
+          description: Tokens of the created style and the style on every screen in the read format
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
@@ -2542,7 +2545,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TypographyStyleTokens'
+                $ref: '#/components/schemas/CreatedTypographyStyle'
         '400':
           description: Invalid request or name (INVALID_TOKEN_NAME with details.field group or size)
           content:
@@ -2717,12 +2720,13 @@ paths:
     patch:
       tags:
         - Typography styles
-      summary: Rename the size of a typography style
+      summary: Rename a typography style within its group
       description: >-
-        Требует tenants:write и tokens:write. По любому токену стиля меняет размер в именах девяти токенов стиля;
-        группа не меняется, идентификаторы токенов сохраняются. Текстовые ссылки компонентов на стиль
-        привязываются по token_id к токену screen-s своего начертания; выгрузка конфигурации отдаёт для них имя без
-        экрана.
+        Требует tenants:write и tokens:write. По любому токену стиля меняет имя стиля (size) в именах девяти токенов;
+        группа не меняется, идентификаторы токенов сохраняются. Текстовые ссылки компонентов на стиль привязываются
+        по token_id: без экрана (body.m.normal) — к токену screen-s своего начертания, с экраном
+        (screen-l.body.m.normal) — к токену этого экрана; учитываются вариации, инварианты и комбинации стилей.
+        Выгрузка конфигурации отдаёт для них имя без экрана.
       parameters:
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
@@ -2775,6 +2779,136 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: TOKEN_NAME_CONFLICT — a token of the style already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/typography-groups/{group}:
+    patch:
+      tags:
+        - Typography styles
+      summary: Rename an own typography group with all its styles
+      description: >-
+        Требует tenants:write и tokens:write. Меняет группу в именах токенов всех стилей своей группы; имена стилей и
+        идентификаторы токенов сохраняются. Системные группы display, header, body и text не переименовываются
+        (SYSTEM_TYPOGRAPHY_GROUP). Текстовые ссылки компонентов на стили группы привязываются по token_id, как при
+        переименовании стиля.
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: group
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameTypographyGroupRequest'
+      responses:
+        '200':
+          description: Tokens of the renamed group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TypographyStyleTokens'
+        '400':
+          description: Invalid group name (INVALID_TOKEN_NAME) or a system group (SYSTEM_TYPOGRAPHY_GROUP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: TOKEN_NAME_CONFLICT — the group or a token of its styles already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+    delete:
+      tags:
+        - Typography styles
+      summary: Delete an own typography group with all its styles
+      description: >-
+        Требует tenants:write и tokens:delete. Логически удаляет в активном черновике токены всех стилей своей группы
+        со значениями; ссылки компонентов на них, в том числе текстовые, становятся пустыми. Системные группы не
+        удаляются (SYSTEM_TYPOGRAPHY_GROUP).
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: group
+          in: path
+      responses:
+        '200':
+          description: Tokens of the deleted group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TypographyStyleTokens'
+        '400':
+          description: A system group (SYSTEM_TYPOGRAPHY_GROUP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or group not found
           content:
             application/json:
               schema:
@@ -8775,6 +8909,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
+  /api/ds/design-systems/{id}/changes/revert:
+    post:
+      tags:
+        - Design Systems
+      summary: Revert several current draft changes atomically
+      description: |
+        Reverts complete journal entries in one transaction, in the order of changes (newest first).
+        expectedRevision values come from one journal snapshot and are checked against the state before the batch:
+        every entry must exist with its expected editRevision, otherwise nothing is reverted.
+        A revert inside the batch may itself bump or remove a later entry of the same batch
+        (for example, a color token value revert recomputes the family type of the token definition);
+        such an entry is reverted at its current revision or skipped when it no longer differs.
+        The first failure rolls the whole batch back and returns the error of that entry with the same codes as
+        the single revert; conflicts carry the zero-based position of the entry in details.changeIndex.
+        One Idempotency-Key covers the batch; its payload is every changeId and expectedRevision in order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevertDraftChanges'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: All entries reverted
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: >-
+            Invalid body, REVERT_BATCH_EMPTY, REVERT_BATCH_TOO_LARGE (more than 200 entries)
+            or REVERT_BATCH_DUPLICATE_CHANGE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Design system or one of the entries is not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Stale journal entry or dependency conflict; details.changeIndex names the failed entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Complete journal exceeds the supported safety limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: design-systems:write
   /api/ds/design-systems/{id}/changes/{changeId}/revert:
     post:
       tags:
@@ -12766,6 +12968,32 @@ components:
             pattern: ^/value(?:/|$)
           example:
             - /value/fontSize
+    RevertDraftChanges:
+      type: object
+      additionalProperties: false
+      required:
+        - changes
+      properties:
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 200
+          description: Entries in revert order, newest first; changeId values are unique.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - changeId
+              - expectedRevision
+            properties:
+              changeId:
+                type: string
+                format: uuid
+              expectedRevision:
+                type: integer
+                format: int64
+                minimum: 0
+                description: editRevision of the entry from the same journal snapshot.
     TypographyStyles:
       type: object
       properties:
@@ -12950,14 +13178,12 @@ components:
       properties:
         group:
           type: string
-          enum:
-            - display
-            - header
-            - body
-            - text
+          description: System group (display, header, body, text) or an own group; a new group appears with its first style
+          pattern: ^[a-z]{1,32}$
         size:
           type: string
-          pattern: ^[a-z0-9]+$
+          description: Style name within the group
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
       required:
         - group
         - size
@@ -12966,9 +13192,33 @@ components:
       properties:
         size:
           type: string
-          pattern: ^[a-z0-9]+$
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
       required:
         - size
+    RenameTypographyGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: ^[a-z]{1,32}$
+      required:
+        - name
+    CreatedTypographyStyle:
+      type: object
+      properties:
+        tokenIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        screens:
+          type: array
+          description: The new style on every screen in the read format
+          items:
+            $ref: "#/components/schemas/TypographyScreen"
+      required:
+        - tokenIds
+        - screens
     TypographyStyleTokens:
       type: object
       properties:

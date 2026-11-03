@@ -17,8 +17,8 @@ const tokensLabel = (count: number) => {
 };
 
 /**
- * Подтверждение удаления токена или группы с токенами (`Dialog/Confirmation` Tone=Danger) со списком компонентов,
- * где они используются.
+ * Подтверждение удаления токена или группы, в том числе пустой (`Dialog/Confirmation` Tone=Danger), со списком
+ * компонентов, где они используются.
  */
 export const DeleteTokenDialog = ({
     displayName,
@@ -41,8 +41,11 @@ export const DeleteTokenDialog = ({
     >
         {group ? (
             <p data-testid="delete-group-tokens">
-                Вы уверены, что хотите удалить группу {displayName}? Удалятся группа, её подгруппы и{' '}
-                {tokensLabel(group.tokens)} со значениями во всех темах. Удаление нельзя отменить.
+                Вы уверены, что хотите удалить группу {displayName}?{' '}
+                {group.tokens
+                    ? `Удалятся группа, её подгруппы и ${tokensLabel(group.tokens)} со значениями во всех темах.`
+                    : 'Группа пустая: токенов в ней нет.'}{' '}
+                Удаление нельзя отменить.
             </p>
         ) : (
             <p>

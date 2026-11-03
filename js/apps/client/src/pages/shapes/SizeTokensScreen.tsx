@@ -201,14 +201,11 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         }
     };
 
-    /**
-     * Удаление: с подтверждением ошибка остаётся в окне, без подтверждения (токены не используют компоненты) —
-     * показывается баннером инспектора.
-     */
-    const remove = async (token: SizeToken, confirmed: boolean) => {
+    /** Удаление после подтверждения: ошибка остаётся в окне. */
+    const remove = async (token: SizeToken) => {
         if (removing) return;
         setRemoving(true);
-        if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
+        setDeleting((current) => current && { ...current, busy: true, error: null });
         try {
             await editor.remove(token);
             setDeleting(null);
@@ -217,17 +214,15 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                 setSelectedId(null);
             setNotice(null);
         } catch (error) {
-            if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
-            else setNotice(`Не удалось удалить токен: ${errorText(error)}`);
+            setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
         } finally {
             setRemoving(false);
         }
     };
 
-    /** Подтверждение нужно, только если удаляемый токен используют компоненты. */
+    /** Удаление всегда подтверждается: случайный щелчок по корзине не удаляет токен. */
     const requestDelete = (token: SizeToken) => {
         const components = deletionUsage(savedTokens, token);
-        if (!components.length) return void remove(token, false);
         setDeleting({
             token,
             title: token.name,
@@ -398,7 +393,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     busy={deleting.busy}
                     error={deleting.error}
                     onCancel={() => setDeleting(null)}
-                    onConfirm={() => void remove(deleting.token, true)}
+                    onConfirm={() => void remove(deleting.token)}
                 />
             )}
         </div>

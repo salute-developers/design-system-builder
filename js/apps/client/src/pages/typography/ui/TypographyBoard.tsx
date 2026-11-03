@@ -6,6 +6,7 @@ import {
     screenGroups,
     styleKey,
     styleLabel,
+    styleTitle,
     styleVariant,
     type TypographyFamily,
     type TypographyStyle,
@@ -78,7 +79,7 @@ export const TypographyBoard = ({ styles, families, selectedKey, variant, onSele
                                     type="button"
                                     className={`typography-board-row ${styleKey(style) === selectedKey ? 'is-selected' : ''}`}
                                     style={{ minHeight: `${rowHeight(style)}px` }}
-                                    aria-label={`${styleLabel(style)}, ${size} px, ${lineHeight} px line`}
+                                    aria-label={`${styleTitle(style)}, ${size} px, ${lineHeight} px line`}
                                     aria-pressed={styleKey(style) === selectedKey}
                                     onClick={() => onSelect(styleKey(style))}
                                 >

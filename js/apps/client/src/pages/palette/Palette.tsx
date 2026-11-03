@@ -13,7 +13,7 @@ import { PaletteDialogs } from './PaletteDialogs';
 import { PaletteInspector } from './PaletteInspector';
 import { PaletteSidebar, PALETTE_TITLE } from './PaletteSidebar';
 import { StepColorEditor } from './StepColorEditor';
-import { displaySteps, filterGroups, isChanged, middleStep, visibleSelection } from './Palette.utils';
+import { displaySteps, filterGroups, middleStep, visibleSelection } from './Palette.utils';
 import { usePaletteEditor } from './usePaletteEditor';
 import type { DraftChangeDto } from '../../api/editorContracts';
 
@@ -143,11 +143,6 @@ const PaletteScreen = ({
     );
     // Растяжку, скрытую поиском или фильтром, инспектор не показывает.
     const visible = visibleSelection(groups, editor.selection);
-    // Как `paletteEditCount` прототипа: число правок палитры — изменённые растяжки, как у фильтра «Изменённые».
-    const changedCount = useMemo(
-        () => palette.groups.reduce((total, group) => total + group.ramps.filter(isChanged).length, 0),
-        [palette],
-    );
     const readOnly = Boolean(context.versionId) || outlet.designSystem?.getParameters()?.readOnly === true;
     const canEdit = palette.canEdit && !readOnly;
     const paletteMode = editor.mode === 'palette';
@@ -262,7 +257,6 @@ const PaletteScreen = ({
                         onClick={() => editor.setInspectorCollapsed(!editor.inspectorCollapsed)}
                     >
                         <ColorOutline />
-                        <span>{changedCount}</span>
                     </button>
                 </header>
                 <main

@@ -195,6 +195,7 @@ import com.dsbuilder.ds.designsystems.application.ListDesignSystemsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.ListVersionsByDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.RevertDraftChangeUseCase
+import com.dsbuilder.ds.designsystems.application.RevertDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.UpdateDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.di.designSystemsModule
 import com.dsbuilder.ds.designsystems.presentation.designSystemChangeRoutes
@@ -708,6 +709,7 @@ private fun Route.registerDesignSystemFeature(runtime: DsRuntime, json: Json, ko
         runtime.evaluator,
         koin.get<ListDraftChangesUseCase>(),
         koin.get<RevertDraftChangeUseCase>(),
+        koin.get<RevertDraftChangesUseCase>(),
         json,
     )
     draftInvalidationRoutes(

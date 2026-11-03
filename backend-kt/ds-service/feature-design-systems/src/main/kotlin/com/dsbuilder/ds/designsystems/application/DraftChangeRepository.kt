@@ -61,6 +61,19 @@ interface DraftChangeRepository {
     /** Проверяет, содержит ли выбранный активный черновик хотя бы одно предметное изменение. */
     suspend fun hasChanges(projectId: ProjectId, designSystemId: DesignSystemId): Boolean?
 
+    /**
+     * Текущая техническая редакция записи [changeId] активного черновика — та же, что `editRevision` журнала.
+     * `null` — записи нет (или нет доступа); при превышении защитного предела журнала бросает
+     * [DraftChangeLimitExceededException]. Ничего не блокирует: изменение записи после чтения обнаружит
+     * сериализуемая транзакция вызывающего.
+     */
+    suspend fun currentRevision(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        changeId: UUID,
+    ): Long? = error("Draft change revision lookup is not implemented")
+
     /** Откатывает актуальную черновую редакцию одной устойчивой сущности. */
     suspend fun revert(
         projectId: ProjectId,

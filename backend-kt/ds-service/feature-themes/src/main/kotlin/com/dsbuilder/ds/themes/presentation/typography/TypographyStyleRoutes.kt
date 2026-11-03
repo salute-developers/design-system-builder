@@ -9,6 +9,7 @@ import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.themes.application.typography.CreatedTypographyStyle
 import com.dsbuilder.ds.themes.application.typography.TypographyBaseRevision
 import com.dsbuilder.ds.themes.application.typography.TypographyStyleTokens
 import com.dsbuilder.ds.themes.application.typography.TypographyStyleUseCases
@@ -32,7 +33,8 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Регистрирует чтение, изменение, создание, переименование и удаление стилей типографии
- * `/api/ds/tenants/{tenantId}/typography-styles`.
+ * `/api/ds/tenants/{tenantId}/typography-styles`, переименование и удаление своих групп
+ * `/api/ds/tenants/{tenantId}/typography-groups/{group}`.
  */
 fun Route.typographyStyleRoutes(evaluator: PolicyEvaluator, useCases: TypographyStyleUseCases) {
     route(dsRoutePath("/api/ds/tenants/{tenantId}/typography-styles")) {
@@ -41,6 +43,10 @@ fun Route.typographyStyleRoutes(evaluator: PolicyEvaluator, useCases: Typography
         typographyRenameRoute(evaluator, useCases)
         typographyDeleteRoute(evaluator, useCases)
         typographyUpdateRoute(evaluator, useCases)
+    }
+    route(dsRoutePath("/api/ds/tenants/{tenantId}/typography-groups/{group}")) {
+        typographyGroupRenameRoute(evaluator, useCases)
+        typographyGroupDeleteRoute(evaluator, useCases)
     }
 }
 
@@ -59,7 +65,7 @@ private fun Route.typographyCreateRoute(evaluator: PolicyEvaluator, useCases: Ty
         val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
         val request = call.body<CreateTypographyStyleRequest>() ?: return@post call.respondFailure(BODY)
         val repeatable = call.repeatableThemeMutation(context, request, HttpStatusCode.Created.value) {
-                value: TypographyStyleTokens ->
+                value: CreatedTypographyStyle ->
             value.toResponse()
         }
         val style = TypographyStyleKey(request.group, request.size)
@@ -87,6 +93,29 @@ private fun Route.typographyDeleteRoute(evaluator: PolicyEvaluator, useCases: Ty
         val (context, tenantId) = call.tenantTarget(evaluator) ?: return@delete
         val tokenId = uuid(call.parameters["tokenId"]) ?: return@delete call.respondFailure(TOKEN)
         when (val result = useCases.delete.execute(context, tenantId, tokenId)) {
+            is DsResult.Success -> call.respondSuccess(result, result.value.toResponse())
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}
+
+private fun Route.typographyGroupRenameRoute(evaluator: PolicyEvaluator, useCases: TypographyStyleUseCases) {
+    patch {
+        val (context, tenantId) = call.tenantTarget(evaluator) ?: return@patch
+        val group = call.parameters["group"] ?: return@patch call.respondFailure(BODY)
+        val request = call.body<RenameTypographyGroupRequest>() ?: return@patch call.respondFailure(BODY)
+        when (val result = useCases.renameGroup.execute(context, tenantId, group, request.name)) {
+            is DsResult.Success -> call.respondSuccess(result, result.value.toResponse())
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}
+
+private fun Route.typographyGroupDeleteRoute(evaluator: PolicyEvaluator, useCases: TypographyStyleUseCases) {
+    delete {
+        val (context, tenantId) = call.tenantTarget(evaluator) ?: return@delete
+        val group = call.parameters["group"] ?: return@delete call.respondFailure(BODY)
+        when (val result = useCases.deleteGroup.execute(context, tenantId, group)) {
             is DsResult.Success -> call.respondSuccess(result, result.value.toResponse())
             is DsResult.Failure -> call.respondFailure(result.error)
         }

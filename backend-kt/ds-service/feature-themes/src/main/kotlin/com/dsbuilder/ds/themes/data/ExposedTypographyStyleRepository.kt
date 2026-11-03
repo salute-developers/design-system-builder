@@ -19,6 +19,7 @@ import com.dsbuilder.ds.themes.domain.typography.TypographyFamily
 import com.dsbuilder.ds.themes.domain.typography.TypographyPlatformValues
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleKey
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleNaming
+import com.dsbuilder.ds.themes.domain.typography.TypographyTokenChange
 import com.dsbuilder.ds.themes.domain.typography.TypographyTokenName
 import com.dsbuilder.ds.themes.domain.typography.TypographyValueRevision
 import kotlinx.serialization.json.JsonElement
@@ -125,6 +126,7 @@ class ExposedTypographyStyleRepository(
     override suspend fun createStyle(
         designSystemId: UUID,
         sources: Map<TypographyTokenName, UUID>,
+        family: String?,
     ): Map<TypographyTokenName, UUID> {
         val tenants = currentTenantRows(designSystemId = designSystemId).mapTo(sortedSetOf()) { it[TenantsTable.id] }
         val values = currentThemeTokenValueRows(designSystemId, tenants, sources.values.toSet())
@@ -143,16 +145,22 @@ class ExposedTypographyStyleRepository(
             values[source].orEmpty()
                 .sortedWith(compareBy({ it[ThemeTokenValuesTable.tenantId] }, { it[ThemeTokenValuesTable.platform] }))
                 .forEach { row ->
+                    val platform = requireNotNull(row[ThemeTokenValuesTable.platform])
+                    val value = row[ThemeTokenValueRevisionsTable.value]
                     writeThemeValueRevision(
                         entity = stableThemeValue(
                             designSystemId,
                             row[ThemeTokenValuesTable.tenantId],
                             entity,
-                            requireNotNull(row[ThemeTokenValuesTable.platform]),
+                            platform,
                         ),
                         owner = designSystemId,
                         palette = null,
-                        data = row[ThemeTokenValueRevisionsTable.value],
+                        data = if (family != null && value != null) {
+                            TypographyPlatformValues.write(value, platform, TypographyTokenChange(fontFamily = family))
+                        } else {
+                            value
+                        },
                         paths = setOf("/"),
                         overridden = row[ThemeTokenValueRevisionsTable.overridden],
                     )

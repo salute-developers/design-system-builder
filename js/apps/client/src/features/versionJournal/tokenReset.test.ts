@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DraftChangeDto } from '../../api/editorContracts';
 
-const repository = vi.hoisted(() => ({ listChanges: vi.fn(), revertChange: vi.fn() }));
+const repository = vi.hoisted(() => ({ listChanges: vi.fn(), revertChanges: vi.fn() }));
 vi.mock('../../api/versionJournalRepository', () => ({ versionJournalRepository: repository }));
 vi.mock('../../api/draftAutosaveActivity', () => ({ waitForDraftAutosaveIdle: vi.fn().mockResolvedValue(undefined) }));
 
@@ -27,7 +27,7 @@ const change = (id: string, patch: Partial<DraftChangeDto>): DraftChangeDto => (
 describe('tokenReset', () => {
     beforeEach(() => {
         repository.listChanges.mockReset();
-        repository.revertChange.mockReset().mockResolvedValue(undefined);
+        repository.revertChanges.mockReset().mockResolvedValue(undefined);
     });
 
     it('относит к токену определение и значения только этой темы', () => {
@@ -41,7 +41,7 @@ describe('tokenReset', () => {
         expect(changedTokenId(change('4', { entityType: 'component' }), 'theme-a')).toBeNull();
     });
 
-    it('откатывает записи токена от новой к старой и не трогает чужие', async () => {
+    it('откатывает записи токена одним пакетом от новой к старой и не трогает чужие', async () => {
         repository.listChanges.mockResolvedValue([
             change('old', {
                 currentValue: { token_id: 't1', tenant_id: 'theme-a' },
@@ -52,7 +52,23 @@ describe('tokenReset', () => {
         ]);
 
         expect(await resetTokenChanges(context, new Set(['t1']))).toBe(2);
-        expect(repository.revertChange.mock.calls.map(([, reverted]) => reverted.changeId)).toEqual(['new', 'old']);
+        expect(repository.revertChanges).toHaveBeenCalledTimes(1);
+        const [[, batch]] = repository.revertChanges.mock.calls as [[unknown, DraftChangeDto[]]];
+        expect(batch.map((reverted) => reverted.changeId)).toEqual(['new', 'old']);
+    });
+
+    it('без записей токена не отправляет пакет, а больше 200 записей делит на пакеты по 200', async () => {
+        repository.listChanges.mockResolvedValue([]);
+        expect(await resetTokenChanges(context, new Set(['t1']))).toBe(0);
+        expect(repository.revertChanges).not.toHaveBeenCalled();
+
+        repository.listChanges.mockResolvedValue(
+            Array.from({ length: 201 }, (_, index) =>
+                change(String(index), { currentValue: { token_id: 't1', tenant_id: 'theme-a' } }),
+            ),
+        );
+        expect(await resetTokenChanges(context, new Set(['t1']))).toBe(201);
+        expect(repository.revertChanges.mock.calls.map(([, batch]) => (batch as unknown[]).length)).toEqual([200, 1]);
     });
 
     it('не откатывает токен, созданный в черновике: ни одной записи не отменяет', async () => {
@@ -65,7 +81,7 @@ describe('tokenReset', () => {
         ]);
 
         await expect(resetTokenChanges(context, new Set(['t1']))).rejects.toBeInstanceOf(TokenResetError);
-        expect(repository.revertChange).not.toHaveBeenCalled();
+        expect(repository.revertChanges).not.toHaveBeenCalled();
     });
 
     it('хук перечитывает данные после сброса и показывает причину отказа', async () => {

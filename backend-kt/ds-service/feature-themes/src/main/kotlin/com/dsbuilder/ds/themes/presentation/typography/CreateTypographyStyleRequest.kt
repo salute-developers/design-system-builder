@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 /** Тело создания стиля типографии. */
 @Serializable
 data class CreateTypographyStyleRequest(
-    /** Группа: `display`, `header`, `body` или `text`. */
+    /** Группа: системная `display`, `header`, `body`, `text` или своя; новая группа создаётся с первым стилем. */
     val group: String,
-    /** Размер нового стиля внутри группы: `xl`, `h7`. */
+    /** Имя нового стиля внутри группы: `xl`, `h7`, `promo-title`. */
     val size: String,
 )

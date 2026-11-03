@@ -13,7 +13,7 @@ import {
     sampleText,
     screenStyles,
     styleKey,
-    styleLabel,
+    styleTitle,
     type TypographyContext,
     type TypographyStyle,
     type TypographyScreen as Screen,
@@ -73,7 +73,9 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readStorage(COLLAPSED_KEY, {}));
     const { panels, separator } = usePanelWidths(PANELS_KEY);
     const [creating, setCreating] = useState<CreatingStyle | null>(null);
-    const [deleting, setDeleting] = useState<{ style: TypographyStyle; busy: boolean; error: string | null } | null>(
+    // Новая группа живёт в дереве, пока не создан её первый стиль: группа без стилей не хранится.
+    const [pendingGroup, setPendingGroup] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState<{ target: DeleteTarget; busy: boolean; error: string | null } | null>(
         null,
     );
     const canDelete = !readOnly && ['maintainer', 'owner'].includes(designSystem.getParameters()?.effectiveRole ?? '');
@@ -144,6 +146,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         try {
             const key = await editor.create(group, size);
             setCreating(null);
+            if (group === pendingGroup) setPendingGroup(null);
             selectStyle(key);
             afterStructure();
         } catch (error) {
@@ -157,19 +160,43 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
             afterStructure();
         }
     };
-    /** Удаление: используемый компонентами стиль — с подтверждением, остальные — сразу. */
-    const remove = async (style: TypographyStyle, confirmed: boolean) => {
-        if (!confirmed && style.components.length) return setDeleting({ style, busy: false, error: null });
+    const cancelCreate = () => {
+        if (creating?.group === pendingGroup) setPendingGroup(null);
+        setCreating(null);
+    };
+    /** Новая группа появляется в дереве со строкой первого стиля; на сервере — вместе с ним. */
+    const createGroup = (input: string) => {
+        const group = editor.groupName(input);
+        setPendingGroup(group);
+        setCollapsed((value) => ({ ...value, [group]: false }));
+        setCreating({ group, busy: false, error: null });
+    };
+    const renameGroup = async (group: string, input: string) => {
+        const name = await editor.renameGroup(group, input);
+        if (name === group) return;
+        if (selectedKey.startsWith(`${group}.`)) selectStyle(`${name}${selectedKey.slice(group.length)}`);
+        afterStructure();
+    };
+    /** Удаление стиля или группы всегда подтверждается: ошибка остаётся в окне. */
+    const remove = async (target: DeleteTarget) => {
         setDeleting((value) => value && { ...value, busy: true, error: null });
         try {
-            await editor.remove(style);
+            if (target.kind === 'style') await editor.remove(target.style);
+            else await editor.removeGroup(target.group);
             setDeleting(null);
-            if (styleKey(style) === selectedKey) setSelectedKey(DEFAULT_STYLE_KEY);
+            const removed = target.kind === 'style' ? [target.style] : target.styles;
+            if (removed.some((style) => styleKey(style) === selectedKey)) setSelectedKey(DEFAULT_STYLE_KEY);
             afterStructure();
         } catch (error) {
             setDeleting((value) => value && { ...value, busy: false, error: errorText(error) });
         }
     };
+    const requestDelete = (target: DeleteTarget) => setDeleting({ target, busy: false, error: null });
+    const groupDeleteTarget = (group: string): DeleteTarget => ({
+        kind: 'group',
+        group,
+        styles: current.filter((style) => style.group === group),
+    });
 
     const banners = (
         <>
@@ -224,14 +251,18 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     editable={!readOnly}
                     canDelete={canDelete}
                     creating={creating}
+                    pendingGroup={pendingGroup}
                     onAdd={(group) => {
                         setCollapsed((value) => ({ ...value, [group]: false }));
                         setCreating({ group, busy: false, error: null });
                     }}
                     onCreate={(group, size) => void create(group, size)}
-                    onCancelCreate={() => setCreating(null)}
+                    onCancelCreate={cancelCreate}
                     onRename={rename}
-                    onDelete={(style) => void remove(style, false)}
+                    onDelete={(style) => requestDelete({ kind: 'style', style })}
+                    onCreateGroup={createGroup}
+                    onRenameGroup={renameGroup}
+                    onDeleteGroup={(group) => requestDelete(groupDeleteTarget(group))}
                 />
                 <header className="typography-editor-header">
                     <strong>Предпросмотр</strong>
@@ -282,7 +313,9 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                                 descriptionPlaceholder={sampleText(selected.group)}
                                 onDescribe={(text) => editor.describe(selected, text)}
                                 onRename={(size) => rename(selected, size)}
-                                onDelete={canDelete ? () => void remove(selected, false) : undefined}
+                                onDelete={
+                                    canDelete ? () => requestDelete({ kind: 'style', style: selected }) : undefined
+                                }
                                 onReset={
                                     readOnly ? undefined : () => void tokenReset.reset(editor.styleTokenIds(selected))
                                 }
@@ -301,29 +334,67 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                 )}
             </section>
             {deleting && (
-                <ConfirmDeleteDialog
-                    titleId="delete-typography-style-title"
-                    title="Удалить стиль?"
-                    meta={`${groupLabel(deleting.style.group)} / ${styleLabel(deleting.style)}`}
-                    confirmLabel="Удалить стиль"
+                <DeleteTypographyDialog
+                    target={deleting.target}
                     busy={deleting.busy}
                     error={deleting.error}
                     onCancel={() => setDeleting(null)}
-                    onConfirm={() => void remove(deleting.style, true)}
-                >
-                    <p>
-                        Стиль удалится из черновика дизайн-системы на всех экранах вместе со значениями во всех темах.
-                        До публикации удаление можно отменить в журнале изменений.
-                    </p>
-                    <p>
-                        Используется в компонентах:{' '}
-                        {deleting.style.components.map((item) => item.name).join(', ')}. Ссылки компонентов на стиль
-                        будут сброшены.
-                    </p>
-                </ConfirmDeleteDialog>
+                    onConfirm={() => void remove(deleting.target)}
+                />
             )}
         </div>
     );
 };
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/** Что удаляется: стиль на всех экранах или своя группа со всеми стилями. */
+type DeleteTarget =
+    | { kind: 'style'; style: TypographyStyle }
+    | { kind: 'group'; group: string; styles: TypographyStyle[] };
+
+/** Подтверждение удаления стиля или своей группы со списком компонентов, которые их используют. */
+const DeleteTypographyDialog = ({
+    target,
+    busy,
+    error,
+    onCancel,
+    onConfirm,
+}: {
+    target: DeleteTarget;
+    busy: boolean;
+    error: string | null;
+    onCancel: () => void;
+    onConfirm: () => void;
+}) => {
+    const group = target.kind === 'group';
+    const styles = group ? target.styles : [target.style];
+    const components = [...new Set(styles.flatMap((style) => style.components.map((item) => item.name)))];
+    return (
+        <ConfirmDeleteDialog
+            titleId="delete-typography-style-title"
+            title={group ? 'Удалить группу?' : 'Удалить стиль?'}
+            meta={group ? groupLabel(target.group) : styleTitle(target.style)}
+            confirmLabel={group ? 'Удалить группу' : 'Удалить стиль'}
+            busy={busy}
+            error={error}
+            onCancel={onCancel}
+            onConfirm={onConfirm}
+        >
+            <p>
+                {group
+                    ? `Группа удалится из черновика дизайн-системы вместе со стилями (${styles.length}) на всех экранах и значениями во всех темах.`
+                    : 'Стиль удалится из черновика дизайн-системы на всех экранах вместе со значениями во всех темах.'}{' '}
+                До публикации удаление можно отменить в журнале изменений.
+            </p>
+            {components.length > 0 ? (
+                <p>
+                    Используется в компонентах: {components.join(', ')}. Ссылки компонентов на{' '}
+                    {group ? 'стили группы' : 'стиль'} будут сброшены.
+                </p>
+            ) : (
+                <p>{group ? 'Стили группы не используются' : 'Стиль не используется'} в компонентах дизайн-системы.</p>
+            )}
+        </ConfirmDeleteDialog>
+    );
+};

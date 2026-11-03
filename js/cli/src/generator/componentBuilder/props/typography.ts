@@ -15,14 +15,16 @@ export class TypographyProp extends Prop {
             normal: '',
         };
 
+        // Системные группы — как в теме (`header` опускается), своя группа идёт как есть.
         const nameMap: Record<string, string> = {
             display: 'dspl',
             text: 'text',
             body: 'body',
+            header: '',
         };
 
         const tokenValue = [...nameParts];
-        tokenValue[0] = nameMap[tokenValue[0]];
+        tokenValue[0] = nameMap[tokenValue[0]] ?? tokenValue[0];
         tokenValue[2] = fontWeightMap[tokenValue[2]];
 
         return tokenValue.filter(Boolean).join('-');

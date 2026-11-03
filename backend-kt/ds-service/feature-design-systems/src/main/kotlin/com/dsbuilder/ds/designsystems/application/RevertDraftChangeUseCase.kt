@@ -83,20 +83,29 @@ class RevertDraftChangeUseCase(
 
     private fun valuePath(path: String): Boolean = path == "/value" || path.startsWith("/value/")
 
-    private fun failure(result: DraftChangeRevertResult): DsResult.Failure = DsResult.Failure(
-        when (result) {
-            DraftChangeRevertResult.NotFound -> DsFailure.NotFound
-            DraftChangeRevertResult.InvalidPaths -> DsFailure.InvalidRequest("invalid_revert_paths")
-            DraftChangeRevertResult.DependencyConflict -> DsFailure.Conflict("REVERT_DEPENDENCY_CONFLICT")
-            DraftChangeRevertResult.LimitExceeded -> DsFailure.Unprocessable(
-                code = "JOURNAL_LIMIT_EXCEEDED",
-                message = "The journal exceeds the supported limit of 10000 changes",
-            )
-            is DraftChangeRevertResult.Stale -> DsFailure.Conflict(
-                "DRAFT_CHANGE_STALE",
-                result.currentRevision.takeIf { it <= Int.MAX_VALUE }?.toInt(),
-            )
-            DraftChangeRevertResult.Reverted -> error("Successful revert has no failure")
-        },
-    )
+    private fun failure(result: DraftChangeRevertResult): DsResult.Failure = DsResult.Failure(result.toFailure())
+}
+
+/**
+ * Публичный отказ отката записи журнала. [changeIndex] — позиция записи в пакетном откате: попадает в
+ * `details.changeIndex` конфликтов, у остальных отказов формат ошибки подробностей не несёт.
+ */
+internal fun DraftChangeRevertResult.toFailure(changeIndex: Int? = null): DsFailure {
+    val details = changeIndex?.let { mapOf("changeIndex" to listOf(it)) }.orEmpty()
+    return when (this) {
+        DraftChangeRevertResult.NotFound -> DsFailure.NotFound
+        DraftChangeRevertResult.InvalidPaths -> DsFailure.InvalidRequest("invalid_revert_paths")
+        DraftChangeRevertResult.DependencyConflict ->
+            DsFailure.Conflict("REVERT_DEPENDENCY_CONFLICT", details = details)
+        DraftChangeRevertResult.LimitExceeded -> DsFailure.Unprocessable(
+            code = "JOURNAL_LIMIT_EXCEEDED",
+            message = "The journal exceeds the supported limit of 10000 changes",
+        )
+        is DraftChangeRevertResult.Stale -> DsFailure.Conflict(
+            "DRAFT_CHANGE_STALE",
+            currentRevision.takeIf { it <= Int.MAX_VALUE }?.toInt(),
+            details = details,
+        )
+        DraftChangeRevertResult.Reverted -> error("Successful revert has no failure")
+    }
 }

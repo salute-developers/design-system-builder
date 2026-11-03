@@ -51,11 +51,13 @@ interface TypographyStyleRepository {
 
     /**
      * Создаёт токены стиля: новое имя → токен-источник, значения которого во всех темах копируются в новый токен;
-     * определения — по правилу сида. Результат — новое имя → идентификатор.
+     * при [family] семейство в скопированных значениях заменяется на `fontFamily.<family>`. Определения — по правилу
+     * сида. Результат — новое имя → идентификатор.
      */
     suspend fun createStyle(
         designSystemId: UUID,
         sources: Map<TypographyTokenName, UUID>,
+        family: String? = null,
     ): Map<TypographyTokenName, UUID>
 
     /**

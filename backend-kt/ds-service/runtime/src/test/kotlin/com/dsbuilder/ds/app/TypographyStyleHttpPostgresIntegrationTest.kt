@@ -69,6 +69,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 rejectEdits(api, db, designSystemId, tenantA, base, read)
                 publishedBoundary(api, db, designSystemId, tenantA, base)
                 structure(api, db, base)
+                groups(api, db, designSystemId, base)
             }
         }
     }
@@ -105,13 +106,17 @@ class TypographyStyleHttpPostgresIntegrationTest {
     private suspend fun structure(api: Api, db: Db, base: String) {
         val created = api.reject("POST", base, OWNER, """{"group":"body","size":"xl"}""", 201)
         assertEquals(9, created.array("tokenIds").size)
+        // Ответ создания — стиль на каждом экране в формате чтения.
+        assertEquals(SCREENS.size, created.array("screens").size)
+        assertEquals("xl", created.array("screens")[0].array("styles").single().text("size"))
         var read = api.read(base, VIEWER)
         assertEquals(
             style(read, "screen-l", "body", "l").decimal("sizePx"),
             style(read, "screen-l", "body", "xl").decimal("sizePx"),
         )
         api.reject("POST", base, OWNER, """{"group":"body","size":"xl"}""", 409)
-        api.reject("POST", base, OWNER, """{"group":"caption","size":"m"}""", 400)
+        api.reject("POST", base, OWNER, """{"group":"dspl","size":"m"}""", 400)
+        api.reject("POST", base, OWNER, """{"group":"body","size":"x_l"}""", 400)
 
         val usage = style(read, "screen-m", "body", "xs").array("components")
         assertTrue(usage.isNotEmpty())
@@ -129,6 +134,35 @@ class TypographyStyleHttpPostgresIntegrationTest {
         assertEquals(9, api.reject("DELETE", "$base/$xl", OWNER, null, 200).array("tokenIds").size)
         read = api.read(base, VIEWER)
         assertFalse(hasStyle(read, "body", "xl"))
+    }
+
+    /**
+     * Свои группы: появляются с первым стилем с произвольным именем, переименовываются и удаляются целиком;
+     * системные — нет. Ссылка с экраном (`screen-l.body.l.medium`) идёт за переименованием по токену своего экрана.
+     */
+    private suspend fun groups(api: Api, db: Db, designSystemId: String, base: String) {
+        val l = style(api.read(base, VIEWER), "screen-l", "body", "l").obj("variants").obj("medium").text("tokenId")
+        api.patch("$base/$l/name", EDITOR, """{"size":"large"}""")
+        val screenBound = activeRevisionTestSql(
+            "SELECT count(*) FROM invariant_property_values WHERE design_system_id = '$designSystemId' " +
+                "AND token_id = '$l'",
+        )
+        assertEquals("1", db.text(screenBound))
+
+        api.reject("POST", base, OWNER, """{"group":"caption","size":"promo-title"}""", 201)
+        var read = api.read(base, VIEWER)
+        assertTrue(hasStyle(read, "caption", "promo-title"))
+        val groups = "/api/ds/tenants/${base.split('/')[4]}/typography-groups"
+        api.reject("PATCH", "$groups/body", EDITOR, """{"name":"copy"}""", 400)
+        api.reject("PATCH", "$groups/caption", EDITOR, """{"name":"body"}""", 409)
+        api.reject("PATCH", "$groups/caption", EDITOR, """{"name":"note"}""", 200)
+        read = api.read(base, VIEWER)
+        assertFalse(hasStyle(read, "caption", "promo-title"))
+        assertTrue(hasStyle(read, "note", "promo-title"))
+        api.reject("DELETE", "$groups/note", EDITOR, null, 403)
+        assertEquals(9, api.reject("DELETE", "$groups/note", OWNER, null, 200).array("tokenIds").size)
+        api.reject("DELETE", "$groups/text", OWNER, null, 400)
+        assertFalse(hasStyle(api.read(base, VIEWER), "note", "promo-title"))
     }
 
     /** Чтение: стили по экранам в px, семейства, использование, редакции значений и право правки. */

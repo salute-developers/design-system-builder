@@ -39,7 +39,7 @@ class TypographyStyleStructureTest {
             id to (name.toString() to ThemeTokenType.TYPOGRAPHY)
         },
         values = mutableMapOf(tenantA to values(), tenantB to values()),
-        families = listOf(TypographyFamily("body", "SB Sans Text")),
+        families = listOf(TypographyFamily("body", "SB Sans Text"), TypographyFamily("caption", "SB Sans Caption")),
     )
     private val keys = mutableListOf<String>()
     private val uniqueKeys = object : UniqueKeyLockRepository {
@@ -50,6 +50,8 @@ class TypographyStyleStructureTest {
     private val create = CreateTypographyStyleUseCase(policy, transactions, repository, uniqueKeys)
     private val rename = RenameTypographyStyleUseCase(policy, transactions, repository, repository, uniqueKeys)
     private val delete = DeleteTypographyStyleUseCase(policy, transactions, repository, repository)
+    private val renameGroup = RenameTypographyGroupUseCase(policy, transactions, repository, repository, uniqueKeys)
+    private val deleteGroup = DeleteTypographyGroupUseCase(policy, transactions, repository, repository)
 
     @Test
     fun `новый размер группы — девять токенов со значениями ближайшего размера во всех темах`() = runBlocking {
@@ -68,6 +70,21 @@ class TypographyStyleStructureTest {
             )
         }
         assertTrue(boldId in created.tokenIds)
+        assertEquals(listOf("screen-l", "screen-m", "screen-s"), created.screens.map { it.screen.wireValue }.sorted())
+        assertTrue(created.screens.all { screen -> screen.styles.single().key == TypographyStyleKey("body", "xl") })
+        assertTrue(repository.createdFamilies.all { it == null })
+    }
+
+    @Test
+    fun `своя группа появляется с первым стилем и берёт своё семейство`() = runBlocking {
+        val created = success(create.execute(context("maintainer"), tenantA, TypographyStyleKey("caption", "promo-1")))
+
+        assertEquals(9, created.tokenIds.size)
+        assertTrue(repository.definitions.values.any { it.first == "screen-s.caption.promo-1.bold" })
+        assertTrue(repository.createdFamilies.all { it == "caption" })
+        repository.createdFamilies.clear()
+        success(create.execute(context("maintainer"), tenantA, TypographyStyleKey("note", "m")))
+        assertTrue(repository.createdFamilies.all { it == null })
     }
 
     @Test
@@ -79,8 +96,10 @@ class TypographyStyleStructureTest {
                 else -> error.toString()
             }
         assertEquals("TOKEN_NAME_CONFLICT", code(BODY_M))
-        assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("caption", "m")))
-        assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("body", "x-l")))
+        assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("dspl", "m")))
+        assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("caption2", "m")))
+        assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("body", "x_l")))
+        assertEquals("INVALID_TOKEN_NAME", code(TypographyStyleKey("body", "-xl")))
         assertEquals(DsFailure.Forbidden.toString(), code(TypographyStyleKey("body", "xs"), "viewer"))
         assertEquals(18, repository.definitions.size)
     }
@@ -101,6 +120,47 @@ class TypographyStyleStructureTest {
             (failure(rename.execute(context("editor"), tenantA, anchor, "l")) as DsFailure.Conflict).code,
         )
         assertIs<DsFailure.InvalidRequest>(failure(rename.execute(context("editor"), tenantA, anchor, "M L")))
+    }
+
+    @Test
+    fun `ссылка с экраном привязывается к токену своего экрана`() = runBlocking<Unit> {
+        val row = UUID.randomUUID()
+        repository.textRows = mapOf("screen-l.body.m.bold" to setOf(row))
+        val anchor = ids.getValue(TypographyTokenName.parse("screen-l.body.m.bold")!!)
+
+        success(rename.execute(context("editor"), tenantA, anchor, "promo"))
+
+        assertEquals(setOf(row), repository.bound[anchor])
+        assertEquals("screen-l.body.promo.bold", repository.definitions.getValue(anchor).first)
+    }
+
+    @Test
+    fun `своя группа переименовывается и удаляется целиком, системная — нет`() = runBlocking<Unit> {
+        success(create.execute(context("maintainer"), tenantA, TypographyStyleKey("caption", "m")))
+        success(create.execute(context("maintainer"), tenantA, TypographyStyleKey("caption", "s")))
+        val row = UUID.randomUUID()
+        repository.textRows = mapOf("caption.s.medium" to setOf(row))
+
+        val renamed = success(renameGroup.execute(context("editor"), tenantA, "caption", "note"))
+
+        assertEquals(18, renamed.tokenIds.size)
+        assertTrue(repository.definitions.values.none { it.first.contains(".caption.") })
+        val anchor = repository.definitions.entries.single { it.value.first == "screen-s.note.s.medium" }.key
+        assertEquals(setOf(row), repository.bound[anchor])
+        assertEquals(
+            "TOKEN_NAME_CONFLICT",
+            (failure(renameGroup.execute(context("editor"), tenantA, "note", "body")) as DsFailure.Conflict).code,
+        )
+        assertEquals(
+            "SYSTEM_TYPOGRAPHY_GROUP",
+            (failure(renameGroup.execute(context("editor"), tenantA, "body", "copy")) as DsFailure.InvalidRequest).code,
+        )
+        assertEquals(DsFailure.NotFound, failure(renameGroup.execute(context("editor"), tenantA, "caption", "x")))
+
+        assertEquals(DsFailure.Forbidden, failure(deleteGroup.execute(context("editor"), tenantA, "note")))
+        assertEquals(18, success(deleteGroup.execute(context("maintainer"), tenantA, "note")).tokenIds.size)
+        assertTrue(repository.definitions.values.none { it.first.contains(".note.") })
+        assertIs<DsFailure.InvalidRequest>(failure(deleteGroup.execute(context("maintainer"), tenantA, "text")))
     }
 
     @Test

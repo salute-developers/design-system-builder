@@ -120,6 +120,27 @@ class ExposedDraftChangeRepository(
         }
     }
 
+    override suspend fun currentRevision(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        changeId: UUID,
+    ): Long? {
+        val target = boundary(projectId, systemAdmin, designSystemId, versionId = null) ?: return null
+        val lookup = trackedSubject(target.id, designSystemId.value, changeId)
+        if (lookup.exceeded) throw DraftChangeLimitExceededException()
+        val tracked = lookup.subject ?: return null
+        return visibleEntity(target, designSystemId, tracked)?.let { difference ->
+            change(
+                tracked.handler,
+                difference,
+                designSystemId,
+                target,
+                editState(target.id, tracked.handler.entityType, difference.entityId),
+            ).editRevision
+        }
+    }
+
     override suspend fun revert(
         projectId: ProjectId,
         systemAdmin: Boolean,

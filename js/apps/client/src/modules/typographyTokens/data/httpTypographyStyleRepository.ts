@@ -34,6 +34,9 @@ interface StyleTokens {
 const stylesPath = ({ projectId, tenantId }: TypographyContext, suffix = '') =>
     `/api/projects/${projectId}/ds/tenants/${tenantId}/typography-styles${suffix}`;
 
+const groupsPath = ({ projectId, tenantId }: TypographyContext, group: string) =>
+    `/api/projects/${projectId}/ds/tenants/${tenantId}/typography-groups/${encodeURIComponent(group)}`;
+
 const toError = (error: unknown) => {
     if (error instanceof TypographyOperationError) return error;
     if (!axios.isAxiosError<ErrorBody>(error) || !error.response) {
@@ -103,6 +106,22 @@ export const createHttpTypographyStyleRepository = (): TypographyStyleRepository
     },
     remove: async (context, tokenId) => {
         const path = stylesPath(context, `/${encodeURIComponent(tokenId)}`);
+        const data = await call(() =>
+            subjectMutation(context, () => http.delete<StyleTokens>(path, { headers: subjectMutationHeaders() })),
+        );
+        return data.tokenIds;
+    },
+    renameGroup: async (context, group, name) => {
+        const path = groupsPath(context, group);
+        const data = await call(() =>
+            subjectMutation(context, () =>
+                http.patch<StyleTokens>(path, { name }, { headers: subjectMutationHeaders() }),
+            ),
+        );
+        return data.tokenIds;
+    },
+    removeGroup: async (context, group) => {
+        const path = groupsPath(context, group);
         const data = await call(() =>
             subjectMutation(context, () => http.delete<StyleTokens>(path, { headers: subjectMutationHeaders() })),
         );

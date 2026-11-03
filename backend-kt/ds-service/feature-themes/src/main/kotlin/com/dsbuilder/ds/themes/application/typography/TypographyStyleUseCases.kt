@@ -1,6 +1,6 @@
 package com.dsbuilder.ds.themes.application.typography
 
-/** Use case стилей типографии для маршрутов `/api/ds/tenants/{tenantId}/typography-styles`. */
+/** Use case стилей типографии для маршрутов `/typography-styles` и `/typography-groups`. */
 data class TypographyStyleUseCases(
     /** Чтение стилей темы. */
     val get: GetTypographyStylesUseCase,
@@ -12,4 +12,8 @@ data class TypographyStyleUseCases(
     val rename: RenameTypographyStyleUseCase,
     /** Удаление стиля. */
     val delete: DeleteTypographyStyleUseCase,
+    /** Переименование своей группы. */
+    val renameGroup: RenameTypographyGroupUseCase,
+    /** Удаление своей группы. */
+    val deleteGroup: DeleteTypographyGroupUseCase,
 )
