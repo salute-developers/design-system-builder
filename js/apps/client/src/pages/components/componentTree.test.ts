@@ -59,7 +59,7 @@ describe('entryPlatform', () => {
 
 describe('emptyTreeMessage', () => {
     it('explains why the list is empty', () => {
-        expect(emptyTreeMessage(0, 0, 'all', '')).toContain('скрыты');
+        expect(emptyTreeMessage(0, 0, 'all', '')).toContain('нет компонентов');
         expect(emptyTreeMessage(3, 0, 'ios', '')).toContain('Для выбранной платформы');
         expect(emptyTreeMessage(3, 3, 'all', 'x')).toContain('«x»');
     });

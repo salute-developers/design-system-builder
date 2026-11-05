@@ -114,15 +114,34 @@ it('оставляет раздел компонентов, когда все к
     );
 });
 
-it('убирает раздел компонентов, когда у дизайн-системы нет ни связей, ни оформлений', async () => {
+it('убирает раздел компонентов, когда у дизайн-системы нет ни связей, ни оформлений, ни шаблонов', async () => {
     const reads = http.get.getMockImplementation()!;
     http.get.mockImplementation(async (url: string) =>
-        url.endsWith('/design-system-components') || url.endsWith('/appearances') ? { data: [] } : reads(url),
+        url.endsWith('/design-system-components') ||
+        url.endsWith('/appearances') ||
+        url.endsWith('/component-templates')
+            ? { data: [] }
+            : reads(url),
     );
 
     const shell = await loadThemeShell(context);
 
     expect(shell.hasComponents).toBe(false);
+});
+
+it('оставляет раздел компонентов в пустой дизайн-системе, если есть шаблоны', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') || url.endsWith('/appearances')
+            ? { data: [] }
+            : url.endsWith('/component-templates')
+              ? { data: [{ componentId: 'card', name: 'Card', platform: 'web', dependsOn: [] }] }
+              : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(true);
 });
 
 it('оболочка читает только метаданные, не значения, конфигурации или историю', async () => {

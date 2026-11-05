@@ -26,7 +26,11 @@ vi.mock('./features/ComponentEditor', () => ({
 }));
 
 vi.mock('../../api/componentRepository', () => ({
-    componentRepository: { saveComponentMutation: vi.fn(), loadComponentCatalog: vi.fn(async () => []) },
+    componentRepository: {
+        saveComponentMutation: vi.fn(),
+        loadComponentCatalog: vi.fn(async () => []),
+        loadComponentTemplates: vi.fn(async () => []),
+    },
 }));
 
 vi.mock('../../api/webPreviewPluginRepository', () => ({

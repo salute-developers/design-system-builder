@@ -17,7 +17,11 @@ import { getComponentGroup, getComponentGroups, isEditableComponent } from '../.
 import { DesignSystem, Theme, Config } from '../../controllers';
 import { Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
-import { componentRepository as repository, type ComponentCatalogEntry } from '../../api/componentRepository';
+import {
+    componentRepository as repository,
+    type ComponentCatalogEntry,
+    type ComponentTemplateEntry,
+} from '../../api/componentRepository';
 import { fetchWebPreviewPluginDescriptor } from '../../api/webPreviewPluginRepository';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
@@ -135,6 +139,7 @@ export const Components = () => {
     const [searchOpen, setSearchOpen] = useState(false);
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
     const [catalog, setCatalog] = useState<ComponentCatalogEntry[]>();
+    const [templates, setTemplates] = useState<ComponentTemplateEntry[]>([]);
     const [catalogBusy, setCatalogBusy] = useState(false);
     const [catalogError, setCatalogError] = useState<string>();
     const [restoreOpen, setRestoreOpen] = useState(false);
@@ -154,22 +159,42 @@ export const Components = () => {
         () => buildComponentTree(componentGroups, platformFilter, query),
         [componentGroups, platformFilter, query],
     );
+    // Диалог «+»: скрытые компоненты (оформление без связи) и новые — шаблоны, которых в дизайн-системе нет совсем.
     const hiddenComponents = useMemo<HiddenComponent[]>(() => {
         const hidden = new Map<string, HiddenComponent>();
+        const add = (
+            name: string,
+            platform: ComponentCatalogEntry['platform'],
+            componentId: string,
+            kind: HiddenComponent['kind'],
+        ) => {
+            const item = hidden.get(name) ?? {
+                name,
+                group: getComponentGroup(name, pluginGroups),
+                kind,
+                platforms: [],
+            };
+            if (kind === 'hidden') item.kind = 'hidden';
+            item.platforms.push({ platform, componentId });
+            hidden.set(name, item);
+        };
         catalog
             ?.filter(({ linkId, name, platform: item }) => !linkId && isEditableComponent(name, item))
-            .forEach(({ name, platform: entryPlatformId, componentId }) => {
-                const item = hidden.get(name) ?? {
-                    name,
-                    group: getComponentGroup(name, pluginGroups),
-                    platforms: [],
-                };
-                item.platforms.push({ platform: entryPlatformId, componentId });
-                hidden.set(name, item);
-            });
+            .forEach(({ name, platform: item, componentId }) => add(name, item, componentId, 'hidden'));
+        templates
+            .filter(
+                ({ componentId, name, platform: item }) =>
+                    catalog &&
+                    !catalog.some((entry) => entry.componentId === componentId) &&
+                    isEditableComponent(name, item),
+            )
+            .forEach(({ name, platform: item, componentId }) => add(name, item, componentId, 'new'));
         return [...hidden.values()].sort((a, b) => a.name.localeCompare(b.name));
-    }, [catalog, pluginGroups]);
-    // Возврат компонента возвращает и скрытые компоненты, от которых он зависит, иначе его превью и сборка ломаются.
+    }, [catalog, templates, pluginGroups]);
+    const isNewComponent = (componentId: string) =>
+        Boolean(catalog) && !catalog!.some((entry) => entry.componentId === componentId);
+    // Возврат скрытого компонента возвращает и скрытые компоненты, от которых он зависит, иначе его превью и сборка
+    // ломаются. Новые компоненты сервер добавляет вместе с их зависимостями по шаблону сам.
     const withHiddenDependencies = (componentIds: string[]) => {
         const result = [...componentIds];
         for (let index = 0; index < result.length; index += 1) {
@@ -182,11 +207,33 @@ export const Components = () => {
         }
         return result;
     };
+    const templateDependencies = (componentIds: string[]): string[] => {
+        const result = new Set<string>();
+        const queue = componentIds.filter(isNewComponent);
+        while (queue.length) {
+            const current = queue.shift();
+            const template = templates.find(({ componentId }) => componentId === current);
+            template?.dependsOn.forEach((childId) => {
+                const linked = catalog?.some((entry) => entry.componentId === childId && entry.linkId);
+                if (!linked && !result.has(childId) && !componentIds.includes(childId)) {
+                    result.add(childId);
+                    queue.push(childId);
+                }
+            });
+        }
+        return [...result];
+    };
+    const nameOf = (componentId: string) =>
+        catalog?.find((entry) => entry.componentId === componentId)?.name ??
+        templates.find((entry) => entry.componentId === componentId)?.name;
     const hiddenDependencyNames = (componentIds: string[]) => [
         ...new Set(
-            withHiddenDependencies(componentIds)
+            [
+                ...withHiddenDependencies(componentIds.filter((id) => !isNewComponent(id))),
+                ...templateDependencies(componentIds),
+            ]
                 .filter((id) => !componentIds.includes(id))
-                .map((id) => catalog?.find(({ componentId }) => componentId === id)?.name)
+                .map(nameOf)
                 .filter((name): name is string => Boolean(name)),
         ),
     ];
@@ -257,6 +304,10 @@ export const Components = () => {
         if (!editorContext || !components) return;
 
         const controller = new AbortController();
+        repository
+            .loadComponentTemplates(editorContext, controller.signal)
+            .then(setTemplates)
+            .catch(() => undefined);
         repository
             .loadComponentCatalog(editorContext, controller.signal)
             .then(setCatalog)
@@ -548,15 +599,21 @@ export const Components = () => {
         setCatalogBusy(true);
         setCatalogError(undefined);
         try {
-            for (const componentId of withHiddenDependencies(componentIds)) {
+            const hidden = componentIds.filter((id) => !isNewComponent(id));
+            for (const componentId of withHiddenDependencies(hidden)) {
                 await repository.restoreComponent(editorContext, componentId);
             }
-            const restored = catalog?.find((item) => item.componentId === componentIds[0]);
-            pendingRoute.current = restored ? { platform: restored.platform as Platform, name: names[0] } : undefined;
+            for (const componentId of componentIds.filter(isNewComponent)) {
+                await repository.restoreComponent(editorContext, componentId, true);
+            }
+            const first =
+                catalog?.find((item) => item.componentId === componentIds[0]) ??
+                templates.find((item) => item.componentId === componentIds[0]);
+            pendingRoute.current = first ? { platform: first.platform as Platform, name: names[0] } : undefined;
             setRestoreOpen(false);
             setPlatformFilter('all');
         } catch {
-            setCatalogError('Не удалось вернуть компонент.');
+            setCatalogError('Не удалось добавить компонент.');
         } finally {
             setCatalogBusy(false);
             reload();
