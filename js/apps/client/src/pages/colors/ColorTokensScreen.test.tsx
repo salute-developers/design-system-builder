@@ -1,5 +1,5 @@
 import { useReducer, useState } from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createEvent, act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -962,6 +962,43 @@ describe('ColorTokensScreen', () => {
                     3,
                 ),
             );
+        });
+
+        it('в режиме «Исходные» нижняя половина последней строки ставит токен в конец её группы', async () => {
+            await renderWithStatus();
+            fireEvent.click(screen.getByRole('button', { name: 'Порядок токенов' }));
+            vi.spyOn(wrap('beta'), 'getBoundingClientRect').mockReturnValue({ top: 100, height: 24 } as DOMRect);
+
+            fireEvent.dragStart(row('accent'), { dataTransfer });
+            // В jsdom нет `DragEvent`, координата задаётся событию напрямую.
+            const over = createEvent.dragOver(wrap('beta'), { dataTransfer });
+            Object.defineProperty(over, 'clientY', { value: 120 });
+            fireEvent(wrap('beta'), over);
+
+            expect(wrap('beta').querySelector('.token-tree-drop')).toHaveClass('is-after');
+
+            fireEvent.drop(wrap('beta'), { dataTransfer });
+            await waitFor(() =>
+                expect(repository.move).toHaveBeenCalledWith(
+                    expect.anything(),
+                    'accent-0',
+                    { groupId: 'g-status', position: 2 },
+                    3,
+                ),
+            );
+        });
+
+        it('в режиме «Исходные» токен, брошенный на свою строку, остаётся на месте', async () => {
+            await renderWithStatus();
+            fireEvent.click(screen.getByRole('button', { name: 'Порядок токенов' }));
+
+            fireEvent.dragStart(row('beta'), { dataTransfer });
+            fireEvent.dragOver(wrap('beta'), { dataTransfer });
+
+            expect(document.querySelector('.token-tree-drop')).toBeNull();
+
+            fireEvent.drop(wrap('beta'), { dataTransfer });
+            expect(repository.move).not.toHaveBeenCalled();
         });
 
         it('в режиме «А–Я» над своей подгруппой снимает подсказку и не переносит токен', async () => {

@@ -343,6 +343,27 @@ describe('раздел «Палитра»', () => {
         expect(screen.queryByRole('button', { name: 'Изменить цвет' })).toBeNull();
     });
 
+    it('«Изменить»: превью считается при открытии окна, до перехода на вкладку', async () => {
+        const rebuild = vi.spyOn(paletteRepository, 'rebuild');
+        await renderPalette();
+        fireEvent.click(card('Green', 'Neutral'));
+        const dialog = await screen.findByRole('dialog', { name: 'Настройка палитры Green' });
+
+        await waitFor(() =>
+            expect(rebuild).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.objectContaining({ preview: true }),
+            ),
+        );
+        const requests = rebuild.mock.calls.length;
+
+        fireEvent.click(within(dialog).getByRole('tab', { name: 'Изменить' }));
+        await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Перестроить палитру' })).toBeEnabled());
+        expect(rebuild).toHaveBeenCalledTimes(requests);
+    });
+
     it('«Изменить»: свотч опорного цвета открывает тот же выбор цвета, что и правка ступени', async () => {
         vi.stubGlobal(
             'ResizeObserver',

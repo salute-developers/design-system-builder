@@ -1383,6 +1383,11 @@
     z-index: 5;
 }
 
+.color-tokens-screen .token-tree-drop.is-after {
+    top: auto;
+    bottom: 0;
+}
+
 .color-tokens-screen .token-tree-drop .ct-published-warning {
     top: -8px;
     right: 0;
@@ -2125,6 +2130,11 @@
 .color-tokens-screen .cp-select:focus-within {
     outline: 0;
     border-color: var(--tw-accent);
+}
+
+/* Рамку фокуса рисует `.cp-select`: своя рамка у `select` была бы второй. */
+.color-tokens-screen .cp-select select:focus-visible {
+    outline: 0;
 }
 
 .color-tokens-screen .cp-field {

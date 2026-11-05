@@ -132,6 +132,8 @@ interface Drop {
     targetId: string;
     containerId: string | null;
     position: number;
+    /** Линия под строкой: токен встанет за ней. */
+    after: boolean;
     warning: string | null;
     area: boolean;
 }
@@ -293,18 +295,22 @@ export const ColorTokenTree = (props: TreeProps) => {
             // В режиме «А–Я» получатель подсвечивается целиком, а токен встаёт в конец хранимого порядка.
             const area = sort === 'az';
             const row = area ? undefined : target;
-            const position = row
-                ? Math.max(
-                      0,
-                      rest.findIndex((token) => token.id === row.id),
-                  )
-                : rest.length;
+            // Своя строка не меняет порядок, а в `rest` её нет.
+            if (row?.id === view.id) {
+                if (drop) setDrop(null);
+                return;
+            }
+            // Строка делится пополам: под последним токеном узла уже заголовок следующего.
+            const box = event.currentTarget.getBoundingClientRect();
+            const after = Boolean(row) && event.clientY > box.top + box.height / 2;
+            const position = row ? rest.findIndex((token) => token.id === row.id) + Number(after) : rest.length;
             const targetId = row?.id ?? container.group.id;
-            if (drop?.targetId !== targetId || drop.position !== position || drop.area !== area)
+            if (drop?.targetId !== targetId || drop.position !== position || drop.area !== area || drop.after !== after)
                 setDrop({
                     targetId,
                     containerId: container.group.id,
                     position,
+                    after,
                     warning: codeWarning(container.group.id),
                     area,
                 });
@@ -337,7 +343,14 @@ export const ColorTokenTree = (props: TreeProps) => {
                           siblings.findIndex((item) => item.id === group.id),
                       );
             if (drop?.targetId !== group.id || drop.position !== position)
-                setDrop({ targetId: group.id, containerId: parentId, position, warning: null, area: false });
+                setDrop({
+                    targetId: group.id,
+                    containerId: parentId,
+                    position,
+                    after: false,
+                    warning: null,
+                    area: false,
+                });
         },
         onDrop: (event: DragEvent) => {
             if (dragged?.kind !== 'group' || !drop || drop.targetId !== group.id) return;
@@ -358,7 +371,10 @@ export const ColorTokenTree = (props: TreeProps) => {
     };
     const dropHint = (id: string) =>
         drop?.targetId === id ? (
-            <span className={`token-tree-drop ${drop.area ? 'is-area' : ''}`} aria-hidden="true">
+            <span
+                className={`token-tree-drop ${drop.area ? 'is-area' : ''} ${drop.after ? 'is-after' : ''}`}
+                aria-hidden="true"
+            >
                 {drop.warning && <PublishedWarning version={drop.warning} />}
             </span>
         ) : null;

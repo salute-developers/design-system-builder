@@ -50,6 +50,7 @@ interface PaletteBoardProps {
 
 /** Поповер встаёт под полосой ступеней: карточка метаданных 114 и промежуток 8. */
 const POPOVER_OFFSET = 122;
+const PREVIEW_DELAY_MS = 150;
 
 /** Полоса ступеней `Palette/RampStrip` в окнах: ступени вплотную, опорная обведена. */
 export const RampStrip = ({ values, anchor }: { values: Array<{ step: number; value?: string }>; anchor?: number }) => (
@@ -94,6 +95,9 @@ const RampPopover = ({
     const [previewError, setPreviewError] = useState<string | null>(null);
     const { setPopover, revision } = editor;
     const valid = isHexColor(hex);
+    // С правом на правку превью считается сразу при открытии окна: к переходу на «Изменить» оно уже готово.
+    const wantsPreview = canEdit || tab === 'rebuild';
+    const previewStarted = useRef(false);
 
     useLayoutEffect(() => {
         if (popoverRef.current && anchorRef.current)
@@ -143,12 +147,15 @@ const RampPopover = ({
     }, [anchorRef, setPopover]);
 
     useEffect(() => {
-        if (tab !== 'rebuild' || !valid) {
+        if (!wantsPreview || !valid) {
             setPreview(null);
             return;
         }
         let cancelled = false;
+        // Задержка нужна только при вводе цвета: первый расчёт ждать нечего.
+        const delay = previewStarted.current ? PREVIEW_DELAY_MS : 0;
         const timer = setTimeout(async () => {
+            previewStarted.current = true;
             try {
                 const result = await paletteRepository.rebuild(context, group.id, ramp.slot, {
                     anchorStep,
@@ -166,12 +173,12 @@ const RampPopover = ({
                     setPreviewError(errorText(error));
                 }
             }
-        }, 150);
+        }, delay);
         return () => {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [tab, hex, valid, context, group.id, ramp.slot, anchorStep, palette.editRevision, revision]);
+    }, [wantsPreview, hex, valid, context, group.id, ramp.slot, anchorStep, palette.editRevision, revision]);
 
     const current = steps.map((step) => ({ step, value: stepOf(ramp, step)?.value }));
     const next = steps.map((step) => ({ step, value: preview?.[step] }));

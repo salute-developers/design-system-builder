@@ -442,7 +442,6 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                                     onCommit={(next) => commitOverride(id, field, next)}
                                 />
                             )}
-                            {!disabled && <span className="typography-override-spacer" aria-hidden="true" />}
                         </div>
                     );
                 })}

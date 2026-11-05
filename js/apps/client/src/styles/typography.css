@@ -328,11 +328,6 @@
     min-width: 0;
 }
 
-.typography-override-spacer {
-    width: 24px;
-    flex: none;
-}
-
 .typography-override-add {
     position: relative;
     flex: none;
@@ -380,9 +375,26 @@
 }
 
 .typography-override-label {
+    min-width: 0;
+    overflow: hidden;
     color: var(--tw-text-paragraph);
+    text-overflow: ellipsis;
     white-space: nowrap;
-    flex: none;
+    flex: 0 1 auto;
+}
+
+/* В узкой колонке сокращается подпись платформы, а не значение. */
+.typography-value-line.is-override .typography-field-input {
+    min-width: 32px;
+}
+
+.typography-value-line.is-override .typography-field {
+    gap: var(--tw-space-xs);
+}
+
+.typography-value-line.is-override .typography-select-trigger {
+    gap: 2px;
+    min-width: 40px;
 }
 
 .typography-field-input,
