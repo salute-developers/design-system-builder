@@ -3963,6 +3963,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Нет шаблона (template_not_found) или в дизайн-системе не хватает метаданных и токенов шаблона (template_metadata_missing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
           content:
@@ -3970,6 +3976,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:write
+  /api/ds/component-templates:
+    get:
+      tags:
+        - Design System Components
+      summary: Шаблоны web-компонентов, которые можно добавить в дизайн-систему
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComponentTemplate'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
   /api/ds/design-system-components/{id}:
     get:
       tags:
@@ -8989,6 +9016,27 @@ components:
         - createdAt
         - updatedAt
         - platform
+    ComponentTemplate:
+      type: object
+      properties:
+        componentId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        platform:
+          type: string
+        dependsOn:
+          type: array
+          description: Компоненты, от которых он зависит по шаблону и которые добавляются вместе с ним.
+          items:
+            type: string
+            format: uuid
+      required:
+        - componentId
+        - name
+        - platform
+        - dependsOn
     DesignSystemComponent:
       type: object
       properties:
@@ -10606,6 +10654,12 @@ components:
         componentId:
           type: string
           format: uuid
+        fromTemplate:
+          type: boolean
+          default: false
+          description: >-
+            Собрать компонент без конфигурации в этой дизайн-системе из шаблона ds-service вместе с зависимостями.
+            Компонент с сохранённой конфигурацией возвращается с ней. Без флага создаётся или восстанавливается только связь.
       required:
         - designSystemId
         - componentId

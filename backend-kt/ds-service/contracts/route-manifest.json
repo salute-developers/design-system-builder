@@ -203,6 +203,7 @@
         ["GET", "/design-system-components", null, "DesignSystemComponent[]", 200, "components:read", null],
         ["GET", "/design-system-components/{id}", null, "DesignSystemComponent", 200, "components:read", null],
         ["POST", "/design-system-components", "CreateDesignSystemComponentRequest", "DesignSystemComponent", 201, "components:write", null],
+        ["GET", "/component-templates", null, "ComponentTemplate[]", 200, "components:variations:read", null],
         ["DELETE", "/design-system-components/{id}", null, "OkResponse", 200, "components:delete", null]
       ]
     },

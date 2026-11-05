@@ -21,32 +21,63 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
         ) {
             return
         }
-        val context = validate(designSystemId) ?: return
-        val writer = ComponentSeedBatchWriter(designSystemId)
+        val context = validate(seeds.components, componentSeedTokens(designSystemId)).context ?: return
+        val writer = ComponentSeedBatchWriter.baseline(designSystemId)
         seeds.components.forEach { seed -> insertComponent(designSystemId, seed, context, writer) }
         writer.flush()
-        insertDependencies(context)
+        insertDependencies(context, seeds.components.map(ComponentSeed::name).toSet())
     }
 
-    private fun validate(designSystemId: UUID): SeedContext? {
+    /** Шаблоны web-компонентов: имя компонента и имена компонентов, от которых он зависит по шаблону. */
+    internal fun templates(): Map<String, List<String>> = seeds.components.associate { seed ->
+        seed.name to seeds.dependencies.filter { it.parent == seed.name }.map(DependencySeed::child).distinct()
+    }
+
+    /**
+     * Раскладывает шаблоны компонентов [names] в текущий черновик существующей ДС. Компоненты из [linked] уже имеют
+     * связь с ДС (восстановленную), поэтому для них связь не создаётся. Возвращает недостающие метаданные и токены;
+     * при непустом списке ничего не записывается.
+     */
+    internal fun seedIntoDraft(designSystemId: UUID, names: List<String>, linked: Set<String>): List<String> {
+        val selected = names.map { name -> seeds.components.single { it.name == name } }
+        // Токены берутся в состоянии текущего черновика: после создания ДС их могли добавить или переименовать.
+        val tokens = ComponentTokensTable.selectAll().where { ComponentTokensTable.designSystemId eq designSystemId }
+            .associate { it[ComponentTokensTable.name] to it[ComponentTokensTable.id] }
+        val missingTokens = selected.flatMap { seed ->
+            seed.tokens().filterNot(tokens::containsKey).map { "${seed.name} token '$it'" }
+        }
+        if (missingTokens.isNotEmpty()) return missingTokens.distinct().sorted()
+        val validation = validate(selected, tokens)
+        val context = validation.context ?: return validation.missing
+        val writer = ComponentSeedBatchWriter.draft(designSystemId)
+        selected.forEach { seed -> insertComponent(designSystemId, seed, context, writer, link = seed.name !in linked) }
+        writer.flush()
+        insertDependencies(context, names.toSet())
+        return emptyList()
+    }
+
+    private class SeedValidation(val context: SeedContext?, val missing: List<String>)
+
+    private fun validate(selected: List<ComponentSeed>, tokens: Map<String, UUID>): SeedValidation {
         // Seeds describe the web layer: components of other platforms share names but not identity.
         val components = ComponentsTable.selectAll().where { ComponentsTable.platform eq ComponentPlatformDb.WEB }
             .associate { it[ComponentsTable.name] to it[ComponentsTable.id] }
+        val selectedNames = selected.map(ComponentSeed::name).toSet()
         val requiredComponents = buildSet {
-            addAll(seeds.components.map(ComponentSeed::name))
-            seeds.dependencies.forEach { dependency ->
+            addAll(selectedNames)
+            seeds.dependencies.filter { it.parent in selectedNames }.forEach { dependency ->
                 add(dependency.parent)
                 add(dependency.child)
             }
         }
-        if (requiredComponents.any { it !in components }) return null
+        val missingComponents = requiredComponents.filterNot(components::containsKey)
+        if (missingComponents.isNotEmpty()) return SeedValidation(null, missingComponents.sorted())
 
         val properties = PropertiesTable.selectAll().mapNotNull { row ->
             row[PropertiesTable.componentId]?.let { componentId ->
                 PropertyKey(componentId, row[PropertiesTable.name]) to row[PropertiesTable.id]
             }
         }.toMap()
-        val tokens = componentSeedTokens(designSystemId)
         val states = ComponentStatesTable.selectAll().where { ComponentStatesTable.componentId.isNull() }
             .associate { it[ComponentStatesTable.name] to it[ComponentStatesTable.id] }
         val params = PropertyPlatformParamsTable.selectAll().associate { row ->
@@ -59,7 +90,7 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
 
         val missingMetadata = mutableListOf<String>()
         val invalidSeedReferences = mutableListOf<String>()
-        seeds.components.forEach { seed ->
+        selected.forEach { seed ->
             val componentId = components.getValue(seed.name)
             validateSeed(
                 seed,
@@ -76,8 +107,8 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
             "Component seed resource has invalid references: " +
                 invalidSeedReferences.distinct().sorted().joinToString()
         }
-        if (missingMetadata.isNotEmpty()) return null
-        return SeedContext(components, properties, tokens, states, params)
+        if (missingMetadata.isNotEmpty()) return SeedValidation(null, missingMetadata.distinct().sorted())
+        return SeedValidation(SeedContext(components, properties, tokens, states, params), emptyList())
     }
 
     @Suppress("CyclomaticComplexMethod", "LongParameterList", "NestedBlockDepth")
@@ -222,17 +253,20 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
         seed: ComponentSeed,
         context: SeedContext,
         writer: ComponentSeedBatchWriter,
+        link: Boolean = true,
     ) {
         val componentId = context.components.getValue(seed.name)
-        val linkId = writer.stable(
-            StableDesignSystemComponentsTable,
-            StableDesignSystemComponentsTable.id,
-            StableDesignSystemComponentsTable.createdAt,
-        ) {
-            it[StableDesignSystemComponentsTable.designSystemId] = designSystemId
-            it[StableDesignSystemComponentsTable.componentId] = componentId
+        if (link) {
+            val linkId = writer.stable(
+                StableDesignSystemComponentsTable,
+                StableDesignSystemComponentsTable.id,
+                StableDesignSystemComponentsTable.createdAt,
+            ) {
+                it[StableDesignSystemComponentsTable.designSystemId] = designSystemId
+                it[StableDesignSystemComponentsTable.componentId] = componentId
+            }
+            writer.revision(DesignSystemComponentRevisionsTable, DesignSystemComponentRevisionsTable.entityId, linkId)
         }
-        writer.revision(DesignSystemComponentRevisionsTable, DesignSystemComponentRevisionsTable.entityId, linkId)
 
         check(seed.variations.map { it.name }.distinct().size == seed.variations.size) {
             "Component seed '${seed.name}' declares variations with duplicate names"
@@ -523,8 +557,8 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
         }
     }
 
-    private fun insertDependencies(context: SeedContext) {
-        seeds.dependencies.forEach { dependency ->
+    private fun insertDependencies(context: SeedContext, parents: Set<String>) {
+        seeds.dependencies.filter { it.parent in parents }.forEach { dependency ->
             val parent = context.components.getValue(dependency.parent)
             val child = context.components.getValue(dependency.child)
             val existing = ComponentDependenciesTable.selectAll().where {
@@ -599,7 +633,13 @@ private data class ComponentSeed(
     val propertyVariations: List<PropertyVariationSeed> = emptyList(),
     val variations: List<VariationSeed> = emptyList(),
     val appearances: List<AppearanceSeed> = emptyList(),
-)
+) {
+    /** Имена токенов, на которые ссылаются значения шаблона. */
+    fun tokens(): Set<String> = appearances.flatMap { appearance ->
+        appearance.values.values.flatMap { byStyle -> byStyle.values.flatten() } +
+            appearance.invariants + appearance.combinations
+    }.mapNotNull(ValueSeed::token).toSet()
+}
 
 @Serializable
 private data class PropertyVariationSeed(val property: String, val variation: String)
