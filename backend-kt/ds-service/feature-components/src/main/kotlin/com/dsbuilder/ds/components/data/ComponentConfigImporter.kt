@@ -161,21 +161,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     }
 
     private fun link(ds: UUID, component: UUID) {
-        if (!DesignSystemComponentsTable.selectAll().where {
-                (DesignSystemComponentsTable.designSystemId eq ds) and
-                    (DesignSystemComponentsTable.componentId eq component)
-            }.any()
-        ) {
-            val id = StableDesignSystemComponentsTable.insertReturning {
-                it[designSystemId] = ds
-                it[componentId] = component
-            }.single()[StableDesignSystemComponentsTable.id]
-            DesignSystemComponentRevisionsTable.replaceRevision(
-                DesignSystemComponentRevisionsTable.entityId,
-                id,
-                ds,
-            )
-        }
+        restoreDesignSystemComponentLink(ds, component)
     }
 
     private fun appearance(ds: UUID, component: UUID, name: String) = ComponentAppearancesTable.selectAll().where {

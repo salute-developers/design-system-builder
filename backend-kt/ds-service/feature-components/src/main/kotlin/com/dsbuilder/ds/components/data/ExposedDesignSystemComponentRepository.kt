@@ -4,11 +4,13 @@ import com.dsbuilder.ds.components.application.DesignSystemComponentRepository
 import com.dsbuilder.ds.components.domain.DesignSystemComponent
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.insertReturning
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
@@ -48,17 +50,9 @@ class ExposedDesignSystemComponentRepository : DesignSystemComponentRepository {
     ): DesignSystemComponent? {
         if (!ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, designSystemId)) return null
         if (ComponentsTable.selectAll().where { ComponentsTable.id eq componentId }.none()) return null
-        val entity = StableDesignSystemComponentsTable.insertReturning {
-            it[StableDesignSystemComponentsTable.designSystemId] = designSystemId
-            it[StableDesignSystemComponentsTable.componentId] = componentId
-        }.single()
-        DesignSystemComponentRevisionsTable.replaceRevision(
-            DesignSystemComponentRevisionsTable.entityId,
-            entity[StableDesignSystemComponentsTable.id],
-            designSystemId,
-        )
+        val linkId = restoreDesignSystemComponentLink(designSystemId, componentId)
         return DesignSystemComponentsTable.selectAll()
-            .where { DesignSystemComponentsTable.id eq entity[StableDesignSystemComponentsTable.id] }
+            .where { DesignSystemComponentsTable.id eq linkId }
             .single().let(::link)
     }
 
@@ -89,6 +83,38 @@ class ExposedDesignSystemComponentRepository : DesignSystemComponentRepository {
         )
         return true
     }
+}
+
+/** Связь с опубликованной историей при удалении остаётся в стабильной таблице и возвращается новой ревизией. */
+internal fun restoreDesignSystemComponentLink(designSystemId: UUID, componentId: UUID): UUID {
+    val existingId = StableDesignSystemComponentsTable.select(StableDesignSystemComponentsTable.id).where {
+        (StableDesignSystemComponentsTable.designSystemId eq designSystemId) and
+            (StableDesignSystemComponentsTable.componentId eq componentId)
+    }.singleOrNull()?.get(StableDesignSystemComponentsTable.id)
+    if (existingId != null &&
+        DesignSystemComponentsTable.selectAll().where { DesignSystemComponentsTable.id eq existingId }.any()
+    ) {
+        return existingId
+    }
+    if (existingId != null) {
+        lockComponentSubject(
+            StableDesignSystemComponentsTable,
+            StableDesignSystemComponentsTable.id,
+            StableDesignSystemComponentsTable.designSystemId,
+            "design-system-component",
+            existingId,
+        )
+    }
+    val id = existingId ?: StableDesignSystemComponentsTable.insertReturning {
+        it[StableDesignSystemComponentsTable.designSystemId] = designSystemId
+        it[StableDesignSystemComponentsTable.componentId] = componentId
+    }.single()[StableDesignSystemComponentsTable.id]
+    DesignSystemComponentRevisionsTable.replaceRevision(
+        DesignSystemComponentRevisionsTable.entityId,
+        id,
+        designSystemId,
+    )
+    return id
 }
 
 private fun link(row: ResultRow) = DesignSystemComponent(

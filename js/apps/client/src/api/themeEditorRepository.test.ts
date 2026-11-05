@@ -39,7 +39,6 @@ import { versionJournalRepository } from './versionJournalRepository';
 import type { PendingComponentMutation } from './editorContracts';
 
 import { AndroidGradient, GradientToken, IOSGradient, Theme, WebGradient } from '../controllers';
-import { getMenuItems } from '../utils';
 import { parseCssLayer } from '../modules/sizeTokens';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
@@ -559,7 +558,7 @@ describe('Editor repositories', () => {
         expect(snapshot.themeData.variations.gradient.web['surface.default.gradient']).toEqual([
             'linear-gradient(90deg, #000 0%, #fff 100%)',
         ]);
-        expect(() => getMenuItems(theme, 'color')).not.toThrow();
+        expect(theme.getTokens('gradient')).toHaveLength(1);
     });
 
     it('keeps single-layer and multi-layer shadows array-shaped for the shadow editor', async () => {

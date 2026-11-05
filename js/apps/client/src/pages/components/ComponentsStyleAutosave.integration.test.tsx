@@ -28,12 +28,7 @@ vi.mock('../../api/editorReads', () => ({
     readEditor: (url: string) => mocks.get(url),
     invalidateEditorReads: vi.fn(),
 }));
-vi.mock('../../utils', async (original) => ({
-    ...(await original<typeof import('../../utils')>()),
-    getOldMenuItems: () => ({ groups: [{ data: [{ items: [{ name: 'Button', data: [mocks.config] }] }] }] }),
-}));
 vi.mock('../../layouts', () => ({
-    MenuOld: () => null,
     Workspace: ({ content }: { content: ReactNode }) => <>{content}</>,
 }));
 vi.mock('./features/ComponentEditor', () => ({

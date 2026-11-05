@@ -19,26 +19,7 @@ const mocks = vi.hoisted(() => ({
     saveComponentMutation: vi.fn(async () => ({ style: 1 })),
 }));
 
-vi.mock('../../utils', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('../../utils')>()),
-    getOldMenuItems: () => ({
-        groups: [
-            {
-                data: [
-                    {
-                        items: [
-                            { name: 'Button', disabled: false, data: [mocks.config] },
-                            { name: 'Input', disabled: false, data: [mocks.inputConfig] },
-                        ],
-                    },
-                ],
-            },
-        ],
-    }),
-}));
-
 vi.mock('../../layouts', () => ({
-    MenuOld: () => null,
     Workspace: ({ content }: { content: ReactNode }) => <>{content}</>,
 }));
 
@@ -51,7 +32,11 @@ vi.mock('./features/ComponentEditor', () => ({
 }));
 
 vi.mock('../../api/componentRepository', () => ({
-    componentRepository: { saveComponentMutation: mocks.saveComponentMutation },
+    componentRepository: {
+        saveComponentMutation: mocks.saveComponentMutation,
+        loadComponentCatalog: vi.fn(async () => []),
+        loadComponentTemplates: vi.fn(async () => []),
+    },
 }));
 
 import { Components } from './Components';

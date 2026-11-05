@@ -5,6 +5,7 @@ import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ComponentDependencyRepository
 import com.dsbuilder.ds.components.application.ComponentRepository
 import com.dsbuilder.ds.components.application.ComponentReuseConfigRepository
+import com.dsbuilder.ds.components.application.ComponentTemplateRepository
 import com.dsbuilder.ds.components.application.ComponentWebAdapterRepository
 import com.dsbuilder.ds.components.application.CreateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.CreateComponentReuseConfigUseCase
@@ -31,6 +32,7 @@ import com.dsbuilder.ds.components.application.ListComponentDependenciesUseCase
 import com.dsbuilder.ds.components.application.ListComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsByDependencyUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsUseCase
+import com.dsbuilder.ds.components.application.ListComponentTemplatesUseCase
 import com.dsbuilder.ds.components.application.ListComponentVariationsUseCase
 import com.dsbuilder.ds.components.application.ListComponentsUseCase
 import com.dsbuilder.ds.components.application.ListDependenciesByComponentUseCase
@@ -45,6 +47,7 @@ import com.dsbuilder.ds.components.data.ExposedComponentConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentDependencyRepository
 import com.dsbuilder.ds.components.data.ExposedComponentRepository
 import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
+import com.dsbuilder.ds.components.data.ExposedComponentTemplateRepository
 import com.dsbuilder.ds.components.data.ExposedComponentWebAdapterRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
 import com.dsbuilder.ds.components.data.ExposedPluginBuildRepository
@@ -60,7 +63,9 @@ val componentsModule = module {
     componentDraftChangeHandlers().forEach { handler ->
         single<DraftChangeHandler>(named(handler.entityType)) { handler }
     }
-    single<DesignSystemComponentInitializer> { GeneratedDesignSystemComponentInitializer() }
+    single { GeneratedDesignSystemComponentInitializer() }
+    single<DesignSystemComponentInitializer> { get<GeneratedDesignSystemComponentInitializer>() }
+    single<ComponentTemplateRepository> { ExposedComponentTemplateRepository(get()) }
     single<ComponentRepository> { ExposedComponentRepository() }
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
     single<ApiMetaRepository> { ExposedApiMetaRepository() }
@@ -83,7 +88,8 @@ val componentsModule = module {
     factory { GetComponentDependenciesWithReuseConfigUseCase(get(), get(), get(), get(), get()) }
     factory { ListDesignSystemComponentsUseCase(get(), get(), get()) }
     factory { GetDesignSystemComponentUseCase(get(), get(), get()) }
-    factory { CreateDesignSystemComponentUseCase(get(), get(), get(), get()) }
+    factory { CreateDesignSystemComponentUseCase(get(), get(), get(), get(), get()) }
+    factory { ListComponentTemplatesUseCase(get(), get(), get()) }
     factory { DeleteDesignSystemComponentUseCase(get(), get(), get()) }
     factory { ListComponentDependenciesUseCase(get(), get(), get()) }
     factory { GetComponentDependencyUseCase(get(), get(), get()) }

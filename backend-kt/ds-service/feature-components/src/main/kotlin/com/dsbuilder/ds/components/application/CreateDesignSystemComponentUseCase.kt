@@ -14,6 +14,7 @@ class CreateDesignSystemComponentUseCase(
     private val transactions: TransactionRunner,
     private val repository: DesignSystemComponentRepository,
     private val repeatedRequests: IdempotentRequestRepository,
+    private val templates: ComponentTemplateRepository,
 ) {
     /** Performs the execute operation. */
     suspend fun execute(
@@ -21,11 +22,18 @@ class CreateDesignSystemComponentUseCase(
         designSystemId: UUID,
         componentId: UUID,
         idempotencyKey: String? = null,
+        fromTemplate: Boolean = false,
     ): DsResult<DesignSystemComponent> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-design-system-component",
-        "$designSystemId:$componentId",
+        if (fromTemplate) "$designSystemId:$componentId:template" else "$designSystemId:$componentId",
         { repository.findAccessible(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createOwned(context.projectId, context.principal.systemAdmin, designSystemId, componentId) },
+        {
+            if (fromTemplate) {
+                templates.addOwned(context.projectId, context.principal.systemAdmin, designSystemId, componentId)
+            } else {
+                repository.createOwned(context.projectId, context.principal.systemAdmin, designSystemId, componentId)
+            }
+        },
         DesignSystemComponent::id,
     )
 }

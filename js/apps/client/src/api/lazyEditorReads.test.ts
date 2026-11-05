@@ -100,6 +100,50 @@ it('метаданные холодного журнала читаются па
     expect(http.post).not.toHaveBeenCalled();
 });
 
+it('оставляет раздел компонентов, когда все компоненты скрыты, но у них есть оформления', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') ? { data: [] } : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(true);
+    expect(http.get.mock.calls.map(([url]) => url)).toContain(
+        '/api/projects/project/ds/design-systems/system/appearances',
+    );
+});
+
+it('убирает раздел компонентов, когда у дизайн-системы нет ни связей, ни оформлений, ни шаблонов', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') ||
+        url.endsWith('/appearances') ||
+        url.endsWith('/component-templates')
+            ? { data: [] }
+            : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(false);
+});
+
+it('оставляет раздел компонентов в пустой дизайн-системе, если есть шаблоны', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') || url.endsWith('/appearances')
+            ? { data: [] }
+            : url.endsWith('/component-templates')
+              ? { data: [{ componentId: 'card', name: 'Card', platform: 'web', dependsOn: [] }] }
+              : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(true);
+});
+
 it('оболочка читает только метаданные, не значения, конфигурации или историю', async () => {
     const shell = await loadThemeShell(context);
     expect(shell.hasComponents).toBe(true);
@@ -116,11 +160,11 @@ it('оболочка читает только метаданные, не зна
     expect(http.post).not.toHaveBeenCalled();
 });
 
-it('список ста компонентов требует только каталога и кратких оформлений', async () => {
+it('список ста компонентов требует только каталога, кратких оформлений, связей и зависимостей', async () => {
     const index = await componentRepository.loadComponentIndex(context);
     expect(index).toHaveLength(100);
     expect(index.every((item) => item.sources.configs.length === 0)).toBe(true);
-    expect(http.get).toHaveBeenCalledTimes(2);
+    expect(http.get).toHaveBeenCalledTimes(4);
     expect(http.post).not.toHaveBeenCalled();
 });
 
