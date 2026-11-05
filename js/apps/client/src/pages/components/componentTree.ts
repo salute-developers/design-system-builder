@@ -77,7 +77,7 @@ export const entryPlatform = (entry: ComponentTreeEntry, filter: ComponentPlatfo
     filter === 'web' || filter === 'compose' ? filter : (entry.configs[0].getPlatform() as EditablePlatform);
 
 export const emptyTreeMessage = (total: number, onPlatform: number, filter: ComponentPlatformFilter, query: string) => {
-    if (!total) return 'Все компоненты скрыты. Верните нужный компонент в дизайн-систему.';
+    if (!total) return 'В дизайн-системе нет компонентов. Добавьте их кнопкой «+».';
     if (!onPlatform) return 'Для выбранной платформы компонентов нет. Выберите другую платформу.';
     return query.trim() ? `По запросу «${query.trim()}» компонентов не найдено.` : 'Компонентов нет.';
 };

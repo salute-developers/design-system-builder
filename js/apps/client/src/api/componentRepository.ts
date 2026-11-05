@@ -273,6 +273,14 @@ export interface ComponentCatalogEntry {
     dependsOn: string[];
 }
 
+export interface ComponentTemplateEntry {
+    componentId: string;
+    name: string;
+    platform: ComponentDto['platform'];
+    /** Компоненты, от которых он зависит по шаблону: сервер добавляет их вместе с ним. */
+    dependsOn: string[];
+}
+
 const readComponentCatalog = async (context: EditorContextKey, signal?: AbortSignal) => {
     // Компоненты и связи между ними — глобальный каталог; оформления и состав — ресурсы дизайн-системы.
     const catalogRoot = apiRoot(context.projectId);
@@ -366,12 +374,28 @@ export const componentRepository = {
         await http.delete(`${apiRoot(context.projectId, context.designSystemId)}/design-system-components/${linkId}`);
     },
 
-    async restoreComponent(context: EditorContextKey, componentId: string): Promise<void> {
+    /**
+     * Возвращает компонент в дизайн-систему. Со `fromTemplate` компонент без конфигурации собирается из шаблона
+     * `ds-service` вместе с зависимостями; без флага восстанавливается только связь.
+     */
+    async restoreComponent(context: EditorContextKey, componentId: string, fromTemplate = false): Promise<void> {
         await http.post(
             `${apiRoot(context.projectId, context.designSystemId)}/design-system-components`,
-            { componentId },
+            { componentId, ...(fromTemplate ? { fromTemplate } : {}) },
             { headers: { 'Idempotency-Key': crypto.randomUUID() } },
         );
+    },
+
+    /** Шаблоны web-компонентов `ds-service`, которые можно добавить в дизайн-систему. */
+    async loadComponentTemplates(context: EditorContextKey, signal?: AbortSignal): Promise<ComponentTemplateEntry[]> {
+        if (!isComponentEditorEnabled()) return [];
+        const templates = await readEditor<ComponentTemplateEntry[]>(
+            `${apiRoot(context.projectId)}/component-templates`,
+            readRequest(context, signal),
+            undefined,
+            300_000,
+        );
+        return templates.data;
     },
 
     async loadComponentData(

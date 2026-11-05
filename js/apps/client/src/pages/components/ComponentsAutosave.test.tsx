@@ -35,6 +35,7 @@ vi.mock('../../api/componentRepository', () => ({
     componentRepository: {
         saveComponentMutation: mocks.saveComponentMutation,
         loadComponentCatalog: vi.fn(async () => []),
+        loadComponentTemplates: vi.fn(async () => []),
     },
 }));
 

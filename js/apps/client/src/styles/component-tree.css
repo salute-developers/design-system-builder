@@ -24,7 +24,10 @@
     min-height: 0;
     background: var(--panel);
     color: var(--panel-text);
-    font: 400 12px/16px Inter, system-ui, sans-serif;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
 }
 .component-tree-panel {
     position: relative;
@@ -309,7 +312,10 @@
     border-color: #49525e;
     background: #252b33;
     color: #e8edf4;
-    font: 400 16px/1.45 Inter, Arial, sans-serif;
+    font:
+        400 16px/1.45 Inter,
+        Arial,
+        sans-serif;
 }
 /* Без специфичности: размеры кнопок задают правила своих блоков. */
 :where(.modal.component-dialog) button {
@@ -324,7 +330,10 @@
 }
 .modal.component-dialog > header h2 {
     margin: 0 0 4px;
-    font: 700 17px/1.45 Inter, Arial, sans-serif;
+    font:
+        700 17px/1.45 Inter,
+        Arial,
+        sans-serif;
 }
 .modal.component-dialog > header p {
     margin: 0;
@@ -342,21 +351,52 @@
     border-radius: 5px;
     color: #aeb8c5;
 }
+/* Содержимое между шапкой и футером: общий внутренний отступ задаёт одну ширину поиску, платформам,
+   группам, разделителю и выделению строк. */
+.component-restore-body {
+    min-height: 0;
+    padding: 12px 20px 10px;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+}
 .component-restore-toolbar {
-    margin: 12px 12px 8px 21px;
+    margin: 0 0 8px;
     display: flex;
     flex: none;
     align-items: center;
     gap: 10px;
 }
-/* Общий чекбокс в колонке чекбоксов строк: отступ списка 12px и строки 9px. */
-.component-restore-toolbar > input,
+/* Свой чекбокс вместо нативного: тёмный фон в цвет поля поиска, отмеченный — акцентный с галочкой. */
+.component-restore-group-heading > input,
 .component-restore-item > input {
     width: 16px;
     height: 16px;
     margin: 0;
     flex: none;
-    accent-color: var(--p-accent, #2b8ced);
+    appearance: none;
+    border: 1px solid #4a5361;
+    border-radius: 4px;
+    background: #20252c center / 12px 12px no-repeat;
+    cursor: pointer;
+}
+.component-restore-group-heading > input:checked,
+.component-restore-item > input:checked,
+.component-restore-group-heading > input:indeterminate {
+    border-color: var(--p-accent, #2b8ced);
+    background-color: var(--p-accent, #2b8ced);
+}
+.component-restore-group-heading > input:checked,
+.component-restore-item > input:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.5l4.5-5' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.component-restore-group-heading > input:indeterminate {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6h6' stroke='%23fff' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+.component-restore-group-heading > input:focus-visible,
+.component-restore-item > input:focus-visible {
+    outline: 2px solid var(--p-accent, #2b8ced);
+    outline-offset: 2px;
 }
 .component-restore-search {
     height: 34px;
@@ -385,7 +425,7 @@
 }
 .component-restore-platforms {
     min-width: 0;
-    margin: 0 20px 10px;
+    margin: 0 0 10px;
     padding: 8px 10px;
     border: 1px solid #3d4652;
     border-radius: 7px;
@@ -423,7 +463,7 @@
 .component-restore-list {
     min-height: 140px;
     overflow: auto;
-    padding: 2px 12px 10px;
+    padding: 2px 0 10px;
 }
 .component-restore-item {
     width: 100%;
@@ -446,6 +486,37 @@
     display: grid;
     gap: 2px;
 }
+/* Заголовок группы — мелкие прописные, как в дереве; чекбокс группы в одной колонке с чекбоксами строк. */
+.component-restore-group-heading {
+    min-height: 28px;
+    padding: 8px 9px 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-sizing: border-box;
+    color: #8691a0;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.component-restore-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+/* Строки сдвинуты вправо от чекбокса заголовка: видно, что они входят в группу. */
+.component-restore-group > .component-restore-item {
+    width: calc(100% - 16px);
+    margin-left: 16px;
+}
+/* Разделитель между группами «Скрытые» и «Новые». */
+.component-restore-group + .component-restore-group {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid #3a414b;
+}
 .component-restore-item strong {
     font-size: 11px;
     font-weight: 500;
@@ -464,6 +535,9 @@
 }
 .component-dialog > .component-tree-error {
     margin: 0 20px 10px;
+}
+.component-restore-body > .component-tree-error {
+    margin: 0 0 10px;
 }
 .modal.component-dialog > footer {
     padding: 12px 20px 16px;
@@ -500,9 +574,11 @@
     font-size: 12px;
     line-height: 1.45;
 }
+/* Предупреждение о зависимостях: жёлтое, как предупреждения палитры; по левому краю чекбоксов групп. */
 .component-restore-note {
-    margin: 0 20px 10px;
-    color: #c4ccd7;
+    margin: 10px 0;
+    padding: 0 9px;
+    color: #ffd36a;
     font-size: 12px;
     line-height: 1.45;
 }

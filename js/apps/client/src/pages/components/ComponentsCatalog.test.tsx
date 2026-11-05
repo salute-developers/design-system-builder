@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
     return {
         config,
         loadComponentCatalog: vi.fn(),
+        loadComponentTemplates: vi.fn(),
         hideComponent: vi.fn(),
         restoreComponent: vi.fn(),
     };
@@ -30,6 +31,7 @@ vi.mock('../../api/componentRepository', () => ({
     componentRepository: {
         saveComponentMutation: vi.fn(),
         loadComponentCatalog: mocks.loadComponentCatalog,
+        loadComponentTemplates: mocks.loadComponentTemplates,
         hideComponent: mocks.hideComponent,
         restoreComponent: mocks.restoreComponent,
     },
@@ -107,6 +109,7 @@ const confirmHide = () =>
 describe('панель компонентов', () => {
     beforeEach(() => {
         mocks.loadComponentCatalog.mockReset().mockResolvedValue(catalog);
+        mocks.loadComponentTemplates.mockReset().mockResolvedValue([]);
         mocks.hideComponent.mockReset().mockResolvedValue(undefined);
         mocks.restoreComponent.mockReset().mockResolvedValue(undefined);
     });
@@ -278,7 +281,7 @@ describe('панель компонентов', () => {
 
         fireEvent.click(add());
         fireEvent.click(within(screen.getByRole('dialog')).getByRole('checkbox', { name: /Chip/ }));
-        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Вернуть' }));
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Добавить' }));
 
         await waitFor(() => expect(loadComponent).toHaveBeenCalledWith());
     });
@@ -292,14 +295,14 @@ describe('панель компонентов', () => {
         const dialog = screen.getByRole('dialog');
         fireEvent.click(within(dialog).getByRole('checkbox', { name: /Chip/ }));
         fireEvent.click(within(dialog).getByRole('button', { name: 'Compose' }));
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Вернуть' }));
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить' }));
 
         await waitFor(() => expect(reload).toHaveBeenCalled());
         expect(mocks.restoreComponent.mock.calls.map(([, id]) => id)).toEqual(['compose-chip']);
         expect(screen.queryByRole('dialog')).toBeNull();
     });
 
-    it('выбирает все найденные скрытые компоненты и возвращает их', async () => {
+    it('выбирает все найденные скрытые компоненты чекбоксом группы', async () => {
         mocks.loadComponentCatalog.mockResolvedValue([
             ...catalog,
             { componentId: 'web-rating', name: 'Rating', platform: 'web', linkId: null, usedBy: [], dependsOn: [] },
@@ -310,13 +313,14 @@ describe('панель компонентов', () => {
 
         fireEvent.click(add());
         const dialog = screen.getByRole('dialog');
-        const all = within(dialog).getByRole('checkbox', { name: 'Выбрать все найденные' });
+        const all = within(dialog).getByRole('checkbox', { name: 'Выбрать все скрытые' });
         fireEvent.click(within(dialog).getByRole('checkbox', { name: /Chip/ }));
         expect(all).toHaveProperty('indeterminate', true);
 
         fireEvent.click(all);
         expect(within(dialog).getByRole('checkbox', { name: /Rating/ })).toHaveProperty('checked', true);
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Вернуть (2)' }));
+        expect(all).toHaveProperty('checked', true);
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить (2)' }));
 
         await waitFor(() => expect(reload).toHaveBeenCalled());
         expect(mocks.restoreComponent.mock.calls.map(([, id]) => id)).toEqual([
@@ -358,8 +362,8 @@ describe('панель компонентов', () => {
         fireEvent.click(add());
         const dialog = screen.getByRole('dialog');
         fireEvent.click(within(dialog).getByRole('checkbox', { name: /ChipGroup/ }));
-        expect(within(dialog).getByText(/Вместе с ними вернутся Chip/)).toBeTruthy();
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Вернуть' }));
+        expect(within(dialog).getByText(/Вместе с ними добавятся Chip/)).toBeTruthy();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить' }));
 
         await waitFor(() => expect(reload).toHaveBeenCalled());
         expect(mocks.restoreComponent.mock.calls.map(([, id]) => id)).toEqual(['web-group', 'web-chip']);
@@ -376,13 +380,39 @@ describe('панель компонентов', () => {
 
         fireEvent.click(add());
         fireEvent.click(within(screen.getByRole('dialog')).getByRole('checkbox', { name: /Chip/ }));
-        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Вернуть' }));
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Добавить' }));
 
         await waitFor(() => expect(mocks.loadComponentCatalog.mock.calls.length).toBeGreaterThanOrEqual(2));
         fireEvent.click(add());
         await waitFor(() =>
             expect(within(screen.getByRole('dialog')).queryByRole('checkbox', { name: /^Chip/ })).toBeNull(),
         );
+    });
+
+    it('добавляет новый компонент из шаблона одним запросом', async () => {
+        mocks.loadComponentTemplates.mockResolvedValue([
+            { componentId: 'web-chip', name: 'Chip', platform: 'web', dependsOn: [] },
+            { componentId: 'web-group', name: 'ButtonGroup', platform: 'web', dependsOn: ['web-button'] },
+            { componentId: 'web-button', name: 'Button', platform: 'web', dependsOn: [] },
+        ]);
+        const reload = renderPage();
+        const add = () => within(panel()).getByRole('button', { name: 'Вернуть скрытый компонент' });
+        await waitFor(() => expect(add()).toHaveProperty('disabled', false));
+
+        fireEvent.click(add());
+        const dialog = await screen.findByRole('dialog');
+        const group = (name: string) => within(dialog).getByRole('region', { name });
+        expect(within(group('Новые')).getByRole('checkbox', { name: /ButtonGroup/ })).toBeTruthy();
+        expect(within(group('Скрытые')).getByRole('checkbox', { name: /^Chip/ })).toBeTruthy();
+        expect(within(group('Скрытые')).queryByRole('checkbox', { name: /ButtonGroup/ })).toBeNull();
+        fireEvent.click(within(dialog).getByRole('checkbox', { name: /ButtonGroup/ }));
+        expect(within(dialog).getByText(/Вместе с ними добавятся Button/)).toBeTruthy();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить' }));
+
+        await waitFor(() => expect(reload).toHaveBeenCalled());
+        expect(mocks.restoreComponent.mock.calls.map(([, id, fromTemplate]) => [id, fromTemplate])).toEqual([
+            ['web-group', true],
+        ]);
     });
 
     it('не даёт менять состав в режиме только для чтения', async () => {
@@ -424,6 +454,6 @@ describe('панель компонентов', () => {
             </MemoryRouter>,
         );
 
-        expect(within(panel()).getByText(/Все компоненты скрыты/)).toBeTruthy();
+        expect(within(panel()).getByText(/В дизайн-системе нет компонентов/)).toBeTruthy();
     });
 });
