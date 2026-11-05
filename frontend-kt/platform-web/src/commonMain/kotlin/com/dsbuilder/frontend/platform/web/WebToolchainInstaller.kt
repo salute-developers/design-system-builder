@@ -7,6 +7,7 @@ import com.dsbuilder.frontend.core.platform.ToolchainInstaller
 import com.dsbuilder.frontend.core.process.ProcessLaunchException
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessRunner
+import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 
 /**
  * Установщик toolchain `web`: ставит npm-пакет web-генератора в каталог пользователя
@@ -15,10 +16,14 @@ import com.dsbuilder.frontend.core.process.ProcessRunner
  * Глобальный prefix npm часто принадлежит root (Node.js из официального установщика, `n`), поэтому он не
  * используется: установка не требует `sudo` и не меняет настройки npm. Версии в каталоге ведёт npm, без
  * `current`; повторная установка заменяет пакет. Делегат находит команду там раньше, чем в `PATH`.
+ *
+ * Каталог из `--from` npm установил бы ссылкой на исходник без его зависимостей, поэтому каталог сначала
+ * упаковывается `npm pack`, и ставится получившийся архив — так же, как пакет из реестра.
  */
 public class WebToolchainInstaller internal constructor(
     private val processRunner: ProcessRunner,
     private val locator: WebToolLocator,
+    private val fileSystem: WorkspaceFileSystem,
 ) : ToolchainInstaller {
     override val toolchain: ToolchainId = ToolchainId("web")
 
@@ -27,9 +32,57 @@ public class WebToolchainInstaller internal constructor(
             ?: return ToolchainInstallResult.Failed("$MISSING_NPM_HINT Then run dsbuilder toolchain install web.")
         val prefix = locator.managedPrefix()
             ?: return ToolchainInstallResult.Failed("Cannot install the toolchain: HOME is not set.")
-        // `--from` — путь к архиву или каталогу пакета; npm разрешает относительный путь от рабочего каталога.
+        val directory = request.archive?.let(fileSystem::absolutePath)?.takeIf(fileSystem::isDirectory)
+        // `--from` — путь к архиву или URL; npm разрешает относительный путь от рабочего каталога.
         val spec = request.archive ?: "$WEB_GENERATOR_PACKAGE@${request.version ?: "latest"}"
-        return installPackage(npm, prefix, spec) ?: installedGenerator(prefix)
+        return if (directory != null) {
+            installDirectory(npm, prefix, directory)
+        } else {
+            installPackage(npm, prefix, spec) ?: installedGenerator(prefix)
+        }
+    }
+
+    /** Упаковывает каталог в prefix, ставит архив и удаляет его при любом исходе. */
+    private fun installDirectory(npm: String, prefix: String, directory: String): ToolchainInstallResult =
+        when (val packed = packDirectory(npm, prefix, directory)) {
+            is Packed.Failed -> packed.result
+            is Packed.Archive -> try {
+                installPackage(npm, prefix, packed.path) ?: installedGenerator(prefix)
+            } finally {
+                fileSystem.deleteFile(packed.path)
+            }
+        }
+
+    /** `npm pack --json --pack-destination <prefix> <каталог>`: путь созданного архива или ошибка. */
+    private fun packDirectory(npm: String, prefix: String, directory: String): Packed {
+        fileSystem.createDirectories(prefix)
+        val result = try {
+            processRunner.run(
+                ProcessRequest(
+                    executable = npm,
+                    args = listOf("pack", "--json", "--pack-destination", prefix, directory),
+                    workingDirectory = locator.workingDirectory(),
+                    inheritStdio = false,
+                ),
+            )
+        } catch (error: ProcessLaunchException) {
+            return Packed.Failed(ToolchainInstallResult.Failed("$npm cannot be started: ${error.message}"))
+        }
+        val archive = PACKED_FILENAME.find(result.output)?.groupValues?.get(1)
+            ?.let { fileSystem.resolve(prefix, it) }
+            ?.takeIf { result.exitCode == 0 && fileSystem.exists(it) }
+        return archive?.let(Packed::Archive) ?: Packed.Failed(
+            ToolchainInstallResult.Failed(
+                "npm pack $directory failed with exit code ${result.exitCode}: ${result.output.trim()}",
+            ),
+        )
+    }
+
+    /** Результат упаковки каталога. */
+    private sealed interface Packed {
+        data class Archive(val path: String) : Packed
+
+        data class Failed(val result: ToolchainInstallResult.Failed) : Packed
     }
 
     /** `npm install --global --prefix <prefix> <spec>` с выводом в терминал; `null` — установка прошла. */
@@ -74,5 +127,10 @@ public class WebToolchainInstaller internal constructor(
         } catch (error: ProcessLaunchException) {
             ToolchainInstallResult.Failed("$executable cannot be started: ${error.message}")
         }
+    }
+
+    private companion object {
+        /** Имя архива в JSON-выводе `npm pack --json`. */
+        val PACKED_FILENAME = Regex("\"filename\"\\s*:\\s*\"([^\"]+)\"")
     }
 }

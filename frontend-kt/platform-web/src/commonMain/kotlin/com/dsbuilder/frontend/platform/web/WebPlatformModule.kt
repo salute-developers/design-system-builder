@@ -20,5 +20,11 @@ public fun webPlatformModule(): Module = module {
         )
     }
     single { WebNpmDelegate(processRunner = get<ProcessRunner>(), locator = get<WebToolLocator>()) }
-    single { WebToolchainInstaller(processRunner = get<ProcessRunner>(), locator = get<WebToolLocator>()) }
+    single {
+        WebToolchainInstaller(
+            processRunner = get<ProcessRunner>(),
+            locator = get<WebToolLocator>(),
+            fileSystem = get<WorkspaceFileSystem>(),
+        )
+    }
 }

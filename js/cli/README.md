@@ -121,7 +121,9 @@ dsbuilder-web-generator --version
 2. Проверить архив: `npm pack --dry-run` (нет тестов, `.sdds`, `output`; есть `bin`, `src`, шаблоны
    и `src/generator/constants`) и `sh scripts/check-global-install.sh` — глобальная установка архива в
    отдельный prefix и генерация из постороннего каталога; с путём к `.sdds` в аргументе генерируется
-   дизайн-система целиком.
+   дизайн-система целиком. С `DSBUILDER=<путь к собранному dsbuilder>` скрипт ещё ставит распакованный
+   каталог пакета без `node_modules` через `dsbuilder toolchain install web --from <каталог>` с временным
+   `HOME` и генерирует установленным генератором.
 3. `npm publish` в `js/cli`: `prepublishOnly` запускает проверку типов и тесты, `publishConfig.access`
    равен `public`.
 

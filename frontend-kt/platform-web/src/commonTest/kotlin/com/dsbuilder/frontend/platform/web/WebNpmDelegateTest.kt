@@ -380,9 +380,16 @@ class WebNpmDelegateTest {
 }
 
 internal class FakeFileSystem(
-    private val existing: Set<String>,
+    existing: Set<String>,
     private val workingDirectory: String = "/project",
+    private val directories: Set<String> = emptySet(),
 ) : WorkspaceFileSystem {
+    /** Существующие файлы; тест может добавить файл, который «создал» процесс. */
+    val files: MutableSet<String> = existing.toMutableSet()
+
+    /** Удалённые файлы в порядке удаления. */
+    val deleted: MutableList<String> = mutableListOf()
+
     override fun currentWorkingDirectory(): String = workingDirectory
 
     override fun parent(path: String): String? = path.substringBeforeLast('/', "").takeIf { it.isNotEmpty() }
@@ -399,9 +406,9 @@ internal class FakeFileSystem(
 
     override fun absolutePath(path: String): String = path
 
-    override fun exists(path: String): Boolean = path in existing
+    override fun exists(path: String): Boolean = path in files || path in directories
 
-    override fun isDirectory(path: String): Boolean = false
+    override fun isDirectory(path: String): Boolean = path in directories
 
     override fun createDirectories(path: String) = Unit
 
@@ -417,5 +424,8 @@ internal class FakeFileSystem(
 
     override fun sink(path: String): BufferedSink = okio.Buffer()
 
-    override fun deleteFile(path: String) = Unit
+    override fun deleteFile(path: String) {
+        deleted += path
+        files -= path
+    }
 }

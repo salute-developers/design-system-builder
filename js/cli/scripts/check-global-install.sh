@@ -2,6 +2,8 @@
 # Проверка опубликованного вида генератора: `npm pack`, глобальная установка архива в отдельный prefix
 # (как `npm install -g`) и генерация из постороннего каталога без репозитория и без js/.env.
 # С `.sdds` в аргументе генерирует дизайн-систему целиком, иначе тему из встроенных минимальных данных.
+# С DSBUILDER=<путь к собранному dsbuilder> дополнительно ставит распакованный каталог пакета без
+# node_modules через `dsbuilder toolchain install web --from <каталог>` с временным HOME и генерирует им.
 set -eu
 
 CLI_DIR=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
@@ -38,3 +40,21 @@ for file in .gitignore .npmignore .npmrc tsconfig.json; do
     [ -f "$PROJECT/output/$file" ] || { echo "Generated package has no $file" >&2; exit 1; }
 done
 printf 'Generated %s with dsbuilder-web-generator %s\n' "$NAME" "$COMMAND"
+
+if [ -n "${DSBUILDER:-}" ]; then
+    # npm ставит каталог ссылкой без зависимостей; dsbuilder должен сам упаковать его перед установкой.
+    SOURCE="$WORK/unpacked"
+    mkdir -p "$SOURCE"
+    tar -xzf "$ARCHIVE" -C "$SOURCE"
+    [ ! -d "$SOURCE/package/node_modules" ] || { echo 'Unpacked package must not have node_modules' >&2; exit 1; }
+    HOME_DIR="$WORK/home"
+    mkdir -p "$HOME_DIR"
+    (cd "$PROJECT" && env -u DSBUILDER_WEB_TOOL HOME="$HOME_DIR" "$DSBUILDER" toolchain install web --from "$SOURCE/package")
+    INSTALLED="$HOME_DIR/.dsbuilder/toolchains/web/bin/dsbuilder-web-generator"
+    "$INSTALLED" --version
+    rm -rf "$PROJECT/output"
+    (cd "$PROJECT" && env -u NPM_PACKAGE_SCOPE "$INSTALLED" "$COMMAND" --package --name base)
+    [ "$(node -p "require('$PROJECT/output/package.json').name")" = "@sddsjs/base" ] || { echo 'Generation from the directory install failed' >&2; exit 1; }
+    ls "$HOME_DIR/.dsbuilder/toolchains/web" | grep -q '\.tgz$' && { echo 'Packed archive was not deleted' >&2; exit 1; }
+    printf 'Installed from a directory without node_modules with %s\n' "$DSBUILDER"
+fi

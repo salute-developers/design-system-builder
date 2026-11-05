@@ -102,7 +102,8 @@ class WebToolchainInstallerTest {
             processRunner = runner,
         )
 
-        val result = WebToolchainInstaller(runner, locator).install(ToolchainInstallRequest())
+        val result = WebToolchainInstaller(runner, locator, FakeFileSystem(emptySet(), "C:\\project"))
+            .install(ToolchainInstallRequest())
 
         assertEquals(windowsGenerator, assertIs<ToolchainInstallResult.Installed>(result).executable)
         assertEquals(windowsPrefix, requests.first().args[3])
@@ -126,6 +127,89 @@ class WebToolchainInstallerTest {
         assertTrue(message.contains("permission denied"), message)
     }
 
+    @Test
+    fun directoryIsPackedAndTheArchiveIsInstalledThenDeleted() {
+        val requests = mutableListOf<ProcessRequest>()
+        val source = "/work/generator"
+        val archive = "$prefix/sddsjs-design-system-builder-generator-0.1.0.tgz"
+        val fileSystem = FakeFileSystem(setOf(npm, generator), directories = setOf(source))
+        val runner = ProcessRunner { request ->
+            requests += request
+            when {
+                request.args.first() == "pack" -> {
+                    fileSystem.files += archive
+                    ProcessResult(
+                        0,
+                        "npm notice\n[{\"filename\": \"sddsjs-design-system-builder-generator-0.1.0.tgz\"}]",
+                    )
+                }
+                request.executable == generator -> ProcessResult(0, "0.1.0\n")
+                else -> ProcessResult(0, "")
+            }
+        }
+
+        val result = installer(runner, fileSystem = fileSystem).install(ToolchainInstallRequest(archive = source))
+
+        assertIs<ToolchainInstallResult.Installed>(result)
+        // Каталог npm поставил бы ссылкой без зависимостей: сначала архив, потом установка архива.
+        assertEquals(listOf("pack", "--json", "--pack-destination", prefix, source), requests[0].args)
+        assertTrue(!requests[0].inheritStdio)
+        assertEquals(listOf("install", "--global", "--prefix", prefix, archive), requests[1].args)
+        assertEquals(listOf(archive), fileSystem.deleted)
+    }
+
+    @Test
+    fun archiveIsDeletedWhenItsInstallationFails() {
+        val source = "/work/generator"
+        val archive = "$prefix/generator.tgz"
+        val fileSystem = FakeFileSystem(setOf(npm), directories = setOf(source))
+        val runner = ProcessRunner { request ->
+            if (request.args.first() == "pack") {
+                fileSystem.files += archive
+                ProcessResult(0, "[{\"filename\":\"generator.tgz\"}]")
+            } else {
+                ProcessResult(1, "")
+            }
+        }
+
+        val result = installer(runner, fileSystem = fileSystem).install(ToolchainInstallRequest(archive = source))
+
+        assertIs<ToolchainInstallResult.Failed>(result)
+        assertEquals(listOf(archive), fileSystem.deleted)
+    }
+
+    @Test
+    fun packFailureKeepsTheCodeAndInstallsNothing() {
+        val requests = mutableListOf<ProcessRequest>()
+        val source = "/work/generator"
+        val fileSystem = FakeFileSystem(setOf(npm), directories = setOf(source))
+        val runner = ProcessRunner { request ->
+            requests += request
+            ProcessResult(exitCode = 1, output = "npm error code ENOENT")
+        }
+
+        val result = installer(runner, fileSystem = fileSystem).install(ToolchainInstallRequest(archive = source))
+
+        val message = assertIs<ToolchainInstallResult.Failed>(result).message
+        assertTrue(message.contains("npm pack") && message.contains("exit code 1"), message)
+        assertEquals(1, requests.size)
+        assertTrue(fileSystem.deleted.isEmpty())
+    }
+
+    @Test
+    fun archiveFromOptionIsInstalledWithoutPacking() {
+        val requests = mutableListOf<ProcessRequest>()
+        val installer = installer(runner = npmAnswering(requests))
+
+        installer.install(ToolchainInstallRequest(archive = "/downloads/generator.tgz"))
+
+        assertEquals(
+            listOf("install", "--global", "--prefix", prefix, "/downloads/generator.tgz"),
+            requests.first().args,
+        )
+        assertTrue(requests.none { it.args.first() == "pack" })
+    }
+
     /** npm: установка успешна, `prefix -g` пуст; генератор отвечает версией. */
     private fun npmAnswering(requests: MutableList<ProcessRequest>, version: String = "0.1.0\n") =
         ProcessRunner { request ->
@@ -137,13 +221,14 @@ class WebToolchainInstallerTest {
         runner: ProcessRunner,
         existing: Set<String> = setOf(npm, generator),
         home: String? = "/home/me",
+        fileSystem: FakeFileSystem = FakeFileSystem(existing),
     ): WebToolchainInstaller {
         val environment = listOfNotNull("PATH" to "/usr/bin:/usr/local/bin", home?.let { "HOME" to it }).toMap()
         val locator = WebToolLocator(
-            fileSystem = FakeFileSystem(existing),
+            fileSystem = fileSystem,
             environmentReader = EnvironmentReader { environment[it] },
             processRunner = runner,
         )
-        return WebToolchainInstaller(processRunner = runner, locator = locator)
+        return WebToolchainInstaller(processRunner = runner, locator = locator, fileSystem = fileSystem)
     }
 }
