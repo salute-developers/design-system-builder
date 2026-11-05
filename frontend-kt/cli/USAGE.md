@@ -8,6 +8,25 @@
 Если вам нужна генерация под iOS, начните с короткой инструкции
 [«Генерация iOS: с чего начать»](./README-ios.md).
 
+## Требования
+
+Нативным сборкам `dsbuilder` для macOS и Windows ничего не нужно. Остальное зависит от того, что
+вы делаете:
+
+| Что | Нужно |
+| --- | --- |
+| JVM-сборка `dsbuilder` (Linux, CI) | Java 17+ |
+| Генерация React (`--platform react`) | Node.js 22+ и `npm` в `PATH` |
+| Генерация Android | JDK для `gradlew` проекта |
+| Генерация SwiftUI | macOS на Apple Silicon |
+
+Установщики `dsbuilder` после установки CLI ставят web-генератор для React командой
+`dsbuilder toolchain install web` в каталог `~/.dsbuilder/toolchains/web` — без `sudo` и без настройки
+npm. Без Node.js, без сети
+или при ошибке npm они выводят предупреждение и завершаются успешно: CLI установлен, а генератор
+можно поставить позже той же командой. Пропустить этот шаг — флаг `--without-web`
+(`-WithoutWeb` в PowerShell).
+
 ## Установка на macOS из release-архива
 
 Распакуйте архив и запустите установочный скрипт:
@@ -33,7 +52,8 @@ Intel Mac не запускается. Команда `dsbuilder toolchain insta
 ./install.sh --without-ios
 ```
 
-Обычный `./install.sh` из релизного arm64-архива устанавливает оба инструмента.
+Обычный `./install.sh` из релизного arm64-архива устанавливает оба инструмента. Флаги
+`--without-ios` и `--without-web` можно сочетать в любом порядке.
 
 Пути можно переопределить:
 
@@ -60,7 +80,7 @@ dsbuilder --version
 Распакуйте `dsbuilder-cli-windows-x64.zip` и запустите PowerShell в каталоге `dsbuilder-cli-windows-x64`:
 
 ```powershell
-./install.ps1
+./install.ps1                # или ./install.ps1 -WithoutWeb, чтобы не ставить web-генератор
 dsbuilder --help
 dsbuilder --version
 ```
@@ -75,7 +95,7 @@ dsbuilder --version
 {"command":"C:\\Users\\you\\AppData\\Local\\DSBuilder\\cli\\dsbuilder.exe","args":["mcp","serve","--workspace","C:\\work\\project"]}
 ```
 
-Для запуска самого CLI и встроенного MCP не нужны Java или Node.js. Команды генерации Android вызывают `gradlew.bat` проекта и требуют JDK; генерация React вызывает `npm.cmd` и требует Node.js. Генерация SwiftUI на Windows недоступна.
+Для запуска самого CLI и встроенного MCP не нужны Java или Node.js. Команды генерации Android вызывают `gradlew.bat` проекта и требуют JDK; генерация React вызывает `dsbuilder-web-generator.cmd` из `%USERPROFILE%\.dsbuilder\toolchains\web` и требует Node.js 22+. Генерация SwiftUI на Windows недоступна.
 
 ## User auth
 
@@ -602,7 +622,7 @@ Legacy-снимок `component-configs.json` команда больше не з
 ## Генерация кода дизайн-системы
 
 Код темы и компонентов генерирует инструмент платформы: Swift CLI для iOS, Gradle-плагин для
-Android, web-генератор `js/cli` репозитория DS Builder для React. CLI выбирает его по целевой
+Android, web-генератор `dsbuilder-web-generator` для React. CLI выбирает его по целевой
 платформе и передаёт пути рабочей копии.
 
 ```bash
@@ -631,14 +651,23 @@ dsbuilder theme generate -- --standalone --components
 
 ### React
 
-Web-генератор — npm-пакет `js/cli` внутри репозитория DS Builder, установщика у него нет. Путь к
-каталогу задаётся переменной `DSBUILDER_WEB_TOOL` или `--tool`; нужны Node.js и `npm` в `PATH`.
-Тема и компоненты генерируются раздельно (`npm run generate:theme` и `npm run generate:components`),
-`--output` становится `--out` генератора, остальное после `--` передаётся как есть. Без `--output`
-результат пишется в `output` рядом с `.sdds` проекта:
+Web-генератор — npm-пакет `@sddsjs/design-system-builder-generator` с командой
+`dsbuilder-web-generator`. Установщики `dsbuilder` ставят его сами; вручную — так:
 
 ```bash
-export DSBUILDER_WEB_TOOL=<путь к репозиторию>/design-system-builder/js/cli
+dsbuilder toolchain install web                 # последняя версия
+dsbuilder toolchain install web --version 0.1.0 # конкретная версия
+```
+
+Нужны Node.js 22+ и `npm` в `PATH`. Генератор ставится в каталог пользователя
+`~/.dsbuilder/toolchains/web` (`npm install --global --prefix`), поэтому права администратора и настройка
+npm не нужны, даже если глобальный каталог npm принадлежит root. `dsbuilder` ищет команду там, затем в
+`PATH`, затем в каталоге команд `npm prefix -g`: генератор, поставленный вручную через
+`npm install -g @sddsjs/design-system-builder-generator`, тоже подойдёт. Тема и компоненты генерируются раздельно, `--output` становится `--out`
+генератора, остальное после `--` передаётся как есть. Без `--output` результат пишется в
+`output` рядом с `.sdds` проекта:
+
+```bash
 dsbuilder theme generate --platform react --output ./web
 dsbuilder components generate --platform react --output ./web
 dsbuilder components generate --platform react -- --package --name base
@@ -647,7 +676,23 @@ dsbuilder components generate --platform react -- --package --name base
 Без `--package` каждая команда заменяет только свою часть `src`. С `--package` в `--output` пишется
 папка пакета одной части без сборки и архива: `package.json`, конфиги сборки, `scripts` и `src`;
 `src` заменяется целиком, `node_modules` и остальное содержимое каталога остаются. Собрать и
-упаковать папку — `npm install && npm pack` в ней. Подробности — в README `js/cli`.
+упаковать папку — `npm install && npm pack` в ней.
+
+Scope сгенерированного пакета — `@sddsjs` (пакет `@sddsjs/base`). Другой scope задаёт переменная
+окружения `NPM_PACKAGE_SCOPE`:
+
+```bash
+NPM_PACKAGE_SCOPE=@acme dsbuilder ds generate --platform react -- --package --name brand
+```
+
+```powershell
+$env:NPM_PACKAGE_SCOPE = '@acme'; dsbuilder ds generate --platform react -- --package --name brand
+```
+
+Для разработки генератора `dsbuilder` можно направить на каталог `js/cli` репозитория DS Builder:
+`--tool <путь>` или `DSBUILDER_WEB_TOOL=<путь>`. Явный путь важнее установленного генератора, а неверный
+путь — ошибка, а не переход к установленной версии. В этом режиме запускается `npm run generate:*`
+из каталога `js/cli`. Подробности — в README `js/cli`.
 
 ### Дизайн-система целиком
 
@@ -661,7 +706,7 @@ dsbuilder ds generate --platform react -- --package --name base
 (`--destination` уходит загрузке темы, `--to` и `--platform` — загрузке компонентов). Если тема не
 загрузилась, компоненты не загружаются, код возврата 1.
 
-`ds generate` одним вызовом делегата генерирует дизайн-систему целиком: тему и компоненты. Для React это `npm run generate:ds` — с `--package` он
+`ds generate` одним вызовом делегата генерирует дизайн-систему целиком: тему и компоненты. Для React это `dsbuilder-web-generator ds` (или `npm run generate:ds` с `DSBUILDER_WEB_TOOL`) — с `--package` он
 пишет папку одного пакета с темой и компонентами; имя пакета задаёт `--name` (обязательно с `--package`). Для Android запускаются таски темы и компонентов одним
 вызовом `gradlew`, для iOS — `theme generate`, затем `components generate`: общей команды у
 инструмента нет, при неудаче темы компоненты не запускаются.
@@ -685,10 +730,13 @@ dsbuilder toolchain doctor --tool ~/tools/dsbuilder-ios
 dsbuilder toolchain install ios
 dsbuilder toolchain install ios --version release-01-09-2026
 dsbuilder toolchain install ios --from ~/Downloads/dsbuilder-ios-cli-release-01-09-2026.zip
+dsbuilder toolchain install web
 ```
 
-Инструмент кладётся в `~/.dsbuilder/toolchains/<toolchain>/<версия>`, а симлинк `current`
-переставляется на неё; прежние версии остаются на диске. После установки ни `--tool`,
+Инструмент `ios` кладётся в `~/.dsbuilder/toolchains/<toolchain>/<версия>`, а симлинк `current`
+переставляется на неё; прежние версии остаются на диске. Инструмент `web` ставится npm в
+`~/.dsbuilder/toolchains/web` как в prefix (см. раздел «React»): версиями управляет npm, повторная
+установка заменяет пакет. `--from` для него принимает путь к `.tgz` или каталогу пакета. После установки ни `--tool`,
 ни переменные окружения не нужны — `doctor` и генерация находят инструмент сами.
 
 `--from` ставит готовый архив (путь или URL) и в сеть за релизом не ходит: так же ставят

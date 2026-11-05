@@ -106,7 +106,7 @@ internal class ToolchainInstallCliCommand(
     private val installToolchainUseCase: InstallToolchainUseCase,
 ) : CliktCommand(name = "install") {
     private val toolchain: String by argument("toolchain")
-        .help("Toolchain to install, for example 'ios'.")
+        .help("Toolchain to install: 'ios' or 'web' (the React generator, installed with npm install --global).")
 
     private val version: String? by option("--version")
         .help("Install this release instead of the latest one.")

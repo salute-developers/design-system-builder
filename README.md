@@ -216,7 +216,7 @@ DSBUILDER_JAVA_HOME=/path/to/jdk-17 ./setup-local.sh
 cp js/.env.example js/.env
 ```
 
-Для локального запуска `NPM_PACKAGE_SCOPE` по умолчанию равен `@sddsjs`. `NPM_TOKEN` JS-контуром не используется:
+`NPM_PACKAGE_SCOPE` необязательна: без неё генератор `js/cli` использует scope `@sddsjs`. `NPM_TOKEN` JS-контуром не используется:
 сервиса публикации npm-пакета в нём больше нет.
 
 Kotlin backend можно запускать отдельно, затем подготовить проект и глобальный Web API повторным bootstrap:

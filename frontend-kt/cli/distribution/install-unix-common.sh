@@ -1,5 +1,7 @@
 #!/bin/sh
 # Общая установка подготовленного дистрибутива. Вызывается локальными install.sh.
+# После установки CLI ставит web-генератор (`dsbuilder toolchain install web`), если не задан
+# DSBUILDER_WITHOUT_WEB=1: этот шаг нуждается в npm и сети и не отменяет установку CLI.
 set -eu
 
 SOURCE=$1
@@ -104,3 +106,12 @@ case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *) printf 'Add %s to PATH to use dsbuilder in a new terminal.\n' "$BIN_DIR" ;;
 esac
+if [ "${DSBUILDER_WITHOUT_WEB:-0}" = 1 ]; then
+    :
+elif ! command -v npm >/dev/null 2>&1; then
+    printf '%s\n' 'Warning: npm was not found, the React generator was not installed.' \
+        'Install Node.js 22+ and run: dsbuilder toolchain install web' >&2
+elif ! "$EXECUTABLE" toolchain install web; then
+    printf '%s\n' 'Warning: the React generator was not installed, see the output above.' \
+        'dsbuilder is installed. Retry with: dsbuilder toolchain install web' >&2
+fi

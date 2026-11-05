@@ -14,7 +14,7 @@ installed components package, and SHALL NOT request the backend.
 - **WHEN** developer runs `npm run generate:components`
 - **THEN** CLI MUST read `meta.json` and configuration files from `<sdds>/components`
 - **THEN** CLI MUST read `web-adapter.json` from `<sdds>/web`
-- **THEN** CLI MUST build the Style API mappings on every run from `@salutejs/plasma-new-hope` installed in `js/cli`, with the same code as `generate:api-meta`, and MUST NOT read `web-api-meta.json`
+- **THEN** CLI MUST build the Style API mappings on every run from `@salutejs/plasma-new-hope` installed together with the generator (in `js/cli` or in the global package), with the same code as `generate:api-meta`, and MUST NOT read `web-api-meta.json`
 - **THEN** CLI MUST NOT read `component-configs.json`
 - **THEN** `--components` and `--web` MUST override the directories
 
@@ -35,8 +35,9 @@ installed components package, and SHALL NOT request the backend.
 
 #### Scenario: Окружение генератора
 
-- **WHEN** developer runs `npm run generate:theme` or `npm run generate:components`
-- **THEN** CLI MUST load `js/.env` when it exists, so that `NPM_PACKAGE_SCOPE` reaches the generator
+- **WHEN** developer runs `npm run generate:theme`, `npm run generate:components` or `npm run generate:ds`
+- **THEN** CLI MUST load `js/.env` when it exists, but MUST NOT require it
+- **THEN** without `NPM_PACKAGE_SCOPE` the generator MUST use the scope `@sddsjs`
 - **THEN** `generate:api-meta` MUST NOT require any environment variables
 
 #### Scenario: Флаг без значений
@@ -255,8 +256,9 @@ CLI SHALL проверять имена тем из их `meta.json` до зап
 #### Scenario: Временный каталог сборки
 
 - **WHEN** CLI собирает пакет
-- **THEN** временный каталог MUST создаваться внутри `js/cli` и MUST NOT попадать в Git
-- **THEN** скрипт `lint` пакета MUST находить `eslint` в `js/cli/node_modules`
+- **THEN** временный каталог MUST создаваться в системном временном каталоге (`os.tmpdir()`), а не в каталоге генератора
+- **THEN** генерация MUST работать, когда каталог установленного генератора недоступен для записи
+- **THEN** временный каталог MUST удаляться после генерации, в том числе при ошибке
 
 ### Requirement: Брейкпоинты типографики из project config
 

@@ -7,19 +7,24 @@ import org.koin.core.module.Module
 import org.koin.dsl.module
 
 /**
- * Создаёт Koin module платформы React.
+ * Создаёт Koin module платформы React: делегат и установщик web-генератора.
  *
- * Делегат не попадает в реестр отсюда: его состав задаёт composition root клиента. Установщика
- * нет: web-генератор живёт в репозитории DS Builder, путь к нему задаётся явно.
+ * Делегат и установщик не попадают в реестры отсюда: их состав задаёт composition root клиента.
  */
 public fun webPlatformModule(): Module = module {
     single {
-        WebNpmDelegate(
+        WebToolLocator(
+            fileSystem = get<WorkspaceFileSystem>(),
+            environmentReader = get<EnvironmentReader>(),
             processRunner = get<ProcessRunner>(),
-            locator = WebToolLocator(
-                fileSystem = get<WorkspaceFileSystem>(),
-                environmentReader = get<EnvironmentReader>(),
-            ),
+        )
+    }
+    single { WebNpmDelegate(processRunner = get<ProcessRunner>(), locator = get<WebToolLocator>()) }
+    single {
+        WebToolchainInstaller(
+            processRunner = get<ProcessRunner>(),
+            locator = get<WebToolLocator>(),
+            fileSystem = get<WorkspaceFileSystem>(),
         )
     }
 }

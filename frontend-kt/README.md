@@ -148,7 +148,7 @@ dsbuilder --help
 
 `cli/build/distributions/dsbuilder-cli-windows-x64.zip` содержит `dsbuilder.exe`, `install.ps1` и `USAGE.md`.
 Пользователю Windows не нужны Java, Node.js или Gradle для базовых команд, авторизации и `mcp serve`.
-Генерация для Android через `gradlew.bat` требует установленный JDK; web-генерация через `npm.cmd` требует Node.js.
+Генерация для Android через `gradlew.bat` требует установленный JDK; web-генерация через `dsbuilder-web-generator.cmd` требует Node.js 22+ (ставится `dsbuilder toolchain install web` в `%USERPROFILE%\.dsbuilder\toolchains\web`).
 Для локального Docker-контура на Windows используйте [`setup-local.ps1`](../setup-local.ps1) с Docker Desktop.
 Этот сценарий не входит в архив CLI и не требует JDK или Node.js на Windows-хосте. iOS-инструмент на Windows недоступен.
 

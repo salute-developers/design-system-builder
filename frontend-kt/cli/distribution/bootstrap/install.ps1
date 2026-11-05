@@ -1,6 +1,7 @@
 param(
     [string]$Version,
-    [ValidateSet('windows-x64')][string]$Target = 'windows-x64'
+    [ValidateSet('windows-x64')][string]$Target = 'windows-x64',
+    [switch]$WithoutWeb
 )
 $ErrorActionPreference = 'Stop'
 $base = if ($env:CLI_DOWNLOAD_BASE_URL) { $env:CLI_DOWNLOAD_BASE_URL.TrimEnd('/') } else { '@CLI_DOWNLOAD_BASE_URL@' }
@@ -49,5 +50,5 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $package 'dsbuilder.exe') -PathType Leaf)) { throw 'Native binary missing' }
     $installer = Join-Path $package 'install.ps1'
     if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw 'Archive installer missing' }
-    & $installer
+    & $installer -WithoutWeb:$WithoutWeb
 } finally { Remove-Item -LiteralPath $work -Recurse -Force }

@@ -3,12 +3,17 @@ set -eu
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 VERSION=
 TARGET=
+# Флаги отказа передаются установщику из архива как есть.
+WITHOUT_IOS=
+WITHOUT_WEB=
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --version|--target)
             [ "$#" -ge 2 ] || fail "Missing value for $1"
             case "$1" in --version) VERSION=$2 ;; --target) TARGET=$2 ;; esac
             shift 2 ;;
+        --without-ios) WITHOUT_IOS=--without-ios; shift ;;
+        --without-web) WITHOUT_WEB=--without-web; shift ;;
         *) fail "Unknown option: $1" ;;
     esac
 done
@@ -91,4 +96,4 @@ if [ "$TARGET" = jvm ]; then
 else
     [ -f "$PACKAGE/dsbuilder" ] || fail 'Native binary missing'
 fi
-sh "$PACKAGE/install.sh"
+sh "$PACKAGE/install.sh" ${WITHOUT_IOS:+"$WITHOUT_IOS"} ${WITHOUT_WEB:+"$WITHOUT_WEB"}

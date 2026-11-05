@@ -5,14 +5,16 @@ import { generateThemes } from './generate-theme.ts';
 import { CORE_VERSION, cliDirectory, writePackagePart } from './package-output.ts';
 import { readThemeSetSource } from './theme-source.ts';
 import { resolveLocalThemes } from './local-theme-source.ts';
+import { isEntrypoint } from './entrypoint.ts';
 
 /**
  * Генерирует темы дизайн-системы из .sdds, без компонентов: все темы из `tenants` или одну с `--tenant`.
  * Без `--package` в `output` заменяется только `src/theme`; с `--package` в `output` пишется папка пакета
  * без сборки, в котором есть только тема, без компонентов. Компоненты генерирует `generate:components`. К бэкенду CLI не обращается.
  */
-async function main() {
+export async function main(args: string[] = process.argv.slice(2)) {
     const { values } = parseArgs({
+        args,
         options: {
             sdds: { type: 'string', default: join(cliDirectory, '.sdds') },
             tenant: { type: 'string' },
@@ -69,7 +71,9 @@ files and replaces src. Build it with npm install && npm run build, pack it with
     console.log(`Generated ${result}`);
 }
 
-main().catch((error) => {
-    console.error('Failed to generate theme:', error);
-    process.exitCode = 1;
-});
+if (isEntrypoint(import.meta.url)) {
+    main().catch((error) => {
+        console.error('Failed to generate theme:', error);
+        process.exitCode = 1;
+    });
+}

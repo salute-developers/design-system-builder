@@ -1,6 +1,23 @@
 {
-    "name": "@sdds/design-system-builder-cli",
+    "name": "@sddsjs/design-system-builder-generator",
+    "version": "0.1.0",
+    "description": "DS Builder web generator: React design-system package from local .sdds data",
+    "license": "MIT",
     "type": "module",
+    "bin": {
+        "dsbuilder-web-generator": "bin/dsbuilder-web-generator.js"
+    },
+    "files": [
+        "bin",
+        "src",
+        "!src/**/*.test.ts"
+    ],
+    "engines": {
+        "node": ">=22"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
     "scripts": {
         "generate:theme": "tsx --env-file-if-exists=../.env src/theme.ts",
         "generate:components": "tsx --env-file-if-exists=../.env src/components.ts",
@@ -8,7 +25,17 @@
         "generate:api-meta": "tsx src/generate-api-meta.ts",
         "test": "tsx --test src/*.test.ts",
         "typecheck": "tsc -p .",
-        "import:plasma": "tsx src/import-plasma-component.ts"
+        "import:plasma": "tsx src/import-plasma-component.ts",
+        "prepublishOnly": "npm run typecheck && npm test"
+    },
+    "dependencies": {
+        "@salutejs/plasma-new-hope": "^0.388.0",
+        "@salutejs/plasma-tokens-utils": "0.61.0",
+        "fs-extra": "^11.4.1",
+        "react": "18.2.0",
+        "react-dom": "18.2.0",
+        "tsx": "^4.23.15",
+        "typescript": "^5.9.3"
     },
     "devDependencies": {
         "@babel/cli": "^7.29.7",
@@ -22,20 +49,13 @@
         "@rollup/plugin-babel": "^6.1.0",
         "@rollup/plugin-node-resolve": "^15.3.1",
         "@rollup/pluginutils": "^5.4.0",
-        "@salutejs/plasma-new-hope": "^0.384.0-dev.0",
-        "@salutejs/plasma-tokens-utils": "0.61.0",
         "@types/fs-extra": "^11.0.4",
         "@types/node": "^22.20.5",
         "@types/react": "18.0.28",
         "babel-plugin-annotate-pure-calls": "^0.4.0",
         "babel-plugin-styled-components": "1.13.2",
-        "fs-extra": "^11.4.1",
-        "react": "18.2.0",
-        "react-dom": "18.2.0",
         "rollup": "^3.30.0",
-        "styled-components": "5.3.1",
-        "tsx": "^4.23.15",
-        "typescript": "^5.9.3"
+        "styled-components": "5.3.1"
     },
     "overrides": {
         "@salutejs/plasma-tokens-utils": {
