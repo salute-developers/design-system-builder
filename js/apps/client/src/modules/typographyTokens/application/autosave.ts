@@ -19,7 +19,8 @@ export interface TypographySaveStatus {
 }
 
 export interface TypographyAutosaveDeps {
-    repository: TypographyStyleRepository;
+    /** Очередь только меняет стили: описание пишется отдельно. */
+    repository: Pick<TypographyStyleRepository, 'update'>;
     context: TypographyContext;
     /** Изменилось состояние очереди. */
     onChange?: () => void;

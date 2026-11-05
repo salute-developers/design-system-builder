@@ -98,6 +98,8 @@ export interface ColorTokenRepository {
         input: MoveColorTokenInput,
         editRevision: number,
     ): Promise<{ editRevision: number; value: ColorTokenFamilyDto; structure?: ColorTokenStructure }>;
+    /** Меняет описание определения токена (`PATCH /tokens/{id}`); описание общее для дизайн-системы. */
+    describe(context: ColorTokenContext, tokenId: string, description: string): Promise<void>;
 }
 
 export type ColorTokenErrorKind = 'conflict' | 'forbidden' | 'invalid' | 'not-found' | 'network';

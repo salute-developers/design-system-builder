@@ -17,7 +17,7 @@ export const definedEntries = <K extends string, V>(record: Partial<Record<K, V>
         .map((key) => [key, record?.[key]] as [K, V | undefined])
         .filter((entry): entry is [K, V] => entry[1] !== undefined);
 
-/** Группы прототипа в порядке дерева и борда. */
+/** Системные группы в порядке дерева и борда: не переименовываются и не удаляются; свои группы идут после них. */
 export const TYPOGRAPHY_GROUPS: ReadonlyArray<{ id: string; label: string }> = [
     { id: 'display', label: 'Display' },
     { id: 'header', label: 'Header' },
@@ -55,9 +55,74 @@ export const styleKey = (style: Pick<TypographyStyle, 'group' | 'size'>) => `${s
 export const groupLabel = (group: string) =>
     TYPOGRAPHY_GROUPS.find((item) => item.id === group)?.label ?? group.charAt(0).toUpperCase() + group.slice(1);
 
-/** Название стиля: заголовки — `H1`, остальные — `Body M`. */
-export const styleLabel = (style: Pick<TypographyStyle, 'group' | 'size'>) =>
-    style.group === 'header' ? style.size.toUpperCase() : `${groupLabel(style.group)} ${style.size.toUpperCase()}`;
+/** Системная ли группа: Display, Header, Body и Text. */
+export const isSystemGroup = (group: string) => TYPOGRAPHY_GROUPS.some((item) => item.id === group);
+
+/**
+ * Название стиля — его имя в группе, без группы, как у радиуса: шкала размеров и заголовки — заглавными (`M`, `XL`,
+ * `H1`), остальное как есть (`promo-title`).
+ */
+export const styleLabel = (style: Pick<TypographyStyle, 'size'>) =>
+    /^(x*[sml]|h\d+)$/.test(style.size) ? style.size.toUpperCase() : style.size;
+
+/** Полное название стиля для сообщений и поиска: `Body M`, `Caption promo-title`. */
+export const styleTitle = (style: Pick<TypographyStyle, 'group' | 'size'>) =>
+    `${groupLabel(style.group)} ${styleLabel(style)}`;
+
+/**
+ * Имя нового или переименованного стиля из ввода: латиница в нижнем регистре, цифры и дефис между ними; пробелы
+ * становятся дефисами, остальное отбрасывается.
+ */
+export const normalizeStyleSize = (input: string) =>
+    input
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+
+/** Имя группы из ввода: латиница в нижнем регистре, остальное отбрасывается. */
+export const normalizeGroupName = (input: string) =>
+    input
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z]/g, '');
+
+/**
+ * Имя новой или переименованной группы из ввода или текст ошибки: пустое, длиннее 32 знаков, `dspl` (так генератор
+ * называет Display) или группа, которая уже есть; группа [except] (переименовываемая) не мешает.
+ */
+export const groupNameRequest = (
+    input: string,
+    groups: ReadonlyArray<string>,
+    except?: string,
+): { name: string } | { error: string } => {
+    const name = normalizeGroupName(input);
+    if (!name || name.length > 32) return { error: 'Имя группы — латиница до 32 букв, например caption.' };
+    if (name === 'dspl') return { error: 'Имя dspl занято: так пакет называет группу Display.' };
+    if (name !== except && (isSystemGroup(name) || groups.includes(name)))
+        return { error: `Группа ${groupLabel(name)} уже есть в теме.` };
+    return { name };
+};
+
+/**
+ * Размер стиля группы [group] из ввода или текст ошибки: пустой размер или стиль, который уже есть на одном из
+ * экранов; стиль [except] (переименовываемый) не мешает.
+ */
+export const styleSizeRequest = (
+    group: string,
+    input: string,
+    styles: ReadonlyArray<Pick<TypographyStyle, 'group' | 'size'>>,
+    except?: string,
+): { size: string } | { error: string } => {
+    const size = normalizeStyleSize(input);
+    if (!size) return { error: 'Имя стиля — латиница, цифры и дефис, например xl или promo-title.' };
+    const key = styleKey({ group, size });
+    if (key !== except && styles.some((style) => styleKey(style) === key))
+        return { error: `Стиль ${styleTitle({ group, size })} уже есть в теме.` };
+    return { size };
+};
 
 export const sampleText = (group: string) => SAMPLES[group] ?? 'Системный текстовый стиль';
 
@@ -68,7 +133,7 @@ export const screenLabel = (screen: TypographyScreen) =>
 export const screenStyles = (styles: TypographyStyles | null, screen: TypographyScreen) =>
     styles?.screens.find((item) => item.screen === screen)?.styles ?? [];
 
-/** Стили экрана по группам прототипа; группы вне прототипа — в конце в порядке появления. */
+/** Стили экрана по группам: системные, затем свои в порядке появления. */
 export const groupStyles = (styles: TypographyStyle[], query = '') => {
     const search = query.trim().toLowerCase();
     const known = TYPOGRAPHY_GROUPS.map((group) => group.id);
@@ -80,10 +145,25 @@ export const groupStyles = (styles: TypographyStyle[], query = '') => {
             styles: styles.filter(
                 (style) =>
                     style.group === group &&
-                    (!search || `${groupLabel(group)} ${styleLabel(style)}`.toLowerCase().includes(search)),
+                    (!search || `${styleTitle(style)} ${style.size}`.toLowerCase().includes(search)),
             ),
         }))
         .filter((group) => group.styles.length > 0);
+};
+
+/**
+ * Группы экрана для дерева и борда: группы прототипа показываются всегда, у группы без стилей — пустой список
+ * («Не настроено в текущей теме»). Если на экране нет ни одного стиля, групп нет: раздел пуст.
+ */
+export const screenGroups = (styles: TypographyStyle[]) => {
+    if (!styles.length) return [];
+    const configured = groupStyles(styles);
+    const known = TYPOGRAPHY_GROUPS.map(({ id, label }) => ({
+        id,
+        label,
+        styles: configured.find((group) => group.id === id)?.styles ?? [],
+    }));
+    return [...known, ...configured.filter((group) => !known.some((item) => item.id === group.id))];
 };
 
 /** Объединяет правки одного стиля: поздние значения заменяют ранние, веса объединяются. */
@@ -228,7 +308,7 @@ export const styleValueRevisions = (styles: TypographyStyles) =>
 
 /** Экран и стиль токена `<экран>.<группа>.<размер>.<начертание>` или `null` вне правила стиля. */
 export const parseStyleTokenName = (name: string): { screen: TypographyScreen; key: string } | null => {
-    const match = /^(screen-[sml])\.([a-z]+)\.([a-z0-9]+)\.(normal|medium|bold)$/.exec(name);
+    const match = /^(screen-[sml])\.([a-z]+)\.([a-z0-9]+(?:-[a-z0-9]+)*)\.(normal|medium|bold)$/.exec(name);
     return match ? { screen: match[1] as TypographyScreen, key: `${match[2]}.${match[3]}` } : null;
 };
 

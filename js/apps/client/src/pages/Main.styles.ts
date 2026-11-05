@@ -19,7 +19,6 @@ export const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode }>`
 
 export const EditorBody = styled.div`
     position: relative;
-    z-index: 1;
     display: flex;
     flex: 1;
     min-width: 0;
@@ -37,15 +36,15 @@ export const EditorCanvas = styled.div`
 export const Separator = styled.div`
     width: 1.5rem;
     height: 0.03125rem;
-    margin: 0 0.25rem;
-    background: var(--outline-transparent-primary);
+    margin: 0 0.125rem;
+    background: #3d3f42;
 `;
 
 export const MainItems = styled.div`
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.125rem;
+    gap: 0.25rem;
 `;
 
 export const BuilderExpandedItems = styled.div`

@@ -34,7 +34,7 @@ const editorSectionLabels: Record<string, string> = {
     palette: 'Палитра',
     colors: 'Цветовые токены',
     typography: 'Типографика',
-    shapes: 'Размеры и радиусы',
+    shapes: 'Отступы, радиусы и тени',
     components: 'Компоненты',
     changes: 'Журнал изменений',
     versions: 'Версии',
@@ -69,6 +69,9 @@ export const Main = () => {
     );
     const editorSection = currentPath[editorContext ? 6 : 3];
     const editorSectionLabel = editorSectionLabels[editorSection] ?? 'Редактор';
+    /** Экраны токенов и палитра сами показывают загрузку скелетонами и ошибку загрузки с «Повторить». */
+    const ownsSectionStates =
+        Boolean(editorContext) && ['palette', 'colors', 'typography', 'shapes'].includes(editorSection);
     const sectionSelection = useMemo(
         () => ({
             section: toEditorSection(editorSection),
@@ -104,7 +107,6 @@ export const Main = () => {
         lastSavedAt,
         retryAutosave,
         refreshChanges,
-        loadComponent,
     } = useDesignSystem(editorContext, true, sectionSelection);
 
     // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
@@ -130,7 +132,7 @@ export const Main = () => {
         editorContext,
         tokenDefinitions,
         summaryCursor,
-        Boolean(designSystem) && ['shapes', 'typography'].includes(editorSection),
+        Boolean(designSystem) && ['colors', 'shapes', 'typography'].includes(editorSection),
     );
     const journalHasTotal = journalOpen && !editorJournal.error && editorJournal.total !== undefined;
     const summaryNeeded =
@@ -221,6 +223,8 @@ export const Main = () => {
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('colors') ? 'is-active' : ''}`}
                                         data-testid="editor-nav-colors"
+                                        aria-label={editorSectionLabels.colors}
+                                        title={editorSectionLabels.colors}
                                         selected={currentPath.includes('colors')}
                                         onClick={() => onClickPanelButton('colors')}
                                     >
@@ -229,6 +233,8 @@ export const Main = () => {
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('typography') ? 'is-active' : ''}`}
                                         data-testid="editor-nav-typography"
+                                        aria-label={editorSectionLabels.typography}
+                                        title={editorSectionLabels.typography}
                                         selected={currentPath.includes('typography')}
                                         onClick={() => onClickPanelButton('typography')}
                                     >
@@ -237,6 +243,8 @@ export const Main = () => {
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('shapes') ? 'is-active' : ''}`}
                                         data-testid="editor-nav-shapes"
+                                        aria-label={editorSectionLabels.shapes}
+                                        title={editorSectionLabels.shapes}
                                         selected={currentPath.includes('shapes')}
                                         onClick={() => onClickPanelButton('shapes')}
                                     >
@@ -247,6 +255,8 @@ export const Main = () => {
                                             <StyledIconButton
                                                 className={`builder-rail-button ${currentPath.includes('components') ? 'is-active' : ''}`}
                                                 data-testid="editor-nav-components"
+                                                aria-label={editorSectionLabels.components}
+                                                title={editorSectionLabels.components}
                                                 selected={currentPath.includes('components')}
                                                 onClick={() => onClickPanelButton('components')}
                                             >
@@ -261,6 +271,7 @@ export const Main = () => {
                                         selected={currentPath.includes('changes')}
                                         onClick={() => onClickPanelButton('changes')}
                                         aria-label="Изменения дизайн-системы"
+                                        title="Изменения дизайн-системы"
                                     >
                                         <img className="builder-rail-icon" src={railChangesIcon} alt="" />
                                     </StyledIconButton>
@@ -270,6 +281,7 @@ export const Main = () => {
                                         selected={currentPath.includes('versions')}
                                         onClick={() => onClickPanelButton('versions')}
                                         aria-label="Версии дизайн-системы"
+                                        title="Версии дизайн-системы"
                                     >
                                         <img className="builder-rail-icon" src={railVersionsIcon} alt="" />
                                     </StyledIconButton>
@@ -297,6 +309,7 @@ export const Main = () => {
                             projectName={designSystem?.getParameters()?.projectName ?? 'Проект'}
                             projectId={projectId}
                             ariaLabel="Навигация темы"
+                            rootless
                             loading={isEditorLoading}
                             breadcrumbSegments={[
                                 {
@@ -345,7 +358,7 @@ export const Main = () => {
                                                 />
                                             )}
                                         <JournalButton
-                                            className="primary"
+                                            className="primary editor-changes-button"
                                             type="button"
                                             style={{
                                                 gap: 6,
@@ -367,7 +380,7 @@ export const Main = () => {
                     </>
                 ) : null}
                 <EditorCanvas>
-                    {isSectionSwitching || isEditorLoading || sectionLoading ? (
+                    {!ownsSectionStates && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
                         <div
                             className="editor-section-loading"
                             role="status"
@@ -375,7 +388,7 @@ export const Main = () => {
                         >
                             <EditorLoadingSpinner aria-hidden="true" />
                         </div>
-                    ) : sectionError ? (
+                    ) : sectionError && !ownsSectionStates ? (
                         <div role="alert">
                             Не удалось загрузить раздел{' '}
                             <button type="button" onClick={reload}>
@@ -407,7 +420,9 @@ export const Main = () => {
                                 editorJournal: { ...editorJournal, reloadChecked: reloadJournalAfterRevert },
                                 changedTokenNames,
                                 refreshChanges,
-                                loadComponent,
+                                sectionError,
+                                // Тема ещё не загружена целиком: экраны токенов и палитра показывают свои скелетоны.
+                                sectionPending: isSectionSwitching || isEditorLoading || sectionLoading,
                             }}
                         />
                     )}

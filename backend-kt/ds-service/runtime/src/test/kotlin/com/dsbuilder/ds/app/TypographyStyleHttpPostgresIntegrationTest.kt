@@ -68,6 +68,8 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 editStyles(api, db, designSystemId, tenantA, tenantB, base, read)
                 rejectEdits(api, db, designSystemId, tenantA, base, read)
                 publishedBoundary(api, db, designSystemId, tenantA, base)
+                structure(api, db, designSystemId, base)
+                groups(api, db, designSystemId, base)
             }
         }
     }
@@ -95,6 +97,85 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 "WHERE design_system_id = '$designSystemId' AND value = 'screen-l.body.l.medium'",
         )
         assertEquals("1", db.text(invariants))
+    }
+
+    /**
+     * Создание, переименование и удаление стиля: девять токенов, значения ближайшего размера, текстовые ссылки
+     * компонентов идут за переименованием по `token_id`, права удаления.
+     */
+    private suspend fun structure(api: Api, db: Db, designSystemId: String, base: String) {
+        val created = api.reject("POST", base, OWNER, """{"group":"body","size":"xl"}""", 201)
+        assertEquals(9, created.array("tokenIds").size)
+        // Ответ создания — стиль на каждом экране в формате чтения.
+        assertEquals(SCREENS.size, created.array("screens").size)
+        assertEquals("xl", created.array("screens")[0].array("styles").single().text("size"))
+        var read = api.read(base, VIEWER)
+        assertEquals(
+            style(read, "screen-l", "body", "l").decimal("sizePx"),
+            style(read, "screen-l", "body", "xl").decimal("sizePx"),
+        )
+        api.reject("POST", base, OWNER, """{"group":"body","size":"xl"}""", 409)
+        api.reject("POST", base, OWNER, """{"group":"dspl","size":"m"}""", 400)
+        api.reject("POST", base, OWNER, """{"group":"body","size":"x_l"}""", 400)
+
+        val usage = style(read, "screen-m", "body", "xs").array("components")
+        assertTrue(usage.isNotEmpty())
+        val xsToken = style(read, "screen-s", "body", "xs").obj("variants").obj("normal").text("tokenId")
+        val bound = activeRevisionTestSql("SELECT count(*) FROM variation_property_values WHERE token_id = '$xsToken'")
+        val before = db.text(bound).toInt()
+        api.patch("$base/$xsToken/name", EDITOR, """{"size":"tiny"}""")
+        read = api.read(base, VIEWER)
+        assertEquals(usage, style(read, "screen-m", "body", "tiny").array("components"))
+        assertTrue(db.text(bound).toInt() > before)
+        assertFalse(hasStyle(read, "body", "xs"))
+
+        // Комбинации стилей ссылаются на удаляемый стиль текстом и по `token_id`. Текстовую ссылку переименование
+        // привязывает по `token_id`, сохраняя текст; после удаления обе ссылки пустые, а не имя стиля.
+        val medium = style(read, "screen-s", "body", "xl").obj("variants").obj("medium").text("tokenId")
+        val combinations = listOf(
+            db.addCombination(designSystemId, "body.xl.normal"),
+            db.addCombination(designSystemId, "body.xl.medium", medium, slot = 1),
+        )
+        api.patch("$base/$medium/name", EDITOR, """{"size":"xxl"}""")
+        val renamed = combinations.map { db.combination(it) }
+        assertTrue(renamed.all { it.second != null }, renamed.toString())
+        assertEquals(listOf("body.xl.normal", "body.xl.medium"), renamed.map { it.first })
+        read = api.read(base, VIEWER)
+        val xxl = style(read, "screen-l", "body", "xxl").obj("variants").obj("bold").text("tokenId")
+        api.reject("DELETE", "$base/$xxl", EDITOR, null, 403)
+        assertEquals(9, api.reject("DELETE", "$base/$xxl", OWNER, null, 200).array("tokenIds").size)
+        read = api.read(base, VIEWER)
+        assertFalse(hasStyle(read, "body", "xxl"))
+        assertEquals(listOf("" to null, "" to null), combinations.map { db.combination(it) })
+    }
+
+    /**
+     * Свои группы: появляются с первым стилем с произвольным именем, переименовываются и удаляются целиком;
+     * системные — нет. Ссылка с экраном (`screen-l.body.l.medium`) идёт за переименованием по токену своего экрана.
+     */
+    private suspend fun groups(api: Api, db: Db, designSystemId: String, base: String) {
+        val l = style(api.read(base, VIEWER), "screen-l", "body", "l").obj("variants").obj("medium").text("tokenId")
+        api.patch("$base/$l/name", EDITOR, """{"size":"large"}""")
+        val screenBound = activeRevisionTestSql(
+            "SELECT count(*) FROM invariant_property_values WHERE design_system_id = '$designSystemId' " +
+                "AND token_id = '$l'",
+        )
+        assertEquals("1", db.text(screenBound))
+
+        api.reject("POST", base, OWNER, """{"group":"caption","size":"promo-title"}""", 201)
+        var read = api.read(base, VIEWER)
+        assertTrue(hasStyle(read, "caption", "promo-title"))
+        val groups = "/api/ds/tenants/${base.split('/')[4]}/typography-groups"
+        api.reject("PATCH", "$groups/body", EDITOR, """{"name":"copy"}""", 400)
+        api.reject("PATCH", "$groups/caption", EDITOR, """{"name":"body"}""", 409)
+        api.reject("PATCH", "$groups/caption", EDITOR, """{"name":"note"}""", 200)
+        read = api.read(base, VIEWER)
+        assertFalse(hasStyle(read, "caption", "promo-title"))
+        assertTrue(hasStyle(read, "note", "promo-title"))
+        api.reject("DELETE", "$groups/note", EDITOR, null, 403)
+        assertEquals(9, api.reject("DELETE", "$groups/note", OWNER, null, 200).array("tokenIds").size)
+        api.reject("DELETE", "$groups/text", OWNER, null, 400)
+        assertFalse(hasStyle(api.read(base, VIEWER), "note", "promo-title"))
     }
 
     /** Чтение: стили по экранам в px, семейства, использование, редакции значений и право правки. */
@@ -297,6 +378,11 @@ class TypographyStyleHttpPostgresIntegrationTest {
         assertEquals("1.25rem", db.field(tenantA, designSystemId, "screen-l.body.m.medium", "web", "fontSize"))
     }
 
+    private fun hasStyle(styles: JsonObject, group: String, size: String): Boolean =
+        styles.array("screens").any { screen ->
+            screen.array("styles").any { it.text("group") == group && it.text("size") == size }
+        }
+
     private fun style(styles: JsonObject, screen: String, group: String, size: String): JsonObject =
         styles.array("screens").single { it.text("screen") == screen }.array("styles")
             .single { it.text("group") == group && it.text("size") == size }
@@ -471,6 +557,54 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 connection.commit()
             }
         }
+
+        /**
+         * Новая комбинация стилей в черновике со значением [value] и ссылкой [tokenId] у свойства значения вариации
+         * дизайн-системы номер [slot]; результат — идентификатор комбинации.
+         */
+        fun addCombination(designSystemId: String, value: String, tokenId: String? = null, slot: Int = 0): String {
+            val source = activeRevisionTestSql(
+                "SELECT property_id || ',' || style_id || ',' || appearance_id || ',' || state_set_id " +
+                    "FROM variation_property_values WHERE design_system_id = '$designSystemId' " +
+                    "ORDER BY id LIMIT 1 OFFSET $slot",
+            )
+            val (property, style, appearance, stateSet) = text(source).split(',')
+            val draft = text(
+                "SELECT id || ',' || sequence_number FROM design_system_versions " +
+                    "WHERE design_system_id = '$designSystemId' AND status = 'draft'",
+            ).split(',')
+            val combination = UUID.randomUUID().toString()
+            val member = UUID.randomUUID().toString()
+            DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                connection.autoCommit = false
+                connection.createStatement().use {
+                    it.execute(
+                        """
+                        INSERT INTO style_combinations(id, property_id, appearance_id, design_system_id)
+                            VALUES ('$combination', '$property', '$appearance', '$designSystemId');
+                        INSERT INTO style_combination_revisions(style_combination_id, design_system_id,
+                            design_system_version_id, version_sequence_number, combination_key, value, token_id,
+                            position, state_set_id)
+                            VALUES ('$combination', '$designSystemId', '${draft[0]}', ${draft[1]}, '$style',
+                                '$value', ${tokenId?.let { "'$it'" } ?: "NULL"}, 0, '$stateSet');
+                        INSERT INTO style_combination_members(id, combination_id, design_system_id)
+                            VALUES ('$member', '$combination', '$designSystemId');
+                        INSERT INTO style_combination_member_revisions(style_combination_member_id, design_system_id,
+                            design_system_version_id, version_sequence_number, style_id)
+                            VALUES ('$member', '$designSystemId', '${draft[0]}', ${draft[1]}, '$style');
+                        """.trimIndent(),
+                    )
+                }
+                connection.commit()
+            }
+            return combination
+        }
+
+        /** Текст и `token_id` последней редакции комбинации [combination]. */
+        fun combination(combination: String): Pair<String, String?> = query(
+            "SELECT value, token_id FROM style_combination_revisions WHERE style_combination_id = '$combination' " +
+                "ORDER BY version_sequence_number DESC, updated_at DESC LIMIT 1",
+        ) { rows -> rows.next().let { rows.getString(1) to rows.getString(2) } }
 
         /** Использование стиля [style] по выборке из действующих значений свойств компонентов дизайн-системы. */
         fun usage(designSystemId: String, style: String, tokenId: String): Map<String, Int> {

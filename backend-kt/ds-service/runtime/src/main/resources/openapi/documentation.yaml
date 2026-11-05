@@ -2589,6 +2589,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       x-permission: tenants:read
+    post:
+      tags:
+        - Typography styles
+      summary: Create a typography style with nine variant tokens in every theme
+      description: >-
+        Требует tenants:write и tokens:write. Создаёт в активном черновике стиль group.size — девять токенов
+        screen-(s|m|l).group.size.(normal|medium|bold) — со значениями ближайшего размера той же группы во всех темах
+        (в пустой группе — body.m с семейством fontFamily.group, если оно есть). Группа — системная (display, header,
+        body, text) или своя: a-z до 32 знаков, кроме dspl; новая группа появляется с первым стилем. Имя стиля
+        произвольное: a-z, 0-9 и дефис между ними. Ответ — идентификаторы токенов и стиль на каждом экране в формате
+        чтения. Повтор с тем же Idempotency-Key возвращает сохранённый ответ. Мутация с versionId отклоняется
+        historical_version_read_only.
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTypographyStyleRequest'
+      responses:
+        '201':
+          description: Tokens of the created style and the style on every screen in the read format
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedTypographyStyle'
+        '400':
+          description: Invalid request or name (INVALID_TOKEN_NAME with details.field group or size)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: TOKEN_NAME_CONFLICT — a token of the style already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
   /api/ds/tenants/{tenantId}/typography-styles/{tokenId}:
     patch:
       tags:
@@ -2669,6 +2739,269 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       x-permission: tenants:write
+    delete:
+      tags:
+        - Typography styles
+      summary: Delete a typography style with its nine tokens in every theme
+      description: >-
+        Требует tenants:write и tokens:delete. По любому токену стиля логически удаляет в активном черновике девять
+        токенов стиля со значениями; ссылки компонентов на стиль, в том числе текстом без экрана (body.m.normal),
+        становятся пустыми. Опубликованные версии сохраняют данные; отмена — через журнал изменений.
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      responses:
+        '200':
+          description: Tokens of the deleted style
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TypographyStyleTokens'
+        '400':
+          description: Invalid request or the token is not a typography style token (INVALID_TYPOGRAPHY_STYLE)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/typography-styles/{tokenId}/name:
+    patch:
+      tags:
+        - Typography styles
+      summary: Rename a typography style within its group
+      description: >-
+        Требует tenants:write и tokens:write. По любому токену стиля меняет имя стиля (size) в именах девяти токенов;
+        группа не меняется, идентификаторы токенов сохраняются. Текстовые ссылки компонентов на стиль привязываются
+        по token_id: без экрана (body.m.normal) — к токену screen-s своего начертания, с экраном
+        (screen-l.body.m.normal) — к токену этого экрана; учитываются вариации, инварианты и комбинации стилей.
+        Выгрузка конфигурации отдаёт для них имя без экрана.
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameTypographyStyleRequest'
+      responses:
+        '200':
+          description: Tokens of the renamed style
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TypographyStyleTokens'
+        '400':
+          description: Invalid request or size (INVALID_TOKEN_NAME), not a typography style token (INVALID_TYPOGRAPHY_STYLE)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: TOKEN_NAME_CONFLICT — a token of the style already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/typography-groups/{group}:
+    patch:
+      tags:
+        - Typography styles
+      summary: Rename an own typography group with all its styles
+      description: >-
+        Требует tenants:write и tokens:write. Меняет группу в именах токенов всех стилей своей группы; имена стилей и
+        идентификаторы токенов сохраняются. Системные группы display, header, body и text не переименовываются
+        (SYSTEM_TYPOGRAPHY_GROUP). Текстовые ссылки компонентов на стили группы привязываются по token_id, как при
+        переименовании стиля.
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: group
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameTypographyGroupRequest'
+      responses:
+        '200':
+          description: Tokens of the renamed group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TypographyStyleTokens'
+        '400':
+          description: Invalid group name (INVALID_TOKEN_NAME) or a system group (SYSTEM_TYPOGRAPHY_GROUP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: TOKEN_NAME_CONFLICT — the group or a token of its styles already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+    delete:
+      tags:
+        - Typography styles
+      summary: Delete an own typography group with all its styles
+      description: >-
+        Требует tenants:write и tokens:delete. Логически удаляет в активном черновике токены всех стилей своей группы
+        со значениями; ссылки компонентов на них, в том числе текстовые, становятся пустыми. Системные группы не
+        удаляются (SYSTEM_TYPOGRAPHY_GROUP).
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: group
+          in: path
+      responses:
+        '200':
+          description: Tokens of the deleted group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TypographyStyleTokens'
+        '400':
+          description: A system group (SYSTEM_TYPOGRAPHY_GROUP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
   /api/ds/tenants/{tenantId}/size-tokens:
     get:
       tags:
@@ -2723,7 +3056,7 @@ paths:
     post:
       tags:
         - Size tokens
-      summary: Create a radius, a spacing or a shadow size (four variants) with values in every theme
+      summary: Create a radius, a spacing or a shadow with values in every theme
       description: >-
         Требует tenants:write и tokens:write. Создаёт в активном черновике предметные редакции определений и значений
         во всех темах дизайн-системы с overridden false. Уникальность имени проверяется среди действующих токенов под
@@ -2760,7 +3093,7 @@ paths:
           description: >-
             Invalid request (invalid_body, invalid_idempotency_key, idempotency_key_too_long,
             historical_version_read_only), token name (INVALID_TOKEN_NAME with details.field name) or value
-            (INVALID_SIZE_VALUE with details.field such as valuePx, variants or variants[0].layers[0].color and
+            (INVALID_SIZE_VALUE with details.field such as valuePx or layers[0].color and
             message, including «Ступени нет в палитре темы.»)
           content:
             application/json:
@@ -2868,10 +3201,10 @@ paths:
     delete:
       tags:
         - Size tokens
-      summary: Delete a radius or spacing token, or a whole shadow size, with values in every theme
+      summary: Delete a radius, spacing or shadow token with values in every theme
       description: >-
-        Требует tenants:write и tokens:delete. Логически удаляет в активном черновике токен, а у тени — все четыре
-        варианта размера, со значениями во всех темах (deleted = true); ссылки компонентов на них становятся пустыми.
+        Требует tenants:write и tokens:delete. Логически удаляет в активном черновике токен со значениями во всех
+        темах (deleted = true); ссылки компонентов на него становятся пустыми.
         Опубликованные версии сохраняют данные; отмена — через журнал изменений. Тело не нужно. Мутация с versionId
         отклоняется historical_version_read_only.
       parameters:
@@ -2914,6 +3247,83 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+    patch:
+      tags:
+        - Size tokens
+      summary: Rename a radius, spacing or shadow token
+      description: >-
+        Требует tenants:write и tokens:write. Переименовывает токен в активном черновике: name — часть после round.
+        или spacing. у радиуса и отступа, имя целиком у тени (части через точку). Идентификатор токена сохраняется;
+        текстовые ссылки компонентов на прежнее имя привязываются к токену по token_id. Полное скругление
+        round.circle не переименовывается. Отмена — через журнал изменений. Мутация с versionId отклоняется
+        historical_version_read_only.
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RenameSizeTokenRequest'
+      responses:
+        '200':
+          description: Renamed token in the read format
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SizeTokenRenamed'
+        '400':
+          description: >-
+            Invalid request (invalid_body, historical_version_read_only), token name (INVALID_TOKEN_NAME with
+            details.field name), token outside of the section or full rounding (INVALID_SIZE_TOKEN)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >-
+            TOKEN_NAME_CONFLICT — the name is taken or, for a shadow, gives the same package variable as another
+            shadow (down.soft.m and down-soft-m)
           content:
             application/json:
               schema:
@@ -8609,6 +9019,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
+  /api/ds/design-systems/{id}/changes/revert:
+    post:
+      tags:
+        - Design Systems
+      summary: Revert several current draft changes atomically
+      description: |
+        Reverts complete journal entries in one transaction, in the order of changes (newest first).
+        expectedRevision values come from one journal snapshot and are checked against the state before the batch:
+        every entry must exist with its expected editRevision, otherwise nothing is reverted.
+        A revert inside the batch may itself bump or remove a later entry of the same batch
+        (for example, a color token value revert recomputes the family type of the token definition);
+        such an entry is reverted at its current revision or skipped when it no longer differs.
+        The first failure rolls the whole batch back and returns the error of that entry with the same codes as
+        the single revert; conflicts carry the zero-based position of the entry in details.changeIndex.
+        One Idempotency-Key covers the batch; its payload is every changeId and expectedRevision in order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevertDraftChanges'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: All entries reverted
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: >-
+            Invalid body, REVERT_BATCH_EMPTY, REVERT_BATCH_TOO_LARGE (more than 200 entries)
+            or REVERT_BATCH_DUPLICATE_CHANGE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Design system or one of the entries is not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Stale journal entry or dependency conflict; details.changeIndex names the failed entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Complete journal exceeds the supported safety limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: design-systems:write
   /api/ds/design-systems/{id}/changes/{changeId}/revert:
     post:
       tags:
@@ -12689,6 +13167,32 @@ components:
             pattern: ^/value(?:/|$)
           example:
             - /value/fontSize
+    RevertDraftChanges:
+      type: object
+      additionalProperties: false
+      required:
+        - changes
+      properties:
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 200
+          description: Entries in revert order, newest first; changeId values are unique.
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - changeId
+              - expectedRevision
+            properties:
+              changeId:
+                type: string
+                format: uuid
+              expectedRevision:
+                type: integer
+                format: int64
+                minimum: 0
+                description: editRevision of the entry from the same journal snapshot.
     TypographyStyles:
       type: object
       properties:
@@ -12868,6 +13372,62 @@ components:
       required:
         - name
         - count
+    CreateTypographyStyleRequest:
+      type: object
+      properties:
+        group:
+          type: string
+          description: System group (display, header, body, text) or an own group; a new group appears with its first style
+          pattern: ^[a-z]{1,32}$
+        size:
+          type: string
+          description: Style name within the group
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+      required:
+        - group
+        - size
+    RenameTypographyStyleRequest:
+      type: object
+      properties:
+        size:
+          type: string
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+      required:
+        - size
+    RenameTypographyGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: ^[a-z]{1,32}$
+      required:
+        - name
+    CreatedTypographyStyle:
+      type: object
+      properties:
+        tokenIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        screens:
+          type: array
+          description: The new style on every screen in the read format
+          items:
+            $ref: "#/components/schemas/TypographyScreen"
+      required:
+        - tokenIds
+        - screens
+    TypographyStyleTokens:
+      type: object
+      properties:
+        tokenIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+        - tokenIds
     UpdateTypographyStyleRequest:
       type: object
       additionalProperties: false
@@ -13331,7 +13891,8 @@ components:
     CreateSizeTokenRequest:
       type: object
       description: >-
-        valuePx for a radius or spacing; variants with down.soft, down.hard, up.soft and up.hard for a shadow size.
+        valuePx for a radius or spacing; layers and fallbackElevation for a shadow. A shadow name is arbitrary:
+        the token gets the name as is (card), a radius and a spacing get the round. and spacing. prefix.
       properties:
         kind:
           type: string
@@ -13341,37 +13902,23 @@ components:
             - shadow
         name:
           type: string
-          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
-          description: Last name segment, e.g. xxxl for round.xxxl or xl for a shadow size
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$
+          description: >-
+            Last name segment for round.xxxl or spacing.14x (no dots); the whole name of a shadow, segments
+            separated by dots, e.g. card or elevated.focus. A shadow whose name differs from an existing shadow only
+            by dots and hyphens (down.soft.m and down-soft-m) is a TOKEN_NAME_CONFLICT: both give one package variable
         valuePx:
           type: integer
-        variants:
+        layers:
           type: array
-          minItems: 4
+          minItems: 1
           maxItems: 4
           items:
-            type: object
-            properties:
-              variant:
-                type: string
-                enum:
-                  - down.soft
-                  - down.hard
-                  - up.soft
-                  - up.hard
-              layers:
-                type: array
-                minItems: 1
-                maxItems: 4
-                items:
-                  $ref: '#/components/schemas/SizeShadowLayerInput'
-              fallbackElevation:
-                type: integer
-                minimum: 0
-                maximum: 24
-            required:
-              - variant
-              - layers
+            $ref: '#/components/schemas/SizeShadowLayerInput'
+        fallbackElevation:
+          type: integer
+          minimum: 0
+          maximum: 24
       required:
         - kind
         - name
@@ -13392,6 +13939,29 @@ components:
       required:
         - kind
         - created
+    RenameSizeTokenRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)*$
+          description: Last name segment for a radius or spacing (no dots); the whole name of a shadow
+      required:
+        - name
+    SizeTokenRenamed:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - radius
+            - spacing
+            - shadow
+        token:
+          $ref: '#/components/schemas/SizeToken'
+      required:
+        - kind
+        - token
     SizeTokenDeleted:
       type: object
       properties:

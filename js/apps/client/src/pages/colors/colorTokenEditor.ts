@@ -249,6 +249,7 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
             updateValues: (...args) => repository.updateValues(...args),
             delete: (...args) => repository.delete(...args),
             move: (...args) => repository.move(...args),
+            describe: (...args) => repository.describe(...args),
         },
         context,
         revision: {
@@ -801,6 +802,26 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             session.autosave.forget(tokenId(view.key));
             await refreshStructure(session, true, confirmation);
             return tokenId({ group: family.group, name: family.name });
+        },
+
+        /** Определения семейства токена: режимы, подтемы и состояния с их именами. */
+        family(view: ColorTokenView) {
+            return [...session.definitions].filter(([name]) => {
+                const parsed = parseMemberName(name);
+                return parsed?.group === view.key.group && parsed.name === view.key.name;
+            });
+        },
+
+        /**
+         * Описание токена общее для семейства: сохраняется во всех определениях семейства (режимы, подтемы,
+         * состояния) и сразу показывается в теме без перезагрузки.
+         */
+        async describe(view: ColorTokenView, description: string) {
+            const ids = this.family(view).map(([, definition]) => definition.id);
+            if (!ids.length) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
+            for (const id of ids) await repository.describe(session.context, id, description);
+            familyTokens(theme().theme, view.key).forEach((token) => token.setDescription(description));
+            notify(session);
         },
 
         /** Удаляет токен на сервере и убирает его определения из темы. */

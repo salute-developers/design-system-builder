@@ -1,6 +1,9 @@
 import {
+    editableName,
     notifySession,
     reloadSizeTokens,
+    renameRequest,
+    SizeTokenOperationError,
     tokenSaveStatus,
     tokenValue,
     withValue,
@@ -54,14 +57,26 @@ export const createSizeTokenEditor = (session: SizeTokenSession) => {
             notifySession(session);
         },
 
-        /** Создаёт радиус, отступ или размер тени после отправки очереди. */
+        /** Создаёт радиус, отступ или тень после отправки очереди. */
         async create(request: CreateSizeTokenRequest): Promise<SizeToken[]> {
             if (readOnly()) return [];
             const result = await session.autosave.run({ type: 'create', request });
             return result.type === 'create' ? result.created : [];
         },
 
-        /** Удаляет токен (у тени — размер целиком) после отправки очереди. */
+        /**
+         * Переименовывает токен после отправки очереди; [input] — правимая часть имени. Ошибка ввода или отказ
+         * сервера бросаются с текстом для поля.
+         */
+        async rename(token: SizeToken, input: string) {
+            if (readOnly()) return;
+            const result = renameRequest(token, input, session.data?.tokens ?? []);
+            if ('error' in result) throw new SizeTokenOperationError('invalid', result.error);
+            if (result.name === editableName(token)) return;
+            await session.autosave.run({ type: 'rename', tokenId: token.tokenId, name: result.name });
+        },
+
+        /** Удаляет токен после отправки очереди. */
         async remove(token: SizeToken) {
             if (readOnly()) return;
             await session.autosave.run({ type: 'delete', tokenId: token.tokenId });

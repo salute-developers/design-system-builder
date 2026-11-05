@@ -1,4 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { SearchOutline } from '@salutejs/sdds-icons/16';
+
+import { SEARCH_EMPTY_TEXT } from '../../../components/tokenWorkspace';
 
 import {
     groupRampName,
@@ -42,12 +45,23 @@ export const ColorLibrary = ({ palette, tokenName, active, onPick }: LibraryProp
     }, [palette, tokenName]);
     const needle = query.trim().toLowerCase();
     const visible = rows.filter((row) => !needle || `${row.name} ${row.ramp.shade}`.toLowerCase().includes(needle));
+    // Выбранная ступень видна при открытии вкладки: список прокручивается к ней, окно и панель — нет.
+    const list = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        const container = list.current;
+        const item = container?.querySelector<HTMLElement>('.cp-preset.is-active');
+        if (!container || !item) return;
+        const top = item.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+        if (top < container.scrollTop || top + item.offsetHeight > container.scrollTop + container.clientHeight)
+            container.scrollTop = Math.max(0, top - (container.clientHeight - item.offsetHeight) / 2);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- только при открытии и смене палитры
+    }, [rows]);
     return (
-        <div className="cp-library cp-source-library">
+        <div className="cp-library">
             <div className="cp-library-search">
-                {/* Поле как поиск раздела «Палитра» и дерева токенов (`.source-palette-family-search`). */}
-                <label className="source-palette-family-search cp-library-search-field">
-                    <span aria-hidden="true">⌕</span>
+                {/* Поле поиска `Builder/SearchField`, как в шапке дерева токенов. */}
+                <label className="tw-search-field">
+                    <SearchOutline aria-hidden="true" />
                     <input
                         value={query}
                         placeholder="Найти"
@@ -56,10 +70,10 @@ export const ColorLibrary = ({ palette, tokenName, active, onPick }: LibraryProp
                     />
                 </label>
             </div>
-            <div className="cp-library-list">
+            <div className="cp-library-list" ref={list}>
                 {visible.map(({ ramp, name, steps }) => (
                     <section key={`${ramp.type}.${ramp.shade}`} className="cp-library-group">
-                        <h3>{name.replace(/\s+/g, '-').toLowerCase()}</h3>
+                        <h3>{name}</h3>
                         <div className="cp-library-swatches">
                             {steps.map(({ step, hex }) =>
                                 hex ? (
@@ -83,7 +97,11 @@ export const ColorLibrary = ({ palette, tokenName, active, onPick }: LibraryProp
                         </div>
                     </section>
                 ))}
-                {visible.length === 0 && <p className="cp-library-empty">В Palette пока нет доступных палитр.</p>}
+                {visible.length === 0 && (
+                    <p className="cp-library-empty">
+                        {rows.length ? SEARCH_EMPTY_TEXT : 'В Palette пока нет доступных палитр.'}
+                    </p>
+                )}
             </div>
         </div>
     );

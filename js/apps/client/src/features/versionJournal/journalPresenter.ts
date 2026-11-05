@@ -27,7 +27,7 @@ export const journalSources: Array<{
     },
     {
         id: 'sizes',
-        label: 'Размеры и радиусы',
+        label: 'Отступы, радиусы и тени',
     },
     {
         id: 'components',

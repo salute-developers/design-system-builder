@@ -35,6 +35,7 @@ const repository = {
     updateValues: vi.fn<ColorTokenRepository['updateValues']>(),
     delete: vi.fn<ColorTokenRepository['delete']>(),
     move: vi.fn<ColorTokenRepository['move']>(),
+    describe: vi.fn<ColorTokenRepository['describe']>(),
 };
 
 /** Сессия темы с токеном `text.accent` и его состояниями `-hover` и `-active`. */

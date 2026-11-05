@@ -3,6 +3,7 @@ package com.dsbuilder.ds.tokens.data
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftSubjectChange
 import com.dsbuilder.ds.core.application.TokenRevertListener
+import com.dsbuilder.ds.core.data.DraftRevertBatch
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import kotlinx.serialization.json.JsonObject
@@ -168,19 +169,24 @@ private fun tokenValueDraftChangeHandler(listeners: List<TokenRevertListener>): 
     }
 }
 
-/** Выполняет откат [revert] и после успеха — действия слушателей, подготовленные до отката. */
+/**
+ * Выполняет откат [revert] и после успеха — действия слушателей, подготовленные до отката. В пакетном откате
+ * ([DraftRevertBatch]) действия по одному токену выполняются один раз в конце пакета.
+ */
 private fun notifyingRevert(
     listeners: List<TokenRevertListener>,
     designSystemId: UUID?,
     tokenId: UUID?,
     revert: () -> Boolean,
 ): Boolean {
-    val after = if (designSystemId == null || tokenId == null) {
-        emptyList()
-    } else {
-        listeners.map { it.beforeRevert(designSystemId, tokenId) }
+    if (designSystemId == null || tokenId == null) return revert()
+    // Действие по токену, уже отложенное пакетом, подготовлено по состоянию до первого отката: второе не нужно.
+    val after = listeners.map { listener -> Triple(listener, designSystemId, tokenId) }
+        .filterNot(DraftRevertBatch::isDeferred)
+        .map { key -> key to key.first.beforeRevert(designSystemId, tokenId) }
+    return revert().also { reverted ->
+        if (reverted) after.forEach { (key, action) -> if (!DraftRevertBatch.defer(key, action)) action() }
     }
-    return revert().also { reverted -> if (reverted) after.forEach { it() } }
 }
 
 /** Откат значения к основе создания темы, если она есть, иначе удаление черновой редакции. */

@@ -1241,5 +1241,21 @@ describe('Editor repositories', () => {
             ]),
         ).rejects.toThrow('Сервер не подтвердил поддержку');
         expect(post).toHaveBeenCalledTimes(calls);
+
+        post.mockResolvedValueOnce({ data: { ok: true } });
+        await versionJournalRepository.revertChanges(context, [
+            change,
+            { ...change, changeId: 'change-2', editRevision: 7 },
+        ]);
+        expect(post).toHaveBeenLastCalledWith(
+            '/api/projects/project-1/ds/design-systems/ds-1/changes/revert',
+            {
+                changes: [
+                    { changeId: 'change-1', expectedRevision: 4 },
+                    { changeId: 'change-2', expectedRevision: 7 },
+                ],
+            },
+            { headers: { 'Idempotency-Key': expect.any(String) } },
+        );
     });
 });

@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.util.UUID
 
 /**
- * Значения свойств компонентов дизайн-системы, похожие на ссылку на стиль типографии: текст значения вариаций и
- * инвариантов или имя токена типографии из `token_id`. Значения, стили компонентов и токены разрешаются по
+ * Значения свойств компонентов дизайн-системы, похожие на ссылку на стиль типографии: текст значения вариаций,
+ * инвариантов и комбинаций стилей или имя токена типографии из `token_id`. Значения, стили компонентов и токены разрешаются по
  * последней предметной редакции на границе транзакции — выбранной опубликованной версии или активного черновика —
  * по тому же правилу, что `ResolvedRevisionTable` модуля компонентов.
  */
@@ -18,6 +18,9 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
         resolved("variation_property_values", "variation_property_value", ", entity.style_id", VALUE_FIELDS)
     private val invariantValues =
         resolved("invariant_property_values", "invariant_property_value", ", entity.component_id", VALUE_FIELDS)
+    private val combinationValues =
+        resolved("style_combinations", "style_combination", ", entity.appearance_id", VALUE_FIELDS)
+    private val appearances = resolved("appearances", "appearance", ", entity.component_id", "latest.name")
     private val componentStyles = resolved("styles", "style", ", entity.variation_id", "latest.name")
     private val typographyTokens = resolved("tokens", "token", "", "latest.name, latest.type")
 
@@ -25,6 +28,8 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
         val sql = """
             WITH variation_values AS ($variationValues),
                  invariant_values AS ($invariantValues),
+                 combination_values AS ($combinationValues),
+                 live_appearances AS ($appearances),
                  component_styles AS ($componentStyles),
                  typography_tokens AS ($typographyTokens)
             SELECT c.name AS component,
@@ -44,11 +49,20 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
               LEFT JOIN typography_tokens t ON t.id = v.token_id AND t.type = 'typography'
              WHERE v.design_system_id = ?
                AND $REFERENCE_FILTER
+            UNION ALL
+            SELECT c.name AS component,
+                   CASE WHEN v.token_id IS NULL THEN v.value ELSE t.name END AS reference
+              FROM combination_values v
+              JOIN live_appearances a ON a.id = v.appearance_id
+              JOIN components c ON c.id = a.component_id
+              LEFT JOIN typography_tokens t ON t.id = v.token_id AND t.type = 'typography'
+             WHERE v.design_system_id = ?
+               AND $REFERENCE_FILTER
         """.trimIndent()
         val id = UUIDColumnType() to designSystemId
         return TransactionManager.current().exec(
             sql,
-            listOf(id, id, id, id, id, id),
+            List(REFERENCE_PARAMETERS) { id },
             explicitStatementType = StatementType.SELECT,
         ) { rows ->
             buildList {
@@ -58,6 +72,32 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
                 }
             }
         }.orEmpty()
+    }
+
+    override suspend fun textReferences(designSystemId: UUID, values: Set<String>): Map<String, Set<UUID>> {
+        if (values.isEmpty()) return emptyMap()
+        // Тексты ссылок — имена стилей из правила имени (`a-z`, `0-9`, точки), кавычки экранируются на всякий случай.
+        val list = values.sorted().joinToString { "'" + it.replace("'", "''") + "'" }
+        val sql = """
+            WITH variation_values AS ($variationValues),
+                 invariant_values AS ($invariantValues),
+                 combination_values AS ($combinationValues)
+            SELECT v.id, v.value FROM variation_values v WHERE v.token_id IS NULL AND v.value IN ($list)
+            UNION ALL
+            SELECT v.id, v.value FROM invariant_values v WHERE v.token_id IS NULL AND v.value IN ($list)
+            UNION ALL
+            SELECT v.id, v.value FROM combination_values v WHERE v.token_id IS NULL AND v.value IN ($list)
+        """.trimIndent()
+        val id = UUIDColumnType() to designSystemId
+        return TransactionManager.current().exec(
+            sql,
+            listOf(id, id, id),
+            explicitStatementType = StatementType.SELECT,
+        ) { rows ->
+            buildList {
+                while (rows.next()) add(rows.getString("value") to UUID.fromString(rows.getString("id")))
+            }
+        }.orEmpty().groupBy({ it.first }, { it.second }).mapValues { (_, ids) -> ids.toSet() }
     }
 
     /**
@@ -88,7 +128,7 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
 
     private companion object {
         /** Предварительный отбор текста значений; точный разбор — в домене. */
-        const val REFERENCE = """^(screen-[sml]\.)?[a-z]+\.[a-z0-9]+\.(normal|medium|bold)$"""
+        const val REFERENCE = """^(screen-[sml]\.)?[a-z]+\.[a-z0-9]+(-[a-z0-9]+)*\.(normal|medium|bold)$"""
 
         /**
          * Значение — ссылка на стиль: текст по правилу [REFERENCE] или `token_id` токена типографии. Ссылки на токены
@@ -96,6 +136,9 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
          */
         const val REFERENCE_FILTER = "((v.token_id IS NULL AND v.value ~ '$REFERENCE') " +
             "OR v.token_id IN (SELECT id FROM typography_tokens WHERE type = 'typography'))"
+
+        /** Параметры запроса использования: по одному на каждый CTE и каждую ветку объединения. */
+        const val REFERENCE_PARAMETERS = 9
 
         /** Поля редакции значения свойства, которые нужны запросу использования. */
         const val VALUE_FIELDS = "latest.token_id, latest.value"

@@ -45,6 +45,7 @@ import com.dsbuilder.ds.themes.application.palette.UpdateTenantPaletteStepUseCas
 import com.dsbuilder.ds.themes.application.sizetokens.CreateSizeTokenUseCase
 import com.dsbuilder.ds.themes.application.sizetokens.DeleteSizeTokenUseCase
 import com.dsbuilder.ds.themes.application.sizetokens.GetSizeTokensUseCase
+import com.dsbuilder.ds.themes.application.sizetokens.RenameSizeTokenUseCase
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenRepository
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUsageRepository
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUseCases
@@ -55,7 +56,12 @@ import com.dsbuilder.ds.themes.application.tokengroups.ListTokenGroupsUseCase
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupUseCases
 import com.dsbuilder.ds.themes.application.tokengroups.UpdateTokenGroupUseCase
+import com.dsbuilder.ds.themes.application.typography.CreateTypographyStyleUseCase
+import com.dsbuilder.ds.themes.application.typography.DeleteTypographyGroupUseCase
+import com.dsbuilder.ds.themes.application.typography.DeleteTypographyStyleUseCase
 import com.dsbuilder.ds.themes.application.typography.GetTypographyStylesUseCase
+import com.dsbuilder.ds.themes.application.typography.RenameTypographyGroupUseCase
+import com.dsbuilder.ds.themes.application.typography.RenameTypographyStyleUseCase
 import com.dsbuilder.ds.themes.application.typography.TypographyStyleRepository
 import com.dsbuilder.ds.themes.application.typography.TypographyStyleUseCases
 import com.dsbuilder.ds.themes.application.typography.TypographyUsageRepository
@@ -145,16 +151,22 @@ val themesModule = module {
     factory { UpdateTokenGroupUseCase(get(), get(), get(), get()) }
     factory { DeleteTokenGroupUseCase(get(), get(), get(), get()) }
     factory { TokenGroupUseCases(get(), get(), get(), get()) }
-    single<SizeTokenRepository> { ExposedSizeTokenRepository(getAll()) }
+    single<SizeTokenRepository> { ExposedSizeTokenRepository(getAll(), getAll()) }
     single<SizeTokenUsageRepository> { ExposedSizeTokenUsageRepository() }
     factory { GetSizeTokensUseCase(get(), get(), get(), get(), get()) }
     factory { UpdateSizeTokenValueUseCase(get(), get(), get(), get(), get()) }
     factory { CreateSizeTokenUseCase(get(), get(), get(), get(), get(), get()) }
     factory { DeleteSizeTokenUseCase(get(), get(), get()) }
-    factory { SizeTokenUseCases(get(), get(), get(), get()) }
-    single<TypographyStyleRepository> { ExposedTypographyStyleRepository() }
+    factory { RenameSizeTokenUseCase(get(), get(), get(), get(), get(), get()) }
+    factory { SizeTokenUseCases(get(), get(), get(), get(), get()) }
+    single<TypographyStyleRepository> { ExposedTypographyStyleRepository(getAll(), getAll()) }
     single<TypographyUsageRepository> { ExposedTypographyUsageRepository() }
     factory { GetTypographyStylesUseCase(get(), get(), get(), get()) }
     factory { UpdateTypographyStyleUseCase(get(), get(), get()) }
-    factory { TypographyStyleUseCases(get(), get()) }
+    factory { CreateTypographyStyleUseCase(get(), get(), get(), get()) }
+    factory { RenameTypographyStyleUseCase(get(), get(), get(), get(), get()) }
+    factory { DeleteTypographyStyleUseCase(get(), get(), get(), get()) }
+    factory { RenameTypographyGroupUseCase(get(), get(), get(), get(), get()) }
+    factory { DeleteTypographyGroupUseCase(get(), get(), get(), get()) }
+    factory { TypographyStyleUseCases(get(), get(), get(), get(), get(), get(), get()) }
 }

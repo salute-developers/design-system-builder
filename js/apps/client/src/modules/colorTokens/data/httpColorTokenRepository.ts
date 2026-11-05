@@ -11,6 +11,7 @@ import { subjectMutation, subjectMutationHeaders } from '../../../api/subjectMut
 
 import { tokenValueBaseRevision } from '../../../api/subjectRevisions';
 import { normalizedColorValue } from '../../../api/colorValue';
+import { apiRoot } from '../../../api/editorHttp';
 
 const confirmedValues = (
     context: ColorTokenContext,
@@ -191,4 +192,16 @@ export const createHttpColorTokenRepository = (): ColorTokenRepository => ({
                 ),
             ),
         ),
+    describe: async (context, tokenId, description) => {
+        await call(() =>
+            subjectMutation(context, () =>
+                http.patch(
+                    `${apiRoot(context.projectId)}/tokens/${encodeURIComponent(tokenId)}`,
+                    // Пустое описание сервер хранит как `null`, как у «Типографики» и «Размеров».
+                    { description: description || null },
+                    { headers: subjectMutationHeaders() },
+                ),
+            ),
+        );
+    },
 });

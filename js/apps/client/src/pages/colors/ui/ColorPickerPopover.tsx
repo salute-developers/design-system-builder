@@ -1,4 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import {
+    ChevronDownOutline,
+    CloseOutline,
+    CopyOutline,
+    GradientColorOutline,
+    MinusOutline,
+    PlusOutline,
+    SquareOutline,
+} from '@salutejs/sdds-icons/16';
 
 import {
     formatWebLayer,
@@ -23,17 +32,7 @@ import { formatPaletteReference, parsePaletteReference, type ThemePalette } from
 import { ColorLibrary, type LibraryPick } from './ColorLibrary';
 import { useWrittenHsva } from './useWrittenHsva';
 import { ColorSvPanel } from './ColorSvPanel';
-import {
-    hexToHsva,
-    hexToRgba,
-    hslToRgb,
-    hsvaToHex,
-    hsvToRgb,
-    rgbaToHex,
-    rgbToHsl,
-    rgbToHsv,
-    type Hsva,
-} from './colorMath';
+import { hexToRgba, hslToRgb, hsvaToHex, hsvToRgb, rgbaToHex, rgbToHsl, rgbToHsv, type Hsva } from './colorMath';
 import { alphaSwatchStyle } from './swatch';
 
 type Format = 'hex' | 'rgb' | 'hsl';
@@ -98,39 +97,69 @@ const useOutsideClose = (ref: React.RefObject<HTMLElement>, onClose: () => void,
     }, [ref, onClose, except, active]);
 };
 
-/** Панель Solid / Gradient (`colorPickerPaintToolbar`): переключатель меняет вид этого значения. */
-const PaintToolbar = ({ kind, onKind }: { kind: ValueKind | null; onKind?: (kind: ValueKind) => void }) => (
-    <div className="cp-tool-row" role="group" aria-label="Fill type">
-        <div>
+/**
+ * Переключатель вида значения цвет / градиент в шапке окна: меняет вид только этого значения. Отдельной строки
+ * значков и отключённого вида заливки «Изображение» нет — в Figma их нет, а действий у них не было.
+ */
+const KindSwitch = ({ kind, onKind }: { kind: ValueKind; onKind?: (kind: ValueKind) => void }) =>
+    onKind ? (
+        <div className="cp-kind" role="group" aria-label="Fill type">
             <button
                 type="button"
-                className={kind === 'color' ? 'is-active' : ''}
+                className="tw-icon-button"
                 aria-label="Solid"
+                title="Цвет"
                 aria-pressed={kind === 'color'}
-                disabled={!onKind}
-                onClick={() => onKind?.('color')}
+                onClick={() => onKind('color')}
             >
-                ▣
+                <SquareOutline />
             </button>
             <button
                 type="button"
-                className={kind === 'gradient' ? 'is-active' : ''}
+                className="tw-icon-button"
                 aria-label="Gradient"
+                title="Градиент"
                 aria-pressed={kind === 'gradient'}
-                disabled={!onKind}
-                onClick={() => onKind?.('gradient')}
+                onClick={() => onKind('gradient')}
             >
-                ◇
-            </button>
-            <button type="button" disabled aria-label="Image">
-                ◒
+                <GradientColorOutline />
             </button>
         </div>
-        <div>
-            <span>⊕</span>
-            <span>●</span>
-            <span>▥</span>
-        </div>
+    ) : null;
+
+/** Кнопка закрытия окна выбора цвета. */
+const CloseButton = ({ label = 'Закрыть', onClose }: { label?: string; onClose: () => void }) => (
+    <button type="button" className="tw-icon-button cp-close" aria-label={label} title={label} onClick={onClose}>
+        <CloseOutline />
+    </button>
+);
+
+/** Вкладки окна `Tab item`: «Вручную» и «Библиотека». */
+const Tabs = <T extends string>({
+    tabs,
+    active,
+    onTab,
+    autofocus = true,
+}: {
+    tabs: Array<[T, string]>;
+    active: T;
+    onTab?: (tab: T) => void;
+    autofocus?: boolean;
+}) => (
+    // Вкладки — кнопки с отметкой выбранной: окна выбора цвета экранов «Цвета» и «Размеры» ищут их по роли кнопки.
+    <div className="cp-tabs" role="group" aria-label="Вкладки">
+        {tabs.map(([id, label]) => (
+            <button
+                key={id}
+                type="button"
+                aria-pressed={active === id}
+                className={active === id ? 'is-active' : ''}
+                data-autofocus={(autofocus && active === id) || undefined}
+                onClick={() => onTab?.(id)}
+            >
+                {label}
+            </button>
+        ))}
     </div>
 );
 
@@ -148,7 +177,12 @@ const Notes = ({ notes }: { notes?: string[] }) =>
 const parseNumber = (value: string) => Number.parseFloat(value.replace('%', '').replace('°', ''));
 const angle360 = (value: number) => ((Math.round(value) % 360) + 360) % 360;
 
-/** Поля формата Hex, RGB или HSL и прозрачности. */
+const FORMAT_LABELS: Record<Format, string> = { hex: 'Hex', rgb: 'RGB', hsl: 'HSL' };
+
+/**
+ * Строка формата `ColorPicker/FormatTrigger`: переключатель Hex / RGB / HSL, поле HEX с копированием в буфер
+ * обмена или три поля каналов, затем прозрачность в процентах.
+ */
 const FormatRow = ({
     hsva,
     format,
@@ -156,8 +190,8 @@ const FormatRow = ({
     onCommit,
 }: {
     hsva: Hsva;
-    format: Format | null;
-    onFormat?: (format: Format) => void;
+    format: Format;
+    onFormat: (format: Format) => void;
     onCommit: (value: Hsva) => void;
 }) => {
     const rgb = hsvToRgb(hsva);
@@ -193,24 +227,43 @@ const FormatRow = ({
             className={className}
             defaultValue={value}
             aria-label={label}
+            spellCheck={false}
             onFocus={(event) => event.currentTarget.select()}
             onBlur={(event) => commit(event.currentTarget.value)}
-            onKeyDown={(event) => event.key === 'Enter' && commit(event.currentTarget.value)}
+            // Значение сохраняет уход фокуса: иначе Enter и следующий blur ставят в очередь две одинаковые правки.
+            onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
         />
     );
     return (
         <div className="cp-format-row">
-            <select
-                aria-label="Формат цвета"
-                value={format ?? 'hex'}
-                disabled={!onFormat}
-                onChange={(event) => onFormat?.(event.target.value as Format)}
-            >
-                <option value="hex">Hex</option>
-                {onFormat && <option value="rgb">RGB</option>}
-                {onFormat && <option value="hsl">HSL</option>}
-            </select>
-            {(format ?? 'hex') === 'hex' && input('hex', 'Hex', hex, commitHex, 'cp-field cp-hex-field')}
+            <label className="cp-format-trigger">
+                <select
+                    aria-label="Формат цвета"
+                    value={format}
+                    onChange={(event) => onFormat(event.target.value as Format)}
+                >
+                    {(Object.keys(FORMAT_LABELS) as Format[]).map((item) => (
+                        <option key={item} value={item}>
+                            {FORMAT_LABELS[item]}
+                        </option>
+                    ))}
+                </select>
+                <ChevronDownOutline aria-hidden="true" />
+            </label>
+            {format === 'hex' && (
+                <span className="cp-hex">
+                    {input('hex', 'Hex', hex.replace('#', ''), commitHex, 'cp-field cp-hex-field')}
+                    <button
+                        type="button"
+                        className="cp-copy"
+                        aria-label="Скопировать HEX"
+                        title="Скопировать HEX"
+                        onClick={() => void navigator.clipboard?.writeText(hex)}
+                    >
+                        <CopyOutline />
+                    </button>
+                </span>
+            )}
             {format === 'rgb' &&
                 (['r', 'g', 'b'] as const).map((field) =>
                     input(field, field.toUpperCase(), Math.round(rgb[field]), (text) => commitRgb(field, text)),
@@ -219,7 +272,10 @@ const FormatRow = ({
                 (['h', 's', 'l'] as const).map((field) =>
                     input(field, field.toUpperCase(), hsl[field], (text) => commitHsl(field, text)),
                 )}
-            {input('a', 'Opacity', `${Math.round(hsva.a * 100)}%`, commitAlpha, 'cp-field cp-alpha-field')}
+            <span className="cp-alpha-value">
+                {input('a', 'Opacity', Math.round(hsva.a * 100), commitAlpha, 'cp-field cp-alpha-field')}
+                <i>%</i>
+            </span>
         </div>
     );
 };
@@ -279,9 +335,6 @@ const SolidPicker = ({
     const [preview, setPreview] = useState<Hsva | null>(null);
     useEffect(() => setPreview(null), [value.resolved]);
     const hsva = preview ?? committed;
-    const rgb = hsvToRgb(hsva);
-    const hsl = rgbToHsl(rgb);
-    const hex = rgbaToHex(rgb);
     const reference = parsePaletteReference(value.value);
     const commitHsva = (next: Hsva) => {
         remember(next);
@@ -304,65 +357,26 @@ const SolidPicker = ({
             aria-label={`Color picker: ${label}`}
             onKeyDown={trapKeys(onClose)}
         >
-            <header>
-                <div className="cp-tabs">
-                    <button
-                        type="button"
-                        className={tab === 'custom' ? 'is-active' : ''}
-                        data-autofocus
-                        onClick={() => setTab('custom')}
-                    >
-                        Вручную
-                    </button>
-                    <button
-                        type="button"
-                        className={tab === 'library' ? 'is-active' : ''}
-                        onClick={() => setTab('library')}
-                    >
-                        Библиотека
-                    </button>
-                </div>
-                <button type="button" className="cp-close" aria-label="Закрыть" onClick={onClose}>
-                    ×
-                </button>
+            <header className="cp-head">
+                <Tabs
+                    tabs={[
+                        ['custom', 'Вручную'],
+                        ['library', 'Библиотека'],
+                    ]}
+                    active={tab}
+                    onTab={setTab}
+                />
+                <KindSwitch kind="color" onKind={onKind} />
+                <CloseButton onClose={onClose} />
             </header>
             <Notes notes={notes} />
             {tab === 'library' ? (
                 <ColorLibrary palette={palette} tokenName={tokenName} active={reference} onPick={pick} />
             ) : (
-                <>
-                    <PaintToolbar kind="color" onKind={onKind} />
+                <div className="cp-body">
                     <ColorSvPanel value={hsva} onPreview={setPreview} onCommit={commitHsva} />
                     <FormatRow hsva={hsva} format={format} onFormat={setFormat} onCommit={commitHsva} />
-                    <dl className="cp-info">
-                        <div>
-                            <dt>Hex</dt>
-                            <dd>
-                                {hex}{' '}
-                                <button
-                                    type="button"
-                                    className="cp-copy"
-                                    aria-label="Скопировать hex"
-                                    onClick={() => void navigator.clipboard?.writeText(hex)}
-                                >
-                                    ⧉
-                                </button>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt>RGB</dt>
-                            <dd>
-                                {Math.round(rgb.r)}, {Math.round(rgb.g)}, {Math.round(rgb.b)}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt>HSL</dt>
-                            <dd>
-                                {hsl.h}, {hsl.s}%, {hsl.l}%
-                            </dd>
-                        </div>
-                    </dl>
-                </>
+                </div>
             )}
         </section>
     );
@@ -537,6 +551,7 @@ const GradientPicker = ({
     const [active, setActive] = useState(0);
     const [stopWindow, setStopWindow] = useState<'custom' | 'library' | null>(null);
     const [stopPreview, setStopPreview] = useState<Hsva | null>(null);
+    const [stopFormat, setStopFormat] = useState<Format>('hex');
     const dragStop = useRef<{ index: number; model: GradientModel; moved: boolean } | null>(null);
     const bar = useRef<HTMLDivElement>(null);
     const stopRef = useRef<HTMLElement>(null);
@@ -607,30 +622,27 @@ const GradientPicker = ({
                 trapKeys(onClose)(event);
             }}
         >
-            <header>
-                <div className="cp-tabs">
-                    <button type="button" className="is-active" data-autofocus>
-                        Вручную
-                    </button>
-                </div>
-                <button type="button" className="cp-close" aria-label="Закрыть" onClick={onClose}>
-                    ×
-                </button>
+            <header className="cp-head">
+                <Tabs tabs={[['custom', 'Вручную']]} active="custom" />
+                <KindSwitch kind="gradient" onKind={onKind} />
+                <CloseButton onClose={onClose} />
             </header>
-            <PaintToolbar kind="gradient" onKind={onKind} />
             <Notes notes={notes} />
             <div className="cp-gradient-kind-row">
-                <select
-                    aria-label="Gradient type"
-                    value={model.type}
-                    onChange={(event) => commitModel(withGradientType(model, event.target.value as GradientType))}
-                >
-                    {Object.entries(GRADIENT_TYPE_LABELS).map(([type, label]) => (
-                        <option key={type} value={type}>
-                            {label}
-                        </option>
-                    ))}
-                </select>
+                <label className="cp-select">
+                    <select
+                        aria-label="Gradient type"
+                        value={model.type}
+                        onChange={(event) => commitModel(withGradientType(model, event.target.value as GradientType))}
+                    >
+                        {Object.entries(GRADIENT_TYPE_LABELS).map(([type, label]) => (
+                            <option key={type} value={type}>
+                                {label}
+                            </option>
+                        ))}
+                    </select>
+                    <ChevronDownOutline aria-hidden="true" />
+                </label>
             </div>
             <div className="cp-gradient-geometry">
                 {model.type !== 'linear' && (
@@ -744,66 +756,80 @@ const GradientPicker = ({
                 ))}
             </div>
             <div className="cp-gradient-stops-head">
-                <span>Стопы</span>
+                <span>Точки градиента</span>
                 <button
                     type="button"
+                    className="tw-icon-button"
                     aria-label="Add gradient stop"
+                    title="Добавить точку"
                     onClick={() => {
                         const added = { color: gradientColorAt(stops, 50, resolveColor), position: 50 };
                         commitModel({ ...model, stops: [...stops, added] }, added);
                     }}
                 >
-                    +
+                    <PlusOutline />
                 </button>
             </div>
             <div className="cp-gradient-stops">
                 {stops.map((stop, index) => (
                     <div key={index} className={`cp-gradient-stop-row ${activeIndex === index ? 'is-active' : ''}`}>
-                        <input
-                            className="cp-stop-position-field"
-                            defaultValue={Number(stop.position.toFixed(2))}
-                            key={`p:${index}:${stop.position}`}
-                            inputMode="decimal"
-                            aria-label={`Позиция стопа ${index + 1}`}
-                            onBlur={(event) => {
-                                const numeric = parseNumber(event.currentTarget.value);
-                                if (Number.isFinite(numeric) && numeric !== stop.position)
-                                    setStop(index, { position: Math.min(100, Math.max(0, numeric)) });
-                            }}
-                            onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
-                        />
+                        <label className="cp-stop-position">
+                            <input
+                                className="cp-stop-position-field"
+                                defaultValue={Number(stop.position.toFixed(2))}
+                                key={`p:${index}:${stop.position}`}
+                                inputMode="decimal"
+                                aria-label={`Позиция стопа ${index + 1}`}
+                                onFocus={() => setActive(index)}
+                                onBlur={(event) => {
+                                    const numeric = parseNumber(event.currentTarget.value);
+                                    if (Number.isFinite(numeric) && numeric !== stop.position)
+                                        setStop(index, { position: Math.min(100, Math.max(0, numeric)) });
+                                }}
+                                onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
+                            />
+                            <i>%</i>
+                        </label>
+                        <span className="cp-stop-color">
+                            <button
+                                type="button"
+                                className="cp-stop-color-field"
+                                aria-label={`Цвет стопа ${index + 1}: ${stopText(stop.color)}`}
+                                title={stopText(stop.color)}
+                                onClick={() => {
+                                    setActive(index);
+                                    setStopPreview(null);
+                                    setStopWindow(parsePaletteReference(stop.color) ? 'library' : 'custom');
+                                }}
+                            >
+                                <i className="alpha-swatch" style={alphaSwatchStyle(resolved(stop.color))} />
+                                <span>{stopText(stop.color)}</span>
+                            </button>
+                            <label className="cp-stop-opacity">
+                                <input
+                                    className="cp-stop-opacity-field"
+                                    key={`a:${index}:${stop.color}`}
+                                    defaultValue={Math.round(stopOpacity(stop.color) * 100)}
+                                    inputMode="numeric"
+                                    aria-label={`Прозрачность стопа ${index + 1}`}
+                                    onFocus={() => setActive(index)}
+                                    onBlur={(event) => {
+                                        const numeric = parseNumber(event.currentTarget.value);
+                                        if (!Number.isFinite(numeric)) return;
+                                        const opacity = Math.round(Math.min(100, Math.max(0, numeric))) / 100;
+                                        if (opacity !== stopOpacity(stop.color))
+                                            setStop(index, { color: withStopOpacity(stop.color, opacity) });
+                                    }}
+                                    onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
+                                />
+                                <i>%</i>
+                            </label>
+                        </span>
                         <button
                             type="button"
-                            className="cp-stop-color-field"
-                            aria-label={`Цвет стопа ${index + 1}: ${stopText(stop.color)}`}
-                            onClick={() => {
-                                setActive(index);
-                                setStopPreview(null);
-                                setStopWindow(parsePaletteReference(stop.color) ? 'library' : 'custom');
-                            }}
-                        >
-                            <i className="alpha-swatch" style={alphaSwatchStyle(resolved(stop.color))} />
-                            <span>{stopText(stop.color)}</span>
-                        </button>
-                        <input
-                            className="cp-stop-opacity-field"
-                            key={`a:${index}:${stop.color}`}
-                            defaultValue={`${Math.round(stopOpacity(stop.color) * 100)}%`}
-                            inputMode="numeric"
-                            aria-label={`Прозрачность стопа ${index + 1}`}
-                            onBlur={(event) => {
-                                const numeric = parseNumber(event.currentTarget.value);
-                                if (!Number.isFinite(numeric)) return;
-                                const opacity = Math.round(Math.min(100, Math.max(0, numeric))) / 100;
-                                if (opacity !== stopOpacity(stop.color))
-                                    setStop(index, { color: withStopOpacity(stop.color, opacity) });
-                            }}
-                            onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
-                        />
-                        <button
-                            type="button"
-                            className="cp-stop-remove"
+                            className="tw-icon-button cp-stop-remove"
                             aria-label={`Удалить стоп ${index + 1}`}
+                            title="Удалить точку"
                             disabled={stops.length <= 2}
                             onClick={() => {
                                 closeStopWindow();
@@ -811,7 +837,7 @@ const GradientPicker = ({
                                 setActive(0);
                             }}
                         >
-                            −
+                            <MinusOutline />
                         </button>
                     </div>
                 ))}
@@ -829,29 +855,17 @@ const GradientPicker = ({
                         closeStopWindow();
                     }}
                 >
-                    <div className="cp-stop-popover-head">
-                        <div className="cp-tabs">
-                            <button
-                                type="button"
-                                className={stopWindow === 'custom' ? 'is-active' : ''}
-                                data-autofocus={stopWindow === 'custom' || undefined}
-                                onClick={() => setStopWindow('custom')}
-                            >
-                                Вручную
-                            </button>
-                            <button
-                                type="button"
-                                className={stopWindow === 'library' ? 'is-active' : ''}
-                                data-autofocus={stopWindow === 'library' || undefined}
-                                onClick={() => setStopWindow('library')}
-                            >
-                                Библиотека
-                            </button>
-                        </div>
-                        <button type="button" aria-label="Закрыть окно цвета стопа" onClick={closeStopWindow}>
-                            ×
-                        </button>
-                    </div>
+                    <header className="cp-head">
+                        <Tabs
+                            tabs={[
+                                ['custom', 'Вручную'],
+                                ['library', 'Библиотека'],
+                            ]}
+                            active={stopWindow}
+                            onTab={setStopWindow}
+                        />
+                        <CloseButton label="Закрыть окно цвета стопа" onClose={closeStopWindow} />
+                    </header>
                     <div className="cp-stop-title">
                         Стоп {activeIndex + 1} · {Number(activeStop.position.toFixed(2))} % ·{' '}
                         {stopText(activeStop.color)}
@@ -874,7 +888,7 @@ const GradientPicker = ({
                             }}
                         />
                     ) : (
-                        <>
+                        <div className="cp-body">
                             <ColorSvPanel
                                 value={stopHsva}
                                 onPreview={setStopPreview}
@@ -886,13 +900,14 @@ const GradientPicker = ({
                             />
                             <FormatRow
                                 hsva={stopHsva}
-                                format={null}
+                                format={stopFormat}
+                                onFormat={setStopFormat}
                                 onCommit={(next) => {
                                     rememberStop(next);
                                     setStop(activeIndex, { color: hsvaToHex(next) });
                                 }}
                             />
-                        </>
+                        </div>
                     )}
                 </section>
             )}

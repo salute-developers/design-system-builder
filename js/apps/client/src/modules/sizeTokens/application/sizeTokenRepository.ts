@@ -8,6 +8,7 @@ export type SizeTokenContext = EditorContextKey;
 export type SizeTokenOperation =
     | { type: 'update'; tokenId: string; value: SizeTokenValue }
     | { type: 'create'; request: CreateSizeTokenRequest }
+    | { type: 'rename'; tokenId: string; name: string }
     | { type: 'delete'; tokenId: string };
 
 /**
@@ -19,13 +20,13 @@ export interface SizeTokenCommand {
     /** Поколение команды: подтверждение старого поколения не снимает более новое. */
     id: string;
     operation: SizeTokenOperation['type'];
-    method: 'PUT' | 'POST' | 'DELETE';
+    method: 'PUT' | 'POST' | 'PATCH' | 'DELETE';
     /** Путь через gateway: `/api/projects/{projectId}/ds/tenants/{tenantId}/size-tokens…`. */
     path: string;
     body?: unknown;
     /** `Idempotency-Key` создания: повтор возвращает сохранённый ответ, токен не создаётся дважды. */
     idempotencyKey?: string;
-    /** Токен изменения или удаления. */
+    /** Токен изменения, переименования или удаления. */
     tokenId?: string;
 }
 
@@ -36,19 +37,25 @@ export interface UpdatedSizeToken {
     values: WrittenValue[];
 }
 
-/** Ответ создания: у тени — четыре варианта размера. */
+/** Ответ создания: созданные токены — обычно один. */
 export interface CreatedSizeTokens {
     type: 'create';
     created: SizeToken[];
 }
 
-/** Ответ удаления: у тени — четыре варианта размера. */
+/** Ответ переименования: токен в формате чтения с новым именем. */
+export interface RenamedSizeToken {
+    type: 'rename';
+    token: SizeToken;
+}
+
+/** Ответ удаления: удалённые токены. */
 export interface DeletedSizeTokens {
     type: 'delete';
     deletedTokenIds: string[];
 }
 
-export type SizeTokenResult = UpdatedSizeToken | CreatedSizeTokens | DeletedSizeTokens;
+export type SizeTokenResult = UpdatedSizeToken | CreatedSizeTokens | RenamedSizeToken | DeletedSizeTokens;
 
 /**
  * Порт токенов размеров `ds-service`. Изменяющие операции идут общим механизмом предметных мутаций редактора:

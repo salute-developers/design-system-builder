@@ -20,6 +20,21 @@ export interface TypographyStyleRepository {
         change: TypographyStyleChange,
         values: TypographyValueAddress[],
     ): Promise<UpdatedTypographyStyle>;
+    /** Меняет описание токена [tokenId]; пустая строка снимает описание. */
+    describe(context: TypographyContext, tokenId: string, description: string): Promise<void>;
+    /**
+     * Создаёт стиль [group].[size] — девять токенов во всех темах; новая группа появляется с первым стилем.
+     * Результат — токены стиля.
+     */
+    create(context: TypographyContext, group: string, size: string): Promise<string[]>;
+    /** Меняет имя стиля токена [tokenId] внутри группы; группа не меняется. */
+    rename(context: TypographyContext, tokenId: string, size: string): Promise<string[]>;
+    /** Удаляет стиль токена [tokenId] со всеми токенами начертаний и экранов. */
+    remove(context: TypographyContext, tokenId: string): Promise<string[]>;
+    /** Переименовывает свою группу [group] в [name] вместе со всеми её стилями. */
+    renameGroup(context: TypographyContext, group: string, name: string): Promise<string[]>;
+    /** Удаляет свою группу [group] со всеми её стилями. */
+    removeGroup(context: TypographyContext, group: string): Promise<string[]>;
 }
 
 export type TypographyErrorKind = 'forbidden' | 'invalid' | 'not-found' | 'missing-values' | 'network';

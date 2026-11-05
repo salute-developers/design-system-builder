@@ -3,6 +3,11 @@ import { Suspense, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useOutletContext } from 'react-router-dom';
 
+const SectionProbe = () => {
+    const { sectionPending } = useOutletContext<{ sectionPending: boolean }>();
+    return <div data-testid="colors-section" data-pending={String(sectionPending)} />;
+};
+
 const { hookState, reload, mainUtils, retryAutosave } = vi.hoisted(() => ({
     hookState: {
         loading: false,
@@ -144,7 +149,7 @@ describe('Theme editor shell', () => {
     it.each([
         ['colors', 'Цветовые токены'],
         ['typography', 'Типографика'],
-        ['shapes', 'Размеры и радиусы'],
+        ['shapes', 'Отступы, радиусы и тени'],
         ['components/Button', 'Компоненты'],
         ['changes', 'Журнал изменений'],
         ['versions', 'Версии'],
@@ -193,7 +198,9 @@ describe('Theme editor shell', () => {
         expect(screen.getByRole('button', { name: 'Изменения' })).not.toHaveTextContent('0');
         expect(screen.getByRole('button', { name: 'Изменения' })).not.toHaveTextContent('·');
         expect(breadcrumbs.closest('header')).toHaveClass('builder-hierarchy-bar');
-        expect(breadcrumbs).toHaveTextContent('DS Builder/Проекты/Platform/System/Brand/Цветовые токены');
+        expect(breadcrumbs.textContent).toBe('Platform/System/Brand/Цветовые токены');
+        expect(screen.getByRole('button', { name: 'Назад' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Вперёд' })).toBeInTheDocument();
         expect(breadcrumbs.querySelector('a[href="/projects/project-1"]')).toHaveTextContent('Platform');
         expect(breadcrumbs.querySelector('a[href="/projects/project-1/design-systems/ds-1"]')).toHaveTextContent(
             'System',
@@ -205,20 +212,20 @@ describe('Theme editor shell', () => {
         const rail = screen.getByTestId('editor-rail');
         fireEvent.click(screen.getByRole('button', { name: 'Настройки темы' }));
         expect(screen.getByTestId('editor-rail')).toBe(rail);
-        expect(breadcrumbs).toHaveTextContent('DS Builder/Проекты/Platform/System/Brand/Настройки темы');
+        expect(breadcrumbs.textContent).toBe('Platform/System/Brand/Настройки темы');
         expect(screen.getByText('Параметры темы')).toBeInTheDocument();
     });
 
     it('shows one centered loading indicator instead of the header spinner while the Theme loads', () => {
         hookState.loading = true;
         render(
-            <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
+            <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/changes']}>
                 <Routes>
                     <Route
                         path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
                         element={<Main />}
                     >
-                        <Route path="colors" element={<div />} />
+                        <Route path="changes" element={<div />} />
                     </Route>
                 </Routes>
             </MemoryRouter>,
@@ -232,6 +239,29 @@ describe('Theme editor shell', () => {
         expect(screen.queryByText(/Загружаем Theme/)).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Настройки темы' })).toBeInTheDocument();
     });
+
+    it.each(['colors', 'palette'])(
+        'раздел %s сам показывает загрузку темы: оболочка рендерит раздел вместо общего индикатора',
+        (section) => {
+            hookState.loading = true;
+            render(
+                <MemoryRouter initialEntries={[`/projects/project-1/design-systems/ds-1/themes/theme-1/${section}`]}>
+                    <Routes>
+                        <Route
+                            path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                            element={<Main />}
+                        >
+                            <Route path={section} element={<SectionProbe />} />
+                        </Route>
+                    </Routes>
+                </MemoryRouter>,
+            );
+
+            // Раздел получает признак загрузки: тема в контексте — ещё оболочка без токенов и палитры.
+            expect(screen.getByTestId('colors-section')).toHaveAttribute('data-pending', 'true');
+            expect(screen.queryByRole('status', { name: 'Загружаем тему…' })).not.toBeInTheDocument();
+        },
+    );
 
     it('не показывает ручное сохранение даже при наличии прежнего локального черновика', () => {
         localStorage.setItem(DRAFT_KEY, '{}');

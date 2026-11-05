@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.TokenReferenceBinder
 import com.dsbuilder.ds.core.application.TokenReferenceCleaner
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
@@ -14,11 +15,7 @@ import com.dsbuilder.ds.themes.domain.sizetokens.SizeStoredValue
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenNaming
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeWrittenValue
 import org.jetbrains.exposed.v1.core.ResultRow
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.time.Instant
 import java.util.UUID
 
@@ -29,6 +26,7 @@ import java.util.UUID
  */
 class ExposedSizeTokenRepository(
     private val referenceCleaners: List<TokenReferenceCleaner> = emptyList(),
+    private val referenceBinders: List<TokenReferenceBinder> = emptyList(),
 ) : SizeTokenRepository {
     override suspend fun tenant(projectId: ProjectId, tenantId: UUID): SizeTokenTenant? =
         currentTenantRows(projectId, tenantId = tenantId).singleOrNull()?.let { row ->
@@ -53,14 +51,6 @@ class ExposedSizeTokenRepository(
     override suspend fun token(designSystemId: UUID, tenantId: UUID, tokenId: UUID): StoredSizeToken? =
         stored(currentThemeTokenRows(designSystemId, setOf(tokenId)), designSystemId, tenantId).singleOrNull()
 
-    override suspend fun takenNames(designSystemId: UUID, names: Collection<String>): Set<String> {
-        if (names.isEmpty()) return emptySet()
-        val normalized = names.associateBy { it.trim().lowercase() }
-        return currentThemeTokenRows(designSystemId)
-            .mapNotNull { normalized[it[ThemeTokenRevisionsTable.name].trim().lowercase()] }
-            .toSet()
-    }
-
     override suspend fun writeValues(
         designSystemId: UUID,
         tenantId: UUID,
@@ -68,7 +58,9 @@ class ExposedSizeTokenRepository(
         values: List<SizeWrittenValue>,
         baseRevisions: Map<ThemeTokenPlatform, Long>,
     ) {
-        val entities = values.associate { it.platform to stableValue(designSystemId, tenantId, tokenId, it.platform) }
+        val entities = values.associate { value ->
+            value.platform to stableThemeValue(designSystemId, tenantId, tokenId, value.platform)
+        }
         check(lockDraftSubjects(designSystemId, TOKEN_VALUE, entities.values))
         // Повторное чтение после предметной блокировки: сравнение идёт с последней зафиксированной редакцией.
         val current = currentValues(designSystemId, setOf(tenantId), setOf(tokenId))
@@ -125,7 +117,7 @@ class ExposedSizeTokenRepository(
             )
             tenants.forEach { tenant ->
                 written.sortedBy { it.platform }.forEach { value ->
-                    val valueId = stableValue(designSystemId, tenant, entity, value.platform)
+                    val valueId = stableThemeValue(designSystemId, tenant, entity, value.platform)
                     writeThemeValueRevision(
                         entity = valueId,
                         owner = designSystemId,
@@ -137,6 +129,13 @@ class ExposedSizeTokenRepository(
                 }
             }
             entity
+        }
+    }
+
+    override suspend fun rename(designSystemId: UUID, tokenId: UUID, name: String, references: Set<UUID>) {
+        referenceBinders.forEach { it.bind(designSystemId, tokenId, references) }
+        reviseThemeToken(tokenId, setOf("/name", "/display_name")) {
+            it.copy(name = name, displayName = SizeTokenNaming.displayName(name))
         }
     }
 
@@ -189,23 +188,6 @@ class ExposedSizeTokenRepository(
         currentThemeTokenValueRows(designSystemId, tenantIds, tokenIds)
             .filter { it[ThemeTokenValuesTable.mode] == null }
             .associateBy { it[ThemeTokenValuesTable.id] }
-
-    /** Устойчивая строка значения токена в теме и платформе без режима; создаётся, если её нет. */
-    private fun stableValue(designSystemId: UUID, tenantId: UUID, tokenId: UUID, platform: ThemeTokenPlatform): UUID =
-        ThemeTokenValuesTable.selectAll().where {
-            (ThemeTokenValuesTable.tenantId eq tenantId) and (ThemeTokenValuesTable.tokenId eq tokenId) and
-                (ThemeTokenValuesTable.platform eq platform) and ThemeTokenValuesTable.mode.isNull()
-        }.singleOrNull()?.get(ThemeTokenValuesTable.id) ?: UUID.randomUUID().also { id ->
-            ThemeTokenValuesTable.insert {
-                it[ThemeTokenValuesTable.id] = id
-                it[ThemeTokenValuesTable.designSystemId] = designSystemId
-                it[ThemeTokenValuesTable.tokenId] = tokenId
-                it[ThemeTokenValuesTable.tenantId] = tenantId
-                it[ThemeTokenValuesTable.platform] = platform
-                it[ThemeTokenValuesTable.mode] = null
-                it[createdAt] = Instant.now()
-            }
-        }
 
     private companion object {
         const val TOKEN_VALUE = "token-value"

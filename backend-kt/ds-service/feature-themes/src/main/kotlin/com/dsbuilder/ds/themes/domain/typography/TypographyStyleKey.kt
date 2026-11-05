@@ -2,7 +2,7 @@ package com.dsbuilder.ds.themes.domain.typography
 
 /** Стиль без экрана: группа и размер, например `body.m`. */
 data class TypographyStyleKey(
-    /** Группа: `display`, `header`, `body`, `text`. */
+    /** Группа: системная `display`, `header`, `body`, `text` или своя группа дизайн-системы. */
     val group: String,
     /** Размер внутри группы: `m`, `h1`. */
     val size: String,
@@ -11,12 +11,13 @@ data class TypographyStyleKey(
 
     override fun compareTo(other: TypographyStyleKey): Int = ORDER.compare(this, other)
 
-    private companion object {
+    companion object {
+        /** Системные группы в порядке дерева; свои группы идут после них по имени. */
         val GROUPS = listOf("display", "header", "body", "text")
-        val SIZES = listOf("xxl", "xl", "l", "m", "s", "xs", "xxs")
-        val HEADER = Regex("""^h(\d+)$""")
+        private val SIZES = listOf("xxl", "xl", "l", "m", "s", "xs", "xxs")
+        private val HEADER = Regex("""^h(\d+)$""")
 
-        val ORDER: Comparator<TypographyStyleKey> = compareBy<TypographyStyleKey>(
+        private val ORDER: Comparator<TypographyStyleKey> = compareBy<TypographyStyleKey>(
             { key -> GROUPS.indexOf(key.group).takeIf { it >= 0 } ?: GROUPS.size },
             { key -> key.group },
             { key -> sizeRank(key.size) },

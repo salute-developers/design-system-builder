@@ -30,7 +30,6 @@ import com.dsbuilder.ds.themes.domain.sizetokens.ShadowTokenView
 import com.dsbuilder.ds.themes.domain.sizetokens.SizePlatformValues
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeStoredValue
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenKind
-import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenNaming
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenValue
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeValueInput
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeWrittenValue
@@ -69,6 +68,7 @@ class SizeTokenUseCaseTest {
                 RadiusOffset(-2, AdjustedUsage("IconButton", "web", "iconButtonRadius")),
             ),
         ),
+        textRows = mapOf("down.hard.m" to setOf(TEXT_ROW)),
     )
     private val palette = FakeTenantPaletteRepository(TenantPaletteSnapshot(paletteState(), emptyList(), emptyList()))
     private val keys = mutableListOf<String>()
@@ -81,16 +81,15 @@ class SizeTokenUseCaseTest {
     private val update = UpdateSizeTokenValueUseCase(policy, transactions, tokens, usage, palette)
     private val create = CreateSizeTokenUseCase(policy, transactions, tokens, usage, palette, uniqueKeys)
     private val delete = DeleteSizeTokenUseCase(policy, transactions, tokens)
+    private val rename = RenameSizeTokenUseCase(policy, transactions, tokens, usage, palette, uniqueKeys)
 
     init {
         radius("round.m", 12)
         radius("round.l", 16)
         radius("round.circle", 10000)
         tokens.define("spacing.4x", ThemeTokenType.SPACING, write(SizeTokenKind.SPACING, SizeTokenValue.Dimension(8)))
-        SizeTokenNaming.SHADOW_VARIANTS.forEach { variant ->
-            listOf("s", "m").forEach { size ->
-                tokens.define("$variant.$size", ThemeTokenType.SHADOW, write(SizeTokenKind.SHADOW, shadow(2)))
-            }
+        SHADOWS.forEach { name ->
+            tokens.define(name, ThemeTokenType.SHADOW, write(SizeTokenKind.SHADOW, shadow(2)))
         }
         tokens.define("round", ThemeTokenType.SHAPE)
         tokens.define("text.default.primary", ThemeTokenType.COLOR)
@@ -242,33 +241,33 @@ class SizeTokenUseCaseTest {
     }
 
     @Test
-    fun `создание размера тени создаёт четыре варианта и проверяет ссылки слоёв`() = runBlocking {
-        val variants = SizeTokenNaming.SHADOW_VARIANTS.reversed().joinToString(",") { variant ->
-            """{"variant":"$variant","layers":[{"offsetX":0,"offsetY":2,"blur":4,"spread":0,""" +
-                """"color":"[general.gray.900]"}],"fallbackElevation":2}"""
-        }
-        val result = success(add(SizeTokenKind.SHADOW, "xl", SizeValueInput(variants = json("[$variants]"))))
+    fun `новая тень с произвольным именем — один токен со слоями и ссылкой на палитру`() = runBlocking {
+        val layers = """[{"offsetX":0,"offsetY":2,"blur":4,"spread":0,"color":"[general.gray.900]"}]"""
+        val input = SizeValueInput(layers = json(layers), fallbackElevation = json("3"))
+        val created = success(add(SizeTokenKind.SHADOW, "card", input)).created.single()
 
-        assertEquals(SizeTokenNaming.shadowSizeNames("xl"), result.created.map { it.name })
-        result.created.forEach { token ->
-            val shadow = assertIs<ShadowTokenView>(token)
-            assertEquals(2, shadow.fallbackElevation)
-            assertEquals("#101010FF", shadow.layers.single().color)
-            assertEquals("[general.gray.900]", shadow.layers.single().colorRef)
-            assertTrue(tokens.values.containsKey(other to token.tokenId))
-        }
-        assertEquals(SizeTokenNaming.shadowSizeNames("xl").map { "token:$it" }.sorted(), keys)
+        assertEquals("card", created.name)
+        val shadow = assertIs<ShadowTokenView>(created)
+        assertEquals(3, shadow.fallbackElevation)
+        assertEquals("[general.gray.900]", shadow.layers.single().colorRef)
+        assertTrue(tokens.values.containsKey(other to created.tokenId))
+        assertEquals(listOf("token:card", "shadow-variable:card"), keys)
+        val shadows = success(get.execute(context("viewer"), current)).shadows.map { it.name }
+        assertTrue("card" in shadows)
+        val again = SizeValueInput(layers = json(layers))
+        assertEquals("TOKEN_NAME_CONFLICT", code(add(SizeTokenKind.SHADOW, "card", again)))
 
-        // Ссылка вне палитры в третьем варианте запроса: ни одного токена, поле — по индексу запроса.
-        val broken = SizeTokenNaming.SHADOW_VARIANTS.mapIndexed { index, variant ->
-            val color = if (index == 2) "[general.red.500]" else "#000000"
-            """{"variant":"$variant","layers":[{"offsetX":0,"offsetY":2,"blur":4,"spread":0,"color":"$color"}]}"""
-        }.joinToString(",")
+        // Имя из частей через точку попадает в группу борда; имя, которое даёт в пакете ту же переменную, — конфликт.
+        assertEquals("down.soft.xl", success(add(SizeTokenKind.SHADOW, "down.soft.xl", again)).created.single().name)
+        assertEquals("TOKEN_NAME_CONFLICT", code(add(SizeTokenKind.SHADOW, "down-soft-m", again)))
+
+        // Ступени нет в палитре: токен не создаётся, поле — путь слоя.
         val before = tokens.definitions.size
+        val broken = """[{"offsetX":0,"offsetY":2,"blur":4,"spread":0,"color":"[general.red.500]"}]"""
         val step = assertIs<DsFailure.InvalidRequest>(
-            failure(add(SizeTokenKind.SHADOW, "xxl", SizeValueInput(variants = json("[$broken]")))),
+            failure(add(SizeTokenKind.SHADOW, "popover", SizeValueInput(layers = json(broken)))),
         )
-        assertEquals("variants[2].layers[0].color", step.details["field"])
+        assertEquals("layers[0].color", step.details["field"])
         assertEquals(before, tokens.definitions.size)
     }
 
@@ -279,11 +278,11 @@ class SizeTokenUseCaseTest {
         assertEquals("INVALID_TOKEN_NAME", code(add(SizeTokenKind.RADIUS, "X L", dimension(1))))
         assertEquals("INVALID_TOKEN_NAME", code(add(SizeTokenKind.RADIUS, "", dimension(1))))
         assertEquals("TOKEN_NAME_CONFLICT", code(add(SizeTokenKind.RADIUS, "m", dimension(1))))
-        val threeVariants = SizeTokenNaming.SHADOW_VARIANTS.drop(1).joinToString(",") { variant ->
-            """{"variant":"$variant","layers":[{"offsetX":0,"offsetY":2,"blur":4,"spread":0,"color":"#000000"}]}"""
-        }
-        val shadow = SizeValueInput(variants = json("[$threeVariants]"))
-        assertEquals(INVALID_SIZE_VALUE, code(add(SizeTokenKind.SHADOW, "xl", shadow)))
+        assertEquals(INVALID_SIZE_VALUE, code(add(SizeTokenKind.SHADOW, "card", SizeValueInput(layers = json("[]")))))
+        assertEquals(INVALID_SIZE_VALUE, code(add(SizeTokenKind.SHADOW, "card", dimension(4))))
+        assertEquals("INVALID_TOKEN_NAME", code(add(SizeTokenKind.SHADOW, "down..m", SizeValueInput())))
+        assertEquals("INVALID_TOKEN_NAME", code(add(SizeTokenKind.SHADOW, ".card", SizeValueInput())))
+        assertEquals("INVALID_TOKEN_NAME", code(add(SizeTokenKind.RADIUS, "x.l", dimension(1))))
         assertEquals(INVALID_SIZE_VALUE, code(add(SizeTokenKind.SPACING, "14x", dimension(140))))
         assertEquals(DsFailure.Forbidden, failure(add(SizeTokenKind.RADIUS, "x", dimension(1), context("viewer"))))
         val historical = context("owner", UUID.randomUUID())
@@ -302,18 +301,17 @@ class SizeTokenUseCaseTest {
     }
 
     @Test
-    fun `удаление тени удаляет размер целиком во всех темах`() = runBlocking {
+    fun `удаление тени удаляет только её во всех темах`() = runBlocking {
         val upHard = tokens.id("up.hard.m")
-        val ids = SizeTokenNaming.shadowSizeNames("m").map(tokens::id)
 
         assertEquals(DsFailure.Forbidden, failure(delete.execute(context("editor"), current, upHard)))
         val result = success(delete.execute(context("maintainer"), current, upHard))
 
-        assertEquals(ids, result)
-        assertTrue(tokens.definitions.filter { it.id in ids }.all { it.deleted })
-        assertTrue(tokens.values.keys.none { it.second in ids })
+        assertEquals(listOf(upHard), result)
+        assertTrue(tokens.definitions.single { it.id == upHard }.deleted)
+        assertTrue(tokens.values.keys.none { it.second == upHard })
         val shadows = success(get.execute(context("viewer"), current)).shadows.map { it.name }.toSet()
-        assertEquals(SizeTokenNaming.shadowSizeNames("s").toSet(), shadows)
+        assertEquals(SHADOWS.toSet() - "up.hard.m", shadows)
     }
 
     @Test
@@ -328,6 +326,53 @@ class SizeTokenUseCaseTest {
         val historical = context("owner", UUID.randomUUID())
         assertEquals("historical_version_read_only", code(delete.execute(historical, current, tokens.id("round.m"))))
         assertTrue(tokens.definitions.any { it.name == "round.m" && !it.deleted })
+    }
+
+    @Test
+    fun `переименование тени сохраняет токен и привязывает текстовые ссылки компонентов`() = runBlocking {
+        val hardM = tokens.id("down.hard.m")
+
+        val renamed = success(rename.execute(context("maintainer"), current, hardM, "popover.hard"))
+
+        assertEquals("popover.hard", renamed.name)
+        assertEquals(hardM, renamed.tokenId)
+        assertEquals(hardM, tokens.id("popover.hard"))
+        assertEquals(setOf(TEXT_ROW), tokens.bound[hardM])
+        assertEquals(listOf("token:popover.hard", "shadow-variable:popover-hard"), keys)
+        val shadows = success(get.execute(context("viewer"), current)).shadows.map { it.name }
+        assertTrue("popover.hard" in shadows && "down.hard.m" !in shadows)
+    }
+
+    @Test
+    fun `переименование радиуса и отступа меняет часть после префикса`() = runBlocking {
+        val roundM = tokens.id("round.m")
+        assertEquals("round.medium", success(rename.execute(context("owner"), current, roundM, "medium")).name)
+        // Значения и использование идут за токеном по идентификатору.
+        assertEquals(roundM, tokens.id("round.medium"))
+        val spacing = tokens.id("spacing.4x")
+        assertEquals("spacing.gap-s", success(rename.execute(context("owner"), current, spacing, "gap-s")).name)
+        // То же имя — без записи.
+        assertEquals("spacing.gap-s", success(rename.execute(context("owner"), current, spacing, "gap-s")).name)
+        assertEquals(2, keys.size)
+    }
+
+    @Test
+    fun `отказы переименования`() = runBlocking {
+        val upSoft = tokens.id("up.soft.s")
+        suspend fun attempt(id: UUID, name: String) = code(rename.execute(context("owner"), current, id, name))
+
+        assertEquals("TOKEN_NAME_CONFLICT", attempt(upSoft, "down.soft.s"))
+        assertEquals("TOKEN_NAME_CONFLICT", attempt(upSoft, "down-soft-s"))
+        assertEquals("INVALID_TOKEN_NAME", attempt(upSoft, "Up Soft"))
+        assertEquals("INVALID_TOKEN_NAME", attempt(tokens.id("round.l"), "x.l"))
+        assertEquals("TOKEN_NAME_CONFLICT", attempt(tokens.id("round.l"), "m"))
+        assertEquals(INVALID_SIZE_TOKEN, attempt(tokens.id("round.circle"), "full"))
+        assertEquals(INVALID_SIZE_TOKEN, attempt(tokens.id("text.default.primary"), "primary"))
+        assertEquals(DsFailure.NotFound, failure(rename.execute(context("owner"), current, UUID.randomUUID(), "card")))
+        assertEquals(DsFailure.Forbidden, failure(rename.execute(context("viewer"), current, upSoft, "card")))
+        val historical = context("owner", UUID.randomUUID())
+        assertEquals("historical_version_read_only", code(rename.execute(historical, current, upSoft, "card")))
+        assertEquals(upSoft, tokens.id("up.soft.s"))
     }
 
     private fun radius(name: String, px: Int) =
@@ -382,6 +427,14 @@ class SizeTokenUseCaseTest {
     }
 
     private companion object {
+        /** Строка значения свойства компонента со ссылкой на `down.hard.m` текстом. */
+        val TEXT_ROW: UUID = UUID.fromString("00000000-0000-4000-8000-0000000000aa")
+
+        /** Тени темы: имена произвольные, здесь — как в базовой теме. */
+        val SHADOWS = listOf("s", "m").flatMap { size ->
+            listOf("down.soft", "down.hard", "up.soft", "up.hard").map { "$it.$size" }
+        }
+
         /** Палитра темы: системные группы и одна ступень `general.gray.900`. */
         fun paletteState() = TenantPaletteState(
             editRevision = 0,

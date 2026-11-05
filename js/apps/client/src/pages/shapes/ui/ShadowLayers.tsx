@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { TrashOutline } from '@salutejs/sdds-icons/16';
+
+import { FieldMessage, fieldClass } from '../../../components/tokenWorkspace';
 
 import {
     DEFAULT_SHADOW_LAYER,
@@ -75,21 +78,24 @@ export const ShadowLayers = ({
                             {editable && layers.length > 1 && (
                                 <button
                                     type="button"
+                                    className="tw-icon-button"
+                                    title={`Удалить слой ${index + 1}`}
                                     aria-label={`Удалить слой ${index + 1}`}
                                     onClick={() => {
                                         setErrors({});
                                         onChange(layers.filter((_, position) => position !== index));
                                     }}
                                 >
-                                    Удалить
+                                    <TrashOutline />
                                 </button>
                             )}
                         </div>
                         <div className="st-shadow-fields">
                             {NUMBER_FIELDS.map(([key, label]) => (
-                                <label key={key} className={`st-field ${errors[`${index}.${key}`] ? 'has-error' : ''}`}>
-                                    <span>{label}</span>
+                                <label key={key} className="st-layer-field">
+                                    <span className="tw-field-label">{label}</span>
                                     <CommitInput
+                                        className={`st-input ${fieldClass(errors[`${index}.${key}`] ? 'error' : null)}`}
                                         aria-label={`${scope}, слой ${index + 1}, ${label}`}
                                         value={String(layer[key])}
                                         disabled={!editable}
@@ -106,8 +112,12 @@ export const ShadowLayers = ({
                         {/* Поле цвета по `colorInspectorField` прототипа: свотч внутри поля открывает выбор цвета,
                             HEX или название ступени палитры, прозрачность справа. */}
                         <div className="st-color">
-                            <span>Цвет</span>
-                            <div className="figma-value-control">
+                            <span className="tw-field-label">Цвет</span>
+                            <div
+                                className={`figma-value-control ${fieldClass(
+                                    errors[`${index}.hex`] || errors[`${index}.opacity`] ? 'error' : null,
+                                )}`}
+                            >
                                 <div className="figma-value-main">
                                     <button
                                         type="button"
@@ -156,9 +166,7 @@ export const ShadowLayers = ({
                             </div>
                         </div>
                         {messages.map((message) => (
-                            <p key={message} className="st-field-error" role="alert">
-                                {message}
-                            </p>
+                            <FieldMessage key={message}>{message}</FieldMessage>
                         ))}
                     </div>
                 );
@@ -166,7 +174,7 @@ export const ShadowLayers = ({
             {editable && (
                 <button
                     type="button"
-                    className="st-link"
+                    className="st-link-button"
                     disabled={layers.length >= MAX_SHADOW_LAYERS}
                     onClick={() => onChange([...layers, { ...DEFAULT_SHADOW_LAYER }])}
                 >

@@ -260,6 +260,78 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     }
 
     @Test
+    @Suppress("LongMethod")
+    fun `batch revert resets every entry of a token atomically in one request`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"b","projectName":"b"}""")
+                val tenant = api.createTenant(designSystemId, "a")
+                val created = api.call("POST", "/api/ds/tenants/$tenant/color-tokens", MAINTAINER, createBody("brand"))
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val tokenId = api.body(created).jsonObject.getValue("value").array("members").single().text("tokenId")
+                api.publish(postgres, designSystemId, "1.0.0")
+                val values = "/api/ds/tenants/$tenant/color-tokens/$tokenId/values"
+                val gradient = api.call("PUT", values, EDITOR, gradientBody(tokenId, emptyMap()))
+                assertEquals("gradient", api.body(gradient).jsonObject.text("type"))
+                val renamed = api.call(
+                    "PATCH",
+                    "/api/ds/tokens/$tokenId",
+                    EDITOR,
+                    """{"name":"text.default.renamed"}""",
+                )
+                assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
+                val definition = "SELECT name || ':' || type FROM tokens WHERE id = '$tokenId'"
+                fun ofToken(change: JsonObject) = change.text("entityId") == tokenId ||
+                    change["currentValue"]?.takeIf { it is JsonObject }?.jsonObject?.get("token_id")
+                        ?.jsonPrimitive?.content == tokenId
+                // Значения раньше определения: их откат пересчитывает тип семейства и сдвигает редакцию определения.
+                val entries = api.journal(designSystemId).filter(::ofToken)
+                    .sortedBy { if (it.text("entityType") == "token") 1 else 0 }
+                assertTrue(entries.size > 1)
+                assertEquals("token", entries.last().text("entityType"))
+                fun batch(revisionOf: (JsonObject) -> Long) = entries.joinToString(",", """{"changes":[""", "]}") {
+                    """{"changeId":"${it.text("changeId")}","expectedRevision":${revisionOf(it)}}"""
+                }
+                val revisionOf = { change: JsonObject -> change.getValue("editRevision").jsonPrimitive.long }
+                val path = "/api/ds/design-systems/$designSystemId/changes/revert"
+
+                // Устаревшая последняя запись: пакет не меняет ничего, отказ называет позицию записи.
+                val stale = api.call(
+                    "POST",
+                    path,
+                    OWNER,
+                    batch { if (it == entries.last()) revisionOf(it) + 100 else revisionOf(it) },
+                    idempotencyKey = "batch-stale",
+                )
+                assertEquals(HttpStatusCode.Conflict, stale.status, stale.bodyAsText())
+                assertEquals("DRAFT_CHANGE_STALE", api.body(stale).text("code"))
+                assertEquals(
+                    entries.lastIndex,
+                    api.body(stale).obj("details").array("changeIndex").single().jsonPrimitive.content.toInt(),
+                )
+                assertEquals("text.default.renamed:gradient", text(postgres, definition))
+                assertEquals(entries.size, api.journal(designSystemId).count(::ofToken))
+
+                val reverted = api.call("POST", path, OWNER, batch(revisionOf), idempotencyKey = "batch-reset")
+                assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
+                assertEquals("text.default.brand:color", text(postgres, definition))
+                assertTrue(api.journal(designSystemId).none(::ofToken))
+                val replay = api.call("POST", path, OWNER, batch(revisionOf), idempotencyKey = "batch-reset")
+                assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
+                assertEquals(reverted.bodyAsText(), replay.bodyAsText())
+
+                val empty = api.call("POST", path, OWNER, """{"changes":[]}""", idempotencyKey = "batch-empty")
+                assertEquals(HttpStatusCode.BadRequest, empty.status, empty.bodyAsText())
+                assertEquals("REVERT_BATCH_EMPTY", api.body(empty).text("code"))
+                val viewer = api.call("POST", path, VIEWER, batch(revisionOf), idempotencyKey = "batch-viewer")
+                assertEquals(HttpStatusCode.Forbidden, viewer.status, viewer.bodyAsText())
+            }
+        }
+    }
+
+    @Test
     fun `definition revert of one member keeps one family type matching values`() {
         IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {

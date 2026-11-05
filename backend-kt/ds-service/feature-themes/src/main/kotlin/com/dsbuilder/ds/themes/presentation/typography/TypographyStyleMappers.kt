@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.presentation.typography
 
+import com.dsbuilder.ds.themes.application.typography.CreatedTypographyStyle
 import com.dsbuilder.ds.themes.application.typography.UpdatedTypographyStyle
 import com.dsbuilder.ds.themes.application.typography.WrittenTypographyToken
 import com.dsbuilder.ds.themes.domain.typography.TypographyComponentUsage
@@ -8,6 +9,7 @@ import com.dsbuilder.ds.themes.domain.typography.TypographyScreenView
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleView
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyles
 import com.dsbuilder.ds.themes.domain.typography.TypographyValueRevision
+import java.util.UUID
 
 /** Ответ чтения стилей. */
 internal fun TypographyStyles.toResponse() = TypographyStylesResponse(
@@ -21,6 +23,12 @@ internal fun TypographyStyles.toResponse() = TypographyStylesResponse(
 internal fun UpdatedTypographyStyle.toResponse() = UpdatedTypographyStyleResponse(
     style = style.toDto(),
     tokens = tokens.map { it.toDto() },
+)
+
+/** Ответ создания стиля. */
+internal fun CreatedTypographyStyle.toResponse() = CreatedTypographyStyleResponse(
+    tokenIds = tokenIds.map(UUID::toString),
+    screens = screens.map { it.toDto() },
 )
 
 private fun TypographyFamily.toDto() = TypographyFamilyDto(name, fontName)
