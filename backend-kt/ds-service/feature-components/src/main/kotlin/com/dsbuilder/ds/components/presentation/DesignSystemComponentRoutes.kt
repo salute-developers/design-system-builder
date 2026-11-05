@@ -88,6 +88,7 @@ fun Route.designSystemComponentRoutes(
                     designSystemId,
                     componentId,
                     call.request.headers["Idempotency-Key"],
+                    request.fromTemplate,
                 )
             ) {
                 is DsResult.Success -> call.respondSuccess(

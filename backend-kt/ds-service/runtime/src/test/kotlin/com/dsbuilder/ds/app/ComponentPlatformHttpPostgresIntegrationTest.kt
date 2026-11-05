@@ -429,6 +429,104 @@ class ComponentPlatformHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `components are added from templates into a design system created without components`() = withService {
+        val designSystem =
+            id(
+                post(
+                    "/api/ds/design-systems",
+                    """{"name":"templates","projectName":"templates"}""",
+                    owner = true,
+                ).bodyAsText(),
+            )
+        assertEquals(0, count("design_system_components WHERE design_system_id = '$designSystem'"))
+        val ids = ComponentSeedFixture.seed(
+            service.postgres.jdbcUrl,
+            service.postgres.username,
+            service.postgres.password,
+        )
+
+        val templates = json.parseToJsonElement(get("/api/ds/component-templates").bodyAsText()).jsonArray
+        assertEquals(ids.size, templates.size)
+        val groupTemplate = templates.single { it.jsonObject.getValue("name").jsonPrimitive.content == "AvatarGroup" }
+        assertTrue(
+            groupTemplate.jsonObject.getValue("dependsOn").jsonArray
+                .any { it.jsonPrimitive.content == ids.getValue("Avatar").toString() },
+        )
+
+        val add = { componentId: Any ->
+            """{"designSystemId":"$designSystem","componentId":"$componentId","fromTemplate":true}"""
+        }
+        val added =
+            post("/api/ds/design-system-components", add(ids.getValue("AvatarGroup")), editor = true)
+        assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
+        val links = get("/api/ds/design-system-components").bodyAsText()
+        assertTrue(
+            links.contains(ids.getValue("AvatarGroup").toString()) && links.contains(ids.getValue("Avatar").toString()),
+        )
+        val appearances = "appearances WHERE design_system_id = '$designSystem'"
+        val seeded = count(appearances)
+        assertTrue(seeded > 0)
+
+        val repeated =
+            post("/api/ds/design-system-components", add(ids.getValue("AvatarGroup")), editor = true)
+        assertEquals(HttpStatusCode.Created, repeated.status, repeated.bodyAsText())
+        assertEquals(id(added.bodyAsText()), id(repeated.bodyAsText()))
+        assertEquals(seeded, count(appearances))
+
+        assertTrue(delete("/api/ds/design-system-components/${id(added.bodyAsText())}").status.isSuccess())
+        val restored =
+            post("/api/ds/design-system-components", add(ids.getValue("AvatarGroup")), editor = true)
+        assertEquals(HttpStatusCode.Created, restored.status, restored.bodyAsText())
+        assertEquals(seeded, count(appearances), "a hidden component keeps its configuration")
+
+        val card = ids.getValue("Card").toString()
+        val cardAdded = post("/api/ds/design-system-components", add(card), editor = true)
+        assertEquals(HttpStatusCode.Created, cardAdded.status, cardAdded.bodyAsText())
+        val linkChange = json.parseToJsonElement(get("/api/ds/design-systems/$designSystem/changes").bodyAsText())
+            .jsonArray.map { it.jsonObject }
+            .single {
+                it.getValue("entityType").jsonPrimitive.content == "design-system-component" &&
+                    it.getValue("entityId").jsonPrimitive.content == id(cardAdded.bodyAsText())
+            }
+        val reverted = service.builder.client.post(
+            "/api/ds/design-systems/$designSystem/changes/${linkChange.getValue(
+                "changeId",
+            ).jsonPrimitive.content}/revert",
+        ) {
+            actor(admin = false, owner = true, editor = false, viewer = false)
+            header("Idempotency-Key", "revert-card")
+            header("X-DS-Base-Revision", linkChange.getValue("editRevision").jsonPrimitive.content)
+            contentType(ContentType.Application.Json)
+            setBody("{}")
+        }
+        assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
+        assertFalse(
+            get("/api/ds/design-system-components").bodyAsText().contains(card),
+            "the reverted addition is gone",
+        )
+
+        val compose =
+            id(post("/api/ds/components", """{"name":"Badge","platform":"compose"}""", admin = true).bodyAsText())
+        val withoutTemplate = post("/api/ds/design-system-components", add(compose), editor = true)
+        assertEquals(HttpStatusCode.UnprocessableEntity, withoutTemplate.status, withoutTemplate.bodyAsText())
+        assertTrue(withoutTemplate.bodyAsText().contains("template_not_found"), withoutTemplate.bodyAsText())
+
+        val roundCircle = query(
+            "SELECT token_id FROM token_revisions " +
+                "WHERE design_system_id = '$designSystem' AND name = 'round.circle' LIMIT 1",
+        )
+        assertTrue(delete("/api/ds/tokens/$roundCircle").status.isSuccess())
+        val withoutToken =
+            post("/api/ds/design-system-components", add(ids.getValue("Badge")), editor = true)
+        assertEquals(HttpStatusCode.UnprocessableEntity, withoutToken.status, withoutToken.bodyAsText())
+        assertTrue(withoutToken.bodyAsText().contains("round.circle"), withoutToken.bodyAsText())
+        assertEquals(
+            0,
+            count("appearances WHERE design_system_id = '$designSystem' AND component_id = '${ids.getValue("Badge")}'"),
+        )
+    }
+
+    @Test
     fun `a component linked only in another project stays unreadable`() = withService {
         val designSystem =
             id(

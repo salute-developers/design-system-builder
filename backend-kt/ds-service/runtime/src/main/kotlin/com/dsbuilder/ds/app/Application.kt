@@ -80,6 +80,7 @@ import com.dsbuilder.ds.components.application.ListComponentDependenciesUseCase
 import com.dsbuilder.ds.components.application.ListComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsByDependencyUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsUseCase
+import com.dsbuilder.ds.components.application.ListComponentTemplatesUseCase
 import com.dsbuilder.ds.components.application.ListComponentVariationsUseCase
 import com.dsbuilder.ds.components.application.ListComponentsUseCase
 import com.dsbuilder.ds.components.application.ListDependenciesByComponentUseCase
@@ -144,6 +145,7 @@ import com.dsbuilder.ds.components.presentation.componentDependencyRoutes
 import com.dsbuilder.ds.components.presentation.componentEditorBundleRoutes
 import com.dsbuilder.ds.components.presentation.componentReuseConfigRoutes
 import com.dsbuilder.ds.components.presentation.componentRoutes
+import com.dsbuilder.ds.components.presentation.componentTemplateRoutes
 import com.dsbuilder.ds.components.presentation.designSystemComponentRoutes
 import com.dsbuilder.ds.components.presentation.invariantPlatformParamAdjustmentRoutes
 import com.dsbuilder.ds.components.presentation.invariantPropertyValueRoutes
@@ -484,6 +486,10 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<CreateDesignSystemComponentUseCase>(),
         koin.get<DeleteDesignSystemComponentUseCase>(),
         json,
+    )
+    componentTemplateRoutes(
+        runtime.evaluator,
+        koin.get<ListComponentTemplatesUseCase>(),
     )
     componentDependencyRoutes(
         runtime.evaluator,
