@@ -9,7 +9,8 @@
     "build": "npm run build:client",
     "build:client": "cd apps/client && npm run build",
     "test:cli": "npm --prefix cli run typecheck && npm --prefix cli test",
-    "verify:fast": "npm run build && npm run test:cli",
+    "verify:figma-plugin": "npm --prefix apps/figma-plugin ci --no-progress && npm --prefix apps/figma-plugin test && npm --prefix apps/figma-plugin run build",
+    "verify:fast": "npm run build && npm run test:cli && npm run verify:figma-plugin",
     "verify:full": "npm run verify:fast",
     "prepare": "cd .. && husky js/.husky"
   },

@@ -1,11 +1,11 @@
 {
   "project": {
     "lang": "kotlin",
-    "loc": 25034,
+    "loc": 25746,
     "packages": 106,
-    "modules": 316,
-    "classes": 650,
-    "methods": 928,
+    "modules": 322,
+    "classes": 661,
+    "methods": 977,
     "functions": 283,
     "status": {
       "name": "warning",
@@ -20,24 +20,24 @@
       "score": 44
     },
     "refactoring_pressure": {
-      "score": 59,
+      "score": 60,
       "stat(modules)": {
         "avg": 7,
         "min": 0,
         "max": 25,
         "p50": 6,
-        "p90": 15
+        "p90": 16
       }
     },
     "complexity": {
-      "score": 2408,
-      "density": 9.62,
+      "score": 2537,
+      "density": 9.85,
       "stat(modules)": {
         "avg": 8,
         "min": 0,
         "max": 53,
         "p50": 4,
-        "p90": 20
+        "p90": 21
       }
     }
   }

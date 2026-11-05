@@ -83,6 +83,23 @@ jobs:
       # CONTRACT.sha256 читает CI plasma-android: он должен соответствовать схеме и общим фикстурам.
       - run: backend-kt/preview/contract/fingerprint.sh --check
 
+  figma-plugin:
+    name: Tests and build (figma-plugin)
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: js/apps/figma-plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          cache: npm
+          cache-dependency-path: js/apps/figma-plugin/package-lock.json
+      - run: npm ci --no-progress
+      - run: npm test
+      - run: npm run build
+
   build:
     name: Build (${{ matrix.project.name }})
     runs-on: ubuntu-22.04

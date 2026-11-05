@@ -17,7 +17,11 @@ test('transforms every path covered by every service-level source rule', async (
     const result = transformOpenApi(document, source, servers);
 
     assert.ok(expectedPaths.length > 0, `${source.id} has paths for its prefix`);
-    assert.equal(Object.keys(result.paths).length, expectedPaths.length, `${source.id} path count`);
+    const exactPaths = source.exactPaths ?? [];
+    assert.equal(Object.keys(result.paths).length, expectedPaths.length + exactPaths.length, `${source.id} path count`);
+    for (const path of exactPaths) {
+      assert.ok(document.paths[path] && result.paths[path], `${source.id} keeps ${path}`);
+    }
     for (const path of expectedPaths) {
       const publicPath = `${source.gatewayPrefix}${path.slice(source.sourcePrefix.length)}`;
       assert.ok(result.paths[publicPath], `${source.id} transforms ${path}`);

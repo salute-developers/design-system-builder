@@ -1,0 +1,14 @@
+{
+    "name": "DS Builder Tokens",
+    "id": "dsbuilder-tokens",
+    "api": "1.0.0",
+    "main": "dist/code.js",
+    "ui": "dist/ui.html",
+    "editorType": ["figma"],
+    "documentAccess": "dynamic-page",
+    "networkAccess": {
+        "allowedDomains": ["https://gateway.design-system-builder.ru"],
+        "devAllowedDomains": ["http://localhost:8080"],
+        "reasoning": "Вход в DS Builder и чтение токенов темы."
+    }
+}

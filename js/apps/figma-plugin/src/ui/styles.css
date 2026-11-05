@@ -1,0 +1,258 @@
+:root {
+    color-scheme: light dark;
+    font:
+        12px/16px Inter,
+        system-ui,
+        sans-serif;
+}
+
+body {
+    margin: 0;
+    background: var(--figma-color-bg, #ffffff);
+    color: var(--figma-color-text, #1e1e1e);
+}
+
+/* Системный скроллбар в окне Figma наложенный и закрывает значения: свой занимает место в разметке. */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    background: var(--figma-color-bg-tertiary, rgba(128, 128, 128, 0.5));
+}
+
+h1 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 24px;
+}
+
+h2,
+h3 {
+    margin: 12px 0 4px;
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 600;
+    color: var(--figma-color-text-secondary, #6b6b6b);
+}
+
+p {
+    margin: 0;
+}
+
+button {
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--figma-color-bg-brand, #0d99ff);
+    color: var(--figma-color-text-onbrand, #ffffff);
+    font: inherit;
+    cursor: pointer;
+}
+
+button.secondary {
+    background: var(--figma-color-bg-secondary, #f5f5f5);
+    color: var(--figma-color-text, #1e1e1e);
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+input,
+select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--figma-color-border, #e6e6e6);
+    border-radius: 6px;
+    background: var(--figma-color-bg, #ffffff);
+    color: inherit;
+    font: inherit;
+}
+
+.status {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+    padding: 16px;
+    color: var(--figma-color-text-secondary, #6b6b6b);
+}
+
+.login {
+    display: grid;
+    gap: 12px;
+    justify-items: start;
+    padding: 24px 16px;
+}
+
+.user-code {
+    font-size: 20px;
+    line-height: 28px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+}
+
+.browser {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--figma-color-border, #e6e6e6);
+}
+
+.crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+}
+
+.crumbs button {
+    padding: 2px 4px;
+    background: none;
+    color: var(--figma-color-text-brand, #0d99ff);
+}
+
+.crumbs button:disabled {
+    opacity: 1;
+    color: var(--figma-color-text, #1e1e1e);
+    cursor: default;
+}
+
+.crumbs button + button::before {
+    content: '/ ';
+    color: var(--figma-color-text-tertiary, #b3b3b3);
+}
+
+.options {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0 12px;
+    list-style: none;
+}
+
+.options button {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    background: var(--figma-color-bg-secondary, #f5f5f5);
+    color: inherit;
+    text-align: left;
+}
+
+.options small {
+    color: var(--figma-color-text-secondary, #6b6b6b);
+}
+
+section > h2 {
+    padding: 0 12px;
+}
+
+.tokens-view {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 8px 12px 0;
+}
+
+.filters label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.note {
+    padding: 8px 12px 0;
+    color: var(--figma-color-text-warning, #a35f00);
+}
+
+.tabs,
+.segments {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px 0;
+}
+
+.tabs button,
+.segments button {
+    padding: 4px 8px;
+    background: none;
+    color: var(--figma-color-text-secondary, #6b6b6b);
+}
+
+.tabs button[aria-selected='true'],
+.segments button[aria-pressed='true'] {
+    background: var(--figma-color-bg-secondary, #f5f5f5);
+    color: var(--figma-color-text, #1e1e1e);
+}
+
+.token-list {
+    flex: 1;
+    overflow: auto;
+    padding: 0 12px 12px;
+}
+
+.tokens {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tokens li {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-height: 28px;
+}
+
+.token-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.token-value {
+    margin-left: auto;
+    overflow: hidden;
+    color: var(--figma-color-text-secondary, #6b6b6b);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.swatch {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--figma-color-border, #e6e6e6);
+    border-radius: 4px;
+}
+
+.swatch.is-empty {
+    background: none;
+}
