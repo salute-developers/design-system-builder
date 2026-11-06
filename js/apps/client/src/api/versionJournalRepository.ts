@@ -87,6 +87,25 @@ export class VersionJournalRepository {
         return response;
     }
 
+    /**
+     * Откатывает записи [changes] одним запросом и одной транзакцией в переданном порядке (от новой к старой):
+     * либо все, либо ни одной. Редакции берутся из одного снимка журнала; не больше 200 записей за запрос.
+     */
+    async revertChanges(context: EditorContextKey, changes: readonly DraftChangeDto[]) {
+        const response = await http.post(
+            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes/revert`,
+            {
+                changes: changes.map((change) => ({
+                    changeId: change.changeId,
+                    expectedRevision: change.editRevision,
+                })),
+            },
+            { headers: { 'Idempotency-Key': crypto.randomUUID() } },
+        );
+        invalidateEditorReads(context);
+        return response;
+    }
+
     async publish(
         context: EditorContextKey,
         draftId: string,

@@ -104,19 +104,10 @@ export type SizeTokenValue =
           platforms: Partial<Record<NativePlatform, ShadowLayer[]>>;
       };
 
-/** Вариант размера тени: направление и жёсткость. */
-export type ShadowVariant = 'down.soft' | 'down.hard' | 'up.soft' | 'up.hard';
-
-export const SHADOW_VARIANTS: readonly ShadowVariant[] = ['down.soft', 'down.hard', 'up.soft', 'up.hard'];
-
-/** Тело операции создания: радиус или отступ — имя без префикса и значение, тень — размер и четыре варианта. */
+/** Тело операции создания: радиус или отступ — имя без префикса и значение, тень — имя (произвольное) и слои. */
 export type CreateSizeTokenRequest =
     | { kind: 'radius' | 'spacing'; name: string; valuePx: number }
-    | {
-          kind: 'shadow';
-          name: string;
-          variants: Array<{ variant: ShadowVariant; layers: ShadowLayer[]; fallbackElevation: number }>;
-      };
+    | { kind: 'shadow'; name: string; layers: ShadowLayer[]; fallbackElevation: number };
 
 /** Значение платформы, записанное операцией, в формате хранения. */
 export interface WrittenValue {

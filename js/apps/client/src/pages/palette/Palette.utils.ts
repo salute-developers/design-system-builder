@@ -1,7 +1,6 @@
 import {
     hexToRgba,
     rampKey,
-    resolveStepInGroup,
     rgbToHsl,
     sameRamp,
     SYSTEM_GROUPS,
@@ -111,6 +110,19 @@ export const filterGroups = (palette: ThemePalette, search: string, filter: Pale
         .filter(({ ramps }) => ramps.length > 0 || (!query && filter === 'all'));
 };
 
+/** Выбор, если его растяжка видна после поиска и фильтра; иначе `null` — инспектор не показывает скрытую растяжку. */
+export const visibleSelection = (
+    groups: ReturnType<typeof filterGroups>,
+    selection: PaletteSelection | null,
+): PaletteSelection | null =>
+    selection &&
+    groups.some(
+        ({ group, ramps }) =>
+            group.id === selection.groupId && ramps.some((ramp) => sameRamp(ramp.slot, selection.slot)),
+    )
+        ? selection
+        : null;
+
 /**
  * Растяжки шаблона для списков выбора («Поменять», «Добавить палитру», замена при удалении): как в прототипе,
  * сначала серые семейства, затем остальные в порядке шаблона. Порядок шаблона в контракте не меняется.
@@ -122,15 +134,11 @@ export const libraryOrder = <T extends PaletteRampRef>(ramps: T[]) => {
 
 export const templateLabel = (ref: PaletteRampRef) => ({ name: templateRampName(ref), meta: templateRampMeta(ref) });
 
-/** Значение ссылки токена, если бы токен принадлежал группе `groupId`. */
-export const valueInGroup = (palette: ThemePalette, groupId: string, reference: PaletteRampRef & { step: number }) =>
-    resolveStepInGroup(palette, groupId, reference);
-
 export const findRamp = (palette: ThemePalette, groupId: string, slot: PaletteRampRef) =>
     palette.groups.find((group) => group.id === groupId)?.ramps.find((ramp) => sameRamp(ramp.slot, slot));
 
 /** Свотч ступени на борде режима «Цвет»: к нему привязан выбор цвета. */
 export const stepSwatch = ({ groupId, slot, step }: PaletteSelection) =>
     document.querySelector<HTMLElement>(
-        `.source-palette-ramp-step[data-group="${CSS.escape(groupId)}"][data-slot="${CSS.escape(rampKey(slot))}"][data-step="${step}"]`,
+        `.palette-ramp-step[data-group="${CSS.escape(groupId)}"][data-slot="${CSS.escape(rampKey(slot))}"][data-step="${step}"]`,
     );

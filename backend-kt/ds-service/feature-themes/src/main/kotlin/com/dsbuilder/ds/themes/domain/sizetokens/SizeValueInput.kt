@@ -15,6 +15,4 @@ data class SizeValueInput(
     val fallbackElevation: JsonElement? = null,
     /** Свои значения платформ `{ ios, android }`. */
     val platforms: JsonElement? = null,
-    /** Варианты нового размера тени. */
-    val variants: JsonElement? = null,
 )

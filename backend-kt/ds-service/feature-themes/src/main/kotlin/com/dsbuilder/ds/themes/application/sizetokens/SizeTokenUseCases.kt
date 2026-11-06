@@ -10,4 +10,6 @@ data class SizeTokenUseCases(
     val create: CreateSizeTokenUseCase,
     /** Удаление токена. */
     val delete: DeleteSizeTokenUseCase,
+    /** Переименование токена. */
+    val rename: RenameSizeTokenUseCase,
 )

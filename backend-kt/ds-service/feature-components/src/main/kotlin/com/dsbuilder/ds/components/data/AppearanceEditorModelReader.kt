@@ -137,7 +137,10 @@ internal object AppearanceEditorModelReader {
             emptyMap()
         } else {
             ComponentTokensTable.selectAll().where { ComponentTokensTable.id inList tokenIds }
-                .associate { it[ComponentTokensTable.id] to it[ComponentTokensTable.name] }
+                .associate { row ->
+                    row[ComponentTokensTable.id] to
+                        referenceName(row[ComponentTokensTable.name], row[ComponentTokensTable.type])
+                }
         }
         return values.map { it.copy(tokenName = it.tokenId?.let(tokenNames::get)) }.sortedWith(
             compareBy({ it.propertyName }, { it.kind }, { it.styleIds.joinToString() }, { it.position }),

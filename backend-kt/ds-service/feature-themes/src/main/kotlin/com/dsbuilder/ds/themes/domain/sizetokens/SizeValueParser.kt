@@ -53,12 +53,10 @@ object SizeValueParser {
 
     private const val DIMENSION_BODY = "Радиус и отступ задаются значением valuePx, а не слоями тени."
     private const val SHADOW_BODY = "Тень задаётся слоями layers, а не значением valuePx."
-    private const val VARIANTS_BODY = "Слои нового размера тени задаются в variants."
     private const val PLATFORMS_OBJECT = "Свои значения платформ задаются объектом с ключами ios и android."
     private const val UNKNOWN_PLATFORM = "Своё значение задаётся только для ios и android."
     private const val PLATFORM_LAYERS = "Свои слои платформы задаются объектом с полем layers."
     private const val LAYER_OBJECT = "Слой тени задаётся объектом с полями offsetX, offsetY, blur, spread и color."
-    private const val VARIANTS = "Нужны варианты down.soft, down.hard, up.soft и up.hard, каждый по одному разу."
     private val HEX = Regex("^#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")
     private val LAYER_NUMBERS = listOf(
         "offsetX" to OFFSET_RANGE,
@@ -72,22 +70,17 @@ object SizeValueParser {
         result(if (kind == SizeTokenKind.SHADOW) shadow(input) else dimension(kind, input))
     }
 
-    /** Значения четырёх вариантов нового размера тени из `variants` запроса [input]. */
-    fun variants(input: SizeValueInput): SizeValueCheck<List<ShadowVariantValue>> = Reader().run {
-        result(variantList(input))
-    }
-
     /**
      * Ссылки цветов слоёв значения [value] на ступени палитры с полем запроса: `layers[0].color`,
-     * `platforms.ios.layers[1].color`; [prefix] — префикс варианта нового размера, например `variants[2].`.
+     * `platforms.ios.layers[1].color`.
      */
-    fun colorReferences(value: SizeTokenValue, prefix: String = ""): List<Pair<String, PaletteReference>> {
+    fun colorReferences(value: SizeTokenValue): List<Pair<String, PaletteReference>> {
         val shadow = value as? SizeTokenValue.Shadow ?: return emptyList()
         fun layers(path: String, layers: List<ShadowLayer>) = layers.mapIndexedNotNull { index, layer ->
             PaletteReference.parse(layer.color)?.let { "$path[$index].color" to it }
         }
-        return layers("${prefix}layers", shadow.layers) + NativePlatform.entries.flatMap { platform ->
-            shadow.platforms[platform]?.let { layers("${prefix}platforms.${platform.wireValue}.layers", it) }.orEmpty()
+        return layers("layers", shadow.layers) + NativePlatform.entries.flatMap { platform ->
+            shadow.platforms[platform]?.let { layers("platforms.${platform.wireValue}.layers", it) }.orEmpty()
         }
     }
 
@@ -97,7 +90,6 @@ object SizeValueParser {
     private fun Reader.dimension(kind: SizeTokenKind, input: SizeValueInput): SizeTokenValue.Dimension? {
         val range = if (kind == SizeTokenKind.RADIUS) RADIUS_RANGE else SPACING_RANGE
         val foreign = listOf("layers" to input.layers, "fallbackElevation" to input.fallbackElevation)
-            .plus("variants" to input.variants)
             .firstOrNull { (_, value) -> value.present() }
         if (foreign != null) return fail(foreign.first, DIMENSION_BODY)
         val px = integer("valuePx", input.valuePx, range)
@@ -107,7 +99,6 @@ object SizeValueParser {
 
     private fun Reader.shadow(input: SizeValueInput): SizeTokenValue.Shadow? = when {
         input.valuePx.present() -> fail("valuePx", SHADOW_BODY)
-        input.variants.present() -> fail("variants", DIMENSION_BODY)
         else -> shadowValue("", input.layers, input.fallbackElevation)?.let { value ->
             platforms(input.platforms) { field, element ->
                 (element as? JsonObject)?.let { layers("$field.layers", it["layers"]) } ?: fail(field, PLATFORM_LAYERS)
@@ -115,38 +106,12 @@ object SizeValueParser {
         }
     }
 
-    private fun Reader.variantList(input: SizeValueInput): List<ShadowVariantValue>? {
-        val items = input.variants as? JsonArray
-        return when {
-            input.valuePx.present() -> fail("valuePx", SHADOW_BODY)
-            input.layers.present() -> fail("layers", VARIANTS_BODY)
-            items == null -> fail("variants", VARIANTS)
-            else -> items.mapIndexed { index, item -> variant("variants[$index]", item) }
-                .takeIf { parsed -> parsed.all { it != null } }
-                ?.filterNotNull()
-                ?.let { parsed ->
-                    val names = parsed.map(ShadowVariantValue::variant)
-                    val complete = names.sorted() == SizeTokenNaming.SHADOW_VARIANTS.sorted()
-                    if (complete) parsed else fail("variants", VARIANTS)
-                }
-        }
-    }
-
-    private fun Reader.variant(field: String, item: JsonElement): ShadowVariantValue? {
-        val variant = item as? JsonObject ?: return fail(field, VARIANTS)
-        val name = (variant["variant"] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
-            ?.takeIf { it in SizeTokenNaming.SHADOW_VARIANTS }
-            ?: return fail("$field.variant", VARIANTS)
-        return shadowValue("$field.", variant["layers"], variant["fallbackElevation"])
-            ?.let { ShadowVariantValue(name, it) }
-    }
-
     private fun Reader.shadowValue(
         prefix: String,
         layers: JsonElement?,
         elevation: JsonElement?,
     ): SizeTokenValue.Shadow? {
-        val parsed = layers("${prefix}layers", layers) ?: return null
+        val parsed = layers("layers", layers) ?: return null
         val fallback = if (elevation.present()) integer("${prefix}fallbackElevation", elevation, ELEVATION_RANGE) else 0
         return fallback?.let { SizeTokenValue.Shadow(parsed, it) }
     }

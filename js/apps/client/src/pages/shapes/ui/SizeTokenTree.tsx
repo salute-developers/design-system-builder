@@ -1,12 +1,23 @@
+import { DisclosureDownOutline, DisclosureRightOutline, PlusOutline, TrashOutline } from '@salutejs/sdds-icons/16';
+import { useRef, useState } from 'react';
+
+import { TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
 import {
     boxShadow,
+    editableName,
     shortName,
     type SizeToken,
     type SizeTokenKind,
     type TreeSection,
 } from '../../../modules/sizeTokens';
 import { InlineInput } from '../../colors/ui/ColorTokenTree';
-import { StGlyph } from './StGlyph';
+import { InlineRename } from '../../colors/ui/InlineRename';
+
+/** Название раздела: одно в дереве, крошке и подсказке рейла. */
+export const SIZES_TITLE = 'Отступы, радиусы и тени';
+
+/** Сообщение пустого раздела стилем пустого результата поиска (`design.md` изменения `align-token-screens-with-figma`). */
+export const SIZES_EMPTY_TEXT = 'В теме пока нет токенов размеров';
 
 /** Строка нового токена внизу раздела: открыта «+», как строка нового токена в группе «Цветов». */
 export interface CreatingRow {
@@ -18,7 +29,7 @@ export interface CreatingRow {
 const NEW_TOKEN_PLACEHOLDER: Record<SizeTokenKind, string> = {
     radius: 'Например, xxxl',
     spacing: 'Например, 14x',
-    shadow: 'Размер, например xl',
+    shadow: 'Имя тени, например card или elevated.focus',
 };
 
 interface SizeTokenTreeProps {
@@ -30,7 +41,10 @@ interface SizeTokenTreeProps {
     searchOpen: boolean;
     collapsed: Partial<Record<SizeTokenKind, boolean>>;
     editable: boolean;
+    /** Удаление при наведении и фокусе на строку — по тем же правилам, что кнопка удаления в инспекторе. */
+    canDelete: boolean;
     onSelect: (token: SizeToken) => void;
+    onDelete: (token: SizeToken) => void;
     onQuery: (query: string) => void;
     onSearchOpen: (open: boolean) => void;
     onToggle: (kind: SizeTokenKind) => void;
@@ -38,7 +52,11 @@ interface SizeTokenTreeProps {
     creating: CreatingRow | null;
     onCreate: (kind: SizeTokenKind, name: string) => void;
     onCancelCreate: () => void;
+    /** Переименование двойным щелчком по строке; ошибка остаётся у поля. */
+    onRename?: (token: SizeToken, name: string) => Promise<void>;
 }
+
+const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** Значение строки: «12 px», «Full», у тени — «Y 4 · B 14 · 2 сл.». */
 export const rowValue = (token: SizeToken) => {
@@ -50,126 +68,175 @@ export const rowValue = (token: SizeToken) => {
     return token.fullRounding || token.valuePx === null ? 'Full' : `${token.valuePx} px`;
 };
 
-const glyph = (token: SizeToken) =>
-    token.kind === 'shadow' ? (
-        <i className="st-row-chip is-shadow" style={{ boxShadow: boxShadow(token.layers) }} aria-hidden="true" />
-    ) : (
-        <i className={`sizing-kind-glyph ${token.kind === 'radius' ? 'is-radius' : 'is-gap'}`} aria-hidden="true" />
-    );
-
-/** Глиф строки нового токена: как у токенов раздела, у тени — пустой квадрат. */
-const placeholderGlyph = (kind: SizeTokenKind) =>
+/** Значок строки: у радиуса и отступа — значок раздела, у тени — превью тени. */
+const glyph = (kind: SizeTokenKind, token?: SizeToken) =>
     kind === 'shadow' ? (
-        <i className="st-row-chip is-shadow" aria-hidden="true" />
+        <i
+            className="st-row-chip"
+            style={token?.kind === 'shadow' ? { boxShadow: boxShadow(token.layers) } : undefined}
+            aria-hidden="true"
+        />
     ) : (
-        <i className={`sizing-kind-glyph ${kind === 'radius' ? 'is-radius' : 'is-gap'}`} aria-hidden="true" />
+        <i className={`st-kind-glyph ${kind === 'radius' ? 'is-radius' : 'is-gap'}`} aria-hidden="true" />
     );
 
-/** Дерево раздела по `sizingTokenTree` прототипа: «Радиусы», «Отступы», «Тени». */
+/** Дерево раздела: «Радиусы», «Отступы», «Тени»; поиск показывает плоский список совпадений. */
 export const SizeTokenTree = (props: SizeTokenTreeProps) => {
-    const { sections, selectedId, query, searchOpen, collapsed, editable } = props;
-    return (
-        <aside className="token-browser">
-            <div className="token-panel-header token-menu-header sidebar-header">
-                <strong className="token-panel-context-name">Отступы, радиусы и тени</strong>
-                <div className="sidebar-header-actions">
+    const { sections, selectedId, query, searchOpen, collapsed, editable, canDelete } = props;
+    const searching = searchOpen && query.trim() !== '';
+    const found = sections.flatMap((section) => section.tokens);
+    const empty = !searching && found.length === 0;
+
+    const [renaming, setRenaming] = useState<{ id: string; busy: boolean; error: string | null } | null>(null);
+    // Enter и уход фокуса могут прийти подряд: переименование отправляется один раз.
+    const running = useRef(false);
+    const rename = async (token: SizeToken, name: string) => {
+        if (running.current || !props.onRename) return;
+        running.current = true;
+        setRenaming({ id: token.tokenId, busy: true, error: null });
+        try {
+            await props.onRename(token, name);
+            setRenaming(null);
+        } catch (error) {
+            setRenaming({ id: token.tokenId, busy: false, error: errorText(error) });
+        } finally {
+            running.current = false;
+        }
+    };
+
+    const renameRow = (token: SizeToken, state: { busy: boolean; error: string | null }) => (
+        <div key={token.tokenId} className="st-tree-row-wrap tw-tree-row">
+            <div className="st-tree-row tw-tree-item is-selected is-renaming">
+                {glyph(token.kind, token)}
+                <InlineRename
+                    label={`Новое имя ${token.name}`}
+                    initial={editableName(token)}
+                    busy={state.busy}
+                    error={state.error}
+                    onSubmit={(name) => void rename(token, name)}
+                    onCancel={() => setRenaming(null)}
+                />
+            </div>
+            {state.error && (
+                <span className="token-tree-input-error" role="alert">
+                    {state.error}
+                </span>
+            )}
+        </div>
+    );
+
+    const tokenRow = (token: SizeToken) => {
+        const selected = selectedId === token.tokenId;
+        if (renaming?.id === token.tokenId) return renameRow(token, renaming);
+        return (
+            <div key={token.tokenId} className="st-tree-row-wrap tw-tree-row">
+                <button
+                    type="button"
+                    className={`st-tree-row tw-tree-item ${selected ? 'is-selected' : ''}`}
+                    aria-current={selected ? 'true' : undefined}
+                    data-token-name={token.name}
+                    data-token-id={token.tokenId}
+                    onClick={() => props.onSelect(token)}
+                    onDoubleClick={() =>
+                        editable && props.onRename && setRenaming({ id: token.tokenId, busy: false, error: null })
+                    }
+                >
+                    {glyph(token.kind, token)}
+                    <span className="tw-tree-item-label">{shortName(token)}</span>
+                    {props.changedNames?.has(token.name) && (
+                        <i className="tw-changed-indicator" aria-label="Есть изменения" />
+                    )}
+                    <b className="tw-tree-item-value st-tree-row-value">{rowValue(token)}</b>
+                </button>
+                {canDelete && (
+                    <span className="tw-tree-row-actions">
+                        <button
+                            type="button"
+                            className="tw-icon-button is-danger st-tree-delete"
+                            title={`Удалить токен ${token.name}`}
+                            aria-label={`Удалить токен ${token.name}`}
+                            onClick={() => props.onDelete(token)}
+                        >
+                            <TrashOutline />
+                        </button>
+                    </span>
+                )}
+            </div>
+        );
+    };
+
+    const sectionList = sections.map((section) => {
+        const closed = Boolean(collapsed[section.kind]);
+        return (
+            <div
+                key={section.kind}
+                className={`st-tree-group ${closed ? 'is-collapsed' : 'is-open'}`}
+                data-testid={`size-section-${section.kind}`}
+            >
+                {/* «+» показывается при наведении и фокусе на строку заголовка раздела, как у групп «Цветов». */}
+                <div className="token-tree-heading-row st-tree-heading-row tw-tree-row">
                     <button
                         type="button"
-                        aria-label="Поиск"
-                        aria-pressed={searchOpen}
-                        onClick={() => {
-                            if (searchOpen) props.onQuery('');
-                            props.onSearchOpen(!searchOpen);
-                        }}
+                        className="st-tree-heading tw-tree-group"
+                        aria-expanded={!closed}
+                        onClick={() => props.onToggle(section.kind)}
                     >
-                        <StGlyph name="search" />
+                        {closed ? <DisclosureRightOutline /> : <DisclosureDownOutline />}
+                        <span>{section.label}</span>
                     </button>
+                    {editable && (
+                        <span className="tw-tree-row-actions">
+                            <button
+                                type="button"
+                                className="tw-icon-button st-tree-add"
+                                title={`Добавить токен в ${section.label}`}
+                                aria-label={`Добавить токен в ${section.label}`}
+                                onClick={() => props.onAdd(section.kind)}
+                            >
+                                <PlusOutline />
+                            </button>
+                        </span>
+                    )}
                 </div>
-            </div>
-            {searchOpen && (
-                <label className="sidebar-search-field st-search-field">
-                    <StGlyph name="search" />
-                    <input
-                        autoFocus
-                        value={query}
-                        placeholder="Найти"
-                        aria-label="Найти токен"
-                        onChange={(event) => props.onQuery(event.target.value)}
+                {!closed && section.tokens.map(tokenRow)}
+                {!closed && props.creating?.kind === section.kind && (
+                    <InlineInput
+                        label="Имя нового токена"
+                        placeholder={NEW_TOKEN_PLACEHOLDER[section.kind]}
+                        busy={props.creating.busy}
+                        error={props.creating.error}
+                        row={{ className: 'st-tree-row tw-tree-item', leading: glyph(section.kind) }}
+                        onSubmit={(name) => props.onCreate(section.kind, name)}
+                        onCancel={props.onCancelCreate}
                     />
-                </label>
-            )}
-            <div className="token-tree">
-                {sections.map((section) => {
-                    const closed = Boolean(collapsed[section.kind]);
-                    return (
-                        <div
-                            key={section.kind}
-                            className={`token-tree-group sizing-token-group ${closed ? 'is-collapsed' : 'is-open'}`}
-                            data-testid={`size-section-${section.kind}`}
-                        >
-                            {/* «+» показывается при наведении и фокусе на строку заголовка раздела, как у групп «Цветов». */}
-                            <div className="token-tree-heading-row">
-                                <button
-                                    type="button"
-                                    className="token-tree-heading"
-                                    aria-expanded={!closed}
-                                    onClick={() => props.onToggle(section.kind)}
-                                >
-                                    <span className="token-tree-chevron" aria-hidden="true">
-                                        {closed ? '›' : '⌄'}
-                                    </span>
-                                    <span>{section.label}</span>
-                                </button>
-                                {editable && (
-                                    <button
-                                        type="button"
-                                        className="token-group-add"
-                                        title={`Добавить токен в ${section.label}`}
-                                        aria-label={`Добавить токен в ${section.label}`}
-                                        onClick={() => props.onAdd(section.kind)}
-                                    >
-                                        <StGlyph name="add" />
-                                    </button>
-                                )}
-                            </div>
-                            {!closed &&
-                                section.tokens.map((token) => (
-                                    <button
-                                        key={token.tokenId}
-                                        type="button"
-                                        className={`token-row sizing-token-row ${selectedId === token.tokenId ? 'is-selected' : ''}`}
-                                        aria-current={selectedId === token.tokenId ? 'true' : undefined}
-                                        data-token-name={token.name}
-                                        data-token-id={token.tokenId}
-                                        onClick={() => props.onSelect(token)}
-                                    >
-                                        {glyph(token)}
-                                        <span className="st-row-label">
-                                            <span>{shortName(token)}</span>
-                                            {props.changedNames?.has(token.name) && (
-                                                <i className="st-changed-indicator" aria-label="Есть изменения" />
-                                            )}
-                                        </span>
-                                        <b className="token-row-value">{rowValue(token)}</b>
-                                    </button>
-                                ))}
-                            {!closed && props.creating?.kind === section.kind && (
-                                <InlineInput
-                                    label="Имя нового токена"
-                                    placeholder={NEW_TOKEN_PLACEHOLDER[section.kind]}
-                                    busy={props.creating.busy}
-                                    error={props.creating.error}
-                                    row={{
-                                        className: 'token-row sizing-token-row',
-                                        leading: placeholderGlyph(section.kind),
-                                    }}
-                                    onSubmit={(name) => props.onCreate(section.kind, name)}
-                                    onCancel={props.onCancelCreate}
-                                />
-                            )}
-                        </div>
-                    );
-                })}
+                )}
+            </div>
+        );
+    });
+
+    return (
+        <aside className="token-browser st-tree">
+            <TreeHeader
+                title={SIZES_TITLE}
+                searching={searchOpen}
+                query={query}
+                onQuery={props.onQuery}
+                onSearchOpen={props.onSearchOpen}
+            />
+            <div className="st-tree-body">
+                {searching ? (
+                    found.length ? (
+                        found.map(tokenRow)
+                    ) : (
+                        <TreeEmpty />
+                    )
+                ) : (
+                    <>
+                        {empty && <TreeEmpty>{SIZES_EMPTY_TEXT}</TreeEmpty>}
+                        {/* В пустой теме заголовки разделов остаются только у тех, кто может создать токен «+». */}
+                        {(!empty || editable) && sectionList}
+                    </>
+                )}
             </div>
         </aside>
     );

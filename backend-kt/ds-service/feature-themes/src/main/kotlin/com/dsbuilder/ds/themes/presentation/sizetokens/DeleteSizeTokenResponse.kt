@@ -5,6 +5,6 @@ import kotlinx.serialization.Serializable
 /** Ответ удаления токена размеров; технические редакции — в заголовке `X-DS-Mutation-Metadata`. */
 @Serializable
 data class DeleteSizeTokenResponse(
-    /** Удалённые токены: один или четыре варианта размера тени. */
+    /** Удалённый токен: радиус, отступ или тень. */
     val deletedTokenIds: List<String>,
 )

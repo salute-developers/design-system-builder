@@ -17,15 +17,35 @@ import java.util.UUID
  * слоя тени.
  */
 class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
-    override suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean {
+    override suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean =
+        valid(designSystemId, entityType, entityId, hashMapOf())
+
+    /** Пакет проверяется с одним снимком палитры на тему: значения одного токена обычно из одних тем. */
+    override suspend fun firstInvalid(designSystemId: UUID, entities: List<Pair<String, UUID>>): Int? {
+        val snapshots = hashMapOf<UUID, TenantPaletteSnapshot?>()
+        return entities.indexOfFirst { (type, id) -> !valid(designSystemId, type, id, snapshots) }
+            .takeIf { it >= 0 }
+    }
+
+    private suspend fun valid(
+        designSystemId: UUID,
+        entityType: String,
+        entityId: UUID,
+        snapshots: MutableMap<UUID, TenantPaletteSnapshot?>,
+    ): Boolean {
         if (entityType != "token-value") return true
         val stable = ThemeTokenValuesTable.selectAll().where {
             (ThemeTokenValuesTable.id eq entityId) and (ThemeTokenValuesTable.designSystemId eq designSystemId)
         }.singleOrNull() ?: return true
-        return validRestoredValue(designSystemId, entityId, stable)
+        return validRestoredValue(designSystemId, entityId, stable, snapshots)
     }
 
-    private suspend fun validRestoredValue(designSystemId: UUID, entityId: UUID, stable: ResultRow): Boolean {
+    private suspend fun validRestoredValue(
+        designSystemId: UUID,
+        entityId: UUID,
+        stable: ResultRow,
+        snapshots: MutableMap<UUID, TenantPaletteSnapshot?>,
+    ): Boolean {
         val tokenId = stable[ThemeTokenValuesTable.tokenId]
         val tokenRow = currentThemeTokenRows(designSystemId, setOf(tokenId)).singleOrNull() ?: return false
         val value = currentThemeTokenValueRows(
@@ -33,13 +53,33 @@ class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
         ).firstOrNull { it[ThemeTokenValuesTable.id] == entityId } ?: return true
         val type = tokenRow[ThemeTokenRevisionsTable.type]
         return type !in REFERENCING_TYPES ||
-            validReferences(entityId, value[ThemeTokenValuesTable.tenantId], tokenRow[ThemeTokenRevisionsTable.name])
+            validReferences(
+                entityId,
+                value[ThemeTokenValuesTable.tenantId],
+                tokenRow[ThemeTokenRevisionsTable.name],
+                snapshots,
+            )
     }
 
-    private suspend fun validReferences(entityId: UUID, tenantId: UUID, tokenName: String): Boolean {
-        val project = currentTenantRows(tenantId = tenantId).singleOrNull()?.get(ThemeDesignSystemsTable.projectId)
-        val snapshot = project?.let { ExposedTenantPaletteRepository().snapshot(ProjectId(it), tenantId) }
+    private suspend fun validReferences(
+        entityId: UUID,
+        tenantId: UUID,
+        tokenName: String,
+        snapshots: MutableMap<UUID, TenantPaletteSnapshot?>,
+    ): Boolean {
+        val snapshot = if (tenantId in snapshots) {
+            snapshots[tenantId]
+        } else {
+            snapshot(
+                tenantId,
+            ).also { snapshots[tenantId] = it }
+        }
         return snapshot?.let { validPaletteReferences(it, tenantId, entityId, tokenName) } ?: false
+    }
+
+    private suspend fun snapshot(tenantId: UUID): TenantPaletteSnapshot? {
+        val project = currentTenantRows(tenantId = tenantId).singleOrNull()?.get(ThemeDesignSystemsTable.projectId)
+        return project?.let { ExposedTenantPaletteRepository().snapshot(ProjectId(it), tenantId) }
     }
 
     /** Ссылки восстановленного значения: на всё значение, в стопах градиента или в цветах слоёв тени. */

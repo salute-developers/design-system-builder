@@ -65,6 +65,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                     rejectEdits(scope, section)
                     sharedValuesKeepOwnFlag(scope, section)
                     removedComponentLeavesUsage(scope)
+                    renameKeepsUsage(scope)
                     publishedBoundary(scope, section)
                 }
             }
@@ -405,6 +406,36 @@ class SizeTokenHttpPostgresIntegrationTest {
         assertNotEquals(xxxlId, again.body.array("created").single().text("tokenId"))
     }
 
+    /**
+     * Переименование используемой тени: токен и значения остаются, текстовые ссылки компонентов привязываются по
+     * `token_id` и идут за новым и обратно за прежним именем; отказы для занятого имени и полного скругления.
+     */
+    private suspend fun renameKeepsUsage(scope: Scope) {
+        val api = scope.api
+        suspend fun components(name: String) = api.read(scope.base, VIEWER).let { section ->
+            section.token("shadows", name).array("components").map { it.text("name") }.toSet()
+        }
+        val before = components("down.hard.m")
+        val hardM = api.read(scope.base, VIEWER).token("shadows", "down.hard.m").text("tokenId")
+        val bound = activeRevisionTestSql("SELECT count(*) FROM variation_property_values WHERE token_id = '$hardM'")
+        val byId = scope.db.count(bound)
+
+        val renamed = api.mutate("PATCH", "${scope.base}/$hardM", MAINTAINER, """{"name":"popover.hard"}""")
+        assertEquals("shadow", renamed.body.text("kind"))
+        assertEquals(hardM, renamed.body.obj("token").text("tokenId"))
+        assertEquals(before, components("popover.hard"))
+        assertTrue(scope.db.count(bound) > byId)
+
+        val path = "${scope.base}/$hardM"
+        api.reject("PATCH", path, MAINTAINER, """{"name":"down-soft-m"}""", 409, "TOKEN_NAME_CONFLICT")
+        api.reject("PATCH", path, MAINTAINER, """{"name":"Popover"}""", 400, "INVALID_TOKEN_NAME")
+        val circle = api.read(scope.base, VIEWER).token("radii", "round.circle").text("tokenId")
+        api.reject("PATCH", "${scope.base}/$circle", MAINTAINER, """{"name":"full"}""", 400, "INVALID_SIZE_TOKEN")
+
+        api.mutate("PATCH", "${scope.base}/$hardM", MAINTAINER, """{"name":"down.hard.m"}""")
+        assertEquals(before, components("down.hard.m"))
+    }
+
     /** Ссылка цвета слоя тени на ступень палитры: проверка, хранение, раскрытие, связи растяжки, удаление размера. */
     private suspend fun shadowPaletteReferences(scope: Scope) {
         val api = scope.api
@@ -412,59 +443,70 @@ class SizeTokenHttpPostgresIntegrationTest {
         val step = scope.paletteStep()
         val reference = "[${step.slot}.${step.step}][0.16]"
         val expected = (step.value.take(HEX_RGB) + "29").uppercase()
-        fun shadow(softColor: String) = """{"kind":"shadow","name":"xl","variants":[""" +
-            VARIANTS.joinToString(",") { variant ->
-                val color = if (variant == "down.soft") softColor else "#000000"
-                """{"variant":"$variant","layers":[${LAYER.replace("#000000", color)}],"fallbackElevation":2}"""
-            } + "]}"
-        val missing = api.reject("POST", scope.base, MAINTAINER, shadow("[${step.slot}.1]"), 400, "INVALID_SIZE_VALUE")
-        assertEquals("variants[0].layers[0].color", missing.obj("details").text("field"))
-        assertEquals("Ступени нет в палитре темы.", missing.text("message"))
-        val incomplete = """{"kind":"shadow","name":"xl","variants":[""" +
-            VARIANTS.drop(1).joinToString(",") { """{"variant":"$it","layers":[$LAYER]}""" } + "]}"
-        api.reject("POST", scope.base, MAINTAINER, incomplete, 400, "INVALID_SIZE_VALUE")
-        assertEquals(0, db.count(activeRevisionTestSql(SHADOW_XL)))
 
-        val created = api.mutate("POST", scope.base, MAINTAINER, shadow(reference), HttpStatusCode.Created)
-        val tokens = created.body.array("created")
-        assertEquals(VARIANTS.map { "$it.xl" }, tokens.map { it.text("name") })
-        assertEquals(4, db.count(activeRevisionTestSql(SHADOW_XL)))
-        val softXl = tokens.single { it.text("name") == "down.soft.xl" }
-        val softXlId = softXl.text("tokenId")
-        val layer = softXl.array("layers").single()
+        // Тень — обычный токен с произвольным именем: `card` со ссылкой на палитру и `card-flat` без неё.
+        fun shadow(name: String, color: String) =
+            """{"kind":"shadow","name":"$name","layers":[${LAYER.replace("#000000", color)}],"fallbackElevation":2}"""
+        val missing = api.reject(
+            "POST",
+            scope.base,
+            MAINTAINER,
+            shadow("card", "[${step.slot}.1]"),
+            400,
+            "INVALID_SIZE_VALUE",
+        )
+        assertEquals("layers[0].color", missing.obj("details").text("field"))
+        assertEquals("Ступени нет в палитре темы.", missing.text("message"))
+        api.reject(
+            "POST",
+            scope.base,
+            MAINTAINER,
+            """{"kind":"shadow","name":"card","layers":[]}""",
+            400,
+            "INVALID_SIZE_VALUE",
+        )
+        assertEquals(0, db.count(activeRevisionTestSql(SHADOW_CARD)))
+
+        val created = api.mutate("POST", scope.base, MAINTAINER, shadow("card", reference), HttpStatusCode.Created)
+        val card = created.body.array("created").single()
+        assertEquals("card", card.text("name"))
+        val cardId = card.text("tokenId")
+        val layer = card.array("layers").single()
         assertEquals(expected, layer.text("color"))
         assertEquals(reference, layer.text("colorRef"))
-        assertNull(tokens.single { it.text("name") == "up.hard.xl" }.array("layers").single().jsonObject["colorRef"])
+        val flat = api.mutate("POST", scope.base, MAINTAINER, shadow("card-flat", "#000000"), HttpStatusCode.Created)
+        val flatId = flat.body.array("created").single().text("tokenId")
+        assertNull(flat.body.array("created").single().array("layers").single().jsonObject["colorRef"])
+        assertEquals(2, db.count(activeRevisionTestSql(SHADOW_CARD)))
+        assertTrue(api.read(scope.base, VIEWER).array("shadows").any { it.text("name") == "card" })
         val web = """["0rem 0.125rem 0.5rem 0rem $reference"]"""
-        assertEquals(web, db.value(scope.tenantA, softXlId, "web"))
-        assertTrue(requireNotNull(db.value(scope.tenantA, softXlId, "android")).contains("\"color\": \"$reference\""))
-        assertTrue(requireNotNull(db.value(scope.tenantB, softXlId, "ios")).contains("\"color\": \"$reference\""))
+        assertEquals(web, db.value(scope.tenantA, cardId, "web"))
+        assertTrue(requireNotNull(db.value(scope.tenantA, cardId, "android")).contains("\"color\": \"$reference\""))
+        assertTrue(requireNotNull(db.value(scope.tenantB, cardId, "ios")).contains("\"color\": \"$reference\""))
 
         // GET token-values: HEX на месте ссылки слоя, исходное значение — в sourceValue.
         val values = api.read("/api/ds/tenants/${scope.tenantA}/token-values", VIEWER).jsonArray
-        val resolved = values.single { it.text("tokenId") == softXlId && it.text("platform") == "web" }
+        val resolved = values.single { it.text("tokenId") == cardId && it.text("platform") == "web" }
         val resolvedWeb = json.parseToJsonElement("""["0rem 0.125rem 0.5rem 0rem $expected"]""")
         assertEquals(resolvedWeb, resolved.jsonObject.getValue("value"))
         assertEquals(json.parseToJsonElement(web), resolved.jsonObject.getValue("sourceValue"))
-        // Варианты размера без ссылки цвета отдаются как хранятся, без sourceValue.
-        val plainVariants = tokens.map { it.text("tokenId") }.filter { it != softXlId }.toSet()
-        assertTrue(values.filter { it.text("tokenId") in plainVariants }.none { "sourceValue" in it })
+        // Тень без ссылки цвета отдаётся как хранится, без sourceValue.
+        assertTrue(values.filter { it.text("tokenId") == flatId }.none { "sourceValue" in it })
 
         // Связи растяжки учитывают тень; ступень вне палитры при правке — отказ без записи.
         val linksPath = "/api/ds/tenants/${scope.tenantA}/palette/links?type=general&shade=${step.shade}"
         val links = api.read(linksPath, VIEWER).jsonArray
-        assertTrue(links.any { it.text("tokenId") == softXlId }, links.toString())
+        assertTrue(links.any { it.text("tokenId") == cardId }, links.toString())
         val bad = """{"layers":[${LAYER.replace("#000000", "[${step.slot}.1]")}]}"""
-        val badError = api.reject("PUT", "${scope.base}/$softXlId/value", EDITOR, bad, 400, "INVALID_SIZE_VALUE")
+        val badError = api.reject("PUT", "${scope.base}/$cardId/value", EDITOR, bad, 400, "INVALID_SIZE_VALUE")
         assertEquals("layers[0].color", badError.obj("details").text("field"))
-        assertEquals(web, db.value(scope.tenantA, softXlId, "web"))
+        assertEquals(web, db.value(scope.tenantA, cardId, "web"))
 
-        // Удаление размера тени по любому варианту — все четыре варианта.
-        val upHard = tokens.single { it.text("name") == "up.hard.xl" }.text("tokenId")
-        api.reject("DELETE", "${scope.base}/$upHard", EDITOR, null, 403)
-        val deleted = api.mutate("DELETE", "${scope.base}/$upHard", MAINTAINER, null)
-        assertEquals(4, deleted.body.array("deletedTokenIds").size)
-        assertEquals(0, db.count(activeRevisionTestSql(SHADOW_XL)))
+        // Удаление тени — только она.
+        api.reject("DELETE", "${scope.base}/$flatId", EDITOR, null, 403)
+        val deleted = api.mutate("DELETE", "${scope.base}/$flatId", MAINTAINER, null)
+        assertEquals(listOf(flatId), deleted.body.array("deletedTokenIds").map { it.jsonPrimitive.content })
+        assertEquals(1, db.count(activeRevisionTestSql(SHADOW_CARD)))
     }
 
     /**
@@ -752,8 +794,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         val EDITOR = Actor("project-a", "editor")
         val VIEWER = Actor("project-a", "viewer")
         val FOREIGN = Actor("project-b", "owner")
-        const val SHADOW_XL = "SELECT count(*) FROM tokens WHERE name LIKE '%.xl' AND type = 'shadow'"
-        val VARIANTS = listOf("down.soft", "down.hard", "up.soft", "up.hard")
+        const val SHADOW_CARD = "SELECT count(*) FROM tokens WHERE name LIKE 'card%' AND type = 'shadow'"
         const val LAYER = """{"offsetX":0,"offsetY":2,"blur":8,"spread":0,"color":"#000000"}"""
         const val IOS_LAYER = """{"offsetX":1,"offsetY":1,"blur":1,"spread":1,"color":"#FFFFFF"}"""
         const val HEX_RGB = 7

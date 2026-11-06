@@ -2,6 +2,7 @@ package com.dsbuilder.ds.app
 
 import com.dsbuilder.ds.designsystems.presentation.CreateDesignSystemVersionRequest
 import com.dsbuilder.ds.designsystems.presentation.RevertDraftChangeRequest
+import com.dsbuilder.ds.designsystems.presentation.RevertDraftChangesRequest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -179,6 +180,23 @@ class OpenApiDocumentResourceTest {
         )
     }
 
+    /** Пакетный откат — отдельный маршрут с обязательным телом, ограниченным числом записей и правом записи. */
+    @Test
+    fun `batch revert is a separate write operation with bounded changes`() {
+        val operation = paths.getValue("/api/ds/design-systems/{id}/changes/revert").jsonObject
+            .getValue("post").jsonObject
+        assertEquals("design-systems:write", operation.getValue("x-permission").jsonPrimitive.content)
+        assertEquals("true", operation.getValue("requestBody").jsonObject.getValue("required").jsonPrimitive.content)
+        val changes = document.getValue("components").jsonObject.getValue("schemas").jsonObject
+            .getValue("RevertDraftChanges").jsonObject.getValue("properties").jsonObject.getValue("changes").jsonObject
+        assertEquals("1", changes.getValue("minItems").jsonPrimitive.content)
+        assertEquals("200", changes.getValue("maxItems").jsonPrimitive.content)
+        val request = Json.decodeFromString<RevertDraftChangesRequest>(
+            """{"changes":[{"changeId":"c","expectedRevision":3}]}""",
+        )
+        assertEquals(3, request.changes.single().expectedRevision)
+    }
+
     /** Примечания не обязательны ни в контракте, ни при чтении запроса публикации. */
     @Test
     fun `publication notes are optional`() {
@@ -199,7 +217,9 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        assertEquals(191, operationCount) // Включая компактный список изменённых токенов и пакет редактора компонента.
+        // Включая компактный список изменённых токенов, пакет редактора компонента, пакетный откат журнала и группы
+        // типографии.
+        assertEquals(198, operationCount)
         assertTrue("/api/ds/design-systems/{id}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/ds/design-systems/{id}/changes/summary" in paths)
         assertTrue("/api/ds/web-preview/plugin" in paths)

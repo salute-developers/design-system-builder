@@ -11,8 +11,10 @@ import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.designsystems.application.DraftChangeRevertTarget
 import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.RevertDraftChangeUseCase
+import com.dsbuilder.ds.designsystems.application.RevertDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
 import com.dsbuilder.ds.designsystems.domain.DraftChange
@@ -34,12 +36,14 @@ fun Route.designSystemChangeRoutes(
     evaluator: PolicyEvaluator,
     list: ListDraftChangesUseCase,
     revert: RevertDraftChangeUseCase,
+    revertBatch: RevertDraftChangesUseCase,
     json: Json,
 ) {
     listChangeRoute(evaluator, list)
     summaryChangeRoute(evaluator, list)
     tokenIdsRoute(evaluator, list)
     revertChangeRoute(evaluator, revert, json)
+    revertChangesRoute(evaluator, revertBatch, json)
 }
 
 private fun Route.tokenIdsRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
@@ -139,6 +143,61 @@ private fun Route.revertChangeRoute(evaluator: PolicyEvaluator, revert: RevertDr
         }
     }
 }
+
+private fun Route.revertChangesRoute(evaluator: PolicyEvaluator, revert: RevertDraftChangesUseCase, json: Json) {
+    val revertJson = Json(json) { ignoreUnknownKeys = false }
+    post(dsRoutePath("/api/ds/design-systems/{id}/changes/revert")) {
+        val context = TrustedDsRequestContextMapper.map(
+            call.dsTrustedHeaders(),
+            evaluator,
+            call.request.queryParameters["versionId"],
+        )
+            ?: return@post call.respondFailure(DsFailure.Forbidden)
+        val designSystemId = call.parameters["id"]?.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val idempotencyKey = call.dsTrustedHeaders()["Idempotency-Key"]
+        if (idempotencyKey.isNullOrBlank()) {
+            return@post call.respondFailure(DsFailure.InvalidRequest("idempotency_key_required"))
+        }
+        val changes = when (val parsed = parseRevertBatchRequest(call.receiveText(), revertJson)) {
+            is DsResult.Success -> parsed.value
+            is DsResult.Failure -> return@post call.respondFailure(parsed.error)
+        }
+        when (
+            val result = revert.execute(
+                context.withIdempotentResponse { _: Unit -> json.encodeToString(OkResponse()) },
+                DesignSystemId(designSystemId),
+                changes,
+                idempotencyKey,
+            )
+        ) {
+            is DsResult.Success -> call.respondSuccess(result, OkResponse())
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}
+
+private fun parseRevertBatchRequest(body: String, json: Json): DsResult<List<DraftChangeRevertTarget>> {
+    if (body.length > MAX_REVERT_BATCH_BODY) {
+        return DsResult.Failure(DsFailure.InvalidRequest("REVERT_BATCH_TOO_LARGE"))
+    }
+    // SerializationException наследует IllegalArgumentException: оба означают некорректное тело.
+    val request = try {
+        json.decodeFromString<RevertDraftChangesRequest>(body)
+    } catch (_: IllegalArgumentException) {
+        null
+    }
+    val changes = request?.changes?.map { change ->
+        change.changeId.uuid()?.let { DraftChangeRevertTarget(it, change.expectedRevision) }
+    }
+    return when {
+        changes == null -> DsResult.Failure(DsFailure.InvalidRequest("invalid_revert_request"))
+        null in changes -> DsResult.Failure(DsFailure.InvalidRequest("invalid_change_id"))
+        else -> DsResult.Success(changes.filterNotNull())
+    }
+}
+
+private const val MAX_REVERT_BATCH_BODY = 65_536
 
 private fun parseRevertRequest(body: String, json: Json): DsResult<RevertDraftChangeRequest> {
     if (body.length > 16_384) return DsResult.Failure(DsFailure.InvalidRequest("invalid_revert_paths"))

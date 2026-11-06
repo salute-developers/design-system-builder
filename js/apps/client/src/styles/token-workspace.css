@@ -1,0 +1,933 @@
+/*
+ * Общая грамматика экранов токенов по Figma (DS-BUILDER | PLAYGROUND, Builder): «Цвета», «Типографика»,
+ * «Отступы, радиусы и тени». Значения — переменные Builder тёмной темы. Файл подключается один раз в `pages/index.ts`
+ * после всех разделов, поэтому правила с той же специфичностью перекрывают копии прототипа в CSS экранов.
+ */
+:root {
+    --tw-text-primary: #f3f3f3;
+    --tw-text-secondary: #dbdbdc;
+    --tw-text-paragraph: #9e9fa2;
+    --tw-surface-card: #27282c;
+    --tw-surface-workspace: #212327;
+    --tw-surface-field: rgba(255, 255, 255, 0.03);
+    --tw-surface-selected: rgba(255, 255, 255, 0.1);
+    --tw-surface-skeleton: rgba(255, 255, 255, 0.06);
+    --tw-outline: #3d3f42;
+    --tw-outline-field: rgba(255, 255, 255, 0.08);
+    --tw-outline-soft: rgba(255, 255, 255, 0.1);
+    --tw-accent: #2b8ced;
+    --tw-accent-solid: #166dc4;
+    --tw-negative: #ff4060;
+    --tw-warning: #a38a0a;
+    --tw-radius-s: 6px;
+    --tw-radius-m: 8px;
+
+    /* Шкала отступов Builder: `gap/*` и `inset/*` Figma. Экраны берут значения отсюда, а не пишут свои числа. */
+    --tw-space-2xs: 2px;
+    --tw-space-xs: 4px;
+    --tw-space-s: 6px;
+    --tw-space-m: 8px;
+    --tw-space-l: 12px;
+    --tw-space-xl: 16px;
+    --tw-space-xxl: 24px;
+
+    /* Размеры элементов панелей. */
+    --tw-header-height: 40px; /* шапка панели `Sidebar/CatalogHeader`, `Workspace/EditorHeader` */
+    --tw-row-height: 32px; /* строка дерева, заголовок секции, строка и поле инспектора */
+    --tw-control-height: 24px; /* поле, кнопка-иконка, подложка строки дерева */
+    --tw-icon-size: 16px;
+    --tw-tree-indent: 16px; /* шаг вложенности дерева */
+    --tw-field-label-width: 72px; /* колонка подписи `Inspector/Field` (320 − 12 − 212 − 12 − 12) */
+    --tw-meta-width: 114px; /* карточка `Metadata` борда */
+    --tw-tile-width: 120px;
+    --tw-tile-height: 100px;
+}
+
+/* Шапка дерева `Sidebar/CatalogHeader`: 40 px, отступ 12, действия C24 через 2 px, без нижней линии. */
+.tw-tree-header {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-m);
+    box-sizing: border-box;
+    height: var(--tw-header-height);
+    min-height: var(--tw-header-height);
+    padding: var(--tw-space-xs) var(--tw-space-l);
+    border-bottom: 0;
+    flex: none;
+}
+
+/* Линия под шапкой дерева — в кадрах «Типографики» и «Отступов и радиусов»; у «Цветов» её нет. Тенью, а не
+ * рамкой: высота шапки остаётся 40, как у внутренней обводки Figma. */
+.typography-tree .tw-tree-header,
+.st-tree .tw-tree-header {
+    box-shadow: inset 0 -1px 0 var(--tw-outline);
+}
+
+.tw-tree-header-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--tw-text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: -0.24px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tw-tree-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-2xs);
+    margin-left: auto;
+}
+
+/* Кнопка-иконка `Builder/IconButton` 24×24 с иконкой 16. */
+.tw-icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: var(--tw-control-height);
+    padding: 0;
+    border: 0;
+    border-radius: var(--tw-radius-s);
+    background: transparent;
+    color: var(--tw-text-secondary);
+    cursor: pointer;
+    flex: none;
+}
+
+.tw-icon-button:hover,
+.tw-icon-button[aria-pressed='true'] {
+    background: var(--tw-surface-selected);
+    color: var(--tw-text-primary);
+}
+
+.tw-icon-button:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.tw-icon-button:focus-visible {
+    outline: 1px solid var(--tw-accent);
+    outline-offset: 0;
+}
+
+/* Поле поиска `Builder/SearchField`: 24 px, отступы 4/8, иконка 16. */
+.tw-search-field {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--tw-space-s);
+    box-sizing: border-box;
+    min-width: 0;
+    height: var(--tw-control-height);
+    padding: var(--tw-space-xs) var(--tw-space-m);
+    border: 1px solid var(--tw-outline-field);
+    border-radius: var(--tw-radius-s);
+    background: var(--tw-surface-field);
+    color: var(--tw-text-paragraph);
+}
+
+.tw-search-field:focus-within {
+    border-color: var(--tw-accent);
+}
+
+.tw-search-field input {
+    flex: 1;
+    min-width: 0;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--tw-text-primary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.tw-search-field input::placeholder {
+    color: var(--tw-text-paragraph);
+}
+
+/* Пустой результат поиска `Search/EmptyState` и пустой раздел. */
+.tw-tree-empty {
+    box-sizing: border-box;
+    padding: var(--tw-space-m) var(--tw-space-l);
+    color: var(--tw-text-paragraph);
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+}
+
+/* Шапка инспектора `Inspector/Header`. */
+.tw-inspector-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-xs);
+    box-sizing: border-box;
+    padding: var(--tw-space-m) var(--tw-space-l) 11px;
+    border-bottom: 1px solid var(--tw-outline);
+    flex: none;
+}
+
+.tw-inspector-header-row {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-m);
+    min-height: var(--tw-control-height);
+}
+
+.tw-inspector-title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--tw-text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: -0.24px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tw-inspector-description {
+    margin: 0;
+    color: var(--tw-text-paragraph);
+    font-size: 12px;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+}
+
+/* Заголовок секции `Panel/SectionHeader`: 32 px, 12/16 600, исходный регистр. */
+.tw-section-header {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-m);
+    box-sizing: border-box;
+    min-height: var(--tw-row-height);
+    padding: 0 var(--tw-space-l);
+    color: var(--tw-text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: -0.24px;
+    text-transform: none;
+}
+
+.tw-section-header > span {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Поле значения `ValueField`. */
+.tw-field {
+    box-sizing: border-box;
+    border: 1px solid var(--tw-outline-field);
+    border-radius: var(--tw-radius-s);
+    background: var(--tw-surface-field);
+    color: var(--tw-text-primary);
+}
+
+.tw-field:focus-within,
+.tw-field:focus {
+    border-color: var(--tw-accent);
+    outline: 0;
+}
+
+.tw-field.is-error,
+.tw-field.is-error:focus-within {
+    border-color: var(--tw-negative);
+}
+
+.tw-field.is-warning,
+.tw-field.is-warning:focus-within {
+    border-color: var(--tw-warning);
+}
+
+.tw-field-message {
+    margin: var(--tw-space-2xs) 0 0;
+    color: var(--tw-negative);
+    font-size: 12px;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+}
+
+.tw-field-message.is-warning {
+    color: var(--tw-warning);
+}
+
+/* Скелетоны загрузки `Foundation/WorkspaceState · Loading`: заполняют панель до низа, лишние строки и плитки
+ * обрезаются (в Figma скелетон занимает часть панели — заполнение целиком принято по замечанию команды). */
+.tw-skeleton {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--tw-space-m);
+    box-sizing: border-box;
+    min-height: 0;
+    max-height: 100%;
+    padding: var(--tw-space-l);
+    overflow: hidden;
+}
+
+.tw-skeleton-bar {
+    flex: none;
+    height: var(--tw-control-height);
+    border-radius: var(--tw-radius-s);
+    background: var(--tw-surface-skeleton);
+    animation: tw-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.tw-skeleton-tiles {
+    display: flex;
+    flex: none;
+    gap: var(--tw-space-m);
+    overflow: hidden;
+}
+
+.tw-skeleton-tile {
+    flex: none;
+    width: 120px;
+    height: 100px;
+    border-radius: var(--tw-radius-m);
+    background: var(--tw-surface-skeleton);
+    animation: tw-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tw-skeleton-pulse {
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tw-skeleton-bar,
+    .tw-skeleton-tile {
+        animation: none;
+    }
+}
+
+/* Ошибка загрузки `Foundation/WorkspaceState · Error`. */
+.tw-load-error {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-sizing: border-box;
+    padding: 20px;
+    text-align: center;
+}
+
+.tw-load-error-title {
+    margin: 0;
+    color: var(--tw-text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 18px;
+}
+
+.tw-load-error-text {
+    margin: 0;
+    color: var(--tw-text-paragraph);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+/* Основная кнопка `Builder/ActionButton`. */
+.tw-action-button {
+    height: var(--tw-control-height);
+    padding: var(--tw-space-xs) var(--tw-space-m);
+    border: 0;
+    border-radius: var(--tw-radius-s);
+    background: var(--tw-accent-solid);
+    color: var(--tw-text-primary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 16px;
+    cursor: pointer;
+}
+
+.tw-action-button:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.tw-action-button.is-secondary {
+    border: 1px solid var(--tw-outline);
+    background: var(--tw-surface-card);
+}
+
+.tw-action-button.is-danger {
+    background: var(--tw-negative);
+    color: #fff;
+}
+
+/* Выпадающее меню `Dropdown/Menu`. */
+.tw-menu {
+    box-sizing: border-box;
+    padding: var(--tw-space-xs);
+    border: 0.5px solid var(--tw-outline-soft);
+    border-radius: var(--tw-radius-m);
+    background: var(--tw-surface-card);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+.tw-menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-m);
+    box-sizing: border-box;
+    width: 100%;
+    min-height: var(--tw-row-height);
+    padding: var(--tw-space-xs);
+    border: 0;
+    border-radius: var(--tw-radius-s);
+    background: transparent;
+    color: var(--tw-text-secondary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 14px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.tw-menu-item:hover,
+.tw-menu-item.is-selected,
+.tw-menu-item[aria-selected='true'] {
+    background: var(--tw-surface-selected);
+    color: var(--tw-text-primary);
+}
+
+/* Окно подтверждения `Dialog/Confirmation` Tone=Danger. */
+.tw-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.48);
+}
+
+.tw-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-xxl);
+    box-sizing: border-box;
+    width: 520px;
+    max-width: calc(100vw - 32px);
+    padding: var(--tw-space-xxl);
+    border: 1px solid var(--tw-outline);
+    border-radius: 12px;
+    background: var(--tw-surface-card);
+    color: var(--tw-text-primary);
+}
+
+.tw-dialog-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-xs);
+}
+
+.tw-dialog-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+.tw-dialog-meta {
+    color: var(--tw-text-paragraph);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.tw-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-m);
+    color: var(--tw-text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.tw-dialog-body p {
+    margin: 0;
+}
+
+.tw-dialog-error {
+    color: var(--tw-negative);
+}
+
+.tw-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--tw-space-m);
+}
+
+/* Имя и описание в шапке инспектора, редактируемые на месте. */
+.tw-editable {
+    cursor: text;
+    outline: 0;
+    border-radius: 4px;
+}
+
+.tw-editable:hover,
+.tw-editable:focus-visible {
+    background: var(--tw-surface-field);
+}
+
+.tw-editable.is-empty {
+    color: var(--tw-text-paragraph);
+    opacity: 0.6;
+}
+
+.tw-editable-field {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.tw-editable-field input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--tw-space-2xs) var(--tw-space-xs);
+    font: inherit;
+    white-space: normal;
+}
+
+.tw-editable-field input.tw-inspector-title {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+}
+
+/*
+ * Дерево `Sidebar/Group` и `Builder/ListItem`. Ряд — 32 px; у строки токена подложка 24 px с отступом 8 от краёв
+ * панели и иконка 16 с отступом 4; текст 12/14. Вложенная группа (`tw-tree-nested`) сдвигает всё на шаг 16.
+ */
+/* Ряд — свой блочный контекст: отступы строки 4 сверху и снизу не схлопываются с соседними рядами. */
+.tw-tree-row {
+    position: relative;
+    display: flow-root;
+}
+
+.tw-tree-group {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-xs);
+    box-sizing: border-box;
+    width: 100%;
+    height: var(--tw-row-height);
+    margin: 0;
+    padding: 0 var(--tw-space-l);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--tw-text-primary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.tw-tree-group > svg,
+.tw-tree-group > .tw-tree-chevron {
+    display: inline-flex;
+    flex: none;
+    width: var(--tw-icon-size);
+    height: var(--tw-icon-size);
+    color: var(--tw-text-secondary);
+}
+
+.tw-tree-item {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-xs);
+    box-sizing: border-box;
+    width: calc(100% - 2 * var(--tw-space-m));
+    height: var(--tw-control-height);
+    margin: var(--tw-space-xs) var(--tw-space-m);
+    padding: 0 var(--tw-space-xs);
+    border: 0;
+    border-radius: var(--tw-radius-s);
+    background: transparent;
+    color: var(--tw-text-secondary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.tw-tree-item > :is(svg, i) {
+    flex: none;
+}
+
+.tw-tree-item:hover {
+    background: var(--tw-surface-field);
+}
+
+.tw-tree-item.is-selected {
+    background: var(--tw-surface-selected);
+    color: var(--tw-text-primary);
+}
+
+.tw-tree-group:focus-visible,
+.tw-tree-item:focus-visible {
+    outline: 1px solid var(--tw-accent);
+    outline-offset: -1px;
+}
+
+.tw-tree-item-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    opacity: 0.8;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tw-tree-item.is-selected .tw-tree-item-label {
+    opacity: 1;
+}
+
+.tw-tree-item-value {
+    flex: none;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.tw-tree-nested .tw-tree-group,
+.tw-tree-group.is-nested {
+    padding-left: calc(var(--tw-space-l) + var(--tw-tree-indent));
+}
+
+.tw-tree-nested .tw-tree-item {
+    padding-left: calc(var(--tw-space-xs) + var(--tw-tree-indent));
+}
+
+/* Отметка неопубликованных изменений рядом с именем строки. */
+.tw-changed-indicator {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--tw-accent);
+}
+
+.tw-icon-button.is-danger:hover {
+    color: var(--tw-negative);
+}
+
+/* Действия строки («+», удаление) — кнопки 24 у правого края ряда, видны при наведении и фокусе. */
+.tw-tree-row-actions {
+    position: absolute;
+    z-index: 3;
+    top: var(--tw-space-xs);
+    right: var(--tw-space-l);
+    display: flex;
+    gap: var(--tw-space-2xs);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.tw-tree-row:is(:hover, :focus-within) > .tw-tree-row-actions,
+.tw-tree-row-actions:has([aria-expanded='true']) {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* При показе действий значение строки уступает им место. */
+.tw-tree-row:is(:hover, :focus-within):has(> .tw-tree-row-actions) .tw-tree-item-value {
+    visibility: hidden;
+}
+
+.tw-tree-row:has(> .tw-tree-row-actions) > .tw-tree-group {
+    padding-right: calc(var(--tw-space-l) + 2 * var(--tw-control-height) + var(--tw-space-2xs));
+}
+
+/* Блок инспектора `SectionBlock`: отступы 8, линия внутри блока (в Figma обводка внутренняя). */
+.tw-section {
+    display: flex;
+    flex-direction: column;
+    padding: var(--tw-space-m) 0 calc(var(--tw-space-m) - 1px);
+    border-bottom: 1px solid var(--tw-outline);
+}
+
+.tw-section:last-child {
+    border-bottom: 0;
+}
+
+/* Поле с подписью слева `Inspector/Field` Inline: ряд 32, подпись 72, поле, необязательная кнопка справа. */
+.tw-field-inline {
+    display: grid;
+    grid-template-columns: var(--tw-field-label-width) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--tw-space-l);
+    box-sizing: border-box;
+    min-height: var(--tw-row-height);
+    margin: 0;
+    padding: var(--tw-space-xs) var(--tw-space-l);
+}
+
+.tw-field-label {
+    color: var(--tw-text-secondary);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+}
+
+/* Поле и кнопка рядом с ним («+» своего значения платформы, «×»): поле занимает остаток, зазор 4. */
+.tw-field-line {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-xs);
+    min-width: 0;
+}
+
+.tw-field-line > :first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Поле с подписью сверху: 6 после заголовка секции, 6 между подписью и полем, 8 после поля. */
+.tw-field-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-s);
+    padding: var(--tw-space-s) var(--tw-space-l) var(--tw-space-m);
+}
+
+/* Стопка полей без подписей («Стиль» типографики): 8 после заголовка, зазор 12, 8 после последнего поля. */
+.tw-field-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-l);
+    padding: var(--tw-space-m) var(--tw-space-l);
+}
+
+/* Строка «имя — значение» `Inspector/ListRow`: ряд 32, имя вторичным цветом, значение — приглушённым. Строка-ссылка
+ * (`is-link`) ведёт к компоненту, её значение — основным цветом. */
+.tw-list-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--tw-space-m);
+    box-sizing: border-box;
+    width: 100%;
+    min-height: var(--tw-row-height);
+    padding: 0 var(--tw-space-l);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--tw-text-secondary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+    text-align: left;
+}
+
+.tw-list-row > b {
+    color: var(--tw-text-paragraph);
+    font-weight: 400;
+}
+
+.tw-list-row.is-link {
+    cursor: pointer;
+}
+
+.tw-list-row.is-link > b {
+    color: var(--tw-text-primary);
+}
+
+.tw-list-row.is-link:hover {
+    background: var(--tw-surface-field);
+}
+
+.tw-list-row.is-link:focus-visible {
+    outline: 1px solid var(--tw-accent);
+    outline-offset: -1px;
+}
+
+/*
+ * Борд `Workspace/Content`: отступ 16, разделы через 24. Раздел — заголовок `Heading` (название 12/16 и описание
+ * 12/14 через 4, отступ 4 сверху и снизу) и ряды через 8. Ряд `DataRow` — карточка `Metadata` 114 и плитки через 8.
+ */
+.tw-board {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-xxl);
+    box-sizing: border-box;
+    padding: var(--tw-space-xl);
+}
+
+.tw-board-section,
+.tw-board-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-m);
+    min-width: 0;
+}
+
+.tw-board-heading {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-xs);
+    margin: 0;
+    padding: var(--tw-space-xs) 0;
+}
+
+.tw-board-title {
+    margin: 0;
+    color: var(--tw-text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: -0.24px;
+}
+
+.tw-board-description {
+    margin: 0;
+    color: var(--tw-text-paragraph);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+}
+
+.tw-data-row {
+    display: flex;
+    gap: var(--tw-space-m);
+}
+
+.tw-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-xs);
+    box-sizing: border-box;
+    width: var(--tw-meta-width);
+    min-height: var(--tw-tile-height);
+    flex: none;
+    padding: var(--tw-space-m) var(--tw-space-l);
+    border-radius: var(--tw-radius-m);
+    background: var(--tw-surface-field);
+    color: var(--tw-text-primary);
+    font-size: 12px;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+    overflow-wrap: anywhere;
+}
+
+.tw-meta strong {
+    color: var(--tw-text-primary);
+    font-weight: 400;
+}
+
+.tw-meta span {
+    color: var(--tw-text-secondary);
+    opacity: 0.6;
+}
+
+/* Плитка борда 120×100 со скруглением 8; выбранная — кольцо 2 px снаружи с зазором 2 (`Selected`). */
+.tw-tile {
+    box-sizing: border-box;
+    width: var(--tw-tile-width);
+    height: var(--tw-tile-height);
+    flex: none;
+    border-radius: var(--tw-radius-m);
+    cursor: pointer;
+}
+
+.tw-tile.is-selected,
+.tw-tile:focus-visible {
+    outline: 2px solid var(--tw-accent);
+    outline-offset: 2px;
+}
+
+/* Строка нового токена «Размеров» и стиля «Типографики» — как сама строка, без поля с рамкой (как в «Цветах»). */
+:is(.size-tokens-screen, .typography-screen) .token-tree-input {
+    display: grid;
+    gap: var(--tw-space-2xs);
+}
+
+:is(.size-tokens-screen, .typography-screen) .token-tree-input-field {
+    cursor: text;
+}
+
+:is(.size-tokens-screen, .typography-screen) .token-tree-input-field input {
+    min-width: 0;
+    height: var(--tw-control-height);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--tw-text-primary);
+    font-size: 12px;
+    line-height: 14px;
+    letter-spacing: -0.24px;
+}
+
+:is(.size-tokens-screen, .typography-screen) .token-tree-input.is-row > .token-tree-input-field {
+    grid-template-columns: 16px minmax(0, 1fr);
+    background: var(--tw-surface-field);
+    box-shadow: inset 0 0 0 1px var(--tw-accent);
+}
+
+:is(.size-tokens-screen, .typography-screen) .token-tree-input.is-error > .token-tree-input-field {
+    box-shadow: inset 0 0 0 1px var(--tw-negative);
+}
+
+/* Переименование двойным щелчком — как в «Цветах»: поле тем же шрифтом без рамки и фона, имя выделено. */
+:is(.size-tokens-screen, .typography-screen) .ct-inline-rename {
+    min-width: 0;
+    flex: 1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: none;
+    box-shadow: none;
+    background: transparent !important;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+    caret-color: #fff;
+}
+
+:is(.size-tokens-screen, .typography-screen) .ct-inline-rename::selection {
+    background: #2f6fde;
+    color: #fff;
+}
+
+:is(.size-tokens-screen, .typography-screen) .ct-inline-rename.is-error {
+    text-decoration: underline wavy var(--tw-negative);
+}
+
+.size-tokens-screen .st-tree-row.is-renaming,
+.typography-screen .typography-token-row.is-renaming {
+    cursor: text;
+}
+
+:is(.size-tokens-screen, .typography-screen) .token-tree-input-error {
+    padding: 0 var(--tw-space-l) var(--tw-space-xs);
+    color: var(--tw-negative);
+    font-size: 12px;
+    line-height: 14px;
+}

@@ -14,9 +14,13 @@ import {
     layerWithColor,
     layerWithHex,
     layerWithOpacity,
-    newShadowVariants,
+    DEFAULT_SHADOW_LAYER,
+    newTokenName,
     newTokenRequest,
     normalizeTokenName,
+    renameRequest,
+    editableName,
+    SIZE_MESSAGES,
     opacityOf,
     parseCssLayer,
     shortName,
@@ -95,7 +99,10 @@ describe('имена токенов размеров', () => {
         expect(kindOfThemeToken('spacing', 'spacing.4x')).toBe('spacing');
         expect(kindOfThemeToken('shadow', 'down.soft.s')).toBe('shadow');
         expect(kindOfThemeToken('shape', 'corner.m')).toBeNull();
-        expect(kindOfThemeToken('shadow', 'left.soft.s')).toBeNull();
+        // Имя тени произвольное.
+        expect(kindOfThemeToken('shadow', 'card')).toBe('shadow');
+        expect(kindOfThemeToken('shadow', 'elevated.focus-ring')).toBe('shadow');
+        expect(kindOfThemeToken('shadow', 'Card')).toBeNull();
         expect(kindOfThemeToken('color', 'round.m')).toBeNull();
     });
 
@@ -121,16 +128,16 @@ describe('имена токенов размеров', () => {
 });
 
 describe('дерево раздела', () => {
-    it('сортирует радиусы и отступы по значению с полным скруглением последним, тени — по варианту и размеру', () => {
+    it('сортирует радиусы и отступы по значению с полным скруглением последним, тени — по группе имени и размеру', () => {
         const [radii, spacing, shadows] = buildSections(TOKENS);
         expect(radii.label).toBe('Радиусы');
         expect(radii.tokens.map((token) => token.name)).toEqual(['round.xxs', 'round.m', 'round.l', 'round.circle']);
         expect(spacing.tokens.map((token) => token.name)).toEqual(['spacing.0x', 'spacing.4x']);
         expect(shadows.tokens.map((token) => token.name)).toEqual([
+            'down.hard.l',
             'down.soft.s',
             'down.soft.m',
             'down.soft.l',
-            'down.hard.l',
             'up.hard.s',
         ]);
     });
@@ -145,14 +152,14 @@ describe('дерево раздела', () => {
         expect(defaultToken(TOKENS.filter((token) => token.name !== 'round.m'))?.name).toBe('round.xxs');
     });
 
-    it('удаляет тень размером целиком', () => {
+    it('удаляет только саму тень, без других вариантов того же размера', () => {
         const all = [...TOKENS, shadow('down.hard.s', []), shadow('up.soft.s', [])];
         expect(
             deletedTogether(all, all.find((token) => token.name === 'up.hard.s')!).map((token) => token.name),
-        ).toEqual(['down.soft.s', 'down.hard.s', 'up.soft.s', 'up.hard.s']);
+        ).toEqual(['up.hard.s']);
     });
 
-    it('считает использование удаляемой тени по объединению четырёх вариантов размера', () => {
+    it('считает использование удаляемой тени только по ней самой', () => {
         const all = [
             ...TOKENS.filter((token) => token.name !== 'up.hard.s'),
             shadow('down.hard.s', [], {
@@ -164,11 +171,10 @@ describe('дерево раздела', () => {
             shadow('up.soft.s', []),
             shadow('up.hard.s', [], { components: [{ name: 'Select', count: 1 }] }),
         ];
-        const upSoft = all.find((token) => token.name === 'up.soft.s')!;
-        expect(upSoft.components).toEqual([]);
-        expect(deletionUsage(all, upSoft)).toEqual([
+        expect(deletionUsage(all, all.find((token) => token.name === 'up.soft.s')!)).toEqual([]);
+        expect(deletionUsage(all, all.find((token) => token.name === 'down.hard.s')!)).toEqual([
             { name: 'Popover', tokens: ['down.hard.s'] },
-            { name: 'Select', tokens: ['down.hard.s', 'up.hard.s'] },
+            { name: 'Select', tokens: ['down.hard.s'] },
         ]);
         expect(deletionUsage(all, all.find((token) => token.name === 'round.xxs')!)).toEqual([]);
     });
@@ -191,24 +197,55 @@ describe('окно «Новый токен»', () => {
         expect(newTokenRequest({ kind: 'radius', name: 'M', value: '4' }, TOKENS)).toEqual({
             error: 'Токен round.m уже есть в теме.',
         });
-        expect(newTokenRequest({ kind: 'shadow', name: 'l', value: '' }, TOKENS)).toEqual({
-            error: 'Токен down.soft.l уже есть в теме.',
+        expect(newTokenRequest({ kind: 'shadow', name: 'card', value: '' }, [...TOKENS, shadow('card', [])])).toEqual({
+            error: 'Токен card уже есть в теме.',
         });
         expect(newTokenRequest({ kind: 'spacing', name: '70x', value: '140' }, TOKENS)).toEqual({
             error: 'Значение должно быть в диапазоне 0–128 px.',
         });
     });
 
-    it('копирует слои новой тени с самого крупного размера каждого варианта', () => {
-        const variants = newShadowVariants(TOKENS);
-        expect(variants.map((item) => item.variant)).toEqual(['down.soft', 'down.hard', 'up.soft', 'up.hard']);
-        expect(variants[0]).toMatchObject({ layers: [layer(60, 112)], fallbackElevation: 6 });
-        expect(variants[1]).toMatchObject({ layers: [layer(24, 48, '#00000029')], fallbackElevation: 6 });
-        expect(variants[2].layers).toHaveLength(1);
-        expect(variants[3]).toMatchObject({ layers: [layer(-4, 14)] });
-        // Копия: правка новой тени не меняет источник.
-        variants[0].layers[0].blur = 1;
-        expect((TOKENS.find((token) => token.name === 'down.soft.l') as ShadowToken).layers[0].blur).toBe(112);
+    it('новая тень — один токен с введённым именем и слоем по умолчанию', () => {
+        expect(newTokenRequest({ kind: 'shadow', name: 'Card', value: '' }, TOKENS)).toEqual({
+            request: { kind: 'shadow', name: 'card', layers: [DEFAULT_SHADOW_LAYER], fallbackElevation: 0 },
+        });
+        expect(newTokenName('shadow', 'card')).toBe('card');
+        expect(newTokenName('radius', 'xl')).toBe('round.xl');
+    });
+
+    it('проверяет новое имя при переименовании: префикс раздела можно не вводить, свой токен не мешает', () => {
+        const roundM = TOKENS.find((token) => token.name === 'round.m')!;
+        expect(renameRequest(roundM, 'round.Medium', TOKENS)).toEqual({ name: 'medium' });
+        expect(renameRequest(roundM, 'm', TOKENS)).toEqual({ name: 'm' });
+        expect(renameRequest(roundM, 'радиус', TOKENS)).toEqual({ error: SIZE_MESSAGES.name });
+        const card = shadow('card', []);
+        expect(renameRequest(card, 'Elevated.Focus', [...TOKENS, card])).toEqual({ name: 'elevated.focus' });
+        expect(renameRequest(card, 'down-soft-m', [...TOKENS, card, shadow('down.soft.m', [])])).toEqual({
+            error: 'Токен down.soft.m уже есть в теме.',
+        });
+        expect(editableName(roundM)).toBe('m');
+        expect(editableName(card)).toBe('card');
+    });
+
+    it('имя тени сохраняет части через точку; имя с той же переменной пакета — занято', () => {
+        expect(newTokenRequest({ kind: 'shadow', name: ' Elevated . Focus Ring ', value: '' }, TOKENS)).toEqual({
+            request: {
+                kind: 'shadow',
+                name: 'elevated.focus-ring',
+                layers: [DEFAULT_SHADOW_LAYER],
+                fallbackElevation: 0,
+            },
+        });
+        expect(newTokenRequest({ kind: 'shadow', name: 'down..', value: '' }, TOKENS)).toMatchObject({
+            request: { name: 'down' },
+        });
+        expect(newTokenRequest({ kind: 'radius', name: 'x.l', value: '4' }, TOKENS)).toMatchObject({
+            request: { name: 'x-l' },
+        });
+        const existing = [...TOKENS, shadow('down.soft.m', [])];
+        expect(newTokenRequest({ kind: 'shadow', name: 'down-soft-m', value: '' }, existing)).toEqual({
+            error: 'Токен down.soft.m уже есть в теме.',
+        });
     });
 });
 

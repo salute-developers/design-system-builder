@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
+import {
+    ChevronDownOutline,
+    ChevronUpOutline,
+    CloseOutline,
+    ColorOutlineBold,
+    SearchOutline,
+} from '@salutejs/sdds-icons/16';
 
 import {
     isHexColor,
@@ -15,41 +23,49 @@ import {
 import { ColorConstructor } from '../../features/ColorPicker/ui';
 import { paletteRepository } from '../../palette/paletteSession';
 import { getNormalizedColor } from '../../utils';
-import { countLabel, filterGroups, groupHelper, libraryOrder, middleStep, rampMeta, selectionStep, stepOf, templateLabel } from './Palette.utils';
-import { PaletteGlyph } from './PaletteGlyph';
+import {
+    countLabel,
+    familyLabel,
+    filterGroups,
+    groupHelper,
+    libraryOrder,
+    middleStep,
+    rampMeta,
+    selectionStep,
+    stepOf,
+    templateLabel,
+} from './Palette.utils';
 import { followAnchor } from './positionPopover';
 import { errorText, type PaletteEditor } from './usePaletteEditor';
 
 interface PaletteBoardProps {
     context: PaletteContext;
     palette: ThemePalette;
+    /** Группы после поиска и фильтра — те же, что в дереве. */
+    groups: ReturnType<typeof filterGroups>;
     editor: PaletteEditor;
     canEdit: boolean;
     steps: number[];
 }
 
-const MiniRamp = ({ values, steps, anchor }: { values: Record<number, string>; steps: number[]; anchor?: number }) => (
-    <span className="source-palette-inline-ramp">
-        {steps.map((step) => (
+/** Поповер встаёт под полосой ступеней: карточка метаданных 114 и промежуток 8. */
+const POPOVER_OFFSET = 122;
+const PREVIEW_DELAY_MS = 150;
+
+/** Полоса ступеней `Palette/RampStrip` в окнах: ступени вплотную, опорная обведена. */
+export const RampStrip = ({ values, anchor }: { values: Array<{ step: number; value?: string }>; anchor?: number }) => (
+    <span className="palette-strip" aria-hidden="true">
+        {values.map((item) => (
             <i
-                key={step}
-                className={step === anchor ? 'is-anchor' : ''}
-                style={{ background: values[step] || '#25282d' }}
-                title={`#${step}`}
+                key={item.step}
+                className={item.step === anchor ? 'is-anchor' : ''}
+                style={item.value ? { background: item.value } : undefined}
             />
         ))}
     </span>
 );
 
-const LibraryPreview = ({ steps }: { steps: { value: string }[] }) => (
-    <span className="source-palette-library-preview" data-steps={steps.length}>
-        {steps.map((step, index) => (
-            <i key={index} style={{ background: step.value || '#25282d' }} />
-        ))}
-    </span>
-);
-
-/** Поповер «Поменять / Изменить» по `sourcePaletteEditPopoverV3` прототипа. */
+/** Поповер «Поменять / Изменить» — `Palette/ReplacementPopover` и `Palette/AnchorColorPopover`, 240 px. */
 const RampPopover = ({
     context,
     palette,
@@ -79,22 +95,39 @@ const RampPopover = ({
     const [previewError, setPreviewError] = useState<string | null>(null);
     const { setPopover, revision } = editor;
     const valid = isHexColor(hex);
+    // С правом на правку превью считается сразу при открытии окна: к переходу на «Изменить» оно уже готово.
+    const wantsPreview = canEdit || tab === 'rebuild';
+    const previewStarted = useRef(false);
 
     useLayoutEffect(() => {
-        if (popoverRef.current && anchorRef.current) return followAnchor(popoverRef.current, anchorRef.current);
+        if (popoverRef.current && anchorRef.current)
+            return followAnchor(popoverRef.current, anchorRef.current, POPOVER_OFFSET);
     }, [anchorRef]);
 
     // Как в прототипе, список замены открывается на текущей палитре. Прокручивается только сам список:
     // scrollIntoView сдвинул бы и борд.
     useLayoutEffect(() => {
         if (tab !== 'replace') return;
-        const list = popoverRef.current?.querySelector<HTMLElement>('.source-palette-edit-options');
-        const current = list?.querySelector<HTMLElement>('.source-palette-edit-option.is-current');
+        const list = popoverRef.current?.querySelector<HTMLElement>('.palette-popover-options');
+        const current = list?.querySelector<HTMLElement>('.palette-option.is-current');
         if (!list || !current) return;
         const listBox = list.getBoundingClientRect();
         const box = current.getBoundingClientRect();
         list.scrollTop += box.top + box.height / 2 - (listBox.top + listBox.height / 2);
     }, [tab]);
+
+    // Окно в портале: фокус переходит в него при открытии и возвращается на ряд при закрытии, иначе с клавиатуры
+    // до окна не добраться.
+    useEffect(() => {
+        const anchor = anchorRef.current;
+        popoverRef.current
+            ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"], input, button')
+            ?.focus({ preventScroll: true });
+        return () => {
+            const active = document.activeElement;
+            if (!active || active === document.body || !active.isConnected) anchor?.focus({ preventScroll: true });
+        };
+    }, [anchorRef]);
 
     useEffect(() => {
         const onPointer = (event: MouseEvent) => {
@@ -114,12 +147,15 @@ const RampPopover = ({
     }, [anchorRef, setPopover]);
 
     useEffect(() => {
-        if (tab !== 'rebuild' || !valid) {
+        if (!wantsPreview || !valid) {
             setPreview(null);
             return;
         }
         let cancelled = false;
+        // Задержка нужна только при вводе цвета: первый расчёт ждать нечего.
+        const delay = previewStarted.current ? PREVIEW_DELAY_MS : 0;
         const timer = setTimeout(async () => {
+            previewStarted.current = true;
             try {
                 const result = await paletteRepository.rebuild(context, group.id, ramp.slot, {
                     anchorStep,
@@ -137,14 +173,15 @@ const RampPopover = ({
                     setPreviewError(errorText(error));
                 }
             }
-        }, 150);
+        }, delay);
         return () => {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [tab, hex, valid, context, group.id, ramp.slot, anchorStep, palette.editRevision, revision]);
+    }, [wantsPreview, hex, valid, context, group.id, ramp.slot, anchorStep, palette.editRevision, revision]);
 
-    const current = Object.fromEntries(ramp.steps.map((step) => [step.step, step.value]));
+    const current = steps.map((step) => ({ step, value: stepOf(ramp, step)?.value }));
+    const next = steps.map((step) => ({ step, value: preview?.[step] }));
     const options = libraryOrder(palette.template).filter((item) => {
         const label = templateLabel(item);
         return !query || `${item.shade} ${label.name} ${label.meta}`.toLowerCase().includes(query.trim().toLowerCase());
@@ -182,15 +219,16 @@ const RampPopover = ({
         if (done) editor.setPopover(null);
     };
 
-    return (
+    // Окно — в `body`: внутри прокручиваемого борда оно меняло бы его ширину и сдвигало прокрутку.
+    return createPortal(
         <section
             ref={popoverRef}
-            className="source-palette-edit-popover"
+            className="palette-popover"
             role="dialog"
             aria-label={`Настройка палитры ${ramp.displayName}`}
         >
-            <header>
-                <div className="source-palette-edit-tabs" role="tablist">
+            <header className="palette-popover-head">
+                <div className="palette-tabs" role="tablist">
                     <button
                         type="button"
                         role="tab"
@@ -214,23 +252,21 @@ const RampPopover = ({
                 </div>
                 <button
                     type="button"
-                    className="source-palette-edit-close"
+                    className="tw-icon-button"
                     aria-label="Закрыть"
+                    title="Закрыть"
                     onClick={() => editor.setPopover(null)}
                 >
-                    ×
+                    <CloseOutline />
                 </button>
             </header>
-            <div className="source-palette-edit-scope">
-                <span>{group.label}</span>
-                <i>/</i>
-                <strong>{ramp.displayName}</strong>
-                <em>Только эта группа</em>
-            </div>
+            <p className="palette-popover-scope">
+                {group.label} / {ramp.displayName} · <span>Только эта группа</span>
+            </p>
             {tab === 'replace' ? (
-                <div className="source-palette-edit-replace">
-                    <label className="source-palette-edit-search">
-                        <span>⌕</span>
+                <>
+                    <label className="tw-search-field">
+                        <SearchOutline />
                         <input
                             value={query}
                             placeholder="Найти палитру"
@@ -238,7 +274,7 @@ const RampPopover = ({
                             onChange={(event) => setQuery(event.target.value)}
                         />
                     </label>
-                    <div className="source-palette-edit-options">
+                    <div className="palette-popover-options">
                         {options.map((option) => {
                             const label = templateLabel(option);
                             const isCurrent = sameRamp(option, ramp.source);
@@ -246,37 +282,37 @@ const RampPopover = ({
                                 <button
                                     key={rampKey(option)}
                                     type="button"
-                                    className={`source-palette-edit-option ${isCurrent ? 'is-current' : ''}`}
+                                    className={`palette-option ${isCurrent ? 'is-current' : ''}`}
+                                    aria-current={isCurrent || undefined}
                                     disabled={!canEdit || editor.busy}
                                     onClick={() => replace(option)}
                                 >
-                                    <span>
+                                    <span className="palette-option-label">
                                         <strong>{label.name}</strong>
                                         <small>{label.meta}</small>
+                                        {isCurrent && <em>Текущая</em>}
                                     </span>
-                                    <LibraryPreview steps={option.steps} />
-                                    {isCurrent && <em>Текущая</em>}
+                                    <RampStrip values={option.steps} />
                                 </button>
                             );
                         })}
-                        {options.length === 0 && <p className="source-palette-edit-empty">Ничего не найдено</p>}
+                        {options.length === 0 && <p className="palette-popover-empty">Ничего не найдено</p>}
                     </div>
-                </div>
+                </>
             ) : (
-                <div className="source-palette-edit-rebuild">
-                    {/* Выбор цвета — ColorConstructor клиента, как в правке ступени (в прототипе здесь нативный
-                        input type="color"): один пикер во всём разделе. */}
-                    <div className="source-palette-hex-field">
-                        <span>Опорный цвет · #{anchorStep}</span>
-                        <div>
-                            <span className="source-palette-swatch-picker" style={{ background: valid ? toUpperHex(hex) : '#25282d' }}>
-                                <button
-                                    type="button"
-                                    aria-label="Выбрать опорный цвет"
-                                    aria-expanded={pickerOpen}
-                                    onClick={() => setPickerOpen((open) => !open)}
-                                />
-                            </span>
+                <>
+                    {/* Выбор цвета — ColorConstructor клиента, как в правке ступени: один пикер во всём разделе. */}
+                    <div className="palette-popover-field">
+                        <span className="palette-popover-label">Опорный цвет · #{anchorStep}</span>
+                        <div className={`palette-hex-field tw-field ${valid ? '' : 'is-error'}`}>
+                            <button
+                                type="button"
+                                className="palette-hex-swatch"
+                                style={{ background: valid ? toUpperHex(hex) : undefined }}
+                                aria-label="Выбрать опорный цвет"
+                                aria-expanded={pickerOpen}
+                                onClick={() => setPickerOpen((open) => !open)}
+                            />
                             <input
                                 value={hex.replace('#', '')}
                                 aria-label="HEX опорного цвета"
@@ -284,15 +320,15 @@ const RampPopover = ({
                                 onChange={(event) => setHex(`#${event.target.value.replace('#', '').trim()}`)}
                             />
                         </div>
-                        {!valid && <small className="source-palette-hex-error">Введите HEX вида #RRGGBB</small>}
+                        {!valid && <p className="tw-field-message">Введите HEX вида #RRGGBB</p>}
                         {valid && previewError && (
-                            <small className="source-palette-hex-error" role="alert">
+                            <p className="tw-field-message" role="alert">
                                 {previewError}
-                            </small>
+                            </p>
                         )}
                     </div>
                     {pickerOpen && (
-                        <div className="source-palette-rebuild-picker">
+                        <div className="palette-rebuild-picker">
                             <ColorConstructor
                                 color={valid ? toUpperHex(hex) : '#000000'}
                                 opacity={1}
@@ -302,30 +338,39 @@ const RampPopover = ({
                             />
                         </div>
                     )}
-                    <div className="source-palette-inline-preview">
-                        <div>
-                            <span>Сейчас</span>
-                            <MiniRamp values={current} steps={steps} anchor={anchorStep} />
-                        </div>
-                        <div>
-                            <span>Станет</span>
-                            <MiniRamp values={preview ?? {}} steps={steps} anchor={anchorStep} />
-                        </div>
+                    <div className="palette-popover-compare">
+                        <span className="palette-popover-label">
+                            Сейчас <b>{familyLabel(ramp)}</b>
+                        </span>
+                        <RampStrip values={current} anchor={anchorStep} />
+                        <span className="palette-popover-label">Станет</span>
+                        <RampStrip values={next} anchor={anchorStep} />
                     </div>
-                    <button
-                        type="button"
-                        className="source-palette-inline-apply"
-                        disabled={!canEdit || !valid || !preview || editor.busy}
-                        onClick={rebuild}
-                    >
-                        Перестроить палитру
-                    </button>
-                </div>
+                    <footer className="palette-popover-actions">
+                        <button
+                            type="button"
+                            className="tw-action-button is-secondary"
+                            onClick={() => editor.setPopover(null)}
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="button"
+                            className="tw-action-button"
+                            disabled={!canEdit || !valid || !preview || editor.busy}
+                            onClick={rebuild}
+                        >
+                            Перестроить палитру
+                        </button>
+                    </footer>
+                </>
             )}
-        </section>
+        </section>,
+        document.body,
     );
 };
 
+/** Ступень `Palette/WorkspaceShade` 80×100: число связей сверху, подпись «# <step>» снизу. */
 const RampStep = ({
     group,
     ramp,
@@ -340,58 +385,43 @@ const RampStep = ({
     const value = stepOf(ramp, step);
     if (!value)
         return (
-            <span className="source-palette-ramp-step is-empty">
-                <span className="source-palette-step-label">
-                    <span>#</span>
-                    <b>{step}</b>
-                </span>
+            <span className="palette-ramp-step is-empty" aria-hidden="true">
+                <span className="palette-step-label"># {step}</span>
             </span>
         );
-    const label = swatchLabelColor(value.value);
     const colorMode = editor.mode === 'color';
     const selected =
         colorMode &&
         editor.selection?.groupId === group.id &&
         sameRamp(editor.selection.slot, ramp.slot) &&
         editor.selection.step === step;
-    const className = [
-        'source-palette-ramp-step',
-        label === '#000000' ? 'is-label-dark' : 'is-label-light',
-        selected ? 'is-selected' : '',
-        value.linkedCount ? 'has-usage' : '',
-        colorMode && value.overridden ? 'is-brand-mismatch' : '',
-    ]
-        .filter(Boolean)
-        .join(' ');
+    const className = ['palette-ramp-step', selected ? 'is-selected' : ''].filter(Boolean).join(' ');
     const content = (
         <>
-            <span className="source-palette-step-label">
-                <span>#</span>
-                <b>{step}</b>
+            <span className="palette-step-top">
+                {value.linkedCount > 0 && (
+                    <span
+                        className="palette-step-links"
+                        aria-label={`Связано семантических токенов: ${value.linkedCount}`}
+                    >
+                        <ColorOutlineBold />
+                        {value.linkedCount}
+                    </span>
+                )}
+                {colorMode && value.overridden && (
+                    <i
+                        className="tw-changed-indicator"
+                        role="img"
+                        aria-label="Цвет отличается от брендовой палитры"
+                        title="Цвет отличается от брендовой палитры"
+                    />
+                )}
             </span>
-            {value.linkedCount > 0 && (
-                <i className="source-palette-usage-marker" aria-label={`Связано семантических токенов: ${value.linkedCount}`}>
-                    <svg viewBox="0 0 12 12" aria-hidden="true">
-                        <circle cx="3" cy="6" r="2" />
-                        <circle cx="9" cy="3" r="2" />
-                        <circle cx="9" cy="9" r="2" />
-                        <path d="M4.8 5.2 7.2 3.8M4.8 6.8 7.2 8.2" />
-                    </svg>
-                    <em>{value.linkedCount}</em>
-                </i>
-            )}
-            {colorMode && value.overridden && (
-                <i
-                    className="source-palette-brand-marker"
-                    aria-label="Цвет отличается от брендовой палитры"
-                    title="Цвет отличается от брендовой палитры"
-                >
-                    !
-                </i>
-            )}
+            <span className="palette-step-label"># {step}</span>
         </>
     );
-    const style = { background: value.value, '--source-label-color': label } as React.CSSProperties;
+    // Цвет подписи — по правилу `paletteSwatchLabelStyle`: чёрный на светлой ступени, белый на тёмной.
+    const style = { background: value.value, '--palette-label': swatchLabelColor(value.value) } as CSSProperties;
     if (!colorMode)
         return (
             <span className={className} aria-hidden="true" style={style}>
@@ -409,14 +439,17 @@ const RampStep = ({
             tabIndex={selected || (!editor.selection && step === 500) ? 0 : -1}
             aria-label={`${ramp.displayName}, цвет ${step}${value.overridden ? ', отличается от брендовой палитры' : ''}`}
             onClick={() => editor.selectStep({ groupId: group.id, slot: ramp.slot, step })}
-            onDoubleClick={(event) => editor.openStepEditor({ groupId: group.id, slot: ramp.slot, step }, event.currentTarget)}
+            onDoubleClick={(event) =>
+                editor.openStepEditor({ groupId: group.id, slot: ramp.slot, step }, event.currentTarget)
+            }
         >
             {content}
         </button>
     );
 };
 
-const RampCard = (props: {
+/** Ряд растяжки `Palette/WorkspaceRamp`: карточка метаданных 114×100 и полоса ступеней 80×100. */
+const RampRow = (props: {
     context: PaletteContext;
     palette: ThemePalette;
     group: PaletteGroup;
@@ -430,8 +463,7 @@ const RampCard = (props: {
     const paletteMode = editor.mode === 'palette';
     const selected =
         paletteMode && editor.selection?.groupId === group.id && sameRamp(editor.selection.slot, ramp.slot);
-    const popoverOpen =
-        paletteMode && editor.popover?.groupId === group.id && sameRamp(editor.popover.slot, ramp.slot);
+    const popoverOpen = paletteMode && editor.popover?.groupId === group.id && sameRamp(editor.popover.slot, ramp.slot);
     const open = () => {
         editor.setSelection({ groupId: group.id, slot: ramp.slot, step: selectionStep(ramp, editor.selection?.step) });
         if (props.canEdit) {
@@ -440,10 +472,10 @@ const RampCard = (props: {
         }
     };
     return (
-        <div className={`source-palette-ramp-item ${selected ? 'is-selected' : ''}`}>
+        <div className="palette-ramp-scroll">
             <article
                 ref={cardRef}
-                className={`source-palette-ramp-card ${selected ? 'is-selected' : ''}`}
+                className={`palette-ramp tw-data-row ${paletteMode ? '' : 'is-split'} ${selected ? 'is-selected' : ''}`}
                 {...(paletteMode
                     ? {
                           role: 'button',
@@ -459,18 +491,11 @@ const RampCard = (props: {
                       }
                     : {})}
             >
-                <div className="source-palette-ramp-title">
-                    <div>
-                        <strong>{ramp.displayName}</strong>
-                        <small>{rampMeta(ramp)}</small>
-                    </div>
-                    {paletteMode && (
-                        <span className="source-palette-ramp-edit-affordance" aria-hidden="true">
-                            <PaletteGlyph name="pencil" />
-                        </span>
-                    )}
+                <div className="tw-meta palette-ramp-meta">
+                    <strong>{ramp.displayName}</strong>
+                    <span>{rampMeta(ramp)}</span>
                 </div>
-                <div className="source-palette-ramp-stack" data-steps={steps.length}>
+                <div className="palette-ramp-steps" data-steps={steps.length}>
                     {steps.map((step) => (
                         <RampStep key={step} group={group} ramp={ramp} step={step} editor={editor} />
                     ))}
@@ -481,58 +506,63 @@ const RampCard = (props: {
     );
 };
 
-/** Борд растяжек по `sourcePaletteRampBoardV3` прототипа. */
+/** Пустой результат поиска или фильтра на борде. */
+const BoardEmpty = ({ onReset }: { onReset: () => void }) => (
+    <div className="palette-board-empty" role="status">
+        <p className="tw-load-error-title">Нет палитр по выбранному фильтру</p>
+        <p className="tw-load-error-text">Сбросьте поиск или выберите «Все».</p>
+        <button type="button" className="tw-action-button is-secondary" onClick={onReset}>
+            Показать все
+        </button>
+    </div>
+);
+
+/** Борд `Foundation/Workspace/Palette`: секции групп с рядами растяжек. */
 export const PaletteBoard = (props: PaletteBoardProps) => {
-    const { palette, editor } = props;
-    const groups = useMemo(() => filterGroups(palette, editor.search, editor.filter), [palette, editor.search, editor.filter]);
+    const { groups, editor } = props;
+    if (groups.length === 0)
+        return (
+            <BoardEmpty
+                onReset={() => {
+                    editor.setSearch('');
+                    editor.setSearchOpen(false);
+                    editor.setFilter('all');
+                }}
+            />
+        );
     return (
-        <section className="source-palette-ramp-board">
-            {groups.length === 0 && (
-                <div className="source-palette-board-empty">
-                    <strong>Нет палитр по выбранному фильтру</strong>
-                    <span>Сбросьте поиск или выберите «Все».</span>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            editor.setSearch('');
-                            editor.setFilter('all');
-                        }}
-                    >
-                        Показать все
-                    </button>
-                </div>
-            )}
+        <div className="palette-board tw-board">
             {groups.map(({ group, ramps }) => {
                 const collapsed = Boolean(editor.collapsed[group.id]);
                 return (
-                    <section key={group.id} className="source-palette-ramp-section">
-                        <div className="source-palette-ramp-section-head">
-                            <div>
-                                <h2>{group.label}</h2>
-                                <p>{groupHelper(group)}</p>
+                    <section key={group.id} className="tw-board-section">
+                        <header className="palette-board-heading">
+                            <div className="tw-board-heading">
+                                <h3 className="tw-board-title">{group.label}</h3>
+                                <p className="tw-board-description">{groupHelper(group)}</p>
                             </div>
-                            <div>
-                                <span>{countLabel(ramps.length)}</span>
-                                <button
-                                    type="button"
-                                    aria-label={`${collapsed ? 'Развернуть' : 'Свернуть'} группу ${group.label}`}
-                                    aria-expanded={!collapsed}
-                                    onClick={() => editor.toggleCollapsed(group.id)}
-                                >
-                                    <PaletteGlyph name={collapsed ? 'chevron-down' : 'chevron-up'} />
-                                </button>
-                            </div>
-                        </div>
-                        {!collapsed && (
-                            <div className="source-palette-ramp-row">
+                            <span className="palette-board-count">{countLabel(ramps.length)}</span>
+                            <button
+                                type="button"
+                                className="tw-icon-button"
+                                aria-label={`${collapsed ? 'Развернуть' : 'Свернуть'} группу ${group.label}`}
+                                title={`${collapsed ? 'Развернуть' : 'Свернуть'} группу`}
+                                aria-expanded={!collapsed}
+                                onClick={() => editor.toggleCollapsed(group.id)}
+                            >
+                                {collapsed ? <ChevronDownOutline /> : <ChevronUpOutline />}
+                            </button>
+                        </header>
+                        {!collapsed && ramps.length > 0 && (
+                            <div className="tw-board-rows">
                                 {ramps.map((ramp) => (
-                                    <RampCard key={rampKey(ramp.slot)} {...props} group={group} ramp={ramp} />
+                                    <RampRow key={rampKey(ramp.slot)} {...props} group={group} ramp={ramp} />
                                 ))}
                             </div>
                         )}
                     </section>
                 );
             })}
-        </section>
+        </div>
     );
 };

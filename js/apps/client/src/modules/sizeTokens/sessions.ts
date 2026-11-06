@@ -83,7 +83,7 @@ export const sizeTokenSession = (context: SizeTokenContext): SizeTokenSession =>
 /** Перечитывает раздел темы после отправки его очереди. */
 export const reloadSizeTokens = (session: SizeTokenSession) => loadSizeTokens(session, repository);
 
-const REPLAY_ORDER: Record<SizeTokenCommand['operation'], number> = { create: 0, update: 1, delete: 2 };
+const REPLAY_ORDER: Record<SizeTokenCommand['operation'], number> = { create: 0, update: 1, rename: 2, delete: 3 };
 
 /**
  * Повторяет неподтверждённые команды `size-tokens`, сохранённые в `localStorage` темы до перезагрузки, той же

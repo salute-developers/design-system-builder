@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 
 import { webLayers } from '../../../modules/colorTokens';
-import { swatchLabelColor } from '../../../modules/palette';
 
 /** Непрозрачная основа цвета с альфой (`transparentSwatchBase` прототипа) или `null` для непрозрачного. */
 const transparentBase = (paint: string) => {
@@ -44,9 +43,39 @@ export const rowPreview = (light: string, dark: string) => {
     return dark && dark !== light ? `linear-gradient(180deg, ${light} 0 50%, ${dark} 50% 100%)` : light;
 };
 
-/** Подпись половины свотча на борде: чёрная или белая по большему контрасту (`paletteSwatchLabelStyle`). */
-export const swatchLabel = (background: string) => {
-    const hex = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(background) ? background : '#202327';
-    const color = swatchLabelColor(hex);
-    return { color, className: color === '#000000' ? 'is-label-dark' : 'is-label-light' };
+/** Шахматка под прозрачным цветом: светлые и серые клетки 4 px. */
+const CHECKER = 'conic-gradient(#f3f5f7 25%, #aeb5bf 0 50%, #f3f5f7 0 75%, #aeb5bf 0) 0 0 / 8px 8px';
+
+/**
+ * Заливка половины плитки борда: цвет или слои градиента поверх шахматки по всей площади половины. Непрозрачный
+ * цвет шахматку закрывает, прозрачный показывает её целиком, без деления на непрозрачную и прозрачную части.
+ */
+export const checkerFill = (paint: string): CSSProperties => {
+    const value = paint.trim() || 'transparent';
+    const layers = GRADIENT.test(value) ? webLayers(value) : [`linear-gradient(${value}, ${value})`];
+    return { '--swatch-color': value, background: [...layers, CHECKER].join(', ') } as CSSProperties;
+};
+
+const luminance = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((index) => {
+        const channel = parseInt(hex.slice(index, index + 2), 16) / 255;
+        return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+const TILE_LABEL_DARK = '#56585c';
+const TILE_LABEL_LIGHT = '#dbdbdc';
+
+/**
+ * Цвет подписи половины плитки (`ColorToken/WorkspaceSample`): #56585c на светлом цвете, #dbdbdc на тёмном —
+ * какой из двух контрастнее с цветом половины.
+ */
+export const tileLabelColor = (background: string) => {
+    if (!/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(background)) return TILE_LABEL_LIGHT;
+    const contrast = (label: string) => {
+        const [a, b] = [luminance(background), luminance(label)].sort((x, y) => y - x);
+        return (a + 0.05) / (b + 0.05);
+    };
+    return contrast(TILE_LABEL_DARK) > contrast(TILE_LABEL_LIGHT) ? TILE_LABEL_DARK : TILE_LABEL_LIGHT;
 };

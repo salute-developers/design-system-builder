@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
+import { InspectorHeader, SectionHeader } from '../../components/tokenWorkspace';
 import {
     hexToRgba,
     rgbToHsl,
@@ -10,14 +11,18 @@ import {
     type ThemePalette,
 } from '../../modules/palette';
 import { paletteRepository } from '../../palette/paletteSession';
-import { findRamp, stepOf } from './Palette.utils';
+import { findRamp, stepOf, type PaletteSelection } from './Palette.utils';
 import type { PaletteEditor } from './usePaletteEditor';
 
 interface PaletteInspectorProps {
     context: PaletteContext;
     palette: ThemePalette;
+    /** Выбор, видимый после поиска и фильтра; `null` — растяжка не выбрана или скрыта. */
+    selection: PaletteSelection | null;
     editor: PaletteEditor;
     canEdit: boolean;
+    /** Баннеры раздела («Только просмотр») над содержимым, как на экранах токенов. */
+    banners?: ReactNode;
     onOpenToken: (tokenName: string, mode: string | null) => void;
     onOpenColors: () => void;
 }
@@ -29,9 +34,17 @@ const byToken = (links: PaletteLink[]) => {
     return [...tokens.values()];
 };
 
-/** Инспектор по `sourcePaletteSelectedPanelV3` прототипа: источник палитры и связанные токены. */
-export const PaletteInspector = ({ context, palette, editor, canEdit, onOpenToken, onOpenColors }: PaletteInspectorProps) => {
-    const selection = editor.selection;
+/** Инспектор `Inspector · Palette`: шапка растяжки, источник палитры, связанные токены, в режиме «Цвет» — цвет ступени. */
+export const PaletteInspector = ({
+    context,
+    palette,
+    selection,
+    editor,
+    canEdit,
+    banners,
+    onOpenToken,
+    onOpenColors,
+}: PaletteInspectorProps) => {
     const group = palette.groups.find((item) => item.id === selection?.groupId);
     const ramp = selection ? findRamp(palette, selection.groupId, selection.slot) : undefined;
     const paletteMode = editor.mode === 'palette';
@@ -67,11 +80,9 @@ export const PaletteInspector = ({ context, palette, editor, canEdit, onOpenToke
 
     if (!selection || !group || !ramp) {
         return (
-            <aside className="source-palette-inspector-v3">
-                <header className="source-palette-inspector-header">Палитра</header>
-                <section className="source-palette-inspector-section source-palette-usage-card">
-                    <div className="source-palette-empty-category">Выберите палитру или цвет.</div>
-                </section>
+            <aside className="palette-inspector">
+                {banners}
+                <p className="palette-inspector-empty">Выберите палитру или цвет.</p>
             </aside>
         );
     }
@@ -87,23 +98,26 @@ export const PaletteInspector = ({ context, palette, editor, canEdit, onOpenToke
     const groupTokens = byToken(groupLinks);
     const allTokens = byToken(allLinks);
     const usage = editor.usageScope === 'all' ? allTokens : groupTokens;
+    const title = paletteMode ? ramp.displayName : `${ramp.displayName} ${selection.step}`;
+    const description = `${group.label} · ${sourceName}${hue === '—' ? '' : ` ${hue}`}`;
 
     return (
-        <aside className="source-palette-inspector-v3">
-            <header className="source-palette-inspector-header">
-                {paletteMode ? group.label : `${ramp.displayName} ${selection.step}`}
-            </header>
+        <aside className="palette-inspector">
+            {banners}
+            <InspectorHeader title={title} description={description} />
             {!paletteMode && (
                 // Ревью дизайна (PR #101): выбор цвета ступени открывается отсюда или двойным щелчком по свотчу.
-                <section className="source-palette-inspector-section source-palette-step-color-section">
-                    <h2>ЦВЕТ</h2>
-                    <div className="source-palette-step-color">
-                        <span className="source-palette-usage-swatch" style={{ background: stepValue }} />
-                        <span>{stepValue}</span>
+                <section className="tw-section">
+                    <SectionHeader title="Цвет" />
+                    <div className="tw-list-row palette-step-color">
+                        <span className="palette-step-color-value">
+                            <i className="palette-swatch" aria-hidden="true" style={{ background: stepValue }} />
+                            {stepValue}
+                        </span>
                         {canEdit && (
                             <button
                                 type="button"
-                                className="source-palette-inline-apply"
+                                className="tw-action-button"
                                 onClick={(event) => editor.openStepEditor(selection, event.currentTarget)}
                             >
                                 Изменить цвет
@@ -112,28 +126,30 @@ export const PaletteInspector = ({ context, palette, editor, canEdit, onOpenToke
                     </div>
                 </section>
             )}
-            <section className="source-palette-inspector-section source-palette-source-section">
-                <h2>ИСТОЧНИК ПАЛИТРЫ</h2>
-                <dl>
-                    <div>
-                        <dt>Семейство</dt>
-                        <dd>{sourceName}</dd>
-                    </div>
-                    <div>
-                        <dt>Оттенок</dt>
-                        <dd>{hue}</dd>
-                    </div>
-                </dl>
+            <section className="tw-section">
+                <SectionHeader title="Источник палитры" />
+                <div className="tw-list-row">
+                    <span>Семейство</span>
+                    <b>{sourceName}</b>
+                </div>
+                <div className="tw-list-row">
+                    <span>Оттенок</span>
+                    <b>{hue}</b>
+                </div>
             </section>
-            <section className="source-palette-inspector-section source-palette-usage-card">
-                <h2>СВЯЗАННЫЕ ТОКЕНЫ</h2>
-                <div className="source-palette-usage-scope" role="tablist" aria-label="Область связей">
+            <section className="tw-section">
+                <SectionHeader title={`Связанные токены · ${usage.length}`} />
+                <div className="palette-tabs palette-usage-scope" role="tablist" aria-label="Область связей">
                     <button
                         type="button"
                         role="tab"
                         aria-selected={editor.usageScope === 'group'}
                         className={editor.usageScope === 'group' ? 'is-active' : ''}
-                        title={paletteMode ? 'Связи всей растяжки в текущей группе' : 'Связи выбранного цвета в текущей группе'}
+                        title={
+                            paletteMode
+                                ? 'Связи всей растяжки в текущей группе'
+                                : 'Связи выбранного цвета в текущей группе'
+                        }
                         onClick={() => editor.setUsageScope('group')}
                     >
                         {group.label} {groupTokens.length}
@@ -143,42 +159,48 @@ export const PaletteInspector = ({ context, palette, editor, canEdit, onOpenToke
                         role="tab"
                         aria-selected={editor.usageScope === 'all'}
                         className={editor.usageScope === 'all' ? 'is-active' : ''}
-                        title={paletteMode ? 'Связи всей растяжки во всех группах' : 'Связи выбранного цвета во всех группах'}
+                        title={
+                            paletteMode
+                                ? 'Связи всей растяжки во всех группах'
+                                : 'Связи выбранного цвета во всех группах'
+                        }
                         onClick={() => editor.setUsageScope('all')}
                     >
                         Все {allTokens.length}
                     </button>
                 </div>
                 {usage.length ? (
-                    <div className="source-palette-usage-list">
+                    <div className="palette-usage-list">
                         {usage.map((link) => {
                             const linkRamp = findRamp(palette, link.groupId, selection.slot);
                             const hex = linkRamp ? stepOf(linkRamp, link.step)?.value : stepValue;
-                            const title = link.displayName ?? link.tokenName;
+                            const name = link.displayName ?? link.tokenName;
                             return (
                                 <button
                                     key={link.tokenId}
                                     type="button"
-                                    className="source-palette-usage-link"
-                                    title={`Открыть ${title}`}
+                                    className="tw-list-row is-link palette-usage-link"
+                                    title={`Открыть ${name}`}
                                     onClick={() => onOpenToken(link.tokenName, link.mode)}
                                 >
-                                    <span
-                                        className="source-palette-usage-swatch"
-                                        style={{ background: hex ? withOpacity(hex, link.opacity) : stepValue }}
-                                    />
-                                    <span className="source-palette-usage-copy">
-                                        <strong>{title}</strong>
+                                    <span className="palette-usage-name">
+                                        <i
+                                            className="palette-swatch"
+                                            aria-hidden="true"
+                                            style={{ background: hex ? withOpacity(hex, link.opacity) : stepValue }}
+                                        />
+                                        <span>{name}</span>
                                     </span>
+                                    <b>Открыть</b>
                                 </button>
                             );
                         })}
                     </div>
                 ) : (
-                    <div className="source-palette-empty-category">
-                        Пока нет связанных семантических токенов.
+                    <div className="palette-usage-empty">
+                        <p>Пока нет связанных семантических токенов.</p>
                         {group.kind === 'custom' && (
-                            <button type="button" onClick={onOpenColors}>
+                            <button type="button" className="tw-action-button is-secondary" onClick={onOpenColors}>
                                 Перейти в Color tokens
                             </button>
                         )}

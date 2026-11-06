@@ -14,27 +14,65 @@ const fontWeightMap: Record<string, string> = {
     normal: '',
 };
 
-const formattedTokenName = (nameParts: string[]) => {
-    const nameMap: Record<string, string> = {
-        display: 'dspl',
-        text: 'text',
-        body: 'body',
-    };
+const SYSTEM_GROUPS = ['display', 'body', 'header', 'text'];
 
+/** Начало имени переменной системной группы: `header` опускается (`h1-bold`), своя группа идёт как есть. */
+const groupPrefix: Record<string, string> = {
+    display: 'dspl',
+    text: 'text',
+    body: 'body',
+    header: '',
+};
+
+const formattedTokenName = (nameParts: string[]) => {
     const tokenName = [...nameParts];
-    tokenName[0] = nameMap[tokenName[0]];
+    // Только собственные ключи: своя группа `constructor` не должна находить свойство `Object.prototype`.
+    tokenName[0] = Object.hasOwn(groupPrefix, tokenName[0]) ? groupPrefix[tokenName[0]] : tokenName[0];
     tokenName[2] = fontWeightMap[tokenName[2]];
 
     return tokenName.filter(Boolean).join('-');
 };
 
-const geBaseFonts = (display: string, body: string, header: string, text: string) => `  font-size: 16px;
+/** Семейство значения: системное — переменная своей группы, своё — переменная группы стиля [group]. */
+const fontFamilyVariable = (familyRef: string, group: string) =>
+    Object.hasOwn(fontMap, familyRef.split('.')[1])
+        ? fontMap[familyRef.split('.')[1]]
+        : `var(--plasma-typo-${group}-font-family)`;
+
+/** Имя шрифта семейства [familyRef] по собственным ключам: семейство `constructor` — не `Object.prototype`. */
+const familyName = (fontFamily: any, familyRef: string) =>
+    Object.hasOwn(fontFamily ?? {}, familyRef.split('.')[1]) ? fontFamily[familyRef.split('.')[1]].name : undefined;
+
+/**
+ * Прерывает генерацию, если два токена одного экрана дают одну переменную пакета (CSS или JS-константу camelCase):
+ * сервер не даёт создать такие стили, проверка защищает от данных в обход него.
+ */
+const assertUniqueVariables = (tokens: TokenType[]) => {
+    const keys = tokens.map((token) => {
+        const [screen, ...rest] = token.name.split('.');
+        return `${screen}:${formattedTokenName(rest).replaceAll('-', '').toLowerCase()}`;
+    });
+    const repeated = keys.findIndex((key, index) => keys.indexOf(key) !== index);
+    if (repeated < 0) return;
+    const first = tokens[keys.indexOf(keys[repeated])].name;
+    const name = formattedTokenName(tokens[repeated].name.split('.').slice(1));
+    throw new Error(`Стили типографики ${first} и ${tokens[repeated].name} дают одну переменную пакета ${name}`);
+};
+
+const geBaseFonts = (fonts: Record<string, string>) =>
+    [
+        `  font-size: 16px;
   --plasma-typo-overflow-wrap: break-word;
   --plasma-typo-hyphens: auto;
-  --plasma-typo-display-font-family: '${display}', sans-serif;
-  --plasma-typo-body-font-family: '${body}', sans-serif;
-  --plasma-typo-header-font-family: '${header}', sans-serif;
-  --plasma-typo-text-font-family: '${text}', sans-serif;`;
+  --plasma-typo-display-font-family: '${fonts.display}', sans-serif;
+  --plasma-typo-body-font-family: '${fonts.body}', sans-serif;
+  --plasma-typo-header-font-family: '${fonts.header}', sans-serif;
+  --plasma-typo-text-font-family: '${fonts.text}', sans-serif;`,
+        // Свои группы: переменная семейства группы — для стилей со своим семейством.
+        ...Object.keys(fonts)
+            .filter((group) => !SYSTEM_GROUPS.includes(group))
+            .map((group) => `  --plasma-typo-${group}-font-family: '${fonts[group]}', sans-serif;`),
+    ].join('\n');
 
 const getTypographyBase = (typography: any, fontFamily: any, tokens: TokenType[], size: 'screen-s') => {
     const fonts = tokens
@@ -44,11 +82,11 @@ const getTypographyBase = (typography: any, fontFamily: any, tokens: TokenType[]
             const kind = rest[0];
             const value = typography?.[token.name];
 
-            if (acc[kind] || !value) {
+            if (Object.hasOwn(acc, kind) || !value) {
                 return acc;
             }
 
-            const fontFamilyRef = fontFamily?.[value.fontFamilyRef.split('.')[1]].name;
+            const fontFamilyRef = familyName(fontFamily, value.fontFamilyRef);
 
             return {
                 [kind]: fontFamilyRef,
@@ -56,7 +94,7 @@ const getTypographyBase = (typography: any, fontFamily: any, tokens: TokenType[]
             };
         }, {});
 
-    return geBaseFonts(fonts.display, fonts.body, fonts.header, fonts.text);
+    return geBaseFonts(fonts);
 };
 
 const getTypographyRoot = (typography: any, tokens: TokenType[], size: 'screen-s') =>
@@ -71,7 +109,7 @@ const getTypographyRoot = (typography: any, tokens: TokenType[], size: 'screen-s
                 return '';
             }
 
-            const fontFamily = fontMap[value.fontFamilyRef.split('.')[1]];
+            const fontFamily = fontFamilyVariable(value.fontFamilyRef, rest[0]);
             const { letterSpacing, fontStyle } = value;
 
             return `  --plasma-typo-${tokenName}-font-family: ${fontFamily};
@@ -140,6 +178,8 @@ export const createTypographyTokens = (typography: any, fontFamily: any, tokens?
             },
         };
     }
+
+    assertUniqueVariables(tokens);
 
     const rootTypography = `${getTypographyBase(typography, fontFamily, tokens, 'screen-s')}\n${getTypographyRoot(
         typography,

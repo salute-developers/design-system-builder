@@ -26,9 +26,6 @@ interface SizeTokenRepository {
     /** Действующий токен [tokenId] дизайн-системы [designSystemId] любого типа со значениями темы [tenantId]. */
     suspend fun token(designSystemId: UUID, tenantId: UUID, tokenId: UUID): StoredSizeToken?
 
-    /** Имена из [names], занятые действующими токенами дизайн-системы. */
-    suspend fun takenNames(designSystemId: UUID, names: Collection<String>): Set<String>
-
     /**
      * Блокирует значения токена [tokenId] в теме [tenantId], перечитывает их и записывает черновые редакции только
      * изменившихся значений [values] с путями `/value` и `/overridden`. Базовая редакция значения — из
@@ -51,6 +48,12 @@ interface SizeTokenRepository {
         type: ThemeTokenType,
         values: Map<String, List<SizeWrittenValue>>,
     ): Map<String, UUID>
+
+    /**
+     * Переименовывает определение [tokenId] в [name] с отображаемым именем по правилу сида и привязывает к нему по
+     * `token_id` текстовые ссылки компонентов [references] в активном черновике.
+     */
+    suspend fun rename(designSystemId: UUID, tokenId: UUID, name: String, references: Set<UUID>)
 
     /**
      * Логически удаляет определения [tokenIds] и их значения во всех темах дизайн-системы и очищает ссылки

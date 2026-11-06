@@ -1,16 +1,10 @@
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type CSSProperties,
-    type KeyboardEvent,
-    type PointerEvent,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import '../../styles/palette.css';
+import { useTokenReset } from '../../features/versionJournal/tokenReset';
+
+import { PanelSkeleton, usePanelWidths, WorkspaceLoadError } from '../../components/tokenWorkspace';
+
 import '../../styles/color-tokens.css';
 
 import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
@@ -50,8 +44,6 @@ import { ColorPickerPopover } from './ui/ColorPickerPopover';
 import { ColorTokenBoard } from './ui/ColorTokenBoard';
 import { ColorTokenInspector, PLATFORM_LABELS, type PickerTarget } from './ui/ColorTokenInspector';
 import { ColorTokenTree } from './ui/ColorTokenTree';
-import { ComponentCanvas } from './ui/ComponentCanvas';
-import { CtGlyph } from './ui/CtGlyph';
 import { DeleteTokenDialog } from './ui/DeleteTokenDialog';
 
 export interface ColorTokensScreenProps {
@@ -67,8 +59,9 @@ export interface ColorTokensScreenProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
-    /** Загрузка компонента для канваса (без имени — список компонентов); без неё канвас берёт уже загруженные. */
-    loadComponent?: (name?: string) => Promise<void>;
+    /** Сброс изменений выбранного токена в черновике; без него кнопки сброса в инспекторе нет. */
+    /** Токены с неопубликованными изменениями темы: сброс доступен только у изменённого токена. */
+    changedTokenNames?: Set<string>;
 }
 
 /** Вкладка «Доступность» пока скрыта по решению команды; панель и расчёт пар контраста остаются в коде. */
@@ -76,8 +69,6 @@ const SHOW_ACCESSIBILITY = false;
 
 const PANELS_KEY = 'ds_color_tokens_panels';
 const COLLAPSED_KEY = 'ds_color_tokens_collapsed';
-const LEFT = { min: 220, max: 320, initial: 280 };
-const RIGHT = { min: 280, max: 400, initial: 320 };
 
 const readStorage = <T,>(key: string, fallback: T): T => {
     try {
@@ -98,9 +89,6 @@ const writeStorage = (key: string, value: unknown) => {
         // Хранилище браузера недоступно: настройка просто не запомнится.
     }
 };
-
-const clampWidth = (value: number, { min, max }: { min: number; max: number }) =>
-    Math.min(max, Math.max(min, Math.round(value)));
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const ADDRESS_CONTEXT_LABELS = {
@@ -127,6 +115,49 @@ const invalidFieldOf = (error: ColorTokenOperationError | null, definitions: Tok
     };
 };
 
+/**
+ * Загрузка и ошибка загрузки раздела (`System / Loading`, `System / Error`): шапки панелей на месте, тела —
+ * скелетоны, при ошибке рабочая область и инспектор показывают «Не удалось загрузить цветовые токены».
+ */
+export const ColorTokensState = ({ error = false, onRetry }: { error?: boolean; onRetry?: () => void }) => (
+    <div
+        className="color-tokens-screen ct-shell ct-theme-workspace"
+        data-testid={error ? 'color-tokens-error' : 'color-tokens-loading'}
+        role={error ? undefined : 'status'}
+        aria-label={error ? undefined : 'Загружаем цветовые токены'}
+    >
+        <section className="editor-workbench playground-workbench editor-colors-workbench ct-state">
+            <aside className="token-browser">
+                <div className="tw-tree-header">
+                    <span className="ct-sort-select is-placeholder">А–Я</span>
+                </div>
+                <PanelSkeleton part="tree" />
+            </aside>
+            {error ? (
+                <div className="ct-state-error">
+                    <WorkspaceLoadError title="Не удалось загрузить цветовые токены" onRetry={onRetry} />
+                </div>
+            ) : (
+                <>
+                    <header className="editor-toolbar">
+                        <div className="preview-toolbar">
+                            <div className="ct-tabs">
+                                <span className="ct-tab is-active">Обзор</span>
+                            </div>
+                        </div>
+                    </header>
+                    <main className="preview-canvas">
+                        <PanelSkeleton part="workspace" />
+                    </main>
+                    <aside className="properties-panel">
+                        <PanelSkeleton part="inspector" />
+                    </aside>
+                </>
+            )}
+        </section>
+    </div>
+);
+
 /** Экран Color Tokens темы по ветке `editorTab === 'colors'` функции `editor` прототипа. */
 export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const { context, designSystem, theme, components, palette, setPalette, rerender } = props;
@@ -143,27 +174,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [searchOpen, setSearchOpen] = useState(false);
     const [issuesOnly, setIssuesOnly] = useState(false);
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readStorage(COLLAPSED_KEY, {}));
-    const [panels, setPanels] = useState(() => readStorage(PANELS_KEY, { left: LEFT.initial, right: RIGHT.initial }));
+    const { panels, separator } = usePanelWidths(PANELS_KEY);
     const [workspace, setWorkspace] = useState<'overview' | 'accessibility'>('overview');
-    const [canvas, setCanvas] = useState<string>('palette');
-    const [canvasMenu, setCanvasMenu] = useState(false);
-    // Компонент канваса читается при выборе: раздел «Цвета» знает компоненты только по индексу.
-    const [canvasLoad, setCanvasLoad] = useState<{ name: string; error?: string } | null>(null);
-    const { loadComponent } = props;
-    const openCanvas = (id: string) => {
-        setCanvas(id);
-        setCanvasMenu(false);
-        if (id === 'palette' || !loadComponent) {
-            setCanvasLoad(null);
-            return;
-        }
-        setCanvasLoad({ name: id });
-        loadComponent(id).then(
-            () => setCanvasLoad((current) => (current?.name === id ? null : current)),
-            (error) => setCanvasLoad((current) => (current?.name === id ? { name: id, error: errorText(error) } : current)),
-        );
-    };
-    const canvasMenuRef = useRef<HTMLDivElement>(null);
     const selectionKey = `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
     const [selectedId, setSelectedId] = useState<string | null>(() => lastSelection.get(selectionKey) ?? null);
     useEffect(() => void lastSelection.set(selectionKey, selectedId), [selectionKey, selectedId]);
@@ -200,7 +212,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         () => buildTree(groups, views, { query: '', sort: 'source', issuesOnly: false }),
         [groups, views],
     );
-    const selected = views.find((view) => view.id === selectedId) ?? tree.flatMap(treeTokens)[0] ?? views[0] ?? null;
+    // Без явного выбора — первый токен дерева без поиска и фильтра: ввод в поиск не меняет выбранный токен.
+    const firstToken = useMemo(
+        () => buildTree(groups, views, { query: '', sort, issuesOnly: false }).flatMap(treeTokens)[0] ?? null,
+        [groups, views, sort],
+    );
+    const selected = views.find((view) => view.id === selectedId) ?? firstToken ?? views[0] ?? null;
 
     // Переход из инспектора палитры: выбрать токен, имя определения которого передано в state маршрута.
     const requestedTokenId = searchParams.get('tokenId');
@@ -235,26 +252,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
     }, [requested, requestedTokenId, requestedDefinition?.type, views]);
 
-    useEffect(() => writeStorage(PANELS_KEY, panels), [panels]);
     useEffect(() => writeStorage(COLLAPSED_KEY, collapsed), [collapsed]);
     useEffect(() => setPicker(null), [selected?.id]);
-    useEffect(() => {
-        if (!canvasMenu) return;
-        const close = (event: Event) => {
-            if (
-                event instanceof globalThis.KeyboardEvent
-                    ? event.key === 'Escape'
-                    : !canvasMenuRef.current?.contains(event.target as Node)
-            )
-                setCanvasMenu(false);
-        };
-        document.addEventListener('mousedown', close);
-        document.addEventListener('keydown', close);
-        return () => {
-            document.removeEventListener('mousedown', close);
-            document.removeEventListener('keydown', close);
-        };
-    }, [canvasMenu]);
 
     const refreshPalette = useCallback(async () => {
         if (!setPalette) return;
@@ -370,6 +369,21 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
     };
 
+    const tokenReset = useTokenReset(props.context, async () => {
+        props.reload();
+        rerender();
+    });
+
+    /** Описание общее для семейства токена; ошибка остаётся у поля описания. */
+    const describeToken = async (view: ColorTokenView, description: string) => {
+        try {
+            await editor.describe(view, description);
+            rerender();
+        } catch (error) {
+            throw operationError(error);
+        }
+    };
+
     const moveToken = (view: ColorTokenView, groupId: string, position: number) =>
         editor
             .move(view, groupId, position)
@@ -390,15 +404,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         return views.filter((view) => view.groupId && ids.has(view.groupId));
     };
 
-    /** Пустая группа удаляется сразу, группа с токенами — после подтверждения. */
-    const requestGroupDelete = (group: TokenGroupDto) => {
-        const tokens = groupTokens(group);
-        if (tokens.length) setDeleting({ view: null, group, tokens, busy: false, error: null });
-        else void removeGroup(group, false);
-    };
+    /** Группа, даже пустая, удаляется после подтверждения: случайный щелчок по корзине её не удаляет. */
+    const requestGroupDelete = (group: TokenGroupDto) =>
+        setDeleting({ view: null, group, tokens: groupTokens(group), busy: false, error: null });
 
-    const removeGroup = async (group: TokenGroupDto, confirmed: boolean) => {
-        if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
+    const removeGroup = async (group: TokenGroupDto) => {
+        setDeleting((current) => current && { ...current, busy: true, error: null });
         const removed = groupTokens(group);
         try {
             await editor.removeGroup(group.id);
@@ -407,19 +418,15 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             clearDeletedTokenAddress(removed);
             rerender();
         } catch (error) {
-            if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
-            else setNotice(`Не удалось удалить группу: ${errorText(error)}`);
+            setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
         }
     };
 
-    /**
-     * Удаление токена: с подтверждением — ошибка остаётся в окне, без подтверждения (у токена нет связей с
-     * компонентами) — показывается баннером инспектора.
-     */
-    const remove = async (view: ColorTokenView, confirmed: boolean) => {
+    /** Удаление токена после подтверждения: ошибка остаётся в окне. */
+    const remove = async (view: ColorTokenView) => {
         if (removing) return;
         setRemoving(true);
-        if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
+        setDeleting((current) => current && { ...current, busy: true, error: null });
         try {
             await editor.remove(view);
             setDeleting(null);
@@ -427,19 +434,15 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             clearDeletedTokenAddress([view]);
             rerender();
         } catch (error) {
-            if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
-            else setNotice(`Не удалось удалить токен: ${errorText(error)}`);
+            setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
         } finally {
             setRemoving(false);
         }
     };
 
-    /** Подтверждение нужно, только если токен используется в компонентах дизайн-системы. */
+    /** Удаление всегда подтверждается; окно перечисляет компоненты, которые используют токен. */
     const requestDelete = (view: ColorTokenView | null = selected) => {
-        if (!view) return;
-        if (componentsUsingToken(components, view.key).length)
-            setDeleting({ view, group: null, tokens: [view], busy: false, error: null });
-        else void remove(view, false);
+        if (view) setDeleting({ view, group: null, tokens: [view], busy: false, error: null });
     };
 
     /** Адрес отказа `<tokenId>:<platform>:<mode>` в терминах инспектора: подтема, платформа, режим. */
@@ -485,66 +488,9 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             state: { preview: { variation: pair.variation, style: pair.style, mode: pair.mode } },
         });
 
-    // Разделители панелей: перетаскивание меняет только переменную, ширина сохраняется при отпускании.
-    const resize = (side: 'left' | 'right') => ({
-        onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
-            const section = event.currentTarget.parentElement;
-            if (!section) return;
-            event.currentTarget.setPointerCapture?.(event.pointerId);
-            const start = event.clientX;
-            const initial = panels[side];
-            const limits = side === 'left' ? LEFT : RIGHT;
-            const target = event.currentTarget;
-            let width = initial;
-            const move = (moveEvent: globalThis.PointerEvent) => {
-                const delta = moveEvent.clientX - start;
-                width = clampWidth(side === 'left' ? initial + delta : initial - delta, limits);
-                section.style.setProperty(`--panel-${side}`, `${width}px`);
-            };
-            const up = () => {
-                target.removeEventListener('pointermove', move);
-                target.removeEventListener('pointerup', up);
-                setPanels((current: typeof panels) => ({ ...current, [side]: width }));
-            };
-            target.addEventListener('pointermove', move);
-            target.addEventListener('pointerup', up);
-        },
-        onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => {
-            const limits = side === 'left' ? LEFT : RIGHT;
-            const step = event.shiftKey ? 16 : 8;
-            const direction = side === 'left' ? 1 : -1;
-            const next =
-                event.key === 'ArrowRight'
-                    ? panels[side] + step * direction
-                    : event.key === 'ArrowLeft'
-                      ? panels[side] - step * direction
-                      : event.key === 'Home'
-                        ? limits.min
-                        : event.key === 'End'
-                          ? limits.max
-                          : null;
-            if (next === null) return;
-            event.preventDefault();
-            setPanels((current: typeof panels) => ({ ...current, [side]: clampWidth(next, limits) }));
-        },
-    });
-
-    const saveLabel =
-        session.conflict !== null
-            ? 'Тема изменена в другом месте'
-            : status.state === 'error'
-              ? 'Не сохранено'
-              : status.state === 'saved'
-                ? 'Сохранено'
-                : 'Сохранение…';
     const invalidField = invalidFieldOf(session.autosave.status(selected?.id ?? '').error, session.definitions);
     const saveError = status.error;
 
-    const canvasOptions = [
-        { id: 'palette', label: 'Палитра' },
-        ...components.map((config) => ({ id: config.getName(), label: config.getName() })),
-    ];
-    const canvasConfig = components.find((config) => config.getName() === canvas);
     const pickerField = picker ? parseField(picker.field) : null;
     const pickerBase: ColorFieldValue | null =
         selected && pickerField
@@ -581,30 +527,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 className="editor-workbench playground-workbench editor-colors-workbench"
                 style={{ '--panel-left': `${panels.left}px`, '--panel-right': `${panels.right}px` } as CSSProperties}
             >
-                <button
-                    type="button"
-                    className="panel-resizer panel-resizer-left"
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-label="Ширина сайдбара"
-                    aria-valuemin={LEFT.min}
-                    aria-valuemax={LEFT.max}
-                    aria-valuenow={panels.left}
-                    title="Изменить ширину сайдбара"
-                    {...resize('left')}
-                />
-                <button
-                    type="button"
-                    className="panel-resizer panel-resizer-right"
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-label="Ширина инспектора"
-                    aria-valuemin={RIGHT.min}
-                    aria-valuemax={RIGHT.max}
-                    aria-valuenow={panels.right}
-                    title="Изменить ширину инспектора"
-                    {...resize('right')}
-                />
+                <button type="button" className="panel-resizer panel-resizer-left" {...separator('left')} />
+                <button type="button" className="panel-resizer panel-resizer-right" {...separator('right')} />
                 <ColorTokenTree
                     tree={tree}
                     groups={groups}
@@ -636,10 +560,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 />
                 <header className="editor-toolbar">
                     <div className="preview-toolbar">
-                        <div className="workspace-tabs">
+                        <div className="ct-tabs" role="tablist" aria-label="Рабочая область">
                             <button
                                 type="button"
-                                className={workspace === 'overview' ? 'is-active' : ''}
+                                role="tab"
+                                aria-selected={workspace === 'overview'}
+                                className={`ct-tab ${workspace === 'overview' ? 'is-active' : ''}`}
                                 onClick={() => setWorkspace('overview')}
                             >
                                 Обзор
@@ -647,63 +573,24 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             {SHOW_ACCESSIBILITY && (
                                 <button
                                     type="button"
-                                    className={workspace === 'accessibility' ? 'is-active' : ''}
+                                    role="tab"
+                                    aria-selected={workspace === 'accessibility'}
+                                    className={`ct-tab ${workspace === 'accessibility' ? 'is-active' : ''}`}
                                     onClick={() => setWorkspace('accessibility')}
                                 >
                                     Доступность
                                 </button>
                             )}
                         </div>
-                        <div className="editor-header-controls">
-                            <span
-                                className={`ct-save-status ${status.state === 'error' || session.conflict ? 'is-error' : ''}`}
-                                role="status"
-                                data-testid="color-tokens-save-status"
-                            >
-                                <span className="ct-save-label" title={saveLabel}>
-                                    {saveLabel}
-                                </span>
-                                {(status.state === 'error' || session.conflict) && (
-                                    <button type="button" onClick={() => editor.retry()}>
-                                        Повторить
-                                    </button>
-                                )}
-                            </span>
-                            <div className="editor-canvas-picker" ref={canvasMenuRef}>
-                                <button
-                                    type="button"
-                                    className="editor-header-select"
-                                    aria-expanded={canvasMenu}
-                                    title="Представление рабочей области"
-                                    onClick={() => {
-                                        if (!canvasMenu) void loadComponent?.().catch(() => undefined);
-                                        setCanvasMenu((open) => !open);
-                                    }}
-                                >
-                                    <span>{canvasOptions.find((item) => item.id === canvas)?.label ?? 'Палитра'}</span>
-                                    <CtGlyph name="chevron-down" />
-                                </button>
-                                {canvasMenu && (
-                                    <div className="reset-dropdown editor-canvas-menu">
-                                        {canvasOptions.map((item) => (
-                                            <button
-                                                key={item.id}
-                                                type="button"
-                                                className={canvas === item.id ? 'is-selected' : ''}
-                                                onClick={() => openCanvas(item.id)}
-                                            >
-                                                {item.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
                     </div>
-                    {saveError && (
+                    {(saveError || session.conflict) && (
                         <div className="ct-toolbar-error" role="alert" data-testid="color-tokens-save-error">
-                            Не сохранено: {saveError.message}
-                            {saveError.address ? ` (${addressLabel(saveError.address)})` : ''}
+                            {saveError
+                                ? `Не сохранено: ${saveError.message}${saveError.address ? ` (${addressLabel(saveError.address)})` : ''}`
+                                : 'Тема изменена в другом месте'}
+                            <button type="button" onClick={() => editor.retry()}>
+                                Повторить
+                            </button>
                         </div>
                     )}
                 </header>
@@ -727,6 +614,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     {notice && (
                         <div className="ct-banner" role="status">
                             {notice}
+                        </div>
+                    )}
+                    {tokenReset.error && (
+                        <div className="ct-banner" role="alert">
+                            {tokenReset.error}
                         </div>
                     )}
                     {readOnly && (
@@ -812,6 +704,19 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             onFill={() => edit(() => editor.fill(selected, groupDefaults(selected.key.group)))}
                             onRetry={() => editor.retry(selected.id)}
                             onRename={(label) => renameToken(selected, label)}
+                            onDescribe={(description) => describeToken(selected, description)}
+                            onReset={
+                                readOnly
+                                    ? undefined
+                                    : () =>
+                                          void tokenReset.reset(
+                                              new Set(editor.family(selected).map(([, definition]) => definition.id)),
+                                          )
+                            }
+                            resetDisabled={
+                                tokenReset.busy ||
+                                !editor.family(selected).some(([name]) => props.changedTokenNames?.has(name))
+                            }
                             addressLabel={addressLabel}
                         />
                     )}
@@ -824,19 +729,6 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             colorOf={colorOf}
                             displayName={tokenLabel}
                             onOpenComponent={openComponent}
-                        />
-                    ) : canvasLoad?.name === canvas ? (
-                        <div className="ct-tree-empty" role="status" data-testid="color-tokens-canvas-loading">
-                            {canvasLoad.error
-                                ? `Не удалось загрузить компонент: ${canvasLoad.error}`
-                                : 'Загружаем компонент…'}
-                        </div>
-                    ) : canvasConfig ? (
-                        <ComponentCanvas
-                            designSystem={designSystem}
-                            theme={theme}
-                            config={canvasConfig}
-                            updated={props.updated}
                         />
                     ) : (
                         <ColorTokenBoard tree={board} selectedId={selected?.id ?? null} onSelect={select} />
@@ -883,8 +775,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     error={deleting.error}
                     onCancel={() => setDeleting(null)}
                     onConfirm={() => {
-                        if (deleting.group) void removeGroup(deleting.group, true);
-                        else if (deleting.view) void remove(deleting.view, true);
+                        if (deleting.group) void removeGroup(deleting.group);
+                        else if (deleting.view) void remove(deleting.view);
                     }}
                 />
             )}

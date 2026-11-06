@@ -1,12 +1,18 @@
 import { useState } from 'react';
+import { CloseOutline, TrashOutline } from '@salutejs/sdds-icons/16';
 
+import {
+    FieldMessage,
+    fieldClass,
+    InspectorHeader,
+    instancesLabel,
+    SectionHeader,
+} from '../../../components/tokenWorkspace';
 import {
     differingPlatforms,
     parsePx,
     PLATFORM_LABELS,
     RANGES,
-    SECTION_LABELS,
-    shortName,
     validatePx,
     type DimensionToken,
     type NativePlatform,
@@ -21,13 +27,6 @@ import {
 import { derivedLabel, derivedValue } from './SizeTokenBoard';
 import { CommitInput, PlatformAdd } from './fields';
 import { ShadowLayers } from './ShadowLayers';
-import { StGlyph } from './StGlyph';
-
-const DESCRIPTION = {
-    radius: 'Радиус скругления углов компонентов и поверхностей.',
-    spacing: 'Отступ из шкалы темы: Nx = N × 2 px.',
-    shadow: 'Тень поверхности: направление, жёсткость и размер.',
-} as const;
 
 const PLATFORM_ORDER: readonly NativePlatform[] = ['ios', 'android'];
 
@@ -40,6 +39,14 @@ interface InspectorProps {
     /** Открыта опубликованная версия: только чтение. */
     published: boolean;
     canDelete: boolean;
+    /** Описание токена из определения; `onDescribe` — его правка в шапке, у Viewer её нет. */
+    description: string;
+    onDescribe?: (value: string) => Promise<void>;
+    /** Переименование двойным щелчком по имени в шапке: правится полное имя, префикс раздела можно не вводить. */
+    onRename?: (value: string) => Promise<void>;
+    /** Сброс изменений токена в черновике (подключается снаружи); без него кнопки нет. */
+    onReset?: () => void;
+    resetDisabled?: boolean;
     save: SaveStatus;
     /** Ошибка операции другого токена, создания или удаления; такие операции повторяются автоматически. */
     otherError: SizeTokenOperationError | null;
@@ -57,7 +64,7 @@ interface InspectorProps {
 const platformsOf = <T,>(platforms: Partial<Record<NativePlatform, T>>) =>
     PLATFORM_ORDER.filter((platform) => platforms[platform] !== undefined);
 
-/** Статус сохранения под заголовком инспектора: у экрана в прототипе нет панели инструментов. */
+/** Статус сохранения под шапкой инспектора: у раздела нет шапки рабочей области (осознанное отступление). */
 const SaveLine = ({ save, otherError, onRetry }: Pick<InspectorProps, 'save' | 'otherError' | 'onRetry'>) => {
     const failed = save.state === 'error' || otherError !== null;
     // «Повторить» отправляет сразу операцию, которая иначе повторится автоматически; отказ проверки не повторяется.
@@ -94,24 +101,27 @@ const Impact = ({ token, onOpenComponent }: { token: SizeToken; onOpenComponent:
     const total = list.reduce((sum, item) => sum + item.count, 0);
     return (
         <>
-            <section className="inspector-section typography-impact" data-testid="size-token-impact">
-                <span className="inspector-heading">ВЛИЯНИЕ</span>
-                <div className="impact-line">
-                    Компоненты <b>{list.length}</b>
+            <section className="st-section tw-section" data-testid="size-token-impact">
+                <SectionHeader title="Влияние" />
+                <div className="st-row tw-list-row">
+                    <span>Компоненты</span>
+                    <b>{list.length}</b>
                 </div>
-                {!list.length && <p className="st-impact-empty">Токен не используется в компонентах дизайн-системы.</p>}
+                {!list.length && <p className="st-note">Токен не используется в компонентах дизайн-системы.</p>}
             </section>
             {list.length > 0 && (
-                <section className="inspector-section component-impact typography-impact">
-                    <span className="inspector-heading">СПИСОК КОМПОНЕНТОВ · {total} ЭКЗЕМПЛЯРОВ</span>
+                <section className="st-section tw-section">
+                    <SectionHeader title={`Список компонентов · ${instancesLabel(total)}`} />
                     {list.map((item) => (
                         <button
                             key={item.name}
                             type="button"
-                            className="impact-component"
+                            className="st-row st-row-link tw-list-row is-link"
+                            title={`Открыть компонент ${item.name}`}
                             onClick={() => onOpenComponent(item.name)}
                         >
-                            <StGlyph name="jump" /> {item.name} <b>{item.count}</b>
+                            <span>{item.name}</span>
+                            <b>{item.count}</b>
                         </button>
                     ))}
                 </section>
@@ -194,32 +204,35 @@ const DimensionBody = ({
     const valueError = errors.valuePx ?? serverError('valuePx');
     return (
         <>
-            <section className="inspector-section figma-inspector-group sizing-value-group">
-                <span className="inspector-heading">{token.kind === 'radius' ? 'РАДИУС' : 'ОТСТУП'}</span>
-                <div className={`figma-inspector-field ${valueError ? 'has-error' : ''}`}>
-                    <span className="figma-inspector-field-label">Значение</span>
-                    <div className="st-value-row">
-                        <div className="figma-value-control">
-                            <div className="figma-value-main">
-                                {token.fullRounding ? (
-                                    <input value="Full" aria-label="Значение, px" disabled readOnly />
-                                ) : (
-                                    <CommitInput
-                                        aria-label="Значение, px"
-                                        value={String(token.valuePx ?? '')}
-                                        disabled={!editable}
-                                        validate={validate}
-                                        onIssue={(message) => setError('valuePx', message)}
-                                        onCommit={(raw) =>
-                                            setDimension((value) => ({ ...value, valuePx: parsePx(raw) }))
-                                        }
-                                    />
-                                )}
-                            </div>
-                            <div className="figma-value-alpha">
-                                <span>px</span>
-                            </div>
-                        </div>
+            <section className="st-section tw-section">
+                <SectionHeader title={token.kind === 'radius' ? 'Радиус' : 'Отступ'} />
+                <div className="st-field-block tw-field-block">
+                    <label className="st-field-label tw-field-label" htmlFor={`size-value-${token.tokenId}`}>
+                        Значение, px
+                    </label>
+                    <div className="st-field-row tw-field-line">
+                        {token.fullRounding ? (
+                            <input
+                                id={`size-value-${token.tokenId}`}
+                                className={`st-input ${fieldClass()}`}
+                                value="Full"
+                                aria-label="Значение, px"
+                                disabled
+                                readOnly
+                            />
+                        ) : (
+                            <CommitInput
+                                id={`size-value-${token.tokenId}`}
+                                className={`st-input ${fieldClass(valueError ? 'error' : null)}`}
+                                aria-label="Значение, px"
+                                aria-invalid={Boolean(valueError)}
+                                value={String(token.valuePx ?? '')}
+                                disabled={!editable}
+                                validate={validate}
+                                onIssue={(message) => setError('valuePx', message)}
+                                onCommit={(raw) => setDimension((value) => ({ ...value, valuePx: parsePx(raw) }))}
+                            />
+                        )}
                         {editable && !token.fullRounding && (
                             <PlatformAdd
                                 added={overridden}
@@ -233,51 +246,51 @@ const DimensionBody = ({
                             />
                         )}
                     </div>
+                    {valueError && <FieldMessage>{valueError}</FieldMessage>}
                 </div>
-                {valueError && <p className="st-field-error st-field-error-value">{valueError}</p>}
                 {overridden.map((platform) => {
                     const message = errors[`platforms.${platform}`] ?? serverError(`platforms.${platform}`);
                     return (
-                        <div key={platform}>
-                            <div
-                                className={`st-override ${message ? 'has-error' : ''}`}
-                                data-testid={`override-${platform}`}
-                            >
-                                <span>↳ {PLATFORM_LABELS[platform]}</span>
-                                <CommitInput
-                                    aria-label={`Значение ${PLATFORM_LABELS[platform]}, px`}
-                                    value={String(token.platforms[platform])}
-                                    disabled={!editable}
-                                    validate={validate}
-                                    onIssue={(error) => setError(`platforms.${platform}`, error)}
-                                    onCommit={(raw) =>
-                                        setDimension((value) => ({
-                                            ...value,
-                                            platforms: { ...value.platforms, [platform]: parsePx(raw) },
-                                        }))
-                                    }
-                                />
-                                {editable ? (
-                                    <button
-                                        type="button"
-                                        className="st-icon-btn"
-                                        aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}`}
-                                        onClick={() => {
-                                            setError(`platforms.${platform}`, null);
-                                            setDimension((value) => {
-                                                const platforms = { ...value.platforms };
-                                                delete platforms[platform];
-                                                return { ...value, platforms };
-                                            });
-                                        }}
-                                    >
-                                        ×
-                                    </button>
-                                ) : (
-                                    <span />
-                                )}
+                        <div key={platform} className="st-override-block">
+                            <div className="st-override tw-field-inline" data-testid={`override-${platform}`}>
+                                <span className="tw-field-label">↳ {PLATFORM_LABELS[platform]}</span>
+                                <span className="tw-field-line">
+                                    <CommitInput
+                                        className={`st-input ${fieldClass(message ? 'error' : null)}`}
+                                        aria-label={`Значение ${PLATFORM_LABELS[platform]}, px`}
+                                        aria-invalid={Boolean(message)}
+                                        value={String(token.platforms[platform])}
+                                        disabled={!editable}
+                                        validate={validate}
+                                        onIssue={(error) => setError(`platforms.${platform}`, error)}
+                                        onCommit={(raw) =>
+                                            setDimension((value) => ({
+                                                ...value,
+                                                platforms: { ...value.platforms, [platform]: parsePx(raw) },
+                                            }))
+                                        }
+                                    />
+                                    {editable && (
+                                        <button
+                                            type="button"
+                                            className="tw-icon-button"
+                                            title={`Убрать своё значение ${PLATFORM_LABELS[platform]}`}
+                                            aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}`}
+                                            onClick={() => {
+                                                setError(`platforms.${platform}`, null);
+                                                setDimension((value) => {
+                                                    const platforms = { ...value.platforms };
+                                                    delete platforms[platform];
+                                                    return { ...value, platforms };
+                                                });
+                                            }}
+                                        >
+                                            <CloseOutline />
+                                        </button>
+                                    )}
+                                </span>
                             </div>
-                            {message && <p className="st-field-error st-field-error-override">{message}</p>}
+                            {message && <FieldMessage>{message}</FieldMessage>}
                         </div>
                     );
                 })}
@@ -301,8 +314,8 @@ const DimensionBody = ({
                 }
             />
             {token.kind === 'radius' && token.derived.length > 0 && (
-                <section className="inspector-section figma-inspector-group" data-testid="derived-section">
-                    <span className="inspector-heading">ВЫЧИСЛЯЕМЫЕ</span>
+                <section className="st-section tw-section" data-testid="derived-section">
+                    <SectionHeader title="Вычисляемые" />
                     {token.derived.map((item) => (
                         <div key={item.offsetPx} className="st-derived-line">
                             <b>{derivedLabel(token, item.offsetPx)}</b>
@@ -366,22 +379,24 @@ const ShadowBody = ({
     const elevationMessage = elevationIssue ?? serverError('fallbackElevation');
     return (
         <>
-            <section className="inspector-section figma-inspector-group">
-                <div className="st-heading-row">
-                    <span className="inspector-heading">СЛОИ</span>
-                    {editable && (
-                        <PlatformAdd
-                            added={overridden}
-                            label="Свои слои платформы"
-                            onAdd={(platform) =>
-                                setPlatformLayers(
-                                    platform,
-                                    token.layers.map((layer) => ({ ...layer })),
-                                )
-                            }
-                        />
-                    )}
-                </div>
+            <section className="st-section tw-section">
+                <SectionHeader
+                    title="Слои"
+                    actions={
+                        editable && (
+                            <PlatformAdd
+                                added={overridden}
+                                label="Свои слои платформы"
+                                onAdd={(platform) =>
+                                    setPlatformLayers(
+                                        platform,
+                                        token.layers.map((layer) => ({ ...layer })),
+                                    )
+                                }
+                            />
+                        )
+                    }
+                />
                 <ShadowLayers
                     layers={token.layers}
                     editable={editable}
@@ -393,24 +408,23 @@ const ShadowBody = ({
                 />
             </section>
             {overridden.map((platform) => (
-                <section
-                    key={platform}
-                    className="inspector-section figma-inspector-group"
-                    data-testid={`override-layers-${platform}`}
-                >
-                    <div className="st-heading-row">
-                        <span className="inspector-heading">↳ {PLATFORM_LABELS[platform]} · СВОИ СЛОИ</span>
-                        {editable && (
-                            <button
-                                type="button"
-                                className="st-icon-btn"
-                                aria-label={`Убрать свои слои ${PLATFORM_LABELS[platform]}`}
-                                onClick={() => setPlatformLayers(platform, null)}
-                            >
-                                ×
-                            </button>
-                        )}
-                    </div>
+                <section key={platform} className="st-section tw-section" data-testid={`override-layers-${platform}`}>
+                    <SectionHeader
+                        title={`↳ ${PLATFORM_LABELS[platform]} · свои слои`}
+                        actions={
+                            editable && (
+                                <button
+                                    type="button"
+                                    className="tw-icon-button"
+                                    title={`Убрать свои слои ${PLATFORM_LABELS[platform]}`}
+                                    aria-label={`Убрать свои слои ${PLATFORM_LABELS[platform]}`}
+                                    onClick={() => setPlatformLayers(platform, null)}
+                                >
+                                    <CloseOutline />
+                                </button>
+                            )
+                        }
+                    />
                     <ShadowLayers
                         layers={token.platforms[platform]!.layers}
                         editable={editable}
@@ -437,11 +451,12 @@ const ShadowBody = ({
                     })
                 }
             />
-            <section className="inspector-section figma-inspector-group">
-                <span className="inspector-heading">ANDROID</span>
-                <label className={`st-field st-field-wide ${elevationMessage ? 'has-error' : ''}`}>
-                    <span>Elevation</span>
+            <section className="st-section tw-section">
+                <SectionHeader title="Android" />
+                <label className="st-override tw-field-inline">
+                    <span className="tw-field-label">Elevation</span>
                     <CommitInput
+                        className={`st-input ${fieldClass(elevationMessage ? 'error' : null)}`}
                         aria-label="Запасная высота Android"
                         value={String(token.fallbackElevation)}
                         disabled={!editable}
@@ -450,69 +465,74 @@ const ShadowBody = ({
                         onCommit={(raw) => setShadow((value) => ({ ...value, fallbackElevation: parsePx(raw) }))}
                     />
                 </label>
-                {elevationMessage && <p className="st-field-error">{elevationMessage}</p>}
+                {elevationMessage && <FieldMessage>{elevationMessage}</FieldMessage>}
                 <p className="st-note">Запасная высота тени для Android.</p>
             </section>
         </>
     );
 };
 
-/** Инспектор токена по `tokenInspector` прототипа для `group === 'sizes'`. */
+/** Инспектор радиуса, отступа или тени: шапка `Inspector/Header`, секции `Panel/SectionHeader`, поля `ValueField`. */
 export const SizeTokenInspector = (props: InspectorProps) => {
     const { token, saved, editable, canDelete, save } = props;
     const unmatched = save.state === 'error' && save.error && !knownField(token, save.error.field) ? save.error : null;
     return (
         <>
-            <header className="token-inspector-header">
-                <div>
-                    <strong role="heading" aria-level={1}>
-                        {SECTION_LABELS[token.kind]} / {shortName(token)}
-                    </strong>
-                    <span className="token-inspector-actions">
-                        {canDelete && (
-                            <button
-                                type="button"
-                                title="Удалить токен"
-                                aria-label="Удалить токен"
-                                onClick={props.onDelete}
-                            >
-                                <StGlyph name="delete" />
-                            </button>
-                        )}
-                    </span>
-                </div>
-                <p>
-                    {token.name} · {DESCRIPTION[token.kind]}
-                </p>
-            </header>
-            {!props.published && <SaveLine save={save} otherError={props.otherError} onRetry={props.onRetry} />}
-            {!editable && (
-                <div className="st-warning is-neutral" role="status" data-testid="size-tokens-viewer">
-                    {props.published
-                        ? 'Опубликованная версия: значения доступны только для чтения.'
-                        : 'Режим просмотра: у вас нет прав на изменение темы.'}
-                </div>
-            )}
-            {unmatched && (
-                <div className="st-warning is-error" role="alert">
-                    Не сохранено: {unmatched.message}
-                </div>
-            )}
-            {token.kind === 'shadow' && saved.kind === 'shadow' ? (
-                <ShadowBody
-                    token={token}
-                    saved={saved}
-                    editable={editable}
-                    save={save}
-                    onChange={props.onChange}
-                    colorLabel={props.colorLabel}
-                    picker={props.picker}
-                    onOpenPicker={props.onOpenPicker}
-                />
-            ) : token.kind !== 'shadow' && saved.kind !== 'shadow' ? (
-                <DimensionBody token={token} saved={saved} editable={editable} save={save} onChange={props.onChange} />
-            ) : null}
-            <Impact token={token} onOpenComponent={props.onOpenComponent} />
+            <InspectorHeader
+                title={token.name}
+                description={props.description}
+                onDescribe={props.onDescribe}
+                onRename={props.onRename}
+                onReset={props.onReset}
+                resetDisabled={props.resetDisabled}
+                actions={
+                    canDelete && (
+                        <button
+                            type="button"
+                            className="tw-icon-button"
+                            title="Удалить токен"
+                            aria-label="Удалить токен"
+                            onClick={props.onDelete}
+                        >
+                            <TrashOutline />
+                        </button>
+                    )
+                }
+            />
+            <div className="st-inspector-body">
+                {!editable && (
+                    <div className="viewer-banner" role="status" data-testid="size-tokens-viewer">
+                        <span>Только просмотр</span>
+                    </div>
+                )}
+                {!props.published && <SaveLine save={save} otherError={props.otherError} onRetry={props.onRetry} />}
+                {unmatched && (
+                    <div className="st-warning is-error" role="alert">
+                        Не сохранено: {unmatched.message}
+                    </div>
+                )}
+                {token.kind === 'shadow' && saved.kind === 'shadow' ? (
+                    <ShadowBody
+                        token={token}
+                        saved={saved}
+                        editable={editable}
+                        save={save}
+                        onChange={props.onChange}
+                        colorLabel={props.colorLabel}
+                        picker={props.picker}
+                        onOpenPicker={props.onOpenPicker}
+                    />
+                ) : token.kind !== 'shadow' && saved.kind !== 'shadow' ? (
+                    <DimensionBody
+                        token={token}
+                        saved={saved}
+                        editable={editable}
+                        save={save}
+                        onChange={props.onChange}
+                    />
+                ) : null}
+                <Impact token={token} onOpenComponent={props.onOpenComponent} />
+            </div>
         </>
     );
 };

@@ -97,4 +97,30 @@ describe('HTTP-адаптер стилей типографии', () => {
         patch.mockRejectedValueOnce(new Error('offline'));
         await expect(repository.update(context, 'tok', { size: 18 }, [])).rejects.toMatchObject({ kind: 'network' });
     });
+    it('меняет описание токена через PATCH токена; пустое описание снимается', async () => {
+        const patch = vi.spyOn(http, 'patch').mockResolvedValue({ data: {}, headers: {} });
+        await repository.describe(context, 'tok/1', 'Основной текст');
+        await repository.describe(context, 'tok/1', '');
+        expect(patch.mock.calls[0].slice(0, 2)).toEqual([
+            '/api/projects/p1/ds/tokens/tok%2F1',
+            { description: 'Основной текст' },
+        ]);
+        expect(patch.mock.calls[1][1]).toEqual({ description: null });
+        expect(patch.mock.calls[0][2]?.headers).toHaveProperty('Idempotency-Key');
+    });
+
+    it('переименовывает и удаляет свою группу по маршруту групп', async () => {
+        const patch = vi.spyOn(http, 'patch').mockResolvedValue({ data: { tokenIds: ['a'] }, headers: {} });
+        const remove = vi.spyOn(http, 'delete').mockResolvedValue({ data: { tokenIds: ['b'] }, headers: {} });
+
+        expect(await repository.renameGroup(context, 'caption', 'note')).toEqual(['a']);
+        expect(await repository.removeGroup(context, 'note')).toEqual(['b']);
+
+        expect(patch.mock.calls[0].slice(0, 2)).toEqual([
+            '/api/projects/p1/ds/tenants/t1/typography-groups/caption',
+            { name: 'note' },
+        ]);
+        expect(remove.mock.calls[0][0]).toBe('/api/projects/p1/ds/tenants/t1/typography-groups/note');
+        expect(remove.mock.calls[0][1]?.headers).toHaveProperty('Idempotency-Key');
+    });
 });

@@ -6,6 +6,7 @@ import '../../styles/size-tokens.css';
 import type { DesignSystem, Theme } from '../../controllers';
 import type { ThemePalette } from '../../modules/palette';
 import { SizeTokensScreen } from './SizeTokensScreen';
+import { SizeTokensPlaceholder } from './ui/SizeTokensPlaceholder';
 
 interface ShapesOutletContextProps {
     designSystem?: DesignSystem | null;
@@ -14,9 +15,13 @@ interface ShapesOutletContextProps {
     rerender: () => void;
     /** Токены с неопубликованными изменениями: отметка в дереве, как у «Типографики». */
     changedTokenNames?: Set<string>;
+    reload: () => void;
+    /** Ошибка и загрузка раздела: экран показывает свои заглушки вместо общих у `Main`. */
+    sectionError?: unknown;
+    sectionPending?: boolean;
 }
 
-/** Раздел «Отступы, радиусы и тени» темы по прототипу SDDS Portal с автосохранением правок. */
+/** Раздел «Отступы, радиусы и тени» темы по Figma с автосохранением правок. */
 export const Shapes = () => {
     const outlet = useOutletContext<ShapesOutletContextProps>();
     const { projectId, designSystemId, tenantId } = useParams();
@@ -28,15 +33,8 @@ export const Shapes = () => {
         [projectId, designSystemId, tenantId, versionId],
     );
 
-    if (!context || !outlet.designSystem || !outlet.theme) {
-        return (
-            <div className="size-tokens-screen st-shell st-theme-workspace" data-testid="size-tokens-loading">
-                <div className="st-empty" role="status">
-                    Загружаем радиусы, отступы и тени…
-                </div>
-            </div>
-        );
-    }
+    if (outlet.sectionError) return <SizeTokensPlaceholder failed onRetry={outlet.reload} />;
+    if (!context || !outlet.designSystem || !outlet.theme || outlet.sectionPending) return <SizeTokensPlaceholder />;
 
     return (
         <SizeTokensScreen
@@ -46,6 +44,7 @@ export const Shapes = () => {
             theme={outlet.theme}
             palette={outlet.palette ?? null}
             rerender={outlet.rerender}
+            reload={outlet.reload}
             changedTokenNames={outlet.changedTokenNames}
         />
     );

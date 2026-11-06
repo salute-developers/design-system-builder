@@ -1,9 +1,10 @@
+import { ConfirmDeleteDialog } from '../../../components/tokenWorkspace';
 import { type DeletedUsage } from '../../../modules/sizeTokens';
 
 interface DeleteDialogProps {
-    /** Над заголовком: имя токена или «тень M». */
+    /** Под заголовком: имя токена. */
     title: string;
-    /** Имена удаляемых токенов: у тени — четыре варианта размера. */
+    /** Имена удаляемых токенов. */
     names: string[];
     /** Компоненты, которые используют удаляемые токены, с этими токенами. */
     components: DeletedUsage[];
@@ -13,7 +14,7 @@ interface DeleteDialogProps {
     onConfirm: () => void;
 }
 
-/** Подтверждение удаления токена, который используют компоненты, — по образцу `DeleteTokenDialog` «Цветов». */
+/** Подтверждение удаления токена — общее окно экранов токенов; компоненты со ссылками на токен перечисляются. */
 export const DeleteSizeTokenDialog = ({
     title,
     names,
@@ -23,50 +24,32 @@ export const DeleteSizeTokenDialog = ({
     onCancel,
     onConfirm,
 }: DeleteDialogProps) => (
-    <div className="modal-backdrop custom-token-backdrop">
-        <section
-            className="entity-modal custom-token-modal delete-token-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-size-token-title"
-        >
-            <header>
-                <div>
-                    <span>{title}</span>
-                    <h2 id="delete-size-token-title">Удалить токен?</h2>
-                </div>
-                <button type="button" className="source-palette-modal-close" aria-label="Закрыть" onClick={onCancel}>
-                    ×
-                </button>
-            </header>
-            <div className="custom-token-form">
-                <p data-testid="delete-size-token-names">
-                    {names.length > 1
-                        ? `Удалятся токены ${names.join(', ')} из черновика дизайн-системы`
-                        : 'Токен удалится из черновика дизайн-системы'}{' '}
-                    вместе со значениями во всех темах. До публикации удаление можно отменить в журнале изменений.
-                </p>
-                <p data-testid="delete-size-token-components">
-                    Используется в компонентах:{' '}
-                    {components
-                        .map((usage) => (names.length > 1 ? `${usage.name} (${usage.tokens.join(', ')})` : usage.name))
-                        .join(', ')}
-                    . Ссылки компонентов на токен будут сброшены.
-                </p>
-                {error && (
-                    <p className="custom-token-error" role="alert">
-                        {error}
-                    </p>
-                )}
-            </div>
-            <footer>
-                <button type="button" className="secondary" onClick={onCancel}>
-                    Отмена
-                </button>
-                <button type="button" disabled={busy} onClick={onConfirm}>
-                    Удалить токен
-                </button>
-            </footer>
-        </section>
-    </div>
+    <ConfirmDeleteDialog
+        titleId="delete-size-token-title"
+        title="Удалить токен?"
+        meta={title}
+        confirmLabel="Удалить токен"
+        busy={busy}
+        error={error}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+    >
+        <p data-testid="delete-size-token-names">
+            {names.length > 1
+                ? `Удалятся токены ${names.join(', ')} из черновика дизайн-системы`
+                : 'Токен удалится из черновика дизайн-системы'}{' '}
+            вместе со значениями во всех темах. До публикации удаление можно отменить в журнале изменений.
+        </p>
+        {components.length > 0 ? (
+            <p data-testid="delete-size-token-components">
+                Используется в компонентах:{' '}
+                {components
+                    .map((usage) => (names.length > 1 ? `${usage.name} (${usage.tokens.join(', ')})` : usage.name))
+                    .join(', ')}
+                . Ссылки компонентов на токен будут сброшены.
+            </p>
+        ) : (
+            <p>{names.length > 1 ? 'Токены не используются' : 'Токен не используется'} в компонентах дизайн-системы.</p>
+        )}
+    </ConfirmDeleteDialog>
 );

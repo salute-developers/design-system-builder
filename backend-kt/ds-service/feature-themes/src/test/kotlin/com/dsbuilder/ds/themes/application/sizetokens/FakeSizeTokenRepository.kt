@@ -64,9 +64,6 @@ internal class FakeSizeTokenRepository(
             ?.takeIf { designSystemId == this.designSystemId }
             ?.let { stored(it, tenantId) }
 
-    override suspend fun takenNames(designSystemId: UUID, names: Collection<String>): Set<String> =
-        definitions.filter { !it.deleted }.map { it.name }.filter { it in names }.toSet()
-
     override suspend fun writeValues(
         designSystemId: UUID,
         tenantId: UUID,
@@ -83,6 +80,14 @@ internal class FakeSizeTokenRepository(
         type: ThemeTokenType,
         values: Map<String, List<SizeWrittenValue>>,
     ): Map<String, UUID> = values.mapValues { (name, written) -> define(name, type, written) }
+
+    /** Привязанные к токену текстовые ссылки компонентов: токен → строки значений. */
+    val bound = mutableMapOf<UUID, Set<UUID>>()
+
+    override suspend fun rename(designSystemId: UUID, tokenId: UUID, name: String, references: Set<UUID>) {
+        if (references.isNotEmpty()) bound[tokenId] = bound[tokenId].orEmpty() + references
+        definitions.replaceAll { if (it.id == tokenId) it.copy(name = name) else it }
+    }
 
     override suspend fun delete(designSystemId: UUID, tokenIds: List<UUID>) {
         definitions.replaceAll { if (it.id in tokenIds) it.copy(deleted = true) else it }

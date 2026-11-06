@@ -61,6 +61,20 @@ interface DraftChangeRepository {
     /** Проверяет, содержит ли выбранный активный черновик хотя бы одно предметное изменение. */
     suspend fun hasChanges(projectId: ProjectId, designSystemId: DesignSystemId): Boolean?
 
+    /**
+     * Откатывает записи [changes] активного черновика одним пакетом в присланном порядке (от новой к старой).
+     * Сначала все записи сверяются с редакциями снимка журнала клиента — до первого отката; затем записи
+     * откатываются по редакции на своём шаге, а запись, исчезнувшая из-за предыдущих откатов пакета, считается
+     * отменённой. Предметные действия после отката, проверка зависимостей и ограничений выполняются один раз для
+     * итогового состояния. При отказе вызывающий откатывает транзакцию.
+     */
+    suspend fun revertAll(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        changes: List<DraftChangeRevertTarget>,
+    ): DraftChangeBatchRevertResult = error("Batch draft change revert is not implemented")
+
     /** Откатывает актуальную черновую редакцию одной устойчивой сущности. */
     suspend fun revert(
         projectId: ProjectId,
