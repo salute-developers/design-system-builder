@@ -1,0 +1,749 @@
+/*
+ * Контролы инспектора по образцу прототипа: строки свойств, числовые поля, поле цвета, меню состояний, список токенов,
+ * типографика. Значения — итоговые значения каскада прототипа (styles.css, builder-ui-tokens.css).
+ */
+
+/* Строка свойства: подпись и значение (`component-variation-style-row`). */
+.component-variation-style-row {
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.sdds-style-role-label {
+    width: var(--component-inspector-label-width, min(34%, 220px));
+    min-width: 0;
+    max-width: 240px;
+    display: flex;
+    flex: 0 0 var(--component-inspector-label-width, min(34%, 220px));
+    gap: 6px;
+    color: #aab3c0;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
+}
+.sdds-style-role-label > b {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    color: #c8d0db;
+    font-weight: 400;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.component-variation-property-value {
+    position: relative;
+    min-width: 0;
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    column-gap: 4px;
+}
+/* Слот «Очистить значение» справа: поля без «+» выравниваются по правому краю полей цвета, как в прототипе. */
+.component-property-clear-slot {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    flex: none;
+}
+/* «Очистить значение» (`component-property-clear`): видна при наведении и фокусе строки. */
+.component-property-clear {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: grid;
+    flex: none;
+    place-items: center;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #9e9fa2;
+    opacity: 0;
+}
+.component-inspector-color-field > .component-property-clear {
+    width: 0;
+    height: 22px;
+    flex-basis: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+.component-variation-style-row:hover .component-property-clear,
+.component-variation-style-row:focus-within .component-property-clear {
+    opacity: 1;
+}
+.component-inspector-color-field:hover > .component-property-clear,
+.component-inspector-color-field:focus-within > .component-property-clear {
+    width: 24px;
+    flex-basis: 24px;
+    pointer-events: auto;
+}
+@media (hover: none) {
+    .component-property-clear {
+        opacity: 1;
+    }
+    .component-inspector-color-field > .component-property-clear {
+        width: 24px;
+        flex-basis: 24px;
+        pointer-events: auto;
+    }
+}
+.component-property-clear:hover {
+    background: #ffffff0f;
+    color: #f3f3f3;
+}
+.component-property-clear:focus-visible {
+    outline: 1px solid #6baeff;
+    outline-offset: -2px;
+}
+.component-inspector-color-main > span.is-empty {
+    color: #8995a4;
+}
+
+/* Числовое поле (`component-number-control`). */
+.component-number-control {
+    cursor: text;
+    min-width: 0;
+    height: 24px;
+    padding: 0 8px;
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+    border: 1px solid #474a51;
+    border-radius: 6px;
+    background: #383a40;
+    color: #dfe2e7;
+}
+.component-number-control.is-invalid {
+    border-color: #f31b31;
+}
+.component-number-control > input {
+    width: auto;
+    min-width: 1ch;
+    height: 20px;
+    padding: 0;
+    flex: 0 1 auto;
+    field-sizing: content;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: #dfe2e7;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
+    text-align: left;
+}
+.component-number-control.is-raw > input {
+    flex: 1;
+    field-sizing: fixed;
+    color: #a8afb9;
+}
+.component-number-unit {
+    color: #98a3b1;
+    font:
+        400 11px/16px Inter,
+        system-ui,
+        sans-serif;
+    user-select: none;
+}
+.component-radius-icon,
+.component-opacity-icon {
+    width: 16px;
+    height: 20px;
+    display: grid;
+    flex: none;
+    place-items: center;
+    color: #aab3c0;
+}
+
+/* Прозрачность (`component-opacity-binding`): поле; место справа занимает слот очистки строки. */
+.component-opacity-binding {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 4px;
+}
+.component-opacity-control {
+    gap: 8px;
+}
+.component-opacity-control > input {
+    padding-left: 0;
+}
+
+/* Поле цвета (`component-color-control`). */
+.component-color-control {
+    min-width: 0;
+    width: 100%;
+    display: flex;
+    flex: 1;
+    gap: 4px;
+}
+.component-inspector-color-field {
+    min-width: 0;
+    height: 24px;
+    display: flex;
+    flex: 1;
+    align-items: center;
+    overflow: hidden;
+    box-sizing: border-box;
+    border: 1px solid #474a51;
+    border-radius: 6px;
+    background: #383a40;
+}
+.component-inspector-color-field:hover {
+    border-color: #595c63;
+}
+.component-inspector-color-field.is-open,
+.component-inspector-color-field:focus-within {
+    border-color: #2b8ced;
+    box-shadow: 0 0 0 1px #2b8ced inset;
+}
+.component-inspector-color-main {
+    min-width: 0;
+    height: 22px;
+    padding: 0 4px;
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    background: transparent;
+    color: #dfe2e7;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
+    text-align: left;
+}
+.component-inspector-color-main > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.component-inspector-color-main > .alpha-swatch {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    border-radius: 3px;
+}
+.component-color-detach-slot {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    flex: none;
+}
+
+/* «Отвязать стиль» (`component-field-detach`): видна при наведении и фокусе поля. */
+.component-field-detach {
+    width: 0;
+    height: 22px;
+    padding: 0;
+    display: grid;
+    flex-basis: 0;
+    place-items: center;
+    overflow: hidden;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #9e9fa2;
+    opacity: 0;
+    pointer-events: none;
+}
+.component-inspector-color-field:hover .component-field-detach,
+.component-inspector-color-field:focus-within .component-field-detach {
+    width: 24px;
+    flex-basis: 24px;
+    opacity: 1;
+    pointer-events: auto;
+}
+@media (hover: none) {
+    .component-field-detach {
+        width: 24px;
+        flex-basis: 24px;
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+.component-field-detach:hover {
+    background: #ffffff0f;
+    color: #f3f3f3;
+}
+.component-field-detach:focus-visible {
+    outline: 1px solid #6baeff;
+    outline-offset: -2px;
+}
+
+/* «+» состояний и его меню (`component-binding-actions`). */
+.component-binding-actions {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    flex: none;
+}
+.component-binding-more {
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #aab3c0;
+}
+.component-binding-more:hover:not(:disabled),
+.component-binding-more[aria-expanded='true'] {
+    background: #354154;
+    color: #e6e9ee;
+}
+.component-binding-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 90;
+    min-width: 220px;
+    padding: 4px;
+    box-sizing: border-box;
+    border: 1px solid #454d59;
+    border-radius: 8px;
+    background: #25272b;
+    box-shadow: 0 8px 24px #0005;
+}
+.component-binding-state-options {
+    padding: 0 4px 4px;
+}
+.component-binding-state-options > button {
+    width: 100%;
+    min-height: 28px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #c8d0db;
+    font:
+        400 12px/20px Inter,
+        system-ui,
+        sans-serif;
+    text-align: left;
+}
+.component-binding-state-options > button:hover:not(:disabled) {
+    background: #354154;
+}
+.component-binding-state-options > button > i {
+    width: 14px;
+    height: 14px;
+    display: grid;
+    flex: none;
+    place-items: center;
+    box-sizing: border-box;
+    border: 1px solid #687383;
+    border-radius: 3px;
+    font-size: 10px;
+    font-style: normal;
+}
+
+/* Строки состояний под цветом (`component-variation-state-row`) с соединительными линиями. */
+.component-variation-state-row {
+    position: relative;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.component-variation-state-row::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    bottom: 50%;
+    left: 3px;
+    border-left: 1px solid #46505c;
+}
+.component-variation-state-row::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 3px;
+    width: 10px;
+    border-top: 1px solid #46505c;
+}
+.component-variation-state-row > span {
+    max-width: 240px;
+    padding-left: 18px;
+    display: flex;
+    flex: 0 0 var(--component-inspector-label-width, min(34%, 220px));
+    align-items: center;
+    gap: 6px;
+    box-sizing: border-box;
+    color: #aab3c0;
+    font:
+        400 11px/16px Inter,
+        system-ui,
+        sans-serif;
+    text-transform: capitalize;
+}
+.component-variation-state-row > .component-color-control {
+    width: 0;
+    flex: 1 1 0;
+}
+
+/* Список токенов (`component-variation-token-picker`). */
+.component-token-picker {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    left: auto;
+    z-index: 120;
+    width: min(280px, calc(100cqw - 24px));
+    max-width: calc(100cqw - 24px);
+    padding: 8px;
+    box-sizing: border-box;
+    border: 1px solid #4b5563;
+    border-radius: 10px;
+    background: #20252c;
+    box-shadow: 0 18px 54px #000b;
+}
+/* Под полем нет места: список открывается над ним. */
+.component-token-picker.is-above {
+    top: auto;
+    bottom: calc(100% + 4px);
+}
+.component-token-picker > input {
+    width: 100%;
+    height: 30px;
+    margin-bottom: 8px;
+    padding: 5px 9px;
+    box-sizing: border-box;
+    border: 1px solid #46505d;
+    border-radius: 7px;
+    outline: none;
+    background: #171c22;
+    color: #e9edf4;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
+}
+.component-token-picker-list {
+    max-height: 220px;
+    display: grid;
+    gap: 2px;
+    overflow: auto;
+    scrollbar-gutter: stable;
+}
+.component-token-picker-list > button {
+    min-height: 30px;
+    padding: 5px 7px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #d7dde7;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
+    text-align: left;
+}
+.component-token-picker-list > button > span {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.component-token-picker-list > button > small {
+    color: #aab3c0;
+    font-size: 11px;
+}
+.component-token-picker-list > button:hover,
+.component-token-picker-list > button:focus-visible,
+.component-token-picker-list > button.is-selected {
+    outline: none;
+    background: #2d3f5f;
+    color: #fff;
+}
+.component-token-picker-list > p {
+    margin: 0;
+    padding: 12px;
+    color: #8f99a8;
+}
+.component-property-token-mark {
+    width: 16px;
+    height: 16px;
+    display: grid;
+    flex: none;
+    place-items: center;
+    border-radius: 4px;
+    background: #303741;
+    color: #b9c7df;
+    font-size: 9px;
+    font-style: normal;
+    font-weight: 700;
+}
+.component-property-token-mark > .ui-glyph {
+    width: 12px !important;
+    height: 12px !important;
+}
+
+/* Поле выбора токена (`component-token-field.is-no-swatch`). */
+.component-token-field {
+    position: relative;
+    min-width: 0;
+    flex: 1;
+}
+.component-token-field > button {
+    width: 100%;
+    height: 24px;
+    padding: 0 4px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-sizing: border-box;
+    border: 1px solid #474a51;
+    border-radius: 6px;
+    background: #383a40;
+    color: #dfe2e7;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
+    text-align: left;
+}
+.component-token-field > button:hover {
+    border-color: #595c63;
+}
+.component-token-field > button[aria-expanded='true'] {
+    border-color: #2b8ced;
+}
+.component-token-field > button > span {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.component-token-field > button > b {
+    display: grid;
+    color: #9aa5b3;
+}
+
+/* Типографика (`component-typography-combo`). */
+.component-typography-control {
+    position: relative;
+    min-width: 0;
+    flex: 1;
+}
+.component-typography-combo {
+    height: 24px;
+    cursor: text;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    border: 1px solid #474a51;
+    border-radius: 6px;
+    background: #383a40;
+}
+.component-typography-combo:focus-within {
+    border-color: #2b8ced;
+}
+.component-typography-combo > input {
+    min-width: 0;
+    height: 22px;
+    padding: 0 8px;
+    flex: 1;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: #dfe2e7;
+    font:
+        400 12px/16px Inter,
+        system-ui,
+        sans-serif;
+}
+.component-typography-menu {
+    right: 0;
+    left: auto;
+    z-index: 80;
+    width: 320px;
+    max-width: min(320px, calc(100vw - 32px));
+}
+.component-typography-menu .component-token-picker-list {
+    max-height: 260px;
+}
+.component-typography-menu-heading {
+    padding: 8px 10px;
+    color: #aab3c0;
+    font-size: 11px;
+}
+.component-token-picker-list > button > b {
+    color: #fff;
+    font-weight: 400;
+}
+
+/* Фильтр группы: только заполненные свойства. */
+.component-property-filter-button {
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+    display: grid;
+    flex: none;
+    place-items: center;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: #8995a4;
+}
+.component-property-filter-button:hover {
+    border-color: #424b57;
+    background: #2a3038;
+    color: #dce3ed;
+}
+.component-property-filter-button.is-on {
+    color: #9dbfff;
+}
+.component-property-filter-button .ui-glyph {
+    width: 15px !important;
+    height: 15px !important;
+}
+
+/* Пикер цвета инспектора: слой фиксирован у поля, само окно — общий `color-picker.css`. */
+.component-color-picker-layer {
+    position: fixed;
+    z-index: 180;
+    width: 240px;
+}
+.component-color-picker-layer > .color-picker-popover {
+    position: relative;
+    left: 0;
+    top: 0;
+}
+/* Библиотека токенов в пикере (`cp-component-library`). */
+.cp-component-library .cp-library-toolbar {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #454b53;
+}
+.cp-component-library .cp-library-toolbar > button {
+    min-height: 28px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #dfe2e7;
+    font-size: 12px;
+}
+.cp-component-library .cp-library-toolbar > button:hover {
+    background: #ffffff0f;
+}
+.cp-library-check {
+    width: 14px;
+    height: 14px;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    border: 1px solid #8995a4;
+    border-radius: 3px;
+}
+.cp-library-check > .ui-glyph {
+    width: 12px !important;
+    height: 12px !important;
+}
+.cp-component-library .cp-library-list {
+    max-height: 392px;
+    padding: 16px;
+    display: grid;
+    gap: 16px;
+    overflow: auto;
+    scrollbar-width: thin;
+}
+.cp-component-library .cp-library-group > h3 {
+    margin: 0 0 8px;
+    color: #d6dae0;
+    font-size: 12px;
+    font-weight: 500;
+}
+.cp-component-library .cp-library-subgroup > h4 {
+    margin: 0 0 4px;
+    color: #9fa9b7;
+    font-size: 11px;
+    font-weight: 400;
+}
+.cp-component-library:not(.is-grid) .cp-library-swatches {
+    display: grid;
+    gap: 2px;
+}
+.cp-component-library:not(.is-grid) .cp-preset {
+    width: 100%;
+    height: 28px;
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #dfe2e7;
+    text-align: left;
+}
+.cp-component-library:not(.is-grid) .cp-preset:hover {
+    background: #ffffff0f;
+}
+.cp-component-library:not(.is-grid) .cp-preset.is-active {
+    background: #303d50;
+    color: #e4ecf8;
+}
+.cp-component-library:not(.is-grid) .cp-preset > .alpha-swatch {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    border-radius: 3px;
+}
+.cp-component-library:not(.is-grid) .cp-preset > span {
+    min-width: 0;
+    overflow: hidden;
+    font:
+        400 12px/18px Inter,
+        system-ui,
+        sans-serif;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cp-component-library.is-grid .cp-library-list {
+    padding: 16px 8px;
+}
+.cp-component-library.is-grid .cp-library-swatches {
+    width: 208px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.cp-component-library.is-grid .cp-preset {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(242, 244, 246, 0.2);
+    border-radius: 6px;
+}
+.cp-component-library.is-grid .cp-preset:hover {
+    outline: 2px solid #7fa7ff;
+}
+.cp-component-library.is-grid .cp-preset.is-active {
+    outline: 2px solid #2b8ced;
+    outline-offset: 2px;
+}

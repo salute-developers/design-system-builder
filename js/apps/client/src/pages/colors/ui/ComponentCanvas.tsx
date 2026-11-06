@@ -26,7 +26,7 @@ interface ComponentCanvasProps {
  */
 export const ComponentCanvas = ({ designSystem, theme, config, updated }: ComponentCanvasProps) => {
     const [mode, setMode] = useState<'light' | 'dark'>('light');
-    const [, , , , componentProps] = useComponentData(config);
+    const [componentProps] = useComponentData(config);
     const plugin = useWebPreviewPlugin(
         config.getName(),
         designSystem.getParameters()?.projectId,

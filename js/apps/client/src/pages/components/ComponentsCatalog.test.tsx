@@ -26,7 +26,23 @@ vi.mock('../../layouts', () => ({
         </>
     ),
 }));
-vi.mock('./features/ComponentEditor', () => ({ ComponentEditor: () => <div>редактор</div> }));
+vi.mock('./features/ComponentEditor', () => ({
+    ComponentEditor: ({
+        platforms,
+        onPlatformSelect,
+    }: {
+        platforms: { platform: 'web' | 'compose'; available: boolean }[];
+        onPlatformSelect: (platform: 'web' | 'compose') => void;
+    }) => (
+        <div>
+            {platforms.map(({ platform, available }) => (
+                <button key={platform} type="button" disabled={!available} onClick={() => onPlatformSelect(platform)}>
+                    {`платформа ${platform}`}
+                </button>
+            ))}
+        </div>
+    ),
+}));
 vi.mock('../../api/componentRepository', () => ({
     componentRepository: {
         saveComponentMutation: vi.fn(),
@@ -455,5 +471,23 @@ describe('панель компонентов', () => {
         );
 
         expect(within(panel()).getByText(/В дизайн-системе нет компонентов/)).toBeTruthy();
+    });
+
+    it('меню платформы превью открывает тот же компонент на другой платформе', () => {
+        renderPage();
+
+        fireEvent.click(screen.getByRole('button', { name: 'платформа compose' }));
+
+        expect(screen.getByTestId('location').textContent).toBe('/components/compose-Avatar');
+    });
+
+    it('пункт платформы без компонента недоступен', () => {
+        renderPage();
+
+        fireEvent.click(within(panel()).getByText('Badge'));
+
+        expect(screen.getByTestId('location').textContent).toBe('/components/Badge');
+        expect((screen.getByRole('button', { name: 'платформа compose' }) as HTMLButtonElement).disabled).toBe(true);
+        expect((screen.getByRole('button', { name: 'платформа web' }) as HTMLButtonElement).disabled).toBe(false);
     });
 });

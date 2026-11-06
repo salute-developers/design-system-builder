@@ -91,3 +91,9 @@ export const numberFormatter = (newValue: string, prevValue: string) => {
 
     return value;
 };
+
+/** «clearContentMarginLeft» → «Clear content margin left»: подпись свойства или вариации в инспекторе и журнале. */
+export const humanizeName = (name: string) => {
+    const words = name.replace(/([a-z0-9])([A-Z])/g, (_, a: string, b: string) => `${a} ${b.toLowerCase()}`);
+    return words.charAt(0).toUpperCase() + words.slice(1);
+};

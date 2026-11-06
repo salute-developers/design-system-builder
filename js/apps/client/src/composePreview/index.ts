@@ -18,6 +18,8 @@ export { assembleComposePreviewPayload } from './assembler';
 export { createComponentPreviewDraft, projectComponentStyles } from './draft';
 export { collectRelatedConfigs } from './relatedConfigs';
 export { normalizeWebTokenValue } from './webTokenValues';
+export { PREVIEW_VIEWS, applyPreviewView, viewTokenId } from './viewContainer';
+export type { PreviewView } from './viewContainer';
 export {
     DEFAULT_WEB_STORY_ID,
     assembleWebPreviewPayload,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import '../../styles/color-picker.css';
 import '../../styles/size-tokens.css';
 
 import type { DesignSystem, Theme } from '../../controllers';

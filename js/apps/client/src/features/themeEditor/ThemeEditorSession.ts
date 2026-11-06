@@ -85,10 +85,22 @@ interface SessionOptions {
     signal: AbortSignal;
     onSaved: (types?: TokenDefinitionDto['type'][], values?: ConfirmedTokenValues[]) => void;
     onStatus: (status: AutosaveStatus) => void;
-    onSnapshot: (snapshot: ThemeEditorSnapshot, tokensChanged: boolean, componentsChanged: boolean) => void;
+    /**
+     * `componentsScope: 'index'` — снимок после чтения краткого списка компонентов: данные компонентов в нём из кеша,
+     * поэтому загруженные экземпляры заменять нельзя, только состав списка.
+     */
+    onSnapshot: (
+        snapshot: ThemeEditorSnapshot,
+        tokensChanged: boolean,
+        componentsChanged: boolean,
+        componentsScope?: ComponentsScope,
+    ) => void;
     onDisposed: () => void;
     sections?: EditorSectionData;
 }
+/** Что прочитано о компонентах: полные данные или только краткий список. */
+export type ComponentsScope = 'index' | 'full';
+
 type PendingMutationEvent = Parameters<NonNullable<Parameters<typeof setPendingMutationListener>[0]>>[0];
 
 /** Владеет очередью, редакциями и SSE одного открытого черновика; не зависит от React. */
@@ -197,7 +209,13 @@ export class ThemeEditorSession {
         const types = result.tokenTypes.filter(
             (type) => !this.queue.hasPendingWhere((operation) => operation.change.type === type),
         );
-        this.applyRemoteSnapshot(result.snapshot, types.length > 0, result.componentsChanged, types);
+        this.applyRemoteSnapshot(
+            result.snapshot,
+            types.length > 0,
+            result.componentsChanged,
+            types,
+            component ? 'full' : 'index',
+        );
     }
 
     /** После подтверждения скрытой очереди можно завершить отложенное обновление открытой зоны. */
@@ -228,6 +246,7 @@ export class ThemeEditorSession {
         tokensChanged: boolean,
         componentsChanged: boolean,
         types?: TokenDefinitionDto['type'][],
+        componentsScope: ComponentsScope = 'full',
     ) {
         if (this.options.sections && this.lastAppliedSectionSnapshot === next) return;
         this.lastAppliedSectionSnapshot = next;
@@ -236,7 +255,7 @@ export class ThemeEditorSession {
             if (types && this.options.sections) this.replaceSectionRuntimeState(next, types);
             else this.replaceTokenRuntimeState(next);
         }
-        this.options.onSnapshot(next, tokensChanged, componentsChanged);
+        this.options.onSnapshot(next, tokensChanged, componentsChanged, componentsScope);
     }
 
     private replaceSectionRuntimeState(next: ThemeEditorSnapshot, types: TokenDefinitionDto['type'][]) {

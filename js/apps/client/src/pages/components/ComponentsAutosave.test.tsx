@@ -24,10 +24,14 @@ vi.mock('../../layouts', () => ({
 }));
 
 vi.mock('./features/ComponentEditor', () => ({
-    ComponentEditor: ({ onConfigUpdate }: { onConfigUpdate: () => void }) => (
-        <button type="button" onClick={onConfigUpdate}>
-            изменить
-        </button>
+    // Индикатор автосохранения редактор показывает в панели окружения превью.
+    ComponentEditor: ({ onConfigUpdate, status }: { onConfigUpdate: () => void; status?: ReactNode }) => (
+        <>
+            {status}
+            <button type="button" onClick={onConfigUpdate}>
+                изменить
+            </button>
+        </>
     ),
 }));
 

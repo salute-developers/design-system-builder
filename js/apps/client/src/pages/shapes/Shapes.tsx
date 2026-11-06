@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
+import '../../styles/color-picker.css';
 import '../../styles/size-tokens.css';
 
 import type { DesignSystem, Theme } from '../../controllers';
