@@ -175,6 +175,109 @@ class ComponentPlatformHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `property value fields accept explicit null`() = withService {
+        val designSystem =
+            id(post("/api/ds/design-systems", """{"name":"nulls","projectName":"nulls"}""", owner = true).bodyAsText())
+        val component =
+            id(post("/api/ds/components", """{"name":"Chip","platform":"web"}""", admin = true).bodyAsText())
+        val background = id(
+            post(
+                "/api/ds/properties",
+                """{"componentId":"$component","name":"background","type":"color"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        val focus = id(
+            post(
+                "/api/ds/properties",
+                """{"componentId":"$component","name":"focusColor","type":"color"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        post(
+            "/api/ds/design-system-components",
+            """{"designSystemId":"$designSystem","componentId":"$component"}""",
+            editor = true,
+        )
+        val appearance = id(
+            post(
+                "/api/ds/appearances",
+                """{"designSystemId":"$designSystem","componentId":"$component","name":"default"}""",
+                owner = true,
+            ).bodyAsText(),
+        )
+        val variation = id(
+            post(
+                "/api/ds/variations",
+                """{"designSystemId":"$designSystem","componentId":"$component","name":"view"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        post("/api/ds/property-variations", """{"propertyId":"$background","variationId":"$variation"}""", admin = true)
+        val style = id(
+            post(
+                "/api/ds/styles",
+                """{"designSystemId":"$designSystem","variationId":"$variation","name":"accent"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        val tokenResponse = post(
+            "/api/ds/tokens",
+            """{"designSystemId":"$designSystem","name":"integration.null.accent","type":"color"}""",
+            owner = true,
+        )
+        assertEquals(HttpStatusCode.Created, tokenResponse.status, tokenResponse.bodyAsText())
+        val token = id(tokenResponse.bodyAsText())
+        val stateSet = id(post("/api/ds/state-sets/resolve", """{"stateIds":[]}""", admin = true).bodyAsText())
+
+        // Клиент передаёт неиспользуемые поля значения как null: при создании это «не задано».
+        val created = post(
+            "/api/ds/variation-property-values",
+            """{"propertyId":"$background","styleId":"$style","appearanceId":"$appearance",""" +
+                """"tokenId":"$token","value":null,"adjustment":null,"stateSetId":"$stateSet"}""",
+            editor = true,
+        )
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        assertEquals(token, field(created.bodyAsText(), "tokenId"))
+        val path = "/api/ds/variation-property-values/${id(created.bodyAsText())}"
+
+        // В изменении null очищает поле: значение переходит с токена на сырое.
+        val raw = patch(path, """{"tokenId":null,"value":"#ffffff","adjustment":null}""")
+        assertEquals(HttpStatusCode.OK, raw.status, raw.bodyAsText())
+        assertEquals("null", field(raw.bodyAsText(), "tokenId"))
+        assertEquals("#ffffff", field(raw.bodyAsText(), "value"))
+
+        // Поле, которого нет в теле, остаётся прежним.
+        val adjusted = patch(path, """{"adjustment":"0.5"}""")
+        assertEquals(HttpStatusCode.OK, adjusted.status, adjusted.bodyAsText())
+        assertEquals("#ffffff", field(adjusted.bodyAsText(), "value"))
+        assertEquals("0.5", field(adjusted.bodyAsText(), "adjustment"))
+
+        val tokenAgain = patch(path, """{"tokenId":"$token","value":null,"adjustment":null}""")
+        assertEquals(HttpStatusCode.OK, tokenAgain.status, tokenAgain.bodyAsText())
+        assertEquals(token, field(tokenAgain.bodyAsText(), "tokenId"))
+        assertEquals("null", field(tokenAgain.bodyAsText(), "value"))
+        assertEquals("null", field(tokenAgain.bodyAsText(), "adjustment"))
+
+        assertEquals(HttpStatusCode.BadRequest, patch(path, """{"stateSetId":null}""").status)
+
+        val invariant = post(
+            "/api/ds/invariant-property-values",
+            """{"propertyId":"$focus","designSystemId":"$designSystem","componentId":"$component",""" +
+                """"appearanceId":"$appearance","tokenId":"$token","value":null,"alpha":null,""" +
+                """"adjustment":null,"stateSetId":"$stateSet"}""",
+            editor = true,
+        )
+        assertEquals(HttpStatusCode.Created, invariant.status, invariant.bodyAsText())
+        val invariantPath = "/api/ds/invariant-property-values/${id(invariant.bodyAsText())}"
+        val invariantRaw = patch(invariantPath, """{"tokenId":null,"value":"#000000","adjustment":null}""")
+        assertEquals(HttpStatusCode.OK, invariantRaw.status, invariantRaw.bodyAsText())
+        assertEquals("null", field(invariantRaw.bodyAsText(), "tokenId"))
+        assertEquals("#000000", field(invariantRaw.bodyAsText(), "value"))
+        assertEquals(HttpStatusCode.BadRequest, patch(invariantPath, """{"stateSetId":null}""").status)
+    }
+
+    @Test
     fun `state set resolution replays the original status and body`() = withService {
         val state = post(
             "/api/design-systems/catalog/states",

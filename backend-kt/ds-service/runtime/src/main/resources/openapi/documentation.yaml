@@ -12479,13 +12479,17 @@ components:
           format: uuid
         tokenId:
           type: string
+          nullable: true
           format: uuid
         value:
           type: string
+          nullable: true
         alpha:
           type: string
+          nullable: true
         adjustment:
           type: string
+          nullable: true
         stateSetId:
           type: string
           format: uuid
@@ -12499,13 +12503,17 @@ components:
       properties:
         tokenId:
           type: string
+          nullable: true
           format: uuid
         value:
           type: string
+          nullable: true
         alpha:
           type: string
+          nullable: true
         adjustment:
           type: string
+          nullable: true
         stateSetId:
           type: string
           format: uuid
@@ -12523,13 +12531,17 @@ components:
           format: uuid
         tokenId:
           type: string
+          nullable: true
           format: uuid
         value:
           type: string
+          nullable: true
         alpha:
           type: string
+          nullable: true
         adjustment:
           type: string
+          nullable: true
         stateSetId:
           type: string
           format: uuid
@@ -12543,13 +12555,17 @@ components:
       properties:
         tokenId:
           type: string
+          nullable: true
           format: uuid
         value:
           type: string
+          nullable: true
         alpha:
           type: string
+          nullable: true
         adjustment:
           type: string
+          nullable: true
         stateSetId:
           type: string
           format: uuid
