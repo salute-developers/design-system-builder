@@ -48,7 +48,7 @@ public class FetchComponentsUseCase internal constructor(
     @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     public suspend fun execute(command: FetchComponentsCommand): FetchComponentsResult {
         val found = when (
-            val read = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
+            val read = projectContextReader.requireContext(null, command.designSystemUri)
         ) {
             is ProjectContextReadResult.Failed -> return FetchComponentsResult.Failed(read.message)
             is ProjectContextReadResult.Found -> read
@@ -227,7 +227,6 @@ private sealed interface RenderResult {
  * @property apiKeyOverride API key, переданный аргументом.
  * @property apiUrlOverride backend API URL, переданный аргументом.
  * @property designSystemUri явная ссылка на дизайн-систему.
- * @property projectKeyEnvName env-переменная ключа для явной ссылки.
  * @property platform платформа компонентов из `--platform`; без неё берётся единственная платформа project
  *   config, при нескольких платформах `--platform` обязателен. [TargetPlatform.REACT] дополнительно выгружает
  *   web-адаптер.
@@ -237,7 +236,6 @@ public data class FetchComponentsCommand(
     public val apiKeyOverride: String? = null,
     public val apiUrlOverride: String? = null,
     public val designSystemUri: String? = null,
-    public val projectKeyEnvName: String? = null,
     public val platform: TargetPlatform? = null,
 )
 

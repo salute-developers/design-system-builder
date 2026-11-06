@@ -17,6 +17,7 @@ object TrustedActorContextMapper {
         projectScopes = headers[PROJECT_SCOPES_HEADER],
         systemAdmin = headers[SYSTEM_ADMIN_HEADER],
         policy = policy,
+        personalAccessTokenId = headers["X-Personal-Access-Token-Id"],
     )
 
     private const val ACTOR_TYPE_HEADER = "X-Actor-Type"

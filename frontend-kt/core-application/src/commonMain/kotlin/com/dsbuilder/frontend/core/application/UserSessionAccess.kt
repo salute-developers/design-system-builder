@@ -8,19 +8,19 @@ import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 
-/** Авторизация каталогов строго от имени пользователя без чтения project key. */
+/** Авторизация каталогов CLI/MCP через PAT/OAuth; IDE передаёт явно выбранную сессию. */
 public class UserSessionAccess private constructor(
-    private val resolveCredential: suspend (String) -> CredentialResult,
+    private val resolveCredential: suspend (String, String?) -> CredentialResult,
 ) {
     /** Использует сохранённую сессию CLI/MCP и общий механизм обновления токенов. */
     public constructor(provider: CredentialProvider) : this(
-        { apiUrl ->
+        { apiUrl, env ->
             provider.resolve(
                 CredentialRequest(
                     ProjectApiUrl(apiUrl),
                     null,
-                    CredentialEnvName("DSBUILDER_API_KEY"),
-                    CredentialPolicy.USER_SESSION,
+                    CredentialEnvName(env ?: "DSBUILDER_API_KEY"),
+                    CredentialPolicy.AUTO,
                 ),
             )
         },
@@ -28,7 +28,7 @@ public class UserSessionAccess private constructor(
 
     /** Использует активную сессию IDE; retry выполняет composition root IDE. */
     public constructor(resolver: UserSessionCredentialResolver) : this(
-        {
+        { _, _ ->
             resolver.currentAccessToken()?.let { token ->
                 CredentialResult.Selected(BackendCredential.Bearer(token), BackendCredentialType.USER_SESSION)
             } ?: CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Run dsbuilder auth login and retry.")
@@ -36,5 +36,6 @@ public class UserSessionAccess private constructor(
     )
 
     /** Возвращает только пользовательскую авторизацию выбранного backend. */
-    public suspend fun resolve(apiUrl: String): CredentialResult = resolveCredential(apiUrl)
+    public suspend fun resolve(apiUrl: String, credentialEnvName: String? = null): CredentialResult =
+        resolveCredential(apiUrl, credentialEnvName)
 }

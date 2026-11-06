@@ -29,6 +29,53 @@ class ProjectAccessPolicyTest {
     )
 
     @Test
+    fun `PAT uses current membership and cannot manage project even as admin`() {
+        val pat = AuthenticatedActor(
+            type = ActorType.PERSONAL_ACCESS_TOKEN,
+            userId = "user",
+            isSystemAdmin = false,
+            projectId = project.id,
+            personalAccessTokenId = "pat",
+        )
+        val member = com.dsbuilder.projects.feature.projects.domain.model.ProjectMember(
+            project.id,
+            "user",
+            ProjectRole.EDITOR,
+            project.createdAt,
+            project.updatedAt,
+        )
+        assertEquals(ProjectRole.EDITOR, policy.requireProjectAccess(pat, project, member))
+        assertEquals(
+            ProjectRole.VIEWER,
+            policy.requireProjectAccess(pat, project, member.copy(role = ProjectRole.VIEWER)),
+        )
+        assertFailsWith<ForbiddenProjectActionException> { policy.requireProjectAccess(pat, project, null) }
+        assertFailsWith<ForbiddenProjectActionException> {
+            policy.requireProjectAccess(pat.copy(projectId = "other"), project, member)
+        }
+        assertFailsWith<ForbiddenProjectActionException> {
+            policy.requireProjectAccess(pat.copy(personalAccessTokenId = null), project, member)
+        }
+        val admin = pat.copy(isSystemAdmin = true)
+        assertEquals(ProjectRole.OWNER, policy.requireProjectAccess(admin, project, null))
+        for (actor in listOf(pat.copy(userId = project.ownerUserId), admin)) {
+            assertFailsWith<ForbiddenProjectActionException> { policy.requireProjectMutationAccess(actor) }
+            assertFailsWith<ForbiddenProjectActionException> {
+                policy.requireMemberManagement(
+                    ProjectRole.OWNER,
+                    "other",
+                    project,
+                    MemberManagementPermission.ADD,
+                    actor,
+                )
+            }
+        }
+        assertFailsWith<ForbiddenProjectActionException> {
+            policy.requireMutableProject(project.copy(status = ProjectStatus.ARCHIVED))
+        }
+    }
+
+    @Test
     fun `owner resolved from project owner field without membership`() {
         val role = policy.resolveRole(
             actor = AuthenticatedActor(type = ActorType.USER, userId = "owner-1", isSystemAdmin = false),

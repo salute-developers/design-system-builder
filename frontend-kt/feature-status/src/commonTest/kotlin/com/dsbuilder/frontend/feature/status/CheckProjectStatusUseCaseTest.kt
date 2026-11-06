@@ -48,8 +48,8 @@ class CheckProjectStatusUseCaseTest {
                 projectKeyOverride: String?,
                 credentialEnvName: CredentialEnvName,
             ): CredentialResult = CredentialResult.Selected(
-                credential = BackendCredential.ProjectKey("secret-value"),
-                type = BackendCredentialType.PROJECT_KEY,
+                credential = BackendCredential.PersonalAccessToken("secret-value"),
+                type = BackendCredentialType.PERSONAL_ACCESS_TOKEN,
             )
         },
         apiUrlProvider: ProjectApiUrlProvider = ProjectApiUrlProvider { ProjectApiUrl("https://api.example.com") },
@@ -171,8 +171,8 @@ class CheckProjectStatusUseCaseTest {
                 ): CredentialResult {
                     credentialCalls += 1
                     return CredentialResult.Selected(
-                        credential = BackendCredential.ProjectKey("project-key"),
-                        type = BackendCredentialType.PROJECT_KEY,
+                        credential = BackendCredential.PersonalAccessToken("project-key"),
+                        type = BackendCredentialType.PERSONAL_ACCESS_TOKEN,
                     )
                 }
             },
@@ -184,7 +184,7 @@ class CheckProjectStatusUseCaseTest {
 
         assertIs<CheckProjectStatusResult.Failed>(result)
         assertEquals(1, attempts.size)
-        assertEquals(BackendCredential.ProjectKey("project-key"), attempts[0])
+        assertEquals(BackendCredential.PersonalAccessToken("project-key"), attempts[0])
         assertEquals(1, credentialCalls)
         assertFalse(result.message.contains("project-key"))
     }

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { UserSettingsPage } from './pages/userSettings/UserSettingsPage';
 
 import { useEffect, useState } from 'react';
 import {
@@ -97,6 +98,7 @@ function App() {
                     }
                 />
                 <Route path="/" element={<ProtectedRoute />}>
+                    <Route path="settings" element={<UserSettingsPage />} />
                     <Route path="projects" element={<ProjectsPage />}>
                         <Route path="new" element={<CreateProjectDialog />} />
                     </Route>

@@ -1,34 +1,34 @@
-package com.dsbuilder.projects.feature.projects.data.local
+package com.dsbuilder.settings.data
 
-import com.dsbuilder.projects.feature.projects.application.port.AccessKeySecretManager
+import com.dsbuilder.settings.application.TokenSecretManager
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
-internal class Pbkdf2AccessKeySecretManager(
-    private val configuration: AccessKeyConfiguration,
+internal class Pbkdf2TokenSecretManager(
+    private val iterations: Int = 120_000,
     private val secureRandom: SecureRandom = SecureRandom(),
-) : AccessKeySecretManager {
-    override fun generateSecret(): String =
-        ByteArray(configuration.secretByteLength)
+) : TokenSecretManager {
+    override fun generate(): String =
+        ByteArray(32)
             .also(secureRandom::nextBytes)
             .let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
 
-    override fun hashSecret(rawSecret: String): String {
-        val salt = ByteArray(configuration.hashing.saltByteLength).also(secureRandom::nextBytes)
-        val hash = deriveHash(rawSecret, salt, configuration.hashing.iterations, configuration.hashing.keyLengthBits)
+    override fun hash(rawSecret: String): String {
+        val salt = ByteArray(16).also(secureRandom::nextBytes)
+        val hash = deriveHash(rawSecret, salt, iterations, 256)
         return listOf(
             HASH_ALGORITHM,
-            configuration.hashing.iterations.toString(),
-            configuration.hashing.keyLengthBits.toString(),
+            iterations.toString(),
+            256.toString(),
             Base64.getEncoder().encodeToString(salt),
             Base64.getEncoder().encodeToString(hash),
         ).joinToString(":")
     }
 
-    override fun verifySecret(rawSecret: String, secretHash: String): Boolean {
+    override fun verify(rawSecret: String, secretHash: String): Boolean {
         val parts = secretHash.split(':')
         val parsedHash = parts.toParsedHash() ?: return false
         val actualHash = deriveHash(
@@ -48,7 +48,8 @@ internal class Pbkdf2AccessKeySecretManager(
         val keyLengthBits = get(2).toIntOrNull()
         val salt = runCatching { Base64.getDecoder().decode(get(3)) }.getOrNull()
         val expectedHash = runCatching { Base64.getDecoder().decode(get(4)) }.getOrNull()
-        val hasMissingPart = listOf(iterations, keyLengthBits, salt, expectedHash).any { it == null }
+        val hasMissingPart = iterations == null || iterations !in 1..1_000_000 || keyLengthBits != 256 ||
+            salt?.size != 16 || expectedHash?.size != 32
         return if (hasMissingPart) {
             null
         } else {

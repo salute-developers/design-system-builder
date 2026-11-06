@@ -10,10 +10,11 @@ import { choose, Visible } from '../rendering';
 import railBrandItemIcon from '../../assets/catalog/icons/rail-brand-item.svg';
 import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg';
 
-export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление';
+export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление' | 'Personal Access Token';
 export type BreadcrumbSegment = { label: string; to: string };
 export const settingsSectionIds: Record<SettingsSection, string> = {
     Основное: 'general',
+    'Personal Access Token': 'personal-access-token',
     'Участники и роли': 'members',
     Администрирование: 'lifecycle',
     Удаление: 'delete',
@@ -91,6 +92,10 @@ export const BuilderAccount = () => {
                                 {[user?.username, user?.email].filter(Boolean).join(' · ') || 'Нет данных профиля'}
                             </span>
                         </div>
+                        <button role="menuitem" onClick={() => {
+                            setAccountOpen(false);
+                            navigate('/settings?section=personal-access-token');
+                        }}>Настройки</button>
                         <button
                             role="menuitem"
                             className="danger-menu-item"

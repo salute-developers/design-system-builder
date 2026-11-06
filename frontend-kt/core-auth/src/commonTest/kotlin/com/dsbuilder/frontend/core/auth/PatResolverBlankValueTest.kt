@@ -5,16 +5,16 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
- * Characterization-тесты на blank-значения в [ApiKeyResolver]: сохраняются перед переносом
+ * Characterization-тесты на blank-значения в [PatResolver]: сохраняются перед переносом
  * в отдельный Gradle-модуль `core-auth`. Приоритет `--api-key` / configured env / default env
  * уже покрыт `DsBuilderCliTest`.
  */
-class ApiKeyResolverBlankValueTest {
+class PatResolverBlankValueTest {
     private val configuredEnvName = "DSBUILDER_PROJECT_A_API_KEY"
 
     @Test
     fun blankOverrideIsIgnoredAndFallsBackToEnv() {
-        val resolver = ApiKeyResolver(
+        val resolver = PatResolver(
             EnvironmentReader { name -> if (name == "DSBUILDER_PROJECT_A_API_KEY") "from-config-env" else null },
         )
 
@@ -26,7 +26,7 @@ class ApiKeyResolverBlankValueTest {
 
     @Test
     fun blankConfiguredEnvValueFallsBackToDefaultEnv() {
-        val resolver = ApiKeyResolver(
+        val resolver = PatResolver(
             EnvironmentReader { name ->
                 when (name) {
                     "DSBUILDER_PROJECT_A_API_KEY" -> ""
@@ -44,7 +44,7 @@ class ApiKeyResolverBlankValueTest {
 
     @Test
     fun missingCredentialReferenceFallsBackToDefaultEnvOnly() {
-        val resolver = ApiKeyResolver(
+        val resolver = PatResolver(
             EnvironmentReader { name -> if (name == "DSBUILDER_API_KEY") "from-default-env" else null },
         )
 
@@ -56,8 +56,8 @@ class ApiKeyResolverBlankValueTest {
 
     @Test
     fun missingCredentialReferenceAndEnvThrowsWithDefaultEnvOnly() {
-        val exception = assertFailsWith<MissingApiKeyException> {
-            ApiKeyResolver(EnvironmentReader { null }).resolve(override = null, configuredEnvName = null)
+        val exception = assertFailsWith<MissingPatException> {
+            PatResolver(EnvironmentReader { null }).resolve(override = null, configuredEnvName = null)
         }
 
         assertEquals("API key is not configured. Set one of: DSBUILDER_API_KEY, or pass --api-key.", exception.message)

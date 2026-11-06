@@ -10,7 +10,7 @@ public enum class ContextProvenance {
 public enum class CredentialPolicy {
     AUTO,
     USER_SESSION,
-    PROJECT_KEY_ENV,
+    PAT_ENV,
 
     /** Service account from `DSBUILDER_CLIENT_ID`/`DSBUILDER_CLIENT_SECRET`, otherwise the user session. */
     SERVICE_ACCOUNT_OR_USER_SESSION,
@@ -50,7 +50,7 @@ public data class ResolvedDesignSystemContext(
     public val configPath: String? = null,
 ) {
     init {
-        if (credentialPolicy == CredentialPolicy.PROJECT_KEY_ENV) {
+        if (credentialPolicy == CredentialPolicy.PAT_ENV) {
             require(credentialEnvName != null) { "Project key env name is required." }
         }
         if (provenance == ContextProvenance.EXPLICIT_LINK) {

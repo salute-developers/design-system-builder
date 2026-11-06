@@ -13,6 +13,7 @@ group = "com.dsbuilder.app"
 version = "1.0.0"
 application { mainClass = "com.dsbuilder.app.ApplicationKt" }
 dependencies {
+    implementation("com.dsbuilder.settings:feature-user-settings:1.0.0")
     implementation("com.dsbuilder.identity:runtime:1.0.0")
     implementation("com.dsbuilder.projects:runtime:1.0.0")
     implementation("com.dsbuilder.ds:runtime:1.0.0")

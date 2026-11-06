@@ -1,25 +1,25 @@
 package com.dsbuilder.frontend.core.auth
 
 /**
- * Имя env-переменной с project API key по умолчанию.
+ * Имя env-переменной с PAT по умолчанию.
  */
 public const val DEFAULT_API_KEY_ENV: String = "DSBUILDER_API_KEY"
 
 /**
- * Результат resolution project API key.
+ * Результат resolution PAT.
  *
  * @property value raw API key, используемый только для runtime request.
  * @property source описание runtime-источника.
  */
-public data class ResolvedApiKey(
+public data class ResolvedPat(
     public val value: String,
     public val source: String,
 )
 
 /**
- * Определяет project API key из runtime sources без сохранения raw secret.
+ * Определяет PAT из runtime sources без сохранения raw secret.
  */
-public class ApiKeyResolver(
+public class PatResolver(
     private val environmentReader: EnvironmentReader,
 ) {
     /**
@@ -29,9 +29,9 @@ public class ApiKeyResolver(
         override: String?,
         configuredEnvName: String?,
         projectEnvironment: EnvironmentReader? = null,
-    ): ResolvedApiKey {
+    ): ResolvedPat {
         if (!override.isNullOrBlank()) {
-            return ResolvedApiKey(value = override, source = "--api-key")
+            return ResolvedPat(value = override, source = "--api-key")
         }
 
         if (!configuredEnvName.isNullOrBlank()) {
@@ -39,7 +39,7 @@ public class ApiKeyResolver(
                 environmentReader.get(configuredEnvName)?.takeIf { it.isNotBlank() }
                     ?: projectEnvironment?.get(configuredEnvName)?.takeIf { it.isNotBlank() }
                 )?.let {
-                return ResolvedApiKey(value = it, source = configuredEnvName)
+                return ResolvedPat(value = it, source = configuredEnvName)
             }
         }
 
@@ -47,19 +47,19 @@ public class ApiKeyResolver(
             environmentReader.get(DEFAULT_API_KEY_ENV)?.takeIf { it.isNotBlank() }
                 ?: projectEnvironment?.get(DEFAULT_API_KEY_ENV)?.takeIf { it.isNotBlank() }
             )?.let {
-            return ResolvedApiKey(value = it, source = DEFAULT_API_KEY_ENV)
+            return ResolvedPat(value = it, source = DEFAULT_API_KEY_ENV)
         }
 
         val expected = listOfNotNull(configuredEnvName, DEFAULT_API_KEY_ENV)
             .distinct()
             .joinToString(", ")
-        throw MissingApiKeyException("API key is not configured. Set one of: $expected, or pass --api-key.")
+        throw MissingPatException("API key is not configured. Set one of: $expected, or pass --api-key.")
     }
 }
 
 /**
- * Ошибка отсутствующего project API key.
+ * Ошибка отсутствующего PAT.
  */
-public class MissingApiKeyException(
+public class MissingPatException(
     message: String,
 ) : RuntimeException(message)

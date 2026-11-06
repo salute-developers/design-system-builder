@@ -3,27 +3,21 @@ package com.dsbuilder.projects.feature.projects.presentation
 import com.dsbuilder.projects.feature.projects.application.usecase.AddProjectMemberInput
 import com.dsbuilder.projects.feature.projects.application.usecase.AddProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ArchiveProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectAccessKeyInput
-import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectInput
 import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.GetEffectiveProjectRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.GetEffectiveRoleInput
 import com.dsbuilder.projects.feature.projects.application.usecase.GetProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectAccessKeysUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectMembersUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectsInput
 import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectsUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ManageMemberInput
 import com.dsbuilder.projects.feature.projects.application.usecase.RemoveProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RestoreProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.RevokeProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.SearchProjectMemberCandidatesUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectInput
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectMemberRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProjectAccessKeyInput
-import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -57,10 +51,6 @@ fun Application.projectsRoutes(internalApiKey: String?, publicEntry: Boolean = f
     val updateProjectMemberRole by inject<UpdateProjectMemberRoleUseCase>()
     val removeProjectMember by inject<RemoveProjectMemberUseCase>()
     val searchProjectMemberCandidates by inject<SearchProjectMemberCandidatesUseCase>()
-    val createProjectAccessKey by inject<CreateProjectAccessKeyUseCase>()
-    val listProjectAccessKeys by inject<ListProjectAccessKeysUseCase>()
-    val revokeProjectAccessKey by inject<RevokeProjectAccessKeyUseCase>()
-    val verifyProjectAccessKey by inject<VerifyProjectAccessKeyUseCase>()
     val getEffectiveProjectRole by inject<GetEffectiveProjectRoleUseCase>()
 
     routing {
@@ -80,8 +70,8 @@ fun Application.projectsRoutes(internalApiKey: String?, publicEntry: Boolean = f
                 updateProjectMemberRole,
                 removeProjectMember,
             )
-            projectAccessKeyRoutes(createProjectAccessKey, listProjectAccessKeys, revokeProjectAccessKey)
-            if (!publicEntry) internalProjectRoutes(getEffectiveProjectRole, verifyProjectAccessKey, internalApiKey)
+
+            if (!publicEntry) internalProjectRoutes(getEffectiveProjectRole, internalApiKey)
         }
     }
 }
@@ -240,59 +230,8 @@ private fun Route.projectMemberRoutes(
     }
 }
 
-private fun Route.projectAccessKeyRoutes(
-    createProjectAccessKey: CreateProjectAccessKeyUseCase,
-    listProjectAccessKeys: ListProjectAccessKeysUseCase,
-    revokeProjectAccessKey: RevokeProjectAccessKeyUseCase,
-) {
-    route(projectsRoutePath("/projects/{projectId}/access-keys")) {
-        get {
-            runCatching {
-                listProjectAccessKeys.execute(call.requireActor(), call.parameters["projectId"].orEmpty())
-            }.onSuccess { keys ->
-                call.respond(keys.map { it.toResponse() })
-            }.onFailure { call.respondProjectError(it) }
-        }
-
-        post {
-            runCatching {
-                val request = call.receive<CreateProjectAccessKeyRequest>()
-                createProjectAccessKey.execute(
-                    CreateProjectAccessKeyInput(
-                        actor = call.requireActor(),
-                        projectId = call.parameters["projectId"].orEmpty(),
-                        name = request.name,
-                        scopes = request.normalizedScopes(),
-                        ttlSeconds = request.ttlSeconds,
-                    ),
-                )
-            }.onSuccess { created ->
-                call.respond(
-                    HttpStatusCode.Created,
-                    CreatedProjectAccessKeyResponse(
-                        key = created.accessKey.toResponse(),
-                        secret = created.token,
-                    ),
-                )
-            }.onFailure { call.respondProjectError(it) }
-        }
-
-        delete("{keyId}") {
-            runCatching {
-                revokeProjectAccessKey.execute(
-                    actor = call.requireActor(),
-                    projectId = call.parameters["projectId"].orEmpty(),
-                    keyId = call.parameters["keyId"].orEmpty(),
-                )
-            }.onSuccess { call.respond(it.toResponse()) }
-                .onFailure { call.respondProjectError(it) }
-        }
-    }
-}
-
 private fun Route.internalProjectRoutes(
     getEffectiveProjectRole: GetEffectiveProjectRoleUseCase,
-    verifyProjectAccessKey: VerifyProjectAccessKeyUseCase,
     internalApiKey: String?,
 ) {
     route("/internal/projects") {
@@ -315,25 +254,6 @@ private fun Route.internalProjectRoutes(
                         ProjectAccessCheckResponse(projectRole = projectRole.name.lowercase()),
                     )
                 }
-            }.onFailure { call.respondProjectError(it) }
-        }
-    }
-
-    route("/internal/access-keys") {
-        post("/verify") {
-            runCatching {
-                call.requireInternalAccess(internalApiKey)
-                val request = call.receive<VerifyProjectAccessKeyRequest>()
-                verifyProjectAccessKey.execute(VerifyProjectAccessKeyInput(request.token))
-            }.onSuccess { verification ->
-                call.respond(
-                    HttpStatusCode.OK,
-                    VerifyProjectAccessKeyResponse(
-                        projectId = verification.projectId,
-                        keyId = verification.keyId,
-                        scopes = verification.scopes.map { it.value }.sorted(),
-                    ),
-                )
             }.onFailure { call.respondProjectError(it) }
         }
     }

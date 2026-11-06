@@ -81,7 +81,7 @@ public class FetchThemesUseCase internal constructor(
     @Suppress("ReturnCount")
     private suspend fun resolveRuntime(command: FetchThemesCommand): RuntimeResolutionResult {
         val found = when (
-            val result = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
+            val result = projectContextReader.requireContext(null, command.designSystemUri)
         ) {
             is ProjectContextReadResult.Failed -> return RuntimeResolutionResult.Failed(result.message)
             is ProjectContextReadResult.Found -> result
@@ -155,14 +155,12 @@ private sealed interface RuntimeResolutionResult {
  * @property apiKeyOverride runtime override из `--api-key`.
  * @property apiUrlOverride runtime API URL override.
  * @property designSystemUri явная ссылка на дизайн-систему.
- * @property projectKeyEnvName env-переменная ключа для явной ссылки.
  * @property destinationDirectory локальный каталог для загрузки без `.sdds`.
  */
 public data class FetchThemesCommand(
     public val apiKeyOverride: String?,
     public val apiUrlOverride: String?,
     public val designSystemUri: String? = null,
-    public val projectKeyEnvName: String? = null,
     public val destinationDirectory: String? = null,
 )
 

@@ -46,7 +46,7 @@ internal object AuthorizationPolicyValidator {
         requirePolicy(policy.schemaVersion == SUPPORTED_SCHEMA, "Unsupported schemaVersion '${policy.schemaVersion}'")
         requirePolicy(policy.policyVersion.isNotBlank(), "policyVersion must not be blank")
         validateUnique("permissions", policy.permissions)
-        validateUnique("projectKeyScopes", policy.projectKeyScopes)
+        validateUnique("personalAccessTokenScopes", policy.personalAccessTokenScopes)
         requirePolicy(policy.permissions.isNotEmpty(), "permissions must not be empty")
         requirePolicy(policy.roles.isNotEmpty(), "roles must not be empty")
         requirePolicy(policy.overrides.systemAdmin.allowAll, "system_admin override must allow all known permissions")
@@ -55,7 +55,7 @@ internal object AuthorizationPolicyValidator {
         policy.permissions.forEach { permission ->
             requirePolicy(PERMISSION_PATTERN.matches(permission), "Invalid permission '$permission'")
         }
-        policy.projectKeyScopes.forEach { scope ->
+        policy.personalAccessTokenScopes.forEach { scope ->
             requirePolicy(scope in permissions, "Unknown project-key scope '$scope'")
         }
         policy.roles.forEach { (role, definition) ->

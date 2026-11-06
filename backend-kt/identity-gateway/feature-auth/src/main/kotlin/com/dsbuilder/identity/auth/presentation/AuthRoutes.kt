@@ -18,66 +18,44 @@ import org.koin.ktor.ext.inject
 
 /** Регистрирует healthcheck и internal auth routes для Gateway. */
 fun Application.authHelperRoutes() {
-    val authorizeProjectRequest by inject<AuthorizeProjectRequestUseCase>()
-    val authorizeUserRequest by inject<AuthorizeUserRequestUseCase>()
-
+    val projects by inject<AuthorizeProjectRequestUseCase>()
+    val users by inject<AuthorizeUserRequestUseCase>()
     routing {
-        get("/health") {
-            call.respond(HttpStatusCode.OK)
-        }
-
+        get("/health") { call.respond(HttpStatusCode.OK) }
         route("/internal/auth") {
             get("/user") {
-                when (val decision = authorizeUserRequest.execute(call.request.headers[HttpHeaders.Authorization])) {
-                    is GatewayAuthDecision.Allowed -> {
-                        decision.trustedHeaders.asMap().forEach { (name, value) ->
-                            call.response.header(name, value)
-                        }
-                        call.respond(HttpStatusCode.NoContent)
-                    }
-                    is GatewayAuthDecision.Unauthorized -> {
-                        call.respond(HttpStatusCode.Unauthorized, AuthErrorResponse(decision.reason))
-                    }
-                    is GatewayAuthDecision.Forbidden -> {
-                        call.respond(HttpStatusCode.Forbidden, AuthErrorResponse(decision.reason))
-                    }
-                }
+                call.respondAuthDecision(users.execute(call.request.headers[HttpHeaders.Authorization]))
             }
-
             get("/projects/{projectId}") {
                 val projectId = call.parameters["projectId"]
                 if (projectId.isNullOrBlank()) {
                     call.respond(HttpStatusCode.BadRequest, AuthErrorResponse("Missing project id"))
-                    return@get
-                }
-
-                when (
-                    val decision = authorizeProjectRequest.execute(
-                        GatewayAuthInput(
-                            authorizationHeader = call.request.headers[HttpHeaders.Authorization],
-                            projectId = projectId,
+                } else {
+                    call.respondAuthDecision(
+                        projects.execute(
+                            GatewayAuthInput(call.request.headers[HttpHeaders.Authorization], projectId),
                         ),
                     )
-                ) {
-                    is GatewayAuthDecision.Allowed -> {
-                        decision.trustedHeaders.asMap().forEach { (name, value) ->
-                            call.response.header(name, value)
-                        }
-                        call.respond(HttpStatusCode.NoContent)
-                    }
-                    is GatewayAuthDecision.Unauthorized -> {
-                        call.respond(HttpStatusCode.Unauthorized, AuthErrorResponse(decision.reason))
-                    }
-                    is GatewayAuthDecision.Forbidden -> {
-                        call.respond(HttpStatusCode.Forbidden, AuthErrorResponse(decision.reason))
-                    }
                 }
             }
         }
     }
 }
 
+private suspend fun io.ktor.server.application.ApplicationCall.respondAuthDecision(decision: GatewayAuthDecision) {
+    when (decision) {
+        is GatewayAuthDecision.Allowed -> {
+            decision.trustedHeaders.asMap().forEach { (name, value) -> response.header(name, value) }
+            respond(HttpStatusCode.NoContent)
+        }
+        is GatewayAuthDecision.Unauthorized -> respond(HttpStatusCode.Unauthorized, AuthErrorResponse(decision.reason))
+        is GatewayAuthDecision.Forbidden -> respond(HttpStatusCode.Forbidden, AuthErrorResponse(decision.reason))
+        is GatewayAuthDecision.Unavailable -> respond(
+            HttpStatusCode.ServiceUnavailable,
+            AuthErrorResponse(decision.reason),
+        )
+    }
+}
+
 @Serializable
-internal data class AuthErrorResponse(
-    val message: String,
-)
+internal data class AuthErrorResponse(val message: String)

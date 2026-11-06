@@ -48,11 +48,7 @@ internal class InitCliCommand(
         }
         val (project, system) = if (interactive) runBlocking { discover() } else projectId!! to designSystemId!!
         val selectedPlatforms = platformsFor(interactive)
-        val credential = if (interactive && apiKeyEnv == null) {
-            InitCredentialSelection.UserSession
-        } else {
-            InitCredentialSelection.Environment(apiKeyEnv ?: DEFAULT_API_KEY_ENV)
-        }
+        val credential = InitCredentialSelection.Environment(apiKeyEnv ?: DEFAULT_API_KEY_ENV)
         when (
             val result = initProjectUseCase.execute(
                 InitProjectCommand(
@@ -71,7 +67,7 @@ internal class InitCliCommand(
     }
 
     private suspend fun discover(): Pair<String, String> {
-        val project = projectId ?: when (val result = projects.execute()) {
+        val project = projectId ?: when (val result = projects.execute(credentialEnvName = apiKeyEnv)) {
             is ProjectsReadResult.Failed -> fail(result.message)
             is ProjectsReadResult.Success -> choose(
                 "Выберите проект",
@@ -80,7 +76,7 @@ internal class InitCliCommand(
                 },
             )
         }
-        val available = when (val result = systems.execute(project)) {
+        val available = when (val result = systems.execute(project, credentialEnvName = apiKeyEnv)) {
             is DesignSystemsReadResult.Failed -> fail(result.message)
             is DesignSystemsReadResult.Success -> result.items
         }

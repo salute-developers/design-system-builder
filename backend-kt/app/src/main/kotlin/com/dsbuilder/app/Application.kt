@@ -27,6 +27,7 @@ import com.dsbuilder.projects.app.initializeProjectsDatabase
 import com.dsbuilder.projects.core.DatabaseProvider
 import com.dsbuilder.projects.feature.projects.presentation.configureProjectsPublicEntry
 import com.dsbuilder.projects.feature.projects.presentation.projectsRoutes
+import com.dsbuilder.settings.di.UserSettingsModule
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -86,6 +87,9 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
         val koin = getKoin()
         owned += koin.get<DatabaseProvider>()
         initializeProjectsDatabase(koin)
+        val userSettings = koin.get<UserSettingsModule>()
+        owned += userSettings
+        userSettings.initialize()
         val documentation = createDocumentationRuntime(evaluator, InProcessDesignSystemOwnership(koin.get()))
         owned += documentation
         val proxy = KeycloakProxy(configuration)
@@ -116,7 +120,7 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
             diagnostics = false,
         )
         projectsRoutes(internalApiKey = null, publicEntry = true)
-        registerBackendRoutes(configuration, ds, documentation, proxy)
+        registerBackendRoutes(configuration, ds, documentation, proxy, userSettings)
         documentation.start(this)
     } catch (failure: Throwable) {
         owned.asReversed().forEach { runCatching { it.close() } }
@@ -129,8 +133,10 @@ private fun Application.registerBackendRoutes(
     ds: DsRuntime,
     documentation: DocumentationRuntime,
     proxy: KeycloakProxy,
+    userSettings: UserSettingsModule,
 ) {
     routing {
+        userSettings.registerRoutes(this) { it.verifiedRequestHeaders() }
         documentation.registerRoutes(this)
         get("/health") { call.respondText("ok\n") }
         get("/ready") { call.respondBackendReadiness(ds, documentation) }
