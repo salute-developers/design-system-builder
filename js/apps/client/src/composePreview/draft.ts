@@ -2,6 +2,7 @@ import type { Config, ResolvedStyleReference, Theme } from '../controllers';
 import type { PropType, PropUnion } from '../controllers/componentBuilder/type';
 import type { JsonValue, PreviewAsset, PreviewSurface } from './types';
 import { restorePaletteColor } from '../palette/activePalette';
+import { applyPreviewView, type PreviewView } from './viewContainer';
 
 export type ThemeValuePlatform = 'web' | 'android' | 'ios';
 /** Платформа компонента: от неё зависят `payload.platform`, значения токенов темы и отбор свойств. */
@@ -279,6 +280,8 @@ export interface CreateComponentPreviewDraftOptions {
     exampleProps?: Record<string, unknown>;
     themeMode: string;
     themeValuePlatform: ThemeValuePlatform;
+    /** Вид контейнера превью (`ViewContainer` plasma): подменяет цвета `default`/`inverse` на `on-dark`/`on-light`. */
+    view?: PreviewView;
     surface: PreviewSurface;
     assets?: PreviewAsset[];
 }
@@ -296,6 +299,7 @@ export const createComponentPreviewDraft = ({
     exampleProps: explicitExampleProps,
     themeMode,
     themeValuePlatform,
+    view = 'default',
     surface,
     assets = [],
 }: CreateComponentPreviewDraftOptions): DraftResult => {
@@ -400,7 +404,7 @@ export const createComponentPreviewDraft = ({
             variationSelections,
             invariantProperties: invariants,
             selectedStyleProperties,
-            themeTokens,
+            themeTokens: applyPreviewView(themeTokens, view),
             assets,
             ...(context.styles.size ? { styles: [...context.styles.values()] } : {}),
             ...(relatedStyles.length ? { relatedStyles } : {}),
