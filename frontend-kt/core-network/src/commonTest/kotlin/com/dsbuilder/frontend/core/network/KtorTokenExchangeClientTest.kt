@@ -115,3 +115,65 @@ class KtorTokenExchangeClientTest {
         }
     }
 }
+
+class KtorTokenExchangeFailureTest {
+    private fun client(status: HttpStatusCode, body: String) = KtorTokenExchangeClient(
+        HttpClient(
+            MockEngine {
+                respond(body, status, headersOf("Content-Type", ContentType.Application.Json.toString()))
+            },
+        ),
+        "https://gateway.example.com/auth/token",
+    )
+
+    @Test
+    fun refreshKeepsOAuthErrorCode() = runTest {
+        val failure = assertFailsWith<TokenExchangeException> {
+            client(HttpStatusCode.BadRequest, """{"error":"invalid_grant"}""").refresh("refresh", "client")
+        }
+
+        assertEquals("invalid_grant", failure.oauthError)
+    }
+
+    @Test
+    fun refreshWithoutErrorBodyReportsHttpStatusAsCode() = runTest {
+        val failure = assertFailsWith<TokenExchangeException> {
+            client(HttpStatusCode.Forbidden, "not json").refresh("refresh", "client")
+        }
+
+        assertEquals("http_403", failure.oauthError)
+    }
+
+    @Test
+    fun serverFailureHasNoOAuthErrorCode() = runTest {
+        val failure = assertFailsWith<TokenExchangeException> {
+            client(HttpStatusCode.BadGateway, """{"error":"invalid_grant"}""").refresh("refresh", "client")
+        }
+
+        assertEquals(null, failure.oauthError)
+    }
+
+    @Test
+    fun refreshKeepsCurrentRefreshTokenWhenServerReturnsNone() = runTest {
+        val result = client(HttpStatusCode.OK, """{"access_token":"access","expires_in":300}""")
+            .refresh("current", "client")
+
+        assertEquals("current", result.refreshToken)
+    }
+
+    @Test
+    fun emptyRefreshTokenDoesNotReplaceCurrentOne() = runTest {
+        val result = client(HttpStatusCode.OK, """{"access_token":"access","refresh_token":"","expires_in":300}""")
+            .refresh("current", "client")
+
+        assertEquals("current", result.refreshToken)
+    }
+
+    @Test
+    fun authorizationCodeExchangeRequiresRefreshToken() = runTest {
+        assertFailsWith<TokenExchangeException> {
+            client(HttpStatusCode.OK, """{"access_token":"access","expires_in":300}""")
+                .exchangeAuthorizationCode("code", "verifier", "http://127.0.0.1/callback", "client")
+        }
+    }
+}

@@ -57,6 +57,7 @@ Kubernetes указывайте доступные из процесса адр�
 | `BACKEND_PUBLIC_URL` | Публичный HTTP(S)-адрес для проксирования Keycloak; по умолчанию адрес из `KEYCLOAK_ISSUER` либо `http://localhost:8080` |
 | `BACKEND_SHUTDOWN_TIMEOUT_MS` | Общий срок завершения, 30000 мс |
 | `OIDC_WEB_ORIGIN` | Разрешённый origin веб-клиента; если отсутствует, допускаются локальные адреса разработки |
+| `OIDC_PLUGIN_ORIGINS` | Origin плагинов через запятую, для Figma — `null`; разрешены только вход и чтение. Если отсутствует, такие origin отклоняются |
 | `KEYCLOAK_INTERNAL_URL` | Адрес Keycloak из процесса; по умолчанию `PROJECTS_IDENTITY_KEYCLOAK_BASE_URL` либо `http://localhost:8090` |
 | `KEYCLOAK_REALM` | Realm, `dsbuilder` |
 | `KEYCLOAK_ISSUER`, `KEYCLOAK_AUDIENCE`, `KEYCLOAK_JWKS_URL` | Прежние параметры проверки JWT; issuer должен соответствовать публичному адресу выдачи токенов |

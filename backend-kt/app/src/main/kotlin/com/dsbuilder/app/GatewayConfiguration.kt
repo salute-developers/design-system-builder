@@ -13,6 +13,7 @@ import java.net.URI
  * @property timeoutSeconds Проверенное значение настройки публичного входа.
  * @property documentationMaxBytes Проверенное значение настройки публичного входа.
  * @property publicUrl Проверенное значение настройки публичного входа.
+ * @property pluginOrigins Origin плагинов, которым разрешены вход и чтение; у iframe Figma-плагина это `null`.
  */
 data class GatewayConfiguration(
     val port: Int,
@@ -24,6 +25,7 @@ data class GatewayConfiguration(
     val documentationMaxBytes: Long,
     val publicUrl: String,
     val pluginTimeoutSeconds: Long = 120,
+    val pluginOrigins: Set<String> = emptySet(),
 ) {
     companion object {
         /** Читает env и отклоняет ошибочные значения до создания ресурсов. */
@@ -61,6 +63,8 @@ data class GatewayConfiguration(
                 parseSize(env["DOCUMENTATION_MAX_REQUEST_SIZE"] ?: "101m"),
                 publicUrl = publicUrl.trimEnd('/'),
                 pluginTimeoutSeconds = positive("COMPOSE_PLUGIN_TIMEOUT_SECONDS", 120),
+                pluginOrigins = env["OIDC_PLUGIN_ORIGINS"].orEmpty().split(',')
+                    .map(String::trim).filter(String::isNotEmpty).toSet(),
             )
         }
 

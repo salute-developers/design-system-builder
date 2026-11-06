@@ -39,15 +39,17 @@ class OAuthConfigurationTest {
     }
 
     @Test
-    fun loginThemeIsPackagedAndScopedToInteractiveClient() {
+    fun loginThemeIsPackagedAndScopedToInteractiveClients() {
         val realm = Json.parseToJsonElement(File(identity, "keycloak/dsbuilder-realm.json").readText()).jsonObject
         val clients = realm.getValue("clients").jsonArray.map { it.jsonObject }
         val themed = clients.filter { it["attributes"]?.jsonObject?.containsKey("login_theme") == true }
-        assertEquals(listOf("dsbuilder-studio-plugin"), themed.map { it.getValue("clientId").jsonPrimitive.content })
         assertEquals(
-            "dsbuilder",
-            themed.single().getValue("attributes").jsonObject["login_theme"]?.jsonPrimitive?.content,
+            listOf("dsbuilder-figma-plugin", "dsbuilder-studio-plugin"),
+            themed.map { it.getValue("clientId").jsonPrimitive.content }.sorted(),
         )
+        themed.forEach { client ->
+            assertEquals("dsbuilder", client.getValue("attributes").jsonObject["login_theme"]?.jsonPrimitive?.content)
+        }
         assertTrue(!realm.containsKey("loginTheme"))
         val theme = File(identity, "keycloak/themes/dsbuilder/login")
         val properties = java.util.Properties().apply { File(theme, "theme.properties").reader().use { load(it) } }
@@ -62,8 +64,11 @@ class OAuthConfigurationTest {
             File(root, "backend-kt/docker-compose.local.yml").readText().contains("/opt/keycloak/themes/dsbuilder:ro"),
         )
         val bootstrap = File(identity, "keycloak/bootstrap-production-keycloak.sh").readText()
-        val studioSettings = bootstrap.substringAfter("studio_plugin_client_id=").substringBefore("projects_client_id=")
+        val studioSettings = bootstrap.substringAfter("studio_plugin_client_id=")
+            .substringBefore("figma_plugin_client_id=")
+        val figmaSettings = bootstrap.substringAfter("figma_plugin_client_id=").substringBefore("projects_client_id=")
         assertEquals(2, Regex("attributes.login_theme=dsbuilder").findAll(studioSettings).count())
+        assertEquals(2, Regex("attributes.login_theme=dsbuilder").findAll(figmaSettings).count())
         assertTrue(!bootstrap.substringBefore("studio_plugin_client_id=").contains("attributes.login_theme"))
     }
 

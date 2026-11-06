@@ -7,6 +7,7 @@ import com.dsbuilder.identity.auth.domain.model.TrustedHeaders
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.options
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -17,6 +18,7 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
+import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
@@ -59,6 +61,68 @@ class PublicGatewayTest {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/projects").status)
         val internal = client.options("/internal/catalog") { header("Origin", "http://localhost:5173") }
         assertEquals(null, internal.headers["Access-Control-Max-Age"])
+    }
+
+    @Test
+    fun `plugin origin may sign in and read but not write`() = testApplication {
+        application {
+            installPublicGateway(configuration.copy(pluginOrigins = setOf("null")), authorizer)
+            routing {
+                get("/api/projects") { call.respondText("projects") }
+                patch("/api/projects") { call.respondText("patched") }
+                post("/auth/token") { call.respondText("{}") }
+            }
+        }
+        val read = client.get("/api/projects") {
+            header("Origin", "null")
+            header("Authorization", "Bearer valid")
+        }
+        assertEquals(HttpStatusCode.OK, read.status)
+        assertEquals("null", read.headers["Access-Control-Allow-Origin"])
+        assertEquals("Origin", read.headers["Vary"])
+        assertEquals(null, read.headers["Access-Control-Allow-Credentials"])
+        // Браузер кэширует методы preflight на адрес: запись не должна попасть в список.
+        assertEquals("GET, OPTIONS", read.headers["Access-Control-Allow-Methods"])
+
+        val token = client.post("/auth/token") { header("Origin", "null") }
+        assertEquals("null", token.headers["Access-Control-Allow-Origin"])
+        assertEquals("POST, OPTIONS", token.headers["Access-Control-Allow-Methods"])
+
+        val write = client.patch("/api/projects") {
+            header("Origin", "null")
+            header("Authorization", "Bearer valid")
+        }
+        assertEquals(null, write.headers["Access-Control-Allow-Origin"])
+
+        suspend fun preflight(path: String, method: String) = client.options(path) {
+            header("Origin", "null")
+            header("Access-Control-Request-Method", method)
+        }.headers["Access-Control-Allow-Origin"]
+        assertEquals("null", preflight("/api/projects/project/ds/design-systems", "GET"))
+        assertEquals("null", preflight("/auth/token", "POST"))
+        assertEquals("null", preflight("/auth/logout", "POST"))
+        assertEquals("null", preflight("/realms/dsbuilder/protocol/openid-connect/auth/device", "POST"))
+        assertEquals(null, preflight("/api/projects/project/ds/tokens/token", "PATCH"))
+        assertEquals(null, preflight("/api/projects/project/ds/design-systems", "POST"))
+        assertEquals(null, preflight("/realms/dsbuilder/account", "GET"))
+
+        val anonymous = client.get("/api/projects") { header("Origin", "null") }
+        assertEquals(HttpStatusCode.Unauthorized, anonymous.status)
+        // Без разрешения CORS плагин принял бы `401` за сетевую ошибку и не обновил токен.
+        assertEquals("null", anonymous.headers["Access-Control-Allow-Origin"])
+    }
+
+    @Test
+    fun `plugin origin is rejected without configuration`() = testApplication {
+        application {
+            installPublicGateway(configuration, authorizer)
+            routing { get("/api/projects") { call.respondText("projects") } }
+        }
+        val response = client.get("/api/projects") {
+            header("Origin", "null")
+            header("Authorization", "Bearer valid")
+        }
+        assertEquals(null, response.headers["Access-Control-Allow-Origin"])
     }
 
     @Test

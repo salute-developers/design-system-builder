@@ -225,6 +225,49 @@ if ! /opt/keycloak/bin/kcadm.sh get "clients/$studio_plugin_uuid/protocol-mapper
     -s 'config."access.token.claim"=true'
 fi
 
+figma_plugin_client_id="dsbuilder-figma-plugin"
+
+figma_plugin_uuid="$(
+  /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$figma_plugin_client_id" | extract_first_id
+)"
+
+if [ -z "$figma_plugin_uuid" ]; then
+  /opt/keycloak/bin/kcadm.sh create clients -r "$realm" \
+    -s "clientId=$figma_plugin_client_id" \
+    -s "enabled=true" \
+    -s "publicClient=true" \
+    -s "directAccessGrantsEnabled=false" \
+    -s "standardFlowEnabled=false" \
+    -s "implicitFlowEnabled=false" \
+    -s "attributes.\"oauth2.device.authorization.grant.enabled\"=true" \
+    -s "attributes.login_theme=dsbuilder" \
+    -s "protocol=openid-connect"
+
+  figma_plugin_uuid="$(
+    /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$figma_plugin_client_id" | extract_first_id
+  )"
+else
+  /opt/keycloak/bin/kcadm.sh update "clients/$figma_plugin_uuid" -r "$realm" \
+    -s "clientId=$figma_plugin_client_id" \
+    -s "enabled=true" \
+    -s "publicClient=true" \
+    -s "directAccessGrantsEnabled=false" \
+    -s "standardFlowEnabled=false" \
+    -s "implicitFlowEnabled=false" \
+    -s "attributes.\"oauth2.device.authorization.grant.enabled\"=true" \
+    -s "attributes.login_theme=dsbuilder" \
+    -s "protocol=openid-connect"
+fi
+
+if ! /opt/keycloak/bin/kcadm.sh get "clients/$figma_plugin_uuid/protocol-mappers/models" -r "$realm" | grep -q '"name" : "dsbuilder-api-audience"'; then
+  /opt/keycloak/bin/kcadm.sh create "clients/$figma_plugin_uuid/protocol-mappers/models" -r "$realm" \
+    -s "name=dsbuilder-api-audience" \
+    -s "protocol=openid-connect" \
+    -s "protocolMapper=oidc-audience-mapper" \
+    -s "config.\"included.client.audience\"=$oidc_client_id" \
+    -s 'config."access.token.claim"=true'
+fi
+
 projects_client_uuid="$(
   /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$projects_client_id" | extract_first_id
 )"
@@ -258,6 +301,14 @@ else
     -s "directAccessGrantsEnabled=false" \
     -s "serviceAccountsEnabled=true"
 fi
+
+# Импортированные пользователи не получают роль по умолчанию, а без offline_access вход плагина завершается not_allowed.
+/opt/keycloak/bin/kcadm.sh get "roles/user" -r "$realm" >/dev/null 2>&1 \
+  || /opt/keycloak/bin/kcadm.sh create roles -r "$realm" \
+    -s "name=user" \
+    -s "description=Default DS Builder user"
+user_role_id="$(/opt/keycloak/bin/kcadm.sh get "roles/user" -r "$realm" | extract_first_id)"
+/opt/keycloak/bin/kcadm.sh add-roles -r "$realm" --rid "$user_role_id" --rolename offline_access
 
 service_account_username="service-account-$projects_client_id"
 /opt/keycloak/bin/kcadm.sh add-roles \
