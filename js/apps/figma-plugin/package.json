@@ -8,6 +8,10 @@
         "core:build": "../../../frontend-kt/gradlew -p ../../../frontend-kt --console=plain :plugins:figma-core:syncFigmaPluginCore",
         "build": "npm run core:build && tsc -b && npm run build:ui && npm run build:main && node scripts/check-size.mjs",
         "build:dev": "npm run core:build && tsc -b && vite build --mode development && npm run build:main -- --mode development && node scripts/check-size.mjs",
+        "build:pixso": "npm run build && npm run pack:pixso",
+        "build:pixso:dev": "npm run build:dev && npm run pack:pixso",
+        "pack:pixso": "vite build --config vite.pixso.config.ts && node scripts/pack-pixso.mjs",
+        "dev:pixso": "node scripts/pixso-dev.mjs",
         "build:ui": "vite build",
         "build:main": "vite build --config vite.main.config.ts",
         "test": "vitest run",
@@ -31,6 +35,7 @@
         "typescript": "5.8.3",
         "vite": "6.3.5",
         "vite-plugin-singlefile": "2.3.3",
-        "vitest": "4.1.11"
+        "vitest": "4.1.11",
+        "ws": "8.22.1"
     }
 }
