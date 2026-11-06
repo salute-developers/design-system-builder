@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
+import '../../styles/color-picker.css';
 import '../../styles/palette.css';
 import '../../styles/color-tokens.css';
 
