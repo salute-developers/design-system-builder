@@ -1,5 +1,5 @@
 import console from 'node:console';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -29,7 +29,10 @@ const sendBundle = (socket, dir) => {
 export const serveBundle = (dir, port = PORT) => {
     readBundle(dir);
     const server = new WebSocketServer({ host: HOST, port, path: PATH });
-    server.on('connection', (socket) => sendBundle(socket, dir));
+    server.on('connection', (socket) => {
+        socket.on('error', (error) => console.error(`Ошибка подключения отладчика: ${error.message}`));
+        sendBundle(socket, dir);
+    });
     return server;
 };
 
@@ -38,7 +41,7 @@ const fail = (message) => {
     process.exit(1);
 };
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
     try {
         serveBundle(BUNDLE_DIR)
             .on('listening', () => console.log(`Отладчик Pixso: ws://localhost:${PORT}${PATH}`))

@@ -1,5 +1,5 @@
 import console from 'node:console';
-import { copyFileSync, existsSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +23,7 @@ export const packPixso = (root) => {
     copyFileSync(resolve(root, 'manifest.pixso.json'), resolve(root, 'dist-pixso/manifest.json'));
 };
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
     try {
         packPixso(process.cwd());
     } catch (error) {

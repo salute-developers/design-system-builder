@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -48,12 +49,21 @@ describe('сборка Pixso', () => {
         expect(() => packPixso(createRoot())).toThrow('сначала выполните npm run build');
     });
 
+    it('завершает сборку с ошибкой, если проверка не прошла', () => {
+        const script = resolve(process.cwd(), 'scripts/pack-pixso.mjs');
+        const result = spawnSync(process.execPath, [script], { cwd: createBuild('start(figma)'), encoding: 'utf8' });
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('недопустимо «figma»');
+    });
+
     it.each([
         ['start(figma,__html__)', 'figma'],
         ['start(pixso);fetch("/x")', 'fetch'],
         ['start(pixso);new XMLHttpRequest()', 'XMLHttpRequest'],
         ['start(pixso);new WebSocket("ws://x")', 'WebSocket'],
         ['start(pixso,"https://gateway.design-system-builder.ru")', 'design-system-builder.ru'],
+        ['start(pixso,"http://localhost:8080")', 'localhost:8080'],
     ])('не принимает основной поток %s', (main, forbidden) => {
         expect(() => packPixso(createBuild(main))).toThrow(`недопустимо «${forbidden}»`);
     });
@@ -112,6 +122,27 @@ describe('локальный запуск в отладчике', () => {
         write(root, { 'code.js': 'rebuilt' });
 
         await expect(receive(port, 3)).resolves.toContainEqual({ name: 'main', content: 'rebuilt' });
+    });
+
+    it('переживает некорректный фрейм от клиента', async () => {
+        const port = await start(createBundle());
+        const client = new WebSocket(`ws://localhost:${port}/plugin`);
+        await once(client, 'open');
+
+        (client as unknown as { _socket: { write(data: Buffer): void } })._socket.write(Buffer.from([0xf1, 0x00]));
+        await once(client, 'close');
+
+        await expect(receive(port, 3)).resolves.toHaveLength(3);
+    });
+
+    it('сообщает о занятом порте', async () => {
+        const root = createBundle();
+        const port = await start(root);
+        const second = serveBundle(root, port);
+
+        const [error] = await once(second, 'error');
+
+        expect(error.code).toBe('EADDRINUSE');
     });
 
     it('не запускается без сборки', () => {
