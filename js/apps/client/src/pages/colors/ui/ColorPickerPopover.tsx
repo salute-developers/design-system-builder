@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import {
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type KeyboardEvent,
+    type PointerEvent,
+    type ReactNode,
+} from 'react';
 import {
     ChevronDownOutline,
     CloseOutline,
@@ -58,6 +66,12 @@ interface PickerProps {
     scrollParent?: HTMLElement | null;
     onCommit: (paint: Paint) => void;
     onClose: () => void;
+    /** Содержимое вкладки «Библиотека» вместо ступеней палитры: например, токены темы в инспекторе компонента. */
+    library?: ReactNode;
+    /** Вкладка при открытии; по умолчанию — «Библиотека» для ссылки на палитру. */
+    initialTab?: 'custom' | 'library';
+    /** Цели, щелчок по которым не закрывает окно: поле, открывшее выбор цвета. */
+    dismissExcept?: string;
 }
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex="0"]';
@@ -284,7 +298,7 @@ const FormatRow = ({
 export const ColorPickerPopover = (props: PickerProps) => {
     const { value, onCommit, onClose } = props;
     const ref = useRef<HTMLElement>(null);
-    useOutsideClose(ref, onClose, '.swatch-button, .figma-value-main input');
+    useOutsideClose(ref, onClose, props.dismissExcept ?? '.swatch-button, .figma-value-main input');
     useEffect(() => {
         ref.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
     }, []);
@@ -325,11 +339,13 @@ const SolidPicker = ({
     palette,
     tokenName,
     notes,
+    library,
+    initialTab,
     onKind,
     onCommit,
     onClose,
 }: PickerProps & { rootRef: React.RefObject<HTMLElement>; onKind?: (kind: ValueKind) => void }) => {
-    const [tab, setTab] = useState<'custom' | 'library'>(value.paletteLabel ? 'library' : 'custom');
+    const [tab, setTab] = useState<'custom' | 'library'>(initialTab ?? (value.paletteLabel ? 'library' : 'custom'));
     const [format, setFormat] = useState<Format>('hex');
     const [committed, remember] = useWrittenHsva(value.resolved === 'transparent' ? '#000000' : value.resolved);
     const [preview, setPreview] = useState<Hsva | null>(null);
@@ -371,7 +387,7 @@ const SolidPicker = ({
             </header>
             <Notes notes={notes} />
             {tab === 'library' ? (
-                <ColorLibrary palette={palette} tokenName={tokenName} active={reference} onPick={pick} />
+                (library ?? <ColorLibrary palette={palette} tokenName={tokenName} active={reference} onPick={pick} />)
             ) : (
                 <div className="cp-body">
                     <ColorSvPanel value={hsva} onPreview={setPreview} onCommit={commitHsva} />

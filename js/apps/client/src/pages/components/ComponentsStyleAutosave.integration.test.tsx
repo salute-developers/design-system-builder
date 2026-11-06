@@ -32,8 +32,11 @@ vi.mock('../../layouts', () => ({
     Workspace: ({ content }: { content: ReactNode }) => <>{content}</>,
 }));
 vi.mock('./features/ComponentEditor', () => ({
-    ComponentEditor: ({ onConfigUpdate }: { onConfigUpdate: () => void }) => (
-        <button onClick={onConfigUpdate}>изменить</button>
+    ComponentEditor: ({ onConfigUpdate, status }: { onConfigUpdate: () => void; status?: ReactNode }) => (
+        <>
+            {status}
+            <button onClick={onConfigUpdate}>изменить</button>
+        </>
     ),
 }));
 
