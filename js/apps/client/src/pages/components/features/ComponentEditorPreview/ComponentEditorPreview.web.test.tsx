@@ -133,7 +133,9 @@ const previewElement = (config = configOf('Button')) => (
         themeModeList={[{ label: 'Тёмный', value: 'dark' }]}
         themeMode={{ label: 'Тёмный', value: 'dark' }}
         onUpdateThemeMode={vi.fn()}
-        onChange={vi.fn()}
+        title="Preview"
+        platforms={[]}
+        onPlatformSelect={vi.fn()}
     />
 );
 
@@ -166,7 +168,7 @@ describe('ComponentEditorPreview web plugin', () => {
         expect(pluginState.loadManifest).toHaveBeenCalledWith(WEB_PLUGIN_URL, 'web');
         // React-рендерера нет: без Compose-метаданных переключателя рендереров тоже нет.
         expect(screen.queryByText('React')).not.toBeInTheDocument();
-        expect(screen.queryByText('Renderer')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Рендерер/ })).not.toBeInTheDocument();
 
         expect(lastWebPayload()).toMatchObject({
             platform: 'WEB',
@@ -189,8 +191,8 @@ describe('ComponentEditorPreview web plugin', () => {
         for (const label of ['Text', 'Disabled', 'Stretching']) {
             expect(await screen.findByText(label)).toBeInTheDocument();
         }
-        // Вариации остаются в панели вместе с аргументами story плагина.
-        expect(screen.getByText('View')).toBeInTheDocument();
+        // Вариации переехали в инспектор: под превью только аргументы story плагина.
+        expect(screen.queryByText('View')).not.toBeInTheDocument();
         expect(lastWebPayload()?.example.props).toEqual({});
 
         fireEvent.change(screen.getByDisplayValue('Hello'), { target: { value: 'Купить' } });
@@ -295,7 +297,7 @@ describe('ComponentEditorPreview web plugin', () => {
         expect(pluginState.fetchDescriptor).toHaveBeenCalledTimes(1);
     });
 
-    it('shows «Превью недоступно» when the web plugin is not published and keeps the setup controls', async () => {
+    it('shows «Превью недоступно» when the web plugin is not published and keeps the environment bar', async () => {
         pluginState.webUrl = undefined;
         pluginState.fetchDescriptor.mockResolvedValue(undefined);
 
@@ -304,7 +306,7 @@ describe('ComponentEditorPreview web plugin', () => {
         expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
             'Превью недоступно: web-плагин превью не опубликован',
         );
-        expect(screen.getByText('View')).toBeInTheDocument();
+        expect(screen.getByRole('switch', { name: 'Тёмная тема' })).toBeInTheDocument();
         expect(screen.queryByTestId('web-frame')).not.toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
@@ -318,7 +320,7 @@ describe('ComponentEditorPreview web plugin', () => {
         expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
             'Превью недоступно: адрес web-плагина превью не получен: Network Error',
         );
-        expect(screen.getByText('View')).toBeInTheDocument();
+        expect(screen.getByRole('switch', { name: 'Тёмная тема' })).toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
 
@@ -329,7 +331,7 @@ describe('ComponentEditorPreview web plugin', () => {
             'компонент Checkbox не зарегистрирован в web-плагине',
         );
         expect(screen.queryByTestId('web-frame')).not.toBeInTheDocument();
-        expect(screen.getByText('View')).toBeInTheDocument();
+        expect(screen.getByRole('switch', { name: 'Тёмная тема' })).toBeInTheDocument();
     });
 
     it('shows «Превью недоступно» with the reason when the manifest is rejected', async () => {

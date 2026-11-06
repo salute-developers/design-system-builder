@@ -41,7 +41,7 @@ export type PropType =
     /** Ссылка на стиль другого компонента: `<конфигурация>.<стиль>.<стиль>`. */
     | 'component_style';
 
-export type PropState = 'hovered' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
+export type PropState = 'hovered' | 'pressed' | 'focused'; //| 'disabled' | 'loading';
 
 export type Intersections = Record<string, string[]>;
 

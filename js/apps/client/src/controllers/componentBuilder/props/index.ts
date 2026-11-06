@@ -7,5 +7,5 @@ export { ShapeProp } from './shape';
 export { TypographyProp } from './typography';
 export { StyleReferenceProp } from './style-reference';
 export { ValueProp } from './value';
-export { Prop } from './prop';
+export { Prop, stateKey } from './prop';
 export { Props } from './props';

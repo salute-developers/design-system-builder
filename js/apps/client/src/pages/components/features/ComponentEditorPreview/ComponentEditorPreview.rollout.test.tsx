@@ -73,9 +73,17 @@ const previewElement = (config: unknown = buttonConfig, args: Record<string, unk
         themeModeList={[{ label: 'Светлый', value: 'light' }]}
         themeMode={{ label: 'Светлый', value: 'light' }}
         onUpdateThemeMode={vi.fn()}
-        onChange={vi.fn()}
+        title="Preview"
+        platforms={[]}
+        onPlatformSelect={vi.fn()}
     />
 );
+
+/** Выбор рендерера в меню панели окружения превью. */
+const chooseRenderer = async (label: string) => {
+    fireEvent.click(await screen.findByRole('button', { name: /^Рендерер/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: label }));
+};
 
 describe('ComponentEditorPreview Compose rollout', () => {
     beforeEach(() => {
@@ -102,8 +110,9 @@ describe('ComponentEditorPreview Compose rollout', () => {
     it('offers Compose when the plugin is configured, supported and lists the component', async () => {
         render(previewElement());
 
-        expect(await screen.findByText('Compose')).toBeInTheDocument();
-        expect(screen.getByText('Плагин')).toBeInTheDocument();
+        fireEvent.click(await screen.findByRole('button', { name: 'Рендерер: Плагин' }));
+        expect(screen.getByRole('menuitemradio', { name: 'Compose' })).toBeInTheDocument();
+        expect(screen.getByRole('menuitemradio', { name: 'Плагин' })).toBeInTheDocument();
         expect(screen.queryByText('React')).not.toBeInTheDocument();
     });
 
@@ -111,7 +120,7 @@ describe('ComponentEditorPreview Compose rollout', () => {
         render(previewElement(composeConfig));
 
         expect(await screen.findByTestId('compose-frame')).toBeInTheDocument();
-        expect(screen.queryByText('Renderer')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Рендерер/ })).not.toBeInTheDocument();
         expect(screen.queryByTestId('preview-unavailable')).not.toBeInTheDocument();
     });
 
@@ -158,7 +167,7 @@ describe('ComponentEditorPreview Compose rollout', () => {
             localStorage.setItem('debug_mode', 'true');
 
             render(previewElement());
-            await screen.findByText('Compose');
+            await screen.findByRole('button', { name: /^Рендерер/ });
 
             expect(screen.queryByTestId('compose-payload-debug')).not.toBeInTheDocument();
         });
@@ -169,8 +178,7 @@ describe('ComponentEditorPreview Compose rollout', () => {
 
         render(previewElement());
 
-        expect(screen.queryByText('Compose')).not.toBeInTheDocument();
-        expect(screen.queryByText('Renderer')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Рендерер/ })).not.toBeInTheDocument();
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
@@ -181,7 +189,7 @@ describe('ComponentEditorPreview Compose rollout', () => {
         render(previewElement());
 
         expect(await screen.findByRole('status')).toHaveTextContent('Compose-preview недоступен в этом браузере');
-        expect(screen.queryByText('Compose')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Рендерер/ })).not.toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
 
@@ -199,7 +207,7 @@ describe('ComponentEditorPreview Compose rollout', () => {
         render(previewElement());
 
         await waitFor(() => expect(pluginState.loadManifest).toHaveBeenCalled());
-        expect(screen.queryByText('Compose')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Рендерер/ })).not.toBeInTheDocument();
     });
 
     it('does not offer Compose when the manifest lists only other components', async () => {
@@ -208,16 +216,16 @@ describe('ComponentEditorPreview Compose rollout', () => {
         render(previewElement());
 
         await waitFor(() => expect(pluginState.loadManifest).toHaveBeenCalled());
-        expect(screen.queryByText('Compose')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Рендерер/ })).not.toBeInTheDocument();
     });
 
     it('returns to the web plugin area when the user leaves Compose', async () => {
         render(previewElement());
 
-        fireEvent.click(await screen.findByText('Compose'));
+        await chooseRenderer('Compose');
         expect(await screen.findByTestId('compose-frame')).toBeInTheDocument();
 
-        fireEvent.click(screen.getByText('Плагин'));
+        await chooseRenderer('Плагин');
 
         // Адреса web-плагина в этом наборе нет: область показывает причину, Compose-кадра нет.
         expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent('Превью недоступно');
@@ -226,26 +234,26 @@ describe('ComponentEditorPreview Compose rollout', () => {
 
     it('falls back to the web plugin when the user moves from Compose to a component without it', async () => {
         const { rerender } = render(previewElement());
-        fireEvent.click(await screen.findByText('Compose'));
+        await chooseRenderer('Compose');
         expect(await screen.findByTestId('compose-frame')).toBeInTheDocument();
 
         rerender(previewElement(textConfig));
 
-        await waitFor(() => expect(screen.queryByText('Compose')).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole('button', { name: /^Рендерер/ })).not.toBeInTheDocument());
         expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
         expect(screen.getByTestId('preview-unavailable')).toBeInTheDocument();
     });
 
     it('does not switch back to Compose by itself when the user returns to the component', async () => {
         const { rerender } = render(previewElement());
-        fireEvent.click(await screen.findByText('Compose'));
+        await chooseRenderer('Compose');
         await screen.findByTestId('compose-frame');
         rerender(previewElement(textConfig));
-        await waitFor(() => expect(screen.queryByText('Compose')).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole('button', { name: /^Рендерер/ })).not.toBeInTheDocument());
 
         rerender(previewElement(buttonConfig));
 
-        expect(await screen.findByText('Compose')).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: /^Рендерер/ })).toBeInTheDocument();
         expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
     });
 });
