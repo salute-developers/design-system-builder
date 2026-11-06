@@ -4,9 +4,10 @@
     "version": "0.0.0",
     "type": "module",
     "scripts": {
-        "dev": "npm run build:main -- --mode development --watch & vite build --mode development --watch",
-        "build": "tsc -b && npm run build:ui && npm run build:main",
-        "build:dev": "tsc -b && vite build --mode development && npm run build:main -- --mode development",
+        "dev": "npm run core:build && (npm run build:main -- --mode development --watch & vite build --mode development --watch)",
+        "core:build": "../../../frontend-kt/gradlew -p ../../../frontend-kt --console=plain :plugins:figma-core:syncFigmaPluginCore",
+        "build": "npm run core:build && tsc -b && npm run build:ui && npm run build:main && node scripts/check-size.mjs",
+        "build:dev": "npm run core:build && tsc -b && vite build --mode development && npm run build:main -- --mode development && node scripts/check-size.mjs",
         "build:ui": "vite build",
         "build:main": "vite build --config vite.main.config.ts",
         "test": "vitest run",

@@ -3,10 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { StorageKey } from '../../shared/messages';
 import { App } from '../App';
-import { ApiError } from '../api/httpClient';
-import type { DsBuilderApi } from '../api/dsBuilderApi';
-import { OAuthError, TransportError, type AuthEndpoints } from '../auth/authEndpoints';
 import type { PluginBridge } from '../bridge';
+import { ApiError, OAuthError, StorageError, type DsBuilderApi, type PluginCore } from '../core/pluginCore';
 import type { TokenSnapshot } from '../tokens/snapshot';
 import { automaticChoice, defaultVersionId, parseSavedContext } from './contextSteps';
 
@@ -79,34 +77,38 @@ const createBridge = (initial: Partial<Record<StorageKey, string>> = { 'refresh-
     return { bridge, values };
 };
 
-const createEndpoints = (overrides: Partial<AuthEndpoints> = {}): AuthEndpoints => ({
-    requestDeviceCode: vi.fn(async () => ({
-        deviceCode: 'device',
+const createCore = (api: DsBuilderApi, overrides: Partial<PluginCore> = {}): PluginCore => ({
+    api,
+    restore: vi.fn(async () => true),
+    startLogin: vi.fn(async () => ({
         userCode: 'ABCD-EFGH',
         verificationUri: 'https://example.test/device?user_code=ABCD-EFGH',
-        intervalSeconds: 0,
-        expiresInSeconds: 600,
     })),
-    exchangeDeviceCode: vi.fn(async () => ({ accessToken: 'access', refreshToken: 'new-refresh' })),
-    refresh: vi.fn(async () => ({ accessToken: 'access', refreshToken: 'rotated' })),
-    logout: vi.fn(async () => undefined),
+    completeLogin: vi.fn(async () => undefined),
+    signOut: vi.fn(async () => undefined),
+    onExpired: vi.fn(() => () => undefined),
     ...overrides,
 });
 
-const mount = (options: { api?: DsBuilderApi; bridge?: PluginBridge; endpoints?: AuthEndpoints } = {}) => {
+const signedOut = { restore: vi.fn(async () => false) };
+
+/** Вход не подтверждён: опрос идёт, пока его не отменят. */
+const pendingLogin = (signal: AbortSignal) =>
+    new Promise<void>((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
+
+const mount = (options: { api?: DsBuilderApi; bridge?: PluginBridge; core?: Partial<PluginCore> } = {}) => {
     const api = options.api ?? createApi();
     const bridge = options.bridge ?? createBridge().bridge;
-    const endpoints = options.endpoints ?? createEndpoints();
-    const view = render(<App bridge={bridge} endpoints={endpoints} createApi={() => api} />);
-    return { api, bridge, endpoints, view };
+    const core = createCore(api, options.core);
+    const view = render(<App bridge={bridge} core={core} />);
+    return { api, bridge, core, view };
 };
 
 const chooseTenant = async () => fireEvent.click(await screen.findByRole('button', { name: 'Default' }));
 
 describe('вход', () => {
     it('открывает браузер, показывает код и после подтверждения переходит к выбору', async () => {
-        const { bridge, values } = createBridge({});
-        mount({ bridge });
+        const { bridge, core } = mount({ core: signedOut });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Войти' }));
 
@@ -114,17 +116,11 @@ describe('вход', () => {
             expect(bridge.openExternal).toHaveBeenCalledWith('https://example.test/device?user_code=ABCD-EFGH'),
         );
         expect(await screen.findByRole('heading', { name: 'Тема' })).toBeInTheDocument();
-        expect(values.get('refresh-token')).toBe('new-refresh');
+        expect(core.completeLogin).toHaveBeenCalled();
     });
 
     it('показывает код устройства, пока ждёт подтверждения, и даёт отменить вход', async () => {
-        const endpoints = createEndpoints({
-            exchangeDeviceCode: vi.fn(async () => {
-                throw new OAuthError('authorization_pending');
-            }),
-        });
-        const { bridge } = createBridge({});
-        mount({ bridge, endpoints });
+        const { bridge } = mount({ core: { ...signedOut, completeLogin: pendingLogin } });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Войти' }));
 
@@ -136,55 +132,40 @@ describe('вход', () => {
     });
 
     it('при сбое хранилища называет причину и не винит сервер', async () => {
-        const { bridge } = createBridge({});
-        mount({ bridge: { ...bridge, get: vi.fn().mockRejectedValue(new Error('storage is broken')) } });
+        mount({ core: { restore: vi.fn().mockRejectedValue(new StorageError('storage is broken')) } });
 
         const alert = await screen.findByRole('alert');
         expect(alert).toHaveTextContent('storage is broken');
         expect(alert).not.toHaveTextContent('Сервер DS Builder недоступен');
     });
 
-    it('если вход некуда сохранить, сообщает об этом и завершает сессию на сервере', async () => {
-        const { bridge } = createBridge({});
-        const endpoints = createEndpoints();
-        mount({ bridge: { ...bridge, set: vi.fn().mockRejectedValue(new Error('full')) }, endpoints });
+    it('если вход некуда сохранить, сообщает об этом', async () => {
+        mount({ core: { ...signedOut, completeLogin: vi.fn().mockRejectedValue(new StorageError('full')) } });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Войти' }));
 
         expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось сохранить вход');
-        expect(endpoints.logout).toHaveBeenCalled();
     });
 
     it('при сетевом сбое обновления сообщает о недоступном сервере', async () => {
-        const refresh = vi.fn().mockRejectedValue(new TransportError('offline'));
-        mount({ endpoints: createEndpoints({ refresh }) });
+        mount({ core: { restore: vi.fn().mockRejectedValue(new ApiError('network')) } });
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/^Сервер DS Builder недоступен\.Повторить$/);
     });
 
-    it('прекращает опрос при закрытии окна', async () => {
-        const exchangeDeviceCode = vi.fn(async () => {
-            throw new OAuthError('authorization_pending');
-        });
-        const { view } = mount({ bridge: createBridge({}).bridge, endpoints: createEndpoints({ exchangeDeviceCode }) });
+    it('отменяет опрос при закрытии окна', async () => {
+        const completeLogin = vi.fn(pendingLogin);
+        const { view } = mount({ core: { ...signedOut, completeLogin } });
         fireEvent.click(await screen.findByRole('button', { name: 'Войти' }));
         await screen.findByTestId('user-code');
-        await waitFor(() => expect(exchangeDeviceCode).toHaveBeenCalled());
 
         view.unmount();
-        const calls = exchangeDeviceCode.mock.calls.length;
-        await new Promise((resolve) => setTimeout(resolve, 20));
 
-        expect(exchangeDeviceCode).toHaveBeenCalledTimes(calls);
+        expect(completeLogin.mock.calls[0][0].aborted).toBe(true);
     });
 
     it('при `not_allowed` направляет к администратору', async () => {
-        const endpoints = createEndpoints({
-            exchangeDeviceCode: vi.fn(async () => {
-                throw new OAuthError('not_allowed');
-            }),
-        });
-        mount({ bridge: createBridge({}).bridge, endpoints });
+        mount({ core: { ...signedOut, completeLogin: vi.fn().mockRejectedValue(new OAuthError('not_allowed')) } });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Войти' }));
 
@@ -192,12 +173,7 @@ describe('вход', () => {
     });
 
     it('показывает причину и «Войти снова», если вход отклонён', async () => {
-        const endpoints = createEndpoints({
-            exchangeDeviceCode: vi.fn(async () => {
-                throw new OAuthError('access_denied');
-            }),
-        });
-        mount({ bridge: createBridge({}).bridge, endpoints });
+        mount({ core: { ...signedOut, completeLogin: vi.fn().mockRejectedValue(new OAuthError('access_denied')) } });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Войти' }));
 
@@ -212,36 +188,37 @@ describe('вход', () => {
         expect(bridge.openExternal).not.toHaveBeenCalled();
     });
 
-    it('при недоступном сервере не теряет вход и предлагает повторить', async () => {
-        const refresh = vi.fn(async () => ({ accessToken: 'access', refreshToken: 'rotated' }));
-        refresh.mockRejectedValueOnce(new TransportError('offline'));
-        const { bridge, values } = createBridge();
-        mount({ bridge, endpoints: createEndpoints({ refresh }) });
+    it('при недоступном сервере предлагает повторить', async () => {
+        const restore = vi.fn(async () => true);
+        restore.mockRejectedValueOnce(new ApiError('network'));
+        mount({ core: { restore } });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
 
         expect(await screen.findByRole('heading', { name: 'Тема' })).toBeInTheDocument();
-        expect(values.has('refresh-token')).toBe(true);
     });
 
     it('выход не ждёт зависшего сервера', async () => {
-        const endpoints = createEndpoints({ logout: vi.fn(() => new Promise<void>(() => undefined)) });
-        mount({ endpoints });
+        const { core } = mount({ core: { signOut: vi.fn(() => new Promise<void>(() => undefined)) } });
 
         fireEvent.click(await screen.findByRole('button', { name: 'Выйти' }));
 
         expect(await screen.findByRole('button', { name: 'Войти' })).toBeInTheDocument();
+        expect(core.signOut).toHaveBeenCalled();
     });
 
-    it('выход очищает токен и возвращает на экран входа', async () => {
-        const { bridge, values } = createBridge();
-        const { endpoints } = mount({ bridge });
+    it('возвращает на экран входа при потере сессии', async () => {
+        let expire = () => {};
+        const onExpired = (listener: () => void) => {
+            expire = listener;
+            return () => undefined;
+        };
+        mount({ core: { onExpired } });
+        await screen.findByRole('heading', { name: 'Тема' });
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Выйти' }));
+        act(() => expire());
 
         expect(await screen.findByRole('button', { name: 'Войти' })).toBeInTheDocument();
-        expect(values.has('refresh-token')).toBe(false);
-        await waitFor(() => expect(endpoints.logout).toHaveBeenCalledWith('rotated'));
     });
 });
 

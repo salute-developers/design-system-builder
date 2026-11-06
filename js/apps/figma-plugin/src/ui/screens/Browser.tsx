@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import type { DsBuilderApi } from '../api/dsBuilderApi';
 import type { DesignSystemDto, ProjectDto, TenantDto } from '../api/types';
 import type { PluginStorage } from '../bridge';
-import { ApiError } from '../api/httpClient';
+import { ApiError, type DsBuilderApi } from '../core/pluginCore';
 import { useResource, type Resource } from '../hooks/useResource';
 import { parseSavedContext, type SavedContext } from './contextSteps';
 import { PickerStep } from './PickerStep';

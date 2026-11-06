@@ -4,6 +4,15 @@ on:
   pull_request:
     paths:
       - 'js/**'
+      - 'frontend-kt/core-*/**'
+      - 'frontend-kt/feature-*/**'
+      - 'frontend-kt/plugins/figma-core/**'
+      - 'frontend-kt/build-system/**'
+      - 'frontend-kt/gradle/**'
+      - 'frontend-kt/kotlin-js-store/**'
+      - 'frontend-kt/*.kts'
+      - 'frontend-kt/gradle.properties'
+      - 'frontend-kt/gradlew'
       - 'backend-kt/preview/contract/**'
       - '.github/actions/prepare-environment/**'
       - '.github/workflows/validate-js.yml'
@@ -13,6 +22,15 @@ on:
       - master
     paths:
       - 'js/**'
+      - 'frontend-kt/core-*/**'
+      - 'frontend-kt/feature-*/**'
+      - 'frontend-kt/plugins/figma-core/**'
+      - 'frontend-kt/build-system/**'
+      - 'frontend-kt/gradle/**'
+      - 'frontend-kt/kotlin-js-store/**'
+      - 'frontend-kt/*.kts'
+      - 'frontend-kt/gradle.properties'
+      - 'frontend-kt/gradlew'
       - 'backend-kt/preview/contract/**'
       - '.github/actions/prepare-environment/**'
       - '.github/workflows/validate-js.yml'
@@ -96,7 +114,14 @@ jobs:
           node-version: '22.20.0'
           cache: npm
           cache-dependency-path: js/apps/figma-plugin/package-lock.json
+      # Окно плагина встраивает Kotlin/JS из frontend-kt.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
       - run: npm ci --no-progress
+      - run: npm run core:build
       - run: npm test
       - run: npm run build
 

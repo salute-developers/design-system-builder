@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { OAuthError, type AuthEndpoints, type DeviceAuthorization, type TokenPair } from '../auth/authEndpoints';
-import { pollForTokens } from '../auth/deviceFlow';
+import { OAuthError, StorageError, type LoginCode, type PluginCore } from '../core/pluginCore';
 
 type LoginState =
     | { step: 'idle'; error?: string }
     | { step: 'requesting' }
-    | { step: 'waiting'; device: DeviceAuthorization };
+    | { step: 'waiting'; device: LoginCode };
 
 const failureText = (error: unknown) => {
     if (error instanceof OAuthError && error.code === 'expired_token') return 'Время на подтверждение вышло.';
@@ -19,13 +18,15 @@ const failureText = (error: unknown) => {
 
 /** Вход в DS Builder: подтверждение во внешнем браузере и опрос выдачи токена. */
 export const LoginScreen = ({
-    endpoints,
+    core,
     openExternal,
     onSignedIn,
+    onSaveFailed,
 }: {
-    endpoints: Pick<AuthEndpoints, 'requestDeviceCode' | 'exchangeDeviceCode'>;
+    core: Pick<PluginCore, 'startLogin' | 'completeLogin'>;
     openExternal: (url: string) => void;
-    onSignedIn: (tokens: TokenPair) => void;
+    onSignedIn: () => void;
+    onSaveFailed: () => void;
 }) => {
     const [state, setState] = useState<LoginState>({ step: 'idle' });
     const polling = useRef<AbortController | null>(null);
@@ -37,12 +38,15 @@ export const LoginScreen = ({
         const controller = new AbortController();
         polling.current = controller;
         try {
-            const device = await endpoints.requestDeviceCode();
+            const device = await core.startLogin();
             openExternal(device.verificationUri);
             setState({ step: 'waiting', device });
-            onSignedIn(await pollForTokens(endpoints, device, controller.signal));
+            await core.completeLogin(controller.signal);
+            onSignedIn();
         } catch (failure) {
-            if (!controller.signal.aborted) setState({ step: 'idle', error: failureText(failure) });
+            if (controller.signal.aborted) return;
+            if (failure instanceof StorageError) onSaveFailed();
+            else setState({ step: 'idle', error: failureText(failure) });
         }
     };
 

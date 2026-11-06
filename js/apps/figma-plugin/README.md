@@ -6,7 +6,8 @@
 ## Устройство
 
 - `src/main` — основной поток Figma: `figma.clientStorage` и внешний браузер. Об API и OAuth не знает.
-- `src/ui` — окно плагина на React: вход, запросы к API, экраны.
+- `src/ui` — окно плагина на React: экраны и связь с общими Kotlin-модулями.
+- `frontend-kt/plugins/figma-core` — вход, сессия и запросы к API на Kotlin/JS. Сборка плагина собирает его сама, поэтому нужен JDK 17.
 - `src/shared` — протокол сообщений между ними.
 
 Запросы к API идут из окна. Его origin — `null`, поэтому gateway нужна настройка `OIDC_PLUGIN_ORIGINS=null`.

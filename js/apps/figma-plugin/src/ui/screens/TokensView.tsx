@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { DsBuilderApi, TenantContext } from '../api/dsBuilderApi';
-import { ApiError } from '../api/httpClient';
+import { ApiError, type DsBuilderApi, type TenantContext } from '../core/pluginCore';
 import type { TypographyScreenId } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { groupBy, searchByName, type PaintValue, type TokenSnapshot } from '../tokens/snapshot';
