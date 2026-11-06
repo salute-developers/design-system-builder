@@ -1,5 +1,8 @@
 import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
 
+/** Имя набора состояний: имена через `+` в алфавитном порядке, как набор хранится в ds-service. */
+export const stateKey = (state: readonly string[]) => [...state].sort().join('+');
+
 export abstract class Prop {
     protected name = '';
 
@@ -77,13 +80,9 @@ export abstract class Prop {
             return;
         }
 
-        const newStates = this.states.filter((item) => item.state[0] !== name);
+        const newStates = this.states.filter((item) => stateKey(item.state) !== name);
 
-        if (!newStates.length) {
-            this.states = null;
-        }
-
-        this.states = newStates;
+        this.states = newStates.length ? newStates : null;
     }
 
     public setState(name: string, value: State) {
@@ -91,8 +90,7 @@ export abstract class Prop {
             return;
         }
 
-        // TODO: поддержать работу с несколькими стейтами
-        const stateIndex = this.states.findIndex((item) => item.state[0] === name);
+        const stateIndex = this.states.findIndex((item) => stateKey(item.state) === name);
 
         if (stateIndex === -1) {
             return;

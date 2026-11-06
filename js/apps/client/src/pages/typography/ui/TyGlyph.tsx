@@ -57,6 +57,66 @@ const GLYPHS = {
             <path d="m14.5 11 4 4-4 4" />
         </>
     ),
+    more: (
+        <>
+            <circle cx="5" cy="12" r="1" />
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="19" cy="12" r="1" />
+        </>
+    ),
+    check: <path d="m5 12 4.2 4.2L19 6.5" />,
+    sun: (
+        <>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </>
+    ),
+    moon: <path d="M20.5 13.4A8.5 8.5 0 0 1 10.6 3.5 8.5 8.5 0 1 0 20.5 13.4Z" />,
+    contrast: (
+        <>
+            <circle cx="12" cy="12" r="8.5" />
+            <path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor" stroke="none" />
+        </>
+    ),
+    unlink: <path d="m3 3 18 18M10.5 6.5l2-2a4.2 4.2 0 0 1 6 6l-2 2M13.5 17.5l-2 2a4.2 4.2 0 0 1-6-6l2-2M9 15l6-6" />,
+    delete: <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />,
+    opacity: (
+        <>
+            <rect x="3" y="3" width="18" height="18" rx="3" />
+            <path
+                d="M7 8h.01M11 8h.01M7 12h.01M11 12h.01M15 12h.01M7 16h.01M11 16h.01M15 16h.01"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+            />
+        </>
+    ),
+    radius: (
+        <>
+            <path d="M5 20v-9a6 6 0 0 1 6-6h9" />
+            <path d="M5 3v2M3 5h2M19 5h2M5 19v2" opacity=".45" />
+        </>
+    ),
+    shadow: (
+        <>
+            <path
+                d="M17 8h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-2h7a2 2 0 0 0 2-2Z"
+                fill="currentColor"
+                stroke="none"
+                opacity=".45"
+            />
+            <rect x="3" y="3" width="13" height="13" rx="2" />
+        </>
+    ),
+    'swatch-grid': (
+        <>
+            <rect x="4" y="4" width="6" height="6" rx="1" />
+            <rect x="14" y="4" width="6" height="6" rx="1" />
+            <rect x="4" y="14" width="6" height="6" rx="1" />
+            <rect x="14" y="14" width="6" height="6" rx="1" />
+        </>
+    ),
+    menu: <path d="M4 6.5h16M4 12h16M4 17.5h16" />,
+    filter: <path d="M4 5h16l-6.2 7.1v5.1l-3.6 1.8v-6.9L4 5Z" />,
 } as const;
 
 export type TyGlyphName = keyof typeof GLYPHS;

@@ -26,6 +26,9 @@ import { fetchWebPreviewPluginDescriptor } from '../../api/webPreviewPluginRepos
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
 import '../../styles/component-tree.css';
+import '../../styles/component-editor.css';
+import '../../styles/color-picker.css';
+import '../../styles/inspector-controls.css';
 
 import { ComponentEditor } from './features/ComponentEditor';
 import {
@@ -551,6 +554,20 @@ export const Components = () => {
         }
     };
 
+    // Меню платформы превью: тот же компонент на другой платформе, если он там есть.
+    const previewPlatforms = (['web', 'compose'] as const).map((item) => ({
+        platform: item,
+        available: Boolean(
+            selectedConfig &&
+            componentGroups[item].some(({ items }) =>
+                items.some((entry) => sameName(entry.getName(), selectedConfig.getName())),
+            ),
+        ),
+    }));
+    const onPreviewPlatform = (target: Platform) => {
+        if (selectedConfig && target !== platform) openComponent(target, selectedConfig.getName());
+    };
+
     const onTreeSelect = (entry: ComponentTreeEntry) => openComponent(entryPlatform(entry, platformFilter), entry.name);
 
     // Связи, которые снимет скрытие: на вкладке платформы — только её, на «Все» — все платформы компонента.
@@ -622,6 +639,16 @@ export const Components = () => {
             refreshCatalog();
         }
     };
+
+    // Индикатор автосохранения компонента живёт в панели окружения превью: строка над рабочим местом отнимала бы
+    // у него высоту, и низ инспектора уходил бы за экран.
+    const autosaveIndicator = (
+        <AutosaveIndicator
+            status={autosaveStatus}
+            retry={() => autosaveQueue.current?.retryFailed()}
+            lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
+        />
+    );
 
     const section =
         !designSystem || !theme || !components ? null : (
@@ -702,11 +729,8 @@ export const Components = () => {
                     }
                     content={
                         <>
-                            <AutosaveIndicator
-                                status={autosaveStatus}
-                                retry={() => autosaveQueue.current?.retryFailed()}
-                                lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
-                            />
+                            {/* Пока редактора нет, индикатор стоит над сообщением, чтобы ошибка сохранения не терялась. */}
+                            {(!platform || componentLoading || componentError) && autosaveIndicator}
                             {!platform ? (
                                 <div role="status">Нет компонента для предпросмотра.</div>
                             ) : componentLoading ? (
@@ -724,6 +748,9 @@ export const Components = () => {
                                     theme={theme}
                                     configs={configs}
                                     updated={updated}
+                                    status={autosaveIndicator}
+                                    platforms={previewPlatforms}
+                                    onPlatformSelect={onPreviewPlatform}
                                     onConfigUpdate={onConfigUpdate}
                                 />
                             )}
