@@ -10,6 +10,10 @@ describe('разбор значения цвета', () => {
             kind: 'gradient',
             css: 'linear-gradient(90deg, #000, #fff), radial-gradient(#000, #fff)',
         });
+        expect(parsePaint(['#FFFFFF80', 'linear-gradient(90deg, #FFFFFF 0%, #000000 100%)'])).toEqual({
+            kind: 'gradient',
+            css: 'linear-gradient(#FFFFFF80, #FFFFFF80), linear-gradient(90deg, #FFFFFF 0%, #000000 100%)',
+        });
         expect(parsePaint(undefined)).toEqual({ kind: 'empty' });
         expect(parsePaint([])).toEqual({ kind: 'empty' });
     });
@@ -19,6 +23,7 @@ describe('разбор значения цвета', () => {
             kind: 'unknown',
             raw: '["[general.gray.900][0.16]"]',
         });
+        expect(parsePaint(['[general.gray.900][0.16]', 'linear-gradient(#000, #fff)']).kind).toBe('unknown');
         expect(parsePaint({ a: 1 })).toEqual({ kind: 'unknown', raw: '{"a":1}' });
     });
 });

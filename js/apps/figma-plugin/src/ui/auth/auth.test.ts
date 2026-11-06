@@ -185,6 +185,33 @@ describe('сессия', () => {
         expect(session.accessToken).toBeNull();
     });
 
+    it('не возвращает токены, если выход случился во время записи обновлённого токена', async () => {
+        const { storage, values } = memoryStorage({ 'refresh-token': 'old' });
+        let finishWrite = () => {};
+        const writeStarted = new Promise<void>((started) => {
+            storage.set = (key, value) =>
+                new Promise<void>((written) => {
+                    started();
+                    finishWrite = () => {
+                        values.set(key, value);
+                        written();
+                    };
+                });
+        });
+        const session = new Session(storage, endpoints());
+
+        const refreshing = session.refresh();
+        await writeStarted;
+        const signingOut = session.signOut();
+        await new Promise((resolve) => setTimeout(resolve));
+        finishWrite();
+
+        await expect(refreshing).rejects.toBeInstanceOf(OAuthError);
+        await signingOut;
+        expect(values.has('refresh-token')).toBe(false);
+        expect(session.accessToken).toBeNull();
+    });
+
     it('завершает сессию, если у пользователя сняли право на офлайн-вход', async () => {
         const { storage, values } = memoryStorage({ 'refresh-token': 'saved' });
         const api = { ...endpoints(), refresh: vi.fn().mockRejectedValue(new OAuthError('not_allowed')) };

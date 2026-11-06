@@ -15,6 +15,8 @@ export class Session {
     private refreshing: Promise<string> | null = null;
     /** Растёт при очистке: ответ обновления, начатого до выхода, не должен вернуть токены. */
     private generation = 0;
+    /** Запись и удаление токена идут по очереди: удаление при выходе не обгонит начатую запись. */
+    private storageQueue: Promise<unknown> = Promise.resolve();
     private readonly listeners = new Set<() => void>();
 
     constructor(
@@ -44,9 +46,8 @@ export class Session {
         }
     }
 
-    async signIn(tokens: TokenPair) {
-        await this.storage.set(REFRESH_TOKEN_KEY, tokens.refreshToken);
-        this.access = tokens.accessToken;
+    signIn(tokens: TokenPair) {
+        return this.save(tokens, this.generation);
     }
 
     /** Обновляет access token; одновременные вызовы используют одно обновление. */
@@ -76,8 +77,7 @@ export class Session {
         try {
             if (!refreshToken) throw new OAuthError('invalid_grant');
             const tokens = await this.endpoints.refresh(refreshToken);
-            if (generation !== this.generation) throw new OAuthError('invalid_grant');
-            await this.signIn(tokens);
+            await this.save(tokens, generation);
             return tokens.accessToken;
         } catch (error) {
             if (error instanceof OAuthError && SESSION_ENDED.includes(error.code) && generation === this.generation)
@@ -86,9 +86,25 @@ export class Session {
         }
     }
 
+    /** Токены, полученные до выхода, не сохраняются; начатую запись сотрёт удаление из очереди. */
+    private save(tokens: TokenPair, generation: number) {
+        return this.enqueue(async () => {
+            if (generation !== this.generation) throw new OAuthError('invalid_grant');
+            await this.storage.set(REFRESH_TOKEN_KEY, tokens.refreshToken);
+            if (generation !== this.generation) throw new OAuthError('invalid_grant');
+            this.access = tokens.accessToken;
+        });
+    }
+
     private async clear() {
         this.generation += 1;
         this.access = null;
-        await this.storage.delete(REFRESH_TOKEN_KEY).catch(() => undefined);
+        await this.enqueue(() => this.storage.delete(REFRESH_TOKEN_KEY)).catch(() => undefined);
+    }
+
+    private enqueue<T>(operation: () => Promise<T>) {
+        const result = this.storageQueue.then(operation);
+        this.storageQueue = result.catch(() => undefined);
+        return result;
     }
 }

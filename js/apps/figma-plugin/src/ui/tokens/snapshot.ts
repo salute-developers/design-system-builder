@@ -67,15 +67,19 @@ export interface TokenSnapshot {
 const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const GRADIENT = /gradient\(/i;
 
-/** Значение веба приходит массивом: цвет — одна строка, градиент — CSS-строки слоёв. */
+/** CSS разрешает сплошной цвет только в нижнем слое, поэтому в смеси он становится однотонным градиентом. */
+const gradientLayer = (layer: string) => (HEX.test(layer) ? `linear-gradient(${layer}, ${layer})` : layer);
+
+/** Значение веба приходит массивом: цвет — одна строка, градиент — CSS-строки слоёв, среди них бывают сплошные. */
 export const parsePaint = (value: unknown): PaintValue => {
     if (value === null || value === undefined) return { kind: 'empty' };
     const layers = Array.isArray(value) ? value : [value];
     if (!layers.length) return { kind: 'empty' };
     if (layers.every((layer) => typeof layer === 'string')) {
-        const text = layers.join(', ');
-        if (layers.length === 1 && HEX.test(text)) return { kind: 'color', css: text };
-        if (GRADIENT.test(text)) return { kind: 'gradient', css: text };
+        if (layers.length === 1 && HEX.test(layers[0])) return { kind: 'color', css: layers[0] };
+        const isPaint = layers.every((layer) => HEX.test(layer) || GRADIENT.test(layer));
+        if (isPaint && layers.some((layer) => GRADIENT.test(layer)))
+            return { kind: 'gradient', css: layers.map(gradientLayer).join(', ') };
     }
     return { kind: 'unknown', raw: JSON.stringify(value) };
 };
