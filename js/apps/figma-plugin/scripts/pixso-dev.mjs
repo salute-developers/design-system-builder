@@ -12,7 +12,7 @@ const PATH = '/plugin';
 const BUNDLE_DIR = 'dist-pixso';
 const FILES = { manifest: 'manifest.json', main: 'code.js', ui: 'ui.html' };
 
-/** Сообщения отладчику. Окно уходит готовым HTML, поэтому его origin `null`, как в боевом режиме. */
+/** Сообщения отладчику. Окно уходит готовым HTML: так его origin `null`, который разрешает gateway. */
 export const readBundle = (dir) =>
     Object.entries(FILES).map(([name, file]) => ({ name, content: readFileSync(resolve(dir, file), 'utf8') }));
 
