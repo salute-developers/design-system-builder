@@ -12,6 +12,8 @@ export interface PluginBridge extends PluginStorage {
     openExternal(url: string): void;
 }
 
+const WEB_URL = /^https?:\/\//i;
+
 type Pending = { resolve: (value: string | null) => void; reject: (error: Error) => void };
 
 /** Связывает запросы окна с ответами основного потока по `requestId`. */
@@ -29,6 +31,11 @@ export const createBridge = (target: Window = window): PluginBridge => {
 
     target.addEventListener('message', (event: MessageEvent<{ pluginMessage?: MainToUi }>) => {
         const message = event.data?.pluginMessage;
+        if (message?.type === 'open-url') {
+            // Результат не проверяется: с `noopener` `window.open` всегда возвращает `null`.
+            if (WEB_URL.test(message.url)) target.open(message.url, '_blank', 'noopener');
+            return;
+        }
         const waiting = message && pending.get(message.requestId);
         if (!message || !waiting) return;
         pending.delete(message.requestId);

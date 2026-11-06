@@ -1,6 +1,6 @@
 import type { MainToUi, UiToMain } from '../shared/messages';
 
-/** Что нужно основному потоку от Figma: хранилище и внешний браузер. */
+/** Что нужно основному потоку от редактора: хранилище и внешний браузер. */
 export interface PluginHost {
     getValue(key: string): Promise<string | undefined>;
     setValue(key: string, value: string): Promise<void>;

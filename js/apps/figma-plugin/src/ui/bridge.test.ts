@@ -6,12 +6,14 @@ import { createBridge } from './bridge';
 const createTarget = () => {
     const listeners: Array<(event: { data: unknown }) => void> = [];
     const postMessage = vi.fn();
+    const open = vi.fn(() => null);
     const target = {
         parent: { postMessage },
+        open,
         addEventListener: (_: string, listener: (event: { data: unknown }) => void) => listeners.push(listener),
     } as unknown as Window;
     const deliver = (data: unknown) => listeners.forEach((listener) => listener({ data }));
-    return { target, postMessage, deliver };
+    return { target, postMessage, open, deliver };
 };
 
 describe('обмен с основным потоком', () => {
@@ -66,5 +68,25 @@ describe('обмен с основным потоком', () => {
             type: 'open-external',
             url: 'https://example.test',
         });
+    });
+
+    it('открывает адрес из основного потока: `null` от `window.open` не считается ошибкой', () => {
+        const { target, postMessage, open, deliver } = createTarget();
+        createBridge(target);
+
+        deliver({ pluginMessage: { type: 'open-url', url: 'https://example.test/device' } });
+
+        expect(open).toHaveBeenCalledWith('https://example.test/device', '_blank', 'noopener');
+        expect(postMessage).not.toHaveBeenCalled();
+    });
+
+    it('открывает только адреса `http` и `https`', () => {
+        const { target, open, deliver } = createTarget();
+        createBridge(target);
+
+        deliver({ pluginMessage: { type: 'open-url', url: 'javascript:alert(1)' } });
+        deliver({ pluginMessage: { type: 'open-url', url: 'file:///etc/passwd' } });
+
+        expect(open).not.toHaveBeenCalled();
     });
 });
