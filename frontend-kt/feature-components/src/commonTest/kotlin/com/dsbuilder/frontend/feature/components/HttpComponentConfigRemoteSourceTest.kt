@@ -222,7 +222,7 @@ class HttpComponentConfigRemoteSourceTest {
         HttpComponentConfigRemoteSource(FakeHttpClientFactory({ _, _ -> }, {}, onPost)).export(
             ExportComponentsCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                credential = BackendCredential.ProjectKey("secret-key"),
+                credential = BackendCredential.PersonalAccessToken("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
                 platform = "compose",
@@ -239,7 +239,7 @@ class HttpComponentConfigRemoteSourceTest {
         HttpComponentConfigRemoteSource(FakeHttpClientFactory(onCreate, onGet, onPost)).import(
             ImportComponentsCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                credential = BackendCredential.ProjectKey("secret-key"),
+                credential = BackendCredential.PersonalAccessToken("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
                 platform = "compose",

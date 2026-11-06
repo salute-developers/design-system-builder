@@ -24,7 +24,7 @@ public class DocsPublishUseCase internal constructor(
      */
     public suspend fun execute(command: DocsPublishCommand): DocsPublishResult {
         val found = when (
-            val result = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
+            val result = projectContextReader.requireContext(null, command.designSystemUri)
         ) {
             is ProjectContextReadResult.Found -> result
             is ProjectContextReadResult.Failed -> return DocsPublishResult.Failed(result.message)

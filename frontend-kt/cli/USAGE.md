@@ -99,7 +99,7 @@ dsbuilder --version
 
 ## User auth
 
-Для сценариев без project API key можно сохранить локальную user session:
+Для сценариев без PAT можно сохранить локальную user session:
 
 ```bash
 dsbuilder auth login
@@ -135,7 +135,7 @@ dsbuilder init
 указать один из ID: тогда соответствующий шаг выбора пропускается. Если терминал
 не поддерживает интерактивное меню, укажите оба ID явно.
 
-Чтобы записать вместо пользовательской сессии имя переменной с project API key,
+Чтобы записать вместо пользовательской сессии имя переменной с PAT,
 добавьте `--api-key-env DSB_DEV_API_KEY` и задайте эту переменную перед рабочими
 командами. Меню всё равно использует пользовательскую сессию для получения списков.
 
@@ -191,7 +191,7 @@ export DSB_DEV_API_KEY="dev-token"
 
 ```dotenv
 # .env.example — замените значение в локальном .env
-DSB_DEV_API_KEY=example-project-key
+DSB_DEV_API_KEY=example-pat
 DSBUILDER_API_URL=https://api.example.test
 ```
 
@@ -214,8 +214,8 @@ dsbuilder status
 dsbuilder status --api-key dev-token
 ```
 
-Если project API key отсутствует, `status` использует сохранённую user session. После `401` для user session
-CLI делает один refresh/retry; для rejected project key fallback на user session не выполняется.
+Если PAT отсутствует, `status` использует сохранённую user session. После `401` для user session
+CLI делает один refresh/retry; для rejected PAT fallback на user session не выполняется.
 
 ## MCP server
 

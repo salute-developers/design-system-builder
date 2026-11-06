@@ -83,7 +83,7 @@ class KtorAuthenticatedHttpClientRequestTest {
             result,
         )
         assertEquals("/api/projects/project-a", request!!.url.encodedPath)
-        assertEquals("ProjectKey secret-value", request!!.headers[HttpHeaders.Authorization])
+        assertEquals("Bearer secret-value", request!!.headers[HttpHeaders.Authorization])
     }
 
     @Test
@@ -105,7 +105,7 @@ class KtorAuthenticatedHttpClientRequestTest {
 
         assertEquals(200, response.statusCode)
         assertEquals("/api/projects/project-a/documentation/bundles", request!!.url.encodedPath)
-        assertEquals("ProjectKey secret-value", request!!.headers[HttpHeaders.Authorization])
+        assertEquals("Bearer secret-value", request!!.headers[HttpHeaders.Authorization])
         assertTrue(request!!.body.contentType?.toString()?.startsWith("multipart/form-data") == true)
     }
 

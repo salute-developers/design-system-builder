@@ -14,10 +14,12 @@ object TrustedProjectPrincipalFactory {
         systemAdmin: String?,
         policy: AuthorizationPolicy,
         composePreviewPublisher: String? = null,
+        personalAccessTokenId: String? = null,
     ): ProjectPrincipal? {
         val type = when (actorType?.lowercase()) {
             "user" -> ProjectActorType.USER
             "project_key" -> ProjectActorType.PROJECT_KEY
+            "personal_access_token" -> ProjectActorType.PERSONAL_ACCESS_TOKEN
             else -> return null
         }
         val admin = parseFlag(systemAdmin)
@@ -25,6 +27,21 @@ object TrustedProjectPrincipalFactory {
         if (admin == null || publisher == null) return null
         val scopes = projectScopes.orEmpty().split(',').map(String::trim).filter(String::isNotBlank).toSet()
         val principal = when (type) {
+            ProjectActorType.PERSONAL_ACCESS_TOKEN -> {
+                if (!projectKeyId.isNullOrBlank() || publisher) {
+                    null
+                } else {
+                    ProjectPrincipal(
+                        type,
+                        userId.orEmpty(),
+                        projectId.orEmpty(),
+                        projectRole?.lowercase(),
+                        scopes,
+                        admin,
+                        personalAccessTokenId = personalAccessTokenId,
+                    )
+                }
+            }
             ProjectActorType.USER -> createUser(userId, projectId, projectKeyId, projectRole, scopes, admin, publisher)
             ProjectActorType.PROJECT_KEY -> createProjectKey(
                 userId,

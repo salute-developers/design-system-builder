@@ -28,7 +28,6 @@ internal class ComponentsFetchCliCommand(
         .help("$PLATFORM_COMPONENTS_HELP react also fetches the web adapter into .sdds/web/web-adapter.json.")
 
     private val designSystem: String? by option("--design-system")
-    private val projectKeyEnv: String? by option("--project-key-env")
 
     override fun run() {
         val result = runBlocking {
@@ -38,7 +37,6 @@ internal class ComponentsFetchCliCommand(
                     apiKeyOverride = apiKey,
                     apiUrlOverride = null,
                     designSystemUri = designSystem,
-                    projectKeyEnvName = projectKeyEnv,
                     platform = platform,
                 ),
             )

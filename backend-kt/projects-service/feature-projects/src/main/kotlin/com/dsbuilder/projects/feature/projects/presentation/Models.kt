@@ -215,6 +215,7 @@ internal fun ApplicationCall.requireActor(): AuthenticatedActor {
         isSystemAdmin = isSystemAdmin,
         projectId = projectsTrustedHeaders()[PROJECT_ID_HEADER],
         projectKeyId = projectsTrustedHeaders()[PROJECT_KEY_ID_HEADER],
+        personalAccessTokenId = projectsTrustedHeaders()["X-Personal-Access-Token-Id"],
         scopes = projectScopes,
     )
 }

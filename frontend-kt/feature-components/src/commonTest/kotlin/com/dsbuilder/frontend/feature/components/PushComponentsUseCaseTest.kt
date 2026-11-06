@@ -70,7 +70,7 @@ class PushComponentsUseCaseTest {
 
         val sent = commands.single()
         assertEquals("http://localhost:8080", sent.apiUrl.value)
-        assertEquals(BackendCredential.ProjectKey("secret-key"), sent.credential)
+        assertEquals(BackendCredential.PersonalAccessToken("secret-key"), sent.credential)
         assertEquals("project-a", sent.projectId.value)
         assertEquals("ds-a", sent.designSystemId.value)
         assertEquals("sdds_sbcom", sent.packageName)
@@ -320,7 +320,10 @@ class PushComponentsUseCaseTest {
                 ProjectContextReadResult.Found(context)
         },
         credentialProvider: CredentialProvider = testCredentialProvider(
-            CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
+            CredentialResult.Selected(
+                BackendCredential.PersonalAccessToken("secret-key"),
+                BackendCredentialType.PERSONAL_ACCESS_TOKEN,
+            ),
         ),
         dryRun: Boolean = true,
         platformOverride: TargetPlatform? = null,

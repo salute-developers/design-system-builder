@@ -37,7 +37,7 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
     }
 
     @Test
-    fun forbiddenAndProjectKeyNeverRefresh() = runTest {
+    fun forbiddenAndPatNeverRefresh() = runTest {
         val attempts = mutableListOf<BackendCredential>()
         var refreshes = 0
         val factory = factory(attempts) {
@@ -49,12 +49,37 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
             "https://api.example.com",
             BackendCredential.Bearer("forbidden"),
         ).get("/resource")
-        val keyFailure = factory.create("https://api.example.com", BackendCredential.ProjectKey("key")).get("/resource")
+        val keyFailure = factory.create(
+            "https://api.example.com",
+            BackendCredential.PersonalAccessToken("key"),
+        ).get("/resource")
 
         assertEquals(403, (forbidden as AuthenticatedHttpResult.Failure).statusCode)
         assertEquals(401, (keyFailure as AuthenticatedHttpResult.Failure).statusCode)
         assertEquals(0, refreshes)
         assertEquals(2, attempts.size)
+    }
+
+    @Test
+    fun patFailuresNeverRetryOrDeleteOAuthSessionForAnyRequestBody() = runTest {
+        for (secret in listOf("invalid", "forbidden")) {
+            val attempts = mutableListOf<BackendCredential>()
+            val deleted = mutableListOf<String>()
+            val factory = factory(attempts, deleted) { error("PAT must not refresh OAuth") }
+            val client = factory.create("https://api.example.com", BackendCredential.PersonalAccessToken(secret))
+            val expected = if (secret == "forbidden") 403 else 401
+            assertEquals(expected, (client.get("/resource") as AuthenticatedHttpResult.Failure).statusCode)
+            assertEquals(expected, (client.post("/resource", "{}") as AuthenticatedHttpResult.Failure).statusCode)
+            assertEquals(
+                expected,
+                client.postMultipart(
+                    "/upload",
+                    MultipartFile("f", "f.gz", "application/gzip", byteArrayOf(1)),
+                ).statusCode,
+            )
+            assertEquals(3, attempts.size)
+            assertEquals(emptyList(), deleted)
+        }
     }
 
     @Test
@@ -95,7 +120,7 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
     ): AuthenticatedHttpClientFactory {
         val delegate = object : AuthenticatedHttpClientFactory {
             override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-                create(apiUrl, BackendCredential.ProjectKey(apiKey))
+                create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
 
             override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =
                 object : AuthenticatedHttpClient {
@@ -113,7 +138,11 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
                     override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
                         attempts += credential
                         return AuthenticatedHttpResponse(
-                            if (credential == BackendCredential.Bearer("new")) 200 else 401,
+                            when (credential) {
+                                BackendCredential.Bearer("new") -> 200
+                                BackendCredential.PersonalAccessToken("forbidden") -> 403
+                                else -> 401
+                            },
                             "",
                         )
                     }
@@ -146,7 +175,10 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
 
     private fun result(credential: BackendCredential): AuthenticatedHttpResult = when (credential) {
         BackendCredential.Bearer("new") -> AuthenticatedHttpResult.Success("ok")
-        BackendCredential.Bearer("forbidden") -> AuthenticatedHttpResult.Failure("Forbidden", 403)
+        BackendCredential.Bearer(
+            "forbidden",
+        ), BackendCredential.PersonalAccessToken("forbidden"),
+        -> AuthenticatedHttpResult.Failure("Forbidden", 403)
         else -> AuthenticatedHttpResult.Failure("Unauthorized", 401)
     }
 }

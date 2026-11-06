@@ -8,11 +8,11 @@ import com.dsbuilder.frontend.core.application.CredentialRequest
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectEnvironmentLoader
 import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
-import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.PatResolver
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.DesignSystemId
@@ -106,7 +106,7 @@ class DsBuilderMcpServerCoreTest {
             ProjectEnvironmentLoader(fileSystem),
         )
         var processKey: String? = null
-        val keys = ApiKeyResolver(EnvironmentReader { name -> if (name == "DSBUILDER_API_KEY") processKey else null })
+        val keys = PatResolver(EnvironmentReader { name -> if (name == "DSBUILDER_API_KEY") processKey else null })
         val credentials = object : CredentialProvider {
             override suspend fun resolve(
                 apiUrl: ProjectApiUrl,
@@ -114,14 +114,14 @@ class DsBuilderMcpServerCoreTest {
                 credentialEnvName: CredentialEnvName,
             ): CredentialResult = error("request expected")
             override suspend fun resolve(request: CredentialRequest): CredentialResult = CredentialResult.Selected(
-                BackendCredential.ProjectKey(
+                BackendCredential.PersonalAccessToken(
                     keys.resolve(
                         request.projectKeyOverride,
                         request.credentialEnvName.value,
                         request.projectEnvironment,
                     ).value,
                 ),
-                BackendCredentialType.PROJECT_KEY,
+                BackendCredentialType.PERSONAL_ACCESS_TOKEN,
             )
         }
         val used = mutableListOf<BackendCredential>()
@@ -142,8 +142,8 @@ class DsBuilderMcpServerCoreTest {
         assertFalse(core.callTool("tokens_list").isError)
         assertEquals(
             listOf<BackendCredential>(
-                BackendCredential.ProjectKey("file-secret"),
-                BackendCredential.ProjectKey("process-secret"),
+                BackendCredential.PersonalAccessToken("file-secret"),
+                BackendCredential.PersonalAccessToken("process-secret"),
             ),
             used,
         )
@@ -273,6 +273,19 @@ class DsBuilderMcpServerCoreTest {
         }
         val reader = modelReader(provider = provider) { _, _, _ -> error("Backend must not be called") }
         assertErrorCode("BACKEND_UNAVAILABLE", server(modelReadUseCase = reader).callTool("tokens_list"))
+    }
+
+    @Test
+    fun patHttpErrorsKeepTheirCategoryThroughTheSharedMcpGraph() = runTest {
+        for ((status, code) in listOf(401 to "PAT_INVALID", 503 to "BACKEND_UNAVAILABLE")) {
+            val reader = modelReader { _, credential, _ ->
+                assertTrue(credential is BackendCredential.PersonalAccessToken)
+                AuthenticatedHttpResult.Failure("private-backend-body", status)
+            }
+            val result = server(modelReadUseCase = reader).callTool("tokens_list")
+            assertErrorCode(code, result)
+            assertFalse(result.body.contains("private-backend-body"))
+        }
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -503,7 +516,7 @@ class DsBuilderMcpServerCoreTest {
         assertEquals("550e8400-e29b-41d4-a716-446655440000", body.getValue("designSystemId").jsonPrimitive.content)
         assertEquals("/workspace/.sdds/config.json", body.getValue("configPath").jsonPrimitive.content)
         assertEquals("https://api.example.com", body.getValue("apiUrl").jsonPrimitive.content)
-        assertEquals("PROJECT_KEY", body.getValue("credentialType").jsonPrimitive.content)
+        assertEquals("PERSONAL_ACCESS_TOKEN", body.getValue("credentialType").jsonPrimitive.content)
         assertFalse(result.body.contains("secret-value"))
     }
 
@@ -766,7 +779,7 @@ class DsBuilderMcpServerCoreTest {
             String,
             BackendCredential,
             String,
-        ) -> AuthenticatedHttpResult.Success = { _, _, path -> modelResponse(path) },
+        ) -> AuthenticatedHttpResult = { _, _, path -> modelResponse(path) },
     ): ReadDesignSystemModelUseCase = koinApplication {
         modules(
             dsApplicationModule(),
@@ -779,7 +792,7 @@ class DsBuilderMcpServerCoreTest {
                         override fun create(
                             apiUrl: String,
                             apiKey: String,
-                        ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.ProjectKey(apiKey))
+                        ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
                         override fun create(
                             apiUrl: String,
                             credential: BackendCredential,
@@ -860,8 +873,8 @@ class DsBuilderMcpServerCoreTest {
                 credentialEnvName: CredentialEnvName,
             ): CredentialResult =
                 CredentialResult.Selected(
-                    credential = BackendCredential.ProjectKey("secret-value"),
-                    type = com.dsbuilder.frontend.core.auth.BackendCredentialType.PROJECT_KEY,
+                    credential = BackendCredential.PersonalAccessToken("secret-value"),
+                    type = com.dsbuilder.frontend.core.auth.BackendCredentialType.PERSONAL_ACCESS_TOKEN,
                 )
 
             override suspend fun resolve(

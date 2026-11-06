@@ -20,6 +20,7 @@ object TrustedDsRequestContextMapper {
             projectScopes = headers[PROJECT_SCOPES_HEADER],
             systemAdmin = headers[SYSTEM_ADMIN_HEADER],
             policy = evaluator.policy,
+            personalAccessTokenId = headers["X-Personal-Access-Token-Id"],
             composePreviewPublisher = headers[COMPOSE_PREVIEW_PUBLISHER_HEADER],
         ) ?: return null
         val correlationId = headers[CORRELATION_ID_HEADER]?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()

@@ -11,7 +11,7 @@ data class AuthorizationPolicy(
     val policyVersion: String,
     val permissions: List<String>,
     val roles: Map<String, RolePolicy>,
-    val projectKeyScopes: List<String>,
+    val personalAccessTokenScopes: List<String>,
     val overrides: PolicyOverrides,
 )
 
@@ -32,7 +32,7 @@ data class SystemAdminOverride(val allowAll: Boolean)
 
 /** Actor types accepted from the trusted Gateway context. */
 @Serializable
-enum class ProjectActorType { USER, PROJECT_KEY }
+enum class ProjectActorType { USER, PROJECT_KEY, PERSONAL_ACCESS_TOKEN }
 
 /** HTTP-independent representation of the trusted project actor context. */
 @Serializable
@@ -43,23 +43,32 @@ data class ProjectPrincipal(
     val projectRole: String? = null,
     val projectScopes: Set<String> = emptySet(),
     val systemAdmin: Boolean = false,
+    /** Идентификатор PAT отдельно от владельца. */
+    val personalAccessTokenId: String? = null,
     /** Служебная роль публикации Compose preview plugin: даёт право только на этот маршрут. */
     val composePreviewPublisher: Boolean = false,
 ) {
     /** Rejects incomplete and contradictory trusted contexts. */
     fun isValid(policy: AuthorizationPolicy): Boolean = when (type) {
-        ProjectActorType.USER ->
-            actorId.isNotBlank() && projectId.isNotBlank() &&
-                (
-                    ((systemAdmin || composePreviewPublisher) && projectRole == null) ||
-                        projectRole?.lowercase() in policy.roles
-                    ) &&
-                projectScopes.isEmpty()
+        ProjectActorType.USER -> isValidUser(policy)
+        ProjectActorType.PERSONAL_ACCESS_TOKEN -> isValidPersonalToken(policy)
         ProjectActorType.PROJECT_KEY ->
             actorId.isNotBlank() && projectId.isNotBlank() && projectRole == null && !systemAdmin &&
                 !composePreviewPublisher &&
-                policy.projectKeyScopes.containsAll(projectScopes)
+                policy.personalAccessTokenScopes.containsAll(projectScopes)
     }
+    private fun isValidUser(policy: AuthorizationPolicy): Boolean =
+        actorId.isNotBlank() && projectId.isNotBlank() &&
+            (
+                ((systemAdmin || composePreviewPublisher) && projectRole == null) ||
+                    projectRole?.lowercase() in policy.roles
+                ) &&
+            projectScopes.isEmpty()
+
+    private fun isValidPersonalToken(policy: AuthorizationPolicy): Boolean =
+        actorId.isNotBlank() && projectId.isNotBlank() && !personalAccessTokenId.isNullOrBlank() &&
+            !composePreviewPublisher && (systemAdmin || projectRole?.lowercase() in policy.roles) &&
+            projectScopes.isNotEmpty() && policy.personalAccessTokenScopes.containsAll(projectScopes)
 }
 
 /** Safe diagnostics for the immutable snapshot. */

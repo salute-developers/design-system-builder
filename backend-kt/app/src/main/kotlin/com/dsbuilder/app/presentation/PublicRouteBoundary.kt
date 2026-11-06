@@ -15,7 +15,8 @@ internal val pluginPublishPaths = setOf(
 
 /** Проверяет публичную границу до авторизации и выполнения предметного маршрута. */
 internal fun publicGatewayPath(path: String): Boolean =
-    path in setOf("/health", "/ready", "/admin", "/api/projects", "/api/projects/") ||
+    path.startsWith("/api/settings/personal-access-tokens") ||
+        path in setOf("/health", "/ready", "/admin", "/api/projects", "/api/projects/") ||
         path == "/api/admin/component-config/import-api-meta" || path in pluginPublishPaths ||
         listOf("/api/projects/", "/auth/", "/realms/", "/resources/", "/admin/").any(path::startsWith)
 

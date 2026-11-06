@@ -136,6 +136,7 @@ private fun ApplicationCall.trustedPrincipal(evaluator: PolicyEvaluator): Projec
         projectScopes = searchTrustedHeaders()[PROJECT_SCOPES_HEADER],
         systemAdmin = searchTrustedHeaders()[SYSTEM_ADMIN_HEADER],
         policy = evaluator.policy,
+        personalAccessTokenId = searchTrustedHeaders()["X-Personal-Access-Token-Id"],
     )
 }
 

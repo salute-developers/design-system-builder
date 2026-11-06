@@ -9,7 +9,6 @@ import { all, any, choose, Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
 import { isAccessDenied, useLoad } from '../../shared/data/useLoad';
 
-import { AccessKeysPanel } from './AccessKeysPanel';
 import { MemberActionsMenu, MemberCandidatePicker, ROLE_FILTER_OPTIONS, ROLE_OPTIONS } from './ProjectMemberControls';
 
 export const ProjectSettingsPage = () => {
@@ -44,7 +43,6 @@ export const ProjectSettingsPage = () => {
     const [addMemberRole, setAddMemberRole] = useState('viewer');
     const [addMemberQuery, setAddMemberQuery] = useState('');
     const [archiveConfirmation, setArchiveConfirmation] = useState('');
-    const [activeKeyCount, setActiveKeyCount] = useState(0);
     if ([project.error, members.error, systems.error].some(isAccessDenied))
         return (
             <State
@@ -273,20 +271,6 @@ export const ProjectSettingsPage = () => {
                     </div>
                     <div className="ps-aside-lifecycle">
                         <div className="ps-aside-section-block">
-                            <p className="ps-aside-section">CLI-доступ</p>
-                            <div className="ps-aside-row">
-                                <span>Scope</span>
-                                <strong>Настраиваемые</strong>
-                            </div>
-                            <div className="ps-aside-row">
-                                <span>Активные ключи</span>
-                                <strong>{activeKeyCount}</strong>
-                            </div>
-                            <p className="ps-aside-note">
-                                Каждый ключ получает только выбранные при создании разрешения.
-                            </p>
-                        </div>
-                        <div className="ps-aside-section-block">
                             <p className="ps-aside-section">Архивирование проекта</p>
                             <p className="ps-aside-note">
                                 Архивирование отключает изменяющие действия и сохраняет данные проекта.
@@ -427,10 +411,6 @@ export const ProjectSettingsPage = () => {
                     </div>
                 </section>
                 <section id="settings-lifecycle" className="settings-section ps-administration">
-                    {section === 'lifecycle' && (
-                        <AccessKeysPanel projectId={projectId} onActiveCount={setActiveKeyCount} />
-                    )}
-                    <div className="ps-divider" />
                     <Visible when={project.data.effectiveRole === 'owner'}>
                         <>
                             <h2 className="ps-danger-title">Опасная зона</h2>
@@ -465,7 +445,7 @@ export const ProjectSettingsPage = () => {
                                         }
                                         onClick={() => void projectsApi.archive(projectId).then(project.reload)}
                                     >
-                                        Архивировать проект
+                                        Архивировать
                                     </button>
                                 </div>
                             </div>

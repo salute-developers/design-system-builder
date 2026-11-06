@@ -29,7 +29,7 @@ paths:
         - $ref: '#/components/parameters/XSystemAdmin'
         - $ref: '#/components/parameters/XActorType'
         - $ref: '#/components/parameters/XProjectId'
-        - $ref: '#/components/parameters/XProjectKeyId'
+        - $ref: '#/components/parameters/XPersonalAccessTokenId'
         - $ref: '#/components/parameters/XProjectScopes'
       responses:
         '200':
@@ -107,7 +107,7 @@ paths:
         - $ref: '#/components/parameters/XSystemAdmin'
         - $ref: '#/components/parameters/XActorType'
         - $ref: '#/components/parameters/XProjectId'
-        - $ref: '#/components/parameters/XProjectKeyId'
+        - $ref: '#/components/parameters/XPersonalAccessTokenId'
         - $ref: '#/components/parameters/XProjectScopes'
       responses:
         '200':
@@ -297,82 +297,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /projects/{projectId}/access-keys:
-    get:
-      tags: [Access Keys]
-      summary: List project access keys
-      parameters:
-        - $ref: '#/components/parameters/ProjectIdPath'
-        - $ref: '#/components/parameters/XUserId'
-        - $ref: '#/components/parameters/XSystemAdmin'
-        - $ref: '#/components/parameters/XActorType'
-      responses:
-        '200':
-          description: Access key list
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ProjectAccessKeyResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    post:
-      tags: [Access Keys]
-      summary: Create a project access key
-      parameters:
-        - $ref: '#/components/parameters/ProjectIdPath'
-        - $ref: '#/components/parameters/XUserId'
-        - $ref: '#/components/parameters/XSystemAdmin'
-        - $ref: '#/components/parameters/XActorType'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateProjectAccessKeyRequest'
-      responses:
-        '201':
-          description: Access key created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreatedProjectAccessKeyResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-  /projects/{projectId}/access-keys/{keyId}:
-    delete:
-      tags: [Access Keys]
-      summary: Revoke a project access key
-      parameters:
-        - $ref: '#/components/parameters/ProjectIdPath'
-        - $ref: '#/components/parameters/KeyIdPath'
-        - $ref: '#/components/parameters/XUserId'
-        - $ref: '#/components/parameters/XSystemAdmin'
-        - $ref: '#/components/parameters/XActorType'
-      responses:
-        '200':
-          description: Revoked key
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProjectAccessKeyResponse'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
   /internal/projects/{projectId}/access-check:
     get:
       tags: [Internal]
@@ -391,33 +315,6 @@ paths:
                 $ref: '#/components/schemas/ProjectAccessCheckResponse'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-  /internal/access-keys/verify:
-    post:
-      tags: [Internal]
-      summary: Verify a project access key token
-      parameters:
-        - $ref: '#/components/parameters/XInternalApiKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VerifyProjectAccessKeyRequest'
-      responses:
-        '200':
-          description: Verification result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VerifyProjectAccessKeyResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
@@ -474,8 +371,8 @@ components:
       required: false
       schema:
         type: string
-    XProjectKeyId:
-      name: X-Project-Key-Id
+    XPersonalAccessTokenId:
+      name: X-Personal-Access-Token-Id
       in: header
       required: false
       schema:

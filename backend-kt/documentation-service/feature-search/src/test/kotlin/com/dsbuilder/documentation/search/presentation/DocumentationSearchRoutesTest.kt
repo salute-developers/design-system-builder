@@ -115,9 +115,10 @@ class DocumentationSearchRoutesTest {
         val response = client.get(
             "/documentation/search?designSystemId=ds&version=1&platform=compose&query=Button",
         ) {
-            header("X-Actor-Type", "project_key")
+            header("X-Actor-Type", "personal_access_token")
             header("X-User-Id", "key")
-            header("X-Project-Key-Id", "key")
+            header("X-Personal-Access-Token-Id", "pat")
+            header("X-Project-Role", "editor")
             header("X-Project-Id", "project-a")
             header("X-Project-Scopes", "documentation:write")
             header("X-System-Admin", "false")
@@ -125,6 +126,22 @@ class DocumentationSearchRoutesTest {
 
         assertEquals(HttpStatusCode.Forbidden, response.status)
         assertEquals(0, repository.resolveCalls)
+    }
+
+    @Test
+    fun `PAT can search with read scope and viewer role`() = testApplication {
+        application { routes() }
+        val response = client.get(
+            "/documentation/search?designSystemId=ds&version=1&platform=compose&query=Button",
+        ) {
+            header("X-Actor-Type", "personal_access_token")
+            header("X-User-Id", "owner")
+            header("X-Personal-Access-Token-Id", "pat")
+            header("X-Project-Id", "project-a")
+            header("X-Project-Role", "viewer")
+            header("X-Project-Scopes", "documentation:read")
+        }
+        assertEquals(HttpStatusCode.OK, response.status)
     }
 
     private fun io.ktor.server.application.Application.routes() {

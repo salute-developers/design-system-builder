@@ -15,17 +15,17 @@ The server writes only MCP protocol messages to stdout while running `serve`.
 `dsbuilder://projects/project-123/design-systems/ds-456?version=1.0.0&platform=compose`.
 The `platform` query parameter is optional; omitting it does not choose a default platform.
 The link selects context for that call only, so one server can read different design systems
-without changing its active state. An explicit link uses the saved user session (`dsbuilder-mcp
+without changing its active state. An explicit link selects PAT from DSBUILDER_API_KEY, otherwise the saved user session (`dsbuilder-mcp
 auth login`); without a link, the nearest `.sdds/config.json` selects the context and its
-credential policy (`auto`, `user-session`, or `project-key-env`). The `auto` policy checks a
-project key environment variable before the user session. The link contains no credential
+credential policy (`auto`, `user-session`, or `pat-env`). The `auto` policy checks a
+PAT environment variable before the user session. The link contains no credential
 and does not select the backend API URL.
 
 When local `.sdds/config.json` is selected, both this launcher and `dsbuilder mcp serve` also read
 `<project-root>/.env` beside `.sdds/`. For example, a local `.env` may contain:
 
 ```dotenv
-DSB_DEV_API_KEY=example-project-key
+DSB_DEV_API_KEY=example-personal-access-token
 DSBUILDER_API_URL=https://api.example.test
 ```
 
@@ -55,7 +55,7 @@ Without a workspace, call `projects_list`, ask the user to choose a project, the
 `design_systems_list` with its `projectId`. Ask the user to choose a system and pass both
 `projectId` and `designSystemId` to `design_system_versions_list`. Published items include a
 canonical `designSystem` URI with a version for subsequent reads. These discovery calls use
-only the user session of the selected backend (`dsbuilder auth login`), never a project key,
+a PAT from the environment or the user session of the selected backend (`dsbuilder auth login`),
 and do not write workspace files or store a global selection. Both IDs must be supplied together;
 combining them with a URI is rejected. Existing URI/workspace calls continue to work.
 
@@ -104,7 +104,7 @@ Browser authentication: run `dsbuilder-mcp auth login` on the same
 machine as your system browser. Password arguments and terminal password prompts
 are no longer supported. Repeat browser login once to replace legacy sessions.
 CLI and MCP share refresh sessions; IDE sessions remain separate. `auth status`
-reports local metadata only. For CI use a project key. `serve` and tools never
+reports local metadata only. For CI use a PAT. `serve` and tools never
 open a browser. HTTPS is required except for localhost and 127.0.0.1.
 
 CLI and Node MCP use the same PID-owned session lock. Locks left by terminated

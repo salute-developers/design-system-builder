@@ -6,6 +6,7 @@ COPY authorization authorization
 COPY backend-kt/gradle backend-kt/gradle
 COPY backend-kt/build-system backend-kt/build-system
 COPY backend-kt/authorization-core backend-kt/authorization-core
+COPY backend-kt/feature-user-settings backend-kt/feature-user-settings
 COPY backend-kt/runtime-contracts backend-kt/runtime-contracts
 COPY backend-kt/identity-gateway backend-kt/identity-gateway
 COPY backend-kt/projects-service backend-kt/projects-service

@@ -20,7 +20,7 @@ internal class HttpDesignSystemVersionsSource(
         val read = ModelReadCommand(ModelReadOperation.VERSIONS, limit = command.limit, cursor = command.cursor)
         val request = ModelReadHttpRequest.create(command.projectId, command.designSystemId, read)
         return when (val response = clients.create(apiUrl, credential).get(request.url)) {
-            is AuthenticatedHttpResult.Failure -> modelReadFailure(response.statusCode)
+            is AuthenticatedHttpResult.Failure -> modelReadFailure(response.statusCode, credential)
             is AuthenticatedHttpResult.Success -> ModelReadResponseDecoder.decode(
                 response,
                 read,

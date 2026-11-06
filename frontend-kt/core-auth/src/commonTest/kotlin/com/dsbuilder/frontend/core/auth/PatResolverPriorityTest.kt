@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
  * Перенесено из `cli/DsBuilderCliTest.kt` при выносе `core.credentials` в отдельный
  * Gradle-модуль `core-auth` (ADR-0004).
  */
-class ApiKeyResolverPriorityTest {
+class PatResolverPriorityTest {
     private val configuredEnvName = "DSBUILDER_PROJECT_A_API_KEY"
 
     @Test
@@ -18,7 +18,7 @@ class ApiKeyResolverPriorityTest {
         val project = EnvironmentReader { name ->
             if (name == configuredEnvName) "project-configured" else null
         }
-        val process = ApiKeyResolver(
+        val process = PatResolver(
             EnvironmentReader { name ->
                 when (name) {
                     configuredEnvName -> "process-configured"
@@ -29,7 +29,7 @@ class ApiKeyResolverPriorityTest {
         )
         assertEquals("process-configured", process.resolve(null, configuredEnvName, project).value)
 
-        val defaultOnly = ApiKeyResolver(
+        val defaultOnly = PatResolver(
             EnvironmentReader { name ->
                 if (name == DEFAULT_API_KEY_ENV) "process-default" else null
             },
@@ -39,7 +39,7 @@ class ApiKeyResolverPriorityTest {
 
     @Test
     fun apiKeyArgumentHasPriorityOverEnvironment() {
-        val resolver = ApiKeyResolver(
+        val resolver = PatResolver(
             EnvironmentReader { name ->
                 when (name) {
                     "DSBUILDER_PROJECT_A_API_KEY" -> "from-config-env"
@@ -57,12 +57,12 @@ class ApiKeyResolverPriorityTest {
 
     @Test
     fun apiKeyUsesConfiguredEnvThenFallbackEnv() {
-        val configured = ApiKeyResolver(
+        val configured = PatResolver(
             EnvironmentReader { name ->
                 if (name == "DSBUILDER_PROJECT_A_API_KEY") "from-config-env" else null
             },
         ).resolve(null, configuredEnvName)
-        val fallback = ApiKeyResolver(
+        val fallback = PatResolver(
             EnvironmentReader { name ->
                 if (name == "DSBUILDER_API_KEY") "from-default-env" else null
             },
@@ -76,8 +76,8 @@ class ApiKeyResolverPriorityTest {
 
     @Test
     fun missingApiKeyMentionsConfiguredEnvName() {
-        val exception = assertFailsWith<MissingApiKeyException> {
-            ApiKeyResolver(EnvironmentReader { null }).resolve(null, configuredEnvName)
+        val exception = assertFailsWith<MissingPatException> {
+            PatResolver(EnvironmentReader { null }).resolve(null, configuredEnvName)
         }
 
         assertNotNull(exception.message)

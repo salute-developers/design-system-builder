@@ -43,6 +43,13 @@ internal class ProjectAccessPolicy(
         membership: ProjectMember?,
     ): ProjectRole =
         resolveRole(actor, project, membership)
+            ?.also {
+                val wrongProject = actor.projectId != null && actor.projectId != project.id
+                val invalidPat = actor.personalAccessTokenId.isNullOrBlank() || wrongProject
+                if (actor.type == ActorType.PERSONAL_ACCESS_TOKEN && invalidPat) {
+                    throw ForbiddenProjectActionException("Invalid personal access token context")
+                }
+            }
             ?: throw ForbiddenProjectActionException("Project access denied")
 
     fun requireMetadataUpdate(role: ProjectRole) {
@@ -52,7 +59,7 @@ internal class ProjectAccessPolicy(
     }
 
     fun requireProjectMutationAccess(actor: AuthenticatedActor) {
-        if (actor.type == ActorType.PROJECT_KEY) {
+        if (actor.type != ActorType.USER) {
             throw ForbiddenProjectActionException("Project keys cannot modify project metadata or lifecycle")
         }
     }
@@ -71,7 +78,7 @@ internal class ProjectAccessPolicy(
         actor: AuthenticatedActor? = null,
     ) {
         val failureMessage = when {
-            actor?.type == ActorType.PROJECT_KEY -> "Project keys cannot manage project members"
+            actor != null && actor.type != ActorType.USER -> "Project keys cannot manage project members"
             targetUserId == project.ownerUserId -> "Owner cannot be managed through project members"
             !actorRole.isAllowed(permission.value, actor?.isSystemAdmin == true) ->
                 "Only owner or maintainer can manage project members"
@@ -93,7 +100,7 @@ internal class ProjectAccessPolicy(
         role: ProjectRole,
         permission: AccessKeyManagementPermission,
     ) {
-        if (actor.type == ActorType.PROJECT_KEY) {
+        if (actor.type != ActorType.USER) {
             throw ForbiddenProjectActionException("Project keys cannot manage access keys")
         }
         if (!role.isAllowed(permission.value, actor.isSystemAdmin)) {
@@ -154,7 +161,7 @@ internal class ProjectAccessPolicy(
         action: AccessKeyAction,
     ) {
         val permission = "${entity.configValue}:${action.name.lowercase()}"
-        if (actor.type == ActorType.PROJECT_KEY && !actor.isAllowed(permission)) {
+        if (actor.type != ActorType.USER && permission !in actor.scopes.map(AccessKeyScope::value)) {
             throw ForbiddenProjectActionException(
                 "Project key does not have ${entity.configValue}:${action.name.lowercase()} scope",
             )

@@ -1,12 +1,14 @@
 package com.dsbuilder.identity.auth.di
 
+import com.dsbuilder.identity.auth.application.GatewayAuthorizer
 import com.dsbuilder.identity.auth.application.port.JwtVerifier
-import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerifier
+import com.dsbuilder.identity.auth.application.port.PersonalAccessTokenResult
+import com.dsbuilder.identity.auth.application.port.PersonalAccessTokenVerifier
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolver
 import com.dsbuilder.identity.auth.application.usecase.AuthorizeProjectRequestUseCase
 import com.dsbuilder.identity.auth.application.usecase.AuthorizeUserRequestUseCase
+import com.dsbuilder.identity.auth.application.usecase.DefaultGatewayAuthorizer
 import com.dsbuilder.identity.auth.data.AllowAuthenticatedProjectContextResolver
-import com.dsbuilder.identity.auth.data.HttpProjectAccessKeyVerifier
 import com.dsbuilder.identity.auth.data.HttpProjectContextResolver
 import com.dsbuilder.identity.auth.data.KeycloakJwtVerifier
 import com.dsbuilder.identity.auth.data.ProjectAccessConfiguration
@@ -18,8 +20,8 @@ import org.koin.dsl.module
 fun authModule(applicationConfig: ApplicationConfig, externalProjectAccess: Boolean = false) = module {
     val configuration = applicationConfig.authConfiguration()
 
-    single<com.dsbuilder.identity.auth.application.GatewayAuthorizer> {
-        com.dsbuilder.identity.auth.application.usecase.DefaultGatewayAuthorizer(get(), get())
+    single<GatewayAuthorizer> {
+        DefaultGatewayAuthorizer(get(), get())
     }
     single<JwtVerifier> { KeycloakJwtVerifier(get()) }
     single { configuration }
@@ -33,26 +35,21 @@ fun authModule(applicationConfig: ApplicationConfig, externalProjectAccess: Bool
             }
         }
     }
-    if (!externalProjectAccess) {
-        single<ProjectAccessKeyVerifier> {
-            when (val projectAccess = configuration.projectAccess) {
-                is ProjectAccessConfiguration.AllowAuthenticated -> {
-                    error("Project access key verifier is unavailable in allow-authenticated mode")
-                }
-                is ProjectAccessConfiguration.Http -> HttpProjectAccessKeyVerifier(projectAccess)
-            }
-        }
-    }
     single {
         AuthorizeProjectRequestUseCase(
             jwtVerifier = get(),
             projectContextResolver = get(),
-            projectAccessKeyVerifier = get(),
+            personalTokens = getOrNull() ?: PersonalAccessTokenVerifier {
+                PersonalAccessTokenResult.Invalid
+            },
         )
     }
     single {
         AuthorizeUserRequestUseCase(
             jwtVerifier = get(),
+            personalTokens = getOrNull() ?: PersonalAccessTokenVerifier {
+                PersonalAccessTokenResult.Invalid
+            },
         )
     }
 }

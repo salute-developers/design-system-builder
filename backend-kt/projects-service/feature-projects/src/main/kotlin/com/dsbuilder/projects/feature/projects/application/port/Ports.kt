@@ -81,11 +81,3 @@ internal interface ProjectRepository {
 internal interface TransactionManager {
     suspend fun <T> required(block: suspend () -> T): T
 }
-
-internal interface AccessKeySecretManager {
-    fun generateSecret(): String
-
-    fun hashSecret(rawSecret: String): String
-
-    fun verifySecret(rawSecret: String, secretHash: String): Boolean
-}

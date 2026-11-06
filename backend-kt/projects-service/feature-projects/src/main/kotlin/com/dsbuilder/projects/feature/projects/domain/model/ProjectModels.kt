@@ -38,12 +38,14 @@ internal data class AuthenticatedActor(
     val isSystemAdmin: Boolean,
     val projectId: String? = null,
     val projectKeyId: String? = null,
+    val personalAccessTokenId: String? = null,
     val scopes: Set<AccessKeyScope> = emptySet(),
 )
 
 internal enum class ActorType {
     USER,
     PROJECT_KEY,
+    PERSONAL_ACCESS_TOKEN,
 }
 
 internal enum class AccessKeyAction {
