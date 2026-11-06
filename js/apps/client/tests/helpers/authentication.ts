@@ -20,6 +20,25 @@ type Claims = {
     resource_access?: Record<string, RoleAccess>;
 };
 
+const retryableReadErrors = new Set([
+    'ECONNRESET',
+    'ECONNABORTED',
+    'EPIPE',
+    'ETIMEDOUT',
+    'UND_ERR_SOCKET',
+    'UND_ERR_CONNECT_TIMEOUT',
+    'UND_ERR_HEADERS_TIMEOUT',
+    'UND_ERR_BODY_TIMEOUT',
+]);
+
+function readFailureCode(error: unknown): string | undefined {
+    if (!(error instanceof Error)) return;
+    if (error.name === 'TimeoutError') return 'TIMEOUT';
+    const { code, cause } = error as Error & { code?: unknown; cause?: { code?: unknown } };
+    const value = cause?.code ?? code;
+    if (typeof value === 'string' && retryableReadErrors.has(value)) return value;
+}
+
 /** Node fetch не записывает Authorization и OAuth form в автоматические шаги Playwright. */
 async function httpRequest(
     url: string,
@@ -27,30 +46,62 @@ async function httpRequest(
     allowed: readonly number[],
     timeout: number,
 ): Promise<Response> {
-    let response: Response;
-    try {
-        response = await fetch(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(timeout) });
-    } catch (error) {
-        const reason =
-            error instanceof Error && error.name === 'TimeoutError' ? 'превышено время ожидания' : 'сетевая ошибка';
-        throw new Error(options.method + ' ' + new URL(url).pathname + ': ' + reason + '; данные запроса скрыты.');
+    const isRead = options.method === 'GET';
+    const maxAttempts = isRead ? 2 : 1;
+    const deadline = performance.now() + timeout * maxAttempts;
+    const label = options.method + ' ' + new URL(url).pathname;
+    for (let attempt = 1; ; attempt += 1) {
+        const started = performance.now();
+        const remaining = Math.ceil(deadline - started);
+        if (remaining <= 0) throw new Error(label + ': превышено общее время ожидания; данные запроса скрыты.');
+        const signal = AbortSignal.timeout(Math.min(timeout, remaining));
+        let response: Response;
+        try {
+            response = await fetch(url, { ...options, redirect: 'manual', signal });
+            if (isRead && allowed.includes(response.status)) {
+                // Чтение тела входит в ту же попытку GET и её таймаут.
+                const body = response.body === null ? null : await response.arrayBuffer();
+                response = new Response(body, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers,
+                });
+            }
+        } catch (error) {
+            const code = signal.aborted && signal.reason?.name === 'TimeoutError' ? 'TIMEOUT' : readFailureCode(error);
+            const retry = isRead && attempt < maxAttempts && code !== undefined && performance.now() < deadline;
+            const elapsed = Math.round(performance.now() - started);
+            console.warn(
+                `[e2e:http] ${label}; попытка ${attempt}/${maxAttempts}; ${elapsed} ms; ${code ?? 'NETWORK_ERROR'}; ${retry ? 'повтор GET' : 'отказ'}.`,
+            );
+            if (retry) continue;
+            const reason = code === 'TIMEOUT' ? 'превышено время ожидания' : 'сетевая ошибка';
+            throw new Error(label + ': ' + reason + '; данные запроса скрыты.');
+        }
+        if (!allowed.includes(response.status)) {
+            await response.body?.cancel();
+            throw new Error(label + ': HTTP ' + response.status + '.');
+        }
+        if (attempt > 1) {
+            console.info(
+                `[e2e:http] ${label}; попытка ${attempt}/${maxAttempts}; ${Math.round(performance.now() - started)} ms; восстановлен GET после сетевой ошибки.`,
+            );
+        }
+        return response;
     }
-    if (!allowed.includes(response.status)) {
-        await response.body?.cancel();
-        throw new Error(options.method + ' ' + new URL(url).pathname + ': HTTP ' + response.status + '.');
-    }
-    return response;
 }
 
-/** Технические запросы без автоматических повторов и переходов по redirect. */
+/** Технический GET: до двух сетевых попыток; POST/PATCH/DELETE и redirect не повторяются. */
 export function authenticatedRequest(
     session: Session,
     url: string,
-    method: 'GET' | 'POST' | 'DELETE',
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     allowed: readonly number[],
     data?: unknown,
+    idempotencyKey?: string,
 ): Promise<Response> {
     const headers = new Headers({ Authorization: 'Bearer ' + session.accessToken, 'Cache-Control': 'no-store' });
+    if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
     const body = JSON.stringify(data);
     if (body !== undefined) headers.set('Content-Type', 'application/json');
     return httpRequest(url, { method, headers, body }, allowed, method === 'GET' ? 10000 : 30000);

@@ -1,4 +1,6 @@
 import { test as base, expect } from '@playwright/test';
+import { resourceFixtureTimeoutMs, sessionFixtureTimeoutMs } from '../config/timeouts.ts';
+import { PageReadiness } from '../helpers/page-readiness.ts';
 import { readEnvironment } from '../config/environment.ts';
 import type { Environment } from '../config/environment.ts';
 import { authenticate } from '../helpers/authentication.ts';
@@ -12,6 +14,7 @@ import { DesignSystemSteps } from '../steps/design-system.steps.ts';
 
 type Fixtures = {
     environment: Environment;
+    pageReadiness: PageReadiness;
     session: Session;
     systemsApi: DesignSystemApi;
     systems: DesignSystemsPage;
@@ -23,14 +26,28 @@ export const test = base.extend<Fixtures>({
     environment: async ({}, use) => {
         await use(await readEnvironment());
     },
-    session: async ({ environment }, use) => {
-        const session = await authenticate(environment);
-        try {
-            await use(session);
-        } finally {
-            await session.close();
-        }
-    },
+    pageReadiness: [
+        async ({ page }, use, info) => {
+            const readiness = new PageReadiness(page, info);
+            try {
+                await use(readiness);
+            } finally {
+                readiness.dispose();
+            }
+        },
+        { auto: true },
+    ],
+    session: [
+        async ({ environment }, use) => {
+            const session = await authenticate(environment);
+            try {
+                await use(session);
+            } finally {
+                await session.close();
+            }
+        },
+        { timeout: sessionFixtureTimeoutMs },
+    ],
     storageState: async ({ session }, use) => {
         await use(session.storageState);
     },
@@ -44,70 +61,74 @@ export const test = base.extend<Fixtures>({
     systems: async ({ page, environment, systemsApi }, use) => {
         await use(new DesignSystemsPage(page, environment.clientBaseURL, systemsApi.projectId));
     },
-    systemData: async ({ systemsApi }, use) => {
-        const name = uniqueSystemName();
-        const expected = { name, projectId: systemsApi.projectId, isTechnical: false };
-        const baseline = await systemsApi.list();
-        test.info().annotations.push({ type: 'baseline-count', description: String(baseline.length) });
-        let createdId: string | undefined;
-        let attempted = false;
-        const cleanup = () =>
-            test.step('Очистка своего ID и проверка исходных систем', async () => {
-                if (!createdId) {
-                    if (attempted)
-                        throw new Error(
-                            `Результат POST не подтверждён (${name}); автоматическое удаление по имени запрещено.`,
-                        );
-                    return;
-                }
-                await systemsApi.requireOwner();
-                const current = await systemsApi.get(createdId);
-                if (current) {
-                    expect(current, 'Свежий GET должен подтвердить принадлежность перед DELETE').toMatchObject({
-                        ...expected,
-                        id: createdId,
-                    });
-                    await systemsApi.remove(createdId); // Одна попытка, без скрытого повторения DELETE.
-                }
-                expect(
-                    await systemsApi.get(createdId),
-                    `После cleanup ID ${createdId} должен возвращать 404`,
-                ).toBeNull();
-                expect(baselineView(await systemsApi.list()), 'Исходные системы проекта должны сохраниться').toEqual(
-                    baselineView(baseline),
-                );
-            });
-        try {
-            await use({
-                name,
-                projectId: systemsApi.projectId,
-                creationAttempted: () => {
-                    attempted = true;
-                },
-                register: (system) => {
-                    const value = system as { id?: string; name?: string; projectId?: string } | null;
-                    const id = value?.id;
+    systemData: [
+        async ({ systemsApi }, use) => {
+            const name = uniqueSystemName();
+            const expected = { name, projectId: systemsApi.projectId, isTechnical: false };
+            const baseline = await systemsApi.list();
+            test.info().annotations.push({ type: 'baseline-count', description: String(baseline.length) });
+            let createdId: string | undefined;
+            let attempted = false;
+            const cleanup = () =>
+                test.step('Очистка своего ID и проверка исходных систем', async () => {
+                    if (!createdId) {
+                        if (attempted)
+                            throw new Error(
+                                `Результат POST не подтверждён (${name}); автоматическое удаление по имени запрещено.`,
+                            );
+                        return;
+                    }
+                    await systemsApi.requireOwner();
+                    const current = await systemsApi.get(createdId);
+                    if (current) {
+                        expect(current, 'Свежий GET должен подтвердить принадлежность перед DELETE').toMatchObject({
+                            ...expected,
+                            id: createdId,
+                        });
+                        await systemsApi.remove(createdId); // Одна попытка, без скрытого повторения DELETE.
+                    }
                     expect(
-                        { id, name: value?.name, projectId: value?.projectId },
-                        'Идентичность созданной системы',
-                    ).toMatchObject({
-                        id: expect.stringMatching(/\S/u),
-                        name,
-                        projectId: systemsApi.projectId,
-                    });
+                        await systemsApi.get(createdId),
+                        `После cleanup ID ${createdId} должен возвращать 404`,
+                    ).toBeNull();
                     expect(
-                        baseline.some((original) => original.id === id),
-                        'ID не должен принадлежать исходной системе',
-                    ).toBe(false);
-                    expect(createdId, 'Повторная регистрация создания запрещена').toBeUndefined();
-                    createdId = id as string;
-                    test.info().annotations.push({ type: 'created-design-system', description: createdId });
-                },
-            });
-        } finally {
-            await cleanup();
-        }
-    },
+                        baselineView(await systemsApi.list()),
+                        'Исходные системы проекта должны сохраниться',
+                    ).toEqual(baselineView(baseline));
+                });
+            try {
+                await use({
+                    name,
+                    projectId: systemsApi.projectId,
+                    creationAttempted: () => {
+                        attempted = true;
+                    },
+                    register: (system) => {
+                        const value = system as { id?: string; name?: string; projectId?: string } | null;
+                        const id = value?.id;
+                        expect(
+                            { id, name: value?.name, projectId: value?.projectId },
+                            'Идентичность созданной системы',
+                        ).toMatchObject({
+                            id: expect.stringMatching(/\S/u),
+                            name,
+                            projectId: systemsApi.projectId,
+                        });
+                        expect(
+                            baseline.some((original) => original.id === id),
+                            'ID не должен принадлежать исходной системе',
+                        ).toBe(false);
+                        expect(createdId, 'Повторная регистрация создания запрещена').toBeUndefined();
+                        createdId = id as string;
+                        test.info().annotations.push({ type: 'created-design-system', description: createdId });
+                    },
+                });
+            } finally {
+                await cleanup();
+            }
+        },
+        { timeout: resourceFixtureTimeoutMs },
+    ],
     steps: async ({ page, systems, systemsApi, systemData }, use) => {
         await use(new DesignSystemSteps(page, systems, systemsApi, systemData));
     },

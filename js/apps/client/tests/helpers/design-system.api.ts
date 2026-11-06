@@ -30,7 +30,7 @@ export function baselineView(systems: readonly DesignSystem[]): DesignSystem[] {
     return [...systems].sort((left, right) => left.id.localeCompare(right.id));
 }
 
-/** Только предметные операции пилота, без подготовки проекта и управления ресурсами. */
+/** Предметные операции тестов без управления окружением и очисткой ресурсов. */
 export class DesignSystemApi {
     private readonly gatewayBaseURL: string;
     readonly projectId: string;
@@ -49,6 +49,16 @@ export class DesignSystemApi {
     }
     requireOwner() {
         return requireOwnerProject(this.gatewayBaseURL, this.projectId, this.session);
+    }
+    /** Возвращает исходный DTO: fixture регистрирует ID до полной проверки ответа. */
+    async create(name: string): Promise<unknown> {
+        const project = await this.requireOwner();
+        const response = await authenticatedRequest(this.session, this.url(), 'POST', [201], {
+            name,
+            projectName: project.name,
+            projectId: this.projectId,
+        });
+        return response.json();
     }
     async list(): Promise<DesignSystem[]> {
         const response = await authenticatedRequest(this.session, this.url(), 'GET', [200]);
