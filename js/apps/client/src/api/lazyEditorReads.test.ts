@@ -96,7 +96,11 @@ it('метаданные холодного журнала читаются па
     expect(metadata.componentNames.prop).toBe('C50');
     expect(metadata.componentNames.style).toBe('C50');
     expect(metadata.referenceNames.prop).toBe('Color');
-    expect(http.get).toHaveBeenCalledTimes(5);
+    // Пять справочников имён и два справочника состояний для подписи значений свойств — без чтений по компонентам.
+    expect(http.get).toHaveBeenCalledTimes(7);
+    expect(http.get.mock.calls.map(([url]) => String(url).split('/').pop())).toEqual(
+        expect.arrayContaining(['states', 'state-sets']),
+    );
     expect(http.post).not.toHaveBeenCalled();
 });
 
