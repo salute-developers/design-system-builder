@@ -6,14 +6,44 @@ import { Config } from '../../../../controllers';
 import type { DesignSystem, Theme } from '../../../../controllers';
 import { chipMeta } from '../__fixtures__/chipMeta';
 
-// Превью рисует плагин в iframe: здесь достаточно заголовка и аргументов, которые оно получает.
-vi.mock('../ComponentEditorPreview', () => ({
-    ComponentEditorPreview: ({ title, args }: { title: string; args: Record<string, unknown> }) => (
-        <div data-testid="preview" data-args={JSON.stringify(args)}>
-            {title}
-        </div>
-    ),
-}));
+// Превью рисует плагин в iframe: здесь достаточно заголовка, аргументов, которые оно получает, и аргументов story,
+// которые оно отдаёт инспектору.
+const storyArgChanges = vi.hoisted(() => vi.fn());
+vi.mock('../ComponentEditorPreview', async () => {
+    const { useEffect, useState } = await import('react');
+    return {
+        ComponentEditorPreview: ({
+            title,
+            args,
+            onStoryArgsChange,
+        }: {
+            title: string;
+            args: Record<string, unknown>;
+            onStoryArgsChange?: (storyArgs: unknown) => void;
+        }) => {
+            const [values, setValues] = useState<Record<string, unknown>>({});
+            useEffect(() => {
+                onStoryArgsChange?.({
+                    key: 'web:Chip:Default',
+                    properties: [
+                        { type: 'boolean', name: 'disabled', defaultValue: false },
+                        { type: 'string', name: 'text', defaultValue: 'Text' },
+                    ],
+                    values,
+                    onChange: (name: string, value: unknown) => {
+                        storyArgChanges(name, value);
+                        setValues((current) => ({ ...current, [name]: value }));
+                    },
+                });
+            }, [onStoryArgsChange, values]);
+            return (
+                <div data-testid="preview" data-args={JSON.stringify(args)} data-story-args={JSON.stringify(values)}>
+                    {title}
+                </div>
+            );
+        },
+    };
+});
 
 import { ComponentEditor } from './ComponentEditor';
 
@@ -100,6 +130,23 @@ describe('ComponentEditor', () => {
         expect(previewArgs()).toEqual({ size: 's-m', view: 'v-accent' });
         expect(within(property('background')).getByTitle('Background · view: accent')).toBeInTheDocument();
         expect(within(property('background')).getByText('surfaceAccent')).toBeInTheDocument();
+    });
+
+    it('shows story arguments after the variations and changes only the preview', () => {
+        renderEditor();
+        const variants = section('Variants');
+
+        fireEvent.click(within(variants).getByRole('switch', { name: 'Disabled' }));
+        fireEvent.change(within(variants).getByRole('textbox', { name: 'Text' }), { target: { value: 'Hello' } });
+
+        expect(storyArgChanges).toHaveBeenCalledWith('disabled', true);
+        expect(JSON.parse(screen.getByTestId('preview').dataset.storyArgs ?? '{}')).toEqual({
+            disabled: true,
+            text: 'Hello',
+        });
+        // Аргументы story не входят в сочетание вариаций.
+        expect(previewArgs()).toEqual({ size: 's-m', view: 'v-default' });
+        expect(within(variants).getByRole('textbox', { name: 'Text' })).toHaveValue('Hello');
     });
 
     it('switches a flag on and off with its argument and style properties', () => {

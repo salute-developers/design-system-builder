@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PreviewComponentDescription, PreviewPayloadInput } from '../../../../composePreview';
 import { ComponentEditorPreview } from './ComponentEditorPreview';
+import { withStoryArgs } from './storyArgsTestHarness';
 
 const createDraft = vi.fn();
 const payload: PreviewPayloadInput = {
@@ -77,17 +78,19 @@ const theme = {
 
 const renderPreview = () =>
     render(
-        <ComponentEditorPreview
-            config={config as never}
-            theme={theme as never}
-            args={{ reactOnly: 'React', variant: 'variation-value' }}
-            themeModeList={[{ label: 'Светлый', value: 'light' }]}
-            themeMode={{ label: 'Светлый', value: 'light' }}
-            onUpdateThemeMode={vi.fn()}
-            title="Preview"
-            platforms={[]}
-            onPlatformSelect={vi.fn()}
-        />,
+        withStoryArgs(
+            <ComponentEditorPreview
+                config={config as never}
+                theme={theme as never}
+                args={{ reactOnly: 'React', variant: 'variation-value' }}
+                themeModeList={[{ label: 'Светлый', value: 'light' }]}
+                themeMode={{ label: 'Светлый', value: 'light' }}
+                onUpdateThemeMode={vi.fn()}
+                title="Preview"
+                platforms={[]}
+                onPlatformSelect={vi.fn()}
+            />,
+        ),
     );
 
 /** Выбор рендерера в меню панели окружения превью. */
@@ -109,10 +112,10 @@ describe('ComponentEditorPreview Compose controls', () => {
         await chooseRenderer('Compose');
         await screen.findByTestId('compose-frame');
 
-        for (const label of ['Label', 'Value', 'Icon', 'Spacing', 'HasFixedWidth', 'Enabled', 'Loading']) {
+        for (const label of ['Label', 'Value', 'Icon', 'Spacing', 'Has fixed width', 'Enabled', 'Loading']) {
             expect(screen.getByText(label)).toBeInTheDocument();
         }
-        expect(screen.queryByText('ReactOnly')).not.toBeInTheDocument();
+        expect(screen.queryByText('React only')).not.toBeInTheDocument();
         expect(screen.queryByText('Variant')).not.toBeInTheDocument();
 
         await waitFor(() => {

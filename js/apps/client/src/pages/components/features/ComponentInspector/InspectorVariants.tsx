@@ -3,7 +3,9 @@ import { useState } from 'react';
 import type { ComponentAPI, Config, Variation } from '../../../../controllers';
 
 import { WorkbenchMenu, type WorkbenchMenuItem } from '../../ui/WorkbenchMenu';
+import type { StoryArgs } from '../ComponentEditorPreview/storyArgs';
 import { InspectorGroup } from './InspectorGroup';
+import { InspectorStoryArgs } from './InspectorStoryArgs';
 import { fallbackStyle, humanizeName, isDefaultStyle, orderedVariations, type Selection } from './inspectorModel';
 
 interface InspectorVariantsProps {
@@ -12,15 +14,18 @@ interface InspectorVariantsProps {
     selection: Selection;
     onSelectionChange: (variationName: string, styleID: string | undefined) => void;
     onConfigUpdate: () => void;
+    /** Аргументы story превью: строками после вариаций. */
+    storyArgs?: StoryArgs;
 }
 
-/** Секция «Variants»: сочетание вариаций, которое рисует превью и редактирует инспектор. */
+/** Секция «Variants»: сочетание вариаций, которое рисует превью и редактирует инспектор, и аргументы story. */
 export const InspectorVariants = ({
     config,
     api,
     selection,
     onSelectionChange,
     onConfigUpdate,
+    storyArgs,
 }: InspectorVariantsProps) => {
     // Вариация, у которой вместо списка стилей открыто поле нового стиля.
     const [creating, setCreating] = useState<{ variationID: string; name: string }>();
@@ -155,6 +160,7 @@ export const InspectorVariants = ({
                         </div>
                     );
                 })}
+                <InspectorStoryArgs storyArgs={storyArgs} />
             </div>
         </InspectorGroup>
     );
