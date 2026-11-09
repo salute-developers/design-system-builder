@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useComponentData } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
 import { SegmentButtonItem } from '../../../../components';
-import { ComponentEditorPreview } from '../ComponentEditorPreview';
+import { ComponentEditorPreview, type StoryArgs } from '../ComponentEditorPreview';
 import type { PreviewPlatform, PreviewPlatformOption } from '../ComponentEditorPreview/PreviewEnvironmentBar';
 import { ComponentInspector, combinationTitle } from '../ComponentInspector';
 
@@ -29,6 +29,8 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     // Сочетание вариаций: имя вариации → id стиля. Его рисует превью и редактирует инспектор.
     const [selection, setSelection] = useComponentData(config);
+    // Аргументы story: значения живут в превью, инспектор показывает их в «Variants».
+    const [storyArgs, setStoryArgs] = useState<StoryArgs>();
 
     const location = useLocation();
     const preview = useMemo(() => componentPreviewRequest(location.state), [location.state]);
@@ -85,6 +87,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 platforms={platforms}
                 onPlatformSelect={onPlatformSelect}
                 resolveStyleReference={resolveStyleReference}
+                onStoryArgsChange={setStoryArgs}
             />
             <ComponentInspector
                 config={config}
@@ -95,6 +98,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 themeMode={themeMode.value === 'light' ? 'light' : 'dark'}
                 onSelectionChange={onSelectionChange}
                 onConfigUpdate={onConfigUpdate}
+                storyArgs={storyArgs}
             />
         </Root>
     );
