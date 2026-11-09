@@ -2,6 +2,7 @@
 
 package com.dsbuilder.ds.components.data
 
+import com.dsbuilder.ds.components.application.EditorRuleViolationException
 import com.dsbuilder.ds.components.application.PropertyValueRepository
 import com.dsbuilder.ds.components.domain.InvariantPropertyValue
 import com.dsbuilder.ds.components.domain.VariationPropertyValue
@@ -213,6 +214,11 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         val current = VariationPropertyValuesTable.selectAll().where {
             (VariationPropertyValuesTable.id eq id) and writableVariationValue(projectId, systemAdmin)
         }.singleOrNull() ?: return null
+        requireContent(
+            command,
+            current[VariationPropertyValuesTable.tokenId],
+            current[VariationPropertyValuesTable.value],
+        )
         writeVariationRevision(current, command, deleted = false)
         return VariationPropertyValuesTable.selectAll().where { VariationPropertyValuesTable.id eq id }
             .singleOrNull()?.let(::variationPropertyValue)
@@ -319,6 +325,11 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         val current = InvariantPropertyValuesTable.selectAll().where {
             (InvariantPropertyValuesTable.id eq id) and writableInvariantValue(projectId, systemAdmin)
         }.singleOrNull() ?: return null
+        requireContent(
+            command,
+            current[InvariantPropertyValuesTable.tokenId],
+            current[InvariantPropertyValuesTable.value],
+        )
         writeInvariantRevision(current, command, deleted = false)
         return InvariantPropertyValuesTable.selectAll().where { InvariantPropertyValuesTable.id eq id }
             .singleOrNull()?.let(::invariantPropertyValue)
@@ -340,6 +351,18 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         }.singleOrNull() ?: return false
         writeInvariantRevision(current, null, deleted = true)
         return true
+    }
+
+    /** Изменение не может оставить значение свойства без токена и без литерала: такую запись нечем показать. */
+    private fun requireContent(command: PropertyValueRepository.ValueUpdate, tokenId: UUID?, value: String?) {
+        val nextToken = if (command.tokenIdPresent) command.tokenId else tokenId
+        val nextValue = if (command.valuePresent) command.value else value
+        if (nextToken == null && nextValue == null) {
+            throw EditorRuleViolationException(
+                "property_value_empty",
+                "A property value must keep a token or a value; delete it instead",
+            )
+        }
     }
 
     private fun writeVariationRevision(

@@ -50,13 +50,13 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `a compose bundle exports compose and has no property variations and web adapter`() = withService {
+    fun `a compose bundle exports compose with property variations and no web adapter`() = withService {
         val fixture = fixture()
         val bundle = bundle(fixture.alpha, fixture.composeButton, "compose")
 
         assertBundleMatchesRoutes(bundle, fixture.alpha, fixture.composeButton, "compose")
         assertEquals(JsonNull, bundle.getValue("webAdapter"))
-        assertTrue(bundle.list("propertyVariations").isEmpty())
+        assertEquals(1, bundle.list("propertyVariations").size)
         assertEquals(1, bundle.list("platformParams").size)
         val exported = bundle.getValue("export").jsonObject.getValue("components").jsonArray
         assertEquals(listOf("button"), exported.map { it.jsonObject.string("componentName") })
@@ -144,11 +144,8 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
             .filter { it.string("propertyId") in propertyIds }
         assertEquals(params.byId(), bundle.list("platformParams").byId())
 
-        val propertyVariations = if (platform == "web") {
-            read(withVersion("/api/ds/property-variations")).objects().filter { it.string("propertyId") in propertyIds }
-        } else {
-            emptyList()
-        }
+        val propertyVariations = read(withVersion("/api/ds/property-variations")).objects()
+            .filter { it.string("propertyId") in propertyIds }
         assertEquals(propertyVariations.byId(), bundle.list("propertyVariations").byId())
 
         val variations = read(withVersion("/api/ds/components/$component/variations?designSystemId=$ds")).objects()
@@ -223,6 +220,9 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         val size = read("/api/ds/components/$webButton/variations?designSystemId=$alpha").objects()
             .single { it.string("name") == "size" }.string("id")
         created("/api/ds/property-variations", """{"propertyId":"$padding","variationId":"$size"}""")
+        val composeSize = read("/api/ds/components/$composeButton/variations?designSystemId=$alpha").objects()
+            .single { it.string("name") == "size" }.string("id")
+        created("/api/ds/property-variations", """{"propertyId":"$composePadding","variationId":"$composeSize"}""")
 
         created("/api/ds/component-deps", """{"parentId":"$webButton","childId":"$webIcon","type":"compose"}""")
         created("/api/ds/component-deps", """{"parentId":"$webOther","childId":"$webButton","type":"reuse"}""")
