@@ -237,7 +237,12 @@ describe('Components autosave', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
 
         await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
-        await waitFor(() => expect(screen.getByRole('status', { name: /Последнее сохранение/ })).toBeInTheDocument());
+        // Статус сохранения компонента показывает индикатор редактора в тулбаре: он читает общий статус очередей.
+        await waitFor(() =>
+            expect(getDraftAutosaveStatus({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' })).toBe(
+                'saved',
+            ),
+        );
     });
 
     it('восстанавливает создание до следующей правки удаления с новой базой', async () => {

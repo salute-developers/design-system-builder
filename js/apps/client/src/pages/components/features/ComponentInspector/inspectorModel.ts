@@ -94,11 +94,21 @@ const sourceProps = (config: Config, source: PropertySource) =>
         ? config.getInvariants()
         : config.getStyleByVariation(source.variationID, source.styleID)?.getProps();
 
-/** Свойства API, которые относятся к источнику: у инвариантов — без вариаций, у стиля — связанные с его вариацией. */
-const sourceApi = (api: ComponentAPI[], source: PropertySource) =>
-    source.kind === 'invariant'
-        ? api.filter((item) => !item.variations || item.variations.length === 0)
-        : api.filter((item) => item.variations?.includes(source.variationID));
+/**
+ * Свойства API, которые относятся к источнику: у инвариантов — без вариаций, у стиля — связанные с его вариацией.
+ * Связи приходят именами вариаций (`property-variations`), поэтому вариация сравнивается и по имени, и по ID. Если
+ * связей у компонента нет совсем, принадлежность свойства неизвестна: пустых строк нет ни у одного источника.
+ */
+const sourceApi = (api: ComponentAPI[], source: PropertySource) => {
+    if (!api.some((item) => item.variations?.length)) return [];
+    return source.kind === 'invariant'
+        ? api.filter((item) => !item.variations?.length)
+        : api.filter((item) =>
+              item.variations?.some(
+                  (variation) => variation === source.variationID || variation === source.variationName,
+              ),
+          );
+};
 
 /** Незаданное свойство: отдельный экземпляр без значения, к модели он не привязан, пока пользователь его не заполнит. */
 const emptyProp = (item: ComponentAPI, api: ComponentAPI[]) => new Props([{ id: item.id }], api).getProp(item.id);

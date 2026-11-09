@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 
 import { useDismiss } from '../../hooks';
-import { TyGlyph } from '../../pages/typography/ui/TyGlyph';
+import { TyGlyph } from '../../components/TyGlyph';
 
 /** Состояния меню прототипа в порядке, в котором их имена соединяются через `+`. */
 export const BINDING_STATES = ['focused', 'pressed', 'hovered'] as const;
@@ -60,7 +60,7 @@ export const StateBindingMenu = ({ label, disabled, onAdd }: StateBindingMenuPro
                                 aria-checked={selected.includes(state)}
                                 onClick={() => toggle(state)}
                             >
-                                <i>{selected.includes(state) ? '✓' : ''}</i>
+                                <i>{selected.includes(state) && <TyGlyph name="check" />}</i>
                                 {state}
                             </button>
                         ))}

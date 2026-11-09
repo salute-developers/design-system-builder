@@ -16,6 +16,8 @@ interface ComponentColorPickerProps {
     tokens: ColorTokenOption[];
     /** Поле, у которого открыт пикер: окно встаёт слева от него. */
     anchor: HTMLElement | null;
+    /** Селектор поля, клик по которому не закрывает пикер: его собственное поле. */
+    dismissExcept: string;
     onChange: (value: string) => void;
     onClose: () => void;
 }
@@ -45,7 +47,7 @@ const fieldValue = (color: string): ColorFieldValue => {
  * «Библиотека» из токенов темы. Встаёт слева от поля и не выходит за окно браузера.
  */
 export const ComponentColorPicker = (props: ComponentColorPickerProps) => {
-    const { label, value, color, linked, tokens, anchor, onChange, onClose } = props;
+    const { label, value, color, linked, tokens, anchor, dismissExcept, onChange, onClose } = props;
     const layer = useRef<HTMLDivElement>(null);
 
     useLayoutEffect(() => {
@@ -79,7 +81,7 @@ export const ComponentColorPicker = (props: ComponentColorPickerProps) => {
                 tokenName=""
                 resolveColor={(next) => next}
                 initialTab={linked ? 'library' : 'custom'}
-                dismissExcept=".component-inspector-color-main"
+                dismissExcept={dismissExcept}
                 library={
                     <TokenColorLibrary
                         options={tokens}

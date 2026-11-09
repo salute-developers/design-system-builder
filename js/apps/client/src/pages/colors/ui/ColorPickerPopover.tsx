@@ -42,6 +42,7 @@ import { useWrittenHsva } from './useWrittenHsva';
 import { ColorSvPanel } from './ColorSvPanel';
 import { hexToRgba, hslToRgb, hsvaToHex, hsvToRgb, rgbaToHex, rgbToHsl, rgbToHsv, type Hsva } from './colorMath';
 import { alphaSwatchStyle } from './swatch';
+import { onFocusIntoFrame } from '../../../hooks/useDismiss';
 
 type Format = 'hex' | 'rgb' | 'hsl';
 type GradientPaint = Extract<Paint, { kind: 'gradient' }>;
@@ -97,7 +98,7 @@ const trapKeys = (onClose: () => void) => (event: KeyboardEvent<HTMLElement>) =>
     }
 };
 
-/** Закрытие по щелчку вне элемента [ref], кроме целей, подходящих под селектор [except]. */
+/** Закрытие по щелчку вне элемента [ref], кроме целей, подходящих под селектор [except], и по щелчку во фрейме. */
 const useOutsideClose = (ref: React.RefObject<HTMLElement>, onClose: () => void, except: string, active = true) => {
     useEffect(() => {
         if (!active) return;
@@ -107,7 +108,11 @@ const useOutsideClose = (ref: React.RefObject<HTMLElement>, onClose: () => void,
             onClose();
         };
         document.addEventListener('mousedown', listener);
-        return () => document.removeEventListener('mousedown', listener);
+        const stopFrameFocus = onFocusIntoFrame(onClose);
+        return () => {
+            document.removeEventListener('mousedown', listener);
+            stopFrameFocus();
+        };
     }, [ref, onClose, except, active]);
 };
 

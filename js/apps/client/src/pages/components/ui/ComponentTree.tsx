@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { TyGlyph } from '../../typography/ui/TyGlyph';
+import { TyGlyph } from '../../../components/TyGlyph';
 import {
     PLATFORM_FILTERS,
     componentGroupLabel,

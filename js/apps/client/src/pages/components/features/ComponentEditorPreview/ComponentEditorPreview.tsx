@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { Config, DesignSystem, Theme } from '../../../../controllers';
@@ -46,8 +46,6 @@ interface ComponentEditorPreviewProps {
     onUpdateThemeMode: (value: SegmentButtonItem) => void;
     /** Заголовок сочетания в панели окружения: «Chip M Default». */
     title: string;
-    /** Индикатор автосохранения рядом с контролами панели окружения. */
-    status?: ReactNode;
     /** Платформы компонента для меню панели окружения. */
     platforms: PreviewPlatformOption[];
     onPlatformSelect: (platform: PreviewPlatform) => void;
@@ -74,7 +72,6 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         themeModeList,
         onUpdateThemeMode,
         title,
-        status,
         platforms,
         onPlatformSelect,
         resolveStyleReference,
@@ -449,7 +446,6 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             <StyledPreviewShadow $scrollable={showPayloadDebug}>
                 <PreviewEnvironmentBar
                     title={title}
-                    status={status}
                     platform={isComposeComponent ? 'compose' : 'web'}
                     platforms={platforms}
                     onPlatformSelect={onPlatformSelect}

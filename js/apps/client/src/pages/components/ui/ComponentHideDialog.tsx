@@ -1,5 +1,5 @@
 import { Modal } from '../../../components/Overlay/Overlay';
-import { TyGlyph } from '../../typography/ui/TyGlyph';
+import { TyGlyph } from '../../../components/TyGlyph';
 
 interface ComponentHideDialogProps {
     name: string;
