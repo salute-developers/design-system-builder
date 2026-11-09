@@ -24,6 +24,17 @@ export class JournalPage {
         );
     }
 
+    colorChange(name: string): Locator {
+        return this.list.getByRole('button', { name: 'Цвет: ' + name + ' Цвет · Светлый режим · Web', exact: true });
+    }
+
+    undoColorChange(name: string): Locator {
+        return this.list.getByRole('button', {
+            name: 'Отменить изменение: Цвет: ' + name + ' · Цвет · Светлый режим · Web',
+            exact: true,
+        });
+    }
+
     async open(): Promise<void> {
         await this.readiness.run('Открытие журнала', async () => {
             await this.page.goto(this.editorURL);

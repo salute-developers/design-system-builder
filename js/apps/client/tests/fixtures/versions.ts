@@ -18,9 +18,9 @@ type Fixtures = {
 
 /** Каждый тест получает собственную ДС; публикации удаляются родительским cleanup. */
 export const test = base.extend<Fixtures>({
-    versionsApi: async ({ environment, systemsApi, createdSystem, session }, use) => {
+    versionsApi: async ({ environment, systemsApi, createdSystem, setupSession }, use) => {
         await systemsApi.requireOwner();
-        await use(new VersionsApi(environment.gatewayBaseURL, systemsApi.projectId, createdSystem.id, session));
+        await use(new VersionsApi(environment.gatewayBaseURL, systemsApi.projectId, createdSystem.id, setupSession));
     },
     baselineVersion: async ({ versionsApi, initialTheme }, use) => {
         const version = await test.step('Опубликовать исходное состояние ' + initialTheme.name + ' через API', () =>

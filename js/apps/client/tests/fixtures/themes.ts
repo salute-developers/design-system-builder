@@ -10,10 +10,10 @@ type Fixtures = {
     themeCreations: () => number;
 };
 
-/** Все темы очищаются вместе с отдельной createdSystem, включая ошибки создания. */
+/** Темы очищаются вместе с createdSystem после успешного сценария. */
 export const test = base.extend<Fixtures>({
-    themesApi: async ({ environment, systemsApi, createdSystem, session }, use) => {
-        await use(new ThemesApi(environment.gatewayBaseURL, systemsApi.projectId, createdSystem.id, session));
+    themesApi: async ({ environment, systemsApi, createdSystem, setupSession }, use) => {
+        await use(new ThemesApi(environment.gatewayBaseURL, systemsApi.projectId, createdSystem.id, setupSession));
     },
     createTheme: async ({ page, pageReadiness }, use) => {
         await use(new CreateThemePage(page, pageReadiness));

@@ -2,12 +2,15 @@ import { expect } from '@playwright/test';
 import type { BrowserContextOptions } from '@playwright/test';
 import type { Environment } from '../config/environment.ts';
 
+type TrackWrite = (send: () => Promise<Response>) => Promise<Response>;
+
 export type Session = Readonly<{
     accessToken: string;
     subject: string;
     admin: boolean;
     storageState: Exclude<BrowserContextOptions['storageState'], string | undefined>;
     close(): Promise<void>;
+    trackWrite?: TrackWrite;
 }>;
 
 type Token = { access_token: string; refresh_token: string; expires_in: number };
@@ -45,6 +48,7 @@ async function httpRequest(
     options: RequestInit,
     allowed: readonly number[],
     timeout: number,
+    trackWrite?: TrackWrite,
 ): Promise<Response> {
     const isRead = options.method === 'GET';
     const maxAttempts = isRead ? 2 : 1;
@@ -55,18 +59,21 @@ async function httpRequest(
         const remaining = Math.ceil(deadline - started);
         if (remaining <= 0) throw new Error(label + ': превышено общее время ожидания; данные запроса скрыты.');
         const signal = AbortSignal.timeout(Math.min(timeout, remaining));
+        const send = async () => {
+            const received = await fetch(url, { ...options, redirect: 'manual', signal });
+            const bufferBody = trackWrite !== undefined || (isRead && allowed.includes(received.status));
+            if (!bufferBody || received.body === null) return received;
+            // Ответ записи подтверждён только после чтения тела, включая ошибочный HTTP-статус.
+            return new Response(await received.arrayBuffer(), {
+                status: received.status,
+                statusText: received.statusText,
+                headers: received.headers,
+            });
+        };
+        const attemptResponse = trackWrite ? trackWrite(send) : send();
         let response: Response;
         try {
-            response = await fetch(url, { ...options, redirect: 'manual', signal });
-            if (isRead && allowed.includes(response.status)) {
-                // Чтение тела входит в ту же попытку GET и её таймаут.
-                const body = response.body === null ? null : await response.arrayBuffer();
-                response = new Response(body, {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: response.headers,
-                });
-            }
+            response = await attemptResponse;
         } catch (error) {
             const code = signal.aborted && signal.reason?.name === 'TimeoutError' ? 'TIMEOUT' : readFailureCode(error);
             const retry = isRead && attempt < maxAttempts && code !== undefined && performance.now() < deadline;
@@ -95,7 +102,7 @@ async function httpRequest(
 export function authenticatedRequest(
     session: Session,
     url: string,
-    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     allowed: readonly number[],
     data?: unknown,
     idempotencyKey?: string,
@@ -104,7 +111,8 @@ export function authenticatedRequest(
     if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
     const body = JSON.stringify(data);
     if (body !== undefined) headers.set('Content-Type', 'application/json');
-    return httpRequest(url, { method, headers, body }, allowed, method === 'GET' ? 10000 : 30000);
+    const trackWrite = method === 'GET' ? undefined : session.trackWrite;
+    return httpRequest(url, { method, headers, body }, allowed, method === 'GET' ? 10000 : 30000, trackWrite);
 }
 
 export async function authenticate(environment: Environment): Promise<Session> {

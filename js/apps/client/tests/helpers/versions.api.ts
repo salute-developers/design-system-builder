@@ -27,6 +27,10 @@ export class VersionsApi {
         this.session = session;
     }
 
+    revertURL(changeId: string): string {
+        return this.systemURL + '/changes/' + encodeURIComponent(changeId) + '/revert';
+    }
+
     async publish(version: string, changelog: string): Promise<PublishedVersion> {
         const current = await authenticatedRequest(this.session, this.systemURL, 'GET', [200]);
         const raw: unknown = await current.json();

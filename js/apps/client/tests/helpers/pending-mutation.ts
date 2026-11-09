@@ -1,6 +1,14 @@
-import type { Page, Response } from '@playwright/test';
+import type { Page, Request, Response as BrowserResponse } from '@playwright/test';
 
-type Completion = Readonly<{ status: number; elapsedMs: number }> | undefined;
+type FinishedWrite = Readonly<{ status: number; elapsedMs: number }>;
+const writeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+async function finishBrowserWrite(response: BrowserResponse | null, started: number): Promise<FinishedWrite> {
+    if (!response || (await response.finished())) {
+        throw new Error('Завершение тела ответа мутации не подтверждено.');
+    }
+    return { status: response.status(), elapsedMs: Math.round(performance.now() - started) };
+}
 
 function within<T>(operation: Promise<T>, milliseconds: number, message: string): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -20,20 +28,41 @@ function within<T>(operation: Promise<T>, milliseconds: number, message: string)
 
 /** Отделяет лимит ответа UI от подтверждения завершения мутации перед удалением её ДС. */
 export class PendingMutation {
-    private completion?: Promise<Completion>;
+    private readonly completions: Promise<FinishedWrite>[] = [];
     private readonly page: Page;
+    private cleanupStarted = false;
 
     constructor(page: Page) {
         this.page = page;
     }
 
+    watchBrowserWrites(gatewayBaseURL: string, projectId: string): () => void {
+        const scope = new URL(`api/projects/${encodeURIComponent(projectId)}/ds/`, gatewayBaseURL);
+        const onRequest = (request: Request) => {
+            if (!writeMethods.has(request.method())) return;
+            const url = new URL(request.url());
+            if (url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
+            const started = performance.now();
+            const finished = request.response().then((response) => finishBrowserWrite(response, started));
+            this.remember(finished);
+        };
+        const context = this.page.context();
+        context.on('request', onRequest);
+        return () => context.off('request', onRequest);
+    }
+
     async run(
-        matches: (response: Response) => boolean,
+        matches: (response: BrowserResponse) => boolean,
         action: () => Promise<void>,
         label: string,
         responseTimeoutMs = 15_000,
-    ): Promise<Response> {
-        const observed = this.observe(matches, responseTimeoutMs, label);
+    ): Promise<BrowserResponse> {
+        this.requireOpen();
+        const observed = within(
+            this.page.waitForResponse(matches, { timeout: 60_000 }),
+            responseTimeoutMs,
+            `${label}: ответ не получен за ${responseTimeoutMs} ms; очистка отдельно проверит отправленные запросы.`,
+        );
         const outcomes = await Promise.allSettled([observed, Promise.resolve().then(action)]);
         const failures = outcomes.filter((outcome) => outcome.status === 'rejected').map((outcome) => outcome.reason);
         if (failures.length === 1) throw failures[0];
@@ -52,38 +81,50 @@ ${details.join('\n')}`,
         return response.value;
     }
 
-    private observe(
-        matches: (response: Response) => boolean,
-        responseTimeoutMs: number,
-        label: string,
-    ): Promise<Response> {
-        if (this.completion) throw new Error('Ожидание мутации уже зарегистрировано.');
+    /** send возвращает ответ после полного чтения тела под исходным таймаутом запроса. */
+    trackApi(send: () => Promise<Response>): Promise<Response> {
+        this.requireOpen();
         const started = performance.now();
-        const response = this.page.waitForResponse(matches, { timeout: 60_000 });
-        const finished = response.then(async (value) => {
-            const failure = await value.finished();
-            if (failure) throw new Error('Завершение тела ответа мутации не подтверждено.');
-            return { status: value.status(), elapsedMs: Math.round(performance.now() - started) };
-        });
-        this.completion = within(finished, 60_000, 'Завершение мутации не подтверждено за 60 секунд.').then(
-            (value) => value,
-            () => undefined,
+        const response = Promise.resolve().then(send);
+        this.remember(
+            response.then((value) => ({
+                status: value.status,
+                elapsedMs: Math.round(performance.now() - started),
+            })),
         );
-        return within(
-            response,
-            responseTimeoutMs,
-            `${label}: ответ не получен за ${responseTimeoutMs} ms; очистка отдельно дождётся завершения запроса.`,
-        );
+        return response;
+    }
+
+    private requireOpen(): void {
+        if (this.cleanupStarted) throw new Error('Запись запрещена после начала очистки ДС.');
+    }
+
+    private remember(finished: Promise<FinishedWrite>): void {
+        // Запись может упасть до teardown. Сохраняем исходный Promise для барьера.
+        void finished.catch(() => {});
+        this.completions.push(finished);
     }
 
     async waitBeforeCleanup(systemId: string): Promise<void> {
-        if (!this.completion) return;
-        const result = await this.completion;
-        if (!result) {
-            throw new Error(
-                `DELETE ДС ${systemId} пропущен: результат мутации не подтверждён; автоматический повтор отсутствует.`,
+        this.cleanupStarted = true;
+        const message = `DELETE ДС ${systemId} пропущен: результат мутации не подтверждён.`;
+        const deadline = performance.now() + 60_000;
+        const remaining = () => Math.max(0, deadline - performance.now());
+        const waitForWrites = (writes: Promise<FinishedWrite>[]) =>
+            within(Promise.all(writes), remaining(), message).catch((cause: unknown) => {
+                throw new Error(message, { cause });
+            });
+        const beforeClose = await waitForWrites(this.completions);
+
+        // Контекст остаётся под наблюдением до закрытия, в том числе во время сбора артефактов Playwright.
+        await within(this.page.context().close(), remaining(), message).catch((cause: unknown) => {
+            throw new Error(`DELETE ДС ${systemId} пропущен: закрытие контекста браузера не подтверждено.`, { cause });
+        });
+        const duringClose = await waitForWrites(this.completions.slice(beforeClose.length));
+        for (const result of [...beforeClose, ...duringClose]) {
+            console.info(
+                `[e2e:mutation] Мутация завершена перед DELETE; HTTP ${result.status}; ${result.elapsedMs} ms.`,
             );
         }
-        console.info(`[e2e:mutation] Мутация завершена перед DELETE; HTTP ${result.status}; ${result.elapsedMs} ms.`);
     }
 }
