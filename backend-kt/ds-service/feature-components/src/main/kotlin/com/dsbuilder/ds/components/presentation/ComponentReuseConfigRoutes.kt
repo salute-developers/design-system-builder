@@ -41,7 +41,7 @@ fun Route.componentReuseConfigRoutes(
     delete: DeleteComponentReuseConfigUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/component-reuse-configs")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/component-reuse-configs")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
@@ -89,7 +89,8 @@ fun Route.componentReuseConfigRoutes(
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
-            val command = call.receive<CreateComponentReuseConfigRequest>().toCommand()
+            val command = call.receive<CreateComponentReuseConfigRequest>()
+                .toCommand(requireNotNull(context.designSystemId))
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val createContext = context.withIdempotentResponse { value: ComponentReuseConfig ->
                 json.encodeToString(ComponentReuseConfigResponse.serializer(), ComponentReuseConfigResponse.from(value))
@@ -145,10 +146,10 @@ fun Route.componentReuseConfigRoutes(
 }
 
 @Suppress("ReturnCount")
-private fun CreateComponentReuseConfigRequest.toCommand(): ComponentReuseConfigRepository.Create? {
+private fun CreateComponentReuseConfigRequest.toCommand(owner: java.util.UUID): ComponentReuseConfigRepository.Create? {
     return ComponentReuseConfigRepository.Create(
         componentDepId.toUuidOrNull() ?: return null,
-        designSystemId.toUuidOrNull() ?: return null,
+        owner,
         appearanceId.toUuidOrNull() ?: return null,
         variationId.toUuidOrNull() ?: return null,
         styleId.toUuidOrNull() ?: return null,

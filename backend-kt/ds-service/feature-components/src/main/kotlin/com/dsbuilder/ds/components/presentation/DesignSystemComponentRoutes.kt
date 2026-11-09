@@ -35,7 +35,7 @@ fun Route.designSystemComponentRoutes(
     delete: DeleteDesignSystemComponentUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/design-system-components")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/design-system-components")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
@@ -73,7 +73,7 @@ fun Route.designSystemComponentRoutes(
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateDesignSystemComponentRequest>()
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
             val componentId = request.componentId.toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_component_id"))

@@ -28,7 +28,7 @@ private val lenientJson = Json { ignoreUnknownKeys = true }
  * a trusted system administrator may call it. The gateway accepts a user token only on this route.
  */
 fun Route.apiMetaImportRoutes(evaluator: PolicyEvaluator, importApiMeta: ImportApiMetaUseCase, json: Json) {
-    route(dsRoutePath("/api/ds/admin/component-config")) {
+    route(dsRoutePath("/api/admin/component-config")) {
         post("/import-api-meta") {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

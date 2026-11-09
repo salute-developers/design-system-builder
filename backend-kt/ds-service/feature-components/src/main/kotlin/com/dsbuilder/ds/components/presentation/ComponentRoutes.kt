@@ -49,7 +49,7 @@ fun Route.componentRoutes(
     enrichedDependencies: GetComponentDependenciesWithReuseConfigUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/components")) {
+    route(dsRoutePath("/api/design-systems/catalog/components")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
@@ -138,6 +138,11 @@ fun Route.componentRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
+
+        componentPropertyReads(evaluator, properties, enrichedProperties)
+        componentDependencyReads(evaluator, dependencies, enrichedDependencies)
+    }
+    route(dsRoutePath("/api/design-systems/{designSystemId}/components")) {
         get("/{id}/variations") {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
@@ -147,10 +152,7 @@ fun Route.componentRoutes(
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            val designSystemId = call.request.queryParameters["designSystemId"]?.let {
-                it.toUuidOrNull()
-                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
-            }
+            val designSystemId = context.designSystemId
             when (val result = variations.execute(context, id, designSystemId)) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
@@ -159,77 +161,93 @@ fun Route.componentRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        get("/{id}/properties") {
-            val include = call.request.queryParameters["include"]
-            val context = if (include != null) {
-                call.modelReadContext(evaluator) ?: return@get
-            } else {
-                TrustedDsRequestContextMapper.map(
-                    call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
-                ) ?: return@get call.respondFailure(DsFailure.Forbidden)
-            }
-            val id = call.parameters["id"].toUuidOrNull()
-                ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            if (include != null && include != "platformParams") {
-                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_include"))
-            }
-            if (include == "platformParams") {
-                val designSystemId = call.request.queryParameters["designSystemId"].toUuidOrNull()
-                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
-                when (val result = enrichedProperties.execute(context, id, designSystemId)) {
-                    is DsResult.Success -> call.respondSuccess(
-                        result,
-                        result.value.map {
-                            ComponentPropertySummaryResponse.from(
-                                it.property,
-                                it.platformParams.map(PropertyPlatformParamResponse::from),
-                            )
-                        },
-                    )
-                    is DsResult.Failure -> call.respondFailure(result.error)
-                }
-                return@get
-            }
-            when (val result = properties.execute(context, id)) {
-                is DsResult.Success -> call.respondSuccess(
-                    result,
-                    result.value.map(ComponentPropertySummaryResponse::from),
-                )
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-        get("/{id}/deps") {
-            val include = call.request.queryParameters["include"]
-            val context = if (include != null) {
-                call.modelReadContext(evaluator) ?: return@get
-            } else {
-                TrustedDsRequestContextMapper.map(
-                    call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
-                ) ?: return@get call.respondFailure(DsFailure.Forbidden)
-            }
-            val id = call.parameters["id"].toUuidOrNull()
-                ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            if (include != null && include != "reuseConfig") {
-                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_include"))
-            }
-            if (include == "reuseConfig") {
-                val designSystemId = call.request.queryParameters["designSystemId"].toUuidOrNull()
-                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
-                when (val result = enrichedDependencies.execute(context, id, designSystemId)) {
-                    is DsResult.Success -> call.respondSuccess(
-                        result,
-                        ComponentDependencyGraphResponse.from(result.value.graph, result.value.reuseConfigs),
-                    )
-                    is DsResult.Failure -> call.respondFailure(result.error)
-                }
-                return@get
-            }
-            when (val result = dependencies.execute(context, id)) {
-                is DsResult.Success -> call.respondSuccess(result, ComponentDependencyGraphResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
+        componentPropertyReads(evaluator, properties, enrichedProperties)
+        componentDependencyReads(evaluator, dependencies, enrichedDependencies)
     }
 }
 
 internal fun String?.toUuidOrNull(): UUID? = this?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+
+private fun Route.componentPropertyReads(
+    evaluator: PolicyEvaluator,
+    properties: ListComponentPropertiesUseCase,
+    enrichedProperties: GetComponentPropertiesWithPlatformParamsUseCase,
+) {
+    get("/{id}/properties") {
+        val include = call.request.queryParameters["include"]
+        val context = if (include != null) {
+            call.modelReadContext(evaluator) ?: return@get
+        } else {
+            TrustedDsRequestContextMapper.map(
+                call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
+            ) ?: return@get call.respondFailure(DsFailure.Forbidden)
+        }
+        val id = call.parameters["id"].toUuidOrNull()
+            ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        if (include != null && include != "platformParams") {
+            return@get call.respondFailure(DsFailure.InvalidRequest("invalid_include"))
+        }
+        if (include == "platformParams") {
+            val designSystemId = context.designSystemId
+                ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
+            when (val result = enrichedProperties.execute(context, id, designSystemId)) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    result.value.map {
+                        ComponentPropertySummaryResponse.from(
+                            it.property,
+                            it.platformParams.map(PropertyPlatformParamResponse::from),
+                        )
+                    },
+                )
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
+            return@get
+        }
+        when (val result = properties.execute(context, id)) {
+            is DsResult.Success -> call.respondSuccess(
+                result,
+                result.value.map(ComponentPropertySummaryResponse::from),
+            )
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}
+
+private fun Route.componentDependencyReads(
+    evaluator: PolicyEvaluator,
+    dependencies: ListDependenciesByComponentUseCase,
+    enrichedDependencies: GetComponentDependenciesWithReuseConfigUseCase,
+) {
+    get("/{id}/deps") {
+        val include = call.request.queryParameters["include"]
+        val context = if (include != null) {
+            call.modelReadContext(evaluator) ?: return@get
+        } else {
+            TrustedDsRequestContextMapper.map(
+                call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
+            ) ?: return@get call.respondFailure(DsFailure.Forbidden)
+        }
+        val id = call.parameters["id"].toUuidOrNull()
+            ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        if (include != null && include != "reuseConfig") {
+            return@get call.respondFailure(DsFailure.InvalidRequest("invalid_include"))
+        }
+        if (include == "reuseConfig") {
+            val designSystemId = context.designSystemId
+                ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
+            when (val result = enrichedDependencies.execute(context, id, designSystemId)) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    ComponentDependencyGraphResponse.from(result.value.graph, result.value.reuseConfigs),
+                )
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
+            return@get
+        }
+        when (val result = dependencies.execute(context, id)) {
+            is DsResult.Success -> call.respondSuccess(result, ComponentDependencyGraphResponse.from(result.value))
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}

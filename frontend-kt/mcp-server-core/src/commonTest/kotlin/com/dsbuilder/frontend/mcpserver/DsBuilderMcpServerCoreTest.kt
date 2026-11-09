@@ -83,7 +83,11 @@ class DsBuilderMcpServerCoreTest {
             ),
         )
         assertFalse(result.isError, result.body)
-        assertEquals("/api/projects/project-a/ds/appearances/$id/variations?version=draft", paths.single())
+        assertEquals(
+            "/api/projects/project-a/design-systems/" +
+                "550e8400-e29b-41d4-a716-446655440000/appearances/$id/variations?version=draft",
+            paths.single(),
+        )
         assertErrorCode(
             "INVALID_QUERY",
             core.callTool(

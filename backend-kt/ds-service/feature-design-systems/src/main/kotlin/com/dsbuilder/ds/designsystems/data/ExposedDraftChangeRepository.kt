@@ -510,6 +510,7 @@ class ExposedDraftChangeRepository(
             FROM design_system_versions boundary
             JOIN design_systems system ON system.id = boundary.design_system_id
             WHERE boundary.design_system_id = ? AND $requested AND $access
+              AND ds_request_matches_design_system(boundary.design_system_id)
               AND boundary.snapshot IS NULL
             LIMIT 1
         """.trimIndent()

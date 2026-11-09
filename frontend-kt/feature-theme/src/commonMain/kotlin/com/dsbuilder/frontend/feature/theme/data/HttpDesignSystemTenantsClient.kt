@@ -27,7 +27,7 @@ public class HttpDesignSystemTenantsClient(
         designSystemId: String,
     ): DesignSystemTenantsResult {
         val client = httpClientFactory.create(apiUrl, credential)
-        return when (val result = client.get("/api/projects/$projectId/ds/design-systems/$designSystemId/tenants")) {
+        return when (val result = client.get("/api/projects/$projectId/design-systems/$designSystemId/tenants")) {
             is AuthenticatedHttpResult.Success -> decode(result.body)
             is AuthenticatedHttpResult.Failure -> DesignSystemTenantsResult.Failed(
                 if (result.statusCode == HTTP_UNAUTHORIZED) {

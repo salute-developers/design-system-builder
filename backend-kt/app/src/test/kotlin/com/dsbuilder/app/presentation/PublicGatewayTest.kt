@@ -66,19 +66,19 @@ class PublicGatewayTest {
         application {
             installPublicGateway(configuration, authorizer)
             routing {
-                get("/api/projects/{projectId}/ds/probe") {
+                get("/api/projects/{projectId}/design-systems/probe") {
                     call.respondText(call.verifiedRequestHeaders()["X-User-Id"].orEmpty())
                 }
             }
         }
         assertEquals(
             HttpStatusCode.Unauthorized,
-            client.get("/api/projects/p/ds/probe") {
+            client.get("/api/projects/p/design-systems/probe") {
                 header("X-System-Admin", "true")
                 header("X-User-Id", "spoofed")
             }.status,
         )
-        val authorized = client.get("/api/projects/p/ds/probe") {
+        val authorized = client.get("/api/projects/p/design-systems/probe") {
             header("Authorization", "Bearer valid")
             header("X-User-Id", "spoofed")
         }
@@ -114,7 +114,10 @@ class PublicGatewayTest {
         for (path in listOf("/api/ds/tenants/t/size-tokens", "/unknown")) {
             assertEquals(HttpStatusCode.NotFound, client.get(path) { header("X-System-Admin", "true") }.status)
         }
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/projects/p/ds/tenants/t/size-tokens").status)
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.get("/api/projects/p/design-systems/tenants/t/size-tokens").status,
+        )
     }
 
     @Test

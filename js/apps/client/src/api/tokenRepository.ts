@@ -27,7 +27,7 @@ export const tokenRepository = {
     async loadColorGroups(context: EditorContextKey, signal?: AbortSignal) {
         const request = readRequest(context, signal);
         const response = await readEditor<import('../modules/colorTokens/domain/types').TokenGroupDto[]>(
-            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/token-groups`,
+            `${apiRoot(context.projectId, context.designSystemId)}/token-groups`,
             { ...request, params: { ...request.params, kind: 'color' } },
         );
         return response.data;
@@ -39,7 +39,7 @@ export const tokenRepository = {
         types?: TokenDefinitionDto['type'][],
         knownPalette?: ThemeEditorTokenSnapshot['palette'],
     ): Promise<ThemeEditorTokenSnapshot> {
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const request = readRequest(context, signal);
         const themePalette = knownPalette
             ? Promise.resolve({ palette: knownPalette, paletteError: undefined })
@@ -60,13 +60,13 @@ export const tokenRepository = {
             types
                 ? Promise.all(
                       types.map((type) =>
-                          readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, {
+                          readEditor<TokenDefinitionDto[]>(`${root}/tokens`, {
                               ...request,
                               params: { ...request.params, type },
                           }),
                       ),
                   ).then((responses) => ({ data: responses.flatMap((response) => response.data) }))
-                : readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
+                : readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
             readEditor<TenantTokenValueDto[]>(
                 `${root}/tenants/${context.tenantId}/token-values`,
                 types ? { ...request, params: { ...request.params, types: types.join(',') } } : request,
@@ -74,13 +74,13 @@ export const tokenRepository = {
             context.versionId || knownPublicationVersion
                 ? Promise.resolve({ data: [] as DesignSystemVersionDto[] })
                 : readEditor<DesignSystemVersionDto[]>(
-                      `${root}/design-system-versions/by-design-system/${context.designSystemId}`,
+                      `${root}/versions`,
                       { signal },
                   ),
         ]);
         if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
         const palette = values.data.some((value) => value.paletteId)
-            ? await readEditor<PaletteDto[]>(`${root}/palette`, { signal })
+            ? await readEditor<PaletteDto[]>(`${apiRoot(context.projectId)}/palette`, { signal })
             : { data: [] as PaletteDto[] };
         const paletteById = new Map(palette.data.map((entry) => [entry.id, entry]));
         const valuesByToken = new Map<string, TenantTokenValueDto[]>();
@@ -210,7 +210,7 @@ export const tokenRepository = {
         idempotencyKey: string = crypto.randomUUID(),
     ) {
         const response = await http.put<{ editRevision: number; values: TenantTokenValueDto[] }>(
-            `${apiRoot(context.projectId)}/tenants/${context.tenantId}/token-values`,
+            `${apiRoot(context.projectId, context.designSystemId)}/tenants/${context.tenantId}/token-values`,
             { editRevision, values },
             {
                 headers: { 'X-DS-Base-Revision': '0', 'Idempotency-Key': idempotencyKey },
@@ -236,7 +236,7 @@ export const tokenRepository = {
         keepalive = false,
         signal?: AbortSignal,
     ) {
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const mode: 'light' | 'dark' | null = mutation.tokenName.startsWith('light.')
             ? 'light'
             : mutation.tokenName.startsWith('dark.')
@@ -268,7 +268,7 @@ export const tokenRepository = {
             const created = await http.post<TokenDefinitionDto>(
                 `${root}/tokens`,
                 {
-                    designSystemId: context.designSystemId,
+
                     name: tokenName,
                     type: mutation.change.type,
                     displayName: mutation.change.meta?.displayName ?? tokenName,
@@ -332,7 +332,7 @@ export const tokenRepository = {
     async listDefinitions(context: EditorContextKey, signal?: AbortSignal) {
         return (
             await readEditor<TokenDefinitionDto[]>(
-                `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/tokens`,
+                `${apiRoot(context.projectId, context.designSystemId)}/tokens`,
                 readRequest(context, signal),
             )
         ).data;

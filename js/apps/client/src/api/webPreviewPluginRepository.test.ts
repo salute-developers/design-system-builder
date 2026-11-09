@@ -36,7 +36,7 @@ describe('fetchWebPreviewPluginDescriptor', () => {
         await expect(fetchWebPreviewPluginDescriptor('project-1')).resolves.toEqual(data);
 
         expect(get).toHaveBeenCalledTimes(1);
-        expect(get).toHaveBeenCalledWith('https://api.test/api/projects/project-1/ds/web-preview/plugin');
+        expect(get).toHaveBeenCalledWith('https://api.test/api/projects/project-1/design-systems/catalog/web-preview/plugin');
     });
 
     it('treats 404 as "no web plugin is published"', async () => {

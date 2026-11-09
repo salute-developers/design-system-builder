@@ -391,7 +391,7 @@ describe('useDesignSystem server autosave', () => {
         await act(async () => {
             reportIncompleteMutationMetadata({
                 headers: { 'x-ds-mutation-metadata-truncated': 'true' },
-                config: { url: '/api/projects/project-1/ds/tenants/tenant-1/color-tokens' },
+                config: { url: '/api/projects/project-1/design-systems/ds-1/tenants/tenant-1/color-tokens' },
             });
             setDraftAutosaveActivity(context, 'palette', 'saved');
         });
@@ -408,7 +408,7 @@ describe('useDesignSystem server autosave', () => {
         unmount();
         reportIncompleteMutationMetadata({
             headers: { 'x-ds-mutation-metadata-truncated': 'true' },
-            config: { url: '/api/projects/project-1/ds/tenants/tenant-1/color-tokens' },
+            config: { url: '/api/projects/project-1/design-systems/ds-1/tenants/tenant-1/color-tokens' },
         });
         expect(loadTokenData).toHaveBeenCalledTimes(1);
     });
@@ -680,7 +680,7 @@ describe('useDesignSystem server autosave', () => {
     });
 
     it('повторяет при открытии темы неподтверждённую команду токенов размеров той же командой', async () => {
-        const path = '/api/projects/project-1/ds/tenants/tenant-1/size-tokens/round-l/value';
+        const path = '/api/projects/project-1/design-systems/ds-1/tenants/tenant-1/size-tokens/round-l/value';
         const body = { valuePx: 16, platforms: { android: 18 }, baseRevisions: { web: 2, ios: 3, android: 4 } };
         localStorage.setItem(
             'ds_pending_size_tokens:project-1:ds-1:tenant-1:round-l',

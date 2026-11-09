@@ -172,6 +172,11 @@ private class FakeJournal(
     val batches = mutableListOf<List<UUID>>()
     val commits = mutableListOf<Boolean>()
 
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = required(context, block)
+
     override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> =
         block().also { commits += it is DsResult.Success }
 

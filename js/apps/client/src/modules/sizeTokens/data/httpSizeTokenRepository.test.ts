@@ -6,7 +6,7 @@ import { observeTokenValueRevisions } from '../../../api/subjectRevisions';
 import { createHttpSizeTokenRepository } from './httpSizeTokenRepository';
 
 const context = { projectId: 'p1', designSystemId: 'ds', tenantId: 't1' };
-const base = '/api/projects/p1/ds/tenants/t1/size-tokens';
+const base = '/api/projects/p1/design-systems/ds/tenants/t1/size-tokens';
 
 const axiosError = (status: number | null, data: unknown = {}) =>
     new AxiosError(

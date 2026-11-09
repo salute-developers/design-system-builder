@@ -36,14 +36,14 @@ class EditorSectionReadsPostgresIntegrationTest {
                     )
                 }
                 val system =
-                    read(client, "POST", "/api/ds/design-systems", """{"name":"sections","projectName":"sections"}""")
+                    read(client, "POST", "/api/design-systems", """{"name":"sections","projectName":"sections"}""")
                 val systemId = system.field("id")
-                val summaryPath = "/api/ds/design-systems/$systemId/changes/summary"
+                val summaryPath = "/api/design-systems/$systemId/changes/summary"
                 assertEquals("0", read(client, "GET", summaryPath).field("total"))
                 val tenant =
-                    read(client, "POST", "/api/ds/tenants", """{"designSystemId":"$systemId","name":"first"}""")
+                    read(client, "POST", "/api/design-systems/$systemId/tenants", """{"name":"first"}""")
                 val tenantId = tenant.field("id")
-                val markersPath = "/api/ds/design-systems/$systemId/changes/token-ids?tenantId=$tenantId"
+                val markersPath = "/api/design-systems/$systemId/changes/token-ids?tenantId=$tenantId"
                 val markers = api(client, "GET", markersPath)
                 assertEquals(HttpStatusCode.OK, markers.status)
                 assertNotNull(markers.headers["X-DS-Read-Context"])
@@ -59,19 +59,19 @@ class EditorSectionReadsPostgresIntegrationTest {
                 assertEquals(setOf("total"), summary.jsonObject.keys)
                 assertEquals("1", summary.field("total"))
                 assertEquals(HttpStatusCode.NotFound, api(client, "GET", summaryPath, project = "other").status)
-                val definitions = read(client, "GET", "/api/ds/design-systems/$systemId/tokens").jsonArray
+                val definitions = read(client, "GET", "/api/design-systems/$systemId/tokens").jsonArray
                 val colorIds = definitions.filter { it.field("type") == "color" }.map { it.field("id") }.toSet()
-                val filteredDefinitions = read(client, "GET", "/api/ds/design-systems/$systemId/tokens?type=color")
+                val filteredDefinitions = read(client, "GET", "/api/design-systems/$systemId/tokens?type=color")
                     .jsonArray
                 assertEquals(colorIds, filteredDefinitions.map { it.field("id") }.toSet())
                 assertEquals(
                     definitions.filter { it.field("type") == "gradient" }.map { it.field("id") }.toSet(),
-                    read(client, "GET", "/api/ds/design-systems/$systemId/tokens?type=gradient")
+                    read(client, "GET", "/api/design-systems/$systemId/tokens?type=gradient")
                         .jsonArray.map { it.field("id") }.toSet(),
                 )
                 val sizeIds = definitions.filter { it.field("type") in setOf("shape", "spacing", "shadow") }
                     .map { it.field("id") }.toSet()
-                val path = "/api/ds/tenants/$tenantId/token-values"
+                val path = "/api/design-systems/$systemId/tenants/$tenantId/token-values"
                 val colors = read(client, "GET", "$path?types=color").jsonArray
                 val sizes = read(client, "GET", "$path?types=shape,spacing,shadow").jsonArray
                 assertTrue(colors.isNotEmpty())
@@ -80,12 +80,12 @@ class EditorSectionReadsPostgresIntegrationTest {
                 assertTrue(sizes.all { it.field("tokenId") in sizeIds })
                 val full = read(client, "GET", path).jsonArray
                 assertTrue(full.size > colors.size)
-                val cursor = read(client, "GET", "/api/ds/design-systems/$systemId")
+                val cursor = read(client, "GET", "/api/design-systems/$systemId")
                 val version = read(
                     client,
                     "POST",
-                    "/api/ds/design-system-versions",
-                    """{"designSystemId":"$systemId","draftId":"${cursor.field(
+                    "/api/design-systems/$systemId/versions",
+                    """{"draftId":"${cursor.field(
                         "draftId",
                     )}","draftRevision":${cursor.field("draftRevision")},"version":"1.0.0"}""",
                 ).field("id")
@@ -96,7 +96,7 @@ class EditorSectionReadsPostgresIntegrationTest {
                 )
                 assertEquals(
                     colorIds,
-                    read(client, "GET", "/api/ds/design-systems/$systemId/tokens?type=color&versionId=$version")
+                    read(client, "GET", "/api/design-systems/$systemId/tokens?type=color&versionId=$version")
                         .jsonArray.map { it.field("id") }.toSet(),
                 )
                 assertEquals(

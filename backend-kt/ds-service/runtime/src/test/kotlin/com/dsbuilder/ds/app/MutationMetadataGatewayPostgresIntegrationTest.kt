@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.server.engine.embeddedServer
@@ -52,11 +54,15 @@ class MutationMetadataGatewayPostgresIntegrationTest {
 
     private fun verifyFamily(baseUrl: String) {
         val api = GatewayApi(baseUrl)
-        val system = api.create("/api/ds/design-systems", """{"name":"metadata","projectName":"metadata"}""")
+        val system = api.create("/api/design-systems", """{"name":"metadata","projectName":"metadata"}""")
         val tenants = listOf("a", "b").map { name ->
-            api.create("/api/ds/tenants", """{"designSystemId":"$system","name":"$name"}""")
+            api.create("/api/design-systems/$system/tenants", """{"name":"$name"}""")
         }
-        val created = api.call("POST", "/api/ds/tenants/${tenants.first()}/color-tokens", familyBody())
+        val created = api.call(
+            "POST",
+            "/api/design-systems/$system/tenants/${tenants.first()}/color-tokens",
+            familyBody(),
+        )
         assertEquals(201, created.statusCode(), created.body())
         assertEquals("true", created.headers().firstValue("X-DS-Mutation-Metadata-Truncated").orElse(null))
         val metadata = created.headers().firstValue("X-DS-Mutation-Metadata").orElseThrow()
@@ -67,7 +73,7 @@ class MutationMetadataGatewayPostgresIntegrationTest {
         assertEquals(12, members.size)
         val ids = members.map { it.jsonObject.getValue("tokenId").jsonPrimitive.content }.toSet()
         tenants.forEach { tenant ->
-            val values = api.call("GET", "/api/ds/tenants/$tenant/token-values")
+            val values = api.call("GET", "/api/design-systems/$system/tenants/$tenant/token-values")
             assertEquals(200, values.statusCode(), values.body())
             val saved = Json.parseToJsonElement(values.body()).jsonArray.filter {
                 it.jsonObject.getValue("tokenId").jsonPrimitive.content in ids

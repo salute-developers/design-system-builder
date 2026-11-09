@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.HttpClient
@@ -42,22 +44,30 @@ class TokenGroupHttpPostgresIntegrationTest {
                 val api = Api(client)
                 ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                 val designSystemId = api.create(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
-                val tenantA = api.create("/api/ds/tenants", EDITOR, tenantBody(designSystemId, "a"))
-                val tenantB = api.create("/api/ds/tenants", EDITOR, tenantBody(designSystemId, "b"))
+                val tenantA = api.create(
+                    "/api/design-systems/$designSystemId/tenants",
+                    EDITOR,
+                    tenantBody(designSystemId, "a"),
+                )
+                val tenantB = api.create(
+                    "/api/design-systems/$designSystemId/tenants",
+                    EDITOR,
+                    tenantBody(designSystemId, "b"),
+                )
                 val db = Db(postgres)
-                val groupsPath = "/api/ds/tenants/$tenantA/token-groups"
-                val colorTokensPath = "/api/ds/tenants/$tenantA/color-tokens"
-                val tokensPath = "/api/ds/design-systems/$designSystemId/tokens"
+                val groupsPath = "/api/design-systems/$designSystemId/tenants/$tenantA/token-groups"
+                val colorTokensPath = "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens"
+                val tokensPath = "/api/design-systems/$designSystemId/tokens"
 
                 // Раскладка создана вместе с темой; чтение не инициализирует данные.
                 val groupCount = "SELECT count(*) FROM token_groups WHERE design_system_id = '$designSystemId'"
                 val initializedGroups = db.count(groupCount)
                 assertTrue(initializedGroups > 0)
-                val groups = api.list("/api/ds/design-systems/$designSystemId/token-groups?kind=color")
+                val groups = api.list("/api/design-systems/$designSystemId/token-groups?kind=color")
                 assertEquals(initializedGroups, db.count(groupCount))
                 val top = groups.filter { it.jsonObject.getValue("parentId") is JsonNull }
                 assertEquals("Text & Icons", top.first().text("label"))
@@ -66,15 +76,15 @@ class TokenGroupHttpPostgresIntegrationTest {
                 val textSubgroups = groups.filter { it.optText("parentId") == text }.map { it.text("label") }
                 assertTrue(textSubgroups.containsAll(listOf("Accent", "Status", "General")), textSubgroups.toString())
                 assertEquals(0, db.count(ungrouped(designSystemId)))
-                assertEquals(groups.size, api.list("/api/ds/design-systems/$designSystemId/token-groups").size)
+                assertEquals(groups.size, api.list("/api/design-systems/$designSystemId/token-groups").size)
                 val listed = api.list(tokensPath).filter { it.text("type") == "color" }
                 assertTrue(
                     listed.all { it.optText("groupId") != null && it.jsonObject.getValue("publishedIn") is JsonNull },
                 )
 
                 // Создание группы и подгруппы; занятое название, третий уровень, права Viewer.
-                var revision = api.revision(tenantA)
-                val revisionB = api.revision(tenantB)
+                var revision = api.revision(designSystemId, tenantA)
+                val revisionB = api.revision(designSystemId, tenantB)
                 val brand = api.mutate(
                     method = "POST",
                     path = groupsPath,
@@ -83,7 +93,7 @@ class TokenGroupHttpPostgresIntegrationTest {
                     status = HttpStatusCode.Created,
                 )
                 assertEquals("brand", brand.obj("value").text("code"))
-                assertEquals(revisionB, api.revision(tenantB))
+                assertEquals(revisionB, api.revision(designSystemId, tenantB))
                 revision = brand.number("editRevision")
                 val main = api.mutate(
                     method = "POST",
@@ -184,7 +194,7 @@ class TokenGroupHttpPostgresIntegrationTest {
                 // Конфигурация компонента отдаёт новое имя по `token_id`.
                 val config = api.call(
                     method = "GET",
-                    path = "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=$appearance" +
+                    path = "/api/design-systems/$designSystemId/component-config?ds=alpha&version=1.0.0&appearance=$appearance" +
                         "&component=$component&platform=$platform",
                     actor = VIEWER,
                 )
@@ -243,12 +253,12 @@ class TokenGroupHttpPostgresIntegrationTest {
                 )
 
                 // Публикация фиксирует предметную границу без общего JSON-снимка.
-                val system = api.body(api.call("GET", "/api/ds/design-systems/$designSystemId", VIEWER)).jsonObject
+                val system = api.body(api.call("GET", "/api/design-systems/$designSystemId", VIEWER)).jsonObject
                 api.mutate(
                     "POST",
-                    "/api/ds/design-system-versions",
+                    "/api/design-systems/$designSystemId/versions",
                     OWNER,
-                    """{"designSystemId":"$designSystemId","draftId":"${system.text(
+                    """{"draftId":"${system.text(
                         "draftId",
                     )}","draftRevision":${system.number("draftRevision")},"version":"1.0.0"}""",
                     HttpStatusCode.Created,
@@ -275,7 +285,7 @@ class TokenGroupHttpPostgresIntegrationTest {
                 this.method = HttpMethod.parse(method)
                 trusted(actor)
                 if (method == "POST") header("Idempotency-Key", java.util.UUID.randomUUID().toString())
-                if (method != "GET" && path !in setOf("/api/ds/design-systems", "/api/ds/tenants")) {
+                if (method != "GET" && path != "/api/design-systems" && !path.endsWith("/tenants")) {
                     header("X-DS-Base-Revision", "0")
                 }
                 body?.let { jsonBody(it) }
@@ -304,8 +314,8 @@ class TokenGroupHttpPostgresIntegrationTest {
             return body(response).jsonObject
         }
 
-        suspend fun revision(tenantId: String): Int {
-            val response = call("GET", "/api/ds/tenants/$tenantId", VIEWER)
+        suspend fun revision(designSystemId: String, tenantId: String): Int {
+            val response = call("GET", "/api/design-systems/$designSystemId/tenants/$tenantId", VIEWER)
             return body(response).number("editRevision")
         }
 
@@ -386,7 +396,7 @@ class TokenGroupHttpPostgresIntegrationTest {
             "UNION ALL SELECT token_id, value FROM invariant_property_values) v WHERE token_id = '$tokenId'"
 
     private fun tenantBody(designSystemId: String, name: String) =
-        """{"designSystemId":"$designSystemId","name":"$name"}"""
+        """{"name":"$name"}"""
 
     private fun groupBody(revision: Int, parentId: String?, label: String): String {
         val parent = parentId?.let { "\"$it\"" } ?: "null"

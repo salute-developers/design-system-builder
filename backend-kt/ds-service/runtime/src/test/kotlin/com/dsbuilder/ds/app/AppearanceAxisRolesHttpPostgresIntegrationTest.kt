@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.request.HttpRequestBuilder
@@ -133,7 +135,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         importConfig(ds, "default", config(root = "shape", scheme = "view", "shape", "size", "view"))
         val appearance = appearanceId()
 
-        var axes = axes(appearance)
+        var axes = axes(ds, appearance)
         assertEquals(setOf("shape"), axes.rootNames())
         assertEquals(setOf("view"), axes.schemeNames())
 
@@ -144,7 +146,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val sizeAxisRevision = editRevision("appearance-variation", sizeAxis)
 
         val moved = patch(
-            "/api/ds/appearance-variations/$sizeAxis",
+            "/api/design-systems/$ds/appearance-variations/$sizeAxis",
             """{"isRoot":true}""",
             appearanceRevision,
         )
@@ -152,26 +154,26 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertTrue(moved.headers["X-DS-Mutation-Metadata"].orEmpty().contains("\"warnings\": []"))
         assertEquals(sizeAxisRevision, editRevision("appearance-variation", sizeAxis))
         assertEquals("/root_variation_id", latestPaths("appearance", appearance, appearanceRevision + 1))
-        axes = axes(appearance)
+        axes = axes(ds, appearance)
         assertEquals(setOf("size"), axes.rootNames())
 
-        val conflict = patch("/api/ds/appearance-variations/$viewAxis", """{"isRoot":true}""")
+        val conflict = patch("/api/design-systems/$ds/appearance-variations/$viewAxis", """{"isRoot":true}""")
         assertEquals(HttpStatusCode.Conflict, conflict.status, conflict.bodyAsText())
-        assertEquals(setOf("size"), axes(appearance).rootNames())
-        assertEquals(setOf("view"), axes(appearance).schemeNames())
+        assertEquals(setOf("size"), axes(ds, appearance).rootNames())
+        assertEquals(setOf("view"), axes(ds, appearance).schemeNames())
 
         val schemeMoved = patch(
-            "/api/ds/appearance-variations/$shapeAxis",
+            "/api/design-systems/$ds/appearance-variations/$shapeAxis",
             """{"isColorScheme":true}""",
             appearanceRevision,
         )
         assertEquals(HttpStatusCode.OK, schemeMoved.status, schemeMoved.bodyAsText())
         assertTrue(schemeMoved.headers["X-DS-Mutation-Metadata"].orEmpty().contains("\"warnings\": []"))
-        assertEquals(setOf("shape"), axes(appearance).schemeNames())
+        assertEquals(setOf("shape"), axes(ds, appearance).schemeNames())
         assertEquals("1", colorSchemeAxisCount())
 
         val released = patch(
-            "/api/ds/appearance-variations/$shapeAxis",
+            "/api/design-systems/$ds/appearance-variations/$shapeAxis",
             """{"isColorScheme":false}""",
             appearanceRevision,
         )
@@ -180,7 +182,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
             released.headers["X-DS-Mutation-Metadata"].orEmpty()
                 .contains("\"warnings\": [\"/color_scheme_variation_id\"]"),
         )
-        assertEquals(emptySet(), axes(appearance).schemeNames())
+        assertEquals(emptySet(), axes(ds, appearance).schemeNames())
         assertEquals("0", colorSchemeAxisCount())
     }
 
@@ -189,13 +191,13 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val ds = designSystem()
         importConfig(ds, "default", config(root = "shape", scheme = "view", "shape", "size", "view"))
         val appearance = appearanceId()
-        val axes = axes(appearance)
+        val axes = axes(ds, appearance)
         val shapeAxis = axes.axisId("shape")
         val viewAxis = axes.axisId("view")
         val revision = editRevision("appearance", appearance)
 
         val repeated = patch(
-            "/api/ds/appearance-variations/$shapeAxis",
+            "/api/design-systems/$ds/appearance-variations/$shapeAxis",
             """{"isRoot":true}""",
             revision,
         )
@@ -203,7 +205,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertEquals(revision, editRevision("appearance", appearance))
 
         val mixed = patch(
-            "/api/ds/appearance-variations/$viewAxis",
+            "/api/design-systems/$ds/appearance-variations/$viewAxis",
             """{"isRoot":false,"isColorScheme":false}""",
             revision,
         )
@@ -217,17 +219,20 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val ds = designSystem()
         importConfig(ds, "default", config(root = "size", scheme = "view", "view", "shape", "size"))
         val appearance = appearanceId()
-        val sizeAxis = axes(appearance).axisId("size")
+        val sizeAxis = axes(ds, appearance).axisId("size")
 
-        val deleted = delete("/api/ds/appearance-variations/$sizeAxis")
+        val deleted = delete("/api/design-systems/$ds/appearance-variations/$sizeAxis")
         assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
-        assertEquals(setOf("shape"), axes(appearance).rootNames())
-        assertEquals(setOf("view"), axes(appearance).schemeNames())
+        assertEquals(setOf("shape"), axes(ds, appearance).rootNames())
+        assertEquals(setOf("view"), axes(ds, appearance).schemeNames())
 
         // Ось цветовой схемы заблокирована: её нельзя удалить, роли остаются как были.
-        val viewAxis = axes(appearance).axisId("view")
-        assertEquals(HttpStatusCode.UnprocessableEntity, delete("/api/ds/appearance-variations/$viewAxis").status)
-        assertEquals(setOf("view"), axes(appearance).schemeNames())
+        val viewAxis = axes(ds, appearance).axisId("view")
+        assertEquals(
+            HttpStatusCode.UnprocessableEntity,
+            delete("/api/design-systems/$ds/appearance-variations/$viewAxis").status,
+        )
+        assertEquals(setOf("view"), axes(ds, appearance).schemeNames())
         assertEquals(
             "shape",
             query(
@@ -245,16 +250,16 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val component = query("SELECT id FROM components WHERE name = 'Button'")
         val variation = id(
             post(
-                "/api/ds/variations",
-                """{"designSystemId":"$ds","componentId":"$component","name":"shape"}""",
+                "/api/design-systems/$ds/variations",
+                """{"componentId":"$component","name":"shape"}""",
             ).bodyAsText(),
         )
         val created = post(
-            "/api/ds/appearance-variations",
+            "/api/design-systems/$ds/appearance-variations",
             """{"appearanceId":"$appearance","variationId":"$variation","position":0}""",
         )
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
-        assertEquals(setOf("shape"), axes(appearance).rootNames())
+        assertEquals(setOf("shape"), axes(ds, appearance).rootNames())
         assertTrue(created.bodyAsText().contains("\"isRoot\":true"))
     }
 
@@ -266,16 +271,16 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val component = query("SELECT id FROM components WHERE name = 'Button'")
         val variation = id(
             post(
-                "/api/ds/variations",
-                """{"designSystemId":"$ds","componentId":"$component","name":"shape"}""",
+                "/api/design-systems/$ds/variations",
+                """{"componentId":"$component","name":"shape"}""",
             ).bodyAsText(),
         )
         val body = """{"appearanceId":"$appearance","variationId":"$variation","position":0}"""
 
-        val first = post("/api/ds/appearance-variations", body, idempotencyKey = "axis-create")
-        val replay = post("/api/ds/appearance-variations", body, idempotencyKey = "axis-create")
+        val first = post("/api/design-systems/$ds/appearance-variations", body, idempotencyKey = "axis-create")
+        val replay = post("/api/design-systems/$ds/appearance-variations", body, idempotencyKey = "axis-create")
         val mismatch = post(
-            "/api/ds/appearance-variations",
+            "/api/design-systems/$ds/appearance-variations",
             """{"appearanceId":"$appearance","variationId":"$variation","position":1}""",
             idempotencyKey = "axis-create",
         )
@@ -291,11 +296,11 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
 
     private suspend fun designSystem(): String {
         val ds =
-            id(post("/api/ds/design-systems", """{"name":"alpha","projectName":"alpha"}""", owner = true).bodyAsText())
-        post("/api/ds/components", """{"name":"Button","platform":"compose"}""")
+            id(post("/api/design-systems", """{"name":"alpha","projectName":"alpha"}""", owner = true).bodyAsText())
+        post("/api/design-systems/catalog/components", """{"name":"Button","platform":"compose"}""")
         post(
-            "/api/ds/design-system-versions",
-            """{"designSystemId":"$ds","version":"1.0.0","snapshot":{},"publicationStatus":"published"}""",
+            "/api/design-systems/$ds/versions",
+            """{"version":"1.0.0","snapshot":{},"publicationStatus":"published"}""",
             owner = true,
         )
         return ds
@@ -313,9 +318,9 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
     }
 
     private suspend fun importConfig(ds: String, style: String, config: String): HttpResponse = post(
-        "/api/ds/component-config/import",
+        "/api/design-systems/$ds/component-config/import",
         """
-        {"designSystemId":"$ds","platform":"compose","meta":{"name":"fixture","source":"kotlin-test"},"dryRun":false,
+        {"platform":"compose","meta":{"name":"fixture","source":"kotlin-test"},"dryRun":false,
          "components":[{"componentName":"button","styleName":"$style","config":$config}]}
         """.trimIndent(),
         editor = true,
@@ -323,8 +328,8 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
 
     private suspend fun exported(ds: String, style: String): JsonObject {
         val response = post(
-            "/api/ds/component-config/export",
-            """{"designSystemId":"$ds","platform":"compose"}""",
+            "/api/design-systems/$ds/component-config/export",
+            """{"platform":"compose"}""",
             viewer = true,
         )
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
@@ -333,8 +338,8 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
             .getValue("config").jsonObject
     }
 
-    private suspend fun axes(appearance: String): List<JsonObject> {
-        val response = get("/api/ds/appearances/$appearance/variations")
+    private suspend fun axes(ds: String, appearance: String): List<JsonObject> {
+        val response = get("/api/design-systems/$ds/appearances/$appearance/variations")
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         return json.parseToJsonElement(response.bodyAsText()).jsonArray.map { it.jsonObject }
     }

@@ -368,7 +368,7 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         }
 
     private companion object {
-        const val PATH = "/api/ds/admin/component-config/import-api-meta"
+        const val PATH = "/api/admin/component-config/import-api-meta"
         val CREATED = arrayOf(
             "createdComponents",
             "createdProperties",

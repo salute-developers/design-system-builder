@@ -59,12 +59,12 @@ class DsBuilderCliTest {
         val value = Json.parseToJsonElement(nullableAndNonNullColorValuesResponse()).jsonArray.last().jsonObject
         val results = successfulThemeHttpResults().toMutableMap()
         results[
-            "/api/projects/project-a/ds/" +
-                "design-systems/design-system-a/tenants",
+            "/api/projects/project-a/design-systems/" +
+                "design-system-a/tenants",
         ] = AuthenticatedHttpResult.Success(
             Json.encodeToString(ListSerializer(ProjectConfigTenant.serializer()), tenants),
         )
-        results["/api/projects/project-a/ds/design-systems/design-system-a/tokens"] =
+        results["/api/projects/project-a/design-systems/design-system-a/tokens"] =
             AuthenticatedHttpResult.Success(JsonArray(tokens).toString())
         tenants.forEach { tenant ->
             val values = (1..205).map { index ->
@@ -75,7 +75,7 @@ class DsBuilderCliTest {
                     ),
                 )
             }
-            results["/api/projects/project-a/ds/tenants/${tenant.id}/token-values"] =
+            results["/api/projects/project-a/design-systems/design-system-a/tenants/${tenant.id}/token-values"] =
                 AuthenticatedHttpResult.Success(JsonArray(values).toString())
         }
         val calls = mutableListOf<String>()
@@ -114,7 +114,8 @@ class DsBuilderCliTest {
                 fileSystem = fileSystem,
                 environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "test-key"),
                 httpResults = successfulComponentHttpResults() + mapOf(
-                    "/api/projects/project-a/ds/component-config/export" to AuthenticatedHttpResult.Success(response),
+                    "/api/projects/project-a/design-systems/" +
+                        "design-system-a/component-config/export" to AuthenticatedHttpResult.Success(response),
                 ),
                 onGet = { calls += it },
             ),
@@ -128,7 +129,7 @@ class DsBuilderCliTest {
                 Json.parseToJsonElement(fileSystem.readText(path)),
             )
         }
-        assertEquals(listOf("/api/projects/project-a/ds/component-config/export"), calls)
+        assertEquals(listOf("/api/projects/project-a/design-systems/design-system-a/component-config/export"), calls)
     }
 
     @Test
@@ -206,7 +207,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-b" to AuthenticatedHttpResult.Success(
                     """{"id":"project-b","name":"Other project"}""",
                 ),
-                "/api/projects/project-b/ds/design-systems/ds-b" to AuthenticatedHttpResult.Success(
+                "/api/projects/project-b/design-systems/ds-b" to AuthenticatedHttpResult.Success(
                     """{"id":"internal-b","designSystemId":"ds-b","name":"Other DS"}""",
                 ),
             ),
@@ -230,7 +231,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-b" to AuthenticatedHttpResult.Success(
                     """{"id":"project-b","name":"Other project"}""",
                 ),
-                "/api/projects/project-b/ds/design-systems/ds-b" to AuthenticatedHttpResult.Success(
+                "/api/projects/project-b/design-systems/ds-b" to AuthenticatedHttpResult.Success(
                     """{"id":"internal-b","designSystemId":"ds-b","name":"Other DS"}""",
                 ),
             ),
@@ -623,7 +624,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a" to AuthenticatedHttpResult.Success(
                     """{"id":"project-a","name":"SDDS"}""",
                 ),
-                "/api/projects/project-a/ds/design-systems/design-system-a" to AuthenticatedHttpResult.Success(
+                "/api/projects/project-a/design-systems/design-system-a" to AuthenticatedHttpResult.Success(
                     """{"id":"internal-id","designSystemId":"design-system-a","name":"sdds_cs"}""",
                 ),
             ),
@@ -663,7 +664,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a" to AuthenticatedHttpResult.Success(
                     """{"id":"project-a","name":"SDDS"}""",
                 ),
-                "/api/projects/project-a/ds/design-systems/design-system-a" to AuthenticatedHttpResult.Success(
+                "/api/projects/project-a/design-systems/design-system-a" to AuthenticatedHttpResult.Success(
                     """{"id":"internal-id","designSystemId":"design-system-a","name":"sdds_cs"}""",
                 ),
             ),
@@ -675,7 +676,7 @@ class DsBuilderCliTest {
         assertEquals(
             listOf(
                 "/api/projects/project-a",
-                "/api/projects/project-a/ds/design-systems/design-system-a",
+                "/api/projects/project-a/design-systems/design-system-a",
             ),
             calls,
         )
@@ -811,9 +812,9 @@ class DsBuilderCliTest {
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -831,8 +832,9 @@ class DsBuilderCliTest {
                             ]
                         """.trimIndent(),
                     ),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -868,12 +870,13 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(singleColorTokenResponse()),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(nullableAndNonNullColorValuesResponse()),
             ),
         )
@@ -891,12 +894,13 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(singleColorTokenResponse()),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -933,7 +937,7 @@ class DsBuilderCliTest {
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success("""{"not":"an-array"}"""),
             ),
             onGet = { calls += it },
@@ -944,7 +948,7 @@ class DsBuilderCliTest {
         assertEquals(1, result.exitCode)
         assertEquals("Error: Cannot parse tenants response.", result.output)
         assertEquals(
-            listOf("/api/projects/project-a/ds/design-systems/design-system-a/tenants"),
+            listOf("/api/projects/project-a/design-systems/design-system-a/tenants"),
             calls,
         )
         assertFalse(result.output.contains("secret-value"))
@@ -957,7 +961,7 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -984,10 +988,11 @@ class DsBuilderCliTest {
                             ]
                         """.trimIndent(),
                     ),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success("[]"),
             ),
         )
@@ -1006,12 +1011,13 @@ class DsBuilderCliTest {
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """{"error":"unexpected wrapper","apiKey":"secret-value"}""",
                     ),
@@ -1035,11 +1041,11 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
-                "/api/projects/project-a/ds/palette" to
+                "/api/projects/project-a/design-systems/catalog/palette" to
                     AuthenticatedHttpResult.Success("""{"not":"an-array","apiKey":"secret-value"}"""),
             ),
         )
@@ -1115,7 +1121,7 @@ class DsBuilderCliTest {
     fun themeFetchAcceptsNullTokenDisplayNameAndDescription() {
         val fileSystem = initializedFileSystem()
         val results = successfulThemeHttpResults().toMutableMap()
-        val tokenPath = "/api/projects/project-a/ds/design-systems/design-system-a/tokens"
+        val tokenPath = "/api/projects/project-a/design-systems/design-system-a/tokens"
         val response = tokensResponse()
             .replace("\"displayName\": \"iOS primary\"", "\"displayName\": null")
             .replace("\"description\": \"iOS primary color\"", "\"description\": null")
@@ -1162,7 +1168,7 @@ class DsBuilderCliTest {
 
     @Test
     fun componentsFetchPreservesLocalFilesWhenWebAdapterDownloadFails() {
-        val webAdapterEndpoint = "/api/projects/project-a/ds/component-config/web-adapter"
+        val webAdapterEndpoint = "/api/projects/project-a/design-systems/design-system-a/component-config/web-adapter"
         val failures = listOf(
             webAdapterEndpoint to AuthenticatedHttpResult.Failure("Error: unavailable"),
             webAdapterEndpoint to AuthenticatedHttpResult.Success("{\"items\":{}}"),
@@ -1205,7 +1211,7 @@ class DsBuilderCliTest {
         ).execute(listOf("components", "fetch", "--api-key", "override-key"))
 
         assertEquals(0, result.exitCode, result.output)
-        assertEquals(listOf("/api/projects/project-a/ds/component-config/export"), calls)
+        assertEquals(listOf("/api/projects/project-a/design-systems/design-system-a/component-config/export"), calls)
     }
 
     @Test
@@ -1240,7 +1246,8 @@ class DsBuilderCliTest {
                 fileSystem = fileSystem,
                 environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
                 httpResults = mapOf(
-                    "/api/projects/project-a/ds/component-config/export" to AuthenticatedHttpResult.Success(response),
+                    "/api/projects/project-a/design-systems/" +
+                        "design-system-a/component-config/export" to AuthenticatedHttpResult.Success(response),
                 ) + successfulComponentHttpResults().filterKeys { it.endsWith("/web-adapter") },
             ),
         ).execute(listOf("components", "fetch"))
@@ -1252,12 +1259,14 @@ class DsBuilderCliTest {
     }
 
     private fun successfulComponentHttpResults(): Map<String, AuthenticatedHttpResult> = mapOf(
-        "/api/projects/project-a/ds/component-config/export" to AuthenticatedHttpResult.Success(
-            """{"meta":{"name":"SDDS CS","version":"latest"},"components":[]}""",
-        ),
-        "/api/projects/project-a/ds/component-config/web-adapter" to AuthenticatedHttpResult.Success(
-            "[]",
-        ),
+        "/api/projects/project-a/design-systems/" +
+            "design-system-a/component-config/export" to AuthenticatedHttpResult.Success(
+                """{"meta":{"name":"SDDS CS","version":"latest"},"components":[]}""",
+            ),
+        "/api/projects/project-a/design-systems/" +
+            "design-system-a/component-config/web-adapter" to AuthenticatedHttpResult.Success(
+                "[]",
+            ),
     )
 
     @Test
@@ -1307,7 +1316,7 @@ class DsBuilderCliTest {
         // Сначала тема, затем компоненты; без React web-адаптер не запрашивается.
         assertThemeFetchCalls(calls.take(4))
         assertEquals(
-            listOf("/api/projects/project-a/ds/component-config/export"),
+            listOf("/api/projects/project-a/design-systems/design-system-a/component-config/export"),
             calls.drop(4),
         )
         assertFalse(result.output.contains("secret-value"))
@@ -1333,10 +1342,10 @@ class DsBuilderCliTest {
     private fun assertThemeFetchCalls(calls: List<String>) {
         assertEquals(
             listOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants",
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens",
-                "/api/projects/project-a/ds/palette",
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values",
+                "/api/projects/project-a/design-systems/design-system-a/tenants",
+                "/api/projects/project-a/design-systems/design-system-a/tokens",
+                "/api/projects/project-a/design-systems/catalog/palette",
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values",
             ),
             calls,
         )
@@ -1437,12 +1446,13 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(""),
             ),
         )
@@ -1508,16 +1518,16 @@ class DsBuilderCliTest {
     )
 
     private fun successfulThemeHttpResults(): Map<String, AuthenticatedHttpResult> = mapOf(
-        "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to AuthenticatedHttpResult.Success(
+        "/api/projects/project-a/design-systems/design-system-a/tenants" to AuthenticatedHttpResult.Success(
             tenantsResponse(),
         ),
-        "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to AuthenticatedHttpResult.Success(
+        "/api/projects/project-a/design-systems/design-system-a/tokens" to AuthenticatedHttpResult.Success(
             tokensResponse(),
         ),
-        "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(
+        "/api/projects/project-a/design-systems/catalog/palette" to AuthenticatedHttpResult.Success(
             paletteResponse(),
         ),
-        "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+        "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
             AuthenticatedHttpResult.Success(tokenValuesResponse()),
     )
 
@@ -1717,7 +1727,7 @@ class DsBuilderCliTest {
                 "/api/projects" to AuthenticatedHttpResult.Success(
                     """[{"id":"p1","name":"Same"},{"id":"p2","name":"Same","description":"second"}]""",
                 ),
-                "/api/projects/p2/ds/design-systems" to AuthenticatedHttpResult.Success(
+                "/api/projects/p2/design-systems" to AuthenticatedHttpResult.Success(
                     """[{"id":"s2","name":"System","description":"chosen"}]""",
                 ),
             ),
@@ -1728,7 +1738,7 @@ class DsBuilderCliTest {
             listOf(
                 "/api/projects",
                 "menu:[p1, p2]",
-                "/api/projects/p2/ds/design-systems",
+                "/api/projects/p2/design-systems",
                 "menu:[s2]",
             ),
             events,
@@ -1769,7 +1779,7 @@ class DsBuilderCliTest {
                 tokenClient = testTokenClient(),
                 onGet = { calls += it },
                 httpResults = mapOf(
-                    "/api/projects/p1/ds/design-systems" to AuthenticatedHttpResult.Success(
+                    "/api/projects/p1/design-systems" to AuthenticatedHttpResult.Success(
                         if (scenario == "empty") "[]" else """[{"id":"s1","name":"One"}]""",
                     ),
                     "/api/projects" to AuthenticatedHttpResult.Success("""[{"id":"p1","name":"One"}]"""),

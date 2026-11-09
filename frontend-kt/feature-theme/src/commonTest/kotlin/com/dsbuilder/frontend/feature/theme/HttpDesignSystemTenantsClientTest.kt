@@ -38,7 +38,7 @@ class HttpDesignSystemTenantsClientTest {
             """[{"id":"t1","designSystemId":"ds1","name":"sdds_cs","description":null}]""",
         ) { path = it }.listTenants("https://gw", credential, "p1", "ds1")
 
-        assertEquals("/api/projects/p1/ds/design-systems/ds1/tenants", path)
+        assertEquals("/api/projects/p1/design-systems/ds1/tenants", path)
         assertIs<DesignSystemTenantsResult.Success>(result)
         assertEquals(listOf(DesignSystemTenant("t1", "sdds_cs", null)), result.tenants)
     }

@@ -27,6 +27,8 @@ data class DsRequestContext(
     val version: String? = null,
     /** Проверенные фильтры и параметры необязательной страницы. */
     val readQuery: ModelReadQuery = ModelReadQuery(),
+    /** Ожидаемая система из пути; отсутствует у глобальной операции. */
+    val designSystemId: UUID? = null,
 ) {
     /** Project boundary derived exclusively from [principal]. */
     val projectId: ProjectId = ProjectId(principal.projectId)
@@ -37,3 +39,7 @@ data class DsRequestContext(
 fun <T : Any> DsRequestContext.withIdempotentResponse(encoder: (T) -> String): DsRequestContext = copy(
     idempotentResponseEncoder = { value -> encoder(value as T) },
 )
+
+/** Уточняет фиксированное имя предметной команды ожидаемой системой запроса. */
+fun DsRequestContext.scopedOperation(operation: String): String =
+    designSystemId?.let { "$operation|design-system:$it" } ?: operation

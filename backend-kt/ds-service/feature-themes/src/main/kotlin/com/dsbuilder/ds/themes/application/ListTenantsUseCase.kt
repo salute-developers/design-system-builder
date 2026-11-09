@@ -4,6 +4,7 @@ import com.dsbuilder.authorization.ProjectScope
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.domain.Tenant
 
@@ -18,8 +19,22 @@ class ListTenantsUseCase(
         val allowed = policy.require(context, ProjectScope.TENANTS_READ)
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly(
-            context,
-        ) { DsResult.Success(repository.listAccessible(context.projectId)) }
+        is DsResult.Success -> {
+            val owner = context.designSystemId
+            if (owner == null) {
+                transactions.readOnly(context) { DsResult.Success(repository.listAccessible(context.projectId)) }
+            } else {
+                transactions.readOnly(
+                    context,
+                    ModelReadTarget(
+                        ModelReadTarget.Kind.DESIGN_SYSTEM,
+                        owner,
+                    ),
+                ) { selected ->
+                    val page = repository.pageAccessible(selected.projectId, selected.readQuery)
+                    DsResult.Success(page.items, readPage = page.page)
+                }
+            }
+        }
     }
 }

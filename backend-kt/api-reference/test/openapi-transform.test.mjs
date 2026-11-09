@@ -14,26 +14,26 @@ test('rewrites every design-system path with one service prefix and projectId', 
   const document = {
     openapi: '3.0.3',
     paths: {
-      '/api/ds/design-systems': { get: { responses: { 200: { description: 'ok' } } } },
-      '/api/ds/themes': { post: { responses: { 201: { description: 'created' } } } },
+      '/api/design-systems': { get: { responses: { 200: { description: 'ok' } } } },
+      '/api/design-systems/themes': { post: { responses: { 201: { description: 'created' } } } },
     },
   };
   const result = transformOpenApi(document, {
     id: 'design-systems',
-    sourcePrefix: '/api/ds',
-    gatewayPrefix: '/api/projects/{projectId}/ds',
+    sourcePrefix: '/api/design-systems',
+    gatewayPrefix: '/api/projects/{projectId}/design-systems',
     requiresProjectId: true,
     requiresAuthentication: true,
   }, servers, { projectId: 'project-42' });
 
   assert.deepEqual(Object.keys(result.paths), [
-    '/api/projects/{projectId}/ds/design-systems',
-    '/api/projects/{projectId}/ds/themes',
+    '/api/projects/{projectId}/design-systems',
+    '/api/projects/{projectId}/design-systems/themes',
   ]);
-  assert.deepEqual(result.paths['/api/projects/{projectId}/ds/themes'].post.parameters, [{
+  assert.deepEqual(result.paths['/api/projects/{projectId}/design-systems/themes'].post.parameters, [{
     name: 'projectId', in: 'path', required: true, schema: { type: 'string', default: 'project-42' },
   }]);
-  assert.deepEqual(result.paths['/api/projects/{projectId}/ds/themes'].post.security, [{ GatewayOAuth: ['openid'] }]);
+  assert.deepEqual(result.paths['/api/projects/{projectId}/design-systems/themes'].post.security, [{ GatewayOAuth: ['openid'] }]);
   assert.equal(result.components.securitySchemes.GatewayOAuth.type, 'oauth2');
   assert.equal(result.components.securitySchemes.GatewayOAuth.flows.password.tokenUrl, 'auth/token');
   assert.equal(result.components.securitySchemes.GatewayOAuth.flows.password['x-scalar-credentials-location'], 'body');
@@ -67,19 +67,19 @@ test('applies a configured project default to referenced project parameters', ()
 test('leaves project-scoped parameters empty until a local project context is selected', () => {
   const document = {
     paths: {
-      '/api/ds/themes': { get: { responses: { 200: { description: 'ok' } } } },
+      '/api/design-systems/themes': { get: { responses: { 200: { description: 'ok' } } } },
     },
   };
   const result = transformOpenApi(document, {
     id: 'design-systems',
-    sourcePrefix: '/api/ds',
-    gatewayPrefix: '/api/projects/{projectId}/ds',
+    sourcePrefix: '/api/design-systems',
+    gatewayPrefix: '/api/projects/{projectId}/design-systems',
     requiresProjectId: true,
     requiresAuthentication: true,
   }, servers);
 
   assert.equal(
-    result.paths['/api/projects/{projectId}/ds/themes'].get.parameters[0].schema.default,
+    result.paths['/api/projects/{projectId}/design-systems/themes'].get.parameters[0].schema.default,
     '',
   );
 });

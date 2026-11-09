@@ -83,7 +83,7 @@ class CliCoreWriteSupportTest {
             respond(content = "{\"ok\":true}", status = HttpStatusCode.OK)
         }
 
-        val result = client.post("/api/projects/p/ds/component-config/import", "{\"dryRun\":true}")
+        val result = client.post("/api/projects/p/design-systems/system/component-config/import", "{\"dryRun\":true}")
 
         val request = assertNotNull(captured, "запрос не отправлен")
         assertEquals(HttpMethod.Post, request.method)
@@ -101,9 +101,9 @@ class CliCoreWriteSupportTest {
             respond(content = "{}", status = HttpStatusCode.OK)
         }
 
-        client.post("/api/projects/p/ds/x", "{}")
+        client.post("/api/projects/p/design-systems/system/x", "{}")
 
-        assertEquals("http://localhost:8080/api/projects/p/ds/x", url)
+        assertEquals("http://localhost:8080/api/projects/p/design-systems/system/x", url)
     }
 
     @Test
@@ -118,7 +118,7 @@ class CliCoreWriteSupportTest {
         cases.forEach { (status, expected) ->
             val client = client { respond(content = "", status = status) }
 
-            val result = client.post("/api/projects/p/ds/x", "{}")
+            val result = client.post("/api/projects/p/design-systems/system/x", "{}")
 
             val failure = assertNotNull(result as? AuthenticatedHttpResult.Failure, "статус $status принят как успех")
             assertTrue(failure.message.contains(expected), "статус $status: ${failure.message}")
@@ -223,7 +223,7 @@ class UnreachableBackendTest {
     fun postReportsTransportFailureInsteadOfThrowing() = runTest {
         val client = unreachableClient()
 
-        val result = client.post("/api/projects/p/ds/x", "{}")
+        val result = client.post("/api/projects/p/design-systems/system/x", "{}")
 
         val failure = assertNotNull(result as? AuthenticatedHttpResult.Failure, "получен успех")
         assertTrue(failure.message.contains("unreachable"), failure.message)

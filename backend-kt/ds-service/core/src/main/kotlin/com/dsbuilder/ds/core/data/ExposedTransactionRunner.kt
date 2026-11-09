@@ -32,7 +32,10 @@ class ExposedTransactionRunner(
     private val database: Database,
     private val failureMapper: TransactionFailureMapper,
 ) : TransactionRunner {
-    override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = false, block)
+    override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = false) {
+        clearDesignSystemScope()
+        block()
+    }
 
     override suspend fun <T> required(
         context: DsRequestContext,
@@ -61,6 +64,7 @@ class ExposedTransactionRunner(
                 IdempotentRequestLookup.New -> Unit
             }
         }
+        if (request != null) requireRequestDesignSystemMutable()
         when (val result = block()) {
             is DsResult.Failure -> result
             is DsResult.Success -> {
@@ -89,6 +93,7 @@ class ExposedTransactionRunner(
     override suspend fun <T> rollback(block: suspend () -> DsResult<T>): DsResult<T> = try {
         withContext(Dispatchers.IO) {
             transaction(db = database) {
+                clearDesignSystemScope()
                 val result = runBlocking { block() }
                 rollback()
                 result
@@ -102,13 +107,28 @@ class ExposedTransactionRunner(
         DsResult.Failure(failureMapper.map(failure))
     }
 
-    override suspend fun <T> readOnly(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = true, block)
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = execute(readOnly = false) {
+        configure(context)
+        requireRequestDesignSystemMutable()
+        val result = block()
+        TransactionManager.current().rollback()
+        result
+    }
+
+    override suspend fun <T> readOnly(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = true) {
+        clearDesignSystemScope()
+        block()
+    }
 
     override suspend fun <T> readOnly(
         context: DsRequestContext,
         block: suspend () -> DsResult<T>,
     ): DsResult<T> = execute(readOnly = true) {
         configure(context)
+        requireRequestDesignSystemAccessible()
         if (context.versionId != null && !versionAccessible(context)) {
             DsResult.Failure(DsFailure.NotFound)
         } else {
@@ -121,6 +141,8 @@ class ExposedTransactionRunner(
         target: ModelReadTarget,
         block: suspend (DsRequestContext) -> DsResult<T>,
     ): DsResult<T> = execute(readOnly = true) {
+        configure(context)
+        requireRequestDesignSystemAccessible()
         when (val resolved = ExposedModelReadSelectionResolver().resolve(context, target)) {
             is DsResult.Failure -> resolved
             is DsResult.Success -> {
@@ -143,12 +165,20 @@ class ExposedTransactionRunner(
                 "SELECT 1 FROM design_system_versions boundary " +
                 "JOIN design_systems system ON system.id = boundary.design_system_id " +
                 "WHERE boundary.id = ? AND boundary.status = 'published' " +
-                "AND boundary.snapshot IS NULL AND $access)",
+                "AND boundary.snapshot IS NULL AND ds_request_matches_design_system(system.id) AND $access)",
             args,
         ) { rows -> rows.next() && rows.getBoolean(1) } ?: false
     }
 
+    private fun clearDesignSystemScope() {
+        TransactionManager.current().exec("SELECT set_config('ds.design_system_id', '', true)")
+    }
+
     private fun configure(context: DsRequestContext) {
+        TransactionManager.current().exec(
+            "SELECT set_config('ds.design_system_id', ?, true)",
+            listOf(TextColumnType() to context.designSystemId?.toString().orEmpty()),
+        )
         TransactionManager.current().exec(
             "SELECT set_config('ds.actor_id', ?, true)",
             listOf(TextColumnType() to context.principal.actorId),
@@ -210,6 +240,8 @@ class ExposedTransactionRunner(
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (_: InaccessibleDesignSystemException) {
+                return DsResult.Failure(DsFailure.NotFound)
             } catch (_: InvalidModelReadQueryException) {
                 return DsResult.Failure(DsFailure.InvalidRequest("INVALID_QUERY"))
             } catch (failure: ExposedSQLException) {

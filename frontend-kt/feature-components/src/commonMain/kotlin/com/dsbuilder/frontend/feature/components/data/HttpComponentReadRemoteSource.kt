@@ -24,9 +24,9 @@ public class HttpComponentReadRemoteSource(
         limit: Int,
         cursor: String?,
     ): ComponentReadResult = runtime.get(
-        "/api/projects/${encodePart(runtime.context.projectId.value)}/ds/appearances?" +
-            "designSystemId=${encodePart(runtime.context.designSystemId.value)}" +
-            "&componentId=${encodePart(componentId)}&version=${encodePart(version)}&limit=$limit" +
+        "/api/projects/${encodePart(runtime.context.projectId.value)}/design-systems/" +
+            "${encodePart(runtime.context.designSystemId.value)}/appearances?" +
+            "componentId=${encodePart(componentId)}&version=${encodePart(version)}&limit=$limit" +
             (cursor?.let { "&cursor=${encodePart(it)}" } ?: ""),
         version,
     )
@@ -101,7 +101,8 @@ private fun ComponentReadRuntime.selectionPath(
     operation: String,
     selectedValueIds: List<String>,
     version: String,
-): String = "/api/projects/${encodePart(context.projectId.value)}/ds/appearances/" +
+): String = "/api/projects/${encodePart(context.projectId.value)}/design-systems/" +
+    "${encodePart(context.designSystemId.value)}/appearances/" +
     "${encodePart(appearanceId)}/$operation?version=${encodePart(version)}" +
     selectedValueIds.joinToString("") { "&selectedValueId=${encodePart(it)}" }
 

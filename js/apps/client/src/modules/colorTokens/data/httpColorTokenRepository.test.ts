@@ -33,16 +33,16 @@ describe('HTTP-адаптер операций цветового токена',
         await repository.delete(context, 'tok', 3);
         const headers = { 'X-DS-Base-Revision': '0', 'Idempotency-Key': expect.any(String) };
         expect(post).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/color-tokens',
+            '/api/projects/p1/design-systems/ds/tenants/t1/color-tokens',
             { ...input, editRevision: 1 },
             { headers },
         );
         expect(put).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/color-tokens/tok/values',
+            '/api/projects/p1/design-systems/ds/tenants/t1/color-tokens/tok/values',
             { members: [], editRevision: 2 },
             { headers },
         );
-        expect(del).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/color-tokens/tok', {
+        expect(del).toHaveBeenCalledWith('/api/projects/p1/design-systems/ds/tenants/t1/color-tokens/tok', {
             data: { editRevision: 3 },
             headers,
         });
@@ -148,7 +148,7 @@ it('сверяет только записанные значения, без ч
         1,
     );
     expect(put).toHaveBeenCalledOnce();
-    expect(readEditor).toHaveBeenCalledExactlyOnceWith('/api/projects/p1/ds/tokens/tok/values', {
+    expect(readEditor).toHaveBeenCalledExactlyOnceWith('/api/projects/p1/design-systems/ds/tokens/tok/values', {
         params: { tenantId: 't1' },
     });
     expect(result.editRevision).toBe(2);

@@ -35,7 +35,7 @@ fun Route.propertyPlatformParamRoutes(
     update: UpdatePropertyPlatformParamUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/property-platform-params")) {
+    route(dsRoutePath("/api/design-systems/catalog/property-platform-params")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

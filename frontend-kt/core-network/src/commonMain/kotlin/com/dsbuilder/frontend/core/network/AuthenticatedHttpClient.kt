@@ -17,7 +17,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -283,8 +282,6 @@ public class KtorAuthenticatedHttpClient(
     private suspend fun HttpResponse.denialReason(): String? {
         val body = try {
             Json.parseToJsonElement(bodyAsText()) as? JsonObject
-        } catch (exception: SerializationException) {
-            null
         } catch (exception: IllegalArgumentException) {
             null
         }

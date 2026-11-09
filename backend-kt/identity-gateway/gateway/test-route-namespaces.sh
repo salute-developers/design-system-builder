@@ -5,7 +5,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$SCRIPT_DIR"
 
 for config in nginx.local.conf nginx.prod.conf.template; do
-  ds_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+  ds_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/design-systems(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   documentation_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/documentation(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
 
   test -n "$ds_block"
@@ -15,7 +15,7 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   printf '%s' "$ds_block" | grep -Fq 'auth_request /_auth_project;'
   printf '%s' "$ds_block" | grep -Fq 'auth_request_set $trusted_project_id $upstream_http_x_project_id;'
   printf '%s' "$ds_block" | grep -Fq 'proxy_set_header X-Project-Id $trusted_project_id;'
-  printf '%s' "$ds_block" | grep -Fq 'rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;'
+  printf '%s' "$ds_block" | grep -Fq 'rewrite ^/api/projects/[^/]+/design-systems(/.*)?$ /api/design-systems$1 break;'
   printf '%s' "$ds_block" | grep -Fq 'ds_service_api'
   # db-service удалён: ни legacy-маршрута /ds/legacy, ни его upstream быть не должно.
   if grep -Fq 'ds/legacy' "$config" || grep -Fq 'db_service_api' "$config"; then
@@ -62,7 +62,7 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   printf '%s' "$import_meta_block" | grep -Fq 'client_max_body_size 16m;'
   printf '%s' "$import_meta_block" | grep -Fq 'proxy_set_header X-Project-Id "global";'
   printf '%s' "$import_meta_block" | grep -Fq 'proxy_set_header X-System-Admin $trusted_system_admin;'
-  printf '%s' "$import_meta_block" | grep -Fq 'rewrite ^/api/admin/component-config/import-api-meta$ /api/ds/admin/component-config/import-api-meta break;'
+  ! printf '%s' "$import_meta_block" | grep -Fq 'rewrite '
   printf '%s' "$import_meta_block" | grep -Fq 'ds_service_api'
   ! printf '%s' "$import_meta_block" | grep -Fq 'db_service_api'
 
@@ -81,7 +81,7 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   printf '%s' "$plugin_builds_block" | grep -Fq 'proxy_set_header X-Project-Id "global";'
   printf '%s' "$plugin_builds_block" | grep -Fq 'auth_request_set $trusted_compose_preview_publisher $upstream_http_x_compose_preview_publisher;'
   printf '%s' "$plugin_builds_block" | grep -Fq 'proxy_set_header X-Compose-Preview-Publisher $trusted_compose_preview_publisher;'
-  printf '%s' "$plugin_builds_block" | grep -Fq 'rewrite ^/api/admin/compose-preview/plugin-builds$ /api/ds/admin/compose-preview/plugin-builds break;'
+  ! printf '%s' "$plugin_builds_block" | grep -Fq 'rewrite '
   printf '%s' "$plugin_builds_block" | grep -Fq 'ds_service_api'
   ! printf '%s' "$import_meta_block" | grep -Fq '$trusted_compose_preview_publisher'
 
@@ -90,3 +90,5 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   ! grep -Fq 'location ~ ^/documentation' "$config"
   ! grep -Fq 'location ~ ^/api/documentation' "$config"
 done
+
+! grep -Fq "/api/ds" nginx.local.conf nginx.prod.conf.template

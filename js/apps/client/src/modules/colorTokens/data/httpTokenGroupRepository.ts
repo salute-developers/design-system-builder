@@ -6,7 +6,7 @@ import { callOperation as call } from './httpOperation';
 import { subjectMutation, subjectMutationHeaders } from '../../../api/subjectMutation';
 import { subjectBaseRevision } from '../../../api/subjectRevisions';
 
-const root = ({ projectId }: ColorTokenContext) => `/api/projects/${projectId}/ds`;
+const root = ({ projectId, designSystemId }: ColorTokenContext) => `/api/projects/${projectId}/design-systems/${designSystemId}`;
 const groupsPath = (context: ColorTokenContext, suffix = '') =>
     `${root(context)}/tenants/${context.tenantId}/token-groups${suffix}`;
 
@@ -14,14 +14,14 @@ const groupsPath = (context: ColorTokenContext, suffix = '') =>
 export const createHttpTokenGroupRepository = (): TokenGroupRepository => ({
     list: (context) =>
         call(() =>
-            http.get<TokenGroupDto[]>(`${root(context)}/design-systems/${context.designSystemId}/token-groups`, {
+            http.get<TokenGroupDto[]>(`${root(context)}/token-groups`, {
                 params: { kind: 'color', versionId: context.versionId },
             }),
         ),
     definitions: async (context) => {
         const tokens = await call(() =>
             http.get<Array<Partial<PlacedDefinition> & Pick<PlacedDefinition, 'id' | 'name' | 'type'>>>(
-                `${root(context)}/design-systems/${context.designSystemId}/tokens`,
+                `${root(context)}/tokens`,
                 { params: context.versionId ? { versionId: context.versionId } : undefined },
             ),
         );

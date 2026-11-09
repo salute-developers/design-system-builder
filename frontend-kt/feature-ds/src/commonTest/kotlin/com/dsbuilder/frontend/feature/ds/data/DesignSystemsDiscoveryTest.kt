@@ -105,7 +105,7 @@ class DesignSystemsDiscoveryTest {
                 ->
                 assertEquals("https://fixture.example", url)
                 assertEquals(BackendCredential.Bearer("fixture-access"), credential)
-                assertEquals("/api/projects/p%2Fone/ds/design-systems", path)
+                assertEquals("/api/projects/p%2Fone/design-systems", path)
             },
         )
         val useCase = ListDesignSystemsUseCase(ApiUrlResolver { null }, access(), client)
@@ -166,7 +166,7 @@ class DesignSystemsDiscoveryTest {
         val source = HttpDesignSystemVersionsSource(
             clients(response) { _, credential, path ->
                 assertIs<BackendCredential.Bearer>(credential)
-                val expectedPath = "/api/projects/p1/ds/design-system-versions/by-design-system/$id"
+                val expectedPath = "/api/projects/p1/design-systems/$id/versions"
                 assertEquals("$expectedPath?limit=7&cursor=before", path)
                 assertFalse(path.contains("version="))
             },

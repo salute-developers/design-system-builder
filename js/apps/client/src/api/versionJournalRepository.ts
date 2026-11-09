@@ -10,7 +10,7 @@ export class VersionJournalRepository {
     async listVersions(context: EditorContextKey, signal?: AbortSignal) {
         return (
             await readEditor<DesignSystemVersionDto[]>(
-                `${apiRoot(context.projectId)}/design-system-versions/by-design-system/${context.designSystemId}`,
+                `${apiRoot(context.projectId, context.designSystemId)}/versions`,
                 { signal },
             )
         ).data;
@@ -19,7 +19,7 @@ export class VersionJournalRepository {
     async getDesignSystem(context: EditorContextKey, signal?: AbortSignal) {
         return (
             await readEditor<DesignSystemDto>(
-                `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}`,
+                `${apiRoot(context.projectId, context.designSystemId)}`,
                 {
                     signal,
                 },
@@ -29,7 +29,7 @@ export class VersionJournalRepository {
 
     async listChanges(context: EditorContextKey, signal?: AbortSignal, onTotal?: (total: number | undefined) => void) {
         const response = await readEditor<DraftChangeDto[]>(
-            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes`,
+            `${apiRoot(context.projectId, context.designSystemId)}/changes`,
             readRequest(context, signal),
         );
         const raw = response.headers?.['x-ds-journal-total'];
@@ -41,7 +41,7 @@ export class VersionJournalRepository {
     async listChangedTokenIds(context: EditorContextKey, signal?: AbortSignal) {
         return (
             await readEditor<{ tokenIds: string[] }>(
-                `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes/token-ids`,
+                `${apiRoot(context.projectId, context.designSystemId)}/changes/token-ids`,
                 {
                     ...readRequest(context, signal),
                     params: { ...readRequest(context).params, tenantId: context.tenantId },
@@ -74,7 +74,7 @@ export class VersionJournalRepository {
             throw new Error('Сервер не подтвердил поддержку отмены отдельных параметров');
         }
         const response = await http.post(
-            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes/${change.changeId}/revert`,
+            `${apiRoot(context.projectId, context.designSystemId)}/changes/${change.changeId}/revert`,
             paths?.length ? { paths } : {},
             {
                 headers: {
@@ -93,7 +93,7 @@ export class VersionJournalRepository {
      */
     async revertChanges(context: EditorContextKey, changes: readonly DraftChangeDto[]) {
         const response = await http.post(
-            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes/revert`,
+            `${apiRoot(context.projectId, context.designSystemId)}/changes/revert`,
             {
                 changes: changes.map((change) => ({
                     changeId: change.changeId,
@@ -115,8 +115,8 @@ export class VersionJournalRepository {
         idempotencyKey: string,
     ) {
         const response = await http.post<DesignSystemVersionDto>(
-            `${apiRoot(context.projectId)}/design-system-versions`,
-            { designSystemId: context.designSystemId, draftId, draftRevision, version, changelog },
+            `${apiRoot(context.projectId, context.designSystemId)}/versions`,
+            { draftId, draftRevision, version, changelog },
             { headers: { 'Idempotency-Key': idempotencyKey } },
         );
         invalidateEditorReads(context);

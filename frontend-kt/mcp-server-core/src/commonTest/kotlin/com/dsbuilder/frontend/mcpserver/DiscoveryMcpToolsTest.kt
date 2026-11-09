@@ -70,7 +70,7 @@ class DiscoveryMcpToolsTest {
             paths += path
             when {
                 path == "/api/projects" -> AuthenticatedHttpResult.Success("""[{"id":"p","name":"Project"}]""")
-                path.endsWith("/ds/design-systems") -> AuthenticatedHttpResult.Success(
+                path.endsWith("/design-systems") -> AuthenticatedHttpResult.Success(
                     """[{"id":"$id","name":"System"}]""",
                 )
                 else -> AuthenticatedHttpResult.Success(

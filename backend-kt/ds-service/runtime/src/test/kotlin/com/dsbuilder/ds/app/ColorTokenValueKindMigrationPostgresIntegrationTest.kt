@@ -104,6 +104,7 @@ class ColorTokenValueKindMigrationPostgresIntegrationTest {
                 }
                 assertEquals("40001", immutable.sqlState, "защитный триггер снова включён")
             }
+            flyway(postgres, "17").migrate()
             assertJournalOnlyShowsCreatedTheme(postgres, fixture)
         }
     }

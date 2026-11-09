@@ -21,9 +21,9 @@ private class FakeDesignSystemDataClient(
     private val tokens: List<DesignToken> = emptyList(),
     private val tokenValues: List<TokenValue> = emptyList(),
 ) : DesignSystemDataClient {
-    override suspend fun listTokens(projectId: String): List<DesignToken> = tokens
+    override suspend fun listTokens(projectId: String, designSystemId: String): List<DesignToken> = tokens
 
-    override suspend fun listTokenValues(projectId: String): List<TokenValue> = tokenValues
+    override suspend fun listTokenValues(projectId: String, designSystemId: String): List<TokenValue> = tokenValues
 }
 
 class ListDesignSystemsUseCaseTest {

@@ -76,7 +76,7 @@ internal class GatewayRequestHandler(
                 "/api/projects", "/api/projects/member-candidates",
                 "/api/admin/component-config/import-api-meta",
             )
-        val ds = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/ds")
+        val ds = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/design-systems")
         val documentation = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/documentation")
         return RoutePolicy(project?.groupValues?.get(1), userRoute, ds, documentation)
     }

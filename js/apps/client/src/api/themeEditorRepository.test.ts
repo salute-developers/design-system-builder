@@ -1,3 +1,4 @@
+import { DesignSystem } from '../controllers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { pluginUrl, platformParams, get, put, post, patch, remove } = vi.hoisted(() => ({
@@ -80,7 +81,7 @@ const reply = (tenantId: string, color: string) => (url: string) => {
     if (url.endsWith('/components')) return { data: [] };
     if (url.endsWith('/appearances')) return { data: [] };
     if (url.endsWith('/property-platform-params')) return { data: [] };
-    if (url.endsWith('/design-system-versions/by-design-system/ds-1'))
+    if (url.endsWith('/design-systems/ds-1/versions'))
         return {
             data: [
                 {
@@ -122,6 +123,11 @@ describe('ThemeEditorRepository with the component editor disabled', () => {
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
 
         const snapshot = await loadThemeEditor(context);
+        const model = DesignSystem.fromSnapshot({
+            name: snapshot.designSystem.name,
+            ...snapshot,
+        });
+        expect(model.getParameters()).toMatchObject(context);
 
         // «Цвета» берут из модели web-компонентов связи токенов, пары контраста и канвас: флаг их не отключает.
         const exports = post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'));
@@ -277,7 +283,7 @@ describe('ThemeEditorRepository', () => {
                         },
                     ],
                 });
-            if (url.endsWith('/ds/palette'))
+            if (url.endsWith('/design-systems/catalog/palette'))
                 return Promise.resolve({ data: [{ id: 'p1', type: 'general', shade: 'amber', saturation: 300 }] });
             return Promise.resolve(reply('tenant-1', '#111111')(url));
         });
@@ -317,7 +323,7 @@ describe('ThemeEditorRepository', () => {
         const snapshot = await repository.load(context);
         expect(snapshot.themeData.variations.color.web['dark.surface.default.accent']).toBe('[general.green.500][0.8]');
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#FFFFFF');
-        expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/\/ds\/palette$/), expect.anything());
+        expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/\/design-systems\/catalog\/palette$/), expect.anything());
     });
 });
 
@@ -660,7 +666,7 @@ describe('Editor repositories', () => {
             mutationMetadata: [],
         });
         expect(put).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/tenants/tenant-1/token-values',
+            '/api/projects/project-1/design-systems/ds-1/tenants/tenant-1/token-values',
             { editRevision: 3, values },
             { headers: { 'X-DS-Base-Revision': '0', 'Idempotency-Key': expect.any(String) } },
         );
@@ -710,12 +716,12 @@ describe('Editor repositories', () => {
             'request-key',
         );
         expect(post).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/tokens',
-            expect.objectContaining({ designSystemId: 'ds-1', name: 'surface.custom' }),
+            '/api/projects/project-1/design-systems/ds-1/tokens',
+            expect.objectContaining({ name: 'surface.custom' }),
             { headers: { 'X-DS-Base-Revision': '1', 'Idempotency-Key': 'request-key' } },
         );
         expect(put).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/tenants/tenant-1/token-values',
+            '/api/projects/project-1/design-systems/ds-1/tenants/tenant-1/token-values',
             expect.objectContaining({
                 editRevision: 4,
                 values: expect.arrayContaining([
@@ -829,7 +835,7 @@ describe('Editor repositories', () => {
         );
 
         expect(patch).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/tokens/token-1',
+            '/api/projects/project-1/design-systems/ds-1/tokens/token-1',
             { description: 'Changed deliberately' },
             { headers: { 'X-DS-Base-Revision': '8', 'Idempotency-Key': 'request-key:definition' } },
         );
@@ -865,7 +871,7 @@ describe('Editor repositories', () => {
             'unused-for-delete',
         );
 
-        expect(remove).toHaveBeenCalledWith('/api/projects/project-1/ds/tokens/token-1', {
+        expect(remove).toHaveBeenCalledWith('/api/projects/project-1/design-systems/ds-1/tokens/token-1', {
             headers: { 'X-DS-Base-Revision': '6', 'Idempotency-Key': 'unused-for-delete:delete' },
         });
         expect(result).toEqual({ tokenId: 'token-1', editRevision: 4, baseRevision: 7, valueBaseRevisions: {} });
@@ -1132,12 +1138,12 @@ describe('Editor repositories', () => {
         );
 
         expect(patch).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/appearance-variations/axis-1',
+            '/api/projects/project-1/design-systems/ds-1/appearance-variations/axis-1',
             { defaultStyleId: 'style-2' },
             { headers: { 'X-DS-Base-Revision': '2' } },
         );
         expect(patch).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/variation-property-values/value-1',
+            '/api/projects/project-1/design-systems/ds-1/variation-property-values/value-1',
             { tokenId: null, value: '48', adjustment: null },
             { headers: { 'X-DS-Base-Revision': '4' } },
         );
@@ -1218,7 +1224,7 @@ describe('Editor repositories', () => {
         await expect(versionJournalRepository.listChanges(context)).resolves.toEqual([change]);
         await versionJournalRepository.revertChange(context, change);
         expect(post).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/design-systems/ds-1/changes/change-1/revert',
+            '/api/projects/project-1/design-systems/ds-1/changes/change-1/revert',
             {},
             {
                 headers: {
@@ -1230,7 +1236,7 @@ describe('Editor repositories', () => {
         post.mockResolvedValueOnce({ data: { ok: true } });
         await versionJournalRepository.revertChange(context, change, ['/value/fontSize']);
         expect(post).toHaveBeenLastCalledWith(
-            '/api/projects/project-1/ds/design-systems/ds-1/changes/change-1/revert',
+            '/api/projects/project-1/design-systems/ds-1/changes/change-1/revert',
             { paths: ['/value/fontSize'] },
             { headers: { 'X-DS-Base-Revision': '4', 'Idempotency-Key': expect.any(String) } },
         );
@@ -1248,7 +1254,7 @@ describe('Editor repositories', () => {
             { ...change, changeId: 'change-2', editRevision: 7 },
         ]);
         expect(post).toHaveBeenLastCalledWith(
-            '/api/projects/project-1/ds/design-systems/ds-1/changes/revert',
+            '/api/projects/project-1/design-systems/ds-1/changes/revert',
             {
                 changes: [
                     { changeId: 'change-1', expectedRevision: 4 },

@@ -49,7 +49,7 @@ public sealed interface DesignSystemTenantsResult {
 
 /** Port чтения tenant дизайн-системы. `public` — non-Koin клиент (плагин) собирает use case напрямую. */
 public fun interface DesignSystemTenantsClient {
-    /** `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tenants`. */
+    /** `GET /api/projects/{projectId}/design-systems/{designSystemId}/tenants`. */
     public suspend fun listTenants(
         apiUrl: String,
         credential: BackendCredential,

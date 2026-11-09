@@ -101,7 +101,7 @@ export const ThemeSettingsPage = ({ embedded = false }: { embedded?: boolean }) 
         event.preventDefault();
         const name = String(new FormData(event.currentTarget).get('name')).trim();
         if (!name) return setMessage('Введите название Theme.');
-        await designSystemsApi.updateTenant(projectId, tenantId, { name });
+        await designSystemsApi.updateTenant(projectId, tenantId, { name }, designSystemId);
         setMessage('Сохранено');
         themes.reload();
     };

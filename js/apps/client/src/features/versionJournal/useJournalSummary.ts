@@ -16,7 +16,7 @@ export function useJournalSummary(context: EditorContextKey | undefined, refresh
         controller.current = current;
         try {
             const result = await readEditor<{ total: number }>(
-                `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/changes/summary`,
+                `${apiRoot(context.projectId, context.designSystemId)}/changes/summary`,
                 readRequest(context, current.signal),
             );
             if (!current.signal.aborted) setState({ key, total: result.data.total });

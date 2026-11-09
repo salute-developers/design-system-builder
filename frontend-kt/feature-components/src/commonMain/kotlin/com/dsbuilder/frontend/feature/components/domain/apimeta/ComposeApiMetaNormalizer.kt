@@ -1,7 +1,6 @@
 package com.dsbuilder.frontend.feature.components.domain.apimeta
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 /**
@@ -37,10 +36,6 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
     override fun normalize(text: String, typeMap: Map<String, String>): ApiMetaNormalizationResult {
         val source = try {
             json.decodeFromString<List<ComposeMetaComponent>>(text)
-        } catch (exception: SerializationException) {
-            return ApiMetaNormalizationResult.Invalid(
-                "API meta is not a list of components: ${exception.message ?: "unexpected shape"}.",
-            )
         } catch (exception: IllegalArgumentException) {
             return ApiMetaNormalizationResult.Invalid(
                 "API meta is not a list of components: ${exception.message ?: "unexpected shape"}.",

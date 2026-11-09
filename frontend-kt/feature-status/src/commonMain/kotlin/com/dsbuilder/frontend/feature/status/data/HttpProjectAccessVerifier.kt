@@ -8,7 +8,6 @@ import com.dsbuilder.frontend.feature.status.application.ProjectAccessCheck
 import com.dsbuilder.frontend.feature.status.application.ProjectAccessResult
 import com.dsbuilder.frontend.feature.status.application.ProjectAccessVerifier
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 /**
@@ -34,7 +33,7 @@ internal class HttpProjectAccessVerifier(
             is DecodedResult.Success -> {
                 val designSystem = getDecoded(
                     result = client.get(
-                        "/api/projects/${check.projectId.value}/ds/design-systems/${check.designSystemId.value}",
+                        "/api/projects/${check.projectId.value}/design-systems/${check.designSystemId.value}",
                     ),
                     decode = ::decodeDesignSystem,
                     parseFailureMessage = "Status: failed. Cannot parse design system response.",
@@ -70,8 +69,6 @@ internal class HttpProjectAccessVerifier(
     private fun decodeProject(body: String): ProjectResponse? =
         try {
             json.decodeFromString(ProjectResponse.serializer(), body)
-        } catch (exception: SerializationException) {
-            null
         } catch (exception: IllegalArgumentException) {
             null
         }
@@ -79,8 +76,6 @@ internal class HttpProjectAccessVerifier(
     private fun decodeDesignSystem(body: String): DesignSystemResponse? =
         try {
             json.decodeFromString(DesignSystemResponse.serializer(), body)
-        } catch (exception: SerializationException) {
-            null
         } catch (exception: IllegalArgumentException) {
             null
         }

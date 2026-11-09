@@ -41,7 +41,7 @@ fun Route.variationRoutes(
     properties: ListVariationPropertiesUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/variations")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/variations")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
@@ -49,10 +49,7 @@ fun Route.variationRoutes(
                 call.request.queryParameters["versionId"],
             )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val designSystemId = call.request.queryParameters["designSystemId"]?.let {
-                it.toUuidOrNull()
-                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
-            }
+            val designSystemId = context.designSystemId
             when (val result = list.execute(context, designSystemId)) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
@@ -83,7 +80,7 @@ fun Route.variationRoutes(
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateVariationRequest>()
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val componentId = request.componentId.toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))

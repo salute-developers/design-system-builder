@@ -91,8 +91,8 @@ describe('чтения редактора', () => {
         expect(mocks.post).toHaveBeenCalledTimes(2);
     });
     it('сохранение одного проекта не сбрасывает свежие данные другого', async () => {
-        const a = '/api/projects/p1/ds/design-systems/ds1';
-        const b = '/api/projects/p2/ds/design-systems/ds2';
+        const a = '/api/projects/p1/design-systems/ds1';
+        const b = '/api/projects/p2/design-systems/ds2';
         const first = Promise.all([readEditor(a, {}, undefined, 30_000), readEditor(b, {}, undefined, 30_000)]);
         await vi.runAllTimersAsync();
         await first;
