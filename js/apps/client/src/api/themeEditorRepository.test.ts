@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const invalidateEditorResources = vi.hoisted(() => vi.fn());
 const { pluginUrl, platformParams, get, put, post, patch, remove } = vi.hoisted(() => ({
     pluginUrl: { value: undefined as string | undefined },
     platformParams: { value: false },
@@ -30,6 +31,7 @@ vi.mock('./editorReads', () => ({
               ? get(url, request)
               : post(url, body, request),
     invalidateEditorReads: vi.fn(),
+    invalidateEditorResources,
 }));
 
 import { loadThemeEditor } from './themeEditorRepository';
@@ -869,6 +871,10 @@ describe('Editor repositories', () => {
         });
         expect(result).toEqual({ tokenId: 'token-1', editRevision: 4, baseRevision: 7, valueBaseRevisions: {} });
         expect(put).not.toHaveBeenCalled();
+        // Справочник токенов кешируется с `freshFor`: после удаления определения он сбрасывается адресно.
+        expect(invalidateEditorResources).toHaveBeenCalledWith([
+            '/api/projects/project-1/ds/design-systems/ds-1/tokens',
+        ]);
     });
 
     it('writes component edits to the configuration open in the editor', async () => {

@@ -2,6 +2,9 @@ import { PROJECTS_URL } from './constants';
 import type { EditorContextKey } from './editorContracts';
 
 export const apiRoot = (projectId: string) => `${PROJECTS_URL}/${projectId}/ds`;
+/** Справочник определений токенов дизайн-системы. */
+export const tokenDefinitionsUrl = (context: Pick<EditorContextKey, 'projectId' | 'designSystemId'>) =>
+    `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/tokens`;
 export const tokenValueKey = (tokenId: string, platform: string | null, mode: string | null) =>
     `${tokenId}:${platform ?? ''}:${mode ?? ''}`;
 

@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const http = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), delete: vi.fn() }));
 const readEditor = vi.hoisted(() => vi.fn());
 vi.mock('./http', () => ({ http }));
-vi.mock('./editorReads', () => ({ readEditor, invalidateEditorReads: vi.fn() }));
-vi.mock('./editorHttp', () => ({ apiRoot: (projectId: string) => `/api/projects/${projectId}` }));
+vi.mock('./editorReads', () => ({ readEditor, invalidateEditorReads: vi.fn(), invalidateEditorResources: vi.fn() }));
+vi.mock('./editorHttp', () => ({
+    apiRoot: (projectId: string) => `/api/projects/${projectId}`,
+    tokenDefinitionsUrl: (context: { projectId: string; designSystemId: string }) =>
+        `/api/projects/${context.projectId}/design-systems/${context.designSystemId}/tokens`,
+}));
 
 import { componentStructureRepository as repository } from './componentStructureRepository';
 
