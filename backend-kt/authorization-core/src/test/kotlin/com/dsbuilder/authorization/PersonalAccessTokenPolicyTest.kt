@@ -29,6 +29,11 @@ class PersonalAccessTokenPolicyTest {
         assertFalse(evaluator.isAllowed(principal(null, setOf("members:add"), true), "members:add"))
     }
 
+    @Test fun `admin PAT cannot perform global administrative mutations`() {
+        assertFalse(principal(null, setOf("tokens:delete"), true).globalAdmin)
+        assertTrue(ProjectPrincipal(ProjectActorType.USER, "admin", "project", systemAdmin = true).globalAdmin)
+    }
+
     @Test fun `incomplete or contradictory context fails closed`() {
         val valid = principal("editor", setOf("components:write"))
         assertFalse(evaluator.isAllowed(valid.copy(personalAccessTokenId = null), "components:write"))

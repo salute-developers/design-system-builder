@@ -47,7 +47,7 @@ class TokenUseCasesTest {
         for (scopes in listOf(emptySet(), setOf("projects:read", "members:add"))) {
             assertFailsWith<InvalidTokenRequest> { tokens.create("u", "n", scopes, null) }
         }
-        for (ttl in listOf(0L, -1L, Long.MAX_VALUE)) {
+        for (ttl in listOf(0L, -1L, 100000000000000L, Long.MAX_VALUE)) {
             assertFailsWith<InvalidTokenRequest> { tokens.create("u", "n", setOf("projects:read"), ttl) }
         }
         assertTrue(tokens.list("u").isEmpty())

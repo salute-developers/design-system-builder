@@ -16,6 +16,6 @@ class ListVariationStylesUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<List<ComponentStyleSummary>> =
         modelFindList(policy, transactions, context) {
-            repository.variationStyles(context.projectId, context.principal.systemAdmin, id)
+            repository.variationStyles(context.projectId, context.principal.globalAdmin, id)
         }
 }

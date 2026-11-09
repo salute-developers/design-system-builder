@@ -807,7 +807,7 @@ describe('project workflow', () => {
         expect(await screen.findByText('CI')).toBeInTheDocument();
         expect(screen.getByText('projects:read')).toHaveClass('ps-scope-chip');
         expect(screen.getByText('projects:read').parentElement).toHaveClass('ps-scope-flow');
-        expect(document.querySelector('.ps-cli-head')).toHaveTextContent('НазваниеСтатусScopesСрок действияДействия');
+        expect(document.querySelector('.ps-cli-head')).toHaveTextContent('НазваниеСтатусРазрешенияСрок действияДействия');
         fireEvent.click(screen.getAllByRole('button', { name: 'Создать ключ' }).at(-1)!);
         expect(screen.getByRole('dialog', { name: 'Создать ключ доступа' })).toBeInTheDocument();
         expect(screen.getByRole('dialog', { name: 'Создать ключ доступа' })).toHaveClass('ps-access-key-dialog');

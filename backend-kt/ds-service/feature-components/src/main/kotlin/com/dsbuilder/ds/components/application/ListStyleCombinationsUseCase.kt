@@ -15,6 +15,6 @@ class ListStyleCombinationsUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<StyleCombination>> =
         modelList(policy, transactions, context) {
-            repository.list(context.projectId, context.principal.systemAdmin)
+            repository.list(context.projectId, context.principal.globalAdmin)
         }
 }

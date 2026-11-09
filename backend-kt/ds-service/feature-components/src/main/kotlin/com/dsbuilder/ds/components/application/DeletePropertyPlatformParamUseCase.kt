@@ -15,6 +15,6 @@ class DeletePropertyPlatformParamUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> =
         modelDelete(policy, transactions, context) {
-            repository.deletePlatformParam(context.projectId, context.principal.systemAdmin, id)
+            repository.deletePlatformParam(context.projectId, context.principal.globalAdmin, id)
         }
 }

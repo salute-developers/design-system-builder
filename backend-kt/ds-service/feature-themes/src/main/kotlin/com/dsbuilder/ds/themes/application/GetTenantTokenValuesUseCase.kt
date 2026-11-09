@@ -54,7 +54,7 @@ class GetTenantTokenValuesUseCase(
     ): DsResult<List<TenantTokenValue>> =
         repository.tokenValues(context.projectId, id, types)?.let {
             DsResult.Success(transform(it))
-        } ?: if (context.principal.systemAdmin) {
+        } ?: if (context.principal.globalAdmin) {
             DsResult.Success(emptyList())
         } else {
             DsResult.Failure(DsFailure.NotFound)

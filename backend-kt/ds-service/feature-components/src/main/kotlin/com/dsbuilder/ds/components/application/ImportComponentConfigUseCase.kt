@@ -39,7 +39,7 @@ class ImportComponentConfigUseCase(
         idempotencyKey: String?,
     ): DsResult<ComponentConfigImportResult> = policy.read(context, ProjectScope.COMPONENTS_WRITE) {
         val execute = suspend {
-            when (val attempt = repository.import(context.projectId, context.principal.systemAdmin, command)) {
+            when (val attempt = repository.import(context.projectId, context.principal.globalAdmin, command)) {
                 is ComponentConfigRepository.ImportAttempt.Success -> DsResult.Success(attempt.value)
                 ComponentConfigRepository.ImportAttempt.NotFound -> DsResult.Failure(DsFailure.NotFound)
                 ComponentConfigRepository.ImportAttempt.GlobalForbidden -> DsResult.Failure(DsFailure.Forbidden)

@@ -67,7 +67,7 @@ class CreateTokenValueUseCase(
      * читают тип токена, палитру темы и семейство, а отказ проверки значения не должен раскрывать чужой токен.
      */
     private suspend fun validate(context: DsRequestContext, command: CreateTokenValue): DsResult<CreateTokenValue> {
-        val allowed = context.principal.systemAdmin || repository.createAllowed(context.projectId, command)
+        val allowed = context.principal.globalAdmin || repository.createAllowed(context.projectId, command)
         if (!allowed) return DsResult.Failure(DsFailure.NotFound)
         val write = command.write() ?: return DsResult.Success(command)
         return when (val result = writePolicies.prepareAll(write)) {
@@ -89,7 +89,7 @@ class CreateTokenValueUseCase(
             "token-value",
             "${command.tenantId}:${command.platform?.wireValue}:${command.mode?.wireValue}",
         )
-        return if (context.principal.systemAdmin) {
+        return if (context.principal.globalAdmin) {
             repository.createSystemAdmin(command)
         } else {
             repository.createOwned(context.projectId, command)

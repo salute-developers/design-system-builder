@@ -22,8 +22,8 @@ class CreateVariationPlatformParamAdjustmentUseCase(
     ): DsResult<VariationPlatformParamAdjustment> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-variation-platform-adjustment",
         command,
-        { repository.findVariationAdjustment(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createVariationAdjustment(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findVariationAdjustment(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createVariationAdjustment(context.projectId, context.principal.globalAdmin, command) },
         VariationPlatformParamAdjustment::id,
     )
 }

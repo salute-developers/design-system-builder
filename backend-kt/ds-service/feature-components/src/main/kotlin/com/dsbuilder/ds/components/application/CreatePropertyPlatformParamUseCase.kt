@@ -22,8 +22,8 @@ class CreatePropertyPlatformParamUseCase(
     ): DsResult<PropertyPlatformParam> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-property-platform-param",
         command,
-        { repository.findPlatformParam(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createPlatformParam(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findPlatformParam(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createPlatformParam(context.projectId, context.principal.globalAdmin, command) },
         PropertyPlatformParam::id,
     )
 }

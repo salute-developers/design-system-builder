@@ -81,7 +81,9 @@ internal class TokenUseCases(
     }
 
     private fun expiration(now: Instant, ttl: Long): Instant = try {
-        now.plusSeconds(ttl)
+        now.plusSeconds(ttl).also {
+            if (it >= MAX_DATABASE_EXPIRY) throw InvalidTokenRequest("Недопустимый срок действия")
+        }
     } catch (_: DateTimeException) {
         throw InvalidTokenRequest("Недопустимый срок действия")
     } catch (_: ArithmeticException) {
@@ -89,6 +91,7 @@ internal class TokenUseCases(
     }
 
     companion object {
+        private val MAX_DATABASE_EXPIRY = Instant.parse("+294276-01-01T00:00:00Z")
         const val PREFIX = "dsb_pat_"
         const val DEFAULT_TTL = 90L * 24 * 60 * 60
     }

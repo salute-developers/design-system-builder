@@ -50,7 +50,7 @@ class RevertDraftChangeUseCase(
                 when (
                     val result = repository.revert(
                         context.projectId,
-                        context.principal.systemAdmin,
+                        context.principal.globalAdmin,
                         designSystemId,
                         changeId,
                         expectedRevision,

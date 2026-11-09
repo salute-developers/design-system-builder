@@ -15,6 +15,6 @@ class ListVariationPropertyValuesUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<VariationPropertyValue>> =
         modelList(policy, transactions, context) {
-            repository.listVariation(context.projectId, context.principal.systemAdmin)
+            repository.listVariation(context.projectId, context.principal.globalAdmin)
         }
 }

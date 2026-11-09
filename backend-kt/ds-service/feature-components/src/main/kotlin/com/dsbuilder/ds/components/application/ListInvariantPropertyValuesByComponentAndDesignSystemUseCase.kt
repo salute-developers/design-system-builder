@@ -21,7 +21,7 @@ class ListInvariantPropertyValuesByComponentAndDesignSystemUseCase(
     ): DsResult<List<InvariantPropertyValue>> = modelFindList(policy, transactions, context) {
         repository.listInvariantByComponentAndDesignSystem(
             context.projectId,
-            context.principal.systemAdmin,
+            context.principal.globalAdmin,
             componentId,
             designSystemId,
         )

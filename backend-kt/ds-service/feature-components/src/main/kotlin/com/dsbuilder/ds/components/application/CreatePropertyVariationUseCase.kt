@@ -22,8 +22,8 @@ class CreatePropertyVariationUseCase(
     ): DsResult<PropertyVariation> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-property-variation",
         command,
-        { repository.findPropertyVariation(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createPropertyVariation(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findPropertyVariation(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createPropertyVariation(context.projectId, context.principal.globalAdmin, command) },
         PropertyVariation::id,
     )
 }

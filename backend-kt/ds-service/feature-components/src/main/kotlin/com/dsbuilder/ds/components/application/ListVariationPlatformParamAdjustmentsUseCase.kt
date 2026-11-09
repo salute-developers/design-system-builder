@@ -15,6 +15,6 @@ class ListVariationPlatformParamAdjustmentsUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<VariationPlatformParamAdjustment>> =
         modelList(policy, transactions, context) {
-            repository.listVariationAdjustments(context.projectId, context.principal.systemAdmin)
+            repository.listVariationAdjustments(context.projectId, context.principal.globalAdmin)
         }
 }

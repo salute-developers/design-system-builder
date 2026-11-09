@@ -48,6 +48,9 @@ data class ProjectPrincipal(
     /** Служебная роль публикации Compose preview plugin: даёт право только на этот маршрут. */
     val composePreviewPublisher: Boolean = false,
 ) {
+    /** Global administrative mutations require an interactive user principal. */
+    val globalAdmin: Boolean get() = type == ProjectActorType.USER && systemAdmin
+
     /** Rejects incomplete and contradictory trusted contexts. */
     fun isValid(policy: AuthorizationPolicy): Boolean = when (type) {
         ProjectActorType.USER -> isValidUser(policy)

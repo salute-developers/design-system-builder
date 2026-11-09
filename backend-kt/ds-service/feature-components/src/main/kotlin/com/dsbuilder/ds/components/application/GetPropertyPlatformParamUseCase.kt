@@ -16,6 +16,6 @@ class GetPropertyPlatformParamUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<PropertyPlatformParam> =
         modelFind(policy, transactions, context) {
-            repository.findPlatformParam(context.projectId, context.principal.systemAdmin, id)
+            repository.findPlatformParam(context.projectId, context.principal.globalAdmin, id)
         }
 }

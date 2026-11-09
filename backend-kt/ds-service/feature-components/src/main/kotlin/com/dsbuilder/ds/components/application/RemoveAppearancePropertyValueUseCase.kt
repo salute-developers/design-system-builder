@@ -18,6 +18,6 @@ class RemoveAppearancePropertyValueUseCase(
         appearanceId: UUID,
         command: AppearanceEditorRepository.PropertyValueScope,
     ): DsResult<Unit> = modelDelete(policy, transactions, context) {
-        repository.removePropertyValue(context.projectId, context.principal.systemAdmin, appearanceId, command)
+        repository.removePropertyValue(context.projectId, context.principal.globalAdmin, appearanceId, command)
     }
 }
