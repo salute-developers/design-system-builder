@@ -16,7 +16,7 @@ kotlin {
             api(projects.coreAuth)
             api(libs.ktor.client.core)
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.kotlinx.serialization.json)
+            api(libs.kotlinx.serialization.json)
         }
 
         commonTest.dependencies {

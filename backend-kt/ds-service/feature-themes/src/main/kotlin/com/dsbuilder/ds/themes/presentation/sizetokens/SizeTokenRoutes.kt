@@ -13,6 +13,7 @@ import com.dsbuilder.ds.themes.application.sizetokens.CreateSizeToken
 import com.dsbuilder.ds.themes.application.sizetokens.CreatedSizeTokens
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUseCases
 import com.dsbuilder.ds.themes.application.sizetokens.UpdateSizeTokenValue
+import com.dsbuilder.ds.themes.application.sizetokens.UpdatedSizeToken
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenKind
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeValueInput
@@ -82,14 +83,13 @@ private fun Route.sizeTokenUpdateRoute(evaluator: PolicyEvaluator, useCases: Siz
             SizeValueInput(body.valuePx, body.layers, body.fallbackElevation, body.platforms),
             baseRevisions,
         )
-        when (val result = useCases.updateValue.execute(context, tenantId, tokenId, command)) {
+        val repeatable = call.repeatableThemeMutation(context, body) { value: UpdatedSizeToken ->
+            value.toResponse()
+        }
+        when (val result = useCases.updateValue.execute(repeatable, tenantId, tokenId, command)) {
             is DsResult.Success -> call.respondSuccess(
                 result,
-                UpdateSizeTokenValueResponse(
-                    kind = result.value.token.kind.wireValue,
-                    token = result.value.token.toJson(),
-                    values = result.value.values.map { it.toDto() },
-                ),
+                result.value.toResponse(),
             )
             is DsResult.Failure -> call.respondFailure(result.error)
         }
@@ -167,4 +167,10 @@ private val BODY = DsFailure.InvalidRequest("invalid_body", message = "Неко�
 private val BASE_REVISION = DsFailure.InvalidRequest(
     "invalid_base_revision",
     message = "Базовые редакции задаются для платформ web, ios и android",
+)
+
+private fun UpdatedSizeToken.toResponse() = UpdateSizeTokenValueResponse(
+    kind = token.kind.wireValue,
+    token = token.toJson(),
+    values = values.map { it.toDto() },
 )

@@ -70,6 +70,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                     removedComponentLeavesUsage(scope)
                     renameKeepsUsage(scope)
                     publishedBoundary(scope, section)
+                    repeatSpecializedWrites(scope)
                 }
             }
         }
@@ -95,6 +96,67 @@ class SizeTokenHttpPostgresIntegrationTest {
                     revertToRemovedRamp(scope)
                 }
             }
+        }
+    }
+
+    /** Сохранённый ответ обновления не перезаписывает более позднее значение ни одного вида размера. */
+    private suspend fun repeatSpecializedWrites(scope: Scope) {
+        val api = scope.api
+        val current = api.read(scope.base, OWNER).jsonObject
+        for (section in listOf("radii", "spacing", "shadows")) {
+            val tokenId = current.array(section).first().text("tokenId")
+            val path = "${scope.base}/$tokenId/value"
+            val key = UUID.randomUUID().toString()
+            val firstBody = if (section == "shadows") {
+                """
+{
+  "layers": [
+    {
+      "offsetX": 0,
+      "offsetY": 1,
+      "blur": 2,
+      "spread": 0,
+      "color": "#00000033"
+    }
+  ],
+  "fallbackElevation": 2
+}
+"""
+            } else {
+                """{"valuePx":21}"""
+            }
+            val nextBody = if (section == "shadows") {
+                """
+{
+  "layers": [
+    {
+      "offsetX": 0,
+      "offsetY": 2,
+      "blur": 4,
+      "spread": 0,
+      "color": "#00000033"
+    }
+  ],
+  "fallbackElevation": 4
+}
+"""
+            } else {
+                """{"valuePx":23}"""
+            }
+            val original = api.call("PUT", path, OWNER, firstBody, key)
+            assertEquals(HttpStatusCode.OK, original.status, original.bodyAsText())
+            val originalText = original.bodyAsText()
+            val originalMetadata = original.headers["X-DS-Mutation-Metadata"]
+            val next = api.call("PUT", path, OWNER, nextBody)
+            assertEquals(HttpStatusCode.OK, next.status, next.bodyAsText())
+            val state = api.read(scope.base, OWNER)
+            val replay = api.call("PUT", path, OWNER, firstBody, key)
+            assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
+            assertEquals(originalText, replay.bodyAsText())
+            assertEquals(originalMetadata, replay.headers["X-DS-Mutation-Metadata"])
+            assertEquals(state, api.read(scope.base, OWNER))
+            api.reject("PUT", path, OWNER, nextBody, 409, "IDEMPOTENCY_KEY_REUSED", key)
+            api.reject("PUT", path, VIEWER, firstBody, 403, key = key)
         }
     }
 

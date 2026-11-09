@@ -14,6 +14,7 @@ import com.dsbuilder.ds.themes.application.typography.TypographyBaseRevision
 import com.dsbuilder.ds.themes.application.typography.TypographyStyleTokens
 import com.dsbuilder.ds.themes.application.typography.TypographyStyleUseCases
 import com.dsbuilder.ds.themes.application.typography.UpdateTypographyStyle
+import com.dsbuilder.ds.themes.application.typography.UpdatedTypographyStyle
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleKey
 import com.dsbuilder.ds.themes.domain.typography.TypographyVariant
@@ -131,7 +132,10 @@ private fun Route.typographyUpdateRoute(evaluator: PolicyEvaluator, useCases: Ty
             return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_base_revision"))
         }
         val command = request.toCommand() ?: return@patch call.respondFailure(BODY)
-        when (val result = useCases.update.execute(context, tenantId, tokenId, command)) {
+        val repeatable = call.repeatableThemeMutation(context, request) { value: UpdatedTypographyStyle ->
+            value.toResponse()
+        }
+        when (val result = useCases.update.execute(repeatable, tenantId, tokenId, command)) {
             is DsResult.Success -> call.respondSuccess(result, result.value.toResponse())
             is DsResult.Failure -> call.respondFailure(result.error)
         }

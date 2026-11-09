@@ -3,12 +3,16 @@ package com.dsbuilder.frontend.cli.feature.mcp.presentation
 import com.dsbuilder.frontend.cli.CliAnalyticsSession
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
+import com.dsbuilder.frontend.feature.components.application.EditComponentUseCase
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
 import com.dsbuilder.frontend.feature.ds.application.DiscoverDesignSystemVersionsUseCase
 import com.dsbuilder.frontend.feature.ds.application.ListDesignSystemsUseCase
 import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
 import com.dsbuilder.frontend.feature.projects.application.ListProjectsUseCase
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
+import com.dsbuilder.frontend.feature.theme.application.EditThemeUseCase
+import com.dsbuilder.frontend.feature.theme.application.EditTokenUseCase
+import com.dsbuilder.frontend.feature.theme.application.ReadTokenEditDataUseCase
 import com.dsbuilder.frontend.mcpserver.CheckProjectStatusMcpReader
 import com.dsbuilder.frontend.mcpserver.DsBuilderMcpServerCore
 import com.dsbuilder.frontend.mcpserver.McpServerConfig
@@ -45,6 +49,10 @@ internal class McpServeCliCommand(
     private val listProjectsUseCase: ListProjectsUseCase,
     private val listDesignSystemsUseCase: ListDesignSystemsUseCase,
     private val discoverVersionsUseCase: DiscoverDesignSystemVersionsUseCase,
+    private val editTokenUseCase: EditTokenUseCase,
+    private val editThemeUseCase: EditThemeUseCase,
+    private val readTokenEditDataUseCase: ReadTokenEditDataUseCase,
+    private val editComponentUseCase: EditComponentUseCase,
     private val checkProjectStatusUseCase: CheckProjectStatusUseCase,
 ) : CliktCommand(name = "serve") {
 
@@ -64,6 +72,10 @@ internal class McpServeCliCommand(
                     listProjectsUseCase = listProjectsUseCase,
                     listDesignSystemsUseCase = listDesignSystemsUseCase,
                     discoverVersionsUseCase = discoverVersionsUseCase,
+                    editTokenUseCase = editTokenUseCase,
+                    editThemeUseCase = editThemeUseCase,
+                    readTokenEditDataUseCase = readTokenEditDataUseCase,
+                    editComponentUseCase = editComponentUseCase,
                     toolObserver = { operation, outcome ->
                         currentContext.findObject<CliAnalyticsSession>()?.record(
                             "mcp",

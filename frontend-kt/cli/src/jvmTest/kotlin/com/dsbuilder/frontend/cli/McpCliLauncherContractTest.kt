@@ -1,6 +1,8 @@
 package com.dsbuilder.frontend.cli
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -46,12 +48,13 @@ class McpCliLauncherContractTest {
             assertTrue(contextResponse.contains("AUTH_REQUIRED"), contextResponse)
             val registry = Json.parseToJsonElement(toolsListResponse).jsonObject
                 .getValue("result").jsonObject.getValue("tools").jsonArray
-            assertEquals(29, registry.size)
+            assertEquals(61, registry.size)
             val names = registry.map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
             assertTrue("component_configurations_list" in names)
             assertTrue("component_tokens_get" in names)
             assertTrue("documentation_publications_list" in names)
             val byName = registry.associateBy { it.jsonObject.getValue("name").jsonPrimitive.content }
+            assertEditorTools(names, byName)
             fun required(tool: String): List<String> = byName.getValue(tool).jsonObject
                 .getValue("inputSchema").jsonObject.getValue("required").jsonArray
                 .map { it.jsonPrimitive.content }
@@ -85,6 +88,23 @@ class McpCliLauncherContractTest {
             environment().remove("DSBUILDER_API_URL")
         }
         .start()
+    private fun assertClosedEditorSchema(schema: JsonObject) {
+        assertEquals("false", schema.getValue("additionalProperties").jsonPrimitive.content)
+        val members = schema.getValue("properties").jsonObject.getValue("members").jsonObject
+        assertEquals(
+            "false",
+            members.getValue("items").jsonObject.getValue("additionalProperties").jsonPrimitive.content,
+        )
+    }
+
+    private fun assertEditorTools(names: Set<String>, tools: Map<String, JsonElement>) {
+        assertClosedEditorSchema(
+            tools.getValue("color_token_values_update").jsonObject.getValue("inputSchema").jsonObject,
+        )
+        assertTrue("color_token_values_update" in names)
+        assertTrue("component_property_set" in names)
+        assertTrue("token_edit_data_get" in names)
+    }
 
     private fun javaBinary(): String =
         File(File(System.getProperty("java.home"), "bin"), "java").path

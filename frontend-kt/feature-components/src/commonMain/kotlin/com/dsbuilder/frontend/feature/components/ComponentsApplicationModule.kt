@@ -15,6 +15,7 @@ import com.dsbuilder.frontend.feature.components.application.ComponentPackageDir
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageLoader
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
+import com.dsbuilder.frontend.feature.components.application.EditComponentUseCase
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.GenerateComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaUseCase
@@ -28,6 +29,7 @@ import com.dsbuilder.frontend.feature.components.application.WebAdapterFileWrite
 import com.dsbuilder.frontend.feature.components.data.DefaultComponentPackageLoader
 import com.dsbuilder.frontend.feature.components.data.HttpApiMetaRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigRemoteSource
+import com.dsbuilder.frontend.feature.components.data.HttpComponentEditRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpPreviewPluginRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpWebAdapterFileSource
@@ -49,6 +51,7 @@ import org.koin.dsl.module
  * Создает Koin module для прикладного слоя фичи `components`.
  */
 public fun componentsApplicationModule(): Module = module {
+    single { EditComponentUseCase(RuntimeRequestResolver(get(), get(), get()), HttpComponentEditRemoteSource(get())) }
     single { ConfigCodec() }
     single<ComponentPackageLoader> {
         DefaultComponentPackageLoader(fileSystem = get<WorkspaceFileSystem>())

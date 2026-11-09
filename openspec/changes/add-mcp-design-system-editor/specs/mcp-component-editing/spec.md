@@ -21,7 +21,7 @@ MCP SHALL предоставлять `component_configuration_create`, `componen
 #### Scenario: Используемая конфигурация
 - **WHEN** на удаляемую конфигурацию существуют ссылки
 - **THEN** MCP MUST сохранить серверный reference_in_use и детали зависимостей
-- **THEN** каскад MUST передаваться только при явном confirmCascade в вызове
+- **THEN** MCP MUST NOT обходить reference_in_use дополнительными удалениями зависимостей
 
 ### Requirement: Оси конкретной конфигурации
 

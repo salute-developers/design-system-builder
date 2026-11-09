@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.mcpserver
 
 import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
+import com.dsbuilder.frontend.feature.components.application.EditComponentUseCase
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
 import com.dsbuilder.frontend.feature.ds.application.DiscoverDesignSystemVersionsUseCase
 import com.dsbuilder.frontend.feature.ds.application.ListDesignSystemsUseCase
@@ -11,6 +12,9 @@ import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusError
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
 import kotlinx.coroutines.CancellationException
+import com.dsbuilder.frontend.feature.theme.application.EditThemeUseCase
+import com.dsbuilder.frontend.feature.theme.application.EditTokenUseCase
+import com.dsbuilder.frontend.feature.theme.application.ReadTokenEditDataUseCase
 import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.serialization.Serializable
@@ -89,6 +93,10 @@ public data class McpToolDefinition(
     public val description: String,
     /** Serializable input property definitions forwarded to the MCP JSON Schema. */
     public val inputSchema: Map<String, McpToolInputDefinition> = emptyMap(),
+    /** Инструмент только читает данные. */
+    public val readOnly: Boolean = true,
+    /** Операция может удалять данные. */
+    public val destructive: Boolean = false,
 )
 
 /**
@@ -96,7 +104,7 @@ public data class McpToolDefinition(
  */
 @Serializable
 public data class McpToolInputDefinition(
-    /** JSON Schema primitive type. */
+    /** Тип JSON Schema. Значение json обозначает исходное JSON-значение с проверкой на backend. */
     public val type: String = "string",
     /** Agent-facing parameter semantics and usage guidance. */
     public val description: String? = null,
@@ -106,6 +114,13 @@ public data class McpToolInputDefinition(
     public val itemType: String? = null,
     /** Required input for the tool schema. */
     public val required: Boolean = false,
+    /** Поля вложенного объекта. */
+    public val properties: Map<String, McpToolInputDefinition> = emptyMap(),
+    /** Схема элемента массива, включая вложенные объекты. */
+    public val items: McpToolInputDefinition? = null,
+    /** Разрешено явное JSON null. */
+    public val nullable: Boolean = false,
+
 )
 
 /**
@@ -154,9 +169,21 @@ public class DsBuilderMcpServerCore(
     private val listDesignSystemsUseCase: ListDesignSystemsUseCase? = null,
     private val discoverVersionsUseCase: DiscoverDesignSystemVersionsUseCase? = null,
     private val toolObserver: (String, String) -> Unit = { _, _ -> },
+    private val editTokenUseCase: EditTokenUseCase? = null,
+    private val editThemeUseCase: EditThemeUseCase? = null,
+    private val readTokenEditDataUseCase: ReadTokenEditDataUseCase? = null,
+    private val editComponentUseCase: EditComponentUseCase? = null,
 ) {
     private val toolOutcomes = mapOf(false to "success", true to "failure")
     private val readContext = McpReadToolContext(config, json)
+    private val editorTools = McpEditorTools(
+        editTokenUseCase,
+        editThemeUseCase,
+        readTokenEditDataUseCase,
+        editComponentUseCase,
+        readContext,
+    )
+    private val editorNames = editorMcpToolDefinitions().map { it.name }.toSet()
     private val documentationMcpTools = DocumentationMcpTools(docsReadUseCases, readContext)
     private val codeBindingMcpTools = CodeBindingMcpTools(docsReadUseCases, readContext)
     private val componentMcpTools = ComponentMcpTools(componentReadUseCases, readContext)
@@ -188,8 +215,8 @@ public class DsBuilderMcpServerCore(
         "component_tokens_get" to componentMcpTools::componentTokensGet,
     )
 
-    /** Returns the read-only tools registered by this server core. */
-    public fun tools(): List<McpToolDefinition> = readOnlyMcpToolDefinitions()
+    /** Возвращает общий набор инструментов чтения и редактирования. */
+    public fun tools(): List<McpToolDefinition> = readOnlyMcpToolDefinitions() + editorMcpToolDefinitions()
 
     /**
      * Dispatches one MCP tool call to the shared application layer.
@@ -198,7 +225,11 @@ public class DsBuilderMcpServerCore(
         if (tools().none { it.name == name }) return protocolError("Unknown tool: $name")
         var outcome = "failure"
         try {
-            val result = nonModelHandlers[name]?.invoke(arguments) ?: modelMcpTools.read(name, arguments)
+            val result = if (name in editorNames) {
+                editorTools.call(name, arguments)
+            } else {
+                nonModelHandlers[name]?.invoke(arguments) ?: modelMcpTools.read(name, arguments)
+            }
             outcome = toolOutcomes.getValue(result.isError)
             return result
         } catch (cancelled: CancellationException) {

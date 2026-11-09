@@ -21,6 +21,24 @@ class OpenApiDocumentResourceTest {
     private val paths = document.getValue("paths").jsonObject
 
     @Test
+    fun `specialized value writes document repeatable responses`() {
+        val operations = listOf(
+            "/api/ds/tenants/{tenantId}/size-tokens/{tokenId}/value" to "put",
+            "/api/ds/tenants/{tenantId}/typography-styles/{tokenId}" to "patch",
+        )
+        for ((path, method) in operations) {
+            val operation = paths.getValue(path).jsonObject.getValue(method).jsonObject
+            assertTrue(
+                operation.getValue("parameters").jsonArray.any {
+                    it.jsonObject["\$ref"]?.jsonPrimitive?.content == "#/components/parameters/OptionalIdempotencyKey"
+                },
+            )
+            assertTrue("IDEMPOTENCY_KEY_REUSED" in operation.getValue("description").jsonPrimitive.content)
+            assertTrue("409" in operation.getValue("responses").jsonObject)
+        }
+    }
+
+    @Test
     fun `versioned read contract keeps array bodies and exposes metadata outside them`() {
         val lists = listOf(
             "/api/design-systems/{designSystemId}/tokens",
@@ -127,7 +145,7 @@ class OpenApiDocumentResourceTest {
             val success = responses.getValue(if (method == "post") "201" else "200").jsonObject
             assertTrue("X-DS-Mutation-Metadata" in success.getValue("headers").jsonObject, method)
             assertTrue("X-DS-Mutation-Metadata-Truncated" in success.getValue("headers").jsonObject, method)
-            assertFalse("409" in responses && method != "post", method)
+            assertEquals(method != "delete", "409" in responses, method)
         }
         assertTrue("#/components/parameters/OptionalIdempotencyKey" in refs("post"))
         val schemas = document.getValue("components").jsonObject.getValue("schemas").jsonObject

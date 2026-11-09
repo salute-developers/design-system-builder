@@ -81,27 +81,10 @@ internal class ModelMcpTools(
     }
 
     private fun modelArgumentError(arguments: JsonObject, schema: Map<String, McpToolInputDefinition>): String? {
-        arguments.keys.firstOrNull { it != "designSystem" && it !in schema }
-            ?.let { return "Unsupported model read argument: $it" }
-        arguments["detail"]?.let { detail ->
-            if (detail !is JsonPrimitive || !detail.isString || detail.content !in listOf("compact", "full")) {
-                return "Invalid model read argument: detail"
-            }
-        }
-        val invalid = arguments.entries.firstOrNull { (key, value) ->
-            val definition = schema[key]
-            definition != null && !validModelArgument(value, definition)
-        }
-        return invalid?.let { "Invalid model read argument: ${it.key}" }
-    }
-
-    private fun validModelArgument(value: JsonElement, definition: McpToolInputDefinition): Boolean {
-        val primitive = value as? JsonPrimitive ?: return false
-        return when (definition.type) {
-            "string" -> primitive.isString
-            "integer" -> !primitive.isString && primitive.content.toIntOrNull() != null
-            else -> false
-        }
+        val error = inputObjectError(arguments, schema + ("designSystem" to McpToolInputDefinition()))
+        if (error != null) return error
+        val limit = arguments["limit"] as? JsonPrimitive
+        return if (limit != null && limit.content.toIntOrNull() == null) "Invalid model read argument: limit" else null
     }
 }
 

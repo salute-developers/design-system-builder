@@ -17,10 +17,10 @@ kotlin {
             // FetchSource/PushTarget expose ResolvedApiUrl (core-network) as a public property.
             api(projects.coreNetwork)
             implementation(projects.coreWorkspace)
-            implementation(projects.coreApplication)
+            api(projects.coreApplication)
             // componentsApplicationModule(): Module is a public factory returning a Koin type.
             api(libs.koin.core)
-            implementation(libs.kotlinx.serialization.json)
+            api(libs.kotlinx.serialization.json)
             implementation(libs.okio)
         }
 

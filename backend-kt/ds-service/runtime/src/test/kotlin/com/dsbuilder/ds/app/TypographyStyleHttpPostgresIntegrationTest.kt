@@ -71,8 +71,31 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 publishedBoundary(api, db, designSystemId, tenantA, base)
                 structure(api, db, designSystemId, base)
                 groups(api, db, designSystemId, base)
+                repeatStyleWrite(api, base)
             }
         }
+    }
+
+    /** Повтор PATCH возвращает исходный DTO и метаданные без перезаписи конкурентной правки. */
+    private suspend fun repeatStyleWrite(api: Api, base: String) {
+        val token = style(api.read(base, VIEWER), "screen-s", "body", "large")
+            .obj("variants").obj("bold").text("tokenId")
+        val path = "$base/$token"
+        val key = UUID.randomUUID().toString()
+        val body = """{"size":21}"""
+        val original = api.call("PATCH", path, EDITOR, body, key)
+        assertEquals(HttpStatusCode.OK, original.status, original.bodyAsText())
+        val originalBody = original.bodyAsText()
+        val originalMetadata = original.headers["X-DS-Mutation-Metadata"]
+        api.patch(path, EDITOR, """{"size":23}""")
+        val state = api.read(base, VIEWER)
+        val replay = api.call("PATCH", path, EDITOR, body, key)
+        assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
+        assertEquals(originalBody, replay.bodyAsText())
+        assertEquals(originalMetadata, replay.headers["X-DS-Mutation-Metadata"])
+        assertEquals(state, api.read(base, VIEWER))
+        assertEquals(HttpStatusCode.Conflict, api.call("PATCH", path, EDITOR, """{"size":25}""", key).status)
+        assertEquals(HttpStatusCode.Forbidden, api.call("PATCH", path, VIEWER, body, key).status)
     }
 
     /** Ссылки на стиль через `token_id` и текст с экраном в значении инварианта — новыми редакциями черновика. */
@@ -412,10 +435,17 @@ class TypographyStyleHttpPostgresIntegrationTest {
     private class Mutation(val body: JsonObject, val metadata: List<JsonObject>, val truncated: String?)
 
     private inner class Api(private val client: HttpClient) {
-        suspend fun call(method: String, path: String, actor: Actor, body: String? = null): HttpResponse =
+        suspend fun call(
+            method: String,
+            path: String,
+            actor: Actor,
+            body: String? = null,
+            key: String? = null,
+        ): HttpResponse =
             client.request(path) {
                 this.method = HttpMethod.parse(method)
                 trusted(actor)
+                key?.let { header("Idempotency-Key", it) }
                 body?.let { jsonBody(it) }
             }
 

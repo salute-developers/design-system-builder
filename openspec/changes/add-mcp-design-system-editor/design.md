@@ -2,7 +2,7 @@
 
 ## Контекст
 
-Зависимость — `scope-design-system-routes` (ПР #149). Реализация MCP начинается после появления его серверных и клиентских контрактов. Мотивация и границы описаны в [proposal.md](proposal.md). Общий MCP работает через `mcp-server-core` и прикладные сценарии Kotlin Multiplatform. Сервер уже предоставляет точечные мутации токенов, цветовые семейные операции и редактор конфигураций. Транспорт `AuthenticatedHttpClient` ориентирован на GET/POST, а MCP-схемы описывают преимущественно простые поля. Их нужно расширить на стороне клиента, сохранив существующие вызовы.
+Зависимость — `scope-design-system-routes` (ПР #149). Независимые части MCP реализуются под целевые контракты. Интеграция и выпуск требуют реализации зависимости. Мотивация и границы описаны в [proposal.md](proposal.md). Общий MCP работает через `mcp-server-core` и прикладные сценарии Kotlin Multiplatform. Сервер уже предоставляет точечные мутации токенов, цветовые семейные операции и редактор конфигураций. Транспорт `AuthenticatedHttpClient` ориентирован на GET/POST, а MCP-схемы описывают преимущественно простые поля. Их нужно расширить на стороне клиента, сохранив существующие вызовы.
 
 ## Решения
 
@@ -20,9 +20,9 @@
 | `color_token_values_update` | PUT `/tenants/{tenantId}/color-tokens/{tokenId}/values`; изменения выбранных членов и пар платформы/режима |
 | `color_token_move`, `color_token_delete` | POST `…/{tokenId}/move`, DELETE `…/{tokenId}`; перенос/порядок/переименование семейства либо его удаление |
 | `size_token_value_update`, `typography_style_update` | PUT `/tenants/{tenantId}/size-tokens/{tokenId}/value`, PATCH `/tenants/{tenantId}/typography-styles/{tokenId}`; согласованные параметры существующих специализированных редакторов |
-| `token_group_create`, `token_group_update`, `token_group_delete` | POST/PATCH/DELETE `/tenants/{tenantId}/token-groups`; label, parentId, position, поддерживаемый kind=color |
+| `token_group_create`, `token_group_update`, `token_group_delete` | POST `/tenants/{tenantId}/token-groups`, PATCH/DELETE `/tenants/{tenantId}/token-groups/{groupId}`; label, parentId, position, поддерживаемый kind=color |
 | `component_configuration_create`, `component_configuration_duplicate` | POST `/appearances/new`, POST `/appearances/{appearanceId}/duplicate`; компонент выбранной системы, необязательное имя |
-| `component_configuration_update`, `component_configuration_delete` | PATCH/DELETE `/appearances/{appearanceId}`; имя, для удаления — поддерживаемое сервером подтверждение каскада |
+| `component_configuration_update`, `component_configuration_delete` | PATCH/DELETE `/appearances/{appearanceId}`; имя, для удаления — серверные проверки использования и конфигурации по умолчанию |
 | `component_axis_create`, `component_axis_update`, `component_axis_delete` | POST `/appearances/{appearanceId}/axes`, PATCH `/appearance-variations/{axisId}`, DELETE `/appearances/{appearanceId}/axes/{axisId}`; имя, значения, позиция, defaultStyleId, isRoot, isColorScheme, declaredType |
 | `component_axes_reorder` | POST `/appearances/{appearanceId}/axis-order`; полный список axisIds |
 | `component_axis_value_create`, `component_axis_value_update`, `component_axis_value_delete` | POST `/appearances/{appearanceId}/axes/{axisId}/values`, PATCH `/appearance-variation-values/{valueId}`, DELETE `/appearances/{appearanceId}/axis-values/{valueId}` |
@@ -33,6 +33,8 @@
 Новые чтения `token_edit_data_get(tokenId, tenantId)` и `component_editor_get(appearanceId)` дают исходные данные и редакции для записи. Первое составляет определение токена, значения темы и, для распознаваемого цветового семейства, список его членов через существующие чтения. Второе использует GET `/appearances/{id}/editor-model`. Эти инструменты читают только черновик; опубликованные данные по-прежнему доступны существующими инструментами чтения.
 
 Отдельные инструменты добавления и удаления состояния не нужны: состояние значения задаётся `states` у `component_property_set`, удаляется `component_property_reset`, порядок меняется `component_states_reorder`. Состояния берутся из существующей меты компонента. Мутации общего каталога не регистрируются даже для учётных данных администратора.
+
+Текущий SDK 0.10 не сохраняет корневой `additionalProperties` в `ToolSchema`. На выходной границе stdio закрываем корни только новых editor tools, сохраняя поля SDK и схемы прежних инструментов. CLI обрабатывает полные NDJSON-строки независимо от границ UTF-8 и записи, Node использует то же преобразование; фактический `tools/list` проверяется в обоих средствах запуска.
 
 ### Точечная и семейная запись
 
@@ -91,21 +93,31 @@ public data class HttpMutationRequest(
     val baseRevision: Long?,
     val clientId: String?,
 )
-public interface MutationHttpClient {
-    public suspend fun execute(request: HttpMutationRequest): HttpMutationResponse
+public interface AuthenticatedHttpClient {
+    public suspend fun mutate(request: HttpMutationRequest): HttpMutationResult
 }
 // Ответ содержит statusCode, тело и разрешённые метаданные;
 // транспортная ошибка отделена от полученного HTTP-ответа.
 
 // feature-theme/application
 public class EditTokenUseCase internal constructor(/* порты фичи */) {
-    public suspend fun execute(command: TokenEditCommand, request: RuntimeRequest): TokenEditResult
+    public suspend fun execute(
+        command: TokenEditCommand,
+        options: DraftEditOptions,
+        request: RuntimeRequest,
+    ): DraftOperationResult
 }
 // feature-components/application
 public class EditComponentUseCase internal constructor(/* порты фичи */) {
-    public suspend fun execute(command: ComponentEditCommand, request: RuntimeRequest): ComponentEditResult
+    public suspend fun execute(
+        command: ComponentEditCommand,
+        options: DraftEditOptions,
+        request: RuntimeRequest,
+    ): DraftOperationResult
 }
 ```
+
+`DraftOperationRunner` в `core-application` переиспользует разрешение runtime и выбор черновика для обеих фич. `DraftEditOptions` хранит исходный ключ и редакцию, `DraftOperationResult` связывает результат транспорта с разрешённым контекстом. Частичные обновления используют `FieldChange` из `core-domain`, чтобы различать отсутствие поля и явный сброс в `null`. Идентификаторы сегментов проверяются до построения URL.
 
 В `domain` фич живут только правила сборки изменения и модели без HTTP/MCP. `core-network` не решает, что такое семейство или конфигурация. Новое API клиента добавляется совместимо, без изменения смысла существующих GET/POST. Публичные сигнатуры и Gradle `api` соблюдают правила `frontend-kt/AGENTS.md`.
 

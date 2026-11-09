@@ -23,6 +23,7 @@ kotlin {
             implementation(projects.coreNetwork)
             implementation(projects.coreWorkspace)
             implementation(projects.featureAuth)
+            implementation(projects.featureTheme)
             implementation(projects.featureComponents)
             implementation(projects.featureDs)
             implementation(projects.featureProjects)
@@ -219,24 +220,42 @@ tasks.register("npmPackMcpNodeSmoke") {
             }
             val modelToolNames = Regex(""""name":"([a-z_]+)"""")
                 .findAll(toolsResponse).map { it.groupValues[1] }.toList()
-            check(modelToolNames.size == 29 && modelToolNames.toSet().size == 29) {
-                "Expected exactly 29 distinct tools: $modelToolNames"
+            check(modelToolNames.size == 61 && modelToolNames.toSet().size == 61) {
+                "Expected exactly 61 distinct tools: $modelToolNames"
             }
             listOf(
                 "design_system_versions_list", "design_system_version_get", "design_system_changes_list",
                 "projects_list", "design_systems_list",
                 "tenants_list", "token_groups_list", "palette_get",
                 "documentation_publications_list", "component_configurations_list", "component_tokens_get",
+                "color_token_values_update", "component_property_set", "token_edit_data_get",
             ).forEach { name -> check(name in modelToolNames) { "Missing tool: $name" } }
             check(toolsResponse.contains("appearanceId")) {
                 "Appearance variation schema is missing appearanceId"
             }
-            check(!toolsResponse.contains("token_update", ignoreCase = true)) {
-                "tools/list response unexpectedly contained mutating token tool: $toolsResponse"
+            check("token_update" in modelToolNames && "component_configuration_update" in modelToolNames) {
+                "Editor mutations are missing from tools/list"
             }
-            check(!toolsResponse.contains("component_config_update", ignoreCase = true)) {
-                "tools/list response unexpectedly contained mutating component tool: $toolsResponse"
+            check("state_create" !in modelToolNames && "variation_create" !in modelToolNames) {
+                "Global catalog mutations must not be registered"
             }
+            check(Regex(""""readOnlyHint":false""").findAll(toolsResponse).count() == 30) {
+                "Mutation annotations must identify exactly 30 write tools"
+            }
+            val schemaResponseFile = smokeDir.resolve("tools-response.json")
+            schemaResponseFile.writeText(toolsResponse)
+            runChecked(
+                "node", "-e",
+                """
+                const response = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+                const editors = response.result.tools.filter(t => t.annotations.readOnlyHint === false ||
+                    t.name === 'token_edit_data_get' || t.name === 'component_editor_get');
+                if (editors.length !== 32 || editors.some(t => t.inputSchema.additionalProperties !== false)) {
+                    throw Error('Editor tools must publish closed object roots');
+                }
+                """.trimIndent(),
+                schemaResponseFile.absolutePath,
+            )
             check(unknownToolResponse.contains(""""id":3""")) {
                 "unknown tool response did not contain id 3: $unknownToolResponse"
             }

@@ -11,7 +11,10 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResponse
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.network.HttpMutationRequest
+import com.dsbuilder.frontend.core.network.HttpMutationResult
 import com.dsbuilder.frontend.core.network.MultipartFile
+import com.dsbuilder.frontend.core.network.MutationHttpMethod
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -112,10 +115,23 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
         assertEquals(listOf("https://api.example.com"), deleted)
     }
 
+    @Test
+    fun mutationRefreshKeepsTheOriginalRequestAndIdempotencyKey() = runTest {
+        val attempts = mutableListOf<BackendCredential>()
+        val commands = mutableListOf<HttpMutationRequest>()
+        val factory = factory(attempts, mutations = commands) { BackendCredential.Bearer("new") }
+        val request = HttpMutationRequest(MutationHttpMethod.DELETE, "/resource", "{}", "original-key", 7)
+        val result = factory.create("https://api.example.com", BackendCredential.Bearer("old")).mutate(request)
+        assertEquals(200, (result as HttpMutationResult.Response).statusCode)
+        assertEquals(listOf(request, request), commands)
+        assertEquals(2, attempts.size)
+    }
+
     private fun factory(
         attempts: MutableList<BackendCredential>,
         deleted: MutableList<String> = mutableListOf(),
         alwaysUnauthorized: Boolean = false,
+        mutations: MutableList<HttpMutationRequest> = mutableListOf(),
         refresh: () -> BackendCredential.Bearer,
     ): AuthenticatedHttpClientFactory {
         val delegate = object : AuthenticatedHttpClientFactory {
@@ -130,6 +146,24 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
                             AuthenticatedHttpResult.Failure("Unauthorized", 401)
                         } else {
                             result(credential)
+                        }
+                    }
+
+                    override suspend fun mutate(request: HttpMutationRequest): HttpMutationResult {
+                        mutations += request
+                        return when (val result = get(request.path)) {
+                            is AuthenticatedHttpResult.Success -> HttpMutationResult.Response(
+                                200,
+                                result.body,
+                                emptyMap(),
+                                true,
+                            )
+                            is AuthenticatedHttpResult.Failure -> HttpMutationResult.Response(
+                                result.statusCode ?: 503,
+                                "",
+                                emptyMap(),
+                                true,
+                            )
                         }
                     }
 
