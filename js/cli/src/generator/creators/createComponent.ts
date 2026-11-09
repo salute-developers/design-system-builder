@@ -1,5 +1,6 @@
 import type { ComponentManifest } from '../types/index.ts';
 import { getPlasmaConfigName, lowerFirstLetter, upperFirstLetter } from '../utils/index.ts';
+import { appearanceConfigFile, appearanceIdentifier, appearanceKey } from '../utils/appearanceName.ts';
 
 /**
  * Приведение типа результата `component(...)`, как у Modal, Popup, Tooltip в sdds-serv:
@@ -26,8 +27,6 @@ const castParts = (wrapper?: ComponentManifest | null) => {
     };
 };
 
-const configAlias = (name: string) => `${lowerFirstLetter(name)}Config`;
-const configFile = (componentName: string, name: string) => (name === 'default' ? `${componentName}.config` : `${componentName}.${name}.config`);
 
 /**
  * Обёртка над несколькими appearance с одним базовым конфигом ядра (Range: default и clear):
@@ -39,12 +38,17 @@ export const createConditionalComponent = (
     appearanceNames: string[],
     configName: string,
 ) => {
-    const parts = appearanceNames.map((name) => ({
-        name,
-        Local: `${componentName}${upperFirstLetter(name)}`,
-        alias: configAlias(name),
-        file: configFile(componentName, name),
-    }));
+    // Имя конфигурации — значение `appearance`; идентификаторы и файлы строятся из его camelCase-формы.
+    const parts = appearanceNames.map((name) => {
+        const identifier = appearanceIdentifier(componentName, name);
+        return {
+            key: appearanceKey(name),
+            Identifier: upperFirstLetter(identifier),
+            Local: `${componentName}${upperFirstLetter(identifier)}`,
+            alias: `${lowerFirstLetter(identifier)}Config`,
+            file: appearanceConfigFile(componentName, name),
+        };
+    });
 
     return `import { ${configName}, component, mergeConfig, createConditionalComponent } from '@salutejs/plasma-new-hope/styled-components';
 
@@ -52,8 +56,8 @@ ${parts.map((part) => `import { config as ${part.alias} } from './${part.file}';
 
 ${parts
     .map(
-        (part) => `const merged${upperFirstLetter(part.name)}Config = mergeConfig(${configName}, ${part.alias});
-export const ${part.Local} = component(merged${upperFirstLetter(part.name)}Config);`,
+        (part) => `const merged${part.Identifier}Config = mergeConfig(${configName}, ${part.alias});
+export const ${part.Local} = component(merged${part.Identifier}Config);`,
     )
     .join('\n\n')}
 
@@ -61,7 +65,7 @@ export const ${part.Local} = component(merged${upperFirstLetter(part.name)}Confi
  * ${componentDescription}
  */
 export const ${componentName} = createConditionalComponent({
-${parts.map((part) => `    ${part.name}: ${part.Local},`).join('\n')}
+${parts.map((part) => `    ${part.key}: ${part.Local},`).join('\n')}
 });
 `;
 };

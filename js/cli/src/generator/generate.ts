@@ -18,6 +18,7 @@ import {
 import { BaseFileStructure, ComponentManifest, ComponentsFiles } from './types/index.ts';
 import { Config, Meta } from './componentBuilder/index.ts';
 import { getPlasmaConfigName, resolveNpmPackageScope } from './utils/index.ts';
+import { appearanceConfigFile } from './utils/appearanceName.ts';
 
 /**
  * Служебные файлы заготовки хранятся без точки: npm не включает `.gitignore` и `.npmrc` в опубликованный
@@ -157,10 +158,9 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
     for await (const item of configs) {
         const { id, name } = item;
         const config = new Config(componentMeta, id);
-        const componentConfigFileName = name === 'default' ? componentName : `${componentName}.${name}`;
 
         const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport);
-        await fs.writeFile(`${pathToComponent}/${componentConfigFileName}.config.ts`, componentConfig);
+        await fs.writeFile(`${pathToComponent}/${appearanceConfigFile(componentName, name)}.ts`, componentConfig);
     }
 };
 
