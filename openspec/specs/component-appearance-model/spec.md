@@ -232,11 +232,11 @@ from `uikit-compose-api-meta.json`. Appearance configurations SHALL NOT rewrite 
 `ds-service` SHALL provide an endpoint that returns every component configuration of a design system
 in one response, mirroring the import endpoint.
 
-#### Scenario: Export адресует дизайн-систему телом запроса
+#### Scenario: Export адресует дизайн-систему путём запроса
 
 - **WHEN** a client requests an export
-- **THEN** the design system MUST be addressed by `designSystemId` in the request body
-- **THEN** the request path MUST NOT contain the design system identifier or its name
+- **THEN** дизайн-система MUST задаваться через `designSystemId` в пути; входное тело MUST NOT дублировать это поле
+- **THEN** путь MUST содержать идентификатор дизайн-системы; имя системы MUST NOT использоваться вместо него
 - **THEN** the response MUST contain every component configuration of that design system
 
 #### Scenario: Export требует read scope

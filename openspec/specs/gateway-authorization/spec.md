@@ -36,7 +36,7 @@ Gateway SHALL запрещать внешний доступ к internal endpoin
 
 ### Requirement: Gateway направляет предметный API в ds-service
 
-Gateway SHALL направлять согласованный набор `/api/projects/{projectId}/ds/**` в `ds-service` после project-scoped авторизации и SHALL переписывать публичный префикс во внутренний `/api/ds` без изменения остатка пути и query string.
+Gateway SHALL направлять согласованный набор `/api/projects/{projectId}/design-systems/**` в `ds-service` после project-scoped авторизации и SHALL переписывать публичный префикс во внутренний `/api/design-systems` без изменения остатка пути и query string.
 
 #### Scenario: Вызов перенесённого маршрута
 
@@ -49,7 +49,7 @@ Gateway SHALL направлять согласованный набор `/api/p
 
 - **WHEN** клиент вызывает исключённый маршрут `/api/projects/{projectId}/ds/legacy/**`
 - **THEN** Gateway MUST ответить `404`: upstream db-service удалён
-- **AND** общее правило `/ds/**` MUST направлять разрешённый набор в `ds-service`
+- **AND** общее правило `/api/projects/{projectId}/design-systems/**` MUST направлять разрешённый набор в `ds-service`
 
 #### Scenario: Атомарный откат
 
@@ -80,7 +80,7 @@ Gateway SHALL направлять согласованный набор `/api/p
 Подсчёт каталога SHALL выполняться внутри процесса через прикладные интерфейсы. Оптимизация SHALL NOT открывать внутренние маршруты или обходить пользовательскую авторизацию. Исторические nginx-конфигурации SHALL NOT изменяться.
 
 #### Scenario: Прямой вызов внутреннего пути
-- **WHEN** клиент обращается к /internal/** или прямому /api/ds/** через публичный порт
+- **WHEN** клиент обращается к /internal/** или прямому /api/design-systems/** через публичный порт
 - **THEN** app MUST сохранять действующий запрет обхода project-scoped авторизации
 - **THEN** публичный список MUST включать только проекты user-scoped контекста
 

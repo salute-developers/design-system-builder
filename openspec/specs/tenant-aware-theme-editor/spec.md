@@ -30,7 +30,7 @@
 - **WHEN** клиент собирает компонентные настройки для выбранной темы
 - **THEN** Компонентные настройки клиент SHALL собирать из
 ответов ds-service и дополнять web-параметрами свойств, объявленными вариациями свойств, шаблонами web-параметров и
-зависимостями компонентов обоих типов (`compose`, `reuse`) из `GET /ds/component-deps`;
+зависимостями компонентов обоих типов (`compose`, `reuse`) из `GET /api/design-systems/catalog/component-deps`;
 клиент MUST NOT обращаться к `/ds/legacy/**` и MUST NOT публиковать версию дизайн-системы сам.
 
 #### Scenario: Данные редактора загружены
@@ -64,9 +64,9 @@
 #### Scenario: Компонентные настройки дополнены для web-превью
 
 - **WHEN** клиент загружает компоненты дизайн-системы для платформы `web`
-- **THEN** у свойства в API компонента MUST быть web-параметры из `GET /ds/property-platform-params` в порядке базы,
-  шаблон поправки из `POST /ds/component-config/web-adapter` и объявленный список вариаций из
-  `GET /ds/property-variations`
+- **THEN** у свойства в API компонента MUST быть web-параметры из `GET /api/design-systems/catalog/property-platform-params` в порядке базы,
+  шаблон поправки из `POST /api/design-systems/{designSystemId}/component-config/web-adapter` и объявленный список вариаций из
+  `GET /api/design-systems/{designSystemId}/property-variations`
 - **THEN** свойство без web-параметра MUST остаться без web-маппинга
 - **THEN** дополнительные запросы MUST передавать `versionId` выбранной версии, как остальные чтения редактора
 
@@ -264,7 +264,7 @@ tenant, и SHALL показывать такой токен как неполн�
 компонентов для подготовки списка запрещён.
 
 Данные выбранного компонента и каждого связанного компонента превью SHALL читаться одним
-запросом `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentId}/editor-bundle`
+запросом `GET /api/projects/{projectId}/design-systems/{designSystemId}/components/{componentId}/editor-bundle`
 на компонент, а не набором списков всей дизайн-системы. Связанные компоненты SHALL загружаться
 одновременно в пределах одного уровня ссылок. Разделы токенов, нужные выбранному компоненту,
 SHALL читаться одновременно.

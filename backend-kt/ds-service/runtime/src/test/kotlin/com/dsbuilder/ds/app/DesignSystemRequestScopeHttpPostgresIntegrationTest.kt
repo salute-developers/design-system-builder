@@ -31,6 +31,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.koin.ktor.plugin.Koin
+import java.io.File
 import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.UUID
@@ -321,6 +322,39 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
                         table,
                     )
                 }
+                // Новые GET/DELETE для этих ресурсов автоматически попадают в отрицательную матрицу.
+                // Манифест уже сверяется с OpenAPI отдельным контрактным тестом.
+                val resources = ids.mapKeys { (table, _) -> table.replace('_', '-') }
+                val manifest = Json.parseToJsonElement(File("../contracts/route-manifest.json").readText()).jsonObject
+                val operations = manifest.getValue("groups").jsonArray
+                    .flatMap { it.jsonObject.getValue("operations").jsonArray }
+                    .map { it.jsonArray }
+                val paths = operations.mapNotNull { operation ->
+                    val method = operation[0].jsonPrimitive.content
+                    val path = operation[1].jsonPrimitive.content
+                    val parts = path.split('/')
+                    val owner = resources[parts.getOrNull(2)]
+                    if (method !in setOf("GET", "DELETE") || parts.getOrNull(1) != "{designSystemId}" ||
+                        owner == null || parts.getOrNull(3) != "{id}"
+                    ) {
+                        return@mapNotNull null
+                    }
+                    // У DELETE токена/темы/оформления тела нет; другие тела требуют отдельного сценария.
+                    if (method == "DELETE" && operation[2].jsonPrimitive.content != "null") return@mapNotNull null
+                    // Удаление значения свойства требует query-область; её нельзя заменить случайными ID.
+                    if (method == "DELETE" && path.endsWith("/{id}/property-values")) return@mapNotNull null
+                    val resolvedPath = path.replace("{designSystemId}", a).replace("{id}", owner)
+                        .replace("{axisId}", ids.getValue("appearance_variations"))
+                        .replace("{valueId}", ids.getValue("appearance_variation_values"))
+                    assertFalse(resolvedPath.contains('{'), "Add a fixture for $method $path")
+                    method to resolvedPath
+                }
+                assertTrue(paths.isNotEmpty())
+                for ((method, path) in paths) {
+                    val response = api(client, method, "$ROOT$path")
+                    assertEquals(HttpStatusCode.NotFound, response.status, "$method $path: ${response.bodyAsText()}")
+                }
+                assertEquals(before, snapshot(database), "manifest-driven foreign reads/deletes changed database")
                 val appearance = ids.getValue("appearances")
                 val token = ids.getValue("tokens")
                 val property =

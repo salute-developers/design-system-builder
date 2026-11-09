@@ -54,9 +54,9 @@ CLI `theme fetch` SHALL load remote data through the DS Builder project-scoped b
 #### Scenario: Theme fetch загружает tenants и tokens
 
 - **WHEN** developer runs `dsbuilder theme fetch`
-- **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tenants`
+- **THEN** CLI MUST send `GET /api/projects/{projectId}/design-systems/{designSystemId}/tenants`
 - **THEN** CLI MUST parse the response as a JSON array of `Tenant` objects with fields `id`, `designSystemId`, `name`, `description`, `createdAt`, and `updatedAt`
-- **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens`
+- **THEN** CLI MUST send `GET /api/projects/{projectId}/design-systems/{designSystemId}/tokens`
 - **THEN** CLI MUST parse the response as a JSON array of `Token` objects with fields `id`, `designSystemId`, `name`, `type`, `displayName`, `description`, `enabled`, `createdAt`, and `updatedAt`
 
 #### Scenario: Необязательные подпись и описание токена
@@ -67,13 +67,13 @@ CLI `theme fetch` SHALL load remote data through the DS Builder project-scoped b
 #### Scenario: Theme fetch загружает palette
 
 - **WHEN** developer runs `dsbuilder theme fetch`
-- **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/palette`
+- **THEN** CLI MUST send `GET /api/projects/{projectId}/design-systems/catalog/palette`
 - **THEN** CLI MUST parse the response as a JSON array of `PaletteItem` objects with fields `id`, `type`, `shade`, `saturation`, `value`, `createdAt`, and `updatedAt`
 
 #### Scenario: Theme fetch загружает token values для каждого tenant
 
 - **WHEN** tenants response contains tenant with `id = tenant-a`
-- **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/tenants/tenant-a/token-values`
+- **THEN** CLI MUST send `GET /api/projects/{projectId}/design-systems/{designSystemId}/tenants/tenant-a/token-values`
 - **THEN** CLI MUST parse the response as a JSON array of `TokenValue` objects with fields `id`, `tokenId`, `tenantId`, `paletteId`, `platform`, `mode`, `value`, `createdAt`, and `updatedAt` and optional field `paletteRef`
 
 #### Scenario: Цвет токена вычислен по палитре темы

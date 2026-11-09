@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import YAML from 'yaml';
+import { serviceSources } from '../src/catalog.mjs';
 import { transformOpenApi } from '../src/openapi-transform.mjs';
 
 const servers = [{ url: '/targets/local', description: 'Local gateway' }];
@@ -116,4 +119,22 @@ test('filters non-service paths and removes trusted headers from public operatio
   ]);
   assert.deepEqual(result.components.parameters, {});
   assert.deepEqual(result.paths['/api/projects'].get.security, [{ GatewayOAuth: ['openid'] }]);
+});
+
+
+test('transforms the actual ds-service document using the registered catalog descriptor', () => {
+  const descriptor = serviceSources.find(({ id }) => id === 'design-systems');
+  const source = YAML.parse(readFileSync(descriptor.specPath, 'utf8'));
+  const result = transformOpenApi(source, descriptor, servers);
+  const prefix = '/api/projects/{projectId}/design-systems';
+
+  assert.equal(descriptor.sourcePrefix, '/api/design-systems');
+  assert.ok(result.paths[`${prefix}/{designSystemId}/tokens`].get);
+  assert.ok(result.paths[`${prefix}/{designSystemId}/component-config/import`].post);
+  assert.ok(result.paths[`${prefix}/catalog/components`].get);
+  assert.ok(result.paths[`${prefix}/catalog/palette`].get);
+  assert.equal(Object.keys(result.paths).length, Object.keys(source.paths).filter(
+    (path) => path === descriptor.sourcePrefix || path.startsWith(`${descriptor.sourcePrefix}/`),
+  ).length);
+  assert.ok(Object.keys(result.paths).every((path) => path.startsWith(prefix) && !path.includes('/ds/')));
 });
