@@ -15,6 +15,7 @@ import {
 } from './inspectorTokens';
 import { InspectorVariants } from './InspectorVariants';
 import type { Selection } from './inspectorModel';
+import type { StoryArgs } from '../ComponentEditorPreview/storyArgs';
 
 interface ComponentInspectorProps {
     config: Config;
@@ -26,6 +27,8 @@ interface ComponentInspectorProps {
     themeMode: ThemeMode;
     onSelectionChange: (variationName: string, styleID: string | undefined) => void;
     onConfigUpdate: () => void;
+    /** Аргументы story превью для блока «Variants». */
+    storyArgs?: StoryArgs;
 }
 
 /** Ширина инспектора: хранится рядом с шириной панели компонентов, полем `right`. */
@@ -33,7 +36,8 @@ const INSPECTOR_LIMITS = { min: 280, max: 560, initial: 440 };
 
 /** Правая колонка редактора: вкладки и вкладка «Стилизация» — сочетание вариаций и его свойства. */
 export const ComponentInspector = (props: ComponentInspectorProps) => {
-    const { config, designSystem, theme, updated, selection, themeMode, onSelectionChange, onConfigUpdate } = props;
+    const { config, designSystem, theme, updated, selection, themeMode, onSelectionChange, onConfigUpdate, storyArgs } =
+        props;
     const panel = usePanelWidth({
         storageKey: 'ds_components_panel',
         side: 'right',
@@ -86,6 +90,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                     selection={selection}
                     onSelectionChange={onSelectionChange}
                     onConfigUpdate={onConfigUpdate}
+                    storyArgs={storyArgs}
                 />
                 <InspectorSections
                     config={config}

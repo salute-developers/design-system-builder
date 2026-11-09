@@ -29,14 +29,11 @@ export const StyledComponentWrapper = styled.div<{ background: string }>`
 
     background: ${({ background }) => background};
     color: var(--text-primary);
-    border-radius: 0.75rem;
 
-    /* Холст занимает свободную высоту колонки, панель аргументов story остаётся под ним. */
+    /* Холст занимает всю колонку под панелью окружения: без отступов и скругления. */
     flex: 1;
     min-height: 20rem;
-    margin: 0.75rem;
     box-sizing: border-box;
-    padding: 6px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -54,24 +51,6 @@ export const StyledStorySelector = styled.div`
     position: absolute;
     left: 0.75rem;
     top: 0.75rem;
-`;
-
-export const StyledComponentControls = styled.div<{ $reserveHeight?: boolean }>`
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    box-sizing: border-box;
-    padding: 0 0.75rem;
-
-    flex: none;
-    max-height: 40%;
-    /* Отладочный блок не должен сжимать панель аргументов до нуля: колонка прокручивается. */
-    min-height: ${({ $reserveHeight }) => ($reserveHeight ? '8rem' : '0')};
-    overflow-y: auto;
-
-    &:not(:empty) {
-        padding-bottom: 0.75rem;
-    }
 `;
 
 export const StyledPayloadDebug = styled.div`
