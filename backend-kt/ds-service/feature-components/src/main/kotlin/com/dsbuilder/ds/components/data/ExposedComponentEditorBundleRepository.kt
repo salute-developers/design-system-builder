@@ -51,7 +51,7 @@ class ExposedComponentEditorBundleRepository(
         if (componentId !in linkedComponentIds(designSystemId, listOf(componentId))) return LoadAttempt.NotFound
 
         val names = listOf(camelToKebab(component.name))
-        val query = ExportComponentConfig(designSystemId, platform.wireValue, names, null)
+        val query = ExportComponentConfig(designSystemId, platform.wireValue, names, null, editorIds = true)
         val export = when (val attempt = configs.export(projectId, systemAdmin, query)) {
             is ComponentConfigRepository.ExportAttempt.Success -> attempt.value
             ComponentConfigRepository.ExportAttempt.NotFound -> return LoadAttempt.NotFound

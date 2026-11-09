@@ -136,9 +136,18 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         val names = """["${componentRow.string("name").lowercase()}"]"""
         val export = readPost(
             withVersion("/api/design-systems/$ds/component-config/export"),
-            """{"platform":"$platform","components":$names}""",
+            """{"platform":"$platform","components":$names,"editorIds":true}""",
         )
         assertEquals(export, bundle.getValue("export"))
+        // Выгрузка в бандле несёт ID вариаций и стилей: редактор сопоставляет оси и значения по ним.
+        val axes = bundle.getValue("export").jsonObject.getValue("components").jsonArray
+            .flatMap { it.jsonObject.getValue("config").jsonObject.getValue("variations").jsonArray }
+        assertTrue(axes.isNotEmpty())
+        assertTrue(axes.all { it.jsonObject.string("variationId").isNotEmpty() })
+        assertTrue(
+            axes.flatMap { it.jsonObject.getValue("values").jsonArray }
+                .all { it.jsonObject.string("styleId").isNotEmpty() },
+        )
 
         val properties = read(withVersion("/api/design-systems/catalog/components/$component/properties")).objects()
         assertEquals(properties.byId(), bundle.list("properties").byId())

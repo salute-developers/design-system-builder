@@ -3,6 +3,7 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ImportComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfig
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.components.domain.RootCandidate
 import com.dsbuilder.ds.components.domain.fallbackRoot
 import kotlinx.serialization.json.JsonPrimitive
@@ -48,12 +49,14 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }
     }
 
+    /** Причина отклонить запись до записи в базу: неподдержанный тип свойства или корень не из осей. */
+    private fun entryProblem(entry: ImportComponentConfig.Entry): String? =
+        invalidType(entry)?.let { "Unsupported property type '$it'" }
+            ?: unknownRoot(entry.config)?.let { "rootVariationId '$it' names no axis of the configuration" }
+
     @Suppress("LongMethod", "ReturnCount")
     private fun importOne(ds: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) {
-        invalidType(entry)?.let { return context.report.reject(entry, "Unsupported property type '$it'") }
-        unknownRoot(entry.config)?.let {
-            return context.report.reject(entry, "rootVariationId '$it' names no axis of the configuration")
-        }
+        entryProblem(entry)?.let { return context.report.reject(entry, it) }
         val component = component(entry.componentName, context) ?: return context.report.reject(
             entry,
             "Component '${entry.componentName}' is not present in the global layer for platform " +
@@ -63,6 +66,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         link(ds, componentId)
         loadStates(componentId, context)
         val old = appearance(ds, componentId, entry.styleName)
+        // Новая конфигурация получает имя только по правилу kebab-case; существующая со старым именем обновляется.
+        if (old == null && !ConfigurationName.isValid(entry.styleName)) {
+            return context.report.reject(entry, ConfigurationName.INVALID_CODE)
+        }
         val appearanceId = old?.get(ComponentAppearancesTable.id) ?: run {
             val id = StableAppearancesTable.insertReturning {
                 it[designSystemId] = ds

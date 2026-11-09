@@ -91,7 +91,7 @@ fun Route.componentConfigRoutes(
             when (
                 val result = exportConfig.execute(
                     context,
-                    ExportComponentConfig(id, request.platform, request.components, request.styles),
+                    ExportComponentConfig(id, request.platform, request.components, request.styles, request.editorIds),
                 )
             ) {
                 is DsResult.Success -> call.respondSuccess(result, ExportComponentConfigResponse.from(result.value))
