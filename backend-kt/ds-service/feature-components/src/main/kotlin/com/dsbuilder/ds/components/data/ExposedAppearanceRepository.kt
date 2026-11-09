@@ -7,6 +7,7 @@ import com.dsbuilder.ds.components.domain.Appearance
 import com.dsbuilder.ds.components.domain.AppearanceVariation
 import com.dsbuilder.ds.components.domain.AppearanceVariationAxis
 import com.dsbuilder.ds.components.domain.AppearanceVariationValue
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -87,7 +88,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
             )
     }.any { row ->
         row[ComponentAppearancesTable.id] != excludingId &&
-            row[ComponentAppearancesTable.name]?.trim()?.lowercase() == normalizedName
+            row[ComponentAppearancesTable.name]?.let(ConfigurationName::key) == normalizedName
     }
 
     override suspend fun create(

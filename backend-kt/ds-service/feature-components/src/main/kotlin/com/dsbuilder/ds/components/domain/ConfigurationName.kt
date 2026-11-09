@@ -17,6 +17,16 @@ object ConfigurationName {
     const val INVALID_MESSAGE =
         "The configuration name must be kebab-case: lowercase latin letters and digits separated by hyphens"
 
+    /** Код отказа для занятого имени, в том числе совпадающего с другим в сгенерированном коде. */
+    const val TAKEN_CODE = "appearance_name_taken"
+
+    /**
+     * Ключ сравнения имён: имя без дефисов в нижнем регистре. Совпадает у имён с одним camelCase-идентификатором в коде
+     * (`dense-2` и `dense2`) и у идентификаторов, которые различаются только регистром (на файловой системе без учёта
+     * регистра это один файл конфига).
+     */
+    fun key(name: String): String = name.trim().replace("-", "").lowercase()
+
     /** Имя по правилу kebab-case и не длиннее допустимого. */
     fun isValid(name: String): Boolean = name.length <= MAX_LENGTH && pattern.matches(name)
 
