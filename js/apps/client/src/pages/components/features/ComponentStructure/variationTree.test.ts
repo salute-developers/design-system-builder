@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import type { EditorAxisDto } from '../../../../api/editorContracts';
 
-import { branchPathLabel, configuredWithin, isConfigured, treeAxes, treeChildren } from './variationTree';
+import {
+    branchPathLabel,
+    configuredWithin,
+    isConfigured,
+    isTreePath,
+    offTreeCombinations,
+    treeAxes,
+    treeChildren,
+} from './variationTree';
 
 const axis = (name: string, position: number, values: string[], isColorScheme = false): EditorAxisDto => ({
     id: `axis-${name}`,
@@ -35,35 +43,52 @@ describe('variationTree', () => {
         expect(axes.map((item) => item.name)).toEqual(['size', 'shape', 'view']);
     });
 
-    it('в корне — значения всех вариаций, в ветке — значения вариаций после неё', () => {
-        expect(treeChildren(axes).map((branch) => branch.styleIds)).toEqual([
-            ['size-m'],
-            ['size-l'],
-            ['shape-pilled'],
-            ['view-default'],
-            ['view-accent'],
+    it('строит уровни подряд: цветовая схема только в листьях', () => {
+        const review = treeAxes([
+            axis('size', 0, ['l']),
+            axis('shape', 1, ['default', 'pilled']),
+            axis('view', 2, ['default'], true),
         ]);
-        const shape = treeChildren(axes).find((branch) => branch.value.name === 'pilled')!;
-        expect(treeChildren(axes, shape).map((branch) => branch.styleIds)).toEqual([
-            ['shape-pilled', 'view-default'],
-            ['shape-pilled', 'view-accent'],
+        const roots = treeChildren(review);
+        expect(roots.map((branch) => branch.styleIds)).toEqual([['size-l']]);
+        const shapes = treeChildren(review, roots[0]);
+        expect(shapes.map((branch) => branch.styleIds)).toEqual([
+            ['size-l', 'shape-default'],
+            ['size-l', 'shape-pilled'],
         ]);
-        const last = treeChildren(axes).find((branch) => branch.value.name === 'accent')!;
-        expect(treeChildren(axes, last)).toEqual([]);
+        expect(shapes.map((branch) => treeChildren(review, branch).map((leaf) => leaf.value.name))).toEqual([
+            ['default'],
+            ['default'],
+        ]);
+        const leaf = treeChildren(review, shapes[0])[0];
+        expect(treeChildren(review, leaf)).toEqual([]);
     });
 
-    it('находит настроенные пересечения в поддереве и в самой ветке', () => {
+    it('находит настроенные пути в ветке и под ней', () => {
         const configured = [['size-l', 'shape-pilled']];
-        const [m, l, pilled] = treeChildren(axes);
+        const [m, l] = treeChildren(axes);
 
         expect(configuredWithin(axes, l, configured)).toEqual(configured);
         expect(configuredWithin(axes, m, configured)).toEqual([]);
-        // Пересечение с `size` не лежит под `shape: pilled` корня: там только сочетания без `size`.
-        expect(configuredWithin(axes, pilled, configured)).toEqual([]);
 
         const lPilled = treeChildren(axes, l).find((branch) => branch.value.name === 'pilled')!;
+        expect(configuredWithin(axes, lPilled, configured)).toEqual(configured);
         expect(isConfigured(lPilled.styleIds, configured)).toBe(true);
         expect(isConfigured(['size-l'], [['size-l']])).toBe(false);
         expect(branchPathLabel(axes, lPilled.styleIds)).toBe('size: l · shape: pilled');
+    });
+
+    it('выносит пересечения с пропуском уровня из дерева', () => {
+        const skipping = ['view-accent', 'size-l'];
+        const withoutFirst = ['shape-pilled', 'view-default'];
+        const path = ['size-m', 'shape-pilled', 'view-default'];
+
+        expect(isTreePath(axes, skipping)).toBe(false);
+        expect(isTreePath(axes, withoutFirst)).toBe(false);
+        expect(isTreePath(axes, path)).toBe(true);
+        expect(offTreeCombinations(axes, [skipping, path, withoutFirst])).toEqual([skipping, withoutFirst]);
+        expect(branchPathLabel(axes, skipping)).toBe('size: l · view: accent');
+        const [, l] = treeChildren(axes);
+        expect(configuredWithin(axes, l, [skipping])).toEqual([]);
     });
 });

@@ -12,6 +12,8 @@ import {
     branchPathLabel,
     configuredWithin,
     isConfigured,
+    isTreePath,
+    offTreeCombinations,
     sameStyles,
     treeAxes,
     treeChildren,
@@ -58,9 +60,15 @@ export const toConfigurationName = (raw: string) =>
         .replace(/-{2,}/g, '-')
         .replace(/^-/, '');
 
+/** Имя занято и тогда, когда совпадает с другим в коде: `dense-2` и `dense2` дают один файл конфига. */
+const CONFIGURATION_NAME_TAKEN =
+    'Имя занято: такое же есть у другой конфигурации или совпадает с ним в коде (например, dense-2 и dense2)';
+
 const ERRORS: Record<string, string> = {
     appearance_name_invalid: `Недопустимое имя конфигурации. ${CONFIGURATION_NAME_HINT}`,
-    appearance_name_taken: 'Конфигурация с таким именем уже есть',
+    appearance_name_taken: CONFIGURATION_NAME_TAKEN,
+    // Переименование идёт через `PATCH /appearances/{id}`: он отвечает на занятое имя этим кодом.
+    APPEARANCE_NAME_CONFLICT: CONFIGURATION_NAME_TAKEN,
     axis_name_taken: 'Вариация с таким именем уже есть в конфигурации',
     axis_name_invalid: 'Недопустимое имя вариации',
     value_name_taken: 'Значение с таким именем уже есть в вариации',
@@ -168,7 +176,10 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
     const appearanceId = config.getConfigurationId();
     const componentId = config.getComponentId();
     const configurations = config.getConfigurations();
-    const [axes, setAxes] = useState<EditorAxisDto[]>();
+    // Модель привязана к конфигурации, для которой загружена: вариации прошлой конфигурации не показываются и не
+    // принимают действий, пока грузится модель открытой.
+    const [model, setModel] = useState<{ appearanceId: string; axes: EditorAxisDto[] }>();
+    const axes = model && model.appearanceId === appearanceId ? model.axes : undefined;
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>();
     const [edit, setEdit] = useState<NameEdit>();
@@ -189,12 +200,17 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
         const controller = new AbortController();
         repository
             .loadModel(structure.context, appearanceId, controller.signal)
-            .then((model) => setAxes(model.axes))
+            .then((loaded) => setModel({ appearanceId, axes: loaded.axes }))
             .catch((reason: unknown) => {
                 if (!controller.signal.aborted) setError(errorText(reason));
             });
         return () => controller.abort();
     }, [appearanceId, config, structure.context]);
+    // Правка имени и подтверждение удаления относятся к прошлой конфигурации.
+    useEffect(() => {
+        setEdit(undefined);
+        setPendingDelete(undefined);
+    }, [appearanceId]);
 
     const run = async (operation: StructureOperation) => {
         setBusy(true);
@@ -557,20 +573,32 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
         .filter((item) => item.props.getList().length > 0)
         .map((item) => item.styleIDs);
     const levels = treeAxes(axes ?? []);
-    const selectBranch = (branch: VariationTreeBranch) => {
-        branch.styleIds.forEach((id) => {
+    const selectCombination = (styleIds: string[]) => {
+        styleIds.forEach((id) => {
             const axis = levels.find((item) => item.values.some((value) => value.styleId === id));
             if (axis) onSelectionChange(axis.name, id);
         });
-        props.onCombinationSelect?.(branch.styleIds.length > 1 ? branch.styleIds : undefined);
+        props.onCombinationSelect?.(styleIds.length > 1 ? styleIds : undefined);
     };
+    const deleteCombination = (styleIds: string[], path: string) =>
+        setPendingDelete({
+            subject: `Пересечение ${path}`,
+            title: 'Удалить пересечение?',
+            text: 'Удалятся все значения свойств этого сочетания. Снова будут действовать значения стилей.',
+            confirmLabel: 'Удалить пересечение',
+            operation: (context) => repository.removeCombination(context, appearanceId!, styleIds),
+        });
+    // Пересечения, которые пропускают уровень дерева: показываются списком под деревом.
+    const offTree = offTreeCombinations(levels, configured);
     // «Раскрыть все» раскрывает пути к настроенным пересечениям: всех сочетаний слишком много.
-    const configuredPaths = configured.flatMap((styleIds) => {
-        const path = levels.flatMap((axis) =>
-            axis.values.filter((value) => styleIds.includes(value.styleId)).map((value) => value.styleId),
-        );
-        return path.slice(0, -1).map((_, index) => `/${path.slice(0, index + 1).join('/')}`);
-    });
+    const configuredPaths = configured
+        .filter((styleIds) => isTreePath(levels, styleIds))
+        .flatMap((styleIds) => {
+            const path = levels.flatMap((axis) =>
+                axis.values.filter((value) => styleIds.includes(value.styleId)).map((value) => value.styleId),
+            );
+            return path.slice(0, -1).map((_, index) => `/${path.slice(0, index + 1).join('/')}`);
+        });
     const anyExpanded =
         Object.values(expanded).some(Boolean) ||
         (configuredOnly && configuredPaths.some((key) => expanded[key] === undefined));
@@ -620,7 +648,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                                 className={`component-variation-select ${isSelected ? 'is-selected' : ''} ${own ? 'is-configured' : ''}`}
                                 aria-pressed={isSelected}
                                 aria-label={path}
-                                onClick={() => selectBranch(branch)}
+                                onClick={() => selectCombination(branch.styleIds)}
                             >
                                 <span className="component-intersection-label">
                                     <small>{branch.axis.name}:</small>
@@ -633,16 +661,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                                     label={`Удалить пересечение ${path}`}
                                     className="component-tree-row-action"
                                     disabled={busy}
-                                    onClick={() =>
-                                        setPendingDelete({
-                                            subject: `Пересечение ${path}`,
-                                            title: 'Удалить пересечение?',
-                                            text: 'Удалятся все значения свойств этого сочетания. Снова будут действовать значения стилей.',
-                                            confirmLabel: 'Удалить пересечение',
-                                            operation: (context) =>
-                                                repository.removeCombination(context, appearanceId!, branch.styleIds),
-                                        })
-                                    }
+                                    onClick={() => deleteCombination(branch.styleIds, path)}
                                 />
                             ) : (
                                 <span className="component-tree-icon-spacer" aria-hidden="true" />
@@ -724,10 +743,15 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                     <IconButton
                         glyph="add"
                         label="Добавить вариацию"
-                        disabled={busy || !appearanceId}
+                        disabled={busy || !axes}
                         onClick={() => startEdit('new-axis', '')}
                     />
                 </SectionHead>
+                {!axes && (
+                    <p className="component-intersections-empty" role="status">
+                        Загружаем вариации…
+                    </p>
+                )}
                 {visibleAxes.map((axis, index) => (
                     <div key={axis.id} className="component-axis-slot">
                         {index === firstCustom && (
@@ -780,6 +804,38 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                         </p>
                     )}
                 </div>
+                {offTree.length > 0 && (
+                    <div className="component-intersections-other" role="group" aria-label="Другие пересечения">
+                        <div className="component-variation-subsection-head">Другие пересечения</div>
+                        {offTree.map((styleIds) => {
+                            const path = branchPathLabel(levels, styleIds);
+                            const isSelected = Boolean(combination && sameStyles(combination, styleIds));
+                            return (
+                                <div key={styleIds.join('/')} className="component-tree-intersection-row">
+                                    <span className="component-tree-icon-spacer" aria-hidden="true" />
+                                    <button
+                                        type="button"
+                                        className={`component-variation-select is-configured ${isSelected ? 'is-selected' : ''}`}
+                                        aria-pressed={isSelected}
+                                        aria-label={path}
+                                        onClick={() => selectCombination(styleIds)}
+                                    >
+                                        <span className="component-intersection-label">
+                                            <b>{path}</b>
+                                        </span>
+                                    </button>
+                                    <IconButton
+                                        glyph="delete"
+                                        label={`Удалить пересечение ${path}`}
+                                        className="component-tree-row-action"
+                                        disabled={busy}
+                                        onClick={() => deleteCombination(styleIds, path)}
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </section>
             {pendingDelete && (
                 <StructureConfirmDialog

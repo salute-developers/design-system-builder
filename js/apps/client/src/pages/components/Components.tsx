@@ -48,6 +48,7 @@ import { EditorLoading } from '../../components/EditorLoading';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
 import type { StructureOperation } from './features/ComponentStructure/types';
+import { runStructureOperation as runStructureOperationOnServer } from './features/ComponentStructure/runStructureOperation';
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
@@ -333,9 +334,13 @@ export const Components = () => {
                 if (Date.now() > deadline) throw new Error('Не удалось сохранить изменения перед операцией');
                 await new Promise((resolve) => setTimeout(resolve, 100));
             }
-            const opened = await operation(editorContext);
-            await loadComponent?.(openConfig.getName(), true);
-            if (opened) onConfigurationSelect(opened);
+            await runStructureOperationOnServer(
+                operation,
+                editorContext,
+                toComponentRoute(openConfig.getPlatform(), openConfig.getName()),
+                (route) => loadComponent?.(route, true),
+                onConfigurationSelect,
+            );
         },
         [editorContext, loadComponent, onConfigurationSelect, openConfig],
     );

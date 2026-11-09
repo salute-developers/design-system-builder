@@ -923,6 +923,68 @@ describe('Editor repositories', () => {
         );
     });
 
+    it('edits the invariant of the open configuration, not the same invariant of another one', async () => {
+        get.mockImplementation((url: string) => {
+            if (url.includes('/invariant-property-values/by-component/'))
+                return Promise.resolve({
+                    data: [
+                        {
+                            id: 'value-copy',
+                            propertyId: 'focus',
+                            appearanceId: 'copy',
+                            tokenId: null,
+                            value: '#111111',
+                            adjustment: null,
+                            stateSetId: 'empty',
+                        },
+                        {
+                            id: 'value-base',
+                            propertyId: 'focus',
+                            appearanceId: 'appearance',
+                            tokenId: null,
+                            value: '#000000',
+                            adjustment: null,
+                            stateSetId: 'empty',
+                        },
+                    ],
+                });
+            if (url.endsWith('/state-sets')) return Promise.resolve({ data: [{ id: 'empty', stateIds: [] }] });
+            return Promise.resolve({ data: [] });
+        });
+        patch.mockResolvedValue({ data: {}, headers: {} });
+        const before: PendingComponentMutation['before'] = {
+            defaultVariations: [],
+            invariantProps: [{ id: 'focus', value: '#111111' }],
+            variations: [],
+        };
+        const mutation: PendingComponentMutation = {
+            componentName: 'Button#copy',
+            appearanceId: 'copy',
+            before,
+            idempotencyKeys: {},
+            after: { ...before, invariantProps: [{ id: 'focus', value: '#222222' }] },
+        };
+        const meta = {
+            name: 'Button',
+            description: '',
+            serverBinding: { componentId: 'component', appearanceId: 'appearance' },
+            sources: { api: [], variations: [], configs: [] },
+        };
+
+        await componentRepository.saveComponentMutation(context, meta, mutation, {});
+
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/ds/invariant-property-values/value-copy',
+            expect.objectContaining({ value: '#222222' }),
+            expect.anything(),
+        );
+        expect(patch).not.toHaveBeenCalledWith(
+            '/api/projects/project-1/ds/invariant-property-values/value-base',
+            expect.anything(),
+            expect.anything(),
+        );
+    });
+
     it('replays the original axis-link body after partial success and recovery', async () => {
         const links: unknown[] = [];
         get.mockImplementation((url: string) => {

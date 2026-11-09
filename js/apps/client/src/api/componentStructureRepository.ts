@@ -10,6 +10,20 @@ import type { AppearanceDto, AppearanceEditorModelDto, EditorContextKey, TokenDe
 const root = (context: EditorContextKey) => apiRoot(context.projectId);
 const create = { headers: () => ({ 'Idempotency-Key': crypto.randomUUID() }) };
 
+/** Ссылка на токен — имя через точки (`text.default.primary`); число, `#RRGGBB` и прочие литералы — нет. */
+const TOKEN_REFERENCE = /^[a-z][\w-]*(\.[\w-]+)+$/i;
+
+/** ID токена по имени: справочник токенов переиспользуется между правками, как другие списочные чтения редактора. */
+const tokenIdOf = async (context: EditorContextKey, name: string) => {
+    const { data } = await readEditor<TokenDefinitionDto[]>(
+        `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/tokens`,
+        {},
+        undefined,
+        300_000,
+    );
+    return data.find((token) => token.name === name)?.id ?? null;
+};
+
 const done = <T>(context: EditorContextKey, value: T) => {
     invalidateEditorReads(context);
     return value;
@@ -134,11 +148,7 @@ export const componentStructureRepository = {
         adjustment?: string,
     ) {
         const raw = value.replace(/^\[|\]$/g, '');
-        const { data: tokens } = await readEditor<TokenDefinitionDto[]>(
-            `${root(context)}/design-systems/${context.designSystemId}/tokens`,
-            {},
-        );
-        const tokenId = tokens.find((token) => token.name === raw.replace(/^(light|dark)\./, ''))?.id ?? null;
+        const tokenId = TOKEN_REFERENCE.test(raw) ? await tokenIdOf(context, raw.replace(/^(light|dark)\./, '')) : null;
         await http.put(
             `${root(context)}/appearances/${appearanceId}/property-values`,
             { propertyId, styleIds, tokenId, value: tokenId ? null : raw, adjustment: adjustment ?? null },
