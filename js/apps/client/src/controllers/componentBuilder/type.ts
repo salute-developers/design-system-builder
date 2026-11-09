@@ -111,6 +111,8 @@ export interface StyleConfig {
 
 export interface VariationConfig {
     id: string;
+    /** Имя вариации в этой конфигурации (отображаемое имя оси); без него — имя вариации из `sources.variations`. */
+    name?: string;
     styles?: StyleConfig[];
 }
 
@@ -137,6 +139,8 @@ export interface ComponentDep {
 export interface Config {
     name: string;
     id: string;
+    /** Конфигурация по умолчанию компонента: её нельзя удалить, она открывается первой. */
+    isDefault?: boolean;
     config: ComponentConfig;
 }
 

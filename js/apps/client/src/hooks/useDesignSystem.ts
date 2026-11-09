@@ -392,7 +392,7 @@ export const useDesignSystem = (
     );
     /** Загружает компонент (без имени — индекс компонентов) вне раздела компонентов: канвас «Цвета». */
     const loadComponent = useCallback(
-        (name?: string) => autosaveSession.current?.loadComponent(name) ?? Promise.resolve(),
+        (name?: string, force?: boolean) => autosaveSession.current?.loadComponent(name, force) ?? Promise.resolve(),
         [],
     );
     const refreshChanges = useCallback((changes: DraftChangeDto[]) => {

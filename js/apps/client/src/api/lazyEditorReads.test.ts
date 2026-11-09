@@ -178,7 +178,7 @@ it('данные C50 читаются адресно и стили всех ег
     expect(values.map((item) => item.name)).toEqual(['C50']);
     expect(http.post).toHaveBeenCalledWith(
         '/api/projects/project/design-systems/system/component-config/export',
-        { platform: 'web', components: ['c50'] },
+        { platform: 'web', editorIds: true, components: ['c50'] },
         expect.anything(),
     );
     const urls = http.get.mock.calls.map(([url]) => url);

@@ -117,6 +117,26 @@ const GLYPHS = {
     ),
     menu: <path d="M4 6.5h16M4 12h16M4 17.5h16" />,
     filter: <path d="M4 5h16l-6.2 7.1v5.1l-3.6 1.8v-6.9L4 5Z" />,
+    lock: (
+        <>
+            <rect x="5" y="10" width="14" height="11" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            <path d="M12 14v3" />
+        </>
+    ),
+    pencil: <path d="M4 20h4L19 9a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5Z" />,
+    'expand-all': (
+        <>
+            <path d="M4 5h5M4 12h5M4 19h5M13 5h7M13 12h7M13 19h7" />
+            <path d="m6.5 3.5 2 1.5-2 1.5M6.5 10.5l2 1.5-2 1.5M6.5 17.5l2 1.5-2 1.5" />
+        </>
+    ),
+    'collapse-all': (
+        <>
+            <path d="M4 5h5M4 12h5M4 19h5M13 5h7M13 12h7M13 19h7" />
+            <path d="m6.5 2.5 2 1.5-2 1.5M6.5 9.5l2 1.5-2 1.5M6.5 16.5l2 1.5-2 1.5" />
+        </>
+    ),
 } as const;
 
 export type TyGlyphName = keyof typeof GLYPHS;

@@ -9,12 +9,18 @@ const mocks = vi.hoisted(() => ({
         getName: () => 'Button',
         getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.currentMeta),
+        getConfigurationId: () => undefined,
+        getConfigurations: () => [],
+        getComponentId: () => undefined,
     },
     inputMeta: { enabled: true, kind: 'input' } as Record<string, unknown>,
     inputConfig: {
         getName: () => 'Input',
         getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.inputMeta),
+        getConfigurationId: () => undefined,
+        getConfigurations: () => [],
+        getComponentId: () => undefined,
     },
     saveComponentMutation: vi.fn(async () => ({ style: 1 })),
 }));

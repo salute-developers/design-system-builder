@@ -29,6 +29,7 @@ import '../../styles/component-tree.css';
 import '../../styles/component-editor.css';
 import '../../styles/color-picker.css';
 import '../../styles/inspector-controls.css';
+import '../../styles/component-structure.css';
 
 import { ComponentEditor } from './features/ComponentEditor';
 import {
@@ -46,6 +47,7 @@ import { ComponentTree } from './ui/ComponentTree';
 import { EditorLoading } from '../../components/EditorLoading';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
+import type { StructureOperation } from './features/ComponentStructure/types';
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
@@ -55,7 +57,7 @@ interface ComponentsOutletContextProps {
     rerender: () => void;
     reload: () => void;
     /** Без имени перечитывает только индекс компонентов, не трогая данные открытого компонента. */
-    loadComponent?: (name?: string) => Promise<void>;
+    loadComponent?: (name?: string, force?: boolean) => Promise<void>;
     /** Раздел загружен, грузится выбранный компонент: загрузка показывается только в настройке и превью. */
     componentLoading?: boolean;
     /** Ошибка загрузки выбранного компонента; меню и хост Compose-плагина остаются на экране. */
@@ -280,9 +282,32 @@ export const Components = () => {
         }
     }, [platform, componentGroups, selectedConfig, componentName, navigate, location.search]);
 
+    // Открытая конфигурация: из адреса, если она есть у компонента, иначе конфигурация по умолчанию.
+    const configurationId = new URLSearchParams(location.search).get(CONFIGURATION_PARAM) ?? undefined;
+    const openConfig = useMemo(
+        () =>
+            selectedConfig &&
+            configurationId &&
+            configurationId !== selectedConfig.getConfigurationId() &&
+            selectedConfig.getConfigurations().some((item) => item.id === configurationId)
+                ? selectedConfig.withConfiguration(configurationId)
+                : selectedConfig,
+        [selectedConfig, configurationId],
+    );
+    const onConfigurationSelect = useCallback(
+        (id: string | undefined) => {
+            const params = new URLSearchParams(location.search);
+            if (id && id !== selectedConfig?.getConfigurations()[0]?.id) params.set(CONFIGURATION_PARAM, id);
+            else params.delete(CONFIGURATION_PARAM);
+            const search = params.toString();
+            navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true });
+        },
+        [location.pathname, location.search, navigate, selectedConfig],
+    );
+
     useEffect(() => {
-        setConfigs(selectedConfig ? [selectedConfig] : undefined);
-    }, [theme, selectedConfig]);
+        setConfigs(openConfig ? [openConfig] : undefined);
+    }, [theme, openConfig]);
 
     const config = configs?.[0];
     const parameters = designSystem?.getParameters();
@@ -295,6 +320,29 @@ export const Components = () => {
         };
     }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId]);
     const designSystemReadOnly = parameters?.readOnly === true;
+
+    // Структурная операция «Структуры»: сначала уходят несохранённые правки, затем запрос, затем компонент
+    // перечитывается и, если операция создала конфигурацию, она открывается.
+    const runStructureOperation = useCallback(
+        async (operation: StructureOperation) => {
+            if (!editorContext || !openConfig) return;
+            const queue = autosaveQueue.current;
+            queue?.flushAll();
+            const deadline = Date.now() + AUTOSAVE_WAIT_MS;
+            while (queue?.hasPendingWhere(() => true)) {
+                if (Date.now() > deadline) throw new Error('Не удалось сохранить изменения перед операцией');
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+            const opened = await operation(editorContext);
+            await loadComponent?.(openConfig.getName(), true);
+            if (opened) onConfigurationSelect(opened);
+        },
+        [editorContext, loadComponent, onConfigurationSelect, openConfig],
+    );
+    const structure = useMemo(
+        () => (editorContext ? { context: editorContext, run: runStructureOperation } : undefined),
+        [editorContext, runStructureOperation],
+    );
 
     // Состав перечитывается вместе с меню (в том числе после отката в журнале), после каждого скрытия и возврата
     // и при открытии диалога возврата: меню после записи может не измениться, а состав должен быть свежим.
@@ -392,13 +440,15 @@ export const Components = () => {
 
     useEffect(() => {
         if (!config || !storagePrefix || !editorContext || !designSystem || parameters?.readOnly) return;
-        confirmedConfig.current = { componentName: config.getName(), value: structuredClone(config.getMeta()) };
+        // Ключ правок — компонент и открытая конфигурация: у каждой конфигурации своя очередь и своё «до».
+        const editorKey = componentEditorKey(config);
+        confirmedConfig.current = { componentName: editorKey, value: structuredClone(config.getMeta()) };
         let mounted = true;
         const componentName = config.getName();
         const activitySource = `component:${toComponentRoute(config.getPlatform(), componentName)}`;
         const setActivity = registerDraftAutosaveSource(editorContext, activitySource);
         let latestActivityStatus: AutosaveStatus = 'saved';
-        const requestKey = `${storagePrefix}:${componentName}:request`;
+        const requestKey = `${storagePrefix}:${editorKey}:request`;
         const revisionKey = `${storagePrefix}:${componentName}:revisions`;
         const aliasesKey = `${storagePrefix}:${componentName}:style-aliases`;
         let styleAliases = readStoredJson<Record<string, string>>(aliasesKey, {});
@@ -411,7 +461,7 @@ export const Components = () => {
                     ...styleAliases,
                     ...readStoredJson<Record<string, string>>(aliasesKey, {}),
                 };
-                const meta = designSystem.getComponentDataByName(operation.componentName);
+                const meta = designSystem.getComponentDataByName(componentName);
                 if (!operation.prepared) {
                     if (confirmedConfig.current?.componentName === operation.componentName)
                         operation.before = structuredClone(confirmedConfig.current.value);
@@ -476,8 +526,10 @@ export const Components = () => {
                 const operation: PendingComponentSave = {
                     ...stored,
                     prepared: stored.prepared ?? Object.keys(stored.idempotencyKeys).length > 0,
-                    tokenKey: componentName,
-                    operationKey: componentName,
+                    componentName: stored.componentName ?? editorKey,
+                    appearanceId: stored.appearanceId ?? config.getConfigurationId(),
+                    tokenKey: editorKey,
+                    operationKey: editorKey,
                     generation: stored.generation ?? crypto.randomUUID(),
                     retryCount: stored.retryCount ?? 0,
                     metadataKey: requestKey,
@@ -487,7 +539,7 @@ export const Components = () => {
                     queue.enqueue(
                         {
                             ...operation.predecessor,
-                            operationKey: `${componentName}:predecessor`,
+                            operationKey: `${editorKey}:predecessor`,
                         },
                         true,
                     );
@@ -512,20 +564,21 @@ export const Components = () => {
     const onConfigUpdate = useCallback(() => {
         rerender();
         if (!config || !storagePrefix || parameters?.readOnly) return;
-        const before =
-            confirmedConfig.current?.componentName === config.getName() ? confirmedConfig.current.value : undefined;
+        const editorKey = componentEditorKey(config);
+        const before = confirmedConfig.current?.componentName === editorKey ? confirmedConfig.current.value : undefined;
         if (!before) return;
-        const requestKey = `${storagePrefix}:${config.getName()}:request`;
+        const requestKey = `${storagePrefix}:${editorKey}:request`;
         const previous = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
         const pending: PendingComponentSave = {
-            componentName: config.getName(),
+            componentName: editorKey,
+            appearanceId: config.getConfigurationId(),
             before: structuredClone(before),
             after: structuredClone(config.getMeta()),
             idempotencyKeys: {},
             requestBodies: {},
             predecessor: previous?.prepared ? (previous as PendingComponentSave) : previous?.predecessor,
-            tokenKey: config.getName(),
-            operationKey: config.getName(),
+            tokenKey: editorKey,
+            operationKey: editorKey,
             generation: crypto.randomUUID(),
             retryCount: 0,
             metadataKey: requestKey,
@@ -735,6 +788,8 @@ export const Components = () => {
                                     platforms={previewPlatforms}
                                     onPlatformSelect={onPreviewPlatform}
                                     onConfigUpdate={onConfigUpdate}
+                                    onConfigurationSelect={onConfigurationSelect}
+                                    structure={designSystemReadOnly ? undefined : structure}
                                 />
                             )}
                         </>
@@ -761,7 +816,28 @@ export const Components = () => {
     );
 };
 
-export const componentNavigationTarget = (pathname: string, search: string) => ({ pathname, search });
+/** Переход к компоненту: выбор конфигурации (`configuration`) относится к прежнему компоненту и не переносится. */
+export const componentNavigationTarget = (pathname: string, search: string) => {
+    const params = new URLSearchParams(search);
+    params.delete(CONFIGURATION_PARAM);
+    const rest = params.toString();
+    return { pathname, search: rest ? `?${rest}` : '' };
+};
+
+/** Сколько ждать отправки автосохранения перед структурной операцией. */
+const AUTOSAVE_WAIT_MS = 15_000;
+
+/** Параметр адреса с ID открытой конфигурации компонента; без него открыта конфигурация по умолчанию. */
+const CONFIGURATION_PARAM = 'configuration';
+
+/**
+ * Ключ очереди автосохранения: компонент, а для конфигурации не по умолчанию — ещё и её ID. У конфигурации по
+ * умолчанию ключ прежний, поэтому сохранённые до этого правки по-прежнему восстанавливаются.
+ */
+const componentEditorKey = (config: Config) => {
+    const id = config.getConfigurationId();
+    return id && id !== config.getConfigurations()[0]?.id ? `${config.getName()}#${id}` : config.getName();
+};
 
 const readStoredJson = <T,>(key: string, fallback: T): T => {
     try {

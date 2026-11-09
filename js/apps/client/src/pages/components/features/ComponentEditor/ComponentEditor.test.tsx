@@ -230,28 +230,6 @@ describe('ComponentEditor', () => {
         expect(property('background')).not.toBeNull();
     });
 
-    it('adds a style from the temporary variation menu and selects it', () => {
-        const { config } = renderEditor();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Стили view' }));
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Добавить стиль' }));
-        const input = screen.getByRole('textbox', { name: 'Новый стиль view' });
-        fireEvent.change(input, { target: { value: 'brand!' } });
-        fireEvent.keyDown(input, { key: 'Enter' });
-
-        const brand = config
-            .getVariation('v-view')
-            ?.getStyles()
-            ?.find((item) => item.getName() === 'brand');
-        expect(brand).toBeDefined();
-        expect(previewArgs().view).toBe(brand?.getID());
-        expect(screen.getByTestId('preview')).toHaveTextContent('Chip M Brand');
-        // Новый стиль пуст: свойства его вариации показаны пустыми строками и в модели не заводятся.
-        expect(brand?.getProps().getList()).toEqual([]);
-        expect(within(property('background')).getByTitle('Background · view: brand')).toBeInTheDocument();
-        expect(within(property('color')).getByRole('button', { name: 'Color' })).toHaveTextContent('Не задано');
-    });
-
     it('keeps the combination when the same component is reloaded after autosave', () => {
         const element = (config: Config) => (
             <MemoryRouter>

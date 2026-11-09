@@ -202,6 +202,17 @@ describe('ComponentEditorPreview web plugin', () => {
         expect(lastWebPayload()?.component.variations).toEqual({ view: 'accent' });
     });
 
+    it('keeps the story arguments when another configuration of the same component opens', async () => {
+        const view = render(withStoryArgs(previewElement(configOf('Button'))));
+        expect(await screen.findByText('Stretching')).toBeInTheDocument();
+
+        // Другая конфигурация или перечитанный компонент — новый экземпляр модели того же компонента.
+        view.rerender(withStoryArgs(previewElement(configOf('Button'))));
+
+        expect(await screen.findByText('Stretching')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Hello')).toBeInTheDocument();
+    });
+
     it('hides a story argument that has the name of a component variation', async () => {
         pluginState.describe = () => ({
             ...description,

@@ -564,7 +564,8 @@
     cursor: default;
     opacity: 0.5;
 }
-.modal.component-hide-dialog {
+.modal.component-hide-dialog,
+.modal.component-structure-confirm-dialog {
     width: min(440px, calc(100vw - 32px));
 }
 .component-dialog-text {

@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
         getName: () => 'Button',
         getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.currentMeta),
+        getConfigurationId: () => undefined,
+        getConfigurations: () => [],
+        getComponentId: () => undefined,
     },
 }));
 vi.mock('../../api/http', () => ({

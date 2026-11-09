@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
         getName: () => 'Button',
         getPlatform: () => 'web' as const,
         getMeta: () => ({}),
+        getConfigurationId: () => undefined,
+        getConfigurations: () => [],
+        getComponentId: () => undefined,
     },
 }));
 

@@ -58,6 +58,9 @@ const toLegacyComponentConfig = (
     variationByName: Map<string, ComponentVariationDto>,
     stylesByVariation: Map<string, ComponentStyleDto[]>,
 ): Meta['sources']['configs'][number]['config'] => {
+    // Выгрузка для редактора несёт ID вариаций и стилей: имя оси и значения может быть отображаемым только в этой
+    // конфигурации, а одноимённые оси разных конфигураций — разными вариациями. Без ID остаётся поиск по имени.
+    const axisByName = new Map(config.variations.map((axis) => [axis.name, axis]));
     const property = (name: string, value: ComponentConfigPropertyDto) => ({
         id: value.id ?? propertyByName.get(name)?.id ?? name,
         value: legacyScalar(value.default ?? value.value),
@@ -69,29 +72,60 @@ const toLegacyComponentConfig = (
     });
     const variations = config.variations.map((axis) => {
         const variation = variationByName.get(axis.name) ?? variationByName.get(axis.id);
-        const variationId = variation?.id ?? axis.id;
+        const variationId = axis.variationId ?? variation?.id ?? axis.id;
         const styles = stylesByVariation.get(variationId) ?? [];
         return {
             id: variationId,
+            name: axis.name,
             // Значение с `targets` — пересечение со стилями других вариаций, а не отдельный стиль.
             styles: axis.values
                 .filter((value) => !value.targets?.length)
                 .map((value) => ({
-                    id: styles.find((style) => style.name === value.name)?.id ?? value.name,
+                    id: value.styleId ?? styles.find((style) => style.name === value.name)?.id ?? value.name,
                     name: value.name,
                     intersections: null,
                     props: Object.entries(value.properties).map(([name, item]) => property(name, item)),
                 })),
         };
     });
+    // Пересечение — значение стиля-владельца с `targets`: остальные стили сочетания по осям выгрузки и именам значений.
+    const styleIdOf = (axisId: string, name: string) =>
+        variations[config.variations.findIndex((item) => item.id === axisId)]?.styles.find(
+            (style) => style.name === name,
+        )?.id;
+    const combinations = config.variations.flatMap((axis, index) =>
+        axis.values.flatMap((value) => {
+            const owner = variations[index].styles.find(
+                (style) => style.id === value.styleId || style.name === value.name,
+            )?.id;
+            return (value.targets ?? []).flatMap((target) => {
+                const others = target.properties.map((item) => styleIdOf(item.id, String(unwrapValue(item.value))));
+                if (!owner || others.some((id) => !id)) {
+                    console.warn(`Пересечение ${axis.name}: ${value.name} не сопоставлено со стилями`, target);
+                    return [];
+                }
+                return [
+                    {
+                        styleIDs: [owner, ...(others as string[])],
+                        props: Object.entries(value.properties).map(([name, item]) => property(name, item)),
+                    },
+                ];
+            });
+        }),
+    );
     return {
+        combinations,
         defaultVariations: config.defaults.map((item) => {
+            const axis = axisByName.get(item.id);
             const variation = variationByName.get(item.id);
-            const variationId = variation?.id ?? item.id;
+            const variationId = axis?.variationId ?? variation?.id ?? item.id;
             const styleName = String(unwrapValue(item.value) ?? '');
             return {
                 variationID: variationId,
-                styleID: stylesByVariation.get(variationId)?.find((style) => style.name === styleName)?.id ?? styleName,
+                styleID:
+                    axis?.values.find((value) => !value.targets?.length && value.name === styleName)?.styleId ??
+                    stylesByVariation.get(variationId)?.find((style) => style.name === styleName)?.id ??
+                    styleName,
             };
         }),
         invariantProps: Object.entries(config.invariants).map(([name, item]) => property(name, item)),
@@ -153,8 +187,8 @@ const readComponentLists = async (
             readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request, undefined, 300_000),
             readEditor<AppearanceDto[]>(`${root}/appearances`, request),
             readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-
                 platform,
+                editorIds: true,
                 ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
             }),
             !componentName && (isWeb || isCompose)
@@ -462,9 +496,16 @@ export const componentRepository = {
                 const componentEntries = entries.filter(
                     (entry) => normalizeComponentName(entry.componentName) === normalizeComponentName(component.name),
                 );
-                const primaryAppearance = componentAppearances.find(
-                    (candidate) => (candidate.name ?? 'default') === componentEntries[0]?.styleName,
-                );
+                const isDefaultEntry = (entry: { styleName: string }) =>
+                    componentAppearances.some(
+                        (candidate) =>
+                            candidate.isDefault === true && (candidate.name ?? 'default') === entry.styleName,
+                    );
+                const primaryAppearance =
+                    componentAppearances.find((candidate) => candidate.isDefault === true) ??
+                    componentAppearances.find(
+                        (candidate) => (candidate.name ?? 'default') === componentEntries[0]?.styleName,
+                    );
                 return {
                     name: component.name,
                     description: component.description ?? '',
@@ -501,21 +542,25 @@ export const componentRepository = {
                             ),
                         ),
                         variations,
-                        configs: componentEntries.map((entry) => {
-                            const appearance = componentAppearances.find(
-                                (candidate) => (candidate.name ?? 'default') === entry.styleName,
-                            );
-                            return {
-                                id: appearance?.id ?? `${component.id}:${component.platform}:${entry.styleName}`,
-                                name: entry.styleName,
-                                config: toLegacyComponentConfig(
-                                    entry.config,
-                                    propertyByName,
-                                    variationByName,
-                                    stylesByVariation,
-                                ),
-                            };
-                        }),
+                        // Конфигурация по умолчанию — первой: редактор открывает её, пока не выбрана другая.
+                        configs: [...componentEntries]
+                            .sort((a, b) => Number(isDefaultEntry(b)) - Number(isDefaultEntry(a)))
+                            .map((entry) => {
+                                const appearance = componentAppearances.find(
+                                    (candidate) => (candidate.name ?? 'default') === entry.styleName,
+                                );
+                                return {
+                                    id: appearance?.id ?? `${component.id}:${component.platform}:${entry.styleName}`,
+                                    name: entry.styleName,
+                                    isDefault: appearance?.isDefault === true,
+                                    config: toLegacyComponentConfig(
+                                        entry.config,
+                                        propertyByName,
+                                        variationByName,
+                                        stylesByVariation,
+                                    ),
+                                };
+                            }),
                     },
                 } as Meta;
             }),
@@ -549,7 +594,11 @@ export const componentRepository = {
         baseRevisions: Record<string, number>,
         onPendingUpdate?: (revisions: Record<string, number>) => void,
     ): Promise<Record<string, number>> {
-        const binding = meta.serverBinding;
+        // Правка пишется в конфигурацию, открытую в редакторе; старые операции без неё — в основную.
+        const binding = meta.serverBinding && {
+            ...meta.serverBinding,
+            appearanceId: mutation.appearanceId ?? meta.serverBinding.appearanceId,
+        };
         if ([binding?.componentId, binding?.appearanceId].some((value) => !value))
             throw new Error('COMPONENT_SERVER_BINDING_REQUIRED');
         const stableBinding = binding as { componentId: string; appearanceId: string };
