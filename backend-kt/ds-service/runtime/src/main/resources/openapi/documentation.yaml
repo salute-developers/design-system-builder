@@ -535,7 +535,7 @@ paths:
         его свойствами и этой дизайн-системой: appearances — GET /ds/appearances, export —
         POST /ds/component-config/export с одним компонентом и platform, properties —
         GET /ds/components/{id}/properties, platformParams — GET /ds/property-platform-params,
-        propertyVariations — GET /ds/property-variations (пусто для compose), variations —
+        propertyVariations — GET /ds/property-variations, variations —
         GET /ds/components/{id}/variations?designSystemId=…, styles —
         GET /ds/design-systems/{id}/components/{componentId}/styles, webAdapter — запись компонента
         из POST /ds/component-config/web-adapter (null для compose), dependencies — связи, где
@@ -8191,6 +8191,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: После изменения у значения не осталось ни токена, ни значения (property_value_empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Not found
           content:
@@ -8472,6 +8478,12 @@ paths:
                 $ref: '#/components/schemas/InvariantPropertyValue'
         '400':
           description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: После изменения у значения не осталось ни токена, ни значения (property_value_empty)
           content:
             application/json:
               schema:

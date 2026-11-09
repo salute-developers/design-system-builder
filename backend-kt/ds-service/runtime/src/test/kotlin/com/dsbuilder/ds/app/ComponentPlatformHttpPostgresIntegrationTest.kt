@@ -261,6 +261,12 @@ class ComponentPlatformHttpPostgresIntegrationTest {
 
         assertEquals(HttpStatusCode.BadRequest, patch(path, """{"stateSetId":null}""").status)
 
+        // Изменение не может оставить запись без токена и значения: пустое значение удаляют, а не очищают.
+        val emptied = patch(path, """{"tokenId":null,"value":null}""")
+        assertEquals(HttpStatusCode.UnprocessableEntity, emptied.status, emptied.bodyAsText())
+        assertTrue(emptied.bodyAsText().contains("property_value_empty"), emptied.bodyAsText())
+        assertEquals(token, field(get(path).bodyAsText(), "tokenId"))
+
         val invariant = post(
             "/api/ds/invariant-property-values",
             """{"propertyId":"$focus","designSystemId":"$designSystem","componentId":"$component",""" +
@@ -275,6 +281,10 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         assertEquals("null", field(invariantRaw.bodyAsText(), "tokenId"))
         assertEquals("#000000", field(invariantRaw.bodyAsText(), "value"))
         assertEquals(HttpStatusCode.BadRequest, patch(invariantPath, """{"stateSetId":null}""").status)
+        assertEquals(
+            HttpStatusCode.UnprocessableEntity,
+            patch(invariantPath, """{"tokenId":null,"value":null}""").status,
+        )
     }
 
     @Test
