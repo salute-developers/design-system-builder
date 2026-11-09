@@ -12,9 +12,9 @@ const getCSSVariable = (tokenName: string, value: string[]) => {
     return `  --shadow-${tokenName}: ${value.join(', ')};`;
 };
 
-const getShadow = (shadow: any, tokens: TokenType[], direction: 'down' | 'up', isJS = false) =>
+// Все тени из meta темы, без привязки к имени или тегам: `down.*`, `up.*` и любые пользовательские.
+const getShadow = (shadow: any, tokens: TokenType[], isJS = false) =>
     tokens
-        .filter((token) => token.tags[0] === direction)
         .map((token) => {
             const tokenName = token.name.split('.').join('-');
             const value = shadow?.[token.name];
@@ -39,7 +39,7 @@ export const createShadowTokens = (shadow: any, tokens?: Array<TokenType>, isJS 
         };
     }
 
-    const shadows = `${getShadow(shadow, tokens, 'down', isJS)}\n${getShadow(shadow, tokens, 'up', isJS)}`;
+    const shadows = getShadow(shadow, tokens, isJS);
 
     return {
         dark: shadows,
