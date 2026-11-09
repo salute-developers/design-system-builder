@@ -200,10 +200,17 @@ export class ThemeEditorSession {
         }
     }
 
-    /** Компонент для канваса «Цвета» (без имени — индекс компонентов); активный раздел не меняется. */
-    async loadComponent(component?: string): Promise<void> {
+    /**
+     * Компонент для канваса «Цвета» (без имени — индекс компонентов); активный раздел не меняется. `force` перечитывает
+     * компонент сразу, не дожидаясь уведомления об изменении: после структурной правки редактора.
+     */
+    async loadComponent(component?: string, force = false): Promise<void> {
         const sections = this.options.sections;
         if (!sections) return;
+        if (force) {
+            sections.invalidate(new Set(['component-configurations']));
+            invalidateEditorReads(this.context);
+        }
         const result = await sections.loadComponent(component);
         if (!result) return;
         const types = result.tokenTypes.filter(

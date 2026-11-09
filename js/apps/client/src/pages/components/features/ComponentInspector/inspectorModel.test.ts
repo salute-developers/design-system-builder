@@ -4,6 +4,7 @@ import { Config } from '../../../../controllers';
 import type { Meta } from '../../../../controllers';
 import { chipMeta, style } from '../__fixtures__/chipMeta';
 import {
+    collectCombinationProperties,
     collectSourceProperties,
     combinationTitle,
     compareProperties,
@@ -183,5 +184,148 @@ describe('collectSourceProperties: links of properties to variations', () => {
                 source: expect.objectContaining({ kind: 'style', styleID: 's-m' }),
             }),
         ]);
+    });
+});
+
+describe('collectSourceProperties for structure changes', () => {
+    // Chip с новой вариацией `density` (ни привязок, ни значений) и вариацией `legacy`: значения есть, привязок нет.
+    const withVariations = () => {
+        const base = chipMeta.sources.configs[0].config;
+        return {
+            ...chipMeta,
+            sources: {
+                ...chipMeta.sources,
+                variations: [
+                    ...chipMeta.sources.variations,
+                    { id: 'density', name: 'density' },
+                    { id: 'legacy', name: 'legacy' },
+                ],
+                configs: [
+                    {
+                        ...chipMeta.sources.configs[0],
+                        config: {
+                            ...base,
+                            variations: [
+                                ...base.variations,
+                                { id: 'density', styles: [style('d-compact', 'compact')] },
+                                { id: 'legacy', styles: [style('l-on', 'on', [{ id: 'padding', value: '2' }])] },
+                            ],
+                        },
+                    },
+                ],
+            },
+        } as unknown as Meta;
+    };
+    const rows = (selection: Record<string, string>, showAll = false) => {
+        const meta = withVariations();
+        return collectSourceProperties(new Config(meta), selection, meta.sources.api, showAll);
+    };
+
+    it('shows every component property to a style of a new variation, unlinked', () => {
+        const density = rows({ size: 's-m', density: 'd-compact' }).filter(
+            (item) => item.source.kind === 'style' && item.source.variationID === 'density',
+        );
+
+        expect(density.map((item) => item.prop.getName())).toEqual(
+            expect.arrayContaining(['background', 'height', 'padding']),
+        );
+        expect(density.every((item) => !item.isSet && !item.linked)).toBe(true);
+    });
+
+    it('does not expand an old variation without links and keeps other styles to linked properties', () => {
+        const result = rows({ size: 's-m', legacy: 'l-on' });
+
+        expect(
+            result
+                .filter((item) => item.source.kind === 'style' && item.source.variationID === 'legacy')
+                .map((item) => item.prop.getName()),
+        ).toEqual(['padding']);
+        expect(
+            result
+                .filter((item) => item.source.kind === 'style' && item.source.variationID === 'v-size')
+                .every((item) => item.linked),
+        ).toBe(true);
+    });
+
+    it('adds unlinked properties as empty rows when all properties are shown', () => {
+        const size = rows({ size: 's-m' }, true).filter(
+            (item) => item.source.kind === 'style' && item.source.variationID === 'v-size',
+        );
+
+        expect(size.find((item) => item.prop.getName() === 'background')).toMatchObject({
+            isSet: false,
+            linked: false,
+        });
+        expect(size.find((item) => item.prop.getName() === 'height')).toMatchObject({ isSet: true, linked: true });
+    });
+});
+
+describe('Config configurations', () => {
+    it('lists configurations, opens another one and names variations by the configuration axis', () => {
+        const meta = {
+            ...chipMeta,
+            sources: {
+                ...chipMeta.sources,
+                configs: [
+                    { ...chipMeta.sources.configs[0], id: 'base', name: 'Chip', isDefault: true },
+                    {
+                        id: 'copy',
+                        name: 'Chip copy',
+                        config: {
+                            defaultVariations: [],
+                            invariantProps: [],
+                            variations: [{ id: 'view', name: 'tone', styles: [style('v-default', 'brand')] }],
+                        },
+                    },
+                ],
+            },
+        } as unknown as Meta;
+        const config = new Config(meta);
+
+        expect(config.getConfigurations()).toEqual([
+            { id: 'base', name: 'Chip', isDefault: true },
+            { id: 'copy', name: 'Chip copy', isDefault: false },
+        ]);
+        expect(config.getConfigurationId()).toBe('base');
+        const copy = config.withConfiguration('copy');
+        expect(copy.getConfigurationId()).toBe('copy');
+        expect(copy.getVariations().map((variation) => variation.getName())).toEqual(['tone']);
+    });
+});
+
+describe('collectCombinationProperties', () => {
+    const withCombination = {
+        ...chipMeta,
+        sources: {
+            ...chipMeta.sources,
+            configs: [
+                {
+                    ...chipMeta.sources.configs[0],
+                    config: {
+                        ...chipMeta.sources.configs[0].config,
+                        combinations: [{ styleIDs: ['s-m', 'p-true'], props: [{ id: 'height', value: '44' }] }],
+                    },
+                },
+            ],
+        },
+    } as Meta;
+    const api = withCombination.sources.api;
+
+    it('shows the values of the intersection and empty rows for properties of its variations', () => {
+        const rows = collectCombinationProperties(new Config(withCombination), ['p-true', 's-m'], api);
+        const height = rows.find((row) => row.prop.getName() === 'height');
+
+        expect(height).toMatchObject({ isSet: true, source: { kind: 'combination', styleIDs: ['p-true', 's-m'] } });
+        expect(height?.prop.getValue()).toBe('44');
+        expect(sourceLabel(height!.source)).toBe('pilled: true · size: m');
+        // Свойства `view` к сочетанию не относятся.
+        expect(rows.some((row) => row.prop.getName() === 'background')).toBe(false);
+        expect(rows.filter((row) => !row.isSet).every((row) => row.source.kind === 'combination')).toBe(true);
+    });
+
+    it('starts empty for an intersection without values', () => {
+        const rows = collectCombinationProperties(new Config(withCombination), ['s-xs', 'p-true'], api);
+        expect(rows.length).toBeGreaterThan(0);
+        expect(rows.every((row) => !row.isSet)).toBe(true);
     });
 });

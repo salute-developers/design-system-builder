@@ -7,8 +7,10 @@ import { InspectorGroup } from './InspectorGroup';
 import { InspectorPropertyRow, type InspectorTokenLists } from './InspectorPropertyRow';
 import {
     INSPECTOR_SECTIONS,
+    collectCombinationProperties,
     collectSourceProperties,
     compareProperties,
+    hasUnlinkedStyleSource,
     sourceKey,
     type InspectorProperty,
     type Selection,
@@ -22,6 +24,11 @@ interface InspectorSectionsProps {
     /** Меняется после каждой правки модели: по нему пересобираются строки. */
     updated: object;
     onConfigUpdate: () => void;
+    /** Привязка свойства к вариации стиля; без неё (только чтение) непривязанные свойства не показываются. */
+    onLinkProperty?: (propertyId: string, variationId: string) => Promise<void>;
+    /** Открытое пересечение: секции показывают его значения вместо значений стилей. */
+    combination?: string[];
+    onCombinationChange?: (propertyId: string, value: string | null) => void;
 }
 
 interface FilterButtonProps {
@@ -49,15 +56,27 @@ const FilterButton = ({ title, on, onToggle }: FilterButtonProps) => (
  * Незаданные свойства показываются пустыми строками; фильтр группы оставляет только заполненные.
  */
 export const InspectorSections = (props: InspectorSectionsProps) => {
-    const { config, api, selection, tokens, updated, onConfigUpdate } = props;
+    const { config, api, selection, tokens, updated, onConfigUpdate, onLinkProperty, combination } = props;
     // Фильтр «только заполненные» по группам.
     const [filters, setFilters] = useState<Record<string, boolean>>({});
+    // «Показать все свойства»: стилю видны и непривязанные к его вариации свойства. У вариации без привязок — всегда.
+    const [showAllChosen, setShowAll] = useState(false);
+    const forced = useMemo(
+        () => Boolean(onLinkProperty) && hasUnlinkedStyleSource(config, selection, api),
+        [api, config, onLinkProperty, selection, updated],
+    );
+    // Выбор пользователя действует на все стили сочетания; у новой вариации её стили показывают все свойства сами.
+    const showAll = Boolean(onLinkProperty) && showAllChosen;
     const properties = useMemo(
-        () => collectSourceProperties(config, selection, api).sort(compareProperties),
-        [config, api, selection, updated],
+        () =>
+            (combination
+                ? collectCombinationProperties(config, combination, api)
+                : collectSourceProperties(config, selection, api, showAll)
+            ).sort(compareProperties),
+        [config, api, selection, updated, showAll, combination],
     );
 
-    const row = ({ prop, source, isSet }: InspectorProperty) => (
+    const row = ({ prop, source, isSet, linked }: InspectorProperty) => (
         <InspectorPropertyRow
             key={`${sourceKey(source)}:${prop.getID()}`}
             config={config}
@@ -65,8 +84,11 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
             prop={prop}
             source={source}
             isSet={isSet}
+            linked={linked}
+            onLinkProperty={onLinkProperty}
             tokens={tokens}
             onConfigUpdate={onConfigUpdate}
+            onCombinationChange={props.onCombinationChange}
         />
     );
 
@@ -80,11 +102,31 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
                 title={title}
                 additional={additional}
                 actions={
-                    <FilterButton
-                        title={title}
-                        on={filtered}
-                        onToggle={() => setFilters((current) => ({ ...current, [title]: !filtered }))}
-                    />
+                    <>
+                        {onLinkProperty && !additional && !combination && (
+                            <button
+                                type="button"
+                                className={`component-property-filter-button ${showAll ? 'is-on' : ''}`}
+                                aria-pressed={showAll}
+                                title={
+                                    showAll
+                                        ? 'Скрыть свойства, не привязанные к вариации'
+                                        : forced
+                                          ? 'Новой вариации видны все свойства; показать их и у остальных стилей'
+                                          : 'Показать все свойства'
+                                }
+                                aria-label={`Показать все свойства ${title}`}
+                                onClick={() => setShowAll(!showAll)}
+                            >
+                                <TyGlyph name="add" />
+                            </button>
+                        )}
+                        <FilterButton
+                            title={title}
+                            on={filtered}
+                            onToggle={() => setFilters((current) => ({ ...current, [title]: !filtered }))}
+                        />
+                    </>
                 }
             >
                 {visible.map(row)}

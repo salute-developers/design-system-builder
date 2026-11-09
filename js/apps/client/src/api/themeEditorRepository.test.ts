@@ -871,6 +871,58 @@ describe('Editor repositories', () => {
         expect(put).not.toHaveBeenCalled();
     });
 
+    it('writes component edits to the configuration open in the editor', async () => {
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/appearance-variations'))
+                return Promise.resolve({
+                    data: [
+                        { id: 'axis-base', appearanceId: 'appearance', variationId: 'variation' },
+                        { id: 'axis-copy', appearanceId: 'copy', variationId: 'variation' },
+                    ],
+                });
+            return Promise.resolve({ data: [] });
+        });
+        patch.mockResolvedValue({ data: {}, headers: {} });
+        const before: PendingComponentMutation['before'] = {
+            defaultVariations: [{ variationID: 'variation', styleID: 'style-m' }],
+            invariantProps: [],
+            variations: [
+                {
+                    id: 'variation',
+                    styles: [
+                        { id: 'style-m', name: 'm', intersections: null, props: [] },
+                        { id: 'style-l', name: 'l', intersections: null, props: [] },
+                    ],
+                },
+            ],
+        };
+        const mutation: PendingComponentMutation = {
+            componentName: 'Button#copy',
+            appearanceId: 'copy',
+            before,
+            idempotencyKeys: {},
+            after: { ...before, defaultVariations: [{ variationID: 'variation', styleID: 'style-l' }] },
+        };
+        const meta = {
+            name: 'Button',
+            description: '',
+            serverBinding: { componentId: 'component', appearanceId: 'appearance' },
+            sources: { api: [], variations: [], configs: [] },
+        };
+
+        await componentRepository.saveComponentMutation(context, meta, mutation, {});
+
+        expect(get).toHaveBeenCalledWith(
+            '/api/projects/project-1/ds/variation-property-values/by-appearance/copy',
+            expect.anything(),
+        );
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/ds/appearance-variations/axis-copy',
+            { defaultStyleId: 'style-l' },
+            expect.anything(),
+        );
+    });
+
     it('replays the original axis-link body after partial success and recovery', async () => {
         const links: unknown[] = [];
         get.mockImplementation((url: string) => {

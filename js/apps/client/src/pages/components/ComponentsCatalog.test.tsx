@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => {
         getName: () => name,
         getPlatform: () => platform,
         getMeta: () => ({}),
+        getConfigurationId: () => undefined,
+        getConfigurations: () => [],
+        getComponentId: () => undefined,
     });
     return {
         config,

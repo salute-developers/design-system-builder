@@ -23,10 +23,17 @@ export class Config {
     private appearanceName = '';
     private revision = 0;
     private readonly previewMetadata?: Meta['preview'];
+    private readonly meta: Meta;
+
+    private configurationId?: string;
+
+    private variationNames = new Map<string, string>();
+
     private readonly platform: ComponentPlatform;
 
     constructor(meta: Meta, configID?: string) {
         const { name, description, sources } = meta;
+        this.meta = meta;
 
         this.name = name;
         this.description = description;
@@ -37,6 +44,7 @@ export class Config {
         const appearance = configID ? configs.find((item) => item.id === configID) : configs[0];
         const config = appearance?.config;
         this.appearanceName = appearance?.name ?? '';
+        this.configurationId = appearance?.id;
 
         if (!config) {
             this.variations = variations.map(({ id, name }) => new Variation(name, { id, styles: [] }, api));
@@ -46,6 +54,8 @@ export class Config {
             return;
         }
 
+        // Имя оси в конфигурации важнее имени вариации каталога: ось может быть переименована только здесь.
+        this.variationNames = new Map(config.variations.flatMap((item) => (item.name ? [[item.id, item.name]] : [])));
         this.variations = config.variations.map((item) => {
             const variation = this.getVariationName(variations, item.id);
 
@@ -88,6 +98,30 @@ export class Config {
     }
 
     /** Имя конфигурации (appearance): на неё ссылаются свойства-ссылки других компонентов. */
+    /** Конфигурации компонента; конфигурация по умолчанию — первой. */
+    public getConfigurations() {
+        return this.meta.sources.configs.map(({ id, name, isDefault }) => ({
+            id,
+            name,
+            isDefault: Boolean(isDefault),
+        }));
+    }
+
+    /** ID компонента на сервере; у заглушки и локальных данных — `undefined`. */
+    public getComponentId() {
+        return this.meta.serverBinding?.componentId;
+    }
+
+    /** ID открытой конфигурации (`appearance`); у заглушки без конфигураций — `undefined`. */
+    public getConfigurationId() {
+        return this.configurationId;
+    }
+
+    /** Экземпляр того же компонента, открытый на другой конфигурации. */
+    public withConfiguration(configurationId: string) {
+        return new Config(this.meta, configurationId);
+    }
+
     public getAppearanceName() {
         return this.appearanceName;
     }
@@ -126,7 +160,7 @@ export class Config {
     }
 
     private getVariationName(variations: ComponentVariation[], id: string) {
-        return variations.find((variation) => variation.id === id)?.name || '';
+        return this.variationNames.get(id) || variations.find((variation) => variation.id === id)?.name || '';
     }
 
     private getStyleName(variationID: string, styleID: string) {

@@ -1,0 +1,592 @@
+/* Вкладка «Структура» инспектора компонента: правила прототипа (`component-variation-tree`, styles.css). */
+.component-workbench .component-tree-pane {
+    padding: 10px 12px;
+    border-top: 1px solid #343a43;
+    color: #c9d0da;
+}
+.component-workbench .component-variation-tree {
+    display: grid;
+    gap: 10px;
+}
+.component-workbench .component-structure-error,
+.component-workbench .component-property-error {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 5px;
+    background: #4b343966;
+    color: #ffb4b4;
+    font-size: 11px;
+}
+
+/* Заголовок блока: подпись капсом и кнопки справа. */
+.component-workbench .component-variation-tree-section-head {
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.component-workbench .component-variation-tree-section-head > strong {
+    color: #8994a3;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.component-workbench .component-variation-subsection-head {
+    box-sizing: border-box;
+    padding: 3px 7px 0;
+    color: #707b89;
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+/* Кнопки действий строк. */
+.component-workbench .component-tree-icon-button {
+    box-sizing: border-box;
+    width: 24px;
+    height: 24px;
+    flex: none;
+    padding: 4px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #8f9aaa;
+    cursor: pointer;
+}
+.component-workbench .component-tree-icon-button:hover:not(:disabled) {
+    background: #343c47;
+    color: #e8edf4;
+}
+.component-workbench .component-tree-icon-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+.component-workbench .component-tree-icon-button .ui-glyph {
+    width: 14px;
+    height: 14px;
+}
+.component-workbench .component-protected-lock {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    display: inline-flex;
+    align-items: center;
+    color: #8994a3;
+}
+.component-workbench .component-protected-lock .ui-glyph {
+    width: 12px;
+    height: 12px;
+}
+.component-workbench .component-protected-action {
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    cursor: not-allowed;
+}
+.component-workbench .component-protected-action > .component-tree-icon-button {
+    pointer-events: none;
+    opacity: 0.45;
+}
+/* Действия строк видны при наведении, фокусе и у выбранной строки. */
+.component-workbench .component-tree-row-action {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        opacity 0.12s ease,
+        visibility 0.12s ease;
+}
+.component-workbench .component-configuration-tree-row:hover .component-tree-row-action,
+.component-workbench .component-configuration-tree-row:focus-within .component-tree-row-action,
+.component-workbench
+    .component-configuration-tree-row:has(.component-variation-select.is-selected)
+    .component-tree-row-action,
+.component-workbench .component-axis-head:hover .component-tree-row-action,
+.component-workbench .component-axis-head:focus-within .component-tree-row-action,
+.component-workbench .component-axis-value-main:hover .component-tree-row-action,
+.component-workbench .component-axis-value-main:focus-within .component-tree-row-action,
+.component-workbench .component-axis-value-main:has(.component-variation-select.is-selected) .component-tree-row-action,
+.component-workbench .component-tree-intersection-row:hover .component-tree-row-action,
+.component-workbench .component-tree-intersection-row:focus-within .component-tree-row-action,
+.component-workbench
+    .component-tree-intersection-row:has(.component-variation-select.is-selected)
+    .component-tree-row-action {
+    opacity: 1;
+    visibility: visible;
+}
+@media (hover: none) {
+    .component-workbench .component-tree-row-action {
+        opacity: 1;
+        visibility: visible;
+    }
+}
+
+/* Строка-кнопка выбора (`component-variation-select`). */
+.component-workbench .component-variation-select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 27px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 5px;
+    background: #282e36;
+    color: #bec7d3;
+    font: inherit;
+    font-size: 10px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.component-workbench .component-variation-select:hover {
+    background: #323a45;
+    color: #fff;
+}
+.component-workbench .component-variation-select.is-selected {
+    background: #30435d;
+    color: #f0f5ff;
+    box-shadow: inset 2px 0 #6c9cff;
+}
+.component-workbench .component-axis-default-badge {
+    margin-left: auto;
+    color: #7f8b9a;
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+/* Конфигурации. */
+.component-workbench .component-configuration-tree {
+    box-sizing: border-box;
+    display: grid;
+    gap: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #343a43;
+}
+.component-workbench .component-configuration-tree-list {
+    display: grid;
+    gap: 4px;
+}
+.component-workbench .component-configuration-tree-row,
+.component-workbench .component-axis-value-main {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24px 24px;
+    align-items: center;
+    gap: 3px;
+}
+/* У значения две кнопки перед удалением: «по умолчанию» и переименование. */
+.component-workbench .component-axis-value-main {
+    grid-template-columns: minmax(0, 1fr) 48px 24px;
+}
+.component-workbench .component-axis-value-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+/* Поле имени занимает строку вместе с кнопками подтверждения и отмены. */
+.component-workbench .component-configuration-tree-row:has(> .component-value-name-input),
+.component-workbench .component-axis-value-main:has(> .component-value-name-input) {
+    grid-template-columns: minmax(0, 1fr) 48px;
+}
+.component-workbench .component-configuration-add {
+    position: relative;
+    margin-left: auto;
+}
+.component-workbench .component-configuration-duplicate-menu {
+    position: absolute;
+    z-index: 140;
+    top: calc(100% + 4px);
+    right: 0;
+    width: 240px;
+    max-height: 220px;
+    padding: 4px;
+    overflow: auto;
+    border: 1px solid #424b57;
+    border-radius: 8px;
+    background: #20252c;
+    box-shadow: 0 8px 24px #0006;
+}
+.component-workbench .component-configuration-duplicate-menu > button {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 30px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #cbd3de;
+    font: inherit;
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+}
+.component-workbench .component-configuration-duplicate-menu > button:hover {
+    background: #303a48;
+    color: #f0f4fa;
+}
+
+/* Поле имени в строке. */
+.component-workbench .component-value-name-input,
+.component-workbench .component-axis-name-input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 27px;
+    min-width: 0;
+    padding: 0 8px;
+    border: 1px solid #414a56;
+    border-radius: 5px;
+    background: #282e36;
+    color: #e3e8ef;
+    font: inherit;
+    font-size: 10px;
+}
+.component-workbench .component-axis-name-input {
+    font-size: 11px;
+    font-weight: 600;
+}
+.component-workbench .component-value-name-input:focus,
+.component-workbench .component-axis-name-input:focus {
+    border-color: #6c9cff;
+    outline: none;
+    box-shadow: 0 0 0 2px #6c9cff26;
+}
+.component-workbench .component-axis-edit-actions {
+    box-sizing: border-box;
+    height: 24px;
+    display: grid;
+    grid-template-columns: 24px 24px;
+    align-items: center;
+}
+
+/* Вариации. */
+.component-workbench .component-variation-axes {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    gap: 10px;
+}
+.component-workbench .component-axis-slot {
+    display: grid;
+    gap: 6px;
+}
+.component-workbench .component-axis-group {
+    position: relative;
+    padding-bottom: 9px;
+    border-bottom: 1px solid #333a44;
+}
+.component-workbench .component-axis-group.is-base-view {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+.component-workbench .component-axis-group.is-collapsed {
+    padding-bottom: 7px;
+}
+.component-workbench .component-axis-head {
+    box-sizing: border-box;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24px 24px;
+    align-items: center;
+    gap: 3px;
+}
+.component-workbench .component-axis-edit-main {
+    grid-column: 1 / -1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 3px;
+}
+.component-workbench .component-axis-title-main {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.component-workbench .component-axis-toggle {
+    box-sizing: border-box;
+    width: 100%;
+    height: 28px;
+    min-width: 0;
+    padding: 0 7px;
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 10px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #cbd3de;
+    text-align: left;
+    cursor: pointer;
+}
+.component-workbench .component-axis-toggle:hover {
+    background: #2b323b;
+    color: #eef2f7;
+}
+.component-workbench .component-axis-toggle:focus-visible {
+    outline: 1px solid #6c9cff;
+    outline-offset: 1px;
+}
+.component-workbench .component-axis-toggle > .ui-glyph {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    color: #8f9aaa;
+}
+.component-workbench .component-axis-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+}
+.component-workbench .component-axis-drag-handle {
+    box-sizing: border-box;
+    width: 14px;
+    flex: 0 0 14px;
+    color: #788596;
+    font-size: 14px;
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+.component-workbench .component-axis-drag-handle:active {
+    cursor: grabbing;
+}
+.component-workbench .component-axis-drag-handle:focus-visible {
+    outline: 1px solid #6c9cff;
+    outline-offset: 1px;
+}
+.component-workbench .component-axis-group.is-dragging {
+    opacity: 0.45;
+}
+.component-workbench .component-axis-group.is-drop-before::before,
+.component-workbench .component-axis-group.is-drop-after::after {
+    position: absolute;
+    z-index: 2;
+    right: 0;
+    left: 0;
+    height: 3px;
+    border-radius: 2px;
+    background: #6c9cff;
+    box-shadow: 0 0 8px #6c9cff99;
+    content: '';
+    pointer-events: none;
+}
+.component-workbench .component-axis-group.is-drop-before::before {
+    top: -5px;
+}
+.component-workbench .component-axis-group.is-drop-after::after {
+    bottom: -5px;
+}
+.component-workbench .component-axis-values {
+    display: grid;
+    gap: 4px;
+    margin: 6px 0;
+}
+.component-workbench .component-axis-value {
+    display: grid;
+    gap: 3px;
+}
+.component-workbench .component-axis-add {
+    height: 24px;
+    padding: 0 6px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: #91a7c6;
+    font-size: 10px;
+    cursor: pointer;
+}
+.component-workbench .component-axis-add:hover:not(:disabled) {
+    border-color: #4b5665;
+    background: #303843;
+    color: #fff;
+}
+.component-workbench .component-axis-add:disabled {
+    opacity: 0.42;
+}
+
+/* Дерево вариаций (`component-intersections-tree` прототипа): ветки со значениями вариаций, вложенные — сдвинуты
+   и соединены линией. Настроенное пересечение отмечено точкой справа. */
+.component-workbench .component-intersections-tree {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+    padding-bottom: 10px;
+}
+.component-workbench .component-intersections-list,
+.component-workbench .component-intersections-children {
+    box-sizing: border-box;
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+.component-workbench .component-intersections-children {
+    position: relative;
+    margin: 4px 0 0 4px;
+    padding-left: 12px;
+    border-left: 1px solid #3a424d;
+}
+.component-workbench .component-tree-intersection-node {
+    position: relative;
+    min-width: 0;
+}
+.component-workbench .component-intersections-children > .component-tree-intersection-node::before {
+    position: absolute;
+    top: 15px;
+    left: -13px;
+    width: 12px;
+    height: 1px;
+    background: #3a424d;
+    content: '';
+}
+.component-workbench .component-tree-intersection-row {
+    box-sizing: border-box;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) 24px;
+    align-items: center;
+    column-gap: 6px;
+}
+.component-workbench .component-tree-actions {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+}
+.component-workbench .component-intersection-filter.is-on {
+    background: #344257;
+    color: #8bb3ff;
+}
+.component-workbench .component-intersection-disclosure {
+    position: relative;
+    z-index: 1;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 3px;
+    border: 1px solid #3a424d;
+    border-radius: 4px;
+    background: #252b33;
+    color: #8491a1;
+}
+.component-workbench .component-intersection-disclosure:hover {
+    border-color: #536174;
+    background: #303946;
+    color: #c3ccd8;
+}
+.component-workbench .component-tree-intersection-row > .component-variation-select {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 30px;
+    height: auto;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    border-radius: 5px;
+    background: #252b33;
+}
+.component-workbench .component-tree-intersection-row > .component-variation-select:hover {
+    background: #303946;
+}
+.component-workbench .component-tree-intersection-row > .component-variation-select.is-configured {
+    position: relative;
+    padding-right: 22px;
+    background: #2c3541;
+}
+.component-workbench .component-tree-intersection-row > .component-variation-select.is-configured::after {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #6c9cff;
+    box-shadow: 0 0 0 2px #6c9cff24;
+    content: '';
+    transform: translateY(-50%);
+}
+.component-workbench .component-tree-intersection-row > .component-variation-select.is-selected {
+    background: #34465f;
+    color: #eff4fb;
+}
+.component-workbench .component-intersection-label {
+    display: inline-flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 6px;
+}
+.component-workbench .component-intersection-label > small {
+    overflow: hidden;
+    color: #788493;
+    font-size: 9px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+}
+.component-workbench .component-intersection-label > b {
+    overflow: hidden;
+    color: #d0d7e1;
+    font-size: 10px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+}
+.component-workbench .component-intersections-empty {
+    margin: 0;
+    padding: 4px 0;
+    color: #8994a3;
+    font-size: 10px;
+}
+
+/* Плашка открытого пересечения над секциями «Стилизации». */
+.component-workbench .component-combination-banner {
+    margin: 0 12px 8px;
+    padding: 6px 6px 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #3d4f6a;
+    border-radius: 6px;
+    background: #2a3443;
+}
+.component-workbench .component-combination-banner > span {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+.component-workbench .component-combination-banner small {
+    color: #8bb3ff;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.component-workbench .component-combination-banner b {
+    overflow: hidden;
+    color: #e8edf4;
+    font-size: 11px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

@@ -227,6 +227,11 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         ? `Компонент ${componentName} не зарегистрирован в Compose-плагине`
         : (composeDescriptionError ?? (composeAssembly.ok ? undefined : composeAssembly.diagnostics[0]?.message));
 
+    // Описание story и выбор рендерера принадлежат компоненту, а не конфигурации: при переключении конфигурации или
+    // перечитывании компонента экземпляр `config` новый, но плагин заново его не описывает, поэтому сброс — только при
+    // смене компонента. Метаданные превью тоже общие для конфигураций и читаются из последнего экземпляра.
+    const latestConfig = useRef(config);
+    latestConfig.current = config;
     useEffect(() => {
         let cancelled = false;
         setComposePreviewMetadata(undefined);
@@ -244,7 +249,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         void loadComposePreviewManifest(composePluginUrl)
             .then((plugin) => {
                 if (cancelled) return;
-                const storedMetadata = config.getPreviewMetadata();
+                const storedMetadata = latestConfig.current.getPreviewMetadata();
                 const componentId =
                     storedMetadata.componentId &&
                     storedMetadata.storyId &&
@@ -263,7 +268,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         return () => {
             cancelled = true;
         };
-    }, [componentName, composePluginUrl, composeEnvironmentSupported, config, isComposeComponent]);
+    }, [componentName, composePluginUrl, composeEnvironmentSupported, isComposeComponent]);
     const webPayloadCache = useRef<{ key: string; payload: PreviewPayloadInput }>();
     const webAssembly = useMemo(() => {
         if (!isWebComponent || activeRenderer !== 'web-plugin' || webPlugin.status !== 'available' || !isResolved) {

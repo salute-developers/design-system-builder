@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { stateKey, type ComponentAPI, type Config, type PropState, type PropUnion } from '../../../../controllers';
 import {
@@ -35,8 +35,13 @@ interface InspectorPropertyRowProps {
     source: PropertySource;
     /** Значение задано в источнике; незаданная строка добавляет свойство при первом вводе. */
     isSet: boolean;
+    /** Свойство привязано к вариации источника; непривязанное перед первым значением привязывается. */
+    linked?: boolean;
+    onLinkProperty?: (propertyId: string, variationId: string) => Promise<void>;
     tokens: InspectorTokenLists;
     onConfigUpdate: () => void;
+    /** Запись значения пересечения (`null` — сброс); есть только у строк источника `combination`. */
+    onCombinationChange?: (propertyId: string, value: string | null) => void;
 }
 
 /** Подпись набора состояний, как в прототипе: `pressed + hovered`. */
@@ -69,7 +74,8 @@ const ClearButton = ({ label, onClear }: { label: string; onClear: () => void })
  * по типу свойства. Правка записывается в источник значения; пустой ввод в незаданную строку не сохраняется.
  */
 export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
-    const { config, api, prop, source, isSet, tokens, onConfigUpdate } = props;
+    const { config, api, prop, source, isSet, tokens, onConfigUpdate, onLinkProperty } = props;
+    const [linkError, setLinkError] = useState<string>();
     const [variationID, styleID] = sourceArgs(source);
     const id = prop.getID();
     const type = prop.getType();
@@ -78,22 +84,39 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const text = value === undefined || value === null ? '' : String(value);
     const states = prop.getStates() ?? [];
 
+    const isCombination = source.kind === 'combination';
     const update = (next: string) => {
+        if (isCombination) {
+            if (next !== '' || isSet) props.onCombinationChange?.(id, next === '' ? null : next);
+            return;
+        }
         if (isSet) config.updateToken(id, next, variationID, styleID);
-        else if (next !== '') config.addToken(id, next, api, variationID, styleID);
-        else return;
+        else if (next === '') return;
+        else if (props.linked === false && variationID && onLinkProperty) {
+            // Непривязанное свойство сначала привязывается к вариации, затем значение уходит автосохранением.
+            setLinkError(undefined);
+            onLinkProperty(id, variationID)
+                .then(() => {
+                    config.addToken(id, next, api, variationID, styleID);
+                    onConfigUpdate();
+                })
+                .catch(() => setLinkError('Не удалось привязать свойство к вариации'));
+            return;
+        } else config.addToken(id, next, api, variationID, styleID);
         onConfigUpdate();
     };
 
-    const clear = isSet && !isReadOnlyType(type) ? (
-        <ClearButton
-            label={label}
-            onClear={() => {
-                config.removeToken(id, variationID, styleID);
-                onConfigUpdate();
-            }}
-        />
-    ) : null;
+    const clear =
+        isSet && !isReadOnlyType(type) ? (
+            <ClearButton
+                label={label}
+                onClear={() => {
+                    if (isCombination) return props.onCombinationChange?.(id, null);
+                    config.removeToken(id, variationID, styleID);
+                    onConfigUpdate();
+                }}
+            />
+        ) : null;
 
     const colorControl = (
         current: string,
@@ -121,19 +144,25 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
 
     const control = (() => {
         if (type === 'color') {
-            // У свойств фокуса состояний нет, как у `supportsInspectorColorStates` прототипа.
-            const actions = /focus/i.test(prop.getName()) ? null : (
-                <StateBindingMenu
-                    label={label}
-                    disabled={!text}
-                    onAdd={(selected: BindingState[]) => {
-                        const key = stateKey(selected);
-                        if (states.some((item) => stateKey(item.state) === key)) return;
-                        config.addTokenState(id, { state: selected as PropState[], value: text }, variationID, styleID);
-                        onConfigUpdate();
-                    }}
-                />
-            );
+            // У свойств фокуса состояний нет, как у `supportsInspectorColorStates` прототипа; у пересечения — тоже.
+            const actions =
+                isCombination || /focus/i.test(prop.getName()) ? null : (
+                    <StateBindingMenu
+                        label={label}
+                        disabled={!text}
+                        onAdd={(selected: BindingState[]) => {
+                            const key = stateKey(selected);
+                            if (states.some((item) => stateKey(item.state) === key)) return;
+                            config.addTokenState(
+                                id,
+                                { state: selected as PropState[], value: text },
+                                variationID,
+                                styleID,
+                            );
+                            onConfigUpdate();
+                        }}
+                    />
+                );
             return colorControl(text, update, actions, label, clear);
         }
         if ((type === 'float' || type === 'dimension') && isOpacity(prop)) {
@@ -197,6 +226,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                 </div>
             </div>
             {type === 'color' &&
+                !isCombination &&
                 states.map((state) => {
                     const key = stateKey(state.state);
                     const name = stateLabel(state.state);
@@ -221,6 +251,11 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                         </div>
                     );
                 })}
+            {linkError && (
+                <p className="component-property-error" role="alert">
+                    {linkError}
+                </p>
+            )}
         </div>
     );
 };

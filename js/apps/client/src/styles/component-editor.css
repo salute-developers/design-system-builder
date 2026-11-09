@@ -364,7 +364,7 @@
 .component-variation-picker {
     min-height: 32px;
     display: grid;
-    grid-template-columns: minmax(0, var(--component-inspector-label-width)) minmax(0, 1fr) 24px;
+    grid-template-columns: minmax(0, var(--component-inspector-label-width)) minmax(0, 1fr);
     align-items: center;
     gap: 8px;
 }
@@ -425,15 +425,6 @@
 }
 .component-instance-preview-row {
     height: 32px;
-}
-/* Временное меню стилей вариации появляется при наведении на строку. */
-.component-variation-style-menu {
-    opacity: 0;
-}
-.component-variation-picker:hover .component-variation-style-menu,
-.component-variation-style-menu.is-open,
-.component-variation-style-menu:focus-within {
-    opacity: 1;
 }
 .inspector-switch {
     position: relative;

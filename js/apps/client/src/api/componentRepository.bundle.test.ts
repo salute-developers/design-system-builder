@@ -258,6 +258,72 @@ describe('componentRepository.loadComponentData через editor-bundle', () =>
         expect(bundled).toEqual(legacy);
     });
 
+    it('находит вариации и стили конфигурации по ID из выгрузки, а пересечения собирает в сочетания', async () => {
+        const base = bundle('c-button', 'web');
+        get.mockImplementation(() =>
+            Promise.resolve({
+                data: {
+                    ...base,
+                    export: {
+                        components: [
+                            {
+                                componentName: 'button',
+                                styleName: 'default',
+                                config: {
+                                    invariants: {},
+                                    defaults: [{ id: 'Density', value: 'Compact' }],
+                                    variations: [
+                                        {
+                                            // Ось переименована только в этой конфигурации: имя не совпадает с вариацией.
+                                            id: 'Density',
+                                            name: 'Density',
+                                            variationId: 'v-size',
+                                            values: [
+                                                { name: 'Compact', styleId: 's-m', properties: {} },
+                                                {
+                                                    name: 'Compact',
+                                                    styleId: 's-m',
+                                                    targets: [{ properties: [{ id: 'view', value: 'accent' }] }],
+                                                    properties: { height: property(36) },
+                                                },
+                                                { name: 'Large', styleId: 's-l', properties: {} },
+                                            ],
+                                        },
+                                        {
+                                            id: 'view',
+                                            name: 'view',
+                                            variationId: 'v-view',
+                                            values: [{ name: 'accent', styleId: 's-accent', properties: {} }],
+                                        },
+                                    ],
+                                },
+                            },
+                        ],
+                    },
+                },
+            }),
+        );
+
+        const [meta] = await componentRepository.loadComponentData(context, undefined, 'web', 'Button', 'c-button');
+        const config = meta.sources.configs[0].config;
+
+        expect(config.variations).toEqual([
+            expect.objectContaining({
+                id: 'v-size',
+                name: 'Density',
+                styles: [
+                    expect.objectContaining({ id: 's-m', name: 'Compact' }),
+                    expect.objectContaining({ id: 's-l', name: 'Large' }),
+                ],
+            }),
+            expect.objectContaining({ id: 'v-view', styles: [expect.objectContaining({ id: 's-accent' })] }),
+        ]);
+        expect(config.combinations).toEqual([
+            { styleIDs: ['s-m', 's-accent'], props: [expect.objectContaining({ id: 'p-height', value: 36 })] },
+        ]);
+        expect(config.defaultVariations).toEqual([{ variationID: 'v-size', styleID: 's-m' }]);
+    });
+
     it('при выборе компонента выполняет ровно одно HTTP-чтение с платформой и версией', async () => {
         await componentRepository.loadComponentData(
             { ...context, versionId: 'version-1' },

@@ -7,6 +7,7 @@ import { SegmentButtonItem } from '../../../../components';
 import { ComponentEditorPreview, type StoryArgs } from '../ComponentEditorPreview';
 import type { PreviewPlatform, PreviewPlatformOption } from '../ComponentEditorPreview/PreviewEnvironmentBar';
 import { ComponentInspector, combinationTitle } from '../ComponentInspector';
+import type { StructureAccess } from '../ComponentStructure';
 
 import { Root } from './ComponentEditor.styles';
 import { componentPreviewRequest, modeList, resolveComponentPreview } from './ComponentEditor.utils';
@@ -20,10 +21,15 @@ interface ComponentEditorProps {
     platforms: PreviewPlatformOption[];
     onPlatformSelect: (platform: PreviewPlatform) => void;
     onConfigUpdate: () => void;
+    /** Выбор открытой конфигурации компонента. */
+    onConfigurationSelect?: (configurationId: string | undefined) => void;
+    /** Структурные операции вкладки «Структура»; без них вкладки нет. */
+    structure?: StructureAccess;
 }
 
 export const ComponentEditor = (props: ComponentEditorProps) => {
     const { designSystem, theme, configs, updated, platforms, onPlatformSelect, onConfigUpdate } = props;
+    const { onConfigurationSelect, structure } = props;
 
     const config = configs?.[0];
 
@@ -99,6 +105,8 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 onSelectionChange={onSelectionChange}
                 onConfigUpdate={onConfigUpdate}
                 storyArgs={storyArgs}
+                onConfigurationSelect={onConfigurationSelect}
+                structure={structure}
             />
         </Root>
     );
