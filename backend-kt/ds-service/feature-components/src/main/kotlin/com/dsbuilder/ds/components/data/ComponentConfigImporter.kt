@@ -54,6 +54,16 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         invalidType(entry)?.let { "Unsupported property type '$it'" }
             ?: unknownRoot(entry.config)?.let { "rootVariationId '$it' names no axis of the configuration" }
 
+    /**
+     * Новая конфигурация получает имя только по правилу kebab-case и не может дать тот же идентификатор в коде, что и
+     * существующая (`dense-2` и `dense2`); существующая со старым именем обновляется без проверки.
+     */
+    private fun newNameProblem(ds: UUID, componentId: UUID, name: String): String? = when {
+        !ConfigurationName.isValid(name) -> ConfigurationName.INVALID_CODE
+        ConfigurationName.key(name) in AppearanceNaming.names(ds, componentId) -> ConfigurationName.TAKEN_CODE
+        else -> null
+    }
+
     @Suppress("LongMethod", "ReturnCount")
     private fun importOne(ds: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) {
         entryProblem(entry)?.let { return context.report.reject(entry, it) }
@@ -66,9 +76,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         link(ds, componentId)
         loadStates(componentId, context)
         val old = appearance(ds, componentId, entry.styleName)
-        // Новая конфигурация получает имя только по правилу kebab-case; существующая со старым именем обновляется.
-        if (old == null && !ConfigurationName.isValid(entry.styleName)) {
-            return context.report.reject(entry, ConfigurationName.INVALID_CODE)
+        if (old == null) {
+            newNameProblem(
+                ds,
+                componentId,
+                entry.styleName,
+            )?.let { return context.report.reject(entry, it) }
         }
         val appearanceId = old?.get(ComponentAppearancesTable.id) ?: run {
             val id = StableAppearancesTable.insertReturning {

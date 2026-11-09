@@ -114,13 +114,13 @@ internal object AppearanceEditorRules {
 /** Правила имён и входящих ссылок конфигураций (оформлений). */
 internal object AppearanceNaming {
 
-    /** Нормализованные имена оформлений пары (дизайн-система, компонент), кроме [excluding]. */
+    /** Ключи имён оформлений пары (дизайн-система, компонент), кроме [excluding]: см. [ConfigurationName.key]. */
     fun names(designSystemId: UUID, componentId: UUID, excluding: UUID? = null): Set<String> =
         ComponentAppearancesTable.selectAll().where {
             (ComponentAppearancesTable.designSystemId eq designSystemId) and
                 (ComponentAppearancesTable.componentId eq componentId)
         }.filter { it[ComponentAppearancesTable.id] != excluding }
-            .mapNotNull { it[ComponentAppearancesTable.name]?.trim()?.lowercase() }.toSet()
+            .mapNotNull { it[ComponentAppearancesTable.name]?.let(ConfigurationName::key) }.toSet()
 
     /** Проверяет правило имени; нарушение — `appearance_name_invalid`. */
     fun requireName(rawName: String): String {
@@ -137,8 +137,11 @@ internal object AppearanceNaming {
     /** Проверяет имя и его уникальность в паре. */
     fun requireFree(designSystemId: UUID, componentId: UUID, rawName: String, excluding: UUID? = null): String {
         val name = requireName(rawName)
-        if (name.lowercase() in names(designSystemId, componentId, excluding)) {
-            throw EditorRuleViolationException("appearance_name_taken", "The configuration name is already used")
+        if (ConfigurationName.key(name) in names(designSystemId, componentId, excluding)) {
+            throw EditorRuleViolationException(
+                ConfigurationName.TAKEN_CODE,
+                "The configuration name is already used or gives the same identifier in code as another one",
+            )
         }
         return name
     }
@@ -147,8 +150,8 @@ internal object AppearanceNaming {
     fun freeName(designSystemId: UUID, componentId: UUID, base: String): String {
         val taken = names(designSystemId, componentId)
         val name = kebab(base)
-        if (name !in taken) return name
-        return generateSequence(2) { it + 1 }.map { "$name-$it" }.first { it !in taken }
+        if (ConfigurationName.key(name) !in taken) return name
+        return generateSequence(2) { it + 1 }.map { "$name-$it" }.first { ConfigurationName.key(it) !in taken }
     }
 
     /** Отклоняет удаление оформления, на которое ссылаются значения других оформлений. */

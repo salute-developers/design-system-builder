@@ -598,6 +598,40 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `configuration names may not give the same identifier in code`() = withService {
+        val fixture = fixture()
+        val newBody = """{"designSystemId":"${fixture.ds}","componentId":"${fixture.component}"}"""
+        suspend fun created() = json.parseToJsonElement(
+            post("/api/ds/appearances/new", newBody).bodyAsText(),
+        ).jsonObject
+        val first = created()
+        val second = created()
+        assertEquals("new-2", second.string("name"))
+
+        // `new-2` и `new2` дают один идентификатор `new2` и один файл конфига.
+        val renamed = patch("/api/ds/appearances/${first.string("id")}", """{"name":"new2"}""")
+        assertEquals(HttpStatusCode.Conflict, renamed.status, renamed.bodyAsText())
+        assertEquals("APPEARANCE_NAME_CONFLICT", code(renamed))
+        val duplicated = post("/api/ds/appearances/${first.string("id")}/duplicate", """{"name":"New-2"}""")
+        assertEquals("appearance_name_invalid", code(duplicated))
+        val sameKey = post("/api/ds/appearances/${first.string("id")}/duplicate", """{"name":"ne-w2"}""")
+        assertEquals(HttpStatusCode.UnprocessableEntity, sameKey.status, sameKey.bodyAsText())
+        assertEquals("appearance_name_taken", code(sameKey))
+
+        // Сгенерированное имя обходит занятый ключ: после `new3` следующая новая конфигурация — `new-4`.
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/ds/appearances/${first.string("id")}", """{"name":"new3"}""").status,
+        )
+        assertEquals("new", created().string("name"))
+        assertEquals("new-4", created().string("name"))
+
+        val imported = importConfig(fixture.ds, "new-3", config("view", "size"))
+        assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+        assertTrue(imported.bodyAsText().contains("appearance_name_taken"), imported.bodyAsText())
+    }
+
+    @Test
     fun `a duplicate is independent keeps states and references and repeats with the same key`() = withService {
         val fixture = fixture()
         val child = importChild(fixture.ds)
