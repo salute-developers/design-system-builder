@@ -1,2 +1,4 @@
 schema: spec-driven
 created: 2026-11-03
+
+retire_capabilities: true
