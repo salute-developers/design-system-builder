@@ -8,6 +8,7 @@ import type {
     TokenValueDto,
     TypographyStylesDto,
 } from '../api/types';
+import type { ExportPlan } from '../../shared/exportPlan';
 import { buildSnapshot, type TokenSnapshot } from '../tokens/snapshot';
 
 export type ApiErrorKind = 'unauthorized' | 'forbidden' | 'not-found' | 'network' | 'server';
@@ -40,6 +41,9 @@ export class OAuthError extends Error {
 /** Хранилище основного потока не ответило. */
 export class StorageError extends Error {}
 
+/** Модуль не смог построить план экспорта из ответа сервера. */
+export class ExportPlanError extends Error {}
+
 export interface DesignSystemContext {
     projectId: string;
     designSystemId: string;
@@ -55,7 +59,7 @@ export interface LoginCode {
     verificationUri: string;
 }
 
-/** Чтения DS Builder для экранов. Записей в API нет. */
+/** Чтения DS Builder для экранов. Записей в DS Builder нет. */
 export interface DsBuilderApi {
     projects(signal?: AbortSignal): Promise<ProjectDto[]>;
     designSystems(projectId: string, signal?: AbortSignal): Promise<DesignSystemDto[]>;
@@ -63,6 +67,13 @@ export interface DsBuilderApi {
     versions(context: DesignSystemContext, signal?: AbortSignal): Promise<DesignSystemVersionDto[]>;
     /** Токены темы на одной границе: опубликованная версия или, без `versionId`, активный черновик. */
     snapshot(context: TenantContext, versionId: string | null, signal?: AbortSignal): Promise<TokenSnapshot>;
+    /** План экспорта темы в Figma на той же границе версии. */
+    exportPlan(
+        context: TenantContext,
+        versionId: string | null,
+        themeName: string,
+        signal?: AbortSignal,
+    ): Promise<ExportPlan>;
 }
 
 /** Всё, что окну нужно от бэкенда. */
@@ -94,6 +105,14 @@ export interface KotlinCore {
         versionId: string | null,
         signal?: AbortSignal,
     ): Promise<string>;
+    exportPlan(
+        projectId: string,
+        designSystemId: string,
+        tenantId: string,
+        versionId: string | null,
+        themeName: string,
+        signal?: AbortSignal,
+    ): Promise<string>;
 }
 
 interface ThemeTokens {
@@ -108,6 +127,7 @@ const screenError = (error: unknown) => {
     const { kind, code } = error as { kind?: string; code?: string | null };
     if (kind === 'oauth') return new OAuthError(code ?? '');
     if (kind === 'storage') return new StorageError(code ?? 'Хранилище плагина недоступно');
+    if (kind === 'export') return new ExportPlanError(`Не удалось построить план экспорта: ${code ?? 'неизвестная причина'}`);
     if (kind && kind in MESSAGES) return new ApiError(kind as ApiErrorKind);
     return error;
 };
@@ -149,6 +169,8 @@ export const createPluginCore = (core: KotlinCore): PluginCore => {
                 buildSnapshot(
                     await parsed<ThemeTokens>(core.themeTokens(projectId, designSystemId, tenantId, versionId, signal)),
                 ),
+            exportPlan: ({ projectId, designSystemId, tenantId }, versionId, themeName, signal) =>
+                parsed<ExportPlan>(core.exportPlan(projectId, designSystemId, tenantId, versionId, themeName, signal)),
         },
     };
 };

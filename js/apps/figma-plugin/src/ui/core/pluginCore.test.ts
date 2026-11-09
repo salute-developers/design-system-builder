@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiError, OAuthError, StorageError, createPluginCore, type KotlinCore } from './pluginCore';
+import { ApiError, ExportPlanError, OAuthError, StorageError, createPluginCore, type KotlinCore } from './pluginCore';
 
 const context = { projectId: 'p1', designSystemId: 'd1', tenantId: 't1' };
 
@@ -17,6 +17,7 @@ const createKotlin = (overrides: Partial<KotlinCore> = {}): KotlinCore => ({
     themeTokens: vi.fn(
         async () => '{"tokens":[],"values":[],"typography":{"families":[],"screens":[]},"sizes":{}}',
     ),
+    exportPlan: vi.fn(async () => '{"collections":[],"skipped":[]}'),
     ...overrides,
 });
 
@@ -41,6 +42,20 @@ describe('связь с Kotlin', () => {
 
         expect(kotlin.themeTokens).toHaveBeenCalledWith('p1', 'd1', 't1', 'v1', signal);
         expect(snapshot.colors).toEqual([]);
+    });
+
+    it('получает план экспорта на выбранной границе и переводит сбой построения', async () => {
+        const kotlin = createKotlin();
+        const { signal } = new AbortController();
+
+        const plan = await createPluginCore(kotlin).api.exportPlan(context, null, 'Malachite', signal);
+
+        expect(kotlin.exportPlan).toHaveBeenCalledWith('p1', 'd1', 't1', null, 'Malachite', signal);
+        expect(plan.collections).toEqual([]);
+        const broken = createPluginCore(createKotlin({ exportPlan: vi.fn().mockRejectedValue(failure('export', 'bad')) }));
+        const error = await broken.api.exportPlan(context, null, 'Malachite').catch((reason: unknown) => reason);
+        expect(error).toBeInstanceOf(ExportPlanError);
+        expect(error).toHaveProperty('message', 'Не удалось построить план экспорта: bad');
     });
 
     it.each([

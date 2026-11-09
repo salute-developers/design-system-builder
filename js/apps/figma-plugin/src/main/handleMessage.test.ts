@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ExportPlan, ExportReport } from '../shared/exportPlan';
 import { handleMessage, type PluginHost } from './handleMessage';
 
 const createHost = (stored: Record<string, string> = {}) => {
@@ -12,6 +13,7 @@ const createHost = (stored: Record<string, string> = {}) => {
             delete stored[key];
         }),
         openExternal: vi.fn(),
+        applyExport: vi.fn(),
         reply: vi.fn(),
     };
     return { host, stored };
@@ -53,5 +55,51 @@ describe('команды основного потока', () => {
         await handleMessage({ type: 'open-external', url: 'https://example.test/device' }, host);
         expect(host.openExternal).toHaveBeenCalledWith('https://example.test/device');
         expect(host.reply).not.toHaveBeenCalled();
+    });
+
+    it('применяет план экспорта и возвращает отчёт или ошибку', async () => {
+        const { host } = createHost();
+        const plan = { collections: [] } as unknown as ExportPlan;
+        const report = { failure: undefined } as unknown as ExportReport;
+        vi.mocked(host.applyExport).mockResolvedValueOnce(report).mockRejectedValueOnce(new Error('locked'));
+
+        await handleMessage({ type: 'export:apply', requestId: '7', plan }, host);
+        await handleMessage({ type: 'export:apply', requestId: '8', plan }, host);
+
+        expect(host.applyExport).toHaveBeenCalledWith(plan);
+        expect(host.reply).toHaveBeenNthCalledWith(1, { type: 'export:result', requestId: '7', report });
+        expect(host.reply).toHaveBeenNthCalledWith(2, {
+            type: 'export:result',
+            requestId: '8',
+            report: null,
+            error: 'locked',
+        });
+    });
+
+    it('выполняет экспорты по очереди', async () => {
+        const { host } = createHost();
+        const order: string[] = [];
+        let finishFirst: () => void = () => undefined;
+        vi.mocked(host.applyExport)
+            .mockImplementationOnce(async () => {
+                order.push('first:start');
+                await new Promise<void>((resolve) => (finishFirst = resolve));
+                order.push('first:end');
+                return {} as ExportReport;
+            })
+            .mockImplementationOnce(async () => {
+                order.push('second:start');
+                return {} as ExportReport;
+            });
+        const plan = {} as ExportPlan;
+
+        const first = handleMessage({ type: 'export:apply', requestId: '1', plan }, host);
+        const second = handleMessage({ type: 'export:apply', requestId: '2', plan }, host);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(order).toEqual(['first:start']);
+        finishFirst();
+        await Promise.all([first, second]);
+
+        expect(order).toEqual(['first:start', 'first:end', 'second:start']);
     });
 });

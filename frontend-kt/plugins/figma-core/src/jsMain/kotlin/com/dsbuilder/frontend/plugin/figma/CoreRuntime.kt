@@ -20,6 +20,8 @@ import com.dsbuilder.frontend.feature.projects.application.ProjectsReadResult
 import com.dsbuilder.frontend.feature.projects.data.HttpProjectsClient
 import com.dsbuilder.frontend.feature.theme.application.DesignSystemTenantsResult
 import com.dsbuilder.frontend.feature.theme.data.HttpDesignSystemTenantsClient
+import com.dsbuilder.frontend.plugin.figma.export.ExportThemeInfo
+import com.dsbuilder.frontend.plugin.figma.export.FigmaExportPlanner
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.plugin
@@ -27,6 +29,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -164,6 +167,22 @@ internal class CoreRuntime(
 
     suspend fun themeTokens(context: ThemeContext, versionId: String?): String = read { probe, credential ->
         HttpThemeTokensClient(probe).tokens(gatewayUrl, credential, context, versionId).valueOrNull()
+    }
+
+    /** План экспорта темы в Figma: все разделы читаются на одной границе версии, затем строится план. */
+    suspend fun exportPlan(context: ThemeContext, versionId: String?, themeName: String): String {
+        val source = read { probe, credential ->
+            HttpThemeTokensClient(probe).exportSource(gatewayUrl, credential, context, versionId).valueOrNull()
+        }
+        return buildPlan(source, ExportThemeInfo(themeName, context.tenantId, versionId))
+    }
+
+    /** Сбой построения плана — не сеть: экран показывает, что план не построен. */
+    @Suppress("TooGenericExceptionCaught")
+    private fun buildPlan(source: String, theme: ExportThemeInfo): String = try {
+        FigmaExportPlanner.plan(Json.parseToJsonElement(source) as JsonObject, theme).toJson().toString()
+    } catch (exception: Throwable) {
+        throw CoreFailure("export", exception.message)
     }
 
     private fun ModelReadResult.valueOrNull() = (this as? ModelReadResult.Success)?.value

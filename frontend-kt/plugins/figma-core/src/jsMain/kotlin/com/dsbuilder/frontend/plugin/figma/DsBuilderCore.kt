@@ -19,8 +19,8 @@ private const val REFRESH_TOKEN_KEY = "refresh-token"
 /**
  * Отказ для экранов.
  *
- * @property kind `unauthorized`, `forbidden`, `not-found`, `server`, `network`, `oauth` или `storage`.
- * @property code код OAuth для вида `oauth`.
+ * @property kind `unauthorized`, `forbidden`, `not-found`, `server`, `network`, `oauth`, `storage` или `export`.
+ * @property code код OAuth для вида `oauth`, причина для `storage` и `export`.
  */
 @JsExport
 public class CoreFailure(public val kind: String, public val code: String?) : RuntimeException(kind)
@@ -99,6 +99,19 @@ public class DsBuilderCore(gatewayUrl: String, clientId: String, realm: String, 
         signal: CoreSignal?,
     ): Promise<String> = run(signal) {
         runtime.themeTokens(ThemeContext(projectId, designSystemId, tenantId), versionId)
+    }
+
+    /** План экспорта темы в Figma строкой JSON; документ Figma меняет основной поток плагина. */
+    @Suppress("LongParameterList")
+    public fun exportPlan(
+        projectId: String,
+        designSystemId: String,
+        tenantId: String,
+        versionId: String?,
+        themeName: String,
+        signal: CoreSignal?,
+    ): Promise<String> = run(signal) {
+        runtime.exportPlan(ThemeContext(projectId, designSystemId, tenantId), versionId, themeName)
     }
 
     private fun <T> run(signal: CoreSignal?, block: suspend () -> T): Promise<T> =

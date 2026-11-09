@@ -33,4 +33,15 @@ public interface ThemeTokensClient {
         context: ThemeContext,
         versionId: String?,
     ): ModelReadResult
+
+    /**
+     * Всё для экспорта темы в Figma на одной границе версии: поля [tokens] и, дополнительно, `palette` — палитра темы
+     * и `groups` — группы токенов дизайн-системы.
+     */
+    public suspend fun exportSource(
+        apiUrl: String,
+        credential: BackendCredential,
+        context: ThemeContext,
+        versionId: String?,
+    ): ModelReadResult
 }

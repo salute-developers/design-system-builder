@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { DesignSystemDto, ProjectDto, TenantDto } from '../api/types';
-import type { PluginStorage } from '../bridge';
+import type { ApplyExport, PluginStorage } from '../bridge';
 import { ApiError, type DsBuilderApi } from '../core/pluginCore';
 import { useResource, type Resource } from '../hooks/useResource';
 import { parseSavedContext, type SavedContext } from './contextSteps';
@@ -14,10 +14,12 @@ const CONTEXT_KEY = 'context';
 export const Browser = ({
     api,
     storage,
+    applyExport,
     onSignOut,
 }: {
     api: DsBuilderApi;
     storage: PluginStorage;
+    applyExport: ApplyExport;
     onSignOut: () => void;
 }) => {
     const [saved, setSaved] = useState<SavedContext | null>(null);
@@ -29,6 +31,7 @@ export const Browser = ({
     // Шаг, открытый крошкой или после отказа, показывает список, даже если вариант один. Следующие шаги снова пропускаются.
     const [opened, setOpened] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         storage.get(CONTEXT_KEY).then(
@@ -123,7 +126,7 @@ export const Browser = ({
                 <nav aria-label="Контекст" className="crumbs">
                     <button
                         type="button"
-                        disabled={!project}
+                        disabled={!project || exporting}
                         aria-current={project ? undefined : 'page'}
                         onClick={backToProjects}
                     >
@@ -132,7 +135,7 @@ export const Browser = ({
                     {project && (
                         <button
                             type="button"
-                            disabled={!designSystem}
+                            disabled={!designSystem || exporting}
                             aria-current={designSystem ? undefined : 'page'}
                             onClick={backToDesignSystems}
                         >
@@ -142,7 +145,7 @@ export const Browser = ({
                     {designSystem && (
                         <button
                             type="button"
-                            disabled={!tenant}
+                            disabled={!tenant || exporting}
                             aria-current={tenant ? undefined : 'page'}
                             onClick={backToTenants}
                         >
@@ -155,7 +158,7 @@ export const Browser = ({
                         </button>
                     )}
                 </nav>
-                <button type="button" className="secondary" onClick={onSignOut}>
+                <button type="button" className="secondary" disabled={exporting} onClick={onSignOut}>
                     Выйти
                 </button>
             </header>
@@ -205,6 +208,9 @@ export const Browser = ({
                         designSystemId: designSystem.id,
                         tenantId: tenant.id,
                     }}
+                    themeName={tenant.name || 'Тема без названия'}
+                    applyExport={applyExport}
+                    onExportingChange={setExporting}
                     onForbidden={() => forbidden(backToTenants, 'Нет доступа к этой теме.')}
                 />
             )}
