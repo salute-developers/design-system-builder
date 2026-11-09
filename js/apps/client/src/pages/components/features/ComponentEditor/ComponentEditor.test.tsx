@@ -124,7 +124,7 @@ describe('ComponentEditor', () => {
 
         expect(onConfigUpdate).toHaveBeenCalled();
         const background = (styleID: string) =>
-            config.getStyleByVariation('view', styleID)?.getProps().getProp('background')?.getValue();
+            config.getStyleByVariation('v-view', styleID)?.getProps().getProp('background')?.getValue();
         expect(background('v-default')).toBe('surfaceAccent');
         expect(background('v-accent')).toBe('surfaceAccent');
         expect(config.getInvariants().getProp('background')).toBeUndefined();
@@ -137,8 +137,8 @@ describe('ComponentEditor', () => {
         fireEvent.change(height, { target: { value: '44' } });
         fireEvent.keyDown(height, { key: 'Enter' });
 
-        expect(config.getStyleByVariation('size', 's-m')?.getProps().getProp('height')?.getValue()).toBe('44');
-        expect(config.getStyleByVariation('size', 's-xs')?.getProps().getProp('height')).toBeUndefined();
+        expect(config.getStyleByVariation('v-size', 's-m')?.getProps().getProp('height')?.getValue()).toBe('44');
+        expect(config.getStyleByVariation('v-size', 's-xs')?.getProps().getProp('height')).toBeUndefined();
     });
 
     it('shows unset properties as empty rows, fills and clears them', () => {
@@ -193,7 +193,7 @@ describe('ComponentEditor', () => {
         fireEvent.keyDown(input, { key: 'Enter' });
 
         const brand = config
-            .getVariation('view')
+            .getVariation('v-view')
             ?.getStyles()
             ?.find((item) => item.getName() === 'brand');
         expect(brand).toBeDefined();

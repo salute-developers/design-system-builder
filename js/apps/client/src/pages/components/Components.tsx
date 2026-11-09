@@ -43,10 +43,9 @@ import { ComponentHideDialog } from './ui/ComponentHideDialog';
 import { ComponentRestoreDialog, type HiddenComponent } from './ui/ComponentRestoreDialog';
 import { ComponentTree } from './ui/ComponentTree';
 
-import { AutosaveIndicator } from '../../components/AutosaveIndicator';
 import { EditorLoading } from '../../components/EditorLoading';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
-import { registerDraftAutosaveSource } from '../../api/draftAutosaveActivity';
+import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
@@ -240,8 +239,6 @@ export const Components = () => {
                 .filter((name): name is string => Boolean(name)),
         ),
     ];
-    const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('saved');
-    const [lastSave, setLastSave] = useState<{ key: string; time: number }>();
     const confirmedConfig = useRef<{
         componentName: string;
         value: PendingComponentMutation['before'];
@@ -444,7 +441,6 @@ export const Components = () => {
                 );
             },
             confirmed: (operation, revisions) => {
-                if (mounted) setLastSave({ key: storagePrefix, time: Date.now() });
                 persistStoredJson(revisionKey, revisions);
                 if (confirmedConfig.current?.componentName === operation.componentName) {
                     confirmedConfig.current = {
@@ -465,12 +461,11 @@ export const Components = () => {
             statusChanged: (status) => {
                 latestActivityStatus = status;
                 setActivity(!mounted && status === 'saved' ? null : status);
-                if (mounted) {
-                    setAutosaveStatus(status);
-                }
             },
         });
         setActivity('saved');
+        // Ошибку сохранения компонента показывает и повторяет индикатор редактора в тулбаре.
+        setDraftAutosaveRetry(editorContext, activitySource, () => queue.retryFailed());
         autosaveQueue.current = queue;
         const stored = readStoredJson<(Partial<PendingComponentSave> & PendingComponentMutation) | null>(
             requestKey,
@@ -508,6 +503,7 @@ export const Components = () => {
             queue.flushAll();
             if (latestActivityStatus === 'saved') {
                 setActivity(null);
+                setDraftAutosaveRetry(editorContext, activitySource, null);
             } else setActivity.detach();
             if (autosaveQueue.current === queue) autosaveQueue.current = null;
         };
@@ -640,16 +636,6 @@ export const Components = () => {
         }
     };
 
-    // Индикатор автосохранения компонента живёт в панели окружения превью: строка над рабочим местом отнимала бы
-    // у него высоту, и низ инспектора уходил бы за экран.
-    const autosaveIndicator = (
-        <AutosaveIndicator
-            status={autosaveStatus}
-            retry={() => autosaveQueue.current?.retryFailed()}
-            lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
-        />
-    );
-
     const section =
         !designSystem || !theme || !components ? null : (
             <div className="component-editor-screen" style={panel.style as CSSProperties}>
@@ -729,8 +715,6 @@ export const Components = () => {
                     }
                     content={
                         <>
-                            {/* Пока редактора нет, индикатор стоит над сообщением, чтобы ошибка сохранения не терялась. */}
-                            {(!platform || componentLoading || componentError) && autosaveIndicator}
                             {!platform ? (
                                 <div role="status">Нет компонента для предпросмотра.</div>
                             ) : componentLoading ? (
@@ -748,7 +732,6 @@ export const Components = () => {
                                     theme={theme}
                                     configs={configs}
                                     updated={updated}
-                                    status={autosaveIndicator}
                                     platforms={previewPlatforms}
                                     onPlatformSelect={onPreviewPlatform}
                                     onConfigUpdate={onConfigUpdate}

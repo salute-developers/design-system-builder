@@ -22,6 +22,7 @@ import {
     getDraftSaveTokenTypes,
     getDraftSaveTokenValues,
     recordDraftSave,
+    retryDraftAutosave,
     subscribeDraftAutosaveStatus,
     getDraftSaveColorStructure,
 } from '../api/draftAutosaveActivity';
@@ -373,7 +374,10 @@ export const useDesignSystem = (
             void sectionLoader.current?.();
         } else setReloadTrigger({});
     }, [designSystemProjectId]);
-    const retryAutosave = useCallback(() => autosaveSession.current?.retryFailed(), []);
+    const retryAutosave = useCallback(() => {
+        autosaveSession.current?.retryFailed();
+        if (typeof designSystemProjectId === 'object') retryDraftAutosave(designSystemProjectId);
+    }, [designSystemProjectId]);
     const setPalette = useCallback(
         (next: ThemePalette) => {
             if (next.tenantId !== tenantRef.current) return;

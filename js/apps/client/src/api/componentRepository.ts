@@ -73,12 +73,15 @@ const toLegacyComponentConfig = (
         const styles = stylesByVariation.get(variationId) ?? [];
         return {
             id: variationId,
-            styles: axis.values.map((value) => ({
-                id: styles.find((style) => style.name === value.name)?.id ?? value.name,
-                name: value.name,
-                intersections: null,
-                props: Object.entries(value.properties).map(([name, item]) => property(name, item)),
-            })),
+            // Значение с `targets` — пересечение со стилями других вариаций, а не отдельный стиль.
+            styles: axis.values
+                .filter((value) => !value.targets?.length)
+                .map((value) => ({
+                    id: styles.find((style) => style.name === value.name)?.id ?? value.name,
+                    name: value.name,
+                    intersections: null,
+                    props: Object.entries(value.properties).map(([name, item]) => property(name, item)),
+                })),
         };
     });
     return {
@@ -139,8 +142,8 @@ const readComponentLists = async (
 ): Promise<ComponentSources> => {
     const root = apiRoot(context.projectId);
     const request = readRequest(context, signal);
-    // Web-параметры и панели вариаций нужны только web-превью; Compose-превью нужны только имена
-    // Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
+    // Compose-превью нужны имена Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
+    // Связи свойств с вариациями нужны инспектору web- и Compose-компонентов.
     const isWeb = platform === 'web';
     const isCompose = platform === 'compose';
     const empty = <T>() => Promise.resolve({ data: [] as T[] });
@@ -156,7 +159,7 @@ const readComponentLists = async (
         !componentName && (isWeb || isCompose)
             ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request, undefined, 300_000)
             : empty<PropertyPlatformParamDto>(),
-        isWeb
+        isWeb || isCompose
             ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
             : empty<PropertyVariationDto>(),
         readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request, undefined, 300_000),
@@ -407,8 +410,8 @@ export const componentRepository = {
                 ? await readEditorBundle(context, signal, platform, componentId)
                 : await readComponentLists(context, signal, platform, componentName);
         const { links, catalog, appearances, exported, dependencies } = sources;
-        // Как у списочных чтений: панели вариаций есть только у web.
-        const propertyVariations = isWeb ? sources.propertyVariations : [];
+        // Связи свойств с вариациями нужны инспектору на любой платформе: по ним свойство относится к стилю.
+        const propertyVariations = sources.propertyVariations;
         const linkedIds = new Set(
             links.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
         );

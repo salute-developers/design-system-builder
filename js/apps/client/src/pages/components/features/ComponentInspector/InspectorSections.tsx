@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import type { ComponentAPI, Config } from '../../../../controllers';
-import { TyGlyph } from '../../../typography/ui/TyGlyph';
+import { TyGlyph } from '../../../../components/TyGlyph';
 
 import { InspectorGroup } from './InspectorGroup';
 import { InspectorPropertyRow, type InspectorTokenLists } from './InspectorPropertyRow';

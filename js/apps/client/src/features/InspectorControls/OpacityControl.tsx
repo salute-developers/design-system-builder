@@ -1,4 +1,4 @@
-import { TyGlyph } from '../../pages/typography/ui/TyGlyph';
+import { TyGlyph } from '../../components/TyGlyph';
 
 import { NumberControl } from './NumberControl';
 

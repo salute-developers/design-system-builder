@@ -91,6 +91,7 @@ const propertyVariations: PropertyVariationDto[] = [
     { propertyId: 'p-height', variationId: 'v-size' },
     { propertyId: 'p-color', variationId: 'v-view' },
     { propertyId: 'p-other', variationId: 'v-other' },
+    { propertyId: 'pc-height', variationId: 'vc-size' },
 ];
 const dependencies: ComponentDependencyDto[] = [
     { parentId: 'c-button', childId: 'c-icon', type: 'reuse', order: 2 },
@@ -117,6 +118,12 @@ const exports: Record<'web' | 'compose', ComponentConfigExportDto['components']>
                         values: [
                             { name: 'm', properties: { height: property(40) } },
                             { name: 'l', properties: { height: { ...property(48), states: [] } } },
+                            // Пересечение `l` с `view: accent`: не отдельный стиль.
+                            {
+                                name: 'l',
+                                targets: [{ properties: [{ id: 'view', value: 'accent' }] }],
+                                properties: { height: property(52) },
+                            },
                         ],
                     },
                     {
@@ -195,8 +202,7 @@ const bundle = (componentId: string, platform: 'web' | 'compose'): ComponentEdit
         export: { components: exports[platform].filter((item) => item.componentName === 'button') },
         properties: properties[componentId],
         platformParams: platformParams.filter((item) => propertyIds.has(item.propertyId)),
-        propertyVariations:
-            platform === 'web' ? propertyVariations.filter((item) => propertyIds.has(item.propertyId)) : [],
+        propertyVariations: propertyVariations.filter((item) => propertyIds.has(item.propertyId)),
         variations: variations[componentId],
         styles: styles[componentId],
         dependencies: related,
@@ -274,5 +280,27 @@ describe('componentRepository.loadComponentData через editor-bundle', () =>
             params: { platform: 'web' },
         });
         expect(meta.deps).toEqual([{ childId: 'c-icon', childName: 'Icon', type: 'reuse', order: 0 }]);
+    });
+
+    it('не превращает пересечения вариаций в стили', async () => {
+        const [meta] = await componentRepository.loadComponentData(context, undefined, 'web', 'Button', 'c-button');
+        const size = meta.sources.configs[0].config.variations.find((variation) => variation.id === 'v-size');
+
+        expect(size?.styles?.map((style) => style.name)).toEqual(['m', 'l']);
+        expect(size?.styles?.find((style) => style.name === 'l')?.props).toEqual([
+            expect.objectContaining({ id: 'p-height', value: 48 }),
+        ]);
+    });
+
+    it('отдаёт связи свойств с вариациями и Compose-компоненту', async () => {
+        const [meta] = await componentRepository.loadComponentData(
+            context,
+            undefined,
+            'compose',
+            'Button',
+            'c-button-compose',
+        );
+
+        expect(meta.sources.api.find((item) => item.id === 'pc-height')?.variations).toEqual(['size']);
     });
 });

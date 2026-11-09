@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { Modal } from '../../../components/Overlay/Overlay';
-import { TyGlyph } from '../../typography/ui/TyGlyph';
+import { TyGlyph } from '../../../components/TyGlyph';
 import { PLATFORM_FILTERS, componentGroupLabel, type ComponentPlatformFilter } from '../componentTree';
 
 export interface HiddenComponent {

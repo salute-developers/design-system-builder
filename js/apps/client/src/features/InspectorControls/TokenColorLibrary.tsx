@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { alphaSwatchStyle } from '../../pages/colors/ui/swatch';
-import { TyGlyph } from '../../pages/typography/ui/TyGlyph';
+import { TyGlyph } from '../../components/TyGlyph';
 
 import type { ColorTokenOption } from './types';
 
@@ -59,7 +59,7 @@ const groupOptions = (options: ColorTokenOption[]) => {
 
 /**
  * Вкладка «Библиотека» пикера цвета в инспекторе (`componentColorLibraryView` прототипа): токены темы по группам
- * и подгруппам, поиск, «Токены сабтем», сетка или список. Флажок и вид запоминаются в браузере.
+ * и подгруппам, поиск, «Токены подтем», сетка или список. Флажок и вид запоминаются в браузере.
  */
 export const TokenColorLibrary = ({ options, value, onPick }: TokenColorLibraryProps) => {
     const [query, setQuery] = useState('');
@@ -106,7 +106,7 @@ export const TokenColorLibrary = ({ options, value, onPick }: TokenColorLibraryP
                     onClick={() => update({ subthemes: !preferences.subthemes })}
                 >
                     <span className="cp-library-check">{preferences.subthemes && <TyGlyph name="check" />}</span>
-                    Токены сабтем
+                    Токены подтем
                 </button>
                 <button
                     type="button"

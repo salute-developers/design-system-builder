@@ -1,7 +1,7 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 
 import { alphaSwatchStyle } from '../../pages/colors/ui/swatch';
-import { TyGlyph } from '../../pages/typography/ui/TyGlyph';
+import { TyGlyph } from '../../components/TyGlyph';
 
 import { ComponentColorPicker } from './ComponentColorPicker';
 import type { ColorTokenOption } from './types';
@@ -37,6 +37,8 @@ const displayHex = (color: string) => {
 export const ColorControl = ({ label, value, color, linked, tokens, actions, clear, onChange }: ColorControlProps) => {
     const [open, setOpen] = useState(false);
     const trigger = useRef<HTMLButtonElement>(null);
+    // Клик по своему полю не закрывает пикер, а по полю другого цвета — закрывает: открыт только один пикер.
+    const fieldId = useId();
     const close = () => {
         setOpen(false);
         trigger.current?.focus();
@@ -49,6 +51,7 @@ export const ColorControl = ({ label, value, color, linked, tokens, actions, cle
                     ref={trigger}
                     type="button"
                     className="component-inspector-color-main"
+                    data-color-field={fieldId}
                     aria-label={label}
                     aria-haspopup="dialog"
                     aria-expanded={open}
@@ -81,6 +84,7 @@ export const ColorControl = ({ label, value, color, linked, tokens, actions, cle
                     linked={linked || !value}
                     tokens={tokens}
                     anchor={trigger.current}
+                    dismissExcept={`[data-color-field="${fieldId}"]`}
                     onChange={onChange}
                     onClose={close}
                 />

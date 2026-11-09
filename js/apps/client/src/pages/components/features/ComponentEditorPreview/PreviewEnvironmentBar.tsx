@@ -1,8 +1,6 @@
-import type { ReactNode } from 'react';
-
 import type { SegmentButtonItem, SelectButtonItem } from '../../../../components';
 import type { PreviewView } from '../../../../composePreview';
-import { TyGlyph } from '../../../typography/ui/TyGlyph';
+import { TyGlyph } from '../../../../components/TyGlyph';
 import { WorkbenchMenu } from '../../ui/WorkbenchMenu';
 
 export type PreviewPlatform = 'web' | 'compose';
@@ -17,8 +15,6 @@ const PLATFORM_LABELS: Record<PreviewPlatform, string> = { web: 'Web', compose: 
 
 interface PreviewEnvironmentBarProps {
     title: string;
-    /** Индикатор автосохранения перед контролами. */
-    status?: ReactNode;
     platform: PreviewPlatform;
     platforms: PreviewPlatformOption[];
     onPlatformSelect: (platform: PreviewPlatform) => void;
@@ -45,7 +41,6 @@ export const PreviewEnvironmentBar = (props: PreviewEnvironmentBarProps) => {
                 {title}
             </h2>
             <div className="component-preview-context-controls">
-                {props.status}
                 {renderers && renderers.items.length > 1 && (
                     <WorkbenchMenu
                         className="component-environment-menu has-text"

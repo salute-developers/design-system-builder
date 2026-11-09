@@ -16,7 +16,7 @@ import {
     type TypographyVariant,
 } from '../../modules/typographyTokens';
 import { useTypographyEditor } from './useTypographyEditor';
-import { TyGlyph } from './ui/TyGlyph';
+import { TyGlyph } from '../../components/TyGlyph';
 import { TypographyBoard } from './ui/TypographyBoard';
 import { TypographyInspector } from './ui/TypographyInspector';
 import { TypographyTree } from './ui/TypographyTree';
