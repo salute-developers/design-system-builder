@@ -77,11 +77,7 @@ class ExposedComponentEditorBundleRepository(
                 export = export,
                 properties = properties,
                 platformParams = model.listPlatformParamsByProperties(projectId, systemAdmin, propertyIds),
-                propertyVariations = if (web) {
-                    model.listPropertyVariationsByProperties(projectId, systemAdmin, propertyIds)
-                } else {
-                    emptyList()
-                },
+                propertyVariations = model.listPropertyVariationsByProperties(projectId, systemAdmin, propertyIds),
                 variations = components.variations(projectId, systemAdmin, componentId, designSystemId).orEmpty(),
                 styles = styles.listByComponentAndDesignSystem(projectId, systemAdmin, componentId, designSystemId),
                 webAdapter = if (web) {
