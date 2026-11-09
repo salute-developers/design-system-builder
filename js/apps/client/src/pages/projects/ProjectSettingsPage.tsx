@@ -178,7 +178,9 @@ export const ProjectSettingsPage = () => {
             projectId={projectId}
             back={`/projects/${projectId}`}
             breadcrumbSegments={[{ label: project.data.name, to: `/projects/${projectId}` }]}
-            sections={['Основное', 'Участники и роли', 'Администрирование']}
+            sections={project.data.effectiveRole === 'owner'
+                ? ['Основное', 'Участники и роли', 'Администрирование']
+                : ['Основное', 'Участники и роли']}
             asideHeaders={{
                 members: { title: 'Доступ', subtitle: project.data.name },
                 lifecycle: { title: 'Администрирование', subtitle: project.data.name },

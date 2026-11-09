@@ -107,11 +107,12 @@ class DocumentationBundleRoutesTest {
         assertEquals(HttpStatusCode.Forbidden, response.status)
     }
 
-    @Test fun `project key without write scope is rejected before multipart is read`() = routeTestWithTemp { client, temp ->
+    @Test fun `PAT without write scope is rejected before multipart is read`() = routeTestWithTemp { client, temp ->
         val response = client.post("/documentation/bundles") {
-            header("X-Actor-Type", "project_key")
-            header("X-User-Id", "key")
-            header("X-Project-Key-Id", "key")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "pat")
+            header("X-User-Id", "user")
+            header("X-Project-Role", "editor")
             header("X-Project-Id", "project")
             header("X-Project-Scopes", "documentation:read")
             header("X-System-Admin", "false")
@@ -122,11 +123,12 @@ class DocumentationBundleRoutesTest {
         assertEquals(0, Files.list(temp).use { it.count() })
     }
 
-    @Test fun `project key with write scope and system admin may upload`() = routeTest { client ->
+    @Test fun `PAT with write scope and system admin may upload`() = routeTest { client ->
         val keyResponse = client.post("/documentation/bundles") {
-            header("X-Actor-Type", "project_key")
-            header("X-User-Id", "key")
-            header("X-Project-Key-Id", "key")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "pat")
+            header("X-User-Id", "user")
+            header("X-Project-Role", "editor")
             header("X-Project-Id", "project")
             header("X-Project-Scopes", "documentation:write")
             header("X-System-Admin", "false")

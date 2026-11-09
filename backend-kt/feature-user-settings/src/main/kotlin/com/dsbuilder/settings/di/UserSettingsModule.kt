@@ -4,10 +4,11 @@ import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.settings.application.PersonalAccessTokens
 import com.dsbuilder.settings.application.TokenUseCases
 import com.dsbuilder.settings.application.tokenScopeCatalog
+import com.dsbuilder.settings.data.CachedAccountIdentityReader
 import com.dsbuilder.settings.data.ExposedTokenRepository
 import com.dsbuilder.settings.data.KeycloakAccountIdentityReader
 import com.dsbuilder.settings.data.KeycloakIdentityConfiguration
-import com.dsbuilder.settings.data.Pbkdf2TokenSecretManager
+import com.dsbuilder.settings.data.Sha256TokenSecretManager
 import com.dsbuilder.settings.presentation.userSettingsRoutes
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -48,15 +49,17 @@ class UserSettingsModule(configuration: ApplicationConfig, evaluator: PolicyEval
     private val scopes = evaluator.personalAccessTokenScopes()
     private val useCases = TokenUseCases(
         ExposedTokenRepository(database),
-        Pbkdf2TokenSecretManager(),
-        KeycloakAccountIdentityReader(
-            KeycloakIdentityConfiguration(
-                configuration.property("projects.identity.keycloak.baseUrl").getString().trimEnd('/'),
-                configuration.property("projects.identity.keycloak.realm").getString(),
-                configuration.property("projects.identity.keycloak.clientId").getString(),
-                configuration.property("projects.identity.keycloak.clientSecret").getString(),
+        Sha256TokenSecretManager(),
+        CachedAccountIdentityReader(
+            KeycloakAccountIdentityReader(
+                KeycloakIdentityConfiguration(
+                    configuration.property("projects.identity.keycloak.baseUrl").getString().trimEnd('/'),
+                    configuration.property("projects.identity.keycloak.realm").getString(),
+                    configuration.property("projects.identity.keycloak.clientId").getString(),
+                    configuration.property("projects.identity.keycloak.clientSecret").getString(),
+                ),
+                client,
             ),
-            client,
         ),
         scopes,
         Clock.systemUTC(),

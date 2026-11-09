@@ -22,7 +22,6 @@ import com.dsbuilder.projects.feature.projects.data.keycloak.KeycloakIdentityUse
 import com.dsbuilder.projects.feature.projects.data.keycloak.keycloakIdentityLookupConfiguration
 import com.dsbuilder.projects.feature.projects.data.local.ExposedProjectRepository
 import com.dsbuilder.projects.feature.projects.data.local.db.JdbcTransactionManager
-import com.dsbuilder.projects.feature.projects.data.local.db.ProjectAccessKeysTable
 import com.dsbuilder.projects.feature.projects.data.local.db.ProjectMembersTable
 import com.dsbuilder.projects.feature.projects.data.local.db.ProjectsTable
 import io.ktor.server.config.ApplicationConfig
@@ -71,6 +70,6 @@ object ProjectsModule {
 
     /** Создает или обновляет схему базы данных, необходимую для feature Projects. */
     fun createSchema() {
-        SchemaUtils.create(ProjectsTable, ProjectMembersTable, ProjectAccessKeysTable)
+        SchemaUtils.create(ProjectsTable, ProjectMembersTable)
     }
 }

@@ -3,7 +3,6 @@ package com.dsbuilder.identity.auth.domain.model
 /** Тип проверенного контекста авторизации; не принимается из внешних заголовков. */
 enum class ActorType(/** Значение доверенного заголовка. */ val headerValue: String) {
     USER("user"),
-    PROJECT_KEY("project_key"),
     PERSONAL_ACCESS_TOKEN("personal_access_token"),
 }
 

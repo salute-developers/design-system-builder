@@ -35,9 +35,11 @@ class AuthorizationPolicyTest {
     fun `key scopes are exact and system admin overrides known permissions`() {
         val key =
             ProjectPrincipal(
-                ProjectActorType.PROJECT_KEY,
+                ProjectActorType.PERSONAL_ACCESS_TOKEN,
                 "key",
                 "project",
+                personalAccessTokenId = "pat",
+                projectRole = "owner",
                 projectScopes = setOf("documentation:read"),
             )
         assertTrue(evaluator.isAllowed(key, "documentation:read"))
@@ -104,7 +106,7 @@ class AuthorizationPolicyTest {
             "false",
             loaded.policy,
         )
-        assertTrue(requireNotNull(gatewayProjectKey).projectScopes.contains("documentation:read"))
+        assertEquals(null, gatewayProjectKey)
         assertEquals(
             null,
             TrustedProjectPrincipalFactory.create(

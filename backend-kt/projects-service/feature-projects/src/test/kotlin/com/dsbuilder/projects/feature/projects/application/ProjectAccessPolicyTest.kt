@@ -2,7 +2,6 @@ package com.dsbuilder.projects.feature.projects.application
 
 import com.dsbuilder.authorization.AuthorizationPolicyLoader
 import com.dsbuilder.authorization.PolicyEvaluator
-import com.dsbuilder.projects.feature.projects.application.usecase.AccessKeyManagementPermission
 import com.dsbuilder.projects.feature.projects.application.usecase.MemberManagementPermission
 import com.dsbuilder.projects.feature.projects.application.usecase.ProjectAccessPolicy
 import com.dsbuilder.projects.feature.projects.domain.model.ActorType
@@ -133,25 +132,6 @@ class ProjectAccessPolicyTest {
             targetUserId = "viewer-1",
             project = project,
             permission = MemberManagementPermission.CHANGE_ROLE,
-        )
-    }
-
-    @Test
-    fun `access key management checks operation-specific permission`() {
-        val policyWithoutRead = policyWithoutMaintainerGrant("access_keys:read")
-        val maintainer = AuthenticatedActor(ActorType.USER, "maintainer-1", isSystemAdmin = false)
-
-        assertFailsWith<ForbiddenProjectActionException> {
-            policyWithoutRead.requireAccessKeyManagement(
-                maintainer,
-                ProjectRole.MAINTAINER,
-                AccessKeyManagementPermission.READ,
-            )
-        }
-        policyWithoutRead.requireAccessKeyManagement(
-            maintainer,
-            ProjectRole.MAINTAINER,
-            AccessKeyManagementPermission.CREATE,
         )
     }
 

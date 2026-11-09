@@ -610,6 +610,22 @@ describe('project workflow', () => {
         expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
     });
 
+    it('hides administration from maintainer even on direct lifecycle navigation', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
+        vi.spyOn(projectsApi, 'members').mockResolvedValue([]);
+        vi.spyOn(designSystemsApi, 'list').mockResolvedValue([]);
+        render(
+            <MemoryRouter initialEntries={['/projects/project-1/settings?section=lifecycle']}>
+                <Routes>
+                    <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+        await screen.findByRole('heading', { name: 'Основное' });
+        expect(screen.queryByRole('button', { name: 'Администрирование' })).not.toBeInTheDocument();
+        expect(document.querySelector('.project-settings-layout')).toHaveAttribute('data-active-section', 'general');
+    });
+
     it('manages registered members with non-owner roles and confirmation on removal', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
         const memberList = vi.spyOn(projectsApi, 'members').mockResolvedValue([

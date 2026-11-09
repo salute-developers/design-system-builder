@@ -22,7 +22,6 @@ class PolicyEvaluator(private val loaded: LoadedAuthorizationPolicy) {
                         (principal.systemAdmin && policy.overrides.systemAdmin.allowAll) ||
                             permission in loaded.effectiveRoleGrants[principal.projectRole?.lowercase()].orEmpty()
                         )
-            ProjectActorType.PROJECT_KEY -> permission in principal.projectScopes
         }
     }
 

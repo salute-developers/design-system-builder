@@ -18,7 +18,6 @@ object TrustedProjectPrincipalFactory {
     ): ProjectPrincipal? {
         val type = when (actorType?.lowercase()) {
             "user" -> ProjectActorType.USER
-            "project_key" -> ProjectActorType.PROJECT_KEY
             "personal_access_token" -> ProjectActorType.PERSONAL_ACCESS_TOKEN
             else -> return null
         }
@@ -43,14 +42,6 @@ object TrustedProjectPrincipalFactory {
                 }
             }
             ProjectActorType.USER -> createUser(userId, projectId, projectKeyId, projectRole, scopes, admin, publisher)
-            ProjectActorType.PROJECT_KEY -> createProjectKey(
-                userId,
-                projectId,
-                projectKeyId,
-                projectRole,
-                scopes,
-                admin || publisher,
-            )
         }
         return principal?.takeIf { it.isValid(policy) }
     }
@@ -75,24 +66,6 @@ object TrustedProjectPrincipalFactory {
             projectRole?.lowercase(),
             systemAdmin = admin,
             composePreviewPublisher = publisher,
-        )
-    }
-
-    private fun createProjectKey(
-        userId: String?,
-        projectId: String?,
-        projectKeyId: String?,
-        projectRole: String?,
-        scopes: Set<String>,
-        admin: Boolean,
-    ): ProjectPrincipal? {
-        val userIdContradictsKey = !userId.isNullOrBlank() && userId != projectKeyId
-        if (userIdContradictsKey || !projectRole.isNullOrBlank() || admin) return null
-        return ProjectPrincipal(
-            ProjectActorType.PROJECT_KEY,
-            projectKeyId.orEmpty(),
-            projectId.orEmpty(),
-            projectScopes = scopes,
         )
     }
 }

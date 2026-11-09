@@ -70,7 +70,7 @@ public data class CredentialReference(
     init {
         if (type == CredentialReferenceType.PAT_ENV) {
             require(name.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))) {
-                "Project key env name is invalid."
+                "PAT env name is invalid."
             }
         }
     }

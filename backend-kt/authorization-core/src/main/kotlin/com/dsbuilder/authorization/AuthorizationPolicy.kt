@@ -32,7 +32,7 @@ data class SystemAdminOverride(val allowAll: Boolean)
 
 /** Actor types accepted from the trusted Gateway context. */
 @Serializable
-enum class ProjectActorType { USER, PROJECT_KEY, PERSONAL_ACCESS_TOKEN }
+enum class ProjectActorType { USER, PERSONAL_ACCESS_TOKEN }
 
 /** HTTP-independent representation of the trusted project actor context. */
 @Serializable
@@ -55,10 +55,6 @@ data class ProjectPrincipal(
     fun isValid(policy: AuthorizationPolicy): Boolean = when (type) {
         ProjectActorType.USER -> isValidUser(policy)
         ProjectActorType.PERSONAL_ACCESS_TOKEN -> isValidPersonalToken(policy)
-        ProjectActorType.PROJECT_KEY ->
-            actorId.isNotBlank() && projectId.isNotBlank() && projectRole == null && !systemAdmin &&
-                !composePreviewPublisher &&
-                policy.personalAccessTokenScopes.containsAll(projectScopes)
     }
     private fun isValidUser(policy: AuthorizationPolicy): Boolean =
         actorId.isNotBlank() && projectId.isNotBlank() &&

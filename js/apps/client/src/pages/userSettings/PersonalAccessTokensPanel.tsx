@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { authService } from '../../api';
 import { userSettingsApi, type TokenScope } from '../../modules/userSettings/data/userSettingsApi';
 import { Modal, StyledSelect } from '../../components/Overlay/Overlay';
-import { PROJECT_ACCESS_KEY_EXPIRY_OPTIONS } from '../../modules/projects/domain/accessKeys';
+import { PERSONAL_ACCESS_TOKEN_EXPIRY_OPTIONS } from '../../modules/userSettings/domain/tokenExpiry';
 import { useLoad } from '../../shared/data/useLoad';
 
 export interface PersonalAccessTokenCounts {
@@ -161,7 +161,7 @@ export const PersonalAccessTokensPanel = ({
                                     label="Срок действия"
                                     value={ttlSeconds}
                                     onChange={(value) => setTtlSeconds(Number(value))}
-                                    options={PROJECT_ACCESS_KEY_EXPIRY_OPTIONS}
+                                    options={PERSONAL_ACCESS_TOKEN_EXPIRY_OPTIONS}
                                 />
                             </label>
                             <fieldset className="ps-scope-picker">

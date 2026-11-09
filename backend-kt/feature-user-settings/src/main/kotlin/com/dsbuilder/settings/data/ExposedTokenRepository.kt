@@ -11,6 +11,8 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greater
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.lessEq
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.javatime.timestamp
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -83,9 +85,17 @@ internal class ExposedTokenRepository(private val database: Database) : Personal
         PersonalAccessTokensTable.update(
             {
                 (PersonalAccessTokensTable.id eq id) and PersonalAccessTokensTable.revokedAt.isNull() and
-                    (PersonalAccessTokensTable.expiresAt greater at)
+                    (PersonalAccessTokensTable.expiresAt greater at) and
+                    (
+                        PersonalAccessTokensTable.lastUsedAt.isNull() or
+                            (PersonalAccessTokensTable.lastUsedAt lessEq at.minusSeconds(60))
+                        )
             },
-        ) { it[lastUsedAt] = at } == 1
+        ) { it[lastUsedAt] = at }
+        PersonalAccessTokensTable.select(PersonalAccessTokensTable.id).where {
+            (PersonalAccessTokensTable.id eq id) and PersonalAccessTokensTable.revokedAt.isNull() and
+                (PersonalAccessTokensTable.expiresAt greater at)
+        }.any()
     }
 
     private fun ResultRow.toToken(): PersonalAccessToken = PersonalAccessToken(

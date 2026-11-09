@@ -19,8 +19,6 @@ import com.dsbuilder.projects.feature.projects.application.usecase.SearchProject
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectMemberRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectUseCase
 import com.dsbuilder.projects.feature.projects.domain.model.Project
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKey
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKeyStatus
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
@@ -193,10 +191,10 @@ class ProjectRoutesTest {
             assertTrue(response.bodyAsText().contains("\"ownerEmail\":\"owner@example.com\""))
         }
         val projectKey = client.get("/projects/project-1") {
-            header("X-Actor-Type", "project_key")
-            header("X-User-Id", "key-1")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-User-Id", "viewer")
             header("X-Project-Id", "project-1")
-            header("X-Project-Key-Id", "key-1")
+            header("X-Personal-Access-Token-Id", "pat-1")
             header("X-Project-Scopes", "projects:read")
         }
         assertEquals(HttpStatusCode.OK, projectKey.status)
@@ -458,7 +456,6 @@ private object RouteTransactionManager : TransactionManager {
 private class RouteProjectRepository : ProjectRepository {
     private val projects = linkedMapOf<String, Project>()
     private val members = linkedMapOf<Pair<String, String>, ProjectMember>()
-    private val accessKeys = linkedMapOf<String, ProjectAccessKey>()
 
     override suspend fun createProject(project: Project) {
         projects[project.id] = project
@@ -508,36 +505,6 @@ private class RouteProjectRepository : ProjectRepository {
 
     override suspend fun removeMember(projectId: String, userId: String): Boolean =
         members.remove(projectId to userId) != null
-
-    override suspend fun createAccessKey(accessKey: ProjectAccessKey) {
-        accessKeys[accessKey.id] = accessKey
-    }
-
-    override suspend fun listAccessKeys(projectId: String): List<ProjectAccessKey> =
-        accessKeys.values.filter { it.projectId == projectId }
-
-    override suspend fun getAccessKey(projectId: String, keyId: String): ProjectAccessKey? =
-        accessKeys[keyId]?.takeIf { it.projectId == projectId }
-
-    override suspend fun getAccessKeyById(keyId: String): ProjectAccessKey? = accessKeys[keyId]
-
-    override suspend fun updateAccessKeyUsage(keyId: String, lastUsedAt: Instant, updatedAt: Instant) {
-        val current = accessKeys[keyId] ?: return
-        accessKeys[keyId] = current.copy(lastUsedAt = lastUsedAt, updatedAt = updatedAt)
-    }
-
-    override suspend fun updateAccessKeyStatus(
-        projectId: String,
-        keyId: String,
-        status: ProjectAccessKeyStatus,
-        revokedAt: Instant?,
-        updatedAt: Instant,
-    ): ProjectAccessKey? {
-        val current = accessKeys[keyId]?.takeIf { it.projectId == projectId } ?: return null
-        return current.copy(revokedAt = revokedAt, updatedAt = updatedAt).also {
-            accessKeys[keyId] = it
-        }
-    }
 
     fun seedProject(project: Project) {
         projects[project.id] = project

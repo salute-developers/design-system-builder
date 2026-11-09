@@ -66,9 +66,11 @@ class ComponentEditorBundleUseCaseTest {
     fun `rejects a key without components variations read before touching the repository`() = runBlocking {
         val repository = RecordingBundleRepository(LoadAttempt.Success(bundle("web")))
         val key = ProjectPrincipal(
-            type = ProjectActorType.PROJECT_KEY,
+            type = ProjectActorType.PERSONAL_ACCESS_TOKEN,
             actorId = "key-1",
             projectId = "project-1",
+            personalAccessTokenId = "pat",
+            projectRole = "owner",
             projectScopes = setOf("components:read"),
         )
 

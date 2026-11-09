@@ -51,7 +51,7 @@ public data class ResolvedDesignSystemContext(
 ) {
     init {
         if (credentialPolicy == CredentialPolicy.PAT_ENV) {
-            require(credentialEnvName != null) { "Project key env name is required." }
+            require(credentialEnvName != null) { "PAT env name is required." }
         }
         if (provenance == ContextProvenance.EXPLICIT_LINK) {
             require(configPath == null) { "Explicit selection cannot use a local config path." }

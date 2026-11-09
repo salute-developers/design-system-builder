@@ -363,7 +363,7 @@ components:
       required: false
       schema:
         type: string
-        enum: [USER, PROJECT_ACCESS_KEY]
+        enum: [USER, PERSONAL_ACCESS_TOKEN]
         default: USER
     XProjectId:
       name: X-Project-Id
@@ -460,21 +460,6 @@ components:
         displayName:
           type: string
           nullable: true
-    CreateProjectAccessKeyRequest:
-      type: object
-      required: [name, scopes]
-      properties:
-        name:
-          type: string
-        scopes:
-          type: array
-          items:
-            type: string
-            example: projects:read
-        ttlSeconds:
-          type: integer
-          format: int64
-          nullable: true
     ProjectCatalogResponse:
       allOf:
         - $ref: '#/components/schemas/ProjectResponse'
@@ -546,61 +531,6 @@ components:
         projectRole:
           type: string
           example: owner
-    ProjectAccessKeyResponse:
-      type: object
-      required: [id, projectId, name, scopes, createdByUserId, createdAt, updatedAt]
-      properties:
-        id:
-          type: string
-        projectId:
-          type: string
-        name:
-          type: string
-        scopes:
-          type: array
-          items:
-            type: string
-        createdByUserId:
-          type: string
-        expiresAt:
-          type: string
-          nullable: true
-        revokedAt:
-          type: string
-          nullable: true
-        lastUsedAt:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-        updatedAt:
-          type: string
-    CreatedProjectAccessKeyResponse:
-      type: object
-      required: [key, secret]
-      properties:
-        key:
-          $ref: '#/components/schemas/ProjectAccessKeyResponse'
-        secret:
-          type: string
-    VerifyProjectAccessKeyRequest:
-      type: object
-      required: [token]
-      properties:
-        token:
-          type: string
-    VerifyProjectAccessKeyResponse:
-      type: object
-      required: [projectId, keyId, scopes]
-      properties:
-        projectId:
-          type: string
-        keyId:
-          type: string
-        scopes:
-          type: array
-          items:
-            type: string
     ErrorResponse:
       type: object
       required: [message]

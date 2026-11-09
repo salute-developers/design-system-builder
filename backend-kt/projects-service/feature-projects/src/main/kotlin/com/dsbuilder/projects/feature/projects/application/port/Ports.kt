@@ -2,8 +2,6 @@ package com.dsbuilder.projects.feature.projects.application.port
 
 import com.dsbuilder.projects.feature.projects.application.IdentityProviderException
 import com.dsbuilder.projects.feature.projects.domain.model.Project
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKey
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKeyStatus
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
 import java.time.Instant
@@ -58,24 +56,6 @@ internal interface ProjectRepository {
     suspend fun upsertMember(member: ProjectMember)
 
     suspend fun removeMember(projectId: String, userId: String): Boolean
-
-    suspend fun createAccessKey(accessKey: ProjectAccessKey)
-
-    suspend fun listAccessKeys(projectId: String): List<ProjectAccessKey>
-
-    suspend fun getAccessKey(projectId: String, keyId: String): ProjectAccessKey?
-
-    suspend fun getAccessKeyById(keyId: String): ProjectAccessKey?
-
-    suspend fun updateAccessKeyUsage(keyId: String, lastUsedAt: Instant, updatedAt: Instant)
-
-    suspend fun updateAccessKeyStatus(
-        projectId: String,
-        keyId: String,
-        status: ProjectAccessKeyStatus,
-        revokedAt: Instant?,
-        updatedAt: Instant,
-    ): ProjectAccessKey?
 }
 
 internal interface TransactionManager {
