@@ -18,7 +18,7 @@ import {
 import { BaseFileStructure, ComponentManifest, ComponentsFiles } from './types/index.ts';
 import { Config, Meta } from './componentBuilder/index.ts';
 import { getPlasmaConfigName, resolveNpmPackageScope } from './utils/index.ts';
-import { appearanceConfigFile } from './utils/appearanceName.ts';
+import { appearanceConfigFile, assertDistinctAppearances } from './utils/appearanceName.ts';
 
 /**
  * Служебные файлы заготовки хранятся без точки: npm не включает `.gitignore` и `.npmrc` в опубликованный
@@ -98,6 +98,8 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
     const manifest = await readComponentManifest(componentName);
     const componentDescription = componentMeta.description;
     const configs = componentMeta.sources.configs;
+    // Совпадающие идентификаторы останавливают генерацию до записи файлов: иначе один конфиг перезапишет другой.
+    assertDistinctAppearances(componentName, configs.map(({ name }) => name));
 
     // Несколько appearance (Tabs): на каждый — свой файл конфига темы в подпапке и обёртка,
     // выбирающая базовый конфиг ядра по пропу из манифеста.

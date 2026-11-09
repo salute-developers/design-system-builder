@@ -24,3 +24,23 @@ export const appearanceIdentifier = (componentName: string, name: string) => {
 /** Файл конфига темы без расширения: `default` — `<Компонент>.config`, остальные — `<Компонент>.<идентификатор>.config`. */
 export const appearanceConfigFile = (componentName: string, name: string) =>
     name === 'default' ? `${componentName}.config` : `${componentName}.${appearanceIdentifier(componentName, name)}.config`;
+
+/**
+ * Проверяет, что конфигурации компонента дают разные идентификаторы: `dense-2` и `dense2` превратились бы в один файл
+ * `<Компонент>.dense2.config.ts`, а на файловой системе без учёта регистра совпадают и идентификаторы разного регистра.
+ * Вызывается до записи файлов компонента.
+ */
+export const assertDistinctAppearances = (componentName: string, names: string[]) => {
+    const byKey = new Map<string, string>();
+    for (const name of names) {
+        const key = name.replace(/-/g, '').toLowerCase();
+        const other = byKey.get(key);
+        if (other !== undefined) {
+            throw new Error(
+                `Компонент ${componentName}: конфигурации «${other}» и «${name}» дают один идентификатор в коде. ` +
+                    'Переименуйте одну из них в редакторе.',
+            );
+        }
+        byKey.set(key, name);
+    }
+};

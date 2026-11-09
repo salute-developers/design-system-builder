@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import ts from 'typescript';
 
-import { appearanceConfigFile, appearanceIdentifier } from './generator/utils/appearanceName.ts';
+import { appearanceConfigFile, appearanceIdentifier, assertDistinctAppearances } from './generator/utils/appearanceName.ts';
 
 process.env.NPM_PACKAGE_SCOPE ??= '@test-scope';
 const { createConditionalComponent } = await import('./generator/creators/createComponent.ts');
@@ -33,5 +33,11 @@ describe('имена конфигураций в web-генерации', () => 
             () => createConditionalComponent('Accordion', '', ['default', 'Accordion new'], 'accordionConfig'),
             /kebab-case/,
         );
+    });
+
+    it('останавливает генерацию, если две конфигурации дают один идентификатор', () => {
+        assert.throws(() => assertDistinctAppearances('Button', ['default', 'dense-2', 'dense2']), /Button.*«dense-2».*«dense2»/);
+        assert.throws(() => assertDistinctAppearances('Button', ['a-b', 'ab']), /«a-b».*«ab»/);
+        assert.doesNotThrow(() => assertDistinctAppearances('Button', ['default', 'dense', 'dense-2']));
     });
 });
