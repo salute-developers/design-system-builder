@@ -5403,6 +5403,8 @@ paths:
       tags:
         - Appearances
       summary: Create appearance
+      description: >-
+        Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -5475,6 +5477,8 @@ paths:
       tags:
         - Appearances
       summary: Update appearance
+      description: >-
+        Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
         - schema:
             type: string
@@ -6295,6 +6299,8 @@ paths:
       tags:
         - Appearance editor
       summary: Create an empty configuration
+      description: >-
+        Без имени в запросе конфигурация получает имя new (new-2, new-3 при занятом); первая конфигурация компонента — имя компонента в kebab-case. Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
@@ -6352,6 +6358,8 @@ paths:
       tags:
         - Appearance editor
       summary: Duplicate a configuration
+      description: >-
+        Без имени в запросе копия получает имя <имя источника в kebab-case>-copy (-copy-2 при занятом). Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис); имя не по правилу — 422 appearance_name_invalid.
       parameters:
         - schema:
             type: string
@@ -11676,6 +11684,12 @@ components:
             type: string
             minLength: 1
           description: Optional style names to include in the returned package
+        editorIds:
+          type: boolean
+          default: false
+          description: >-
+            Для редактора: у оси config.variations[] добавляется variationId, у значения values[] — styleId
+            (у пересечения — ID стиля-владельца). В пакеты конфигураций эти поля не попадают
       required:
         - designSystemId
         - platform

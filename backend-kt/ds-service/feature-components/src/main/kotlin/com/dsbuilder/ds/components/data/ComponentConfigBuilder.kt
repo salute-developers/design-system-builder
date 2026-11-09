@@ -18,6 +18,7 @@ internal class ComponentConfigBuilder(
         exported: Boolean,
         underived: MutableSet<String>,
         withPlatformOffsets: Boolean = false,
+        editorIds: Boolean = false,
     ): ComponentConfig {
         val roles = AppearanceAxisRoleStore.load(listOf(appearance.id))[appearance.id]
         val axes = axes(appearance.id, roles?.colorScheme)
@@ -50,29 +51,21 @@ internal class ComponentConfigBuilder(
                             value.name,
                             properties = properties(own, where, exported, underived),
                             authoredId = value.authoredId.takeIf { exported },
+                            styleId = value.styleId.toString().takeIf { editorIds },
                         )
                         val crossed = combinations.filter { it.ownerStyleId == value.styleId }.map { combination ->
                             ComponentConfig.VariationValue(
                                 value.name,
-                                targets = listOf(
-                                    ComponentConfig.Target(
-                                        combination.members.filter { it.styleId != value.styleId }.map { member ->
-                                            val targetAxis = axes.firstOrNull { it.variationId == member.variationId }
-                                            ComponentConfig.TargetProperty(
-                                                targetAxis?.let(idOf) ?: member.variationId.toString(),
-                                                targetAxis?.let { axisScalar(it, member.styleName) }
-                                                    ?: ComponentConfig.Scalar.Text(member.styleName),
-                                            )
-                                        },
-                                    ),
-                                ),
+                                targets = listOf(crossedTarget(axes, combination.members, value.styleId, idOf)),
                                 properties = properties(combination.rows, where, exported, underived),
                                 authoredId = combination.authoredId.takeIf { exported },
+                                styleId = value.styleId.toString().takeIf { editorIds },
                             )
                         }
                         listOf(direct) + crossed
                     },
                     axis.declaredType.takeIf { exported },
+                    variationId = axis.variationId.toString().takeIf { editorIds },
                 )
             },
         )
@@ -334,6 +327,22 @@ internal class ComponentConfigBuilder(
     }
 
     private fun number(value: String) = ComponentConfig.Scalar.Number(value)
+
+    /** Координаты пересечения в выгрузке: остальные стили сочетания по их осям. */
+    private fun crossedTarget(
+        axes: List<ConfigAxis>,
+        members: List<ConfigMember>,
+        ownerStyleId: UUID,
+        idOf: (ConfigAxis) -> String,
+    ) = ComponentConfig.Target(
+        members.filter { it.styleId != ownerStyleId }.map { member ->
+            val targetAxis = axes.firstOrNull { it.variationId == member.variationId }
+            ComponentConfig.TargetProperty(
+                targetAxis?.let(idOf) ?: member.variationId.toString(),
+                targetAxis?.let { axisScalar(it, member.styleName) } ?: ComponentConfig.Scalar.Text(member.styleName),
+            )
+        },
+    )
 
     private fun axisScalar(axis: ConfigAxis, value: String): ComponentConfig.Scalar {
         val names = axis.values.map { it.name }.toSet()

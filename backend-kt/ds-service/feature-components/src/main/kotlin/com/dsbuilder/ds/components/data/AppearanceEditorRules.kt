@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.components.application.EditorRuleViolationException
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -112,7 +113,6 @@ internal object AppearanceEditorRules {
 
 /** Правила имён и входящих ссылок конфигураций (оформлений). */
 internal object AppearanceNaming {
-    private const val MAX_NAME_LENGTH = 255
 
     /** Нормализованные имена оформлений пары (дизайн-система, компонент), кроме [excluding]. */
     fun names(designSystemId: UUID, componentId: UUID, excluding: UUID? = null): Set<String> =
@@ -122,23 +122,33 @@ internal object AppearanceNaming {
         }.filter { it[ComponentAppearancesTable.id] != excluding }
             .mapNotNull { it[ComponentAppearancesTable.name]?.trim()?.lowercase() }.toSet()
 
+    /** Проверяет правило имени; нарушение — `appearance_name_invalid`. */
+    fun requireName(rawName: String): String {
+        val name = rawName.trim()
+        if (!ConfigurationName.isValid(name)) {
+            throw EditorRuleViolationException(ConfigurationName.INVALID_CODE, ConfigurationName.INVALID_MESSAGE)
+        }
+        return name
+    }
+
+    /** Kebab-case из произвольного текста: основа для сгенерированных имён. */
+    fun kebab(value: String): String = ConfigurationName.kebab(value)
+
     /** Проверяет имя и его уникальность в паре. */
     fun requireFree(designSystemId: UUID, componentId: UUID, rawName: String, excluding: UUID? = null): String {
-        val name = rawName.trim()
-        if (name.isEmpty() || name.length > MAX_NAME_LENGTH) {
-            throw EditorRuleViolationException("appearance_name_invalid", "The configuration name is empty or too long")
-        }
+        val name = requireName(rawName)
         if (name.lowercase() in names(designSystemId, componentId, excluding)) {
             throw EditorRuleViolationException("appearance_name_taken", "The configuration name is already used")
         }
         return name
     }
 
-    /** Свободное имя вида `<основа>` либо `<основа> 2`, `<основа> 3`. */
+    /** Свободное имя вида `<основа>` либо `<основа>-2`, `<основа>-3`; основа приводится к kebab-case. */
     fun freeName(designSystemId: UUID, componentId: UUID, base: String): String {
         val taken = names(designSystemId, componentId)
-        if (base.lowercase() !in taken) return base
-        return generateSequence(2) { it + 1 }.map { "$base $it" }.first { it.lowercase() !in taken }
+        val name = kebab(base)
+        if (name !in taken) return name
+        return generateSequence(2) { it + 1 }.map { "$name-$it" }.first { it !in taken }
     }
 
     /** Отклоняет удаление оформления, на которое ссылаются значения других оформлений. */

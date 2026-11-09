@@ -69,7 +69,13 @@ class ExposedComponentConfigRepository internal constructor(
             entries += ComponentConfigPackage.Entry(
                 componentName,
                 styleName,
-                builder.build(appearance, exported = true, underived, withPlatformOffsets = true),
+                builder.build(
+                    appearance,
+                    exported = true,
+                    underived,
+                    withPlatformOffsets = true,
+                    editorIds = query.editorIds,
+                ),
             )
         }
         return ComponentConfigRepository.ExportAttempt.Success(
