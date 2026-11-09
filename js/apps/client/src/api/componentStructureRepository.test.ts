@@ -14,6 +14,7 @@ const url = '/api/projects/p/appearances/a/property-values';
 describe('componentStructureRepository: пересечения', () => {
     beforeEach(() => {
         Object.values(http).forEach((mock) => mock.mockReset());
+        readEditor.mockReset();
         readEditor.mockResolvedValue({ data: [{ id: 'token-1', name: 'text.default.primary' }] });
     });
 
@@ -26,6 +27,11 @@ describe('componentStructureRepository: пересечения', () => {
             '[light.text.default.primary]',
         );
         await repository.setCombinationValue(context, 'a', ['s-l', 's-pilled'], 'height', '44');
+        await repository.setCombinationValue(context, 'a', ['s-l', 's-pilled'], 'background', '#FF000080');
+
+        // Справочник читается только для ссылки на токен и с кешем; литералы пишутся без него.
+        expect(readEditor).toHaveBeenCalledTimes(1);
+        expect(readEditor).toHaveBeenCalledWith(expect.stringMatching(/\/tokens$/), {}, undefined, 300_000);
 
         expect(http.put).toHaveBeenNthCalledWith(
             1,

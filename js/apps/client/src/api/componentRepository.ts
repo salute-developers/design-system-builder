@@ -639,7 +639,11 @@ export const componentRepository = {
             ]),
         );
         const tokenIdByName = new Map(tokens.data.map((token) => [token.name, token.id]));
-        const propertyValues = [...invariantValues.data, ...variationValues.data];
+        // Инварианты читаются по компоненту для всех его конфигураций: правка открытой не должна найти чужое значение.
+        const propertyValues = [
+            ...invariantValues.data.filter((value) => value.appearanceId === stableBinding.appearanceId),
+            ...variationValues.data,
+        ];
         const propertyKey = (change: Extract<ComponentChange, { kind: 'property' }>) =>
             [change.styleId ?? 'invariant', change.propertyId, [...change.stateNames].sort().join('+')].join(':');
         const valueByKey = new Map(

@@ -87,18 +87,25 @@ const renderPanel = (configurationId?: string) => {
     const onSelectionChange = vi.fn();
     const onConfigurationSelect = vi.fn();
     const onCombinationSelect = vi.fn();
-    const config = configurationId ? new Config(meta).withConfiguration(configurationId) : new Config(meta);
-    render(
+    const structure = { context, run };
+    const panel = (id?: string) => (
         <ComponentStructurePanel
-            config={config}
-            structure={{ context, run }}
+            config={id ? new Config(meta).withConfiguration(id) : new Config(meta)}
+            structure={structure}
             selection={{ size: 's-m', view: 'v-default' }}
             onSelectionChange={onSelectionChange}
             onConfigurationSelect={onConfigurationSelect}
             onCombinationSelect={onCombinationSelect}
-        />,
+        />
     );
-    return { run, onSelectionChange, onConfigurationSelect, onCombinationSelect };
+    const { rerender } = render(panel(configurationId));
+    return {
+        run,
+        onSelectionChange,
+        onConfigurationSelect,
+        onCombinationSelect,
+        open: (id?: string) => rerender(panel(id)),
+    };
 };
 
 describe('ComponentStructurePanel', () => {
@@ -240,7 +247,12 @@ describe('ComponentStructurePanel', () => {
         fireEvent.click(within(tree).getByRole('button', { name: 'Развернуть ветку size: m' }));
         const intersection = within(tree).getByRole('button', { name: 'size: m · pilled: true' });
         expect(intersection).toHaveClass('is-configured');
-        expect(within(tree).getByRole('button', { name: 'size: m · view: accent' })).not.toHaveClass('is-configured');
+        // Уровни идут подряд: цветовая схема только под `pilled`, а не прямо под `size`.
+        expect(within(tree).queryByRole('button', { name: 'size: m · view: accent' })).toBeNull();
+        fireEvent.click(within(tree).getByRole('button', { name: 'Развернуть ветку size: m · pilled: true' }));
+        expect(within(tree).getByRole('button', { name: 'size: m · pilled: true · view: accent' })).not.toHaveClass(
+            'is-configured',
+        );
 
         fireEvent.click(intersection);
         expect(onSelectionChange).toHaveBeenCalledWith('size', 's-m');
@@ -249,7 +261,7 @@ describe('ComponentStructurePanel', () => {
 
         fireEvent.click(within(tree).getByRole('button', { name: 'Только настроенные пересечения' }));
         expect(within(tree).queryByRole('button', { name: 'size: xs' })).toBeNull();
-        expect(within(tree).queryByRole('button', { name: 'view: default' })).toBeNull();
+        expect(within(tree).queryByRole('button', { name: 'pilled: true' })).toBeNull();
         expect(within(tree).getByRole('button', { name: 'size: m · pilled: true' })).toBeInTheDocument();
     });
 
@@ -267,5 +279,64 @@ describe('ComponentStructurePanel', () => {
         await waitFor(() =>
             expect(repository.removeCombination).toHaveBeenCalledWith(context, 'base', ['s-m', 'p-true']),
         );
+    });
+
+    it('hides the variations of the previous configuration while the open one loads', async () => {
+        const { open } = renderPanel();
+        await screen.findByRole('region', { name: 'Вариация size' });
+
+        let resolve: (value: unknown) => void = () => undefined;
+        repository.loadModel.mockReturnValueOnce(new Promise((done) => (resolve = done)));
+        open('copy');
+
+        expect(screen.getByRole('status')).toHaveTextContent('Загружаем вариации…');
+        expect(screen.queryByRole('region', { name: 'Вариация size' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Добавить вариацию' })).toBeDisabled();
+
+        resolve({ appearance: {}, revision: 1, axes });
+        await screen.findByRole('region', { name: 'Вариация size' });
+        fireEvent.click(screen.getByRole('button', { name: 'Переименовать вариацию size', hidden: true }));
+        const input = screen.getByRole('textbox', { name: 'Название вариации' });
+        fireEvent.change(input, { target: { value: 'scale' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        await waitFor(() => expect(repository.renameAxis).toHaveBeenCalledWith(context, 'axis-size', 'scale'));
+        expect(repository.loadModel).toHaveBeenLastCalledWith(context, 'copy', expect.anything());
+    });
+
+    it('lists intersections that skip a level under the tree and opens them', async () => {
+        const skipping = {
+            ...meta,
+            sources: {
+                ...meta.sources,
+                configs: [
+                    {
+                        ...meta.sources.configs[0],
+                        config: {
+                            ...meta.sources.configs[0].config,
+                            combinations: [{ styleIDs: ['s-m', 'v-accent'], props: [{ id: 'height', value: '44' }] }],
+                        },
+                    },
+                ],
+            },
+        } as unknown as Meta;
+        const onCombinationSelect = vi.fn();
+        render(
+            <ComponentStructurePanel
+                config={new Config(skipping)}
+                structure={{ context, run: vi.fn() }}
+                selection={{ size: 's-m', view: 'v-default' }}
+                onSelectionChange={vi.fn()}
+                onConfigurationSelect={vi.fn()}
+                onCombinationSelect={onCombinationSelect}
+            />,
+        );
+        const others = await screen.findByRole('group', { name: 'Другие пересечения' });
+
+        fireEvent.click(within(others).getByRole('button', { name: 'size: m · view: accent' }));
+        expect(onCombinationSelect).toHaveBeenCalledWith(['s-m', 'v-accent']);
+        fireEvent.click(
+            within(others).getByRole('button', { name: 'Удалить пересечение size: m · view: accent', hidden: true }),
+        );
+        expect(screen.getByRole('alertdialog')).toHaveTextContent('Удалить пересечение?');
     });
 });
