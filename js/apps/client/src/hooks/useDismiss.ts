@@ -8,8 +8,22 @@ interface DismissOptions {
 }
 
 /**
- * Закрывает всплывающее окно по клику снаружи и по `Escape`, как меню и пикеры прототипа. По `Escape` фокус
- * возвращается на `returnFocus`, чтобы клавиатура не терялась.
+ * Подписка на уход фокуса во фрейм страницы, например в холст превью: клик внутри `iframe` не доходит до `document`,
+ * поэтому всплывающие окна закрываются по `blur` окна, когда фокус оказался во фрейме.
+ */
+export const onFocusIntoFrame = (callback: () => void) => {
+    const onBlur = () =>
+        // Фокус переходит во фрейм уже после `blur` окна.
+        window.setTimeout(() => {
+            if (document.activeElement instanceof HTMLIFrameElement) callback();
+        }, 0);
+    window.addEventListener('blur', onBlur);
+    return () => window.removeEventListener('blur', onBlur);
+};
+
+/**
+ * Закрывает всплывающее окно по клику снаружи (в том числе по фрейму холста) и по `Escape`, как меню и пикеры
+ * прототипа. По `Escape` фокус возвращается на `returnFocus`, чтобы клавиатура не терялась.
  */
 export const useDismiss = (
     root: RefObject<HTMLElement>,
@@ -36,9 +50,11 @@ export const useDismiss = (
         };
         document.addEventListener('pointerdown', onPointerDown);
         document.addEventListener('keydown', onKeyDown);
+        const stopFrameFocus = onFocusIntoFrame(() => latest.current.onClose());
         return () => {
             document.removeEventListener('pointerdown', onPointerDown);
             document.removeEventListener('keydown', onKeyDown);
+            stopFrameFocus();
         };
     }, [open, root]);
 };

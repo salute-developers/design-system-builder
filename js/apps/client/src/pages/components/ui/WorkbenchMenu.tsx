@@ -2,7 +2,7 @@ import { useRef, useState, type ReactNode } from 'react';
 
 import { useDismiss } from '../../../hooks';
 
-import { TyGlyph, type TyGlyphName } from '../../typography/ui/TyGlyph';
+import { TyGlyph, type TyGlyphName } from '../../../components/TyGlyph';
 
 export interface WorkbenchMenuItem {
     key: string;

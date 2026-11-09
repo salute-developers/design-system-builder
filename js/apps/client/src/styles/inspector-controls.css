@@ -346,8 +346,11 @@
     box-sizing: border-box;
     border: 1px solid #687383;
     border-radius: 3px;
-    font-size: 10px;
     font-style: normal;
+}
+.component-binding-state-options > button > i .ui-glyph {
+    width: 10px;
+    height: 10px;
 }
 
 /* Строки состояний под цветом (`component-variation-state-row`) с соединительными линиями. */
@@ -433,6 +436,9 @@
 }
 .component-token-picker-list {
     max-height: 220px;
+    /* Место под полосу прокрутки: `scrollbar-gutter` резервирует его у обычной полосы, отступ — у системной
+       overlay-полосы, которая иначе ложится поверх пунктов. */
+    padding-right: 6px;
     display: grid;
     gap: 2px;
     overflow: auto;

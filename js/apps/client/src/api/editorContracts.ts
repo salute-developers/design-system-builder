@@ -133,7 +133,12 @@ export interface ComponentConfigDto {
     variations: Array<{
         id: string;
         name: string;
-        values: Array<{ name: string; properties: Record<string, ComponentConfigPropertyDto> }>;
+        values: Array<{
+            name: string;
+            /** Есть у значения-пересечения: те же свойства под сочетанием со стилями других вариаций. */
+            targets?: unknown[];
+            properties: Record<string, ComponentConfigPropertyDto>;
+        }>;
     }>;
 }
 export interface ComponentConfigExportDto {

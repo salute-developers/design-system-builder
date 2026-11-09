@@ -17,7 +17,7 @@ import {
     type TypographyStyleChange,
     type TypographyVariant,
 } from '../../../modules/typographyTokens';
-import { TyGlyph } from './TyGlyph';
+import { TyGlyph } from '../../../components/TyGlyph';
 
 interface TypographyInspectorProps {
     style: TypographyStyle;

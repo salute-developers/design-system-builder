@@ -11,6 +11,6 @@ export interface ColorTokenOption extends TokenOption {
     color: string;
     group: string;
     subgroup: string;
-    /** `default` или подтема `on-dark`, `on-light`, `inverse`: без флажка «Токены сабтем» видны только `default`. */
+    /** `default` или подтема `on-dark`, `on-light`, `inverse`: без флажка «Токены подтем» видны только `default`. */
     subtheme: string;
 }

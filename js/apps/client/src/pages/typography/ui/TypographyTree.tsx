@@ -7,7 +7,7 @@ import {
     type TypographyScreen,
     type TypographyStyle,
 } from '../../../modules/typographyTokens';
-import { TyGlyph } from './TyGlyph';
+import { TyGlyph } from '../../../components/TyGlyph';
 
 interface TypographyTreeProps {
     title: string;

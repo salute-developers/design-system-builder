@@ -14,7 +14,7 @@ import {
     type ColorTokenOption,
     type TokenOption,
 } from '../../../../features/InspectorControls';
-import { TyGlyph } from '../../../typography/ui/TyGlyph';
+import { TyGlyph } from '../../../../components/TyGlyph';
 
 import { humanizeName, sourceArgs, sourceLabel, type PropertySource } from './inspectorModel';
 

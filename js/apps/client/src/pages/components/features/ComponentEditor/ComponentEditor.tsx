@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { useComponentData } from '../../../../hooks';
@@ -16,8 +16,6 @@ interface ComponentEditorProps {
     theme: Theme;
     configs?: Config[];
     updated: object;
-    /** Индикатор автосохранения в панели окружения превью. */
-    status?: ReactNode;
     /** Платформы компонента для меню панели окружения превью. */
     platforms: PreviewPlatformOption[];
     onPlatformSelect: (platform: PreviewPlatform) => void;
@@ -25,7 +23,7 @@ interface ComponentEditorProps {
 }
 
 export const ComponentEditor = (props: ComponentEditorProps) => {
-    const { designSystem, theme, configs, updated, status, platforms, onPlatformSelect, onConfigUpdate } = props;
+    const { designSystem, theme, configs, updated, platforms, onPlatformSelect, onConfigUpdate } = props;
 
     const config = configs?.[0];
 
@@ -84,7 +82,6 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 themeMode={themeMode}
                 onUpdateThemeMode={setThemeMode}
                 title={combinationTitle(config, selection)}
-                status={status}
                 platforms={platforms}
                 onPlatformSelect={onPlatformSelect}
                 resolveStyleReference={resolveStyleReference}

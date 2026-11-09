@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 
 import { useDismiss } from '../../hooks';
-import { TyGlyph } from '../../pages/typography/ui/TyGlyph';
+import { TyGlyph } from '../../components/TyGlyph';
 
 import { TokenPicker } from './TokenPicker';
 import type { TokenOption } from './types';

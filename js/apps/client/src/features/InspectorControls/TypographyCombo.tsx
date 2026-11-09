@@ -22,9 +22,15 @@ export const TypographyCombo = ({ label, value, options, onChange }: TypographyC
     const [query, setQuery] = useState<string>();
     const root = useRef<HTMLDivElement>(null);
     const input = useRef<HTMLInputElement>(null);
+    // Закрытие по `Escape` возвращает фокус в поле: этот фокус не должен открыть список снова.
+    const reopenBlocked = useRef(false);
     const close = () => {
         setOpen(false);
         setQuery(undefined);
+        reopenBlocked.current = true;
+        window.setTimeout(() => {
+            reopenBlocked.current = false;
+        }, 0);
     };
     useDismiss(root, open, close, { returnFocus: input });
     const current = options.find((option) => option.value === value);
@@ -45,7 +51,7 @@ export const TypographyCombo = ({ label, value, options, onChange }: TypographyC
                     placeholder="Выбрать стиль"
                     value={query ?? current?.label ?? value ?? ''}
                     onFocus={(event) => {
-                        setOpen(true);
+                        if (!reopenBlocked.current) setOpen(true);
                         event.currentTarget.select();
                     }}
                     onChange={(event) => {

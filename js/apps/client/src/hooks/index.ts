@@ -9,4 +9,4 @@ export { useOwnerProjectId, fetchOwnerProjectId } from './useOwnerProjectId';
 export { locateColorToken, locateLegacyToken, useAddressedToken } from './useAddressedToken';
 export { usePanelWidth } from './usePanelWidth';
 export type { PanelWidthLimits } from './usePanelWidth';
-export { useDismiss } from './useDismiss';
+export { onFocusIntoFrame, useDismiss } from './useDismiss';

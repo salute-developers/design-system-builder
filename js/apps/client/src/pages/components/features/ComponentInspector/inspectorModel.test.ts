@@ -100,7 +100,7 @@ describe('collectSourceProperties', () => {
                             defaultVariations: [],
                             invariantProps: [],
                             variations: [
-                                { id: 'size', styles: [style('m', 'm', [{ id: 'focus', value: 'textAccent' }])] },
+                                { id: 'v-size', styles: [style('m', 'm', [{ id: 'focus', value: 'textAccent' }])] },
                             ],
                         },
                     },
@@ -151,8 +151,37 @@ describe('fallbackStyle', () => {
     it('prefers the default style and falls back to the first one', () => {
         const config = new Config(meta);
 
-        expect(fallbackStyle(config, 'size')).toBe('s-m');
-        config.removeDefault('size');
-        expect(fallbackStyle(config, 'size')).toBe('s-xs');
+        expect(fallbackStyle(config, 'v-size')).toBe('s-m');
+        config.removeDefault('v-size');
+        expect(fallbackStyle(config, 'v-size')).toBe('s-xs');
+    });
+});
+
+describe('collectSourceProperties: links of properties to variations', () => {
+    it('matches a link by the variation name, not only by its ID', () => {
+        const rows = collectSourceProperties(new Config(meta), { size: 's-xs' }, meta.sources.api);
+        const height = rows.find((row) => row.prop.getName() === 'height');
+
+        expect(height).toMatchObject({
+            isSet: false,
+            source: { kind: 'style', variationID: 'v-size', styleID: 's-xs' },
+        });
+    });
+
+    it('does not treat properties as invariants when the component has no links at all', () => {
+        const api = meta.sources.api.map((item) => ({ ...item, variations: null }));
+        const rows = collectSourceProperties(
+            new Config({ ...meta, sources: { ...meta.sources, api } } as Meta),
+            selection,
+            api,
+        );
+
+        expect(rows.filter((row) => !row.isSet)).toEqual([]);
+        expect(rows.filter((row) => row.prop.getName() === 'height')).toEqual([
+            expect.objectContaining({
+                isSet: true,
+                source: expect.objectContaining({ kind: 'style', styleID: 's-m' }),
+            }),
+        ]);
     });
 });

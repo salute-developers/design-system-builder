@@ -15,7 +15,8 @@ export const style = (id: string, name: string, props: { id: string; value: stri
     props,
 });
 
-// Chip: вариации в модели идут как `pilled`, `view`, `size` — инспектор ставит `size` и `view` первыми.
+// Chip: вариации в модели идут как `pilled`, `view`, `size` — инспектор ставит `size` и `view` первыми. ID вариаций
+// (`v-size`) отличаются от имён: связи свойств API приходят именами, как с сервера.
 export const chipMeta = {
     name: 'Chip',
     description: 'Chip',
@@ -35,17 +36,17 @@ export const chipMeta = {
             api('leftIcon', 'leftIcon', 'icon', []),
         ],
         variations: [
-            { id: 'pilled', name: 'pilled' },
-            { id: 'view', name: 'view' },
-            { id: 'size', name: 'size' },
+            { id: 'v-pilled', name: 'pilled' },
+            { id: 'v-view', name: 'view' },
+            { id: 'v-size', name: 'size' },
         ],
         configs: [
             {
                 id: 'config',
                 config: {
                     defaultVariations: [
-                        { variationID: 'size', styleID: 's-m' },
-                        { variationID: 'view', styleID: 'v-default' },
+                        { variationID: 'v-size', styleID: 's-m' },
+                        { variationID: 'v-view', styleID: 'v-default' },
                     ],
                     invariantProps: [
                         { id: 'opacity', value: '0.4' },
@@ -53,16 +54,16 @@ export const chipMeta = {
                         { id: 'closeIcon', value: 'close.16' },
                     ],
                     variations: [
-                        { id: 'pilled', styles: [style('p-true', 'true', [{ id: 'pilledRadius', value: '20' }])] },
+                        { id: 'v-pilled', styles: [style('p-true', 'true', [{ id: 'pilledRadius', value: '20' }])] },
                         {
-                            id: 'view',
+                            id: 'v-view',
                             styles: [
                                 style('v-default', 'default', [{ id: 'background', value: 'surfaceSolidDefault' }]),
                                 style('v-accent', 'accent', [{ id: 'background', value: 'surfaceAccent' }]),
                             ],
                         },
                         {
-                            id: 'size',
+                            id: 'v-size',
                             styles: [
                                 style('s-xs', 'xs'),
                                 style('s-m', 'm', [
