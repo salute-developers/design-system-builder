@@ -1,6 +1,6 @@
 import { http } from './http';
-import { invalidateEditorReads, readEditor } from './editorReads';
-import { apiRoot } from './editorHttp';
+import { invalidateEditorReads, invalidateEditorResources, readEditor } from './editorReads';
+import { apiRoot, tokenDefinitionsUrl } from './editorHttp';
 import type { AppearanceDto, AppearanceEditorModelDto, EditorContextKey, TokenDefinitionDto } from './editorContracts';
 
 /**
@@ -14,15 +14,20 @@ const create = { headers: () => ({ 'Idempotency-Key': crypto.randomUUID() }) };
 /** Ссылка на токен — имя через точки (`text.default.primary`); число, `#RRGGBB` и прочие литералы — нет. */
 const TOKEN_REFERENCE = /^[a-z][\w-]*(\.[\w-]+)+$/i;
 
-/** ID токена по имени: справочник токенов переиспользуется между правками, как другие списочные чтения редактора. */
+/**
+ * ID токена по имени. Справочник переиспользуется между правками, как другие списочные чтения редактора; запись
+ * определения токена сбрасывает его адресно. Если имени в справочнике нет, справочник мог устареть (токен создан или
+ * переименован в другом месте) — он перечитывается один раз.
+ */
 const tokenIdOf = async (context: EditorContextKey, name: string) => {
-    const { data } = await readEditor<TokenDefinitionDto[]>(
-        `${apiRoot(context.projectId, context.designSystemId)}/tokens`,
-        {},
-        undefined,
-        300_000,
-    );
-    return data.find((token) => token.name === name)?.id ?? null;
+    const url = tokenDefinitionsUrl(context);
+    const find = async () =>
+        (await readEditor<TokenDefinitionDto[]>(url, {}, undefined, 300_000)).data.find((token) => token.name === name)
+            ?.id;
+    const cached = await find();
+    if (cached) return cached;
+    invalidateEditorResources([url]);
+    return (await find()) ?? null;
 };
 
 const done = <T>(context: EditorContextKey, value: T) => {

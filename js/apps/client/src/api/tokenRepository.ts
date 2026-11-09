@@ -1,6 +1,6 @@
 import { storedTokenValue } from './confirmedTokenValues';
 import { http } from './http';
-import { readEditor, invalidateEditorReads } from './editorReads';
+import { readEditor, invalidateEditorReads, invalidateEditorResources } from './editorReads';
 import type { ThemeMeta } from '../controllers/themeBuilder/types/meta';
 import type { TokenType } from '../controllers/themeBuilder/types/token';
 import type { PlatformsVariations } from '../controllers/themeBuilder/types/theme';
@@ -15,7 +15,14 @@ import type {
     DesignSystemVersionDto,
     PendingTokenMutation,
 } from './editorContracts';
-import { apiRoot, tokenValueKey, parseMutationMetadata, readRequest, keepaliveRequest } from './editorHttp';
+import {
+    apiRoot,
+    tokenValueKey,
+    tokenDefinitionsUrl,
+    parseMutationMetadata,
+    readRequest,
+    keepaliveRequest,
+} from './editorHttp';
 import { nextPatchVersion } from './versionNumbers';
 import { normalizedColorValue } from './colorValue';
 import { createHttpPaletteRepository, paletteSourceFromEnv } from '../modules/palette';
@@ -254,6 +261,8 @@ export const tokenRepository = {
             });
             const metadata = parseMutationMetadata(deleted.headers?.['x-ds-mutation-metadata']);
             invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
             const revision = metadata.reduce((latest, item) => Math.max(latest, item.revision), baseRevision);
             return {
                 tokenId: stableTokenId,
@@ -282,6 +291,8 @@ export const tokenRepository = {
             );
             stableTokenId = created.data.id;
             invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
             tokenMutationMetadata = parseMutationMetadata(created.headers?.['x-ds-mutation-metadata']);
         } else if (mutation.definitionPatch && Object.keys(mutation.definitionPatch).length > 0) {
             const updated = await http.patch(`${root}/tokens/${stableTokenId}`, mutation.definitionPatch, {
@@ -290,6 +301,8 @@ export const tokenRepository = {
             });
             tokenMutationMetadata = parseMutationMetadata(updated.headers?.['x-ds-mutation-metadata']);
             invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
         }
         const values = (['web', 'ios', 'android'] as const)
             .filter((platform) => mutation.change.values[platform] !== undefined)
