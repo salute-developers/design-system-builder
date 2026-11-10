@@ -18,5 +18,5 @@
 
 - [x] 4.1 `tools/verify fast --change update-figma-export-states-and-copy`
 - [x] 4.2 Независимое review и исправления
-- [ ] 4.3 `tools/verify full --change update-figma-export-states-and-copy`
-- [ ] 4.4 [внешняя проверка] Повторный экспорт темы Malachite в тестовый файл Figma: состояния `…Hover`, `…Active`, `…Brightness` в теме и подтемах, скругления `cR…` и `Rounded`, число переменных без дубликатов
+- [x] 4.3 `tools/verify full --change update-figma-export-states-and-copy`
+- [x] 4.4 [внешняя проверка] Повторный экспорт темы Malachite в тестовый файл Figma: состояния `…Hover`, `…Active`, `…Brightness` в теме и подтемах, скругления `cR…` и `Rounded`, число переменных без дубликатов
