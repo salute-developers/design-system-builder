@@ -19,4 +19,4 @@
 - [x] 4.1 `tools/verify fast --change add-figma-gradient-stops-and-font-links`
 - [x] 4.2 Независимое review и исправления
 - [x] 4.3 `tools/verify full --change add-figma-gradient-stops-and-font-links`
-- [ ] 4.4 [внешняя проверка] Повторный экспорт темы Malachite в Figma desktop: группа `GradientStops`, единые стили градиентов меняются вместе с режимом фрейма, ссылки на шрифты в отчёте открываются
+- [x] 4.4 [внешняя проверка] Повторный экспорт темы Malachite в Figma desktop: группа `GradientStops`, единые стили градиентов меняются вместе с режимом фрейма, архив недостающих шрифтов скачивается кнопкой
