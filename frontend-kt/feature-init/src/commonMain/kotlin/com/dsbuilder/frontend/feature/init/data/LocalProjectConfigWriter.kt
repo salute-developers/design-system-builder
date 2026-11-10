@@ -28,7 +28,7 @@ internal class LocalProjectConfigWriter(
                     designSystemId = command.config.designSystemId.value,
                     credential = CredentialReference(
                         type = when (command.config.credentialSelection) {
-                            is InitCredentialSelection.Environment -> CredentialReferenceType.ENV
+                            is InitCredentialSelection.Environment -> CredentialReferenceType.AUTO
                             InitCredentialSelection.UserSession -> CredentialReferenceType.USER_SESSION
                         },
                         name = (command.config.credentialSelection as? InitCredentialSelection.Environment)?.name

@@ -18,8 +18,6 @@ import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProject
 import com.dsbuilder.projects.feature.projects.domain.model.ActorType
 import com.dsbuilder.projects.feature.projects.domain.model.AuthenticatedActor
 import com.dsbuilder.projects.feature.projects.domain.model.Project
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKey
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKeyStatus
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
@@ -343,7 +341,6 @@ private class ImmediateTransactionManager : TransactionManager {
 private class InMemoryProjectRepository : ProjectRepository {
     val projects = linkedMapOf<String, Project>()
     val members = linkedMapOf<Pair<String, String>, ProjectMember>()
-    val accessKeys = linkedMapOf<String, ProjectAccessKey>()
 
     override suspend fun createProject(project: Project) {
         projects[project.id] = project
@@ -393,37 +390,6 @@ private class InMemoryProjectRepository : ProjectRepository {
 
     override suspend fun removeMember(projectId: String, userId: String): Boolean =
         members.remove(projectId to userId) != null
-
-    override suspend fun createAccessKey(accessKey: ProjectAccessKey) {
-        accessKeys[accessKey.id] = accessKey
-    }
-
-    override suspend fun listAccessKeys(projectId: String): List<ProjectAccessKey> =
-        accessKeys.values.filter { it.projectId == projectId }
-
-    override suspend fun getAccessKey(projectId: String, keyId: String): ProjectAccessKey? =
-        accessKeys[keyId]?.takeIf { it.projectId == projectId }
-
-    override suspend fun getAccessKeyById(keyId: String): ProjectAccessKey? = accessKeys[keyId]
-
-    override suspend fun updateAccessKeyUsage(keyId: String, lastUsedAt: Instant, updatedAt: Instant) {
-        val current = accessKeys[keyId] ?: return
-        accessKeys[keyId] = current.copy(lastUsedAt = lastUsedAt, updatedAt = updatedAt)
-    }
-
-    override suspend fun updateAccessKeyStatus(
-        projectId: String,
-        keyId: String,
-        status: ProjectAccessKeyStatus,
-        revokedAt: Instant?,
-        updatedAt: Instant,
-    ): ProjectAccessKey? {
-        val current = accessKeys[keyId]?.takeIf { it.projectId == projectId } ?: return null
-        return current.copy(
-            revokedAt = revokedAt,
-            updatedAt = updatedAt,
-        ).also { accessKeys[keyId] = it }
-    }
 
     fun seedProject(project: Project) {
         projects[project.id] = project

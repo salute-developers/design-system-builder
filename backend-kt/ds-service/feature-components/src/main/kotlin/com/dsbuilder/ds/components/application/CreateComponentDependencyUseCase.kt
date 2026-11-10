@@ -28,8 +28,8 @@ class CreateComponentDependencyUseCase(
                 idempotencyKey,
                 "create-component-dependency",
                 command,
-                { repository.findAccessible(context.projectId, context.principal.systemAdmin, it) },
-                { repository.createAccessible(context.projectId, context.principal.systemAdmin, command) },
+                { repository.findAccessible(context.projectId, context.principal.globalAdmin, it) },
+                { repository.createAccessible(context.projectId, context.principal.globalAdmin, command) },
                 ComponentDependency::id,
             )
         }

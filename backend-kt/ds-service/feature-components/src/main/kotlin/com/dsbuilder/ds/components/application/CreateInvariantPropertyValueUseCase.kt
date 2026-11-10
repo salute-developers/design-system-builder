@@ -22,8 +22,8 @@ class CreateInvariantPropertyValueUseCase(
     ): DsResult<InvariantPropertyValue> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-invariant-property-value",
         command,
-        { repository.findInvariant(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createInvariant(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findInvariant(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createInvariant(context.projectId, context.principal.globalAdmin, command) },
         InvariantPropertyValue::id,
     )
 }

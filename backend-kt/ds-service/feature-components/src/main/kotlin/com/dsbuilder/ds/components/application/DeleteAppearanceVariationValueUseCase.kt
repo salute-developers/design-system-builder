@@ -15,6 +15,6 @@ class DeleteAppearanceVariationValueUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> =
         modelDelete(policy, transactions, context) {
-            repository.deleteValue(context.projectId, context.principal.systemAdmin, id)
+            repository.deleteValue(context.projectId, context.principal.globalAdmin, id)
         }
 }

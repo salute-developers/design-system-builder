@@ -19,10 +19,10 @@ class ListAppearanceVariationAxesUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<List<AppearanceVariationAxis>> =
         policy.read(context, com.dsbuilder.authorization.ProjectScope.COMPONENT_VARIATIONS_READ) {
             transactions.readOnly(context, ModelReadTarget(ModelReadTarget.Kind.APPEARANCE, id)) { selected ->
-                if (repository.find(selected.projectId, selected.principal.systemAdmin, id) == null) {
+                if (repository.find(selected.projectId, selected.principal.globalAdmin, id) == null) {
                     DsResult.Failure(DsFailure.NotFound)
                 } else {
-                    repository.axes(selected.projectId, selected.principal.systemAdmin, id)
+                    repository.axes(selected.projectId, selected.principal.globalAdmin, id)
                         ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
                 }
             }

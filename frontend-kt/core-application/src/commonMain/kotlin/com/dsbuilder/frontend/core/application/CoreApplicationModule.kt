@@ -1,8 +1,8 @@
 package com.dsbuilder.frontend.core.application
 
-import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.PatResolver
 import com.dsbuilder.frontend.core.auth.PkcePlatform
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.UserAccessTokenCache
@@ -37,16 +37,16 @@ public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
     single { UserSessionAccess(get<CredentialProvider>()) }
     single { ProjectConfigStore(get<WorkspaceFileSystem>()) }
     single { ProjectEnvironmentLoader(get<WorkspaceFileSystem>()) }
-    single { ApiKeyResolver(get<EnvironmentReader>()) }
+    single { PatResolver(get<EnvironmentReader>()) }
     single { ApiUrlResolver(get<EnvironmentReader>()) }
     single<ContextSource> { NearestProjectConfigContextSource(get<ProjectConfigStore>()) }
     single { ContextResolver(getAll<ContextSource>(), get<ProjectEnvironmentLoader>()) }
     single<ProjectContextReader> { LocalProjectContextReader(get<ContextResolver>()) }
-    single<ProjectApiKeyProvider> { RuntimeProjectApiKeyProvider(get<ApiKeyResolver>()) }
+    single<PersonalAccessTokenProvider> { RuntimePersonalAccessTokenProvider(get<PatResolver>()) }
     single<ProjectApiUrlProvider> { RuntimeProjectApiUrlProvider(get<ApiUrlResolver>()) }
     single<CredentialProvider> {
         RuntimeCredentialProvider(
-            apiKeyResolver = get<ApiKeyResolver>(),
+            apiKeyResolver = get<PatResolver>(),
             credentialStore = get<CredentialStore>(),
             tokenClient = get<TokenClient>(),
             environment = get<EnvironmentReader>(),

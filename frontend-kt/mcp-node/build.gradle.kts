@@ -170,6 +170,8 @@ tasks.register("npmPackMcpNodeSmoke") {
             .directory(smokeDir)
             .redirectErrorStream(true)
         serveBuilder.environment()["HOME"] = homeDir.absolutePath
+        serveBuilder.environment().remove("DSBUILDER_API_KEY")
+        serveBuilder.environment().remove("DSBUILDER_API_URL")
         val serveProcess = serveBuilder.start()
         val reader = serveProcess.inputStream.bufferedReader()
         serveProcess.outputStream.bufferedWriter().use { writer ->

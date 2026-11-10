@@ -85,7 +85,7 @@ public enum class DocsReadErrorCode {
     INVALID_CONTEXT,
     AMBIGUOUS_CONTEXT,
     INVALID_QUERY,
-    PROJECT_KEY_INVALID,
+    PAT_INVALID,
     INVALID_AUTH_URL,
 }
 
@@ -256,7 +256,7 @@ public class DocsReadUseCases(
                 RuntimeFailureCode.INVALID_CONTEXT -> DocsReadErrorCode.INVALID_CONTEXT
                 RuntimeFailureCode.CONTEXT_NOT_FOUND -> DocsReadErrorCode.CONTEXT_NOT_FOUND
                 RuntimeFailureCode.AUTH_REQUIRED -> DocsReadErrorCode.AUTH_REQUIRED
-                RuntimeFailureCode.PROJECT_KEY_INVALID -> DocsReadErrorCode.PROJECT_KEY_INVALID
+                RuntimeFailureCode.PAT_INVALID -> DocsReadErrorCode.PAT_INVALID
                 RuntimeFailureCode.FORBIDDEN -> DocsReadErrorCode.FORBIDDEN
                 RuntimeFailureCode.BACKEND_UNAVAILABLE -> DocsReadErrorCode.BACKEND_UNAVAILABLE
                 RuntimeFailureCode.INVALID_AUTH_URL -> DocsReadErrorCode.INVALID_AUTH_URL

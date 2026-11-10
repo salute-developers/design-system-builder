@@ -37,7 +37,7 @@ fun Route.apiMetaImportRoutes(evaluator: PolicyEvaluator, importApiMeta: ImportA
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             // The role is checked before the body is read: a caller who is refused anyway gets nothing parsed.
-            if (!context.principal.systemAdmin) return@post call.respondFailure(DsFailure.Forbidden)
+            if (!context.principal.globalAdmin) return@post call.respondFailure(DsFailure.Forbidden)
             val body = call.receiveAtMost(COMPONENT_CONFIG_IMPORT_LIMIT_BYTES)
                 ?: return@post call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Payload too large"))
             val request = runCatching {

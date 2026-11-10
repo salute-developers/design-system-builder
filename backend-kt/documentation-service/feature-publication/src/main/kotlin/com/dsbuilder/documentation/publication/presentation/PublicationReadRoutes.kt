@@ -218,6 +218,7 @@ private fun ApplicationCall.trustedPrincipal(evaluator: PolicyEvaluator): Projec
         projectScopes = publicationTrustedHeaders()[PROJECT_SCOPES_HEADER],
         systemAdmin = publicationTrustedHeaders()[SYSTEM_ADMIN_HEADER],
         policy = evaluator.policy,
+        personalAccessTokenId = publicationTrustedHeaders()["X-Personal-Access-Token-Id"],
     )
 }
 

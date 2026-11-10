@@ -22,7 +22,7 @@ internal class RefreshingAuthenticatedHttpClientFactory(
     private val cache: UserAccessTokenCache = UserAccessTokenCache(),
 ) : AuthenticatedHttpClientFactory {
     override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-        create(apiUrl, BackendCredential.ProjectKey(apiKey))
+        create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
 
     override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =
         RefreshingClient(apiUrl, credential)
@@ -95,7 +95,7 @@ internal class RefreshingAuthenticatedHttpClientFactory(
     }
 
     private fun errorStatus(code: AuthErrorCode): Int = when (code) {
-        AuthErrorCode.AUTH_REQUIRED, AuthErrorCode.PROJECT_KEY_INVALID -> 401
+        AuthErrorCode.AUTH_REQUIRED, AuthErrorCode.PAT_INVALID -> 401
         AuthErrorCode.FORBIDDEN -> 403
         else -> 503
     }

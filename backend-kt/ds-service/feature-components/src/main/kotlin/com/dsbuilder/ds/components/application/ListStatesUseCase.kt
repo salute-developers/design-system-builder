@@ -19,6 +19,6 @@ class ListStatesUseCase(
         componentId: UUID?,
         componentFilterPresent: Boolean,
     ): DsResult<List<ComponentState>> = modelList(policy, transactions, context) {
-        repository.list(context.projectId, context.principal.systemAdmin, componentId, componentFilterPresent)
+        repository.list(context.projectId, context.principal.globalAdmin, componentId, componentFilterPresent)
     }
 }

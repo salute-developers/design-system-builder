@@ -564,8 +564,10 @@ class TenantPaletteHttpPostgresIntegrationTest {
             header("X-User-Id", "integration-user")
             header("X-Project-Role", actor.role)
         } else {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "integration-key")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "integration-key")
+            header("X-User-Id", "integration-owner")
+            header("X-Project-Role", "owner")
             header("X-Project-Scopes", actor.scopes)
         }
     }

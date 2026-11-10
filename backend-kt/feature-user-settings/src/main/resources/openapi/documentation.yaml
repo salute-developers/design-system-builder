@@ -1,0 +1,298 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Настройки пользователя DS Builder",
+    "version": "1.0.0"
+  },
+  "security": [
+    {
+      "UserSession": []
+    }
+  ],
+  "paths": {
+    "/api/settings/personal-access-tokens": {
+      "get": {
+        "summary": "Собственные PAT без секретов",
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PersonalAccessToken"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос"
+          },
+          "401": {
+            "description": "Необходим вход"
+          },
+          "403": {
+            "description": "Требуется пользовательская OAuth-сессия"
+          },
+          "404": {
+            "description": "Токен не найден"
+          },
+          "503": {
+            "description": "Проверка аккаунта недоступна"
+          }
+        }
+      },
+      "post": {
+        "summary": "Создать PAT и однократно получить секрет",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePersonalAccessToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedPersonalAccessToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос"
+          },
+          "401": {
+            "description": "Необходим вход"
+          },
+          "403": {
+            "description": "Требуется пользовательская OAuth-сессия"
+          },
+          "404": {
+            "description": "Токен не найден"
+          },
+          "503": {
+            "description": "Проверка аккаунта недоступна"
+          }
+        }
+      }
+    },
+    "/api/settings/personal-access-tokens/{id}": {
+      "delete": {
+        "summary": "Повторяемый отзыв собственного PAT",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAccessToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос"
+          },
+          "401": {
+            "description": "Необходим вход"
+          },
+          "403": {
+            "description": "Требуется пользовательская OAuth-сессия"
+          },
+          "404": {
+            "description": "Токен не найден"
+          },
+          "503": {
+            "description": "Проверка аккаунта недоступна"
+          }
+        }
+      }
+    },
+    "/api/settings/personal-access-tokens/scopes": {
+      "get": {
+        "summary": "Каталог допустимых scopes",
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "scopes"
+                  ],
+                  "properties": {
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TokenScope"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос"
+          },
+          "401": {
+            "description": "Необходим вход"
+          },
+          "403": {
+            "description": "Требуется пользовательская OAuth-сессия"
+          },
+          "404": {
+            "description": "Токен не найден"
+          },
+          "503": {
+            "description": "Проверка аккаунта недоступна"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "UserSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "OAuth JWT",
+        "description": "Только пользовательская OAuth-сессия. PAT и service account запрещены."
+      }
+    },
+    "schemas": {
+      "PersonalAccessToken": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "scopes",
+          "createdAt",
+          "expiresAt",
+          "revokedAt",
+          "lastUsedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "TokenScope": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "CreatePersonalAccessToken": {
+        "type": "object",
+        "required": [
+          "name",
+          "scopes"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "scopes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "ttlSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "default": 7776000
+          }
+        }
+      },
+      "CreatedPersonalAccessToken": {
+        "type": "object",
+        "required": [
+          "token",
+          "secret"
+        ],
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/PersonalAccessToken"
+          },
+          "secret": {
+            "type": "string",
+            "pattern": "^dsb_pat_"
+          }
+        }
+      }
+    }
+  }
+}

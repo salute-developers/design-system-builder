@@ -135,9 +135,9 @@ class ExposedTransactionRunner(
 
     private fun versionAccessible(context: DsRequestContext): Boolean {
         val versionId = requireNotNull(context.versionId)
-        val access = if (context.principal.systemAdmin) "TRUE" else "system.project_id = ?"
+        val access = if (context.principal.globalAdmin) "TRUE" else "system.project_id = ?"
         val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to versionId)
-        if (!context.principal.systemAdmin) args += TextColumnType() to context.projectId.value
+        if (!context.principal.globalAdmin) args += TextColumnType() to context.projectId.value
         return TransactionManager.current().exec(
             "SELECT EXISTS(" +
                 "SELECT 1 FROM design_system_versions boundary " +
@@ -159,7 +159,7 @@ class ExposedTransactionRunner(
         )
         TransactionManager.current().exec(
             "SELECT set_config('ds.system_admin', ?, true)",
-            listOf(TextColumnType() to context.principal.systemAdmin.toString()),
+            listOf(TextColumnType() to context.principal.globalAdmin.toString()),
         )
         context.baseRevision?.let { revision ->
             TransactionManager.current().exec(

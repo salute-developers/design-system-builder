@@ -35,7 +35,7 @@ internal suspend fun <T> modelFindList(
     block: suspend () -> List<T>?,
 ): DsResult<List<T>> = policy.read(context, ProjectScope.COMPONENT_VARIATIONS_READ) {
     transactions.readOnly(context) {
-        block()?.let { DsResult.Success(it) } ?: if (context.principal.systemAdmin) {
+        block()?.let { DsResult.Success(it) } ?: if (context.principal.globalAdmin) {
             DsResult.Success(emptyList())
         } else {
             DsResult.Failure(DsFailure.NotFound)
@@ -163,7 +163,7 @@ internal suspend fun <T : Any> systemAdminMutate(
     permission: String = ProjectScope.COMPONENT_VARIATIONS_WRITE,
     block: suspend () -> T?,
 ): DsResult<T> = when {
-    !context.principal.systemAdmin -> DsResult.Failure(DsFailure.Forbidden)
+    !context.principal.globalAdmin -> DsResult.Failure(DsFailure.Forbidden)
     else -> modelMutate(policy, transactions, context, permission, block)
 }
 
@@ -173,7 +173,7 @@ internal suspend fun systemAdminDelete(
     context: DsRequestContext,
     block: suspend () -> Boolean,
 ): DsResult<Unit> = when {
-    !context.principal.systemAdmin -> DsResult.Failure(DsFailure.Forbidden)
+    !context.principal.globalAdmin -> DsResult.Failure(DsFailure.Forbidden)
     else -> policy.read(context, ProjectScope.COMPONENT_VARIATIONS_DELETE) {
         transactions.required(context) {
             if (block()) DsResult.Success(Unit) else DsResult.Failure(DsFailure.NotFound)

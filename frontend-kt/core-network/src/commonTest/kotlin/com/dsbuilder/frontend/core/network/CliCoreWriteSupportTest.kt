@@ -87,7 +87,7 @@ class CliCoreWriteSupportTest {
 
         val request = assertNotNull(captured, "запрос не отправлен")
         assertEquals(HttpMethod.Post, request.method)
-        assertEquals("ProjectKey secret-key", request.headers[HttpHeaders.Authorization])
+        assertEquals("Bearer secret-key", request.headers[HttpHeaders.Authorization])
         assertEquals("{\"dryRun\":true}", capturedBody)
         assertEquals("application/json", request.body.contentType?.let { "${it.contentType}/${it.contentSubtype}" })
         assertEquals(AuthenticatedHttpResult.Success("{\"ok\":true}"), result)

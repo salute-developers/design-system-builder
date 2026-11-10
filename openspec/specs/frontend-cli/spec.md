@@ -132,12 +132,12 @@ The `dsbuilder` CLI SHALL provide an `init` command that creates local project c
 - **THEN** CLI MUST create `.sdds/config.json` in the target directory
 - **THEN** generated config MUST contain JSON field `"projectId": "project-a"`
 - **THEN** generated config MUST contain JSON field `"designSystemId": "design-system-a"`
-- **THEN** generated config MUST contain env credential reference `DSBUILDER_API_KEY`
+- **THEN** generated config MUST contain credential.type = auto и env credential reference `DSBUILDER_API_KEY`
 
 #### Scenario: Init принимает custom API key env
 
-- **WHEN** developer runs `dsbuilder init --project-id project-a --design-system-id design-system-a --api-key-env DSBUILDER_PROJECT_A_API_KEY`
-- **THEN** generated config MUST contain env credential reference `DSBUILDER_PROJECT_A_API_KEY`
+- **WHEN** developer runs `dsbuilder init --project-id project-a --design-system-id design-system-a --api-key-env PROJECT_A_PAT`
+- **THEN** generated config MUST contain credential.type = auto и env credential reference `PROJECT_A_PAT`
 
 #### Scenario: Init принимает целевые платформы
 
@@ -149,8 +149,8 @@ The `dsbuilder` CLI SHALL provide an `init` command that creates local project c
 #### Scenario: Init не принимает raw API key
 
 - **WHEN** developer runs `dsbuilder init`
-- **THEN** CLI MUST NOT require raw API key input
-- **THEN** CLI MUST NOT write raw API key into `.sdds/config.json`
+- **THEN** CLI MUST NOT require секрет PAT input
+- **THEN** CLI MUST NOT write секрет PAT into `.sdds/config.json`
 - **THEN** CLI MUST NOT write API URL into `.sdds/config.json`
 
 #### Scenario: Init защищает существующий config
@@ -162,13 +162,13 @@ The `dsbuilder` CLI SHALL provide an `init` command that creates local project c
 
 #### Scenario: Интерактивный выбор
 - **WHEN** пользователь запускает `dsbuilder init` в терминале без одного или обоих ID
-- **THEN** CLI MUST получить доступные проекты и системы через пользовательскую сессию и сначала предложить меню проектов, затем загрузить и показать меню систем только выбранного проекта с именем, ID и описанием при наличии
+- **THEN** CLI MUST получить доступные проекты и системы через общий выбор PAT/OAuth и сначала предложить меню проектов, затем загрузить и показать меню систем только выбранного проекта с именем, ID и описанием при наличии
 - **THEN** стрелки ↑/↓ MUST перемещать выделение, Enter MUST подтверждать вариант без ввода названий и ID
 - **THEN** длинный список MUST поддерживать прокрутку, единственный вариант MUST подтверждаться Enter
 - **THEN** явно переданный ID MUST пропустить соответствующий вопрос
 - **THEN** после выбора системы CLI MUST предложить необязательный множественный выбор платформ: ↑/↓ перемещают курсор, Space включает или выключает платформу, Enter сохраняет выбранные платформы, включая пустой список
 - **THEN** если передан хотя бы один `--platform`, CLI MUST пропустить меню платформ и сохранить явно переданные значения
-- **THEN** созданная конфигурация MUST использовать `credential.type = "user-session"`, если `--api-key-env` не задан явно
+- **THEN** созданная конфигурация MUST использовать `credential.type = "auto"` и имя DSBUILDER_API_KEY либо явно заданное --api-key-env независимо от интерактивного режима
 - **THEN** версия MUST NOT требоваться для локальной конфигурации
 
 #### Scenario: Нет доступного выбора или ввод отменён
@@ -179,7 +179,7 @@ The `dsbuilder` CLI SHALL provide an `init` command that creates local project c
 - **THEN** CLI MUST сообщить о необходимости передать явные ID без ожидания ввода
 
 #### Scenario: Сессия отсутствует
-- **WHEN** для интерактивного выбора нет действующей пользовательской сессии
+- **WHEN** для интерактивного выбора не найден PAT и нет действующей пользовательской сессии
 - **THEN** CLI MUST предложить выполнить `dsbuilder auth login` без скрытого запуска входа и без записи конфигурации
 
 #### Scenario: Совместимый явный режим
@@ -196,7 +196,7 @@ Project-scoped CLI commands SHALL использовать общие context, A
 - **WHEN** новая project-scoped команда добавлена в `dsbuilder`
 - **THEN** она MUST разрешать локальный или явный контекст через CLI core
 - **THEN** она MUST разрешать credential через общий provider
-- **THEN** её HTTP adapter MUST отправлять `Authorization: ProjectKey <key>` либо `Authorization: Bearer <token>` согласно выбранному credential
+- **THEN** её HTTP adapter MUST отправлять `Authorization: Bearer <PAT>` либо `Authorization: Bearer <OAuth access token>` согласно выбранному типу учётных данных
 
 #### Scenario: Theme fetch использует CLI core
 
@@ -224,12 +224,12 @@ Project-scoped CLI commands SHALL использовать общие context, A
 
 #### Scenario: Project key отсутствует, но user session доступна
 
-- **WHEN** локальная policy `auto` не находит project key и для resolved API URL доступна user session
+- **WHEN** локальная policy `auto` не находит PAT и для resolved API URL доступна user session
 - **THEN** команда MUST выполнить backend request с Bearer access token
 
 #### Scenario: Project key найден, но отклонен
 
-- **WHEN** backend отвечает `401` или `403` для выбранного project key
+- **WHEN** backend отвечает `401` или `403` для выбранного PAT
 - **THEN** команда MUST вернуть соответствующую ошибку
 - **THEN** команда MUST NOT повторять запрос от другого actor
 
@@ -241,11 +241,11 @@ The `dsbuilder` CLI SHALL provide a `status` command that verifies the configure
 
 - **WHEN** developer runs `dsbuilder status` inside an initialized project directory
 - **THEN** CLI MUST resolve the nearest `.sdds/config.json`
-- **THEN** CLI MUST resolve API key credentials through CLI core
+- **THEN** CLI MUST выбирать PAT или OAuth-сессию через общий provider
 - **THEN** CLI MUST resolve API URL through CLI core
 - **THEN** CLI MUST send `GET /api/projects/{projectId}` using `projectId` from config
 - **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}` using `projectId` and `designSystemId` from config
-- **THEN** CLI MUST include `Authorization: ProjectKey <api_key>`
+- **THEN** CLI MUST передать `Authorization: Bearer <PAT>` или Bearer OAuth access token согласно выбранному типу учётных данных
 
 #### Scenario: Status показывает только результат проверки
 
@@ -254,18 +254,18 @@ The `dsbuilder` CLI SHALL provide a `status` command that verifies the configure
 - **THEN** CLI MUST print project `name` from project response
 - **THEN** CLI MUST print design system `name` from design system response
 - **THEN** CLI MUST NOT print the project list
-- **THEN** CLI MUST NOT print the raw API key
+- **THEN** CLI MUST NOT print the секрет PAT
 
 #### Scenario: Status сообщает об ошибке авторизации
 
 - **WHEN** backend returns `401`, `403`, or `404` for `dsbuilder status`
 - **THEN** CLI MUST map the response through common CLI core HTTP error handling
-- **THEN** CLI MUST print a deterministic failure message without raw API key values
+- **THEN** CLI MUST print a deterministic failure message without секрет PAT values
 
 #### Scenario: Status не использует user-scoped project list
 
 - **WHEN** developer runs `dsbuilder status`
-- **THEN** CLI MUST NOT call `GET /api/projects` for API key validation
+- **THEN** CLI MUST NOT call `GET /api/projects` for проверки авторизации
 - **THEN** CLI MUST validate only the project configured in `.sdds/config.json`
 
 ### Requirement: CLI feature backend integration boundary

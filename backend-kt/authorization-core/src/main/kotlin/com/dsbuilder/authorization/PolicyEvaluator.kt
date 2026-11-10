@@ -16,10 +16,15 @@ class PolicyEvaluator(private val loaded: LoadedAuthorizationPolicy) {
         return when (principal.type) {
             ProjectActorType.USER ->
                 permission in loaded.effectiveRoleGrants[principal.projectRole?.lowercase()].orEmpty()
-            ProjectActorType.PROJECT_KEY -> permission in principal.projectScopes
+            ProjectActorType.PERSONAL_ACCESS_TOKEN ->
+                permission in principal.projectScopes &&
+                    (
+                        (principal.systemAdmin && policy.overrides.systemAdmin.allowAll) ||
+                            permission in loaded.effectiveRoleGrants[principal.projectRole?.lowercase()].orEmpty()
+                        )
         }
     }
 
     /** Canonical exact scope catalog accepted when creating project keys. */
-    fun projectKeyScopes(): Set<String> = policy.projectKeyScopes.toSet()
+    fun personalAccessTokenScopes(): Set<String> = policy.personalAccessTokenScopes.toSet()
 }

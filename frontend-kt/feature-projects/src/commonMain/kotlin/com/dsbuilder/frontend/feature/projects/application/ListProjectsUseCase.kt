@@ -28,9 +28,9 @@ public class ListProjectsUseCase(
      *
      * @param apiUrlOverride опциональный override backend API URL.
      */
-    public suspend fun execute(apiUrlOverride: String? = null): ProjectsReadResult {
+    public suspend fun execute(apiUrlOverride: String? = null, credentialEnvName: String? = null): ProjectsReadResult {
         val apiUrl = apiUrlResolver.resolve(apiUrlOverride).value
-        return when (val access = sessionResolver.resolve(apiUrl)) {
+        return when (val access = sessionResolver.resolve(apiUrl, credentialEnvName)) {
             is CredentialResult.Selected -> projectsClient.listProjects(apiUrl, access.credential)
             is CredentialResult.Failed -> ProjectsReadResult.Failed(
                 PROJECT_SESSION_FAILURES[access.code] ?: ProjectsReadErrorCode.BACKEND_UNAVAILABLE,
@@ -45,6 +45,7 @@ public class ListProjectsUseCase(
 }
 
 private val PROJECT_SESSION_FAILURES = mapOf(
+    AuthErrorCode.PAT_INVALID to ProjectsReadErrorCode.PAT_INVALID,
     AuthErrorCode.AUTH_REQUIRED to ProjectsReadErrorCode.AUTH_REQUIRED,
     AuthErrorCode.FORBIDDEN to ProjectsReadErrorCode.FORBIDDEN,
 )

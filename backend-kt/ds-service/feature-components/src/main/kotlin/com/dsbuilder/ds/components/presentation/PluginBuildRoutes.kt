@@ -67,7 +67,7 @@ private fun Route.pluginBuildPublishRoute(
             val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             // Роль проверяется до чтения тела: отказанный вызывающий ничего не загружает.
-            if (!context.principal.systemAdmin && !context.principal.composePreviewPublisher) {
+            if (!context.principal.globalAdmin && !context.principal.composePreviewPublisher) {
                 return@post call.respondFailure(DsFailure.Forbidden)
             }
             val dryRun = call.request.queryParameters["dryRun"]?.toBooleanStrictOrNull() ?: true

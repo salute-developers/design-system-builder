@@ -149,7 +149,7 @@ class DsBuilderCliTest {
         ).execute(listOf("status"))
 
         assertEquals(0, result.exitCode, result.output)
-        assertTrue(selected.all { it == BackendCredential.ProjectKey("project-secret") })
+        assertTrue(selected.all { it == BackendCredential.PersonalAccessToken("project-secret") })
         assertTrue(urls.all { it == "https://project.test" })
         assertFalse(result.output.contains("project-secret"))
     }
@@ -176,7 +176,7 @@ class DsBuilderCliTest {
         ).execute(listOf("status"))
 
         assertEquals(0, result.exitCode, result.output)
-        assertTrue(selected.all { it == BackendCredential.ProjectKey("process-secret") })
+        assertTrue(selected.all { it == BackendCredential.PersonalAccessToken("process-secret") })
         assertTrue(urls.all { it == "https://process.test" })
         assertFalse(result.output.contains("process-secret"))
     }
@@ -239,11 +239,11 @@ class DsBuilderCliTest {
         val link = "dsbuilder://projects/project-b/design-systems/ds-b?version=2.0&platform=compose"
 
         val result = DsBuilderCli(runtime).execute(
-            listOf("status", "--design-system", link, "--project-key-env", "CI_PROJECT_KEY"),
+            listOf("status", "--design-system", link, "--api-key", "ci-secret"),
         )
 
         assertEquals(0, result.exitCode, result.output)
-        assertTrue(selected.all { it == BackendCredential.ProjectKey("ci-secret") })
+        assertTrue(selected.all { it == BackendCredential.PersonalAccessToken("ci-secret") })
         assertFalse(result.output.contains("ci-secret"))
     }
 
@@ -260,7 +260,7 @@ class DsBuilderCliTest {
             val result = cli.execute(command + "--help")
             assertEquals(0, result.exitCode, result.output)
             assertTrue(result.output.contains("--design-system"), result.output)
-            assertTrue(result.output.contains("--project-key-env"), result.output)
+            assertFalse(result.output.contains("--project-key-env"), result.output)
         }
     }
 
@@ -1275,7 +1275,7 @@ class DsBuilderCliTest {
         ).execute(
             listOf(
                 "components", "fetch", "--design-system", link,
-                "--project-key-env", "CI_PROJECT_KEY", "--to", "/target/components",
+                "--api-key", "ci-secret", "--to", "/target/components",
                 "--platform", "react",
             ),
         )
@@ -1285,7 +1285,7 @@ class DsBuilderCliTest {
         assertEquals("[]", fileSystem.readText("/target/components/web/web-adapter.json"))
         assertFalse(fileSystem.exists("/repo/.sdds/config.json"))
         assertEquals(2, credentials.size)
-        assertTrue(credentials.all { it == BackendCredential.ProjectKey("ci-secret") })
+        assertTrue(credentials.all { it == BackendCredential.PersonalAccessToken("ci-secret") })
     }
 
     @Test
@@ -1362,7 +1362,7 @@ class DsBuilderCliTest {
         val config = ProjectConfigCodec().decode(fileSystem.readText("/target/.sdds/config.json"))
         assertEquals("project-a", config.projectId)
         assertEquals("design-system-a", config.designSystemId)
-        assertEquals(CredentialReferenceType.USER_SESSION, config.credential.type)
+        assertEquals(CredentialReferenceType.AUTO, config.credential.type)
         assertEquals(listOf("compose"), config.platforms)
         assertTrue(fileSystem.exists("/target/.sdds/tenants/palette.json"))
         assertFalse(fileSystem.exists("/repo/.sdds/config.json"))
@@ -1733,11 +1733,11 @@ class DsBuilderCliTest {
             ),
             events,
         )
-        assertTrue(credentials.all { it is BackendCredential.Bearer })
+        assertTrue(credentials.all { it == BackendCredential.PersonalAccessToken("ignored-key") })
         val config = ProjectConfigCodec().decode(fs.readText("/repo/.sdds/config.json"))
         assertEquals("p2", config.projectId)
         assertEquals("s2", config.designSystemId)
-        assertEquals(CredentialReferenceType.USER_SESSION, config.credential.type)
+        assertEquals(CredentialReferenceType.AUTO, config.credential.type)
         assertEquals(listOf("swiftui"), config.platforms)
         assertFalse(fs.readText("/repo/.sdds/config.json").contains("access-token"))
     }
@@ -1819,7 +1819,7 @@ class DsBuilderCliTest {
             .execute(listOf("init", "--project-id", "p1", "--api-key-env", "CUSTOM_KEY"))
         assertEquals(0, selected.exitCode, selected.output)
         assertEquals(
-            CredentialReference(CredentialReferenceType.ENV, "CUSTOM_KEY"),
+            CredentialReference(CredentialReferenceType.AUTO, "CUSTOM_KEY"),
             ProjectConfigCodec().decode(fresh.readText("/repo/.sdds/config.json")).credential,
         )
         assertEquals(
@@ -1935,7 +1935,7 @@ private class FakeAuthenticatedHttpClientFactory(
     override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient {
         onCredential(credential)
         return when (credential) {
-            is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
+            is BackendCredential.PersonalAccessToken -> create(apiUrl, credential.value)
             is BackendCredential.Bearer -> create(apiUrl, "")
             is BackendCredential.ServiceToken -> create(apiUrl, "")
         }

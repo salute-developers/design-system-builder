@@ -102,7 +102,7 @@ class VersionedReadHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `versioned reads preserve project key scopes and resource ownership`() {
+    fun `versioned reads preserve PAT scopes and resource ownership`() {
         IsolatedPostgresDatabase.create().use { database ->
             testApplication {
                 application { module(configuration(database)) }
@@ -325,7 +325,7 @@ class VersionedReadHttpPostgresIntegrationTest {
         path: String,
         body: String? = null,
         key: String? = null,
-        scopes: String = "",
+        scopes: String = "projects:read",
         project: String = "read-project",
     ): HttpResponse =
         client.request(path) {
@@ -336,8 +336,10 @@ class VersionedReadHttpPostgresIntegrationTest {
                 header("X-User-Id", "read-owner")
                 header("X-Project-Role", "owner")
             } else {
-                header("X-Actor-Type", "project_key")
-                header("X-Project-Key-Id", key)
+                header("X-Actor-Type", "personal_access_token")
+                header("X-Personal-Access-Token-Id", key)
+                header("X-User-Id", "integration-owner")
+                header("X-Project-Role", "owner")
                 header("X-Project-Scopes", scopes)
             }
             header("Idempotency-Key", UUID.randomUUID().toString())

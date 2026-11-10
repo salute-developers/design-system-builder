@@ -1,34 +1,24 @@
 package com.dsbuilder.projects.feature.projects.presentation
 
 import com.dsbuilder.projects.feature.projects.application.IdentityProviderUnavailableException
-import com.dsbuilder.projects.feature.projects.application.port.AccessKeySecretManager
 import com.dsbuilder.projects.feature.projects.application.port.IdentityUser
 import com.dsbuilder.projects.feature.projects.application.port.IdentityUserLookup
 import com.dsbuilder.projects.feature.projects.application.port.ProjectRepository
 import com.dsbuilder.projects.feature.projects.application.port.TransactionManager
 import com.dsbuilder.projects.feature.projects.application.usecase.AddProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ArchiveProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.GetEffectiveProjectRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.GetProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectAccessKeysUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectMembersUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectsUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ProjectAccessPolicy
 import com.dsbuilder.projects.feature.projects.application.usecase.RemoveProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RestoreProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.RevokeProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.SearchProjectMemberCandidatesUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectMemberRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProjectAccessKeyUseCase
-import com.dsbuilder.projects.feature.projects.data.local.AccessKeyConfiguration
-import com.dsbuilder.projects.feature.projects.data.local.AccessKeyHashingConfiguration
-import com.dsbuilder.projects.feature.projects.domain.model.AccessKeyScope
 import com.dsbuilder.projects.feature.projects.domain.model.Project
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKey
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKeyStatus
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
@@ -56,9 +46,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.days
 
 class ProjectRoutesTest {
     private val clock = Clock.fixed(Instant.parse("2024-01-01T00:00:00Z"), ZoneOffset.UTC)
@@ -203,10 +191,10 @@ class ProjectRoutesTest {
             assertTrue(response.bodyAsText().contains("\"ownerEmail\":\"owner@example.com\""))
         }
         val projectKey = client.get("/projects/project-1") {
-            header("X-Actor-Type", "project_key")
-            header("X-User-Id", "key-1")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-User-Id", "viewer")
             header("X-Project-Id", "project-1")
-            header("X-Project-Key-Id", "key-1")
+            header("X-Personal-Access-Token-Id", "pat-1")
             header("X-Project-Scopes", "projects:read")
         }
         assertEquals(HttpStatusCode.OK, projectKey.status)
@@ -392,83 +380,12 @@ class ProjectRoutesTest {
     }
 
     @Test
-    fun `access key endpoints create list verify and revoke key`() = testApplication {
-        val repository = routeRepository().apply {
-            seedProject(
-                Project(
-                    id = "project-1",
-                    name = "Workspace",
-                    description = null,
-                    status = ProjectStatus.ACTIVE,
-                    ownerUserId = "owner-1",
-                    createdAt = Instant.now(clock),
-                    updatedAt = Instant.now(clock),
-                ),
-            )
-        }
-        installTestModule(repository, RouteIdentityUserLookup())
-
-        val createResponse = client.post("/projects/project-1/access-keys") {
-            header("X-User-Id", "owner-1")
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"CLI key","scopes":["projects:read"],"ttlSeconds":3600}""")
-        }
-        assertEquals(HttpStatusCode.Created, createResponse.status)
-
-        val createdJson = Json.parseToJsonElement(createResponse.bodyAsText()).jsonObject
-        val keyId = createdJson["key"]!!.jsonObject["id"]!!.toString().trim('"')
-        val token = createdJson["secret"]!!.toString().trim('"')
-
-        val listResponse = client.get("/projects/project-1/access-keys") {
-            header("X-User-Id", "owner-1")
-        }
-        assertEquals(HttpStatusCode.OK, listResponse.status)
-        assertEquals(true, listResponse.bodyAsText().contains(keyId))
-
-        val verifyResponse = client.post("/internal/access-keys/verify") {
-            contentType(ContentType.Application.Json)
-            setBody("""{"token":"$token"}""")
-        }
-        assertEquals(HttpStatusCode.OK, verifyResponse.status)
-
-        val revokeResponse = client.delete("/projects/project-1/access-keys/$keyId") {
-            header("X-User-Id", "owner-1")
-        }
-        assertEquals(HttpStatusCode.OK, revokeResponse.status)
-    }
-
-    @Test
-    fun `documentation scopes are independent and unknown scopes are rejected`() = testApplication {
-        val repository = routeRepository().apply {
-            seedProject(
-                Project(
-                    id = "project-1",
-                    name = "Workspace",
-                    description = null,
-                    status = ProjectStatus.ACTIVE,
-                    ownerUserId = "owner-1",
-                    createdAt = Instant.now(clock),
-                    updatedAt = Instant.now(clock),
-                ),
-            )
-        }
-        installTestModule(repository, RouteIdentityUserLookup())
-
-        val readOnly = client.post("/projects/project-1/access-keys") {
-            header("X-User-Id", "owner-1")
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"Docs reader","scopes":["documentation:read"],"ttlSeconds":3600}""")
-        }
-        val unknown = client.post("/projects/project-1/access-keys") {
-            header("X-User-Id", "owner-1")
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"Invalid","scopes":["documentation:publish"],"ttlSeconds":3600}""")
-        }
-
-        assertEquals(HttpStatusCode.Created, readOnly.status)
-        assertTrue(readOnly.bodyAsText().contains("documentation:read"))
-        assertFalse(readOnly.bodyAsText().contains("documentation:write"))
-        assertEquals(HttpStatusCode.BadRequest, unknown.status)
+    fun `project access key routes are removed`() = testApplication {
+        installTestModule(routeRepository(), RouteIdentityUserLookup())
+        assertEquals(HttpStatusCode.NotFound, client.get("/projects/p/access-keys").status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/projects/p/access-keys").status)
+        assertEquals(HttpStatusCode.NotFound, client.delete("/projects/p/access-keys/k").status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/internal/access-keys/verify").status)
     }
 
     @Test
@@ -512,25 +429,6 @@ class ProjectRoutesTest {
                         single<IdentityUserLookup> { identityUserLookup }
                         single<ProjectRepository> { repository }
                         single<TransactionManager> { RouteTransactionManager }
-                        single<AccessKeySecretManager> { RouteAccessKeySecretManager }
-                        single {
-                            AccessKeyConfiguration(
-                                keyPrefix = "dsb_pk",
-                                defaultTtl = 30.days,
-                                secretByteLength = 32,
-                                availableScopes = setOf(
-                                    AccessKeyScope.parse("projects:read")!!,
-                                    AccessKeyScope.parse("members:read")!!,
-                                    AccessKeyScope.parse("documentation:read")!!,
-                                    AccessKeyScope.parse("documentation:write")!!,
-                                ),
-                                hashing = AccessKeyHashingConfiguration(
-                                    iterations = 1,
-                                    keyLengthBits = 256,
-                                    saltByteLength = 16,
-                                ),
-                            )
-                        }
                         single { CreateProjectUseCase(get(), get(), get(), get()) }
                         single { ListProjectsUseCase(get(), get(), get()) }
                         single { GetProjectUseCase(get(), get(), get(), get()) }
@@ -542,10 +440,6 @@ class ProjectRoutesTest {
                         single { SearchProjectMemberCandidatesUseCase(get()) }
                         single { UpdateProjectMemberRoleUseCase(get(), get(), get(), get()) }
                         single { RemoveProjectMemberUseCase(get(), get(), get()) }
-                        single { CreateProjectAccessKeyUseCase(get(), get(), get(), get(), get(), get()) }
-                        single { ListProjectAccessKeysUseCase(get(), get(), get()) }
-                        single { RevokeProjectAccessKeyUseCase(get(), get(), get(), get()) }
-                        single { VerifyProjectAccessKeyUseCase(get(), get(), get(), get(), get(), get()) }
                         single { GetEffectiveProjectRoleUseCase(get(), get(), get()) }
                     },
                 )
@@ -562,7 +456,6 @@ private object RouteTransactionManager : TransactionManager {
 private class RouteProjectRepository : ProjectRepository {
     private val projects = linkedMapOf<String, Project>()
     private val members = linkedMapOf<Pair<String, String>, ProjectMember>()
-    private val accessKeys = linkedMapOf<String, ProjectAccessKey>()
 
     override suspend fun createProject(project: Project) {
         projects[project.id] = project
@@ -613,36 +506,6 @@ private class RouteProjectRepository : ProjectRepository {
     override suspend fun removeMember(projectId: String, userId: String): Boolean =
         members.remove(projectId to userId) != null
 
-    override suspend fun createAccessKey(accessKey: ProjectAccessKey) {
-        accessKeys[accessKey.id] = accessKey
-    }
-
-    override suspend fun listAccessKeys(projectId: String): List<ProjectAccessKey> =
-        accessKeys.values.filter { it.projectId == projectId }
-
-    override suspend fun getAccessKey(projectId: String, keyId: String): ProjectAccessKey? =
-        accessKeys[keyId]?.takeIf { it.projectId == projectId }
-
-    override suspend fun getAccessKeyById(keyId: String): ProjectAccessKey? = accessKeys[keyId]
-
-    override suspend fun updateAccessKeyUsage(keyId: String, lastUsedAt: Instant, updatedAt: Instant) {
-        val current = accessKeys[keyId] ?: return
-        accessKeys[keyId] = current.copy(lastUsedAt = lastUsedAt, updatedAt = updatedAt)
-    }
-
-    override suspend fun updateAccessKeyStatus(
-        projectId: String,
-        keyId: String,
-        status: ProjectAccessKeyStatus,
-        revokedAt: Instant?,
-        updatedAt: Instant,
-    ): ProjectAccessKey? {
-        val current = accessKeys[keyId]?.takeIf { it.projectId == projectId } ?: return null
-        return current.copy(revokedAt = revokedAt, updatedAt = updatedAt).also {
-            accessKeys[keyId] = it
-        }
-    }
-
     fun seedProject(project: Project) {
         projects[project.id] = project
     }
@@ -666,12 +529,4 @@ private class RouteIdentityUserLookup : IdentityUserLookup {
         usersByEmail.values.filter { user ->
             listOfNotNull(user.displayName, user.username, user.email).any { it.contains(query, ignoreCase = true) }
         }.take(limit)
-}
-
-private object RouteAccessKeySecretManager : AccessKeySecretManager {
-    override fun generateSecret(): String = "route-secret"
-
-    override fun hashSecret(rawSecret: String): String = "hashed:$rawSecret"
-
-    override fun verifySecret(rawSecret: String, secretHash: String): Boolean = secretHash == "hashed:$rawSecret"
 }

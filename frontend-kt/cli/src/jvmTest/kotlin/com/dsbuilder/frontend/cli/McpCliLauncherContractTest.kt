@@ -16,17 +16,7 @@ private const val PROCESS_TIMEOUT_SECONDS = 10L
 class McpCliLauncherContractTest {
     @Test
     fun mcpServeRespondsToInitializeAndToolsListOverSubprocessStdio() {
-        val process = ProcessBuilder(
-            javaBinary(),
-            "-Duser.home=${Files.createTempDirectory("dsbuilder-mcp-test-home")}",
-            "-cp",
-            System.getProperty("java.class.path"),
-            "com.dsbuilder.frontend.cli.MainKt",
-            "mcp",
-            "serve",
-        )
-            .directory(File(System.getProperty("java.io.tmpdir")))
-            .start()
+        val process = startUnauthenticatedServer()
         try {
             val stdin = process.outputStream.bufferedWriter()
             val stdout = process.inputStream.bufferedReader()
@@ -78,6 +68,22 @@ class McpCliLauncherContractTest {
             process.destroyForcibly()
         }
     }
+
+    private fun startUnauthenticatedServer(): Process = ProcessBuilder(
+        javaBinary(),
+        "-Duser.home=${Files.createTempDirectory("dsbuilder-mcp-test-home")}",
+        "-cp",
+        System.getProperty("java.class.path"),
+        "com.dsbuilder.frontend.cli.MainKt",
+        "mcp",
+        "serve",
+    )
+        .directory(File(System.getProperty("java.io.tmpdir")))
+        .apply {
+            environment().remove("DSBUILDER_API_KEY")
+            environment().remove("DSBUILDER_API_URL")
+        }
+        .start()
 
     private fun javaBinary(): String =
         File(File(System.getProperty("java.home"), "bin"), "java").path

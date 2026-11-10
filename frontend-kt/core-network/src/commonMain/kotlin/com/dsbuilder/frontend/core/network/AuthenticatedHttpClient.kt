@@ -102,13 +102,13 @@ public data class AuthenticatedHttpResponse(
  */
 public interface AuthenticatedHttpClient {
     /**
-     * Выполняет GET request относительно resolved API URL и добавляет `Authorization: ProjectKey <apiKey>`.
+     * Выполняет GET request относительно resolved API URL и добавляет `Authorization: Bearer <PAT>`.
      */
     public suspend fun get(path: String): AuthenticatedHttpResult
 
     /**
      * Выполняет POST request с JSON-телом относительно resolved API URL и добавляет
-     * `Authorization: ProjectKey <apiKey>`.
+     * `Authorization: Bearer <PAT>`.
      *
      * Ошибки backend отображаются так же, как у чтения.
      */
@@ -143,7 +143,7 @@ public interface AuthenticatedHttpClientFactory {
         credential: BackendCredential,
     ): AuthenticatedHttpClient =
         when (credential) {
-            is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
+            is BackendCredential.PersonalAccessToken -> create(apiUrl, credential.value)
             is BackendCredential.Bearer -> error("Bearer credentials are not supported by this client.")
             is BackendCredential.ServiceToken -> error("Service tokens are not supported by this client.")
         }
@@ -306,7 +306,7 @@ public class KtorAuthenticatedHttpClient(
         val value = when (credential) {
             is BackendCredential.Bearer -> "Bearer ${credential.accessToken}"
             is BackendCredential.ServiceToken -> "Bearer ${credential.accessToken}"
-            is BackendCredential.ProjectKey -> "ProjectKey ${credential.value}"
+            is BackendCredential.PersonalAccessToken -> "Bearer ${credential.value}"
         }
         header(HttpHeaders.Authorization, value)
     }
@@ -321,7 +321,7 @@ public class KtorAuthenticatedHttpClientFactory(
     override fun create(
         apiUrl: String,
         apiKey: String,
-    ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.ProjectKey(apiKey))
+    ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
 
     override fun create(
         apiUrl: String,

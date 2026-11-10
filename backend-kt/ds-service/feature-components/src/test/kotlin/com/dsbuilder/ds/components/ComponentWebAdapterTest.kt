@@ -60,9 +60,11 @@ class ComponentWebAdapterTest {
     fun `rejects a key without components read before touching the repository`() = runBlocking {
         val repository = RecordingWebAdapterRepository(listOf(entry()))
         val key = ProjectPrincipal(
-            type = ProjectActorType.PROJECT_KEY,
+            type = ProjectActorType.PERSONAL_ACCESS_TOKEN,
             actorId = "key-1",
             projectId = "project-1",
+            personalAccessTokenId = "pat",
+            projectRole = "owner",
             projectScopes = setOf("tokens:read"),
         )
 

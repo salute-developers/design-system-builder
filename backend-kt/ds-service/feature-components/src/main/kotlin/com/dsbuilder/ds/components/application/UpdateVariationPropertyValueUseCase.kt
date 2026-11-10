@@ -19,6 +19,6 @@ class UpdateVariationPropertyValueUseCase(
         id: UUID,
         command: PropertyValueRepository.ValueUpdate,
     ): DsResult<VariationPropertyValue> = modelMutate(policy, transactions, context) {
-        repository.updateVariation(context.projectId, context.principal.systemAdmin, id, command)
+        repository.updateVariation(context.projectId, context.principal.globalAdmin, id, command)
     }
 }

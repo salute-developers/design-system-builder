@@ -80,8 +80,10 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.BadRequest, get("$path/not-a-uuid/editor-bundle?platform=web").status)
 
         val withoutScope = service.builder.client.get("$path/${fixture.webButton}/editor-bundle?platform=web") {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "key-1")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "key-1")
+            header("X-User-Id", "integration-owner")
+            header("X-Project-Role", "owner")
             header("X-Project-Id", "project-a")
             header("X-Project-Scopes", "components:read")
         }

@@ -1,13 +1,9 @@
 package com.dsbuilder.projects.feature.projects.data.local
 
 import com.dsbuilder.projects.feature.projects.application.port.ProjectRepository
-import com.dsbuilder.projects.feature.projects.data.local.db.ProjectAccessKeysTable
 import com.dsbuilder.projects.feature.projects.data.local.db.ProjectMembersTable
 import com.dsbuilder.projects.feature.projects.data.local.db.ProjectsTable
-import com.dsbuilder.projects.feature.projects.domain.model.AccessKeyScope
 import com.dsbuilder.projects.feature.projects.domain.model.Project
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKey
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKeyStatus
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
@@ -134,74 +130,6 @@ internal class ExposedProjectRepository : ProjectRepository {
                 (ProjectMembersTable.userId eq userId)
         } > 0
 
-    override suspend fun createAccessKey(accessKey: ProjectAccessKey) {
-        ProjectAccessKeysTable.insert {
-            it[id] = accessKey.id
-            it[projectId] = accessKey.projectId
-            it[name] = accessKey.name
-            it[scopes] = accessKey.scopes.joinToString(",") { scope -> scope.value }
-            it[secretHash] = accessKey.secretHash
-            it[status] = accessKey.status().name.lowercase()
-            it[createdByUserId] = accessKey.createdByUserId
-            it[expiresAt] = accessKey.expiresAt
-            it[revokedAt] = accessKey.revokedAt
-            it[lastUsedAt] = accessKey.lastUsedAt
-            it[createdAt] = accessKey.createdAt
-            it[updatedAt] = accessKey.updatedAt
-        }
-    }
-
-    override suspend fun listAccessKeys(projectId: String): List<ProjectAccessKey> =
-        ProjectAccessKeysTable
-            .select(ProjectAccessKeysTable.columns)
-            .where { ProjectAccessKeysTable.projectId eq projectId }
-            .map { it.toAccessKey() }
-            .sortedBy { it.createdAt }
-
-    override suspend fun getAccessKey(projectId: String, keyId: String): ProjectAccessKey? =
-        ProjectAccessKeysTable
-            .select(ProjectAccessKeysTable.columns)
-            .where {
-                (ProjectAccessKeysTable.projectId eq projectId) and
-                    (ProjectAccessKeysTable.id eq keyId)
-            }
-            .singleOrNull()
-            ?.toAccessKey()
-
-    override suspend fun getAccessKeyById(keyId: String): ProjectAccessKey? =
-        ProjectAccessKeysTable
-            .select(ProjectAccessKeysTable.columns)
-            .where { ProjectAccessKeysTable.id eq keyId }
-            .singleOrNull()
-            ?.toAccessKey()
-
-    override suspend fun updateAccessKeyUsage(keyId: String, lastUsedAt: Instant, updatedAt: Instant) {
-        ProjectAccessKeysTable.update({ ProjectAccessKeysTable.id eq keyId }) {
-            it[ProjectAccessKeysTable.lastUsedAt] = lastUsedAt
-            it[ProjectAccessKeysTable.updatedAt] = updatedAt
-        }
-    }
-
-    override suspend fun updateAccessKeyStatus(
-        projectId: String,
-        keyId: String,
-        status: ProjectAccessKeyStatus,
-        revokedAt: Instant?,
-        updatedAt: Instant,
-    ): ProjectAccessKey? {
-        ProjectAccessKeysTable.update(
-            where = {
-                (ProjectAccessKeysTable.projectId eq projectId) and
-                    (ProjectAccessKeysTable.id eq keyId)
-            },
-        ) {
-            it[ProjectAccessKeysTable.status] = status.name.lowercase()
-            it[ProjectAccessKeysTable.revokedAt] = revokedAt
-            it[ProjectAccessKeysTable.updatedAt] = updatedAt
-        }
-        return getAccessKey(projectId, keyId)
-    }
-
     private fun ResultRow.toProject(): Project =
         Project(
             id = this[ProjectsTable.id],
@@ -221,29 +149,4 @@ internal class ExposedProjectRepository : ProjectRepository {
             createdAt = this[ProjectMembersTable.createdAt],
             updatedAt = this[ProjectMembersTable.updatedAt],
         )
-
-    private fun ResultRow.toAccessKey(): ProjectAccessKey =
-        ProjectAccessKey(
-            id = this[ProjectAccessKeysTable.id],
-            projectId = this[ProjectAccessKeysTable.projectId],
-            name = this[ProjectAccessKeysTable.name],
-            scopes = this[ProjectAccessKeysTable.scopes]
-                .split(',')
-                .mapNotNull { AccessKeyScope.parse(it) }
-                .toSet(),
-            secretHash = this[ProjectAccessKeysTable.secretHash],
-            createdByUserId = this[ProjectAccessKeysTable.createdByUserId],
-            expiresAt = this[ProjectAccessKeysTable.expiresAt],
-            revokedAt = this[ProjectAccessKeysTable.revokedAt],
-            lastUsedAt = this[ProjectAccessKeysTable.lastUsedAt],
-            createdAt = this[ProjectAccessKeysTable.createdAt],
-            updatedAt = this[ProjectAccessKeysTable.updatedAt],
-        )
-
-    private fun ProjectAccessKey.status(): ProjectAccessKeyStatus =
-        if (revokedAt != null) {
-            ProjectAccessKeyStatus.REVOKED
-        } else {
-            ProjectAccessKeyStatus.ACTIVE
-        }
 }

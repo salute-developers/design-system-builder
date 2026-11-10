@@ -18,13 +18,12 @@ class DsServiceOwnershipVerifier(private val client: HttpClient, baseUrl: String
 
     override suspend fun verify(id: String, actor: ActorContext): OwnershipResult = try {
         val response = client.get("$baseUrl/api/ds/design-systems/${id.encodeURLPathPart()}") {
-            header("X-Actor-Type", if (actor.type == ActorType.USER) "user" else "project_key")
+            header("X-Actor-Type", actor.type.name.lowercase())
             header("X-Project-Id", actor.projectId)
-            if (actor.type == ActorType.USER) {
-                header("X-User-Id", actor.actorId)
-                actor.projectRole?.let { header("X-Project-Role", it) }
-            } else {
-                header("X-Project-Key-Id", actor.actorId)
+            header("X-User-Id", actor.actorId)
+            actor.projectRole?.let { header("X-Project-Role", it) }
+            actor.personalAccessTokenId?.let { header("X-Personal-Access-Token-Id", it) }
+            if (actor.type == ActorType.PERSONAL_ACCESS_TOKEN) {
                 header("X-Project-Scopes", actor.projectScopes.joinToString(","))
             }
             header("X-System-Admin", actor.systemAdmin.toString())

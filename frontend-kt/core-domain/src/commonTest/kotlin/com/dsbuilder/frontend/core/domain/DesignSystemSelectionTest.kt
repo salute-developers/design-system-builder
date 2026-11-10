@@ -32,7 +32,7 @@ class DesignSystemSelectionTest {
                     TargetPlatform.COMPOSE,
                 ),
                 provenance = ContextProvenance.EXPLICIT_LINK,
-                credentialPolicy = CredentialPolicy.PROJECT_KEY_ENV,
+                credentialPolicy = CredentialPolicy.PAT_ENV,
             )
         }
     }

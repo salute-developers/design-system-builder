@@ -26,10 +26,10 @@ class AddAppearanceAxisValueUseCase(
         policy, transactions, repeatedRequests, context, idempotencyKey, "add-appearance-axis-value",
         listOf(appearanceId, axisId, command),
         { id ->
-            repository.model(context.projectId, context.principal.systemAdmin, appearanceId, null)
+            repository.model(context.projectId, context.principal.globalAdmin, appearanceId, null)
                 ?.axes?.flatMap { it.values }?.firstOrNull { it.id == id }
         },
-        { repository.addAxisValue(context.projectId, context.principal.systemAdmin, appearanceId, axisId, command) },
+        { repository.addAxisValue(context.projectId, context.principal.globalAdmin, appearanceId, axisId, command) },
         EditorAxisValue::id,
     )
 }

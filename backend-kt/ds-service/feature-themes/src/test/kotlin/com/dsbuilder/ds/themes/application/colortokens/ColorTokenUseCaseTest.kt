@@ -627,7 +627,14 @@ class ColorTokenUseCaseTest {
     )
 
     private fun key(vararg scopes: String) = DsRequestContext(
-        ProjectPrincipal(ProjectActorType.PROJECT_KEY, "key-1", "project-1", projectScopes = scopes.toSet()),
+        ProjectPrincipal(
+            ProjectActorType.PERSONAL_ACCESS_TOKEN,
+            "key-1",
+            "project-1",
+            personalAccessTokenId = "pat",
+            projectRole = "owner",
+            projectScopes = scopes.toSet(),
+        ),
         "correlation-1",
     )
 

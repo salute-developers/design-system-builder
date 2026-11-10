@@ -19,6 +19,6 @@ class ReorderAppearanceStatesUseCase(
         appearanceId: UUID,
         command: AppearanceEditorRepository.StateOrder,
     ): DsResult<List<EditorPropertyValue>> = modelMutate(policy, transactions, context) {
-        repository.reorderStates(context.projectId, context.principal.systemAdmin, appearanceId, command)
+        repository.reorderStates(context.projectId, context.principal.globalAdmin, appearanceId, command)
     }
 }

@@ -4,10 +4,8 @@ export { themesApi } from '../modules/themes/data/themesApi';
 
 export type {
     Project as ProjectDto,
-    ProjectAccessKey as ProjectAccessKeyDto,
     ProjectMember as ProjectMemberDto,
     ProjectMemberCandidate as ProjectMemberCandidateDto,
-    CreatedProjectAccessKey as CreatedProjectAccessKeyDto,
     ProjectRole,
 } from '../modules/projects/domain/project';
 export type { DesignSystem as DesignSystemDto } from '../modules/designSystems/domain/designSystem';

@@ -16,6 +16,6 @@ class GetInvariantPropertyValueUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<InvariantPropertyValue> =
         modelFind(policy, transactions, context) {
-            repository.findInvariant(context.projectId, context.principal.systemAdmin, id)
+            repository.findInvariant(context.projectId, context.principal.globalAdmin, id)
         }
 }

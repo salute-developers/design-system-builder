@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.ds.data
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.feature.ds.application.ModelReadCommand
@@ -16,7 +17,7 @@ internal class HttpModelReadRemoteSource(private val clients: AuthenticatedHttpC
             command,
         )
         return when (val response = clients.create(runtime.apiUrl, runtime.credential).get(request.url)) {
-            is AuthenticatedHttpResult.Failure -> modelReadFailure(response.statusCode)
+            is AuthenticatedHttpResult.Failure -> modelReadFailure(response.statusCode, runtime.credential)
             is AuthenticatedHttpResult.Success -> ModelReadResponseDecoder.decode(
                 response,
                 command,
@@ -27,15 +28,20 @@ internal class HttpModelReadRemoteSource(private val clients: AuthenticatedHttpC
     }
 }
 
-internal fun modelReadFailure(status: Int?): ModelReadResult.Failed = ModelReadResult.Failed(
+internal fun modelReadFailure(
+    status: Int?,
+    credential: BackendCredential,
+): ModelReadResult.Failed = ModelReadResult.Failed(
     when (status) {
         400 -> "INVALID_QUERY"
-        401 -> "AUTH_REQUIRED"
+        401 -> if (credential is BackendCredential.PersonalAccessToken) "PAT_INVALID" else "AUTH_REQUIRED"
         403 -> "FORBIDDEN"
         404 -> "NOT_FOUND"
         else -> "BACKEND_UNAVAILABLE"
     },
-    if (status == 401) {
+    if (status == 401 && credential is BackendCredential.PersonalAccessToken) {
+        "PAT is invalid or expired (HTTP 401)."
+    } else if (status == 401) {
         "Authentication required (HTTP 401). Run dsbuilder auth login and retry."
     } else {
         "Model read failed${status?.let { " (HTTP $it)" }.orEmpty()}."

@@ -12,3 +12,5 @@ includeBuild("../ds-service")
 includeBuild("../documentation-service")
 includeBuild("../authorization-core")
 includeBuild("../runtime-contracts")
+
+includeBuild("../feature-user-settings")

@@ -19,6 +19,6 @@ class UpdatePropertyUseCase(
         id: UUID,
         command: ComponentModelRepository.PropertyUpdate,
     ): DsResult<ComponentPropertySummary> = modelMutate(policy, transactions, context) {
-        repository.updateProperty(context.projectId, context.principal.systemAdmin, id, command)
+        repository.updateProperty(context.projectId, context.principal.globalAdmin, id, command)
     }
 }

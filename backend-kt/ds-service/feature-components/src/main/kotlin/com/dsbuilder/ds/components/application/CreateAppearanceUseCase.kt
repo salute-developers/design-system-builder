@@ -24,8 +24,8 @@ class CreateAppearanceUseCase(
         idempotencyKey: String? = null,
     ): DsResult<Appearance> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-appearance", command,
-        { repository.find(context.projectId, context.principal.systemAdmin, it) },
-        { repository.create(context.projectId, context.principal.systemAdmin, command) },
+        { repository.find(context.projectId, context.principal.globalAdmin, it) },
+        { repository.create(context.projectId, context.principal.globalAdmin, command) },
         Appearance::id,
         validateCreate = {
             val normalizedName = command.name?.trim()?.lowercase()
@@ -38,7 +38,7 @@ class CreateAppearanceUseCase(
             if (
                 repository.nameExists(
                     context.projectId,
-                    context.principal.systemAdmin,
+                    context.principal.globalAdmin,
                     command.designSystemId,
                     command.componentId,
                     normalizedName,

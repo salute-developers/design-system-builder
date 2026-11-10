@@ -26,7 +26,7 @@ class GetComponentTokenReferencesUseCase(
         transactions.readOnly(context, ModelReadTarget(ModelReadTarget.Kind.APPEARANCE, appearanceId)) { selected ->
             val model = repository.model(
                 selected.projectId,
-                selected.principal.systemAdmin,
+                selected.principal.globalAdmin,
                 appearanceId,
                 selected.versionId,
             ) ?: return@readOnly DsResult.Failure(DsFailure.NotFound)

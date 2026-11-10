@@ -24,14 +24,14 @@ class CreateVariationUseCase(
         idempotencyKey: String? = null,
     ): DsResult<ComponentVariationSummary> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-variation", command,
-        { repository.findVariation(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createVariation(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findVariation(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createVariation(context.projectId, context.principal.globalAdmin, command) },
         ComponentVariationSummary::id,
         validateCreate = {
             val normalizedName = command.name.trim().lowercase()
             if (!repository.canCreateVariation(
                     context.projectId,
-                    context.principal.systemAdmin,
+                    context.principal.globalAdmin,
                     command.designSystemId,
                     command.componentId,
                 )

@@ -15,6 +15,6 @@ class DeleteStyleCombinationMemberUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> =
         modelDelete(policy, transactions, context) {
-            repository.deleteMember(context.projectId, context.principal.systemAdmin, id)
+            repository.deleteMember(context.projectId, context.principal.globalAdmin, id)
         }
 }
