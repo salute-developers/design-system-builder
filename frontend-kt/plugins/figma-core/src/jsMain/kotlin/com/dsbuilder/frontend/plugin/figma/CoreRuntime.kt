@@ -22,6 +22,7 @@ import com.dsbuilder.frontend.feature.theme.application.DesignSystemTenantsResul
 import com.dsbuilder.frontend.feature.theme.data.HttpDesignSystemTenantsClient
 import com.dsbuilder.frontend.plugin.figma.export.ExportThemeInfo
 import com.dsbuilder.frontend.plugin.figma.export.FigmaExportPlanner
+import com.dsbuilder.frontend.plugin.figma.export.WEB
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.plugin
@@ -192,7 +193,9 @@ internal class CoreRuntime(
     /** План экспорта темы в Figma: все разделы читаются на одной границе версии, затем строится план. */
     suspend fun exportPlan(context: ThemeContext, versionId: String?, themeName: String, platform: String): String {
         val source = read { probe, credential ->
-            HttpThemeTokensClient(probe).exportSource(gatewayUrl, credential, context, versionId).valueOrNull()
+            HttpThemeTokensClient(probe)
+                .exportSource(gatewayUrl, credential, context, versionId, listOf(platform, WEB).distinct())
+                .valueOrNull()
         }
         return buildPlan(
             source,

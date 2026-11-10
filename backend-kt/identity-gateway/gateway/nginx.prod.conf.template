@@ -325,6 +325,16 @@ http {
 
             limit_req zone=project_api burst=20 nodelay;
             limit_conn ds_route_connections 16;
+
+            # JSON маршрутов дизайн-системы сжимается: значения темы весят мегабайты (gateway-response-compression).
+            # Поток событий text/event-stream не входит в gzip_types и не копится в буфере сжатия.
+            gzip on;
+            gzip_types application/json;
+            gzip_min_length 1024;
+            gzip_comp_level 5;
+            gzip_proxied any;
+            gzip_vary on;
+
             auth_request /_auth_project;
             auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
             auth_request_set $trusted_user_id $upstream_http_x_user_id;

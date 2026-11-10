@@ -283,6 +283,12 @@ const ExportResult = ({
         {report.fontFiles.length > 0 && (
             <FontArchiveButton families={report.fontFiles} load={loadFont} pack={packZip} />
         )}
+        {report.timing && (
+            <p className="export-hint" data-testid="export-timing">
+                Загрузка данных — {seconds(report.timing.loadMs)} с, запись в Figma — {seconds(report.timing.writeMs)}{' '}
+                с.
+            </p>
+        )}
         <p className="export-hint">
             Выключенные в DS Builder токены не экспортируются: {report.omitted.disabled}. Устаревшие объекты остаются в
             файле.
@@ -298,6 +304,9 @@ const errorText = (error: unknown) => {
 };
 
 /** Экспорт выбранной темы и версии в переменные и стили открытого файла Figma. */
+/** Секунды с одним знаком и запятой: `2,4`. */
+const seconds = (ms: number) => (ms / 1000).toFixed(1).replace('.', ',');
+
 const PLATFORMS: Record<ExportPlatform, string> = { web: 'Web', ios: 'iOS', android: 'Android' };
 
 const ExportPanel = ({
@@ -455,8 +464,13 @@ export const TokensView = ({
                       : undefined) ?? ''
               }`;
     const runExport = versionId
-        ? async (platform: ExportPlatform) =>
-              applyExport(await api.exportPlan(context, versionId === DRAFT ? null : versionId, themeName, platform))
+        ? async (platform: ExportPlatform) => {
+              const started = performance.now();
+              const plan = await api.exportPlan(context, versionId === DRAFT ? null : versionId, themeName, platform);
+              const loaded = performance.now();
+              const report = await applyExport(plan);
+              return { ...report, timing: { loadMs: loaded - started, writeMs: performance.now() - loaded } };
+          }
         : null;
 
     const snapshotView = missing

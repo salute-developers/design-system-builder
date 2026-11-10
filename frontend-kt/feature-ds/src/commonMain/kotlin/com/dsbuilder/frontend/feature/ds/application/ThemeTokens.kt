@@ -36,12 +36,13 @@ public interface ThemeTokensClient {
 
     /**
      * Всё для экспорта темы в Figma на одной границе версии: поля [tokens] и, дополнительно, `palette` — палитра темы
-     * и `groups` — группы токенов дизайн-системы.
+     * и `groups` — группы токенов дизайн-системы. Непустой [platforms] сужает значения токенов до этих платформ.
      */
     public suspend fun exportSource(
         apiUrl: String,
         credential: BackendCredential,
         context: ThemeContext,
         versionId: String?,
+        platforms: List<String> = emptyList(),
     ): ModelReadResult
 }

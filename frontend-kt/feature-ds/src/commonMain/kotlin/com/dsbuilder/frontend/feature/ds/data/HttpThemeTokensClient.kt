@@ -43,9 +43,14 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
         credential: BackendCredential,
         context: ThemeContext,
         versionId: String?,
+        platforms: List<String>,
     ): ModelReadResult {
         val version = versionId?.let { "versionId=${encodeModelSegment(it)}" }
-        val types = "types=${encodeModelSegment(EXPORT_VALUE_TYPES)}"
+        // Без платформ ответ несёт все три: экспорту нужна выбранная и web как запасная.
+        val platformFilter = platforms.takeIf { it.isNotEmpty() }
+            ?.let { "&platforms=${encodeModelSegment(it.joinToString(","))}" }
+            .orEmpty()
+        val types = "types=${encodeModelSegment(EXPORT_VALUE_TYPES)}$platformFilter"
         val paths = sections(context, versionId) + mapOf(
             "values" to "${tenant(context)}/token-values${query(version, types)}",
             "palette" to "${tenant(context)}/palette${query(version)}",

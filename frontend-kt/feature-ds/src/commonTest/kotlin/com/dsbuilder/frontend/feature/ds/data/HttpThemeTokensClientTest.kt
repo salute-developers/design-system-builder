@@ -70,12 +70,13 @@ class HttpThemeTokensClientTest {
 
     @Test
     fun readsExportSourceOnOneVersionBoundary() = runTest {
-        val result = client { "{}" }.exportSource("https://gw", credential, context, "v1")
+        val result = client { "{}" }.exportSource("https://gw", credential, context, "v1", listOf("ios", "web"))
 
         assertEquals(
             setOf(
                 "/api/projects/p%201/ds/design-systems/ds1/tokens?versionId=v1",
-                "/api/projects/p%201/ds/tenants/t1/token-values?versionId=v1&types=color%2Cgradient%2CfontFamily",
+                "/api/projects/p%201/ds/tenants/t1/token-values?versionId=v1" +
+                    "&types=color%2Cgradient%2CfontFamily&platforms=ios%2Cweb",
                 "/api/projects/p%201/ds/tenants/t1/typography-styles?versionId=v1",
                 "/api/projects/p%201/ds/tenants/t1/size-tokens?versionId=v1",
                 "/api/projects/p%201/ds/tenants/t1/palette?versionId=v1",

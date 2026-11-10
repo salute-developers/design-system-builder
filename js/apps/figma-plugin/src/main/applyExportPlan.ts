@@ -253,11 +253,14 @@ const writeVariables = async (
                     target = figma.variables.createVariable(variable.name, collection, variable.type);
                     target.setSharedPluginData(NAMESPACE, KEY, variable.key);
                 }
-                if (designSystem) target.setSharedPluginData(NAMESPACE, DESIGN_SYSTEM, designSystem);
-                target.name = variable.name;
+                // Повторный экспорт меняет только то, что отличается: каждая запись в документ стоит времени.
+                if (designSystem && target.getSharedPluginData(NAMESPACE, DESIGN_SYSTEM) !== designSystem) {
+                    target.setSharedPluginData(NAMESPACE, DESIGN_SYSTEM, designSystem);
+                }
+                if (target.name !== variable.name) target.name = variable.name;
                 originalNames.delete(target);
                 owners.set(variable.name, target);
-                target.scopes = variable.scopes as VariableScope[];
+                if (!same(target.scopes, variable.scopes)) target.scopes = variable.scopes as VariableScope[];
                 written.set(variable.key, target);
             }
         }
@@ -274,8 +277,9 @@ const writeVariables = async (
             for (const [mode, value] of Object.entries(variable.values)) {
                 const modeId = modes.get(mode);
                 const resolved = modeId ? figmaValue(value, lookup, figma) : null;
-                if (modeId && resolved !== null) target.setValueForMode(modeId, resolved);
-                else if (!modeId) skip({ name: variable.name, reason: `в коллекции нет режима ${mode}` });
+                if (modeId && resolved !== null) {
+                    if (!same(target.valuesByMode[modeId], resolved)) target.setValueForMode(modeId, resolved);
+                } else if (!modeId) skip({ name: variable.name, reason: `в коллекции нет режима ${mode}` });
                 else skip({ name: variable.name, reason: `нет переменной для ссылки в режиме ${mode}` });
             }
         }
@@ -340,6 +344,25 @@ const parseModes = (raw: string): Record<string, string> => {
     } catch {
         return {};
     }
+};
+
+/** Допуск сравнения чисел: Figma хранит каналы цвета во float32, и прочитанное значение чуть отличается. */
+const EPSILON = 1e-4;
+
+/** Равенство значений Figma: структурное, числа — с допуском [EPSILON]. */
+export const same = (current: unknown, next: unknown): boolean => {
+    if (typeof current === 'number' && typeof next === 'number') return Math.abs(current - next) <= EPSILON;
+    if (Array.isArray(current) && Array.isArray(next)) {
+        return current.length === next.length && current.every((item, index) => same(item, next[index]));
+    }
+    if (current && next && typeof current === 'object' && typeof next === 'object') {
+        const keys = Object.keys(next);
+        return (
+            keys.length === Object.keys(current).length &&
+            keys.every((key) => same((current as Record<string, unknown>)[key], (next as Record<string, unknown>)[key]))
+        );
+    }
+    return current === next;
 };
 
 const figmaValue = (
@@ -441,6 +464,13 @@ const writeTextStyles = async (
     report.stale.textStyles = staleCount(existing, styles);
     if (!styles.length) return;
     const fonts = await figma.listAvailableFontsAsync();
+    // Начертание загружается один раз на экспорт, а не на каждый стиль: у темы десятки стилей одного шрифта.
+    const loading = new Map<string, Promise<void>>();
+    const load = (font: FontName) => {
+        const id = `${font.family}\u0000${font.style}`;
+        if (!loading.has(id)) loading.set(id, figma.loadFontAsync(font));
+        return loading.get(id)!;
+    };
     for (const planned of styles) {
         const font = fontFor(fonts, planned.fontFamily, planned.fontWeight);
         const familyMissing = !fonts.some((item) => item.fontName.family === planned.fontFamily);
@@ -454,7 +484,7 @@ const writeTextStyles = async (
             continue;
         }
         try {
-            await figma.loadFontAsync(font);
+            await load(font);
         } catch (error) {
             skip({ name: planned.name, reason: `шрифт ${font.family} ${font.style} не загрузился: ${String(error)}` });
             continue;

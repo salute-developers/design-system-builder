@@ -156,4 +156,6 @@ export interface ExportReport {
     fontFiles: PlanFontFamily[];
     /** Причина, по которой запись прекратилась; созданное до неё остаётся. */
     failure?: string;
+    /** Время загрузки данных и построения плана и время записи в документ, мс; заполняет окно. */
+    timing?: { loadMs: number; writeMs: number };
 }
