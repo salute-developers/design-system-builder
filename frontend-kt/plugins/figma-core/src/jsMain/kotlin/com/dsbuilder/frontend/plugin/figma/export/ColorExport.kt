@@ -20,7 +20,7 @@ private val CONTEXT_NAMES = mapOf(
 )
 private val BACKGROUND_CONTEXTS = mapOf("dark" to "on-dark", "light" to "on-light")
 private val THEME_MODES = listOf(PlanMode("light", "Light"), PlanMode("dark", "Dark"))
-private val PALETTE_REF = Regex("""^\[(general|additional)\.([A-Za-z0-9]+)\.(\d+)\](?:\[(\d+(?:\.\d+)?)\])?$""")
+internal val PALETTE_REF = Regex("""^\[(general|additional)\.([A-Za-z0-9]+)\.(\d+)\](?:\[(\d+(?:\.\d+)?)\])?$""")
 private val ALL_SCOPES = listOf("ALL_SCOPES")
 
 /** Коллекции цвета, стили градиентов и пропуски. */

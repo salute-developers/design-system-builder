@@ -143,7 +143,7 @@ export const applyExportPlan = async (plan: ExportPlan, figma: ExportFigmaApi): 
     }
     try {
         const variables = await writeVariables(plan.collections, figma, touch, skip, report);
-        await writeEffectStyles(plan, figma, touch, report);
+        await writeEffectStyles(plan, variables, figma, touch, report);
         await writePaintStyles(plan, variables, figma, touch, report);
         await writeTextStyles(plan.textStyles, variables, figma, touch, skip, report);
     } catch (error) {
@@ -230,9 +230,17 @@ const writeVariables = async (
                         });
                         continue;
                     }
-                    // Устаревшая переменная DS Builder уступает имя и остаётся для привязанных слоёв.
-                    owner.name = staleName(variable.name, owners);
-                    owners.set(owner.name, owner);
+                    if (!target && owner.resolvedType === variable.type) {
+                        // Ключ сменился, а имя то же (токен создан заново, у подтемы сменился запасной токен):
+                        // переменная переходит к новому ключу, и привязанные слои продолжают обновляться.
+                        existingVariables.delete(ownerKey);
+                        owner.setSharedPluginData(NAMESPACE, KEY, variable.key);
+                        target = owner;
+                    } else {
+                        // Устаревшая переменная DS Builder уступает имя и остаётся для привязанных слоёв.
+                        owner.name = staleName(variable.name, owners);
+                        owners.set(owner.name, owner);
+                    }
                 }
                 touch(!target, 'variables');
                 if (!target) {
@@ -340,7 +348,13 @@ const figmaValue = (
     return value.opacity === undefined ? alias : { color: alias, opacity: value.opacity };
 };
 
-const writeEffectStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch: Touch, report: ExportReport) => {
+const writeEffectStyles = async (
+    plan: ExportPlan,
+    lookup: Lookup,
+    figma: ExportFigmaApi,
+    touch: Touch,
+    report: ExportReport,
+) => {
     const existing = byKey(await figma.getLocalEffectStylesAsync());
     for (const planned of plan.effectStyles) {
         let style = existing.get(planned.key);
@@ -350,8 +364,9 @@ const writeEffectStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch:
             style.setSharedPluginData(NAMESPACE, KEY, planned.key);
         }
         style.name = planned.name;
-        style.effects = planned.shadows.map(
-            (shadow): DropShadowEffect => ({
+        let unbound = false;
+        style.effects = planned.shadows.map((shadow): Effect => {
+            const effect: DropShadowEffect = {
                 type: 'DROP_SHADOW',
                 color: rgba(shadow.color),
                 offset: { x: shadow.x, y: shadow.y },
@@ -359,8 +374,19 @@ const writeEffectStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch:
                 spread: shadow.spread,
                 visible: true,
                 blendMode: 'NORMAL',
-            }),
-        );
+            };
+            if (!shadow.colorKey) return effect;
+            // Цвет слоя со ссылкой на палитру берётся из переменной `ShadowColors/…` вместе с прозрачностью.
+            const variable = lookup(shadow.colorKey);
+            if (!variable) unbound = true;
+            return variable ? figma.variables.setBoundVariableForEffect(effect, 'color', variable) : effect;
+        });
+        if (unbound) {
+            report.notes.push({
+                name: planned.name,
+                reason: 'цвет слоя тени не привязан к переменной: переменной нет',
+            });
+        }
     }
     report.stale.effectStyles = staleCount(existing, plan.effectStyles);
 };

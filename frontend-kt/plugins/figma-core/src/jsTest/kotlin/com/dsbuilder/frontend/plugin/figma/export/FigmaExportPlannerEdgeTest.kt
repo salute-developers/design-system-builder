@@ -450,4 +450,31 @@ class FigmaExportPlannerEdgeTest {
         stops.forEach { assertEquals(it.values["light"], it.values["dark"]) }
         assertEquals("Surfaces/Default/Accent/Solid/AccentGradient", plan.paintStyles.single().name)
     }
+
+    @Test
+    fun shadowLayerWithPaletteReferenceIsBoundThroughThemeVariable() {
+        val plan = plan(
+            """
+            {"palette": {"groups": [
+               {"id": "p-accent", "label": "Accent", "ramps": [{"slot": {"type": "general", "shade": "gray"},
+                 "displayName": "Gray", "steps": [{"step": 950, "value": "#101010"}]}]},
+               {"id": "p-neutral", "label": "Neutral", "ramps": [{"slot": {"type": "general", "shade": "gray"},
+                 "displayName": "Gray", "steps": [{"step": 950, "value": "#080808"}]}]}
+             ]},
+             "sizes": {"shadows": [{"tokenId": "sh", "name": "down.soft.s", "layers": [
+               {"offsetX": 0, "offsetY": 4, "blur": 14, "spread": -4, "color": "#08080814",
+                "colorRef": "[general.gray.950][0.08]"},
+               {"offsetX": 0, "offsetY": 1, "blur": 4, "spread": -1, "color": "#0000000A"}
+             ]}]}}
+            """.trimIndent(),
+        )
+
+        val variable = theme(plan).single()
+        assertEquals("ShadowColors/Down/Soft/S/Layer 1", variable.name)
+        assertEquals(listOf("EFFECT_COLOR"), variable.scopes)
+        val alias = PlanValue.Alias("palette:p-neutral:general.gray.950", 8.0)
+        assertEquals(mapOf("light" to alias, "dark" to alias), variable.values)
+        val layers = plan.effectStyles.single().shadows
+        assertEquals(listOf("shadow-color:sh:0", null), layers.map { it.colorKey })
+    }
 }

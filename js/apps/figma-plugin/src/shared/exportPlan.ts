@@ -55,6 +55,8 @@ export interface PlanShadow {
     blur: number;
     spread: number;
     color: PlanColor;
+    /** Переменная плана, к которой привязан цвет слоя. */
+    colorKey?: string;
 }
 
 export interface PlanEffectStyle {

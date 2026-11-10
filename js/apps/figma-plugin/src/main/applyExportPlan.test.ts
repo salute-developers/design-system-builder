@@ -111,6 +111,10 @@ const createFigma = ({ modeLimit = 10, families = ['SB Sans Display'] } = {}) =>
                 ...paint,
                 boundVariables: { [field]: { type: 'VARIABLE_ALIAS', id: variable.id } },
             }),
+            setBoundVariableForEffect: (effect: object, field: string, variable: FakeVariable) => ({
+                ...effect,
+                boundVariables: { [field]: { type: 'VARIABLE_ALIAS', id: variable.id } },
+            }),
         },
         getLocalTextStylesAsync: async () => [...textStyles],
         getLocalEffectStylesAsync: async () => [...effectStyles],
@@ -352,17 +356,38 @@ describe('запись плана экспорта', () => {
         expect(variables.map((item) => item.name).slice(2)).toEqual(['Header/H1 B/Font Size', 'FontFamily/Header']);
     });
 
-    it('освобождает имя от устаревшей переменной DS Builder и не трогает чужую', async () => {
+    it('передаёт переменную с тем же именем новому ключу, и привязки не теряются', async () => {
         const { figma, variables } = createFigma();
         await applyExportPlan(createPlan(), figma);
+        const before = variables.find((item) => item.name === 'Text&Icons/Default/General/Primary')!;
         const recreated = createPlan();
         recreated.collections[1].variables[0].key = 'theme:t1-new';
 
         const report = await applyExportPlan(recreated, figma);
 
         expect(report.failure).toBeUndefined();
-        expect(variables.map((item) => item.name)).toContain('Text&Icons/Default/General/Primary (устарело)');
-        expect(variables.filter((item) => item.name === 'Text&Icons/Default/General/Primary')).toHaveLength(1);
+        expect(variables).toHaveLength(4);
+        expect(before.getSharedPluginData('dsbuilder', 'key')).toBe('theme:t1-new');
+        expect(report.updated.variables).toBe(4);
+        expect(report.stale.variables).toBe(0);
+    });
+
+    it('освобождает имя от устаревшей переменной DS Builder другого типа', async () => {
+        const { figma, variables } = createFigma();
+        await applyExportPlan(createPlan(), figma);
+        const recreated = createPlan();
+        const size = recreated.collections[2].variables[1];
+        Object.assign(size, {
+            key: 'typography:new',
+            type: 'STRING',
+            values: { 'screen-l': { kind: 'string', value: '48' } },
+        });
+
+        const report = await applyExportPlan(recreated, figma);
+
+        expect(report.failure).toBeUndefined();
+        expect(variables.map((item) => item.name)).toContain('Header/H1 B/Font Size (устарело)');
+        expect(variables.filter((item) => item.name === 'Header/H1 B/Font Size')).toHaveLength(1);
         expect(report.stale.variables).toBe(1);
     });
 
@@ -584,5 +609,36 @@ describe('матрица градиента', () => {
         const report = await applyExportPlan(plan, figma);
 
         expect(report.fontFiles).toEqual([{ family: 'SB Sans Display', files: [file] }]);
+    });
+    it('привязывает цвет слоя тени к переменной ShadowColors', async () => {
+        const { figma, variables, effectStyles } = createFigma();
+        const plan = createPlan();
+        plan.collections[1].variables.push({
+            key: 'shadow-color:s1:0',
+            name: 'ShadowColors/Down/Soft/S/Layer 1',
+            type: 'COLOR',
+            scopes: ['EFFECT_COLOR'],
+            values: {
+                light: { kind: 'alias', key: 'palette:neutral:general.gray.950', opacity: 8 },
+                dark: { kind: 'alias', key: 'palette:neutral:general.gray.950', opacity: 8 },
+            },
+        });
+        plan.effectStyles[0].shadows = [
+            { ...plan.effectStyles[0].shadows[0], colorKey: 'shadow-color:s1:0' },
+            { ...plan.effectStyles[0].shadows[0], colorKey: 'shadow-color:missing' },
+            plan.effectStyles[0].shadows[0],
+        ];
+
+        const report = await applyExportPlan(plan, figma);
+
+        const id = variables.find((variable) => variable.name === 'ShadowColors/Down/Soft/S/Layer 1')!.id;
+        const effects = effectStyles[0].effects as Array<Record<string, unknown>>;
+        expect(effects[0].boundVariables).toEqual({ color: { type: 'VARIABLE_ALIAS', id } });
+        expect(effects[1].boundVariables).toBeUndefined();
+        expect(effects[2].boundVariables).toBeUndefined();
+        expect(report.notes).toContainEqual({
+            name: 'Shadows/Down/Soft/S',
+            reason: 'цвет слоя тени не привязан к переменной: переменной нет',
+        });
     });
 });

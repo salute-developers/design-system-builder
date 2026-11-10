@@ -26,22 +26,24 @@ internal object FigmaExportPlanner {
             .mapNotNull { it.str("id") }
             .toSet()
         val omitted = mutableSetOf<String>()
+        // Пропуски теней идут в отчёте после размеров, хотя тени строятся раньше: им нужна коллекция темы.
+        val shadowSkips = mutableListOf<PlanSkip>()
+        val shadows = shadows(sizes, colors.palette, Filter(disabled, omitted, shadowSkips))
         val collections = listOf(
             colors.palette,
-            colors.theme,
+            colors.theme.copy(variables = colors.theme.variables + shadows.variables),
             colors.subTheme,
             typography.collection,
             sampleRadii(dimensions(sizes, RADII, Filter(disabled, omitted, skipped))),
             dimensions(sizes, SPACING, Filter(disabled, omitted, skipped)),
         ).map { uniqueNames(it, skipped) }
-        val effectStyles = shadows(sizes, Filter(disabled, omitted, skipped))
         return FigmaExportPlan(
             source = theme,
             collections = collections,
             textStyles = typography.textStyles,
-            effectStyles = effectStyles,
+            effectStyles = shadows.styles,
             paintStyles = colors.paintStyles,
-            skipped = colors.skipped + typography.skipped + skipped,
+            skipped = colors.skipped + typography.skipped + skipped + shadowSkips,
             omittedDisabled = colors.omittedDisabled + typography.omittedDisabled + omitted.size,
             fontFiles = fontFiles(source, typography.textStyles.map { it.fontFamily }.distinct()),
             notes = colors.notes,
@@ -126,30 +128,72 @@ internal object FigmaExportPlanner {
         return PlanCollection(dimension.key, dimension.name, listOf(SINGLE_MODE), variables)
     }
 
-    /** Тень с нераспознанным цветом слоя пропускается целиком: частичная тень вводила бы в заблуждение. */
-    private fun shadows(sizes: JsonObject?, filter: Filter): List<PlanEffectStyle> =
-        sizes?.get("shadows").arr().mapNotNull { it.obj() }.mapNotNull { token ->
+    /** Стили теней и переменные цветов их слоёв. */
+    private class ShadowExport(val styles: List<PlanEffectStyle>, val variables: List<PlanVariable>)
+
+    /**
+     * Тень с нераспознанным цветом слоя пропускается целиком: частичная тень вводила бы в заблуждение. Слой со ссылкой
+     * на палитру `colorRef` получает переменную `ShadowColors/<тень>/Layer N` в `01. Theme`: ссылку на ступень с
+     * прозрачностью слоя, к которой привязан цвет эффекта, поэтому тень меняется вслед за палитрой.
+     */
+    private fun shadows(sizes: JsonObject?, palette: PlanCollection, filter: Filter): ShadowExport {
+        val variables = mutableListOf<PlanVariable>()
+        val styles = sizes?.get("shadows").arr().mapNotNull { it.obj() }.mapNotNull { token ->
             val id = token.str("tokenId")?.takeIf(filter::enabled) ?: return@mapNotNull null
             val raw = token["layers"].arr().mapNotNull { it.obj() }
-            val layers = raw.mapNotNull { layer ->
-                val color = layer.str("color")?.let(::parseHex) ?: return@mapNotNull null
+            val name = token.str("name").orEmpty().split('.').filter { it.isNotEmpty() }
+                .joinToString("/") { capitalized(segment(it)) }
+            val layerVariables = mutableListOf<PlanVariable>()
+            val layers = raw.mapIndexedNotNull { index, layer ->
+                val color = layer.str("color")?.let(::parseHex) ?: return@mapIndexedNotNull null
+                val alias = shadowAlias(palette, layer.str("colorRef"), color)
+                val colorKey = alias?.let {
+                    val key = "shadow-color:$id:$index"
+                    layerVariables += PlanVariable(
+                        key = key,
+                        name = "ShadowColors/$name/Layer ${index + 1}",
+                        type = "COLOR",
+                        scopes = listOf("EFFECT_COLOR"),
+                        values = mapOf("light" to it, "dark" to it),
+                    )
+                    key
+                }
                 PlanShadow(
                     x = layer.num("offsetX") ?: 0.0,
                     y = layer.num("offsetY") ?: 0.0,
                     blur = layer.num("blur") ?: 0.0,
                     spread = layer.num("spread") ?: 0.0,
                     color = color,
+                    colorKey = colorKey,
                 )
             }
-            val name = token.str("name").orEmpty().split('.').filter { it.isNotEmpty() }
-                .joinToString("/") { capitalized(segment(it)) }
             if (layers.size != raw.size || layers.isEmpty()) {
                 filter.skipped += PlanSkip(token.str("name").orEmpty(), "у тени нет слоёв или цвет слоя не распознан")
                 null
             } else {
+                variables += layerVariables
                 PlanEffectStyle("shadow:$id", "Shadows/$name", layers)
             }
         }
+        return ShadowExport(styles, variables)
+    }
+
+    /**
+     * Ссылка цвета слоя на ступень палитры. Группу палитры для тени выбирает бэкенд, поэтому берётся группа, где
+     * значение ступени совпадает с раскрытым цветом слоя, иначе первая со ступенью; без ступени в плане — `null`.
+     */
+    private fun shadowAlias(palette: PlanCollection, reference: String?, color: PlanColor): PlanValue.Alias? {
+        val match = reference?.trim()?.let(PALETTE_REF::matchEntire) ?: return null
+        val (type, shade, step, opacity) = match.destructured
+        val candidates = palette.variables.filter { it.key.endsWith(":$type.$shade.$step") }
+        val sameColor = candidates.firstOrNull { variable ->
+            val value = (variable.values[SINGLE_MODE.key] as? PlanValue.Color)?.color
+            value != null && value.r == color.r && value.g == color.g && value.b == color.b
+        }
+        val target = sameColor ?: candidates.firstOrNull() ?: return null
+        val alpha = opacity.toDoubleOrNull()?.takeIf { it < 1.0 }
+        return PlanValue.Alias(target.key, alpha?.let(::opacityPercent))
+    }
 
     /** Скругления по образцу `DS BUILDER | STYLES`: `cRm`, `null` для нуля и `Rounded` для полного скругления. */
     private val RADII = Dimension("radii", "collection:numbers", "04. Numbers", "CornerRadius", "CORNER_RADIUS") {

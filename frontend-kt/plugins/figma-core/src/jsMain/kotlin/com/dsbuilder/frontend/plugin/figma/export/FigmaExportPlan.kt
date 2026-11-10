@@ -125,13 +125,14 @@ internal data class PlanTextStyle(
     }
 }
 
-/** Слой тени. */
+/** Слой тени; [colorKey] — переменная плана, к которой привязан цвет слоя. */
 internal data class PlanShadow(
     val x: Double,
     val y: Double,
     val blur: Double,
     val spread: Double,
     val color: PlanColor,
+    val colorKey: String? = null,
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("x", x)
@@ -139,6 +140,7 @@ internal data class PlanShadow(
         put("blur", blur)
         put("spread", spread)
         put("color", color.toJson())
+        colorKey?.let { put("colorKey", it) }
     }
 }
 
