@@ -17,7 +17,7 @@ private val INNER_RADII = listOf("xxs", "m", "l", "xl")
  */
 internal object FigmaExportPlanner {
     fun plan(source: JsonObject, theme: ExportThemeInfo): FigmaExportPlan {
-        val colors = ColorExport(source, theme.platform).build()
+        val colors = ColorExport(source, theme.platform, theme.bindGradientStops).build()
         val typography = TypographyExport(source).build()
         val sizes = source["sizes"].obj()
         val skipped = mutableListOf<PlanSkip>()

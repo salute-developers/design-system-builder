@@ -1,4 +1,5 @@
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
+import type { ExportEditor } from '../shared/editor';
 import type { MainToUi, StorageKey, UiToMain } from '../shared/messages';
 import type { ArchiveFile } from '../shared/zip';
 
@@ -20,8 +21,8 @@ export interface PluginBridge extends PluginStorage {
     openExternal(url: string): void;
     applyExport: ApplyExport;
     packZip: PackZip;
-    /** Имя редактора, в котором открыт плагин. */
-    editorName(): Promise<string>;
+    /** Редактор, в котором открыт плагин. */
+    editor(): Promise<ExportEditor>;
 }
 
 const WEB_URL = /^https?:\/\//i;
@@ -54,7 +55,7 @@ export const createBridge = (target: Window = window): PluginBridge => {
         if (message.error) waiting.reject(new Error(message.error));
         else if (message.type === 'export:result') waiting.resolve(message.report);
         else if (message.type === 'zip:result') waiting.resolve(message.bytes);
-        else if (message.type === 'editor:result') waiting.resolve(message.name);
+        else if (message.type === 'editor:result') waiting.resolve(message.editor);
         else waiting.resolve(message.value);
     });
 
@@ -69,6 +70,6 @@ export const createBridge = (target: Window = window): PluginBridge => {
         openExternal: (url) => post({ type: 'open-external', url }),
         applyExport: (plan) => request<ExportReport>((requestId) => ({ type: 'export:apply', requestId, plan })),
         packZip: (files) => request<Uint8Array>((requestId) => ({ type: 'zip:pack', requestId, files })),
-        editorName: () => request<string>((requestId) => ({ type: 'editor:get', requestId })),
+        editor: () => request<ExportEditor>((requestId) => ({ type: 'editor:get', requestId })),
     };
 };

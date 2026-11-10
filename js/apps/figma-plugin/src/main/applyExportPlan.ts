@@ -10,6 +10,7 @@ import type {
     PlanValue,
     TextBinding,
 } from '../shared/exportPlan';
+import { FIGMA_EDITOR, type ExportEditor } from '../shared/editor';
 
 /** Общие данные плагина: их читают и обновляют все инструменты DS Builder. */
 const NAMESPACE = 'dsbuilder';
@@ -31,18 +32,6 @@ export type ExportFigmaApi = Pick<
     | 'listAvailableFontsAsync'
     | 'loadFontAsync'
 >;
-
-/**
- * Возможности редактора, которых нет в общем API. Figma поддерживает всё; Pixso не умеет ссылку на цвет с
- * прозрачностью и привязку стопов градиента, поэтому там пишутся значения из плана.
- */
-export interface ExportEditor {
-    name: string;
-    composedColors: boolean;
-    gradientStopBindings: boolean;
-}
-
-export const FIGMA_EDITOR: ExportEditor = { name: 'Figma', composedColors: true, gradientStopBindings: true };
 
 type Keyed = { getSharedPluginData(namespace: string, key: string): string };
 
@@ -208,11 +197,12 @@ const writeVariables = async (
     // Сначала коллекции и режимы: отказ тарифа не оставляет в файле переменных без значений.
     for (const planned of collections) {
         let collection = existingCollections.get(planned.key);
-        touch(!collection, 'collections');
+        const created = !collection;
         if (!collection) {
-            collection = figma.variables.createVariableCollection(planned.name);
+            collection = createCollection(figma, planned.name, editor);
             collection.setSharedPluginData(NAMESPACE, KEY, planned.key);
         }
+        touch(created, 'collections');
         collection.name = planned.name;
         modeIds.set(planned.key, ensureModes(collection, planned, editor));
         targets.set(planned.key, collection);
@@ -319,7 +309,7 @@ const writeVariables = async (
     if (flattened) {
         report.notes.push({
             name: 'Цвета с прозрачностью',
-            reason: `${flattened} значений записаны цветом без ссылки на палитру: ${editor.name} не поддерживает ссылку с прозрачностью`,
+            reason: `записаны цветом без ссылки на палитру: ${flattened}. ${editor.name} не поддерживает ссылку с прозрачностью`,
         });
     }
 
@@ -362,6 +352,18 @@ const ensureModes = (collection: VariableCollection, planned: PlanCollection, ed
     }
     collection.setSharedPluginData(NAMESPACE, MODES, JSON.stringify(Object.fromEntries(ids)));
     return ids;
+};
+
+/** Отказ создать коллекцию — чаще всего лимит тарифа: созданное до него остаётся, переменных без значений нет. */
+const createCollection = (figma: ExportFigmaApi, name: string, editor: ExportEditor) => {
+    try {
+        return figma.variables.createVariableCollection(name);
+    } catch (error) {
+        throw new ExportStopped(
+            `${editor.name} не разрешила создать коллекцию «${name}»: ${String(error)}. ` +
+                'Число коллекций может быть ограничено тарифом.',
+        );
+    }
 };
 
 const addMode = (collection: VariableCollection, name: string, editor: ExportEditor) => {
@@ -511,11 +513,14 @@ const writePaintStyles = async (
             });
         }
     }
-    const withStops = plan.paintStyles.filter((style) => style.paints.some((paint) => paint.kind === 'linear')).length;
+    const withStops = plan.paintStyles.filter((style) =>
+        style.paints.some((paint) => paint.kind === 'linear' && paint.stops.some((stop) => stop.key)),
+    ).length;
+    // Защита на случай плана с переменными стопов: для такого редактора план строится парами стилей.
     if (!editor.gradientStopBindings && withStops) {
         report.notes.push({
-            name: 'Стили градиентов',
-            reason: `цвета стопов в ${withStops} стилях записаны значениями: ${editor.name} не привязывает стопы к переменным`,
+            name: 'Стопы градиентов',
+            reason: `цвета стопов записаны значениями в стилях: ${withStops}. ${editor.name} не привязывает стопы к переменным`,
         });
     }
     report.stale.paintStyles = staleCount(existing, plan.paintStyles);
@@ -587,7 +592,7 @@ const writeTextStyles = async (
     if (unboundStyles) {
         report.notes.push({
             name: 'Текстовые стили',
-            reason: `${unboundStyles} стилей записаны значениями без привязки к 03. Typography: ${editor.name} не привязывает текстовый стиль к переменным`,
+            reason: `записаны без привязки к 03. Typography: ${unboundStyles}. ${editor.name} не привязывает текстовый стиль к переменным`,
         });
     }
 };

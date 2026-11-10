@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { FIGMA_EDITOR, PIXSO_EDITOR } from '../shared/editor';
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
 import type { UiToMain } from '../shared/messages';
 import { startPlugin, type EditorApi } from './startPlugin';
@@ -24,7 +25,7 @@ const createEditor = (openExternal?: (url: string) => void) => {
     return { editor, stored, send };
 };
 
-const host = () => ({ name: 'Pixso', applyExport: vi.fn() });
+const host = () => ({ editor: PIXSO_EDITOR, applyExport: vi.fn() });
 
 describe('запуск основного потока', () => {
     it('открывает окно плагина', () => {
@@ -69,7 +70,7 @@ describe('запуск основного потока', () => {
         const report = { stale: {} } as unknown as ExportReport;
         const applyExport = vi.fn(async () => report);
         const { editor, send } = createEditor();
-        startPlugin(editor, '<html>', { name: 'Figma', applyExport });
+        startPlugin(editor, '<html>', { editor: FIGMA_EDITOR, applyExport });
 
         send({ type: 'export:apply', requestId: '1', plan: {} as ExportPlan });
 
@@ -88,7 +89,7 @@ describe('запуск основного потока', () => {
             expect(editor.ui.postMessage).toHaveBeenCalledWith({
                 type: 'editor:result',
                 requestId: '1',
-                name: 'Pixso',
+                editor: PIXSO_EDITOR,
             }),
         );
     });

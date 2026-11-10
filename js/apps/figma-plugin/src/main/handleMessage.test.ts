@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
+import { PIXSO_EDITOR } from '../shared/editor';
 import { handleMessage, type PluginHost } from './handleMessage';
 
 const createHost = (stored: Record<string, string> = {}) => {
@@ -13,7 +14,7 @@ const createHost = (stored: Record<string, string> = {}) => {
             delete stored[key];
         }),
         openExternal: vi.fn(),
-        editorName: 'Pixso',
+        editor: PIXSO_EDITOR,
         applyExport: vi.fn(),
         reply: vi.fn(),
     };
@@ -133,6 +134,6 @@ describe('команды основного потока', () => {
     it('называет редактор окну', async () => {
         const { host } = createHost();
         await handleMessage({ type: 'editor:get', requestId: '7' }, host);
-        expect(host.reply).toHaveBeenCalledWith({ type: 'editor:result', requestId: '7', name: 'Pixso' });
+        expect(host.reply).toHaveBeenCalledWith({ type: 'editor:result', requestId: '7', editor: PIXSO_EDITOR });
     });
 });

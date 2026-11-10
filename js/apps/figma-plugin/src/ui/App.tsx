@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { PluginBridge } from './bridge';
 import { ApiError, type PluginCore } from './core/pluginCore';
+import type { ExportEditor } from '../shared/editor';
 import { EditorContext } from './editor';
 import { Browser } from './screens/Browser';
 import { LoginScreen } from './screens/LoginScreen';
@@ -18,11 +19,11 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
     const [state, setState] = useState<AppState>('restoring');
     const [attempt, setAttempt] = useState(0);
     const [failure, setFailure] = useState('');
-    const [editorName, setEditorName] = useState('Figma');
+    const [editor, setEditor] = useState<ExportEditor | null>(null);
 
-    // Имя нужно только текстам экспорта: окно не ждёт ответа, а до него остаётся Figma.
+    // Редактор нужен только экспорту: остальное окно не ждёт ответа.
     useEffect(() => {
-        bridge.editorName().then(setEditorName, () => undefined);
+        bridge.editor().then(setEditor, () => undefined);
     }, [bridge]);
 
     const fail = (error: unknown) => {
@@ -73,7 +74,7 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
             />
         );
     return (
-        <EditorContext.Provider value={editorName}>
+        <EditorContext.Provider value={editor}>
             <Browser
                 api={core.api}
                 storage={bridge}

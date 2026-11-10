@@ -1,4 +1,5 @@
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
+import type { ExportEditor } from '../shared/editor';
 import type { MainToUi, UiToMain } from '../shared/messages';
 import { zip } from '../shared/zip';
 
@@ -8,8 +9,8 @@ export interface PluginHost {
     setValue(key: string, value: string): Promise<void>;
     deleteValue(key: string): Promise<void>;
     openExternal(url: string): void;
-    /** Имя редактора для текстов окна: Figma или Pixso. */
-    editorName: string;
+    /** Редактор для текстов окна и построения плана: Figma или Pixso. */
+    editor: ExportEditor;
     applyExport(plan: ExportPlan): Promise<ExportReport>;
     reply(message: MainToUi): void;
 }
@@ -33,7 +34,7 @@ export const handleMessage = async (message: UiToMain, host: PluginHost) => {
         return;
     }
     if (message.type === 'editor:get') {
-        host.reply({ type: 'editor:result', requestId: message.requestId, name: host.editorName });
+        host.reply({ type: 'editor:result', requestId: message.requestId, editor: host.editor });
         return;
     }
     if (message.type === 'zip:pack') {

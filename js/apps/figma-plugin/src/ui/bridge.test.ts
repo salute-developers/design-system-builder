@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { PIXSO_EDITOR } from '../shared/editor';
 import type { ExportPlan } from '../shared/exportPlan';
 import { createBridge } from './bridge';
 
@@ -133,5 +134,16 @@ describe('обмен с основным потоком', () => {
         });
 
         await expect(packed).resolves.toEqual(new Uint8Array([80, 75]));
+    });
+
+    it('спрашивает редактор у основного потока', async () => {
+        const { target, postMessage, deliver } = createTarget();
+        const editor = createBridge(target).editor();
+        const { requestId } = postMessage.mock.calls[0][0].pluginMessage;
+        expect(postMessage.mock.calls[0][0].pluginMessage).toEqual({ type: 'editor:get', requestId });
+
+        deliver({ pluginMessage: { type: 'editor:result', requestId, editor: PIXSO_EDITOR } });
+
+        await expect(editor).resolves.toEqual(PIXSO_EDITOR);
     });
 });

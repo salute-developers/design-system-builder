@@ -1,6 +1,11 @@
 import { createContext, useContext } from 'react';
 
-/** Имя редактора, в котором открыт плагин: окно одно для Figma и Pixso. */
-export const EditorContext = createContext('Figma');
+import type { ExportEditor } from '../shared/editor';
 
-export const useEditorName = () => useContext(EditorContext);
+/**
+ * Редактор, в котором открыт плагин: окно одно для Figma и Pixso. До ответа основного потока — `null`, и экспорт
+ * недоступен: план зависит от возможностей редактора.
+ */
+export const EditorContext = createContext<ExportEditor | null>(null);
+
+export const useEditor = () => useContext(EditorContext);

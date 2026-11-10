@@ -1,4 +1,5 @@
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
+import type { ExportEditor } from '../shared/editor';
 import type { MainToUi, UiToMain } from '../shared/messages';
 import { handleMessage, type PluginHost } from './handleMessage';
 
@@ -20,14 +21,14 @@ export interface EditorApi {
 /** Запись плана экспорта в документ редактора. */
 export type ApplyExport = (plan: ExportPlan) => Promise<ExportReport>;
 
-/** Что основной поток знает о своём редакторе: имя для окна и запись плана. */
+/** Что основной поток знает о своём редакторе: описание для окна и запись плана. */
 export interface EditorHost {
-    name: string;
+    editor: ExportEditor;
     applyExport: ApplyExport;
 }
 
 /** Открывает окно плагина и подключает его команды к API редактора. */
-export const startPlugin = (editor: EditorApi, html: string, { name, applyExport }: EditorHost) => {
+export const startPlugin = (editor: EditorApi, html: string, { editor: info, applyExport }: EditorHost) => {
     editor.showUI(html, { width: 400, height: 600, themeColors: true });
 
     const host: PluginHost = {
@@ -38,7 +39,7 @@ export const startPlugin = (editor: EditorApi, html: string, { name, applyExport
             if (editor.openExternal) editor.openExternal(url);
             else editor.ui.postMessage({ type: 'open-url', url });
         },
-        editorName: name,
+        editor: info,
         applyExport,
         reply: (message) => editor.ui.postMessage(message),
     };

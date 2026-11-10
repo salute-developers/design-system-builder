@@ -3,7 +3,8 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { ExportCounts, ExportPlatform, ExportReport } from '../../shared/exportPlan';
 import type { ApplyExport, PackZip } from '../bridge';
 import { copyText } from '../clipboard';
-import { useEditorName } from '../editor';
+import { FIGMA_EDITOR } from '../../shared/editor';
+import { useEditor } from '../editor';
 import { ApiError, type DsBuilderApi, type TenantContext } from '../core/pluginCore';
 import { FontArchiveButton } from '../fonts/FontArchiveButton';
 import type { TypographyScreenId } from '../api/types';
@@ -320,7 +321,7 @@ const ExportPanel = ({
     packZip: PackZip;
 }) => {
     const [result, setResult] = useState<ExportState>({ state: 'idle' });
-    const editorName = useEditorName();
+    const editorName = useEditor()?.name ?? FIGMA_EDITOR.name;
     // В файле одна платформа: повторный экспорт с другой платформой перезаписывает значения тех же переменных.
     const [platform, setPlatform] = useState<ExportPlatform>('web');
     useEffect(() => {
@@ -457,10 +458,20 @@ export const TokensView = ({
                       ? versions.resource.data.find((version) => version.id === versionId)?.version
                       : undefined) ?? ''
               }`;
-    const runExport = versionId
-        ? async (platform: ExportPlatform) =>
-              applyExport(await api.exportPlan(context, versionId === DRAFT ? null : versionId, themeName, platform))
-        : null;
+    const editor = useEditor();
+    const runExport =
+        versionId && editor
+            ? async (platform: ExportPlatform) =>
+                  applyExport(
+                      await api.exportPlan(
+                          context,
+                          versionId === DRAFT ? null : versionId,
+                          themeName,
+                          platform,
+                          editor.gradientStopBindings,
+                      ),
+                  )
+            : null;
 
     const snapshotView = missing
         ? { ...snapshot, resource: { state: 'failed', error: new Error('Этой темы нет в выбранной версии.') } as const }

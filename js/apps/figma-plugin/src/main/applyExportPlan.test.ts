@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ExportPlan } from '../shared/exportPlan';
+import type { ExportCounts, ExportPlan } from '../shared/exportPlan';
 import { applyExportPlan, same, gradientTransform, type ExportFigmaApi } from './applyExportPlan';
-import { PIXSO_EDITOR, pixsoExportApi } from './pixsoExport';
+import { PIXSO_EDITOR } from '../shared/editor';
+import { applyPixsoExport, pixsoExportApi, type PixsoDocumentApi } from './pixsoExport';
 
 class Keyed {
     private readonly data = new Map<string, string>();
@@ -11,6 +12,10 @@ class Keyed {
     }
     setSharedPluginData(namespace: string, key: string, value: string) {
         this.data.set(`${namespace}:${key}`, value);
+    }
+    /** Как Pixso после перезагрузки: объект остаётся, данные плагина пропадают. */
+    forget() {
+        this.data.clear();
     }
 }
 
@@ -68,6 +73,7 @@ class FakeVariable extends Keyed {
 }
 
 class FakeStyle extends Keyed {
+    readonly id = nextId('style');
     name = '';
     effects: unknown[] = [];
     paints: unknown[] = [];
@@ -702,7 +708,7 @@ describe('запись плана в Pixso', () => {
         expect(dark).toEqual({ r: 0.1, g: 0, b: 0, a: 0.16 });
         expect(report.notes).toContainEqual({
             name: 'Цвета с прозрачностью',
-            reason: '1 значений записаны цветом без ссылки на палитру: Pixso не поддерживает ссылку с прозрачностью',
+            reason: 'записаны цветом без ссылки на палитру: 1. Pixso не поддерживает ссылку с прозрачностью',
         });
     });
 
@@ -717,7 +723,7 @@ describe('запись плана в Pixso', () => {
         expect(report.notes.filter((note) => note.name === 'Текстовые стили')).toEqual([
             {
                 name: 'Текстовые стили',
-                reason: '1 стилей записаны значениями без привязки к 03. Typography: Pixso не привязывает текстовый стиль к переменным',
+                reason: 'записаны без привязки к 03. Typography: 1. Pixso не привязывает текстовый стиль к переменным',
             },
         ]);
     });
@@ -750,14 +756,63 @@ describe('запись плана в Pixso', () => {
         expect(solid.boundVariables).toBeDefined();
         expect((linear.gradientStops as Array<Record<string, unknown>>)[0]).toEqual({ position: 0, color: color(0) });
         expect(report.notes).toContainEqual({
-            name: 'Стили градиентов',
-            reason: 'цвета стопов в 1 стилях записаны значениями: Pixso не привязывает стопы к переменным',
+            name: 'Стопы градиентов',
+            reason: 'цвета стопов записаны значениями в стилях: 1. Pixso не привязывает стопы к переменным',
         });
     });
 
-    it('называет Pixso в причине отказа', async () => {
+    it('умножает альфу ступени на прозрачность и проходит цепочку ссылок', async () => {
+        const { figma, collections, variables } = createPixso();
+        const plan = createPlan();
+        const palette = plan.collections[0].variables[0];
+        palette.values.default = { kind: 'color', ...color(0.1, 0.5) };
+        plan.collections[1].variables.push({
+            key: 'theme:t2',
+            name: 'Text&Icons/Default/General/Secondary',
+            type: 'COLOR',
+            scopes: [],
+            values: {
+                light: { kind: 'alias', key: 'theme:t1', opacity: 50 },
+                dark: { kind: 'alias', key: 'palette:missing', opacity: 50 },
+            },
+        });
+
+        const report = await applyExportPlan(plan, figma, PIXSO_EDITOR);
+
+        const [lightMode, darkMode] = collections[1].modes.map((mode) => mode.modeId);
+        const value = (name: string, mode: string) => variables.find((item) => item.name === name)!.valuesByMode[mode];
+        expect(value('Text&Icons/Default/General/Primary', darkMode)).toEqual({ r: 0.1, g: 0, b: 0, a: 0.08 });
+        // Light у t1 — ссылка без прозрачности на ступень с альфой 0,5: цепочка даёт 0,5 × 50 %.
+        expect(value('Text&Icons/Default/General/Secondary', lightMode)).toEqual({ r: 0.1, g: 0, b: 0, a: 0.25 });
+        expect(value('Text&Icons/Default/General/Secondary', darkMode)).toBeUndefined();
+        expect(report.skipped).toContainEqual({
+            name: 'Text&Icons/Default/General/Secondary',
+            reason: 'нет переменной для ссылки в режиме dark',
+        });
+        expect(report.notes).toContainEqual({
+            name: 'Цвета с прозрачностью',
+            reason: 'записаны цветом без ссылки на палитру: 2. Pixso не поддерживает ссылку с прозрачностью',
+        });
+    });
+
+    it('объясняет отказ создать коллекцию лимитом тарифа и не считает её созданной', async () => {
         const { figma } = createPixso();
         (figma.variables as unknown as { createVariableCollection: () => never }).createVariableCollection = () => {
+            throw new Error('in createVariableCollection: can not create variable set');
+        };
+
+        const report = await applyExportPlan(createPlan(), figma, PIXSO_EDITOR);
+
+        expect(report.failure).toBe(
+            'Pixso не разрешила создать коллекцию «00. Palette»: Error: in createVariableCollection: can not create ' +
+                'variable set. Число коллекций может быть ограничено тарифом.',
+        );
+        expect(report.created.collections).toBe(0);
+    });
+
+    it('называет Pixso в причине прочего отказа', async () => {
+        const { figma } = createPixso();
+        (figma.variables as unknown as { createVariable: () => never }).createVariable = () => {
             throw new Error('boom');
         };
 
@@ -767,24 +822,157 @@ describe('запись плана в Pixso', () => {
     });
 });
 
-describe('переходник Pixso', () => {
-    it('читает стили синхронными методами и передаёт начертание шрифта', async () => {
-        const loadFontAsync = vi.fn(async () => undefined);
-        const paint = { name: 'paint' } as unknown as PaintStyle;
-        const api = pixsoExportApi({
-            variables: {} as ExportFigmaApi['variables'],
-            getLocalTextStyles: () => [],
-            getLocalEffectStyles: () => [],
-            getLocalPaintStyles: () => [paint],
-            createTextStyle: vi.fn(),
-            createEffectStyle: vi.fn(),
-            createPaintStyle: vi.fn(),
-            listAvailableFontsAsync: async () => [],
-            loadFontAsync,
-        });
+describe('экспорт в Pixso с таблицей ключей', () => {
+    /** Документ Pixso: данные плагина у объектов пропадают при перезагрузке, у документа сохраняются. */
+    const createDocument = () => {
+        const fake = createFigma();
+        const api = fake.figma as unknown as Record<string, () => FakeStyle> & {
+            variables: { createVariableCollection: (name: string) => FakeCollection };
+        };
+        const saved = new Map<string, string>();
+        let failCollection = '';
+        let failRoot = false;
+        const create = api.variables.createVariableCollection;
+        api.variables.createVariableCollection = (name: string) => {
+            if (name === failCollection) throw new Error('can not create variable set');
+            return create(name);
+        };
+        const root = {
+            getSharedPluginData: (namespace: string, key: string) => saved.get(`${namespace}:${key}`) ?? '',
+            setSharedPluginData: (namespace: string, key: string, value: string) => {
+                if (failRoot) throw new Error('plugin data is too large');
+                saved.set(`${namespace}:${key}`, value);
+            },
+        };
+        const pixso = {
+            root,
+            variables: fake.figma.variables,
+            getLocalTextStyles: () => [...fake.textStyles],
+            getLocalEffectStyles: () => [...fake.effectStyles],
+            getLocalPaintStyles: () => [...fake.paintStyles],
+            // У текстового стиля Pixso нет привязки к переменным.
+            createTextStyle: () => Object.assign(api.createTextStyle(), { setBoundVariable: undefined }),
+            createEffectStyle: () => api.createEffectStyle(),
+            createPaintStyle: () => api.createPaintStyle(),
+            listAvailableFontsAsync: fake.figma.listAvailableFontsAsync,
+            loadFontAsync: fake.figma.loadFontAsync,
+        } as unknown as PixsoDocumentApi;
+        const reload = () =>
+            [
+                ...fake.collections,
+                ...fake.variables,
+                ...fake.textStyles,
+                ...fake.effectStyles,
+                ...fake.paintStyles,
+            ].forEach((item) => {
+                const own = item as unknown as Record<string, unknown>;
+                delete own.getSharedPluginData;
+                delete own.setSharedPluginData;
+                item.forget();
+            });
+        return {
+            ...fake,
+            pixso,
+            saved,
+            reload,
+            failOn: (name: string) => void (failCollection = name),
+            failRootWrites: () => void (failRoot = true),
+        };
+    };
 
-        await expect(api.getLocalPaintStylesAsync()).resolves.toEqual([paint]);
-        await api.loadFontAsync({ family: 'SB Sans Text', style: 'Semibold' });
+    const total = (counts: ExportCounts) => Object.values(counts).reduce((sum, value) => sum + value, 0);
+
+    it('после перезагрузки находит созданное и не создаёт дубликатов', async () => {
+        const document = createDocument();
+        const first = await applyPixsoExport(createPlan(), document.pixso);
+        expect(first.failure).toBeUndefined();
+        document.reload();
+
+        const second = await applyPixsoExport(createPlan(), document.pixso);
+
+        expect(total(second.created)).toBe(0);
+        expect(second.updated).toEqual(first.created);
+        expect(document.variables).toHaveLength(4);
+    });
+
+    it('не теряет ключи стилей, если экспорт прервался до них', async () => {
+        const document = createDocument();
+        await applyPixsoExport(createPlan(), document.pixso);
+        document.reload();
+        const extended = createPlan();
+        extended.collections.push({ key: 'collection:extra', name: '06. Extra', modes: [], variables: [] });
+        document.failOn('06. Extra');
+
+        const failed = await applyPixsoExport(extended, document.pixso);
+        expect(failed.failure).toContain('не разрешила создать коллекцию «06. Extra»');
+        document.reload();
+        const again = await applyPixsoExport(createPlan(), document.pixso);
+
+        expect(total(again.created)).toBe(0);
+        expect(document.paintStyles).toHaveLength(1);
+        expect(document.textStyles).toHaveLength(1);
+    });
+
+    it('останавливается на повреждённой таблице, а не начинает с пустой', async () => {
+        const document = createDocument();
+        document.saved.set('dsbuilder:objects.head', 'a:1');
+        document.saved.set('dsbuilder:objects.a.0', '{"5:2":');
+
+        await expect(applyPixsoExport(createPlan(), document.pixso)).rejects.toThrow('Таблица ключей DS Builder');
+        expect(document.collections).toHaveLength(0);
+    });
+
+    it('сообщает в отчёте, что ключи не сохранились', async () => {
+        const document = createDocument();
+        document.failRootWrites();
+
+        const report = await applyPixsoExport(createPlan(), document.pixso);
+
+        expect(report.created.collections).toBe(3);
+        expect(report.failure).toContain('Pixso: ключи объектов не сохранены');
+    });
+
+    it('пишет новое поколение таблицы и очищает прежнее', async () => {
+        const document = createDocument();
+        await applyPixsoExport(createPlan(), document.pixso);
+        expect(document.saved.get('dsbuilder:objects.head')).toBe('a:1');
+        document.reload();
+
+        await applyPixsoExport(createPlan(), document.pixso);
+
+        expect(document.saved.get('dsbuilder:objects.head')).toBe('b:1');
+        expect(document.saved.get('dsbuilder:objects.a.0')).toBe('');
+        expect(document.saved.get('dsbuilder:objects.b.0')).toContain('collection:palette');
+    });
+
+    it('делит большую таблицу на части', async () => {
+        const document = createDocument();
+        const api = pixsoExportApi(document.pixso);
+        const [style] = [api.createPaintStyle()];
+        style.setSharedPluginData('dsbuilder', 'key', 'x'.repeat(130_000));
+        await api.flush();
+
+        expect(document.saved.get('dsbuilder:objects.head')).toBe('a:3');
+        const [again] = await pixsoExportApi(document.pixso).getLocalPaintStylesAsync();
+        expect(again.getSharedPluginData('dsbuilder', 'key')).toHaveLength(130_000);
+    });
+
+    it('без переменных у Pixso сообщает, что редактор их не поддерживает', async () => {
+        const document = createDocument();
+        (document.pixso as unknown as { variables?: unknown }).variables = undefined;
+
+        const report = await applyPixsoExport(createPlan(), document.pixso);
+
+        expect(report.failure).toBe('Редактор не поддерживает переменные Pixso.');
+    });
+
+    it('передаёт начертание шрифта', async () => {
+        const document = createDocument();
+        const loadFontAsync = vi.fn(async () => undefined);
+        (document.pixso as unknown as { loadFontAsync: unknown }).loadFontAsync = loadFontAsync;
+
+        await pixsoExportApi(document.pixso).loadFontAsync({ family: 'SB Sans Text', style: 'Semibold' });
+
         expect(loadFontAsync).toHaveBeenCalledWith({ family: 'SB Sans Text', style: 'Semibold' });
     });
 });

@@ -73,6 +73,8 @@ export interface DsBuilderApi {
         versionId: string | null,
         themeName: string,
         platform: ExportPlatform,
+        /** Редактор привязывает стопы градиента; иначе градиент — пара стилей Light и Dark. */
+        bindGradientStops?: boolean,
         signal?: AbortSignal,
     ): Promise<ExportPlan>;
     /** Байты файла по публичной ссылке `https` без токена, например файла шрифта с CDN. */
@@ -115,6 +117,7 @@ export interface KotlinCore {
         versionId: string | null,
         themeName: string,
         platform: string,
+        bindGradientStops: boolean,
         signal?: AbortSignal,
     ): Promise<string>;
     fontFile(url: string, signal?: AbortSignal): Promise<Int8Array>;
@@ -183,9 +186,25 @@ export const createPluginCore = (core: KotlinCore): PluginCore => {
                 buildSnapshot(
                     await parsed<ThemeTokens>(core.themeTokens(projectId, designSystemId, tenantId, versionId, signal)),
                 ),
-            exportPlan: ({ projectId, designSystemId, tenantId }, versionId, themeName, platform, signal) =>
+            exportPlan: (
+                { projectId, designSystemId, tenantId },
+                versionId,
+                themeName,
+                platform,
+                bindGradientStops = true,
+                signal,
+            ) =>
                 parsed<ExportPlan>(
-                    core.exportPlan(projectId, designSystemId, tenantId, versionId, themeName, platform, signal),
+                    core.exportPlan(
+                        projectId,
+                        designSystemId,
+                        tenantId,
+                        versionId,
+                        themeName,
+                        platform,
+                        bindGradientStops,
+                        signal,
+                    ),
                 ),
             fontFile: async (url, signal) => {
                 try {

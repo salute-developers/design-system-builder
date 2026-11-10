@@ -1,3 +1,4 @@
+import type { ExportEditor } from './editor';
 import type { ExportPlan, ExportReport } from './exportPlan';
 import type { ArchiveFile } from './zip';
 
@@ -19,5 +20,5 @@ export type MainToUi =
     | { type: 'storage:result'; requestId: string; value: string | null; error?: string }
     | { type: 'export:result'; requestId: string; report: ExportReport | null; error?: string }
     | { type: 'zip:result'; requestId: string; bytes: Uint8Array | null; error?: string }
-    | { type: 'editor:result'; requestId: string; name: string; error?: string }
+    | { type: 'editor:result'; requestId: string; editor: ExportEditor; error?: string }
     | { type: 'open-url'; url: string };

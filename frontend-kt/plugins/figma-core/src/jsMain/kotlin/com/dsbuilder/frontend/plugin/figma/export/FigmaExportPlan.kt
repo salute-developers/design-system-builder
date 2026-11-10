@@ -21,6 +21,8 @@ internal data class ExportThemeInfo(
     val designSystemId: String = "",
     /** Платформа значений: `web`, `ios` или `android`; без своего значения платформы берётся web. */
     val platform: String = WEB,
+    /** Редактор привязывает стопы градиента к переменным; иначе каждый градиент описывается парой стилей режимов. */
+    val bindGradientStops: Boolean = true,
 )
 
 internal const val WEB = "web"
