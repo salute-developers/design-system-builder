@@ -19,7 +19,11 @@ internal data class ExportThemeInfo(
     val tenantId: String,
     val versionId: String?,
     val designSystemId: String = "",
+    /** Платформа значений: `web`, `ios` или `android`; без своего значения платформы берётся web. */
+    val platform: String = WEB,
 )
+
+internal const val WEB = "web"
 
 /** Цвет 0–1 по каналам, как в Figma. */
 internal data class PlanColor(val r: Double, val g: Double, val b: Double, val a: Double) {
@@ -234,6 +238,7 @@ internal data class FigmaExportPlan(
             put("tenantId", source.tenantId)
             put("versionId", source.versionId)
             put("designSystemId", source.designSystemId)
+            put("platform", source.platform)
         }
         putJsonArray("collections") { collections.forEach { add(it.toJson()) } }
         putJsonArray("textStyles") { textStyles.forEach { add(it.toJson()) } }

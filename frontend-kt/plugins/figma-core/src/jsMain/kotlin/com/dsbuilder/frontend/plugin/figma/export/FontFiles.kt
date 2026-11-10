@@ -47,7 +47,7 @@ internal fun fontFiles(source: JsonObject, families: Collection<String>): List<P
             family["fonts"].arr().mapNotNull { it.obj() }.forEach { font ->
                 val url = font.str("link")?.takeIf(INSTALLABLE::matches) ?: return@forEach
                 val file = PlanFontFile(
-                    url.substringBefore('?').substringBefore('#').substringAfterLast('/'),
+                    decodeURIComponent(url.substringBefore('?').substringBefore('#').substringAfterLast('/')),
                     url,
                     font.str("weight"),
                     font.str("style"),
@@ -60,3 +60,7 @@ internal fun fontFiles(source: JsonObject, families: Collection<String>): List<P
         byFamily[family]?.values?.sortedBy { it.name }?.takeIf { it.isNotEmpty() }?.let { PlanFontFamily(family, it) }
     }
 }
+
+/** Имя файла из ссылки читается без `%20`; битая последовательность оставляет имя как есть. */
+private fun decodeURIComponent(value: String): String =
+    runCatching { js("decodeURIComponent")(value) as String }.getOrDefault(value)

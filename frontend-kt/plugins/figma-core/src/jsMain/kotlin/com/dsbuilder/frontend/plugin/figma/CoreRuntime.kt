@@ -23,11 +23,11 @@ import com.dsbuilder.frontend.feature.theme.data.HttpDesignSystemTenantsClient
 import com.dsbuilder.frontend.plugin.figma.export.ExportThemeInfo
 import com.dsbuilder.frontend.plugin.figma.export.FigmaExportPlanner
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpSend
+import io.ktor.client.plugins.plugin
 import io.ktor.client.request.get
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.isSuccess
-import io.ktor.client.plugins.HttpSend
-import io.ktor.client.plugins.plugin
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -190,11 +190,14 @@ internal class CoreRuntime(
     }
 
     /** План экспорта темы в Figma: все разделы читаются на одной границе версии, затем строится план. */
-    suspend fun exportPlan(context: ThemeContext, versionId: String?, themeName: String): String {
+    suspend fun exportPlan(context: ThemeContext, versionId: String?, themeName: String, platform: String): String {
         val source = read { probe, credential ->
             HttpThemeTokensClient(probe).exportSource(gatewayUrl, credential, context, versionId).valueOrNull()
         }
-        return buildPlan(source, ExportThemeInfo(themeName, context.tenantId, versionId, context.designSystemId))
+        return buildPlan(
+            source,
+            ExportThemeInfo(themeName, context.tenantId, versionId, context.designSystemId, platform),
+        )
     }
 
     /** Сбой построения плана — не сеть: экран показывает, что план не построен. */

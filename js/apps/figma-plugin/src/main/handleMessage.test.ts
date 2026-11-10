@@ -118,4 +118,14 @@ describe('команды основного потока', () => {
         const name = [208, 168, 209, 128, 208, 184, 209, 132, 209, 130, 47, 66, 111, 108, 100, 46, 111, 116, 102];
         expect([...reply.bytes.subarray(30, 30 + name.length)]).toEqual(name);
     });
+
+    it('отвечает ошибкой, если упаковать не удалось', async () => {
+        const { host } = createHost();
+
+        await handleMessage({ type: 'zip:pack', requestId: '4', files: [{ path: 'a', data: null as never }] }, host);
+
+        expect(host.reply).toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'zip:result', requestId: '4', bytes: null }),
+        );
+    });
 });

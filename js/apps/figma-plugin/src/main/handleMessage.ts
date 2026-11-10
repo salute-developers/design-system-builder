@@ -31,7 +31,13 @@ export const handleMessage = async (message: UiToMain, host: PluginHost) => {
         return;
     }
     if (message.type === 'zip:pack') {
-        host.reply({ type: 'zip:result', requestId: message.requestId, bytes: zip(message.files) });
+        // Без ответа окно ждало бы архив бесконечно: ошибка упаковки тоже уходит ответом.
+        try {
+            host.reply({ type: 'zip:result', requestId: message.requestId, bytes: zip(message.files) });
+        } catch (error) {
+            const text = error instanceof Error ? error.message : String(error);
+            host.reply({ type: 'zip:result', requestId: message.requestId, bytes: null, error: text });
+        }
         return;
     }
     if (message.type === 'export:apply') {

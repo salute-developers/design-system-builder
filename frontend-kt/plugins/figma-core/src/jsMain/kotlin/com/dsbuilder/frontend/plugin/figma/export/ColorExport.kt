@@ -56,11 +56,12 @@ private data class PaletteSlot(val groupId: String, val type: String, val shade:
  * Цвета темы в структуре образца: `00. Palette`, `01. Theme` со ссылками на палитру и `02. SubTheme` со ссылками
  * на тему. Имена берутся из подписей групп токенов, поэтому новые группы попадают в Figma без изменения кода.
  */
-internal class ColorExport(source: JsonObject) {
+internal class ColorExport(source: JsonObject, private val platform: String = WEB) {
     private val tokens = source["tokens"].arr().mapNotNull { it.obj() }
-    private val webValues = source["values"].arr().mapNotNull { it.obj() }
-        .filter { it.str("platform") == "web" }
-        .groupBy { it.str("tokenId") }
+    private val allValues = source["values"].arr().mapNotNull { it.obj() }
+    private val webValues = allValues.filter { it.str("platform") == WEB }.groupBy { it.str("tokenId") }
+    private val missingValues = if (platform == WEB) "нет значений web" else "нет значений $platform и web"
+    private val platformValues = allValues.filter { it.str("platform") == platform }.groupBy { it.str("tokenId") }
     private val palette = source["palette"].obj()
     private val groups = source["groups"].arr().mapNotNull { it.obj() }.mapNotNull { group ->
         val id = group.str("id") ?: return@mapNotNull null
@@ -89,7 +90,7 @@ internal class ColorExport(source: JsonObject) {
             val modes = modeValues(token.id)
             val solid = modes.mapValues { (_, layers) -> layers.singleOrNull()?.let(::parseHex) }
             val added = when {
-                modes.isEmpty() -> false.also { skipped += PlanSkip(token.name, "нет значений web") }
+                modes.isEmpty() -> false.also { skipped += PlanSkip(token.name, missingValues) }
                 solid.values.all { it != null } -> {
                     themeVariables += themeVariable(token, modes, solid.mapValues { it.value!! })
                     themeTokens += token
@@ -204,7 +205,7 @@ internal class ColorExport(source: JsonObject) {
         )
     }
 
-    /** Слои web по режиму; режим без значения получает значение другого режима. */
+    /** Слои выбранной платформы по режиму; режим без значения получает значение другого режима. */
     private fun modeValues(tokenId: String): Map<String, List<String>> {
         val layers = THEME_MODES.associate { mode -> mode.key to layers(valueFor(tokenId, mode.key)) }
         return if (layers.values.all { it.isEmpty() }) emptyMap() else layers
@@ -212,7 +213,8 @@ internal class ColorExport(source: JsonObject) {
 
     /** Как в просмотре: точный режим, затем значение без режима; иначе — значение другого режима. */
     private fun valueFor(tokenId: String, mode: String): JsonObject? {
-        val values = webValues[tokenId].orEmpty()
+        // Без своих значений платформа наследует web, как в DS Builder.
+        val values = platformValues[tokenId] ?: webValues[tokenId].orEmpty()
         return values.firstOrNull { it.str("mode") == mode }
             ?: values.firstOrNull { it.str("mode") == null }
             ?: values.firstOrNull()
@@ -220,7 +222,9 @@ internal class ColorExport(source: JsonObject) {
 
     private fun layers(value: JsonObject?): List<String> = when (val raw = value?.get("value")) {
         is JsonPrimitive -> listOfNotNull(raw.takeIf { it.isString }?.content)
-        else -> raw.arr().mapNotNull { (it as? JsonPrimitive)?.takeIf { item -> item.isString }?.content }
+        else -> raw.arr().mapNotNull { item ->
+            (item as? JsonPrimitive)?.takeIf { it.isString }?.content ?: item.obj()?.let(::nativeGradient)
+        }
     }
 
     private fun themeVariable(
@@ -369,3 +373,21 @@ internal fun leafName(member: String, category: List<String>): String {
     val trimmed = if (repeats) words.drop(1) else words
     return trimmed.joinToString("") { word -> word.replaceFirstChar { it.uppercaseChar() } }
 }
+
+/**
+ * Градиент iOS и Android `{kind, angle, locations, colors}` в записи CSS, которую разбирает [parsePaint]: угол и
+ * позиции те же, что у web. Не линейный градиент остаётся записью, которую разбор отклонит с причиной.
+ */
+internal fun nativeGradient(layer: JsonObject): String {
+    val colors = layer["colors"].arr().mapNotNull { (it as? JsonPrimitive)?.content }
+    val locations = layer["locations"].arr().mapNotNull { (it as? JsonPrimitive)?.content?.toDoubleOrNull() }
+    val kind = layer.str("kind") ?: "unknown"
+    if (kind != "linear" || colors.isEmpty()) return "$kind-gradient(${colors.joinToString()})"
+    val stops = colors.mapIndexed { index, color ->
+        locations.getOrNull(index)?.let { "$color ${it * PERCENT_SCALE}%" } ?: color
+    }
+    return "linear-gradient(${layer.num("angle") ?: DEFAULT_ANGLE}deg, ${stops.joinToString()})"
+}
+
+private const val PERCENT_SCALE = 100
+private const val DEFAULT_ANGLE = 180.0

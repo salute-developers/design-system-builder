@@ -3,6 +3,7 @@ package com.dsbuilder.frontend.plugin.figma.export
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -492,5 +493,72 @@ class FigmaExportPlannerEdgeTest {
         // Красного цвета ступени нет ни в одной группе: слой остаётся HEX, отчёт говорит почему.
         assertEquals(PlanValue.Color(parseHex("#FF000080")!!), PlanValue.Color(layers[3].color))
         assertEquals(listOf("down.soft.s"), plan.notes.map { it.name })
+    }
+
+    @Test
+    fun platformValuesWinOverWebAndMissingPlatformFallsBackToWeb() {
+        val source = Json.parseToJsonElement(
+            """
+            {"groups": $accentGroups,
+             "tokens": [
+               {"id": "a", "name": "surface.default.accent", "type": "color", "enabled": true, "groupId": "g-accent"},
+               {"id": "b", "name": "surface.default.accent-minor", "type": "color", "enabled": true,
+                "groupId": "g-accent"},
+               {"id": "g", "name": "surface.default.accent-gradient", "type": "gradient", "enabled": true,
+                "groupId": "g-accent"}
+             ],
+             "values": [
+               {"tokenId": "a", "platform": "web", "mode": null, "value": ["#111111"]},
+               {"tokenId": "a", "platform": "ios", "mode": null, "value": ["#222222"]},
+               {"tokenId": "b", "platform": "web", "mode": null, "value": ["#333333"]},
+               {"tokenId": "g", "platform": "web", "mode": null, "value": ["linear-gradient(90deg, #000000 0%, #FFFFFF 100%)"]},
+               {"tokenId": "g", "platform": "ios", "mode": null,
+                "value": [{"kind": "linear", "angle": 45, "locations": [0, 0.5], "colors": ["#1A9E32FF", "#04C6C9FF"]}]}
+             ],
+             "sizes": {
+               "radii": [{"tokenId": "r", "name": "round.m", "valuePx": 12, "native": {"ios": 10, "android": null}}],
+               "shadows": [{"tokenId": "s", "name": "down.soft.s",
+                 "layers": [{"offsetX": 0, "offsetY": 4, "blur": 14, "spread": -4, "color": "#08080814"}],
+                 "native": {"ios": {"layers": [{"offsetX": 0, "offsetY": 2, "blur": 6, "spread": 0, "color": "#0000000A"}]}}}]
+             }}
+            """.trimIndent(),
+        ).jsonObject
+        val ios = FigmaExportPlanner.plan(source, ExportThemeInfo("T", "t", null, platform = "ios"))
+        val android = FigmaExportPlanner.plan(source, ExportThemeInfo("T", "t", null, platform = "android"))
+
+        val accent = { plan: FigmaExportPlan, name: String ->
+            theme(
+                plan,
+            ).single { it.name.endsWith(name) }.values["light"]
+        }
+        assertEquals(PlanValue.Color(parseHex("#222222")!!), accent(ios, "/Accent"))
+        assertEquals(PlanValue.Color(parseHex("#333333")!!), accent(ios, "/AccentMinor"))
+        assertEquals(PlanValue.Color(parseHex("#111111")!!), accent(android, "/Accent"))
+        val stops = theme(ios).filter { it.name.startsWith("GradientStops/") }
+        assertEquals(PlanValue.Color(parseHex("#1A9E32FF")!!), stops.first().values["light"])
+        assertEquals(45.0, (ios.paintStyles.single().paints.single() as PlanPaint.Linear).angle)
+        assertEquals(
+            listOf(0.0, 0.5),
+            (ios.paintStyles.single().paints.single() as PlanPaint.Linear).stops.map { it.first },
+        )
+        val radius = { plan: FigmaExportPlan ->
+            plan.collections.single { it.name == "04. Numbers" }.variables.single { it.name == "CornerRadius/cRm" }
+                .values["default"]
+        }
+        assertEquals(PlanValue.Number(10.0), radius(ios))
+        assertEquals(PlanValue.Number(12.0), radius(android))
+        assertEquals(listOf(2.0), ios.effectStyles.single().shadows.map { it.y })
+        assertEquals(listOf(4.0), android.effectStyles.single().shadows.map { it.y })
+        assertEquals("ios", ios.toJson()["source"]!!.jsonObject["platform"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun nativeGradientBecomesCssRecordAndOtherKindsStayUnparsable() {
+        val linear = Json.parseToJsonElement(
+            """{"kind": "linear", "angle": 90, "locations": [0, 1], "colors": ["#000000FF", "#FFFFFFFF"]}""",
+        ).jsonObject
+        assertEquals("linear-gradient(90deg, #000000FF 0%, #FFFFFFFF 100%)", nativeGradient(linear))
+        val radial = Json.parseToJsonElement("""{"kind": "radial", "colors": ["#000000FF"]}""").jsonObject
+        assertEquals(null, parsePaint(nativeGradient(radial)))
     }
 }

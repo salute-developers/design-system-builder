@@ -1,10 +1,10 @@
-import { FontArchiveButton } from '../fonts/FontArchiveButton';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { ExportCounts, ExportReport } from '../../shared/exportPlan';
+import type { ExportCounts, ExportPlatform, ExportReport } from '../../shared/exportPlan';
 import type { ApplyExport, PackZip } from '../bridge';
 import { copyText } from '../clipboard';
 import { ApiError, type DsBuilderApi, type TenantContext } from '../core/pluginCore';
+import { FontArchiveButton } from '../fonts/FontArchiveButton';
 import type { TypographyScreenId } from '../api/types';
 import { useResource } from '../hooks/useResource';
 import { groupBy, searchByName, type PaintValue, type TokenSnapshot } from '../tokens/snapshot';
@@ -242,7 +242,7 @@ const ExportResult = ({
     <section className="export-report" data-testid="export-report" aria-label="Отчёт экспорта">
         <header>
             <span className="export-title">
-                Тема «{report.source.themeName}», {version}
+                Тема «{report.source.themeName}», {version}, {PLATFORMS[report.source.platform ?? 'web']}
             </span>
             <button type="button" className="link" onClick={onClose}>
                 Скрыть
@@ -298,6 +298,8 @@ const errorText = (error: unknown) => {
 };
 
 /** Экспорт выбранной темы и версии в переменные и стили открытого файла Figma. */
+const PLATFORMS: Record<ExportPlatform, string> = { web: 'Web', ios: 'iOS', android: 'Android' };
+
 const ExportPanel = ({
     run,
     version,
@@ -307,7 +309,7 @@ const ExportPanel = ({
     loadFont,
     packZip,
 }: {
-    run: (() => Promise<ExportReport>) | null;
+    run: ((platform: ExportPlatform) => Promise<ExportReport>) | null;
     version: string;
     /** Смена темы или версии убирает прошлый отчёт, но не прерывает идущий экспорт. */
     resetKey: string;
@@ -317,6 +319,8 @@ const ExportPanel = ({
     packZip: PackZip;
 }) => {
     const [result, setResult] = useState<ExportState>({ state: 'idle' });
+    // В файле одна платформа: повторный экспорт с другой платформой перезаписывает значения тех же переменных.
+    const [platform, setPlatform] = useState<ExportPlatform>('web');
     useEffect(() => {
         setResult((current) => (current.state === 'running' ? current : { state: 'idle' }));
     }, [resetKey]);
@@ -324,7 +328,7 @@ const ExportPanel = ({
         if (!run) return;
         setResult({ state: 'running' });
         onRunning(true);
-        run()
+        run(platform)
             .then(
                 (report) => setResult({ state: 'done', report, version }),
                 (error: unknown) => {
@@ -336,6 +340,19 @@ const ExportPanel = ({
     };
     return (
         <div className="export">
+            <div role="group" aria-label="Платформа" className="segments">
+                {(Object.keys(PLATFORMS) as ExportPlatform[]).map((item) => (
+                    <button
+                        key={item}
+                        type="button"
+                        aria-pressed={platform === item}
+                        disabled={result.state === 'running'}
+                        onClick={() => setPlatform(item)}
+                    >
+                        {PLATFORMS[item]}
+                    </button>
+                ))}
+            </div>
             <button type="button" disabled={!run || result.state === 'running'} onClick={start}>
                 {result.state === 'running' ? 'Экспортируем…' : 'Экспортировать в Figma'}
             </button>
@@ -438,7 +455,8 @@ export const TokensView = ({
                       : undefined) ?? ''
               }`;
     const runExport = versionId
-        ? async () => applyExport(await api.exportPlan(context, versionId === DRAFT ? null : versionId, themeName))
+        ? async (platform: ExportPlatform) =>
+              applyExport(await api.exportPlan(context, versionId === DRAFT ? null : versionId, themeName, platform))
         : null;
 
     const snapshotView = missing

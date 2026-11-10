@@ -1,8 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import type { ArchiveFile } from '../../shared/zip';
-import { zip } from '../../shared/zip';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { zip, type ArchiveFile } from '../../shared/zip';
 import type { ExportCounts, ExportPlan, ExportReport } from '../../shared/exportPlan';
 import type { StorageKey } from '../../shared/messages';
 import { App } from '../App';
@@ -534,9 +533,10 @@ describe('экспорт в Figma', () => {
             { projectId: 'p1', designSystemId: 'd1', tenantId: 't1' },
             'v2',
             'Default',
+            'web',
         );
         expect(bridge.applyExport).toHaveBeenCalledWith(exportPlan);
-        expect(report).toHaveTextContent('Тема «Default», версия 1.1.0');
+        expect(report).toHaveTextContent('Тема «Default», версия 1.1.0, Web');
         const row = within(report).getByRole('row', { name: /Переменные/ });
         expect(row).toHaveTextContent('Переменные1231');
         expect(report).toHaveTextContent('Выключенные в DS Builder токены не экспортируются: 2.');
@@ -606,7 +606,9 @@ describe('экспорт в Figma', () => {
 
         fireEvent.click(within(files).getByRole('button', { name: 'Скачать шрифты одним архивом (ZIP)' }));
 
-        expect(await within(files).findByRole('status')).toHaveTextContent('Архив dsbuilder-fonts.zip в загрузках');
+        await waitFor(() =>
+            expect(within(files).getByRole('status')).toHaveTextContent('Архив dsbuilder-fonts.zip в загрузках'),
+        );
         expect(fontFile).toHaveBeenCalledTimes(2);
         expect(vi.mocked(bridge.packZip).mock.calls[0][0].map((file) => file.path)).toEqual([
             'SB Sans Display/SBSansDisplay-Bold.otf',
@@ -631,11 +633,30 @@ describe('экспорт в Figma', () => {
 
         fireEvent.click(within(files).getByRole('button', { name: 'Скачать шрифты одним архивом (ZIP)' }));
 
-        expect(await within(files).findByRole('alert')).toHaveTextContent(
-            'Не удалось скачать: SBSansDisplay-Light.otf (ответ 404)',
+        await waitFor(() =>
+            expect(within(files).getByRole('status')).toHaveTextContent(
+                'Не удалось скачать: SBSansDisplay-Light.otf (ответ 404)',
+            ),
         );
         expect(bridge.packZip).not.toHaveBeenCalled();
         expect(within(files).getByRole('button', { name: 'Скачать шрифты одним архивом (ZIP)' })).toBeEnabled();
+    });
+
+    it('экспортирует значения выбранной платформы', async () => {
+        const { api, bridge } = mount();
+        vi.mocked(bridge.applyExport).mockResolvedValueOnce(
+            exportReport({ source: { themeName: 'Default', tenantId: 't1', versionId: 'v2', platform: 'ios' } }),
+        );
+        await chooseTenant();
+        await screen.findByText('Accent');
+        const platforms = screen.getByRole('group', { name: 'Платформа' });
+        expect(within(platforms).getByRole('button', { name: 'Web' })).toHaveAttribute('aria-pressed', 'true');
+
+        fireEvent.click(within(platforms).getByRole('button', { name: 'iOS' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        expect(await screen.findByTestId('export-report')).toHaveTextContent('версия 1.1.0, iOS');
+        expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), 'v2', 'Default', 'ios');
     });
 
     it('экспортирует черновик без `versionId`', async () => {
@@ -646,7 +667,7 @@ describe('экспорт в Figma', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
 
-        await waitFor(() => expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), null, 'Default'));
+        await waitFor(() => expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), null, 'Default', 'web'));
         expect(await screen.findByTestId('export-report')).toHaveTextContent('черновик');
     });
 

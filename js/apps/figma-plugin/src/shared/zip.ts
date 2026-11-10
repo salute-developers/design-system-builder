@@ -55,8 +55,18 @@ export const zip = (files: ArchiveFile[]): Uint8Array => {
     const parts: Uint8Array[] = [];
     const directory: Uint8Array[] = [];
     let offset = 0;
+    const used = new Set<string>();
     for (const file of files) {
-        const name = utf8(file.path);
+        // Сегменты пути без `..` и разделителей внутри: архив не пишет за пределы папки распаковки.
+        const path = file.path
+            .split('/')
+            .map((part) => part.replace(/[\\:]/g, '_').replace(/^\.+$/, '_'))
+            .join('/');
+        // Повтор пути распаковщик перезаписал бы молча: второй файл получает номер.
+        let unique = path;
+        for (let index = 2; used.has(unique); index += 1) unique = path.replace(/(\.[^./]*)?$/, ` (${index})$1`);
+        used.add(unique);
+        const name = utf8(unique);
         const crc = crc32(file.data);
         const size = file.data.length;
         // Общие поля: версия, флаги, метод, время, дата, CRC, размеры, длина имени.

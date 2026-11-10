@@ -42,7 +42,8 @@ class CoreRuntimeTest {
         val seen = mutableListOf<HttpRequestData>()
         val core = runtime { request ->
             seen += request
-            if (request.url.encodedPath.endsWith("missing.otf")) respond("", HttpStatusCode.NotFound) else respond("OTTO")
+            val missing = request.url.encodedPath.endsWith("missing.otf")
+            if (missing) respond("", HttpStatusCode.NotFound) else respond("OTTO")
         }
 
         assertEquals("OTTO", core.publicFile("https://cdn.example/Font.otf").decodeToString())
@@ -166,12 +167,13 @@ class CoreRuntimeTest {
             )
         }
 
-        val plan = core.exportPlan(ThemeContext("p1", "ds1", "t1"), "v1", "Malachite")
+        val plan = core.exportPlan(ThemeContext("p1", "ds1", "t1"), "v1", "Malachite", "ios")
 
         assertEquals(6, paths.size)
         assertEquals(true, paths.all { it.contains("versionId=v1") })
         assertEquals(true, plan.contains("\"themeName\":\"Malachite\""))
         assertEquals(true, plan.contains("\"name\":\"05. Spacing\""))
+        assertEquals(true, plan.contains("\"platform\":\"ios\""))
     }
 
     @Test
@@ -180,7 +182,8 @@ class CoreRuntimeTest {
             if (request.url.encodedPath.endsWith("palette")) respond("", HttpStatusCode.Forbidden) else respond("[]")
         }
 
-        val failure = assertFailsWith<CoreFailure> { core.exportPlan(ThemeContext("p1", "ds1", "t1"), null, "T") }
+        val failure =
+            assertFailsWith<CoreFailure> { core.exportPlan(ThemeContext("p1", "ds1", "t1"), null, "T", "web") }
         assertEquals("forbidden", failure.kind)
     }
 

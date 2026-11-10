@@ -17,7 +17,7 @@ private val INNER_RADII = listOf("xxs", "m", "l", "xl")
  */
 internal object FigmaExportPlanner {
     fun plan(source: JsonObject, theme: ExportThemeInfo): FigmaExportPlan {
-        val colors = ColorExport(source).build()
+        val colors = ColorExport(source, theme.platform).build()
         val typography = TypographyExport(source).build()
         val sizes = source["sizes"].obj()
         val skipped = mutableListOf<PlanSkip>()
@@ -29,14 +29,15 @@ internal object FigmaExportPlanner {
         // Пропуски теней идут в отчёте после размеров, хотя тени строятся раньше: им нужна коллекция темы.
         val shadowSkips = mutableListOf<PlanSkip>()
         val shadowNotes = mutableListOf<PlanSkip>()
-        val shadows = shadows(sizes, colors.palette, Filter(disabled, omitted, shadowSkips), shadowNotes)
+        val shadows =
+            shadows(sizes, colors.palette, Filter(disabled, omitted, shadowSkips), shadowNotes, theme.platform)
         val collections = listOf(
             colors.palette,
             colors.theme.copy(variables = colors.theme.variables + shadows.variables),
             colors.subTheme,
             typography.collection,
-            sampleRadii(dimensions(sizes, RADII, Filter(disabled, omitted, skipped))),
-            dimensions(sizes, SPACING, Filter(disabled, omitted, skipped)),
+            sampleRadii(dimensions(sizes, RADII, Filter(disabled, omitted, skipped), theme.platform)),
+            dimensions(sizes, SPACING, Filter(disabled, omitted, skipped), theme.platform),
         ).map { uniqueNames(it, skipped) }
         return FigmaExportPlan(
             source = theme,
@@ -109,12 +110,14 @@ internal object FigmaExportPlanner {
         val leaf: (tail: String, value: Double, full: Boolean) -> String,
     )
 
-    private fun dimensions(sizes: JsonObject?, dimension: Dimension, filter: Filter): PlanCollection {
+    /** Число платформы из `native`, если оно есть, иначе web; полное скругление одинаково на всех платформах. */
+    private fun dimensions(sizes: JsonObject?, dimension: Dimension, filter: Filter, platform: String): PlanCollection {
         val used = mutableSetOf<String>()
         val variables = sizes?.get(dimension.section).arr().mapNotNull { it.obj() }.mapNotNull { token ->
             val id = token.str("tokenId")?.takeIf(filter::enabled) ?: return@mapNotNull null
             val name = token.str("name").orEmpty()
-            val value = if (token.bool("fullRounding") == true) FULL_ROUNDING else token.num("valuePx")
+            val native = token["native"].obj()?.num(platform)?.takeIf { platform != WEB }
+            val value = if (token.bool("fullRounding") == true) FULL_ROUNDING else native ?: token.num("valuePx")
             if (value == null) filter.skipped += PlanSkip(name, "нет значения в px")
             value?.let {
                 PlanVariable(
@@ -142,11 +145,14 @@ internal object FigmaExportPlanner {
         palette: PlanCollection,
         filter: Filter,
         notes: MutableList<PlanSkip>,
+        platform: String,
     ): ShadowExport {
         val variables = mutableListOf<PlanVariable>()
         val styles = sizes?.get("shadows").arr().mapNotNull { it.obj() }.mapNotNull { token ->
             val id = token.str("tokenId")?.takeIf(filter::enabled) ?: return@mapNotNull null
-            val raw = token["layers"].arr().mapNotNull { it.obj() }
+            // Слои платформы из `native`, если они есть, иначе web.
+            val native = token["native"].obj()?.get(platform).obj()?.get("layers").arr().takeIf { platform != WEB }
+            val raw = (native?.takeIf { it.isNotEmpty() } ?: token["layers"].arr()).mapNotNull { it.obj() }
             val name = token.str("name").orEmpty().split('.').filter { it.isNotEmpty() }
                 .joinToString("/") { capitalized(segment(it)) }
             val layerVariables = mutableListOf<PlanVariable>()

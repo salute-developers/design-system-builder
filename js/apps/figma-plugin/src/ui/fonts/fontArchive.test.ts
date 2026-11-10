@@ -84,4 +84,18 @@ describe('архив шрифтов', () => {
         await expect(download).rejects.toThrow(FontDownloadError);
         await expect(download).rejects.toMatchObject({ failures: [{ name: 'Bold.otf', reason: 'ответ 404' }] });
     });
+
+    it('не даёт пути выйти из папки и нумерует повторы имени', () => {
+        const archive = zip([
+            { path: 'SB Sans/Bold.otf', data: bytes('a') },
+            { path: 'SB Sans/Bold.otf', data: bytes('b') },
+            { path: '../C:\\evil/..', data: bytes('c') },
+        ]);
+
+        expect(entries(archive).map(({ name }) => name)).toEqual([
+            'SB Sans/Bold.otf',
+            'SB Sans/Bold (2).otf',
+            '_/C__evil/_',
+        ]);
+    });
 });

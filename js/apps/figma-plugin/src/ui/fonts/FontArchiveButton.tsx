@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { PlanFontFamily } from '../../shared/exportPlan';
 import type { PackZip } from '../bridge';
@@ -31,40 +31,40 @@ export const FontArchiveButton = ({
     save?: (bytes: Uint8Array, name: string, type: string) => void;
 }) => {
     const [archive, setArchive] = useState<ArchiveState>({ state: 'idle' });
+    // Отчёт закрыли во время загрузки: архив не сохраняется неожиданно для пользователя.
+    const open = useRef(true);
+    useEffect(() => () => void (open.current = false), []);
     const total = families.reduce((sum, family) => sum + family.files.length, 0);
     const download = () => {
         setArchive({ state: 'loading', done: 0, total });
         fontArchive(families, load, pack, (done) => setArchive({ state: 'loading', done, total })).then(
             (bytes) => {
+                if (!open.current) return;
                 save(bytes, ARCHIVE_NAME, 'application/zip');
                 setArchive({ state: 'saved' });
             },
-            (error: unknown) => {
-                const message =
-                    error instanceof FontDownloadError
-                        ? error.failures.map(({ name, reason }) => `${name} (${reason})`).join(', ')
-                        : String(error);
-                setArchive({ state: 'failed', message });
-            },
+            (error: unknown) =>
+                setArchive({
+                    state: 'failed',
+                    message:
+                        error instanceof FontDownloadError
+                            ? error.failures.map(({ name, reason }) => `${name} (${reason})`).join(', ')
+                            : (error as Error).message,
+                }),
         );
     };
     return (
         <div className="export-font-files" data-testid="font-files">
             <button type="button" disabled={archive.state === 'loading'} onClick={download}>
-                {archive.state === 'loading'
-                    ? `Скачиваем: ${archive.done} из ${archive.total}`
-                    : 'Скачать шрифты одним архивом (ZIP)'}
+                Скачать шрифты одним архивом (ZIP)
             </button>
-            {archive.state === 'saved' && (
-                <p className="export-hint" role="status">
-                    Архив {ARCHIVE_NAME} в загрузках: распакуйте, установите шрифты и повторите экспорт.
-                </p>
-            )}
-            {archive.state === 'failed' && (
-                <p className="error" role="alert">
-                    Не удалось скачать: {archive.message}. Нажмите кнопку ещё раз.
-                </p>
-            )}
+            {/* Область всегда в DOM: скринридер объявляет прогресс и результат. */}
+            <p className={archive.state === 'failed' ? 'error' : 'export-hint'} role="status" aria-live="polite">
+                {archive.state === 'loading' && `Скачиваем: ${archive.done} из ${archive.total}`}
+                {archive.state === 'saved' &&
+                    `Архив ${ARCHIVE_NAME} в загрузках: распакуйте, установите шрифты и повторите экспорт.`}
+                {archive.state === 'failed' && `Не удалось скачать: ${archive.message}. Нажмите кнопку ещё раз.`}
+            </p>
         </div>
     );
 };

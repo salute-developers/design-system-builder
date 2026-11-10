@@ -47,14 +47,14 @@ describe('связь с Kotlin', () => {
         const kotlin = createKotlin();
         const { signal } = new AbortController();
 
-        const plan = await createPluginCore(kotlin).api.exportPlan(context, null, 'Malachite', signal);
+        const plan = await createPluginCore(kotlin).api.exportPlan(context, null, 'Malachite', 'ios', signal);
 
-        expect(kotlin.exportPlan).toHaveBeenCalledWith('p1', 'd1', 't1', null, 'Malachite', signal);
+        expect(kotlin.exportPlan).toHaveBeenCalledWith('p1', 'd1', 't1', null, 'Malachite', 'ios', signal);
         expect(plan.collections).toEqual([]);
         const broken = createPluginCore(
             createKotlin({ exportPlan: vi.fn().mockRejectedValue(failure('export', 'bad')) }),
         );
-        const error = await broken.api.exportPlan(context, null, 'Malachite').catch((reason: unknown) => reason);
+        const error = await broken.api.exportPlan(context, null, 'Malachite', 'web').catch((reason: unknown) => reason);
         expect(error).toBeInstanceOf(ExportPlanError);
         expect(error).toHaveProperty('message', 'Не удалось построить план экспорта: bad');
     });

@@ -103,12 +103,17 @@ export interface PlanFontFamily {
     files: PlanFontFile[];
 }
 
+/** Платформа, значения которой экспортируются; без своего значения платформы берётся web. */
+export type ExportPlatform = 'web' | 'ios' | 'android';
+
 export interface ExportSource {
     themeName: string;
     tenantId: string;
     versionId: string | null;
     /** Дизайн-система плана; в плане старой версии ядра его нет. */
     designSystemId?: string;
+    /** Платформа значений; в плане старой версии ядра её нет. */
+    platform?: ExportPlatform;
 }
 
 export interface ExportPlan {

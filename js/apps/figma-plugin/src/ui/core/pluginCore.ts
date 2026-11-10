@@ -8,7 +8,7 @@ import type {
     TokenValueDto,
     TypographyStylesDto,
 } from '../api/types';
-import type { ExportPlan } from '../../shared/exportPlan';
+import type { ExportPlan, ExportPlatform } from '../../shared/exportPlan';
 import { buildSnapshot, type TokenSnapshot } from '../tokens/snapshot';
 
 export type ApiErrorKind = 'unauthorized' | 'forbidden' | 'not-found' | 'network' | 'server';
@@ -72,6 +72,7 @@ export interface DsBuilderApi {
         context: TenantContext,
         versionId: string | null,
         themeName: string,
+        platform: ExportPlatform,
         signal?: AbortSignal,
     ): Promise<ExportPlan>;
     /** Байты файла по публичной ссылке `https` без токена, например файла шрифта с CDN. */
@@ -113,6 +114,7 @@ export interface KotlinCore {
         tenantId: string,
         versionId: string | null,
         themeName: string,
+        platform: string,
         signal?: AbortSignal,
     ): Promise<string>;
     fontFile(url: string, signal?: AbortSignal): Promise<Int8Array>;
@@ -181,8 +183,10 @@ export const createPluginCore = (core: KotlinCore): PluginCore => {
                 buildSnapshot(
                     await parsed<ThemeTokens>(core.themeTokens(projectId, designSystemId, tenantId, versionId, signal)),
                 ),
-            exportPlan: ({ projectId, designSystemId, tenantId }, versionId, themeName, signal) =>
-                parsed<ExportPlan>(core.exportPlan(projectId, designSystemId, tenantId, versionId, themeName, signal)),
+            exportPlan: ({ projectId, designSystemId, tenantId }, versionId, themeName, platform, signal) =>
+                parsed<ExportPlan>(
+                    core.exportPlan(projectId, designSystemId, tenantId, versionId, themeName, platform, signal),
+                ),
             fontFile: async (url, signal) => {
                 try {
                     const bytes = await core.fontFile(url, signal);
