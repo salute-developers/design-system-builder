@@ -71,13 +71,14 @@ it('tracks stable initial route, transitions and back/forward with basename, exc
     router.dispose();
 });
 
-it('defers SDK while OAuth parameters remain', async () => {
+it('tracks normalized screen immediately regardless of OAuth-like query or hash', async () => {
     const router = createMemoryRouter([{ path: '*', element: <AnalyticsNavigation /> }], {
-        initialEntries: [`${colors}?code=private&state=secret`],
+        initialEntries: [`${colors}?code=private&state=secret#access_token=hidden`],
     });
     render(<RouterProvider router={router} />);
     await settle();
-    expect(webAnalytics.view).not.toHaveBeenCalled();
+    expect(webAnalytics.view).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(vi.mocked(webAnalytics.view).mock.calls)).not.toMatch(/private|secret|hidden|code=|access_token/);
     await act(async () => {
         await router.navigate(colors, { replace: true });
     });

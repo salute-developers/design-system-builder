@@ -43,13 +43,12 @@ private class MetricaAnalytics(
 ) : Analytics {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val queue = Channel<DeliveryItem>(128)
-    private var visitExpiresAt: Long = Long.MIN_VALUE
     private val clientId = scope.async(start = CoroutineStart.LAZY) {
         metricaAttempt {
             identities.getOrCreateInstallationId().also { id -> require(id.toLongOrNull()?.let { it > 0 } == true) }
         }
     }
-    private val goals = metricaGoalCatalog(context.clientType, config.operations)
+    private val pages = metricaPageCatalog(context.clientType, config.operations)
 
     init {
         scope.launch {
@@ -86,31 +85,27 @@ private class MetricaAnalytics(
     }
 
     private suspend fun deliver(event: AnalyticsEvent) {
-        val goal = goal(event) ?: return
+        val page = page(event) ?: return
         val cid = clientId.await() ?: return
-        val common = mapOf(
+        val fields = mapOf(
             "tid" to config.counterId,
             "ms" to config.token,
             "cid" to cid,
             "et" to event.occurredAtEpochSeconds.toString(),
-            "dl" to "${config.baseUrl.trimEnd('/')}/analytics/${context.clientType}/activity",
+            "t" to "pageview",
+            "dl" to "${config.baseUrl.trimEnd('/')}$page",
+            "dt" to "DS Builder ${context.clientType}",
             "params" to JsonObject(context.visitProperties().mapValues { JsonPrimitive(it.value) }).toString(),
         )
-        val opensVisit = event.occurredAtEpochSeconds >= visitExpiresAt
-        if (opensVisit && !send(common + mapOf("t" to "pageview", "dt" to "DS Builder ${context.clientType}"))) return
-        visitExpiresAt = event.occurredAtEpochSeconds + 1800
-        send(common + mapOf("t" to "event", "ea" to goal))
+        withTimeoutOrNull(1000) { transport.send(MetricaRequest(fields)) }
     }
 
-    private fun goal(event: AnalyticsEvent): String? {
+    private fun page(event: AnalyticsEvent): String? {
         if (now() - event.occurredAtEpochSeconds !in 0..43_200) return null
         val operation = (event.properties["operation"] as? AnalyticsValue.Text)?.value
         val outcome = (event.properties["outcome"] as? AnalyticsValue.Text)?.value
-        return goals[Triple(event.name, operation, outcome)]
+        return pages[Triple(event.name, operation, outcome)]
     }
-
-    private suspend fun send(fields: Map<String, String>): Boolean =
-        withTimeoutOrNull(1000) { transport.send(MetricaRequest(fields)) } ?: false
 }
 
 /** Одна политика изоляции ошибок доставки и идентификации; отмена всегда остаётся отменой. */

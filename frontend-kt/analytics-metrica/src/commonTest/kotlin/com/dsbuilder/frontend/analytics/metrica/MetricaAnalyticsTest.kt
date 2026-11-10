@@ -43,23 +43,28 @@ class MetricaAnalyticsTest {
         try {
             repeat(2) { analytics.track(event(10)) }
             assertEquals(AnalyticsFlushResult.COMPLETED, analytics.flush(1500))
-            assertEquals(listOf("pageview", "pageview", "event"), requests.map { it["t"] })
+            assertEquals(listOf("pageview", "pageview"), requests.map { it["t"] })
         } finally { analytics.close() }
     }
 
-    @Test fun runtimeAndExportUseOneClosedGoalCatalog() {
-        val goals = metricaGoalCatalog("cli", setOf("components import-api", "status"))
-        assertEquals(6, goals.size)
-        assertEquals(6, goals.values.toSet().size)
+    @Test fun pageCatalogKeepsExactOperationsAndHasNoGoalLimit() {
+        val pages = metricaPageCatalog("cli", setOf("components import-api", "status"))
+        assertEquals(6, pages.size)
+        assertEquals(6, pages.values.toSet().size)
         assertEquals(
-            "cli_components_import_api_failure",
-            goals[Triple("cli_operation_finished", "components import-api", "failure")],
+            "/analytics/cli/components_import_api/failure",
+            pages[Triple("cli_operation_finished", "components import-api", "failure")],
         )
-        assertNull(goals[Triple("cli_operation_finished", "components_import_api", "failure")])
-        assertNull(goals[Triple("mcp_tool_finished", "status", "success")])
+        assertNull(pages[Triple("cli_operation_finished", "components_import_api", "failure")])
+        assertNull(pages[Triple("mcp_tool_finished", "status", "success")])
+        val operations = (1..100).map { "edit_tool_$it" }.toSet()
+        val catalog =
+            metricaPageCatalog("mcp", MetricaConfig("1", "fake", "https://example.test", operations).operations)
+        assertEquals(300, catalog.size)
+        assertEquals(300, catalog.values.toSet().size)
     }
 
-    @Test fun pageviewGoalsIdleAndFieldAllowlist() = runBlocking {
+    @Test fun onePageviewPerOperationAcrossOutcomesAndIdleWithSafeFields() = runBlocking {
         val transport = RecordingTransport()
         var now = 10000L
         val analytics = createMetricaAnalytics(
@@ -73,25 +78,60 @@ class MetricaAnalyticsTest {
             analytics.track(event(now))
             assertEquals(AnalyticsFlushResult.COMPLETED, analytics.flush(1500))
             now += 10
-            analytics.track(event(now))
+            analytics.track(event(now, outcome = "failure"))
             analytics.flush(1500)
             now += 1800
-            analytics.track(event(now))
+            analytics.track(event(now, outcome = "cancelled"))
             analytics.flush(1500)
-            assertEquals(listOf("pageview", "event", "event", "pageview", "event"), transport.requests.map { it["t"] })
-            assertEquals("mcp_project_get_status_success", transport.requests.last()["ea"])
+            assertEquals(listOf("pageview", "pageview", "pageview"), transport.requests.map { it["t"] })
+            assertEquals(
+                listOf("success", "failure", "cancelled").map {
+                    "https://example.test/analytics/mcp/project_get_status/$it"
+                },
+                transport.requests.map { it["dl"] },
+            )
+            analytics.flush(1500)
+            assertEquals(3, transport.requests.size)
             transport.requests.forEach {
-                val allowed = setOf("tid", "ms", "cid", "et", "dl", "params", "t", "dt", "ea")
+                val allowed = setOf("tid", "ms", "cid", "et", "dl", "params", "t", "dt")
                 assertTrue(it.keys.all { key -> key in allowed })
                 assertEquals("9223372036854775806", it["cid"])
                 assertFalse(it.toString().contains("private-value"))
                 assertFalse(it.getValue("params").contains("duration_ms"))
                 assertEquals("fake-mcp-token", it["ms"])
+                assertTrue(it.getValue("params").contains("\"schema_version\":\"2\""))
+                assertFalse(it.containsKey("ea"))
             }
         } finally { analytics.close() }
     }
 
-    @Test fun failedPageviewDropsGoalAndBadEventsNeverReachStorage() = runBlocking {
+    @Test fun cliViewsNormalizeCommandAndRespectBasePathWithoutCollapsingRapidResults() = runBlocking {
+        val transport = RecordingTransport()
+        val analytics = createMetricaAnalytics(
+            MetricaConfig("123", "fake-cli-token", "https://example.test/dev/client/", setOf("components import-api")),
+            AnalyticsContext("cli", "test", "macos"),
+            MetricaIdentityStore { "123" },
+            transport,
+            { 10L },
+        )
+        try {
+            repeat(3) {
+                val source = event(10, "components import-api")
+                analytics.track(AnalyticsEvent("cli_operation_finished", 10, source.properties))
+            }
+            assertEquals(AnalyticsFlushResult.COMPLETED, analytics.flush(1500))
+            assertEquals(3, transport.requests.size)
+            transport.requests.forEach {
+                assertEquals("pageview", it["t"])
+                assertEquals("https://example.test/dev/client/analytics/cli/components_import_api/success", it["dl"])
+                assertEquals("fake-cli-token", it["ms"])
+                assertEquals("DS Builder cli", it["dt"])
+                assertFalse(it.containsKey("ea"))
+            }
+        } finally { analytics.close() }
+    }
+
+    @Test fun badEventsNeverReachStorageAndFailedViewsAreNotRetried() = runBlocking {
         var identities = 0
         val transport = RecordingTransport(false)
         val analytics = createMetricaAnalytics(
@@ -106,6 +146,7 @@ class MetricaAnalyticsTest {
         )
         try {
             analytics.track(event(1))
+            analytics.track(event(100001))
             analytics.track(event(100000, "not_allowed"))
             analytics.track(event(100000, "project-get-status"))
             val valid = event(100000)
@@ -122,6 +163,13 @@ class MetricaAnalyticsTest {
             analytics.track(event(100000))
             analytics.flush(1500)
             assertEquals(listOf("pageview"), transport.requests.map { it["t"] })
+            analytics.track(event(100000, outcome = "failure"))
+            analytics.flush(1500)
+            assertEquals(2, transport.requests.size)
+            assertEquals(
+                "https://example.test/analytics/mcp/project_get_status/failure",
+                transport.requests.last()["dl"],
+            )
         } finally { analytics.close() }
     }
 
@@ -178,8 +226,8 @@ class MetricaAnalyticsTest {
             assertFailsWith<CancellationException> { waiting.await() }
             release.complete(Unit)
             analytics.flush(1500)
-            // Одно обрабатываемое событие + 128 ожидающих; просмотр один.
-            assertEquals(130, requests.size)
+            // Одно обрабатываемое событие + 128 ожидающих; каждый даёт ровно один просмотр.
+            assertEquals(129, requests.size)
         } finally { analytics.close() }
     }
 
@@ -223,7 +271,7 @@ class MetricaAnalyticsTest {
         } finally { transport.close() }
     }
 
-    @Test fun normalizedGoalsCannotCollide() {
+    @Test fun normalizedOperationPathsCannotCollide() {
         assertFailsWith<IllegalArgumentException> {
             MetricaConfig("1", "fake", "https://example.test", setOf("a-b", "a_b"))
         }
@@ -231,12 +279,16 @@ class MetricaAnalyticsTest {
 }
 
 private fun config() = MetricaConfig("123", "fake-mcp-token", "https://example.test", setOf("project_get_status"))
-private fun event(time: Long, operation: String = "project_get_status") = AnalyticsEvent(
+private fun event(
+    time: Long,
+    operation: String = "project_get_status",
+    outcome: String = "success",
+) = AnalyticsEvent(
     "mcp_tool_finished",
     time,
     mapOf(
         "operation" to AnalyticsValue.Text(operation),
-        "outcome" to AnalyticsValue.Text("success"),
+        "outcome" to AnalyticsValue.Text(outcome),
         "duration_ms" to AnalyticsValue.Number(123.0),
         "error_category" to AnalyticsValue.Text("internal"),
         "unexpected" to AnalyticsValue.Text("private-value"),

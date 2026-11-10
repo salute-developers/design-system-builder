@@ -18,7 +18,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlin.time.TimeSource
 
 /**
  * Semantic version reported by both MCP launchers.
@@ -154,7 +153,7 @@ public class DsBuilderMcpServerCore(
     private val listProjectsUseCase: ListProjectsUseCase? = null,
     private val listDesignSystemsUseCase: ListDesignSystemsUseCase? = null,
     private val discoverVersionsUseCase: DiscoverDesignSystemVersionsUseCase? = null,
-    private val toolObserver: (String, String, Long) -> Unit = { _, _, _ -> },
+    private val toolObserver: (String, String) -> Unit = { _, _ -> },
 ) {
     private val toolOutcomes = mapOf(false to "success", true to "failure")
     private val readContext = McpReadToolContext(config, json)
@@ -197,7 +196,6 @@ public class DsBuilderMcpServerCore(
      */
     public suspend fun callTool(name: String, arguments: JsonObject = JsonObject(emptyMap())): McpToolResult {
         if (tools().none { it.name == name }) return protocolError("Unknown tool: $name")
-        val started = TimeSource.Monotonic.markNow()
         var outcome = "failure"
         try {
             val result = nonModelHandlers[name]?.invoke(arguments) ?: modelMcpTools.read(name, arguments)
@@ -207,13 +205,13 @@ public class DsBuilderMcpServerCore(
             outcome = "cancelled"
             throw cancelled
         } finally {
-            notifyToolObserver(name, outcome, started.elapsedNow().inWholeMilliseconds)
+            notifyToolObserver(name, outcome)
         }
     }
 
     @Suppress("TooGenericExceptionCaught", "SwallowedException")
-    private fun notifyToolObserver(name: String, outcome: String, durationMs: Long) {
-        try { toolObserver(name, outcome, durationMs) } catch (_: Exception) { /* Наблюдение не меняет MCP-ответ. */ }
+    private fun notifyToolObserver(name: String, outcome: String) {
+        try { toolObserver(name, outcome) } catch (_: Exception) { /* Наблюдение не меняет MCP-ответ. */ }
     }
 
     private suspend fun projectGetStatus(arguments: JsonObject): McpToolResult =

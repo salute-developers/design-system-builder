@@ -63,13 +63,12 @@ internal class McpServeCliCommand(
                     listProjectsUseCase = listProjectsUseCase,
                     listDesignSystemsUseCase = listDesignSystemsUseCase,
                     discoverVersionsUseCase = discoverVersionsUseCase,
-                    toolObserver = { operation, outcome, duration ->
+                    toolObserver = { operation, outcome ->
                         currentContext.findObject<CliAnalyticsSession>()?.record(
                             "mcp",
                             operations,
                             operation,
                             outcome,
-                            duration,
                         )
                     },
                 )

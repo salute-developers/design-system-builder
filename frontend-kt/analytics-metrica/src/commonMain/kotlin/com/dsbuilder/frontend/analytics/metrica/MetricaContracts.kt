@@ -30,27 +30,29 @@ public class MetricaConfig(
         )
 
         require(operations.isNotEmpty() && operations.all { it.matches(Regex("[a-z][a-z0-9_ -]{0,79}")) })
-        require(operations.map(::normalizeOperation).toSet().size == operations.size) { "Analytics goal collision" }
+        require(
+            operations.map(::normalizeOperation).toSet().size == operations.size,
+        ) { "Analytics operation collision" }
     }
 }
 
 private val metricaEventNames = mapOf("cli" to "cli_operation_finished", "mcp" to "mcp_tool_finished")
 
 /**
- * Единый каталог доставки и настройки целей счётчика, без токенов и сетевых обращений.
- * Ключ — точные имя события, операция до нормализации и результат; значение — идентификатор цели.
+ * Закрытое соответствие событий техническим адресам, без токенов и сетевых обращений.
+ * Ключ — точные имя события, операция до нормализации и результат; значение — путь просмотра.
  * @param channel канал CLI или встроенного MCP.
  * @param operations закрытый набор операций клиента.
- * @return соответствие полного ключа события идентификатору цели в порядке операций и результатов.
+ * @return соответствие полного ключа события техническому пути.
  */
-public fun metricaGoalCatalog(
+internal fun metricaPageCatalog(
     channel: String,
     operations: Set<String>,
 ): Map<Triple<String, String, String>, String> {
     val eventName = metricaEventNames.getValue(channel)
     return operations.sorted().flatMap { operation ->
         listOf("success", "failure", "cancelled").map { outcome ->
-            Triple(eventName, operation, outcome) to "${channel}_${normalizeOperation(operation)}_$outcome"
+            Triple(eventName, operation, outcome) to "/analytics/$channel/${normalizeOperation(operation)}/$outcome"
         }
     }.toMap()
 }
@@ -83,5 +85,5 @@ internal fun AnalyticsContext.visitProperties(): Map<String, String> = mapOf(
     "client_type" to clientType,
     "client_version" to clientVersion.take(64),
     "os_family" to osFamily.take(32),
-    "schema_version" to "1",
+    "schema_version" to "2",
 )

@@ -166,41 +166,8 @@ jobs:
           $version = & $binary --version
           if ($LASTEXITCODE -ne 0 -or $version -ne "dsbuilder version $($env:CLI_RELEASE_TAG.Substring(5))") { throw 'CLI version mismatch' }
 
-  analytics-goals:
-    needs: [build, smoke]
-    runs-on: ubuntu-22.04
-    env:
-      DSBUILDER_ANALYTICS_ENABLED: 'false'
-      DSBUILDER_ANALYTICS_DISABLED: '1'
-    steps:
-      - name: Analytics disabled
-        if: vars.DSBUILDER_ANALYTICS_ENABLED_PROM != 'true'
-        run: echo 'Analytics is disabled; goal synchronization skipped'
-      - uses: actions/checkout@v4
-        if: vars.DSBUILDER_ANALYTICS_ENABLED_PROM == 'true'
-        with:
-          ref: ${{ inputs.tag || github.ref_name }}
-      - uses: actions/setup-java@v4
-        if: vars.DSBUILDER_ANALYTICS_ENABLED_PROM == 'true'
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-        if: vars.DSBUILDER_ANALYTICS_ENABLED_PROM == 'true'
-      - name: Compile administrative goal task without OAuth
-        if: vars.DSBUILDER_ANALYTICS_ENABLED_PROM == 'true'
-        working-directory: frontend-kt
-        run: ./gradlew :cli:prepareAnalyticsGoals
-      - name: Synchronize production CLI and MCP goals
-        if: vars.DSBUILDER_ANALYTICS_ENABLED_PROM == 'true'
-        working-directory: frontend-kt
-        env:
-          METRICA_OAUTH_TOKEN: ${{ secrets.METRICA_OAUTH_TOKEN_PROM }}
-          METRICA_COUNTER_ID: ${{ vars.DSBUILDER_METRICA_COUNTER_ID_PROM }}
-        run: ./gradlew --no-daemon --no-configuration-cache --no-build-cache :cli:syncAnalyticsGoals -PmetricaCounterId="$METRICA_COUNTER_ID"
-
   publish:
-    needs: [build, smoke, analytics-goals]
+    needs: [build, smoke]
     runs-on: ubuntu-22.04
     permissions:
       contents: write

@@ -24,8 +24,6 @@ internal val CLI_ANALYTICS_OPERATIONS: Set<String> = setOf(
     "preview-plugin publish",
 )
 
-private val outcomeCategories = mapOf("failure" to "internal")
-
 /** Composition root аналитики. Фабрика вызывается лениво, только после первой операции. */
 internal class CliAnalyticsSession(
     private val factory: (String, Set<String>) -> Analytics,
@@ -40,8 +38,6 @@ internal class CliAnalyticsSession(
         operations: Set<String>,
         operation: String,
         outcome: String,
-        durationMs: Long,
-        category: String? = outcomeCategories[outcome],
     ) {
         if (closed.value) return
         val holder = clients.getValue(channel)
@@ -56,7 +52,7 @@ internal class CliAnalyticsSession(
         if (closed.value) {
             analytics.close()
         } else {
-            analytics.track(operationEvent(channel, operation, outcome, durationMs, category))
+            analytics.track(operationEvent(channel, operation, outcome))
         }
     }
 
@@ -81,28 +77,22 @@ internal fun operationEvent(
     channel: String,
     operation: String,
     outcome: String,
-    durationMs: Long,
-    category: String?,
 ): AnalyticsEvent =
     AnalyticsEvent(
         operationEventNames.getValue(channel),
         Clock.System.now().epochSeconds,
-        buildMap {
-            put("operation", AnalyticsValue.Text(operation))
-            put("outcome", AnalyticsValue.Text(outcome))
-            put("duration_ms", AnalyticsValue.Number(durationMs.toDouble()))
-            category?.let { put("error_category", AnalyticsValue.Text(it)) }
-        },
+        mapOf("operation" to AnalyticsValue.Text(operation), "outcome" to AnalyticsValue.Text(outcome)),
     )
 
 internal fun defaultAnalyticsSession(
     environment: EnvironmentReader,
+    enabled: Boolean = BuiltAnalyticsConfig.enabled,
     create: (MetricaConfig, String) -> Analytics = ::platformAnalytics,
 ): CliAnalyticsSession =
     CliAnalyticsSession { channel, operations ->
-        if (environment.get("DSBUILDER_ANALYTICS_DISABLED") == "1" ||
-            environment.get("DO_NOT_TRACK") == "1" || !BuiltAnalyticsConfig.enabled
-        ) {
+        val optedOut = listOf("DSBUILDER_ANALYTICS_DISABLED", "DO_NOT_TRACK").any { environment.get(it) == "1" }
+        val runningInCi = environment.get("CI")?.lowercase() in setOf("true", "1")
+        if (!enabled || optedOut || runningInCi) {
             NoOpAnalytics
         } else {
             create(

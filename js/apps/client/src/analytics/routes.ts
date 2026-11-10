@@ -32,10 +32,3 @@ export const normalizeAnalyticsView = (pathname: string): AnalyticsView | undefi
     const route = routes.find(([pattern]) => matchPath({ path: pattern, end: true }, pathname));
     return route ? { path: route[0].replace(/\?$/, ''), title: route[1] } : undefined;
 };
-
-export const hasAuthorizationParameters = (search: string, hash: string): boolean => {
-    const sensitive = /^(code|state|session_state|access_token|id_token|refresh_token|token|error|error_description)$/i;
-    return [search, hash].some((part) =>
-        Array.from(new URLSearchParams(part.replace(/^[?#]/, '')).keys()).some((key) => sensitive.test(key)),
-    );
-};

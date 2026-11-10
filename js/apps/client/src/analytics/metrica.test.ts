@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createWebAnalytics } from './metrica';
-import { hasAuthorizationParameters, normalizeAnalyticsView } from './routes';
+import { normalizeAnalyticsView } from './routes';
 
 const config = { enabled: true, counterId: 123, baseUrl: '/dev/design-system-builder/client/' };
 const colors = normalizeAnalyticsView('/projects/secret/design-systems/private/themes/tenant/colors')!;
@@ -21,9 +21,13 @@ describe('web analytics', () => {
         });
         expect(normalizeAnalyticsView('/legacy/name/1.0.0/colors')).toBeUndefined();
         expect(normalizeAnalyticsView('/projects/p/design-systems/d/themes/t/overview')).toBeUndefined();
-        expect(hasAuthorizationParameters('?code=secret&state=state', '')).toBe(true);
-        expect(hasAuthorizationParameters('', '#access_token=secret')).toBe(true);
-        expect(hasAuthorizationParameters('?filter=private', '#colors')).toBe(false);
+        expect(normalizeAnalyticsView('/projects/new')?.path).toBe('/projects/new');
+        expect(normalizeAnalyticsView('/projects/p/design-systems/new')?.path).toBe(
+            '/projects/:projectId/design-systems/new',
+        );
+        expect(normalizeAnalyticsView('/projects/p/design-systems/d/themes/t/components/Button')).toEqual(
+            normalizeAnalyticsView('/projects/p/design-systems/d/themes/t/components/Input'),
+        );
     });
     it('loads once, defers initial hit and normalizes referers', () => {
         const analytics = createWebAnalytics(config);

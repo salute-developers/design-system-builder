@@ -72,7 +72,7 @@ class DsBuilderMcpServerCoreTest {
                 entered.complete(Unit)
                 awaitCancellation()
             },
-            toolObserver = { _, outcome, _ -> outcomes += outcome },
+            toolObserver = { _, outcome -> outcomes += outcome },
         )
         val call = async { core.callTool("project_get_status") }
         entered.await()
@@ -84,8 +84,7 @@ class DsBuilderMcpServerCoreTest {
     @Test fun observerCoversActualRegistryErrorsAndIgnoresUnknownNames() = runTest {
         val events = mutableListOf<Pair<String, String>>()
         val core = server(
-            toolObserver = { name, outcome, duration ->
-                assertTrue(duration >= 0)
+            toolObserver = { name, outcome ->
                 events += name to outcome
             },
         )
@@ -98,7 +97,7 @@ class DsBuilderMcpServerCoreTest {
         assertEquals(names, events.map { it.first })
         core.callTool("unknown-sensitive-name")
         assertEquals(names.size, events.size)
-        val broken = server(toolObserver = { _, _, _ -> error("observer down") })
+        val broken = server(toolObserver = { _, _ -> error("observer down") })
         assertEquals(core.callTool("project_get_status"), broken.callTool("project_get_status"))
     }
 
@@ -810,7 +809,7 @@ class DsBuilderMcpServerCoreTest {
         docsReadUseCases: DocsReadUseCases? = null,
         componentReadUseCases: ComponentReadUseCases? = null,
         modelReadUseCase: ReadDesignSystemModelUseCase = modelReader(contextResolver),
-        toolObserver: (String, String, Long) -> Unit = { _, _, _ -> },
+        toolObserver: (String, String) -> Unit = { _, _ -> },
     ): DsBuilderMcpServerCore = DsBuilderMcpServerCore(
         config = config,
         projectStatusReader = projectStatusReader,
