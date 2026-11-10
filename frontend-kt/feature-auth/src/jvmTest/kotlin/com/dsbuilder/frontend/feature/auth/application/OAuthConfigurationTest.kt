@@ -103,7 +103,7 @@ class OAuthConfigurationTest {
             assertTrue(config.contains("protocol/openid-connect/logout"))
             // gzip только в маршрутах дизайн-системы и только для JSON: SSE и аутентификация не сжимаются.
             val ds = config.substringAfter(
-                "location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {",
+                "location ~ ^/api/projects/([^/]+)/design-systems(/.*)?$ {",
             ).substringBefore("\n        }")
             assertTrue(ds.contains("gzip on;") && ds.contains("gzip_types application/json;"), name)
             assertEquals(1, Regex("gzip on;").findAll(config).count(), name)
