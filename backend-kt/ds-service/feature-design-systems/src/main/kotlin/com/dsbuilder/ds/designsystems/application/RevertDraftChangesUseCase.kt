@@ -79,7 +79,7 @@ class RevertDraftChangesUseCase(
         val outcome = when (
             val result = repository.revertAll(
                 context.projectId,
-                context.principal.systemAdmin,
+                context.principal.globalAdmin,
                 designSystemId,
                 changes,
             )

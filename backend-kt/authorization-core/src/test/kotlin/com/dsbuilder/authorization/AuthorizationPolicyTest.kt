@@ -17,8 +17,8 @@ class AuthorizationPolicyTest {
         assertEquals("1", loaded.policy.schemaVersion)
         assertTrue(loaded.diagnostics.policyVersion.isNotBlank())
         assertEquals(64, loaded.diagnostics.contentSha256.length)
-        assertTrue("documentation:read" in evaluator.projectKeyScopes())
-        assertTrue("documentation:write" in evaluator.projectKeyScopes())
+        assertTrue("documentation:read" in evaluator.personalAccessTokenScopes())
+        assertTrue("documentation:write" in evaluator.personalAccessTokenScopes())
     }
 
     @Test
@@ -35,9 +35,11 @@ class AuthorizationPolicyTest {
     fun `key scopes are exact and system admin overrides known permissions`() {
         val key =
             ProjectPrincipal(
-                ProjectActorType.PROJECT_KEY,
+                ProjectActorType.PERSONAL_ACCESS_TOKEN,
                 "key",
                 "project",
+                personalAccessTokenId = "pat",
+                projectRole = "owner",
                 projectScopes = setOf("documentation:read"),
             )
         assertTrue(evaluator.isAllowed(key, "documentation:read"))
@@ -73,7 +75,9 @@ class AuthorizationPolicyTest {
     fun `invalid semantic references and cycles fail closed`() {
         val base = loaded.policy
         assertFailsWith<AuthorizationPolicyException> {
-            AuthorizationPolicyValidator.validate(base.copy(projectKeyScopes = base.projectKeyScopes + "unknown:scope"))
+            AuthorizationPolicyValidator.validate(
+                base.copy(personalAccessTokenScopes = base.personalAccessTokenScopes + "unknown:scope"),
+            )
         }
         assertFailsWith<AuthorizationPolicyException> {
             AuthorizationPolicyValidator.validate(
@@ -102,7 +106,7 @@ class AuthorizationPolicyTest {
             "false",
             loaded.policy,
         )
-        assertTrue(requireNotNull(gatewayProjectKey).projectScopes.contains("documentation:read"))
+        assertEquals(null, gatewayProjectKey)
         assertEquals(
             null,
             TrustedProjectPrincipalFactory.create(
@@ -152,14 +156,16 @@ class AuthorizationPolicyTest {
         val projectRole: String? = null,
         val projectScopes: Set<String> = emptySet(),
         val systemAdmin: Boolean = false,
+        val personalAccessTokenId: String? = null,
     ) {
         fun toPrincipal() = ProjectPrincipal(
-            if (type == "user") ProjectActorType.USER else ProjectActorType.PROJECT_KEY,
+            if (type == "user") ProjectActorType.USER else ProjectActorType.PERSONAL_ACCESS_TOKEN,
             actorId,
             projectId,
             projectRole,
             projectScopes,
             systemAdmin,
+            personalAccessTokenId,
         )
     }
 }

@@ -99,7 +99,7 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
             ModelReadTarget.Kind.APPEARANCE -> "SELECT design_system_id FROM appearances WHERE id = ?"
         }
         val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to target.id)
-        val accessible = if (context.principal.systemAdmin) {
+        val accessible = if (context.principal.globalAdmin) {
             "TRUE"
         } else {
             args += TextColumnType() to context.projectId.value

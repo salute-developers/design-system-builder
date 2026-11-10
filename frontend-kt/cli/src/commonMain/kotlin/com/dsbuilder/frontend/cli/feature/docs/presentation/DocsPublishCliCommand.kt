@@ -25,7 +25,6 @@ internal class DocsPublishCliCommand(
     private val apiKey: String? by option("--api-key")
 
     private val designSystem: String? by option("--design-system")
-    private val projectKeyEnv: String? by option("--project-key-env")
 
     override fun run() {
         val result = runBlocking {
@@ -35,7 +34,6 @@ internal class DocsPublishCliCommand(
                     apiKeyOverride = apiKey,
                     apiUrlOverride = null,
                     designSystemUri = designSystem,
-                    projectKeyEnvName = projectKeyEnv,
                 ),
             )
         }

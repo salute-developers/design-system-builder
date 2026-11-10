@@ -83,8 +83,10 @@ class WebGenerationPostgresIntegrationTest {
         assertEquals(HttpStatusCode.NotFound, client.webAdapter("project-a", "viewer", MISSING_ID).status)
 
         val withoutScope = client.post(WEB_ADAPTER_PATH) {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "key-1")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "key-1")
+            header("X-User-Id", "integration-owner")
+            header("X-Project-Role", "owner")
             header("X-Project-Id", "project-a")
             header("X-Project-Scopes", "tokens:read")
             jsonBody("""{"designSystemId":"$designSystemId"}""")

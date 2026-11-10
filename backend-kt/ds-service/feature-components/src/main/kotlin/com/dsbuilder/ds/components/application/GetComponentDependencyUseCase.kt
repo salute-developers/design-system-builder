@@ -19,7 +19,7 @@ class GetComponentDependencyUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<ComponentDependency> =
         policy.read(context, ProjectScope.COMPONENTS_READ) {
             transactions.readOnly(context) {
-                repository.findAccessible(context.projectId, context.principal.systemAdmin, id)
+                repository.findAccessible(context.projectId, context.principal.globalAdmin, id)
                     ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
             }
         }

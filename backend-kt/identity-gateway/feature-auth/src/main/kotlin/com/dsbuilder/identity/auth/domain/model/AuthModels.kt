@@ -3,7 +3,7 @@ package com.dsbuilder.identity.auth.domain.model
 /** Тип проверенного контекста авторизации; не принимается из внешних заголовков. */
 enum class ActorType(/** Значение доверенного заголовка. */ val headerValue: String) {
     USER("user"),
-    PROJECT_KEY("project_key"),
+    PERSONAL_ACCESS_TOKEN("personal_access_token"),
 }
 
 /** Тип проверенного контекста авторизации; не принимается из внешних заголовков. */
@@ -59,6 +59,8 @@ data class TrustedHeaders(
     val projectRole: String? = null,
     /** Поле проверенного контекста авторизации. */
     val projectKeyId: String? = null,
+    /** Идентификатор PAT отдельно от владельца. */
+    val personalAccessTokenId: String? = null,
     /** Поле проверенного контекста авторизации. */
     val projectScopes: String? = null,
     /** Поле проверенного контекста авторизации. */
@@ -74,6 +76,7 @@ data class TrustedHeaders(
             projectId?.let { put(HEADER_PROJECT_ID, it) }
             projectRole?.let { put(HEADER_PROJECT_ROLE, it) }
             projectKeyId?.let { put(HEADER_PROJECT_KEY_ID, it) }
+            personalAccessTokenId?.let { put("X-Personal-Access-Token-Id", it) }
             projectScopes?.let { put(HEADER_PROJECT_SCOPES, it) }
             put(HEADER_SYSTEM_ADMIN, systemAdmin)
             put(HEADER_COMPOSE_PREVIEW_PUBLISHER, composePreviewPublisher)

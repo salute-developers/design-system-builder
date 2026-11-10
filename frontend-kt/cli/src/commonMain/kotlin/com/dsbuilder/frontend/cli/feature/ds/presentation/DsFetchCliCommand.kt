@@ -31,7 +31,6 @@ internal class DsFetchCliCommand(
 ) : CliktCommand(name = "fetch") {
     private val apiKey: String? by option("--api-key")
     private val designSystem: String? by option("--design-system")
-    private val projectKeyEnv: String? by option("--project-key-env")
     private val platform: TargetPlatform? by option("--platform").targetPlatform()
         .help(
             "Target platform; taken from .sdds/config.json when omitted. " +
@@ -49,7 +48,6 @@ internal class DsFetchCliCommand(
                     apiKeyOverride = apiKey,
                     apiUrlOverride = null,
                     designSystemUri = designSystem,
-                    projectKeyEnvName = projectKeyEnv,
                     destinationDirectory = destination,
                 ),
             )
@@ -69,7 +67,6 @@ internal class DsFetchCliCommand(
                     apiKeyOverride = apiKey,
                     apiUrlOverride = null,
                     designSystemUri = designSystem,
-                    projectKeyEnvName = projectKeyEnv,
                     platform = platform,
                 ),
             )

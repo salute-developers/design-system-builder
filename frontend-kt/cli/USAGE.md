@@ -99,7 +99,7 @@ dsbuilder --version
 
 ## User auth
 
-Для сценариев без project API key можно сохранить локальную user session:
+Для сценариев без PAT можно сохранить локальную user session:
 
 ```bash
 dsbuilder auth login
@@ -123,7 +123,8 @@ Node MCP, если используете его, и перезапустите 
 Команда `init` создает локальный конфиг проекта в текущей директории. Запускайте
 ее из корня проекта, в котором будет использоваться дизайн-система.
 
-Для интерактивного выбора сначала выполните `dsbuilder auth login`, затем:
+Для интерактивного выбора задайте PAT в `DSBUILDER_API_KEY` либо выполните
+`dsbuilder auth login`, затем:
 
 ```bash
 dsbuilder init
@@ -131,13 +132,13 @@ dsbuilder init
 
 В терминале выберите доступный проект стрелками и нажмите Enter; на следующем
 экране так же выберите дизайн-систему этого проекта. Для отмены нажмите Ctrl+C.
-В этом режиме конфиг использует сохранённую пользовательскую сессию. Можно заранее
+По умолчанию конфиг использует `auto`: PAT из окружения, а при его отсутствии — сохранённую OAuth-сессию. Можно заранее
 указать один из ID: тогда соответствующий шаг выбора пропускается. Если терминал
 не поддерживает интерактивное меню, укажите оба ID явно.
 
-Чтобы записать вместо пользовательской сессии имя переменной с project API key,
+Чтобы записать вместо пользовательской сессии имя переменной с PAT,
 добавьте `--api-key-env DSB_DEV_API_KEY` и задайте эту переменную перед рабочими
-командами. Меню всё равно использует пользовательскую сессию для получения списков.
+командами. Задайте эту переменную перед `init`: меню использует PAT для получения списков.
 
 ```bash
 dsbuilder init --api-key-env DSB_DEV_API_KEY
@@ -191,7 +192,7 @@ export DSB_DEV_API_KEY="dev-token"
 
 ```dotenv
 # .env.example — замените значение в локальном .env
-DSB_DEV_API_KEY=example-project-key
+DSB_DEV_API_KEY=example-pat
 DSBUILDER_API_URL=https://api.example.test
 ```
 
@@ -214,8 +215,8 @@ dsbuilder status
 dsbuilder status --api-key dev-token
 ```
 
-Если project API key отсутствует, `status` использует сохранённую user session. После `401` для user session
-CLI делает один refresh/retry; для rejected project key fallback на user session не выполняется.
+Если PAT отсутствует, `status` использует сохранённую user session. После `401` для user session
+CLI делает один refresh/retry; для rejected PAT fallback на user session не выполняется.
 
 ## MCP server
 

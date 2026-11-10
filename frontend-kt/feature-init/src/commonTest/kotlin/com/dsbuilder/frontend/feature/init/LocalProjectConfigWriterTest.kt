@@ -41,7 +41,7 @@ class LocalProjectConfigWriterTest {
         assertTrue(written.contains("project-1"))
         assertTrue(written.contains("ds-1"))
         assertTrue(written.contains("DSBUILDER_API_KEY"))
-        assertTrue(written.contains("env"))
+        assertTrue(written.contains("auto"))
     }
 
     @Test

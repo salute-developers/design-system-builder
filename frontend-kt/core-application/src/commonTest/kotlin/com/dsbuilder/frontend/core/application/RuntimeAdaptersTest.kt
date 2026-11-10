@@ -1,12 +1,12 @@
 package com.dsbuilder.frontend.core.application
 
-import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.PatResolver
 import com.dsbuilder.frontend.core.auth.RotatingCredentialStore
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
@@ -54,7 +54,7 @@ class RuntimeAdaptersTest {
         )
         val process = EnvironmentReader { null }
         val credentials = RuntimeCredentialProvider(
-            ApiKeyResolver(process),
+            PatResolver(process),
             object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession? = null
                 override suspend fun save(session: UserSession) = Unit
@@ -65,16 +65,16 @@ class RuntimeAdaptersTest {
         val resolver = RuntimeRequestResolver(contextResolver, ApiUrlResolver(process), credentials)
 
         val first = assertIs<RuntimeResolution.Resolved>(resolver.resolve(RuntimeRequest()))
-        assertEquals("first-key", assertIs<BackendCredential.ProjectKey>(first.credential).value)
+        assertEquals("first-key", assertIs<BackendCredential.PersonalAccessToken>(first.credential).value)
         assertEquals("https://first.test", first.apiUrl.value)
         fileSystem.files["/repo/.env"] = "PROJECT_KEY=second-key\nDSBUILDER_API_URL=https://second.test"
         val second = assertIs<RuntimeResolution.Resolved>(resolver.resolve(RuntimeRequest()))
-        assertEquals("second-key", assertIs<BackendCredential.ProjectKey>(second.credential).value)
+        assertEquals("second-key", assertIs<BackendCredential.PersonalAccessToken>(second.credential).value)
         assertEquals("https://second.test", second.apiUrl.value)
 
         val link = "dsbuilder://projects/project-b/design-systems/design-system-b?version=1&platform=compose"
         val explicit = assertIs<RuntimeResolution.Failed>(
-            resolver.resolve(RuntimeRequest(selection = ContextSelection.Link(link, "PROJECT_KEY"))),
+            resolver.resolve(RuntimeRequest(selection = ContextSelection.Link(link))),
         )
         assertEquals(RuntimeFailureCode.AUTH_REQUIRED, explicit.code)
         assertFalse(explicit.message.contains("second-key"))
@@ -84,7 +84,7 @@ class RuntimeAdaptersTest {
     fun projectKeyFromLocalEnvIsUsedInAutoAndForcedKeyModes() = runTest {
         var sessionReads = 0
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = PatResolver(EnvironmentReader { null }),
             credentialStore = object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession? {
                     sessionReads++
@@ -96,7 +96,7 @@ class RuntimeAdaptersTest {
             tokenClient = NoopTokenClient,
         )
         val project = EnvironmentReader { name -> "local-key".takeIf { name == "PROJECT_KEY" } }
-        for (policy in listOf(CredentialPolicy.AUTO, CredentialPolicy.PROJECT_KEY_ENV)) {
+        for (policy in listOf(CredentialPolicy.AUTO, CredentialPolicy.PAT_ENV)) {
             val selected = assertIs<CredentialResult.Selected>(
                 provider.resolve(
                     CredentialRequest(
@@ -108,7 +108,7 @@ class RuntimeAdaptersTest {
                     ),
                 ),
             )
-            assertEquals("local-key", assertIs<BackendCredential.ProjectKey>(selected.credential).value)
+            assertEquals("local-key", assertIs<BackendCredential.PersonalAccessToken>(selected.credential).value)
         }
         assertEquals(0, sessionReads)
         assertIs<CredentialResult.Failed>(
@@ -201,7 +201,7 @@ class RuntimeAdaptersTest {
     fun forcedSessionDoesNotReadProjectKey() = runTest {
         var keyReads = 0
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = ApiKeyResolver(
+            apiKeyResolver = PatResolver(
                 EnvironmentReader {
                     keyReads++
                     "project-secret"
@@ -229,7 +229,7 @@ class RuntimeAdaptersTest {
     fun forcedKeyDoesNotReadSessionWhenMissing() = runTest {
         var sessionReads = 0
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = PatResolver(EnvironmentReader { null }),
             credentialStore = object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession? {
                     sessionReads++
@@ -245,7 +245,7 @@ class RuntimeAdaptersTest {
             ProjectApiUrl("https://api.example.com"),
             null,
             CredentialEnvName("PROJECT_KEY"),
-            CredentialPolicy.PROJECT_KEY_ENV,
+            CredentialPolicy.PAT_ENV,
         )
         assertEquals(AuthErrorCode.AUTH_REQUIRED, assertIs<CredentialResult.Failed>(result).code)
         assertEquals(0, sessionReads)
@@ -306,7 +306,7 @@ class RuntimeAdaptersTest {
     fun credentialProviderPrefersProjectKeyWithoutReadingSession() = runTest {
         var sessionRead = false
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = ApiKeyResolver(
+            apiKeyResolver = PatResolver(
                 EnvironmentReader { name -> "project-secret".takeIf { name == "DSBUILDER_API_KEY" } },
             ),
             credentialStore = object : CredentialStore {
@@ -329,8 +329,8 @@ class RuntimeAdaptersTest {
         )
 
         val selected = assertIs<CredentialResult.Selected>(result)
-        assertEquals(BackendCredential.ProjectKey("project-secret"), selected.credential)
-        assertEquals(BackendCredentialType.PROJECT_KEY, selected.type)
+        assertEquals(BackendCredential.PersonalAccessToken("project-secret"), selected.credential)
+        assertEquals(BackendCredentialType.PERSONAL_ACCESS_TOKEN, selected.type)
         assertEquals(false, sessionRead)
     }
 
@@ -338,7 +338,7 @@ class RuntimeAdaptersTest {
     fun credentialProviderFallsBackToUserSessionWhenProjectKeyIsMissing() = runTest {
         val saved = mutableListOf<UserSession>()
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = PatResolver(EnvironmentReader { null }),
             credentialStore = object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession = UserSession(
                     schemaVersion = 2,
@@ -400,7 +400,7 @@ class RuntimeAdaptersTest {
         }
         var refreshTokenUsed: String? = null
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = PatResolver(EnvironmentReader { null }),
             credentialStore = store,
             tokenClient = object : TokenClient by NoopTokenClient {
                 override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> {
@@ -420,7 +420,7 @@ class RuntimeAdaptersTest {
     fun credentialProviderDeletesSessionAfterAuthRequiredRefreshFailureOnly() = runTest {
         val store = DeletingCredentialStore()
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = PatResolver(EnvironmentReader { null }),
             credentialStore = store,
             tokenClient = object : TokenClient by NoopTokenClient {
                 override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
@@ -438,7 +438,7 @@ class RuntimeAdaptersTest {
     fun credentialProviderKeepsSessionAfterTransportRefreshFailure() = runTest {
         val store = DeletingCredentialStore()
         val provider = RuntimeCredentialProvider(
-            apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
+            apiKeyResolver = PatResolver(EnvironmentReader { null }),
             credentialStore = store,
             tokenClient = object : TokenClient by NoopTokenClient {
                 override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
@@ -489,7 +489,7 @@ class RuntimeAdaptersTest {
         )
         val context = assertIs<ProjectContextReadResult.Found>(result).context
         assertEquals("project-a", context.projectId.value)
-        assertEquals(CredentialPolicy.USER_SESSION, context.credentialPolicy)
+        assertEquals(CredentialPolicy.AUTO, context.credentialPolicy)
         assertEquals("1.0.0", context.selectedVersion)
         assertEquals(false, sourceCalled)
     }

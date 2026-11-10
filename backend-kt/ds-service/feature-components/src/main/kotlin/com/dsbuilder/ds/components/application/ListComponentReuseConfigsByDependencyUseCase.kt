@@ -19,8 +19,8 @@ class ListComponentReuseConfigsByDependencyUseCase(
     suspend fun execute(context: DsRequestContext, dependencyId: UUID): DsResult<List<ComponentReuseConfig>> =
         policy.read(context, ProjectScope.COMPONENTS_READ) {
             transactions.readOnly(context) {
-                repository.listByDependency(context.projectId, context.principal.systemAdmin, dependencyId)
-                    ?.let { DsResult.Success(it) } ?: if (context.principal.systemAdmin) {
+                repository.listByDependency(context.projectId, context.principal.globalAdmin, dependencyId)
+                    ?.let { DsResult.Success(it) } ?: if (context.principal.globalAdmin) {
                     DsResult.Success(emptyList())
                 } else {
                     DsResult.Failure(DsFailure.NotFound)

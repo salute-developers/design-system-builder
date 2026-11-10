@@ -16,6 +16,6 @@ class GetStateSetUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<ComponentStateSet> =
         modelFind(policy, transactions, context) {
-            repository.findSet(context.projectId, context.principal.systemAdmin, id)
+            repository.findSet(context.projectId, context.principal.globalAdmin, id)
         }
 }

@@ -3,9 +3,7 @@ import { invalidateQueryCache } from '../../../shared/data/useLoad';
 import { http } from '../../../api/http';
 import { apiRequest } from '../../../shared/data/apiRequest';
 import type {
-    CreatedProjectAccessKey,
     Project,
-    ProjectAccessKey,
     ProjectMember,
     ProjectMemberCandidate,
     ProjectRole,
@@ -41,9 +39,4 @@ export const projectsApi = {
         changed<ProjectMember>(() => http.patch(projectPath(`/${id}/members/${userId}`), { role }), [`members:${id}`]),
     removeMember: (id: string, userId: string) =>
         changed<void>(() => http.delete(projectPath(`/${id}/members/${userId}`)), [`members:${id}`]),
-    accessKeys: (id: string) => apiRequest<ProjectAccessKey[]>(() => http.get(projectPath(`/${id}/access-keys`))),
-    createAccessKey: (id: string, body: { name: string; scopes: string[]; ttlSeconds?: number }) =>
-        apiRequest<CreatedProjectAccessKey>(() => http.post(projectPath(`/${id}/access-keys`), body)),
-    revokeAccessKey: (id: string, keyId: string) =>
-        apiRequest<ProjectAccessKey>(() => http.delete(projectPath(`/${id}/access-keys/${keyId}`))),
 };

@@ -109,8 +109,8 @@ private sealed interface DecodedResult<out T> {
 
 private fun Int?.toStatusErrorCode(credential: BackendCredential): CheckProjectStatusErrorCode =
     when {
-        this == 401 && credential is BackendCredential.ProjectKey ->
-            CheckProjectStatusErrorCode.PROJECT_KEY_INVALID
+        this == 401 && credential is BackendCredential.PersonalAccessToken ->
+            CheckProjectStatusErrorCode.PAT_INVALID
         this == 401 -> CheckProjectStatusErrorCode.AUTH_REQUIRED
         this == 403 -> CheckProjectStatusErrorCode.FORBIDDEN
         else -> CheckProjectStatusErrorCode.BACKEND_UNAVAILABLE

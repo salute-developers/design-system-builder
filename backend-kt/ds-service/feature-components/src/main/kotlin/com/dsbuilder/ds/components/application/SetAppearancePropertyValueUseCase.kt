@@ -19,6 +19,6 @@ class SetAppearancePropertyValueUseCase(
         appearanceId: UUID,
         command: AppearanceEditorRepository.PropertyValueSet,
     ): DsResult<EditorPropertyValue> = modelMutate(policy, transactions, context) {
-        repository.setPropertyValue(context.projectId, context.principal.systemAdmin, appearanceId, command)
+        repository.setPropertyValue(context.projectId, context.principal.globalAdmin, appearanceId, command)
     }
 }

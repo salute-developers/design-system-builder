@@ -1,6 +1,5 @@
 package com.dsbuilder.frontend.core.application
 
-import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.BackendCredential
@@ -8,7 +7,8 @@ import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.auth.INTERACTIVE_CLIENT_ID
-import com.dsbuilder.frontend.core.auth.MissingApiKeyException
+import com.dsbuilder.frontend.core.auth.MissingPatException
+import com.dsbuilder.frontend.core.auth.PatResolver
 import com.dsbuilder.frontend.core.auth.RotatingCredentialStore
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_ID_ENV
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_SECRET_ENV
@@ -28,7 +28,7 @@ import kotlin.time.ExperimentalTime
  * environment (`DSBUILDER_CLIENT_ID` and `DSBUILDER_CLIENT_SECRET`) and only then at the saved user session.
  */
 internal class RuntimeCredentialProvider(
-    private val apiKeyResolver: ApiKeyResolver,
+    private val apiKeyResolver: PatResolver,
     private val credentialStore: CredentialStore,
     private val tokenClient: TokenClient,
     private val environment: EnvironmentReader = EnvironmentReader { null },
@@ -58,22 +58,22 @@ internal class RuntimeCredentialProvider(
             request.rejectedAccessToken,
         )
         CredentialPolicy.SERVICE_ACCOUNT_OR_USER_SESSION -> resolveServiceOrSession(request)
-        CredentialPolicy.AUTO, CredentialPolicy.PROJECT_KEY_ENV -> resolveProjectKeyOrSession(request)
+        CredentialPolicy.AUTO, CredentialPolicy.PAT_ENV -> resolveProjectKeyOrSession(request)
     }
 
     private suspend fun resolveProjectKeyOrSession(request: CredentialRequest): CredentialResult {
         val credentialEnvName = request.credentialEnvName
         val key = resolveProjectKey(request.projectKeyOverride, credentialEnvName, request.projectEnvironment)
-        if (key == null && request.policy == CredentialPolicy.PROJECT_KEY_ENV) {
+        if (key == null && request.policy == CredentialPolicy.PAT_ENV) {
             return CredentialResult.Failed(
                 AuthErrorCode.AUTH_REQUIRED,
-                "Error: project key is required from ${credentialEnvName.value}.",
+                "Error: PAT is required from ${credentialEnvName.value}.",
             )
         }
         return key?.let { projectKey ->
             CredentialResult.Selected(
-                credential = BackendCredential.ProjectKey(projectKey.value),
-                type = BackendCredentialType.PROJECT_KEY,
+                credential = BackendCredential.PersonalAccessToken(projectKey.value),
+                type = BackendCredentialType.PERSONAL_ACCESS_TOKEN,
             )
         } ?: resolveSessionCredential(request.apiUrl, request.forceRefresh, request.rejectedAccessToken)
     }
@@ -107,7 +107,7 @@ internal class RuntimeCredentialProvider(
         projectEnvironment: EnvironmentReader?,
     ) = try {
         apiKeyResolver.resolve(projectKeyOverride, credentialEnvName.value, projectEnvironment)
-    } catch (_: MissingApiKeyException) {
+    } catch (_: MissingPatException) {
         null
     }
 

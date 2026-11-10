@@ -16,3 +16,5 @@ include(":architecture-tests")
 
 includeBuild("runtime-contracts")
 includeBuild("app")
+
+includeBuild("feature-user-settings")

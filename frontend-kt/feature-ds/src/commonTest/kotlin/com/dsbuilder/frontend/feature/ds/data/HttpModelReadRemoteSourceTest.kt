@@ -135,7 +135,7 @@ class HttpModelReadRemoteSourceTest {
     fun `HTTP failures preserve categories without exposing raw backend body`() = runTest {
         mapOf(
             400 to "INVALID_QUERY",
-            401 to "AUTH_REQUIRED",
+            401 to "PAT_INVALID",
             403 to "FORBIDDEN",
             404 to "NOT_FOUND",
             503 to "BACKEND_UNAVAILABLE",
@@ -146,7 +146,7 @@ class HttpModelReadRemoteSourceTest {
                 val failure = assertIs<ModelReadResult.Failed>(result)
                 assertEquals(code, failure.code)
                 assertFalse(failure.message.contains("secret-value"))
-                if (status == 401) assertTrue(failure.message.contains("dsbuilder auth login"))
+                if (status == 401) assertTrue(failure.message.contains("PAT"))
             }
     }
 
@@ -188,7 +188,7 @@ class HttpModelReadRemoteSourceTest {
     private fun runtime() = ModelReadRuntime(
         ProjectContext(ProjectId("project"), DesignSystemId(ID), CredentialEnvName("KEY"), ""),
         "https://public.example.test",
-        BackendCredential.ProjectKey("test-key"),
+        BackendCredential.PersonalAccessToken("test-key"),
     )
 
     private fun source(response: (String) -> AuthenticatedHttpResult) = HttpModelReadRemoteSource(

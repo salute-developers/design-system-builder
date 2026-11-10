@@ -153,12 +153,14 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         val plain = archive(commit = COMMIT_A)
         val changed = archive(commit = COMMIT_A, extra = mapOf("extra.txt" to "x"))
 
-        val statuses = coroutineScope {
-            listOf(plain, changed).map { async { publish(it, Actor.PUBLISHER, dryRun = false).status } }.awaitAll()
+        val responses = coroutineScope {
+            listOf(plain, changed).map { async { publish(it, Actor.PUBLISHER, dryRun = false) } }.awaitAll()
         }
+        val statuses = responses.map { it.status }
+        val details = responses.map { "${it.status}: ${it.bodyAsText()}" }.joinToString()
 
-        assertEquals(1, statuses.count { it == HttpStatusCode.OK }, statuses.toString())
-        assertEquals(1, statuses.count { it == HttpStatusCode.Conflict }, statuses.toString())
+        assertEquals(1, statuses.count { it == HttpStatusCode.OK }, details)
+        assertEquals(1, statuses.count { it == HttpStatusCode.Conflict }, details)
         assertEquals(1, count("compose_preview_plugin_builds"))
         val recordedHash = query("SELECT zip_sha256 FROM compose_preview_plugin_builds")
         val winner = if (recordedHash == sha256Hex(changed)) changed else plain

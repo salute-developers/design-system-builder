@@ -277,7 +277,7 @@ class HttpApiMetaRemoteSourceTest {
         HttpApiMetaRemoteSource(ApiMetaFakeHttpClientFactory(onGet, onPost)).import(
             ImportApiMetaRemoteCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                credential = BackendCredential.ProjectKey("secret-key"),
+                credential = BackendCredential.PersonalAccessToken("secret-key"),
                 platform = "compose",
                 source = "uikit-compose-api-meta.json",
                 dryRun = dryRun,

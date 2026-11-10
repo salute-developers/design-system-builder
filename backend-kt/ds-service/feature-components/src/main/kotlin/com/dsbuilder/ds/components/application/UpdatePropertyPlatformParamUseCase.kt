@@ -19,6 +19,6 @@ class UpdatePropertyPlatformParamUseCase(
         id: UUID,
         command: ComponentModelRepository.PlatformParamUpdate,
     ): DsResult<PropertyPlatformParam> = modelMutate(policy, transactions, context) {
-        repository.updatePlatformParam(context.projectId, context.principal.systemAdmin, id, command)
+        repository.updatePlatformParam(context.projectId, context.principal.globalAdmin, id, command)
     }
 }

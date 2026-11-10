@@ -16,6 +16,6 @@ class GetInvariantPlatformParamAdjustmentUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<InvariantPlatformParamAdjustment> =
         modelFind(policy, transactions, context) {
-            repository.findInvariantAdjustment(context.projectId, context.principal.systemAdmin, id)
+            repository.findInvariantAdjustment(context.projectId, context.principal.globalAdmin, id)
         }
 }

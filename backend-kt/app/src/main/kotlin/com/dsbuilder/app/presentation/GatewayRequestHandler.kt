@@ -73,10 +73,11 @@ internal class GatewayRequestHandler(
 
     private fun routePolicy(path: String): RoutePolicy {
         val project = Regex("^/api/projects/([^/]+)(?:/.*)?$").matchEntire(path)
-        val userRoute = path in pluginPublishPaths || path in setOf(
-            "/api/projects", "/api/projects/member-candidates",
-            "/api/admin/component-config/import-api-meta",
-        )
+        val userRoute = path.startsWith("/api/settings/personal-access-tokens") ||
+            path in pluginPublishPaths || path in setOf(
+                "/api/projects", "/api/projects/member-candidates",
+                "/api/admin/component-config/import-api-meta",
+            )
         val ds = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/ds")
         val documentation = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/documentation")
         return RoutePolicy(project?.groupValues?.get(1), userRoute, ds, documentation)
@@ -97,6 +98,10 @@ internal class GatewayRequestHandler(
             }
             when (decision) {
                 is GatewayAuthDecision.Allowed -> {
+                    if (!allowsUserRoute(decision, path, userRoute, call.request.httpMethod)) {
+                        reject(call, HttpStatusCode.Forbidden)
+                        return@run false
+                    }
                     val context = decision.trustedHeaders.asMap().toMutableMap()
                     if (path.startsWith("/api/admin/")) context["X-Project-Id"] = "global"
                     call.attributes.put(verifiedContextKey, verifiedHeaders(call.request.headers, context))
@@ -106,12 +111,27 @@ internal class GatewayRequestHandler(
                     reject(call, HttpStatusCode.Unauthorized)
                     false
                 }
+                is GatewayAuthDecision.Unavailable -> {
+                    reject(call, HttpStatusCode.ServiceUnavailable)
+                    false
+                }
                 is GatewayAuthDecision.Forbidden -> {
                     reject(call, HttpStatusCode.Forbidden)
                     false
                 }
             }
         }
+    }
+
+    private fun allowsUserRoute(
+        decision: GatewayAuthDecision.Allowed,
+        path: String,
+        userRoute: Boolean,
+        method: HttpMethod,
+    ): Boolean {
+        if (decision.trustedHeaders.actorType != "personal_access_token" || !userRoute) return true
+        return path == "/api/projects" && method == HttpMethod.Get &&
+            "projects:read" in decision.trustedHeaders.projectScopes.orEmpty().split(',')
     }
 
     private fun cors(call: ApplicationCall) {

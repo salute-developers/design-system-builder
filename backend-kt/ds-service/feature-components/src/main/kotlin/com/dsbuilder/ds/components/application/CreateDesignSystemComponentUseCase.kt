@@ -24,8 +24,8 @@ class CreateDesignSystemComponentUseCase(
     ): DsResult<DesignSystemComponent> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-design-system-component",
         "$designSystemId:$componentId",
-        { repository.findAccessible(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createOwned(context.projectId, context.principal.systemAdmin, designSystemId, componentId) },
+        { repository.findAccessible(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createOwned(context.projectId, context.principal.globalAdmin, designSystemId, componentId) },
         DesignSystemComponent::id,
     )
 }

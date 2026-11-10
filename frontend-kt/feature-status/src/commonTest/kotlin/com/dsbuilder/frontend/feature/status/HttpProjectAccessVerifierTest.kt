@@ -28,7 +28,7 @@ class HttpProjectAccessVerifierTest {
         projectId = ProjectId("project-a"),
         designSystemId = DesignSystemId("ds-a"),
         apiUrl = ProjectApiUrl("https://api.example.com"),
-        credential = BackendCredential.ProjectKey("secret-value"),
+        credential = BackendCredential.PersonalAccessToken("secret-value"),
     )
 
     private fun factory(handler: (HttpRequestData) -> Pair<HttpStatusCode, String>): AuthenticatedHttpClientFactory {
