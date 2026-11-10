@@ -1,5 +1,10 @@
 package com.dsbuilder.frontend.cli
 
+import com.dsbuilder.frontend.analytics.metrica.KtorMetricaTransport
+import com.dsbuilder.frontend.analytics.metrica.MetricaConfig
+import com.dsbuilder.frontend.analytics.metrica.createMetricaAnalytics
+import com.dsbuilder.frontend.core.analytics.Analytics
+import com.dsbuilder.frontend.core.analytics.AnalyticsContext
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.auth.CredentialStoreFileSystem
 import com.dsbuilder.frontend.core.auth.CredentialStoreLock
@@ -24,6 +29,8 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.nio.file.attribute.PosixFilePermissions
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
  * Создает JVM runtime-зависимости CLI.
@@ -54,6 +61,7 @@ private object JvmProcessRunner : ProcessRunner {
     override fun run(request: ProcessRequest): ProcessResult {
         val builder = ProcessBuilder(request.commandLine).directory(File(request.workingDirectory))
         builder.environment().putAll(request.environment)
+        builder.environment().keys.removeAll { it.startsWith("DSBUILDER_METRICA_", ignoreCase = true) }
         if (request.inheritStdio) {
             builder.inheritIO()
         } else {
@@ -121,7 +129,7 @@ private object JvmWorkspaceFileSystem : WorkspaceFileSystem {
     }
 }
 
-private object JvmCredentialStoreFileSystem : CredentialStoreFileSystem {
+internal object JvmCredentialStoreFileSystem : CredentialStoreFileSystem {
     override fun homeDirectory(): String = System.getProperty("user.home")
 
     override fun resolve(parent: String, child: String): String = File(parent, child).normalize().path
@@ -161,3 +169,24 @@ private object JvmCredentialStoreFileSystem : CredentialStoreFileSystem {
 }
 
 internal object JvmCredentialStoreLock : CredentialStoreLock by ProcessCredentialStoreLock(JvmCredentialLockPlatform)
+
+@OptIn(ExperimentalTime::class)
+internal actual fun platformAnalytics(config: MetricaConfig, channel: String): Analytics {
+    return createMetricaAnalytics(
+        config,
+        AnalyticsContext(channel, VERSION, jvmAnalyticsOs()),
+        CliMetricaIdentityStore(JvmCredentialStoreFileSystem, JvmCredentialStoreLock),
+        KtorMetricaTransport(HttpClient(CIO)),
+        { Clock.System.now().epochSeconds },
+    )
+}
+
+private val jvmOsFamilies = mapOf(
+    "windows" to "windows",
+    "mac" to "macos",
+    "darwin" to "macos",
+    "linux" to "linux",
+)
+
+internal fun jvmAnalyticsOs(osName: String = System.getProperty("os.name")): String =
+    jvmOsFamilies[osName.substringBefore(' ').lowercase()] ?: "other"

@@ -15,6 +15,7 @@ import com.dsbuilder.frontend.cli.feature.status.di.statusCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.theme.di.themeCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.toolchain.di.toolchainCliPresentationModule
 import com.dsbuilder.frontend.cli.presentation.RootCliCommand
+import com.dsbuilder.frontend.core.analytics.Analytics
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.application.coreApplicationModule
 import com.dsbuilder.frontend.core.auth.CredentialStoreLockException
@@ -31,6 +32,7 @@ import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
 import com.github.ajalt.clikt.core.CliktError
+import com.github.ajalt.clikt.core.obj
 import com.github.ajalt.clikt.core.parse
 import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.mordant.rendering.AnsiLevel
@@ -56,6 +58,7 @@ public data class CliResult(
 public class DsBuilderCli(
     private val runtime: ClientRuntime = defaultClientRuntime(),
     private val initMenu: InitSelectionMenu? = null,
+    private val analyticsFactory: ((String, Set<String>) -> Analytics)? = null,
 ) {
     /**
      * Обрабатывает аргументы CLI и возвращает детерминированный результат.
@@ -71,7 +74,7 @@ public class DsBuilderCli(
             return CliResult(exitCode = 1, output = message)
         }
 
-        return rootCommand().executeForResult(args)
+        return withAnalytics { it.executeForResult(args) }
     }
 
     /**
@@ -89,7 +92,15 @@ public class DsBuilderCli(
             return 1
         }
 
-        return rootCommand().executeDirectly(args)
+        return withAnalytics { it.executeDirectly(args) }
+    }
+
+    private inline fun <T> withAnalytics(block: (RootCliCommand) -> T): T {
+        val session = analyticsFactory?.let { CliAnalyticsSession(it) }
+            ?: defaultAnalyticsSession(runtime.environmentReader)
+        val command = rootCommand()
+        command.configureContext { obj = session }
+        try { return block(command) } finally { session.finish() }
     }
 
     private fun rootCommand(): RootCliCommand {

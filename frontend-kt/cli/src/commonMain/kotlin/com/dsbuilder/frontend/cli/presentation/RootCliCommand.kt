@@ -17,7 +17,9 @@ public class RootCliCommand(
         subcommands(cliktSubcommands)
     }
 
-    override fun help(context: Context): String = "DS Builder CLI."
+    override fun help(context: Context): String =
+        "DS Builder CLI. Analytics sends command/tool names, outcomes, version, OS and an installation ID " +
+            "to Yandex Metrica. Disable with DSBUILDER_ANALYTICS_DISABLED=1 or DO_NOT_TRACK=1. See docs/analytics.md."
 
     override fun run(): Unit = Unit
 }

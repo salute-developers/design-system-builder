@@ -39,7 +39,9 @@ class PreviewPluginPublishCliCommandTest {
     private fun run(args: List<String>, env: Map<String, String> = emptyMap()) = DsBuilderCli(
         ClientRuntime(
             fileSystem = EmptyFileSystem(),
-            environmentReader = EnvironmentReader { name -> env[name] },
+            environmentReader = EnvironmentReader { name ->
+                if (name == "DSBUILDER_ANALYTICS_DISABLED") "1" else env[name]
+            },
             httpClientFactory = RecordingFactory(requests),
             credentialStore = object : CredentialStore {
                 override suspend fun read(apiUrl: String): UserSession? = null

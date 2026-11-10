@@ -2,6 +2,10 @@ package com.dsbuilder.frontend.cli
 
 import com.dsbuilder.frontend.cli.feature.init.presentation.InitChoice
 import com.dsbuilder.frontend.cli.feature.init.presentation.InitSelectionMenu
+import com.dsbuilder.frontend.core.analytics.Analytics
+import com.dsbuilder.frontend.core.analytics.AnalyticsEvent
+import com.dsbuilder.frontend.core.analytics.AnalyticsFlushResult
+import com.dsbuilder.frontend.core.analytics.AnalyticsValue
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
@@ -44,6 +48,45 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DsBuilderCliTest {
+    @Test fun analyticsTracksOnlyStartedLeafAndIsolatesFailures() {
+        val events = mutableListOf<AnalyticsEvent>()
+        val recorder = object : Analytics {
+            override fun track(event: AnalyticsEvent) { events += event }
+            override suspend fun flush(timeoutMillis: Long) = AnalyticsFlushResult.COMPLETED
+            override fun close() = Unit
+        }
+        val cli = DsBuilderCli(
+            fakeRuntime(),
+            analyticsFactory = { channel, operations ->
+                assertEquals("cli", channel)
+                assertEquals(CLI_ANALYTICS_OPERATIONS, operations)
+                recorder
+            },
+        )
+        listOf(listOf("--help"), listOf("--version"), listOf("theme"), listOf("theme", "fetch", "--unknown")).forEach {
+            cli.execute(it)
+        }
+        assertTrue(events.isEmpty())
+        cli.execute(listOf("toolchain", "list"))
+        cli.execute(listOf("theme", "fetch"))
+        assertEquals(
+            listOf("toolchain list", "theme fetch"),
+            events.map {
+                (it.properties.getValue("operation") as AnalyticsValue.Text).value
+            },
+        )
+        assertEquals(
+            listOf("success", "failure"),
+            events.map {
+                (it.properties.getValue("outcome") as AnalyticsValue.Text).value
+            },
+        )
+        val baseline = DsBuilderCli(fakeRuntime()).execute(listOf("theme", "fetch"))
+        val broken = DsBuilderCli(fakeRuntime(), analyticsFactory = { _, _ -> error("analytics down") })
+            .execute(listOf("theme", "fetch"))
+        assertEquals(baseline, broken)
+    }
+
     @Test
     fun themeFetchRetainsMoreThanTwoHundredDefinitionsAndFiftyThemesWithoutPageParameters() {
         val fileSystem = initializedFileSystem()
@@ -1216,6 +1259,7 @@ class DsBuilderCliTest {
 
     @Test
     fun componentsFetchReportsComponentFileWriteFailure() {
+        val analytics = RecordingClientAnalytics()
         val fileSystem = initializedFileSystem()
         fileSystem.writeFailurePath = "/repo/.sdds/web/web-adapter.json"
         val result = DsBuilderCli(
@@ -1224,11 +1268,15 @@ class DsBuilderCliTest {
                 environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
                 httpResults = successfulComponentHttpResults(),
             ),
+            analyticsFactory = { _, _ -> analytics },
         ).execute(listOf("components", "fetch", "--platform", "react"))
 
         assertEquals(1, result.exitCode)
         assertTrue(result.output.contains("Cannot write web adapter"), result.output)
         assertFalse(result.output.contains("Written to:"))
+        assertEquals(1, analytics.events.size)
+        assertEquals(AnalyticsValue.Text("components fetch"), analytics.events.single().properties["operation"])
+        assertEquals(AnalyticsValue.Text("failure"), analytics.events.single().properties["outcome"])
     }
 
     @Test
@@ -1299,6 +1347,7 @@ class DsBuilderCliTest {
 
     @Test
     fun dsFetchFetchesThemeThenComponentsWithTheSameContext() {
+        val analytics = RecordingClientAnalytics()
         val fileSystem = initializedFileSystem()
         val calls = mutableListOf<String>()
         val result = DsBuilderCli(
@@ -1308,6 +1357,7 @@ class DsBuilderCliTest {
                 httpResults = successfulThemeHttpResults() + successfulComponentHttpResults(),
                 onGet = { calls += it },
             ),
+            analyticsFactory = { _, _ -> analytics },
         ).execute(listOf("ds", "fetch"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -1320,6 +1370,9 @@ class DsBuilderCliTest {
             calls.drop(4),
         )
         assertFalse(result.output.contains("secret-value"))
+        assertEquals(1, analytics.events.size)
+        assertEquals(AnalyticsValue.Text("ds fetch"), analytics.events.single().properties["operation"])
+        assertEquals(AnalyticsValue.Text("success"), analytics.events.single().properties["outcome"])
     }
 
     @Test
@@ -1790,7 +1843,10 @@ class DsBuilderCliTest {
             } else {
                 listOf("init", "--project-id", "p1")
             }
-            val result = DsBuilderCli(runtime, menu).execute(args)
+            val analytics = RecordingClientAnalytics()
+            val result = DsBuilderCli(runtime, menu, analyticsFactory = { _, _ -> analytics }).execute(args)
+            val expected = if (scenario in setOf("cancel", "closed", "foreign")) "cancelled" else "failure"
+            assertEquals(AnalyticsValue.Text(expected), analytics.events.single().properties["outcome"], scenario)
             assertEquals(1, result.exitCode, scenario)
             assertFalse(fs.exists("/repo/.sdds/config.json"), scenario)
             if (scenario != "foreign") assertFalse("/api/projects" in calls)
@@ -1887,7 +1943,9 @@ class DsBuilderCliTest {
         onCredential: (BackendCredential) -> Unit = {},
     ): ClientRuntime = ClientRuntime(
         fileSystem = fileSystem,
-        environmentReader = EnvironmentReader { name -> environment[name] },
+        environmentReader = EnvironmentReader { name ->
+            if (name == "DSBUILDER_ANALYTICS_DISABLED") "1" else environment[name]
+        },
         httpClientFactory = FakeAuthenticatedHttpClientFactory(
             httpResult,
             httpResults,
@@ -2080,4 +2138,11 @@ private class FakeFileSystem(
             }
         return "/" + parts.joinToString("/")
     }
+}
+
+private class RecordingClientAnalytics : Analytics {
+    val events = mutableListOf<AnalyticsEvent>()
+    override fun track(event: AnalyticsEvent) { events += event }
+    override suspend fun flush(timeoutMillis: Long): AnalyticsFlushResult = AnalyticsFlushResult.COMPLETED
+    override fun close() = Unit
 }

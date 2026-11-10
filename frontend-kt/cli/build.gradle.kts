@@ -1,3 +1,5 @@
+import java.net.URI
+import java.security.MessageDigest
 import org.gradle.api.tasks.JavaExec
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.jvm.application.tasks.CreateStartScripts
@@ -45,6 +47,44 @@ val generateCliVersion by tasks.registering {
     }
 }
 
+val analyticsKeys = listOf("COUNTER_ID", "CLI_TOKEN", "MCP_TOKEN", "BASE_URL")
+val analyticsValues = analyticsKeys.associateWith { providers.environmentVariable("DSBUILDER_METRICA_$it").orElse("") }
+val analyticsEnabled = providers.environmentVariable("DSBUILDER_ANALYTICS_ENABLED").orElse("false")
+val analyticsDirectory = layout.buildDirectory.dir("generated/analytics")
+val generateAnalyticsConfig by tasks.registering {
+    analyticsValues.forEach { (key, value) ->
+        inputs.property(key, value.map { MessageDigest.getInstance("SHA-256")
+            .digest(it.toByteArray()).joinToString("") { byte -> "%02x".format(byte) } })
+    }
+    inputs.property("enabled", analyticsEnabled)
+    outputs.dir(analyticsDirectory)
+    // Секреты не попадают в удалённый build cache.
+    outputs.cacheIf { false }
+    doLast {
+        val enabled = analyticsEnabled.get() == "true"
+        val values = analyticsValues.mapValues { it.value.get() }
+        val baseUri = runCatching { URI(values.getValue("BASE_URL")) }.getOrNull()
+        require(!enabled || (values.values.all { it.isNotBlank() } &&
+            values.getValue("COUNTER_ID").toLongOrNull()?.let { it > 0 } == true &&
+            values.getValue("CLI_TOKEN") != values.getValue("MCP_TOKEN") &&
+            baseUri?.let { uri ->
+                uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.rawUserInfo == null &&
+                    uri.rawQuery == null && uri.rawFragment == null
+            } == true)) {
+            "Enabled analytics requires a positive counter, distinct channel tokens and HTTPS base URL"
+        }
+        fun literal(value: String): String = value.map { it.code }.joinToString(
+            prefix = "intArrayOf(", postfix = ").map { it.toChar() }.joinToString(\"\")",
+        )
+        val output = analyticsDirectory.get().file("com/dsbuilder/frontend/cli/BuiltAnalyticsConfig.kt").asFile
+        output.parentFile.mkdirs()
+        output.writeText("package com.dsbuilder.frontend.cli\n\ninternal object BuiltAnalyticsConfig {\n" +
+            "    val enabled = $enabled\n" + values.entries.joinToString("") { (key, value) ->
+                "    val $key = ${literal(if (enabled) value else "")}\n"
+            } + "}\n")
+    }
+}
+
 kotlin {
     jvm {
         binaries {
@@ -83,8 +123,11 @@ kotlin {
     sourceSets {
         commonMain {
             kotlin.srcDir(generateCliVersion.map { generatedVersionDirectory.get() })
+            kotlin.srcDir(generateAnalyticsConfig.map { analyticsDirectory.get() })
         }
         commonMain.dependencies {
+            api(projects.coreAnalytics)
+            implementation(projects.analyticsMetrica)
             implementation(projects.coreNetwork)
             implementation(projects.coreAuth)
             implementation(projects.coreWorkspace)
@@ -307,4 +350,55 @@ val distributionS3Test by tasks.registering(Exec::class) {
     description = "Runs CLI delivery against an isolated temporary MinIO (requires Docker)."
     workingDir(layout.projectDirectory.dir("distribution"))
     commandLine("python3", "tests/run_s3_integration.py")
+}
+
+val jvmMainCompilation = kotlin.targets.getByName("jvm").compilations.getByName("main")
+tasks.register<JavaExec>("analyticsGoals") {
+    group = "documentation"
+    description = "Prints Metrica JavaScript goal identifiers from the CLI and MCP catalogs."
+    mainClass.set("com.dsbuilder.frontend.cli.AnalyticsGoalsMainKt")
+    classpath(jvmMainCompilation.output.allOutputs, jvmMainCompilation.runtimeDependencyFiles)
+    dependsOn(jvmMainCompilation.compileTaskProvider)
+}
+
+// Административный код использует каталог :cli, но не входит в CLI-дистрибутивы.
+val analyticsAdminCompilation = kotlin.targets.getByName("jvm").compilations.create("analyticsAdmin") {
+    associateWith(jvmMainCompilation)
+}
+val analyticsAdminTestCompilation = kotlin.targets.getByName("jvm").compilations.create("analyticsAdminTest") {
+    associateWith(analyticsAdminCompilation)
+    defaultSourceSet.dependencies { implementation(kotlin("test-junit")) }
+}
+extensions.configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
+    source.from("src/jvmAnalyticsAdmin/kotlin", "src/jvmAnalyticsAdminTest/kotlin")
+}
+val analyticsAdminTest by tasks.registering(Test::class) {
+    jvmArgs("-Djdk.httpclient.disableRetryConnect=true", "-Djdk.httpclient.enableAllMethodRetry=false")
+    group = "verification"
+    testClassesDirs = analyticsAdminTestCompilation.output.classesDirs
+    classpath = files(analyticsAdminTestCompilation.output.allOutputs, analyticsAdminTestCompilation.runtimeDependencyFiles)
+    dependsOn(analyticsAdminTestCompilation.compileTaskProvider)
+}
+tasks.named("check") { dependsOn(analyticsAdminTest) }
+tasks.named("allTests") { dependsOn(analyticsAdminTest) }
+
+tasks.register("prepareAnalyticsGoals") {
+    group = "documentation"
+    description = "Compiles the administrative goal sync tool without OAuth credentials."
+    dependsOn(analyticsAdminCompilation.compileTaskProvider)
+}
+tasks.register<JavaExec>("syncAnalyticsGoals") {
+    jvmArgs("-Djdk.httpclient.disableRetryConnect=true", "-Djdk.httpclient.enableAllMethodRetry=false")
+    group = "documentation"
+    description = "Creates missing Metrica goals from the CLI/MCP catalog; OAuth is read only by the admin process."
+    mainClass.set("com.dsbuilder.frontend.cli.analyticsadmin.MetricaGoalsKt")
+    classpath(analyticsAdminCompilation.output.allOutputs, analyticsAdminCompilation.runtimeDependencyFiles)
+    dependsOn(analyticsAdminCompilation.compileTaskProvider)
+    notCompatibleWithConfigurationCache("Administrative network operation with an ephemeral OAuth environment")
+    doFirst {
+        args(
+            providers.gradleProperty("metricaCounterId").orElse("").get(),
+            providers.gradleProperty("metricaDryRun").orElse("false").get(),
+        )
+    }
 }

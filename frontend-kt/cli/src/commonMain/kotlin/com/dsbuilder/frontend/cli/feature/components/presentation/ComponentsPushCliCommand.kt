@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ComponentSource
@@ -8,7 +9,6 @@ import com.dsbuilder.frontend.feature.components.application.PushComponentsResul
 import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.PushTarget
 import com.dsbuilder.frontend.feature.components.domain.ComponentImportReport
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.UsageError
@@ -22,7 +22,7 @@ import kotlinx.coroutines.runBlocking
  */
 internal class ComponentsPushCliCommand(
     private val pushComponentsUseCase: PushComponentsUseCase,
-) : CliktCommand(name = "push") {
+) : AnalyticsCliCommand(name = "push", operation = "components push") {
     private val from: String? by option("--from")
 
     private val apiKey: String? by option("--api-key")
@@ -35,7 +35,7 @@ internal class ComponentsPushCliCommand(
 
     private val dryRun: Boolean by option("--dry-run").flag()
 
-    override fun run() {
+    override fun runOperation() {
         if (apply && dryRun) {
             throw UsageError("Options --apply and --dry-run cannot be used together.")
         }

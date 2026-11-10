@@ -1,5 +1,10 @@
 package com.dsbuilder.frontend.cli
 
+import com.dsbuilder.frontend.analytics.metrica.KtorMetricaTransport
+import com.dsbuilder.frontend.analytics.metrica.MetricaConfig
+import com.dsbuilder.frontend.analytics.metrica.createMetricaAnalytics
+import com.dsbuilder.frontend.core.analytics.Analytics
+import com.dsbuilder.frontend.core.analytics.AnalyticsContext
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.auth.CredentialStoreFileSystem
 import com.dsbuilder.frontend.core.auth.CredentialStoreLock
@@ -15,6 +20,8 @@ import kotlinx.cinterop.toKString
 import platform.posix.chmod
 import platform.posix.getenv
 import platform.posix.rename
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
  * Создает macOS runtime-зависимости CLI.
@@ -37,7 +44,7 @@ public actual fun defaultClientRuntime(): ClientRuntime {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private object MacosCredentialStoreFileSystem : CredentialStoreFileSystem {
+internal object MacosCredentialStoreFileSystem : CredentialStoreFileSystem {
     override fun homeDirectory(): String =
         getenv("HOME")?.toKString() ?: MacosWorkspaceFileSystem.currentWorkingDirectory()
 
@@ -71,3 +78,16 @@ private object MacosCredentialStoreFileSystem : CredentialStoreFileSystem {
 internal object MacosCredentialStoreLock : CredentialStoreLock by ProcessCredentialStoreLock(
     MacosCredentialLockPlatform,
 )
+
+@OptIn(ExperimentalTime::class, ExperimentalForeignApi::class)
+internal actual fun platformAnalytics(config: MetricaConfig, channel: String): Analytics {
+    return createMetricaAnalytics(
+        config,
+        AnalyticsContext(channel, VERSION, "macos"),
+        CliMetricaIdentityStore(MacosCredentialStoreFileSystem, MacosCredentialStoreLock) {
+            getenv("HOME")?.toKString() ?: error("Analytics home is unavailable")
+        },
+        KtorMetricaTransport(HttpClient(Darwin)),
+        { Clock.System.now().epochSeconds },
+    )
+}

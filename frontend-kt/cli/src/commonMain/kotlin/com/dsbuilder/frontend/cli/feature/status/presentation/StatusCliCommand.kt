@@ -1,9 +1,9 @@
 package com.dsbuilder.frontend.cli.feature.status.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusCommand
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.option
@@ -14,12 +14,12 @@ import kotlinx.coroutines.runBlocking
  */
 internal class StatusCliCommand(
     private val checkProjectStatusUseCase: CheckProjectStatusUseCase,
-) : CliktCommand(name = "status") {
+) : AnalyticsCliCommand(name = "status", operation = "status") {
     private val apiKey: String? by option("--api-key")
 
     private val designSystem: String? by option("--design-system")
 
-    override fun run() {
+    override fun runOperation() {
         val result = runBlocking {
             checkProjectStatusUseCase.execute(
                 CheckProjectStatusCommand(

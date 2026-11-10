@@ -1,0 +1,163 @@
+package com.dsbuilder.frontend.cli
+
+import com.dsbuilder.frontend.analytics.metrica.MetricaConfig
+import com.dsbuilder.frontend.analytics.metrica.MetricaIdentityStore
+import com.dsbuilder.frontend.core.analytics.Analytics
+import com.dsbuilder.frontend.core.analytics.AnalyticsEvent
+import com.dsbuilder.frontend.core.analytics.AnalyticsValue
+import com.dsbuilder.frontend.core.analytics.NoOpAnalytics
+import com.dsbuilder.frontend.core.auth.CredentialStoreFileSystem
+import com.dsbuilder.frontend.core.auth.CredentialStoreLock
+import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.process.isAbsolutePath
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import kotlin.random.Random
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+
+internal val CLI_ANALYTICS_OPERATIONS: Set<String> = setOf(
+    "init", "status", "auth login", "auth status", "auth logout", "theme fetch", "theme generate",
+    "theme alias list", "theme alias set", "theme alias unset", "components fetch", "components push",
+    "components generate", "components import-api", "ds fetch", "ds generate", "docs init",
+    "docs generate", "docs publish", "toolchain list", "toolchain doctor", "toolchain install",
+    "preview-plugin publish",
+)
+
+private val outcomeCategories = mapOf("failure" to "internal")
+
+/** Composition root аналитики. Фабрика вызывается лениво, только после первой операции. */
+internal class CliAnalyticsSession(
+    private val factory: (String, Set<String>) -> Analytics,
+) {
+    private val clients = mapOf(
+        "cli" to MutableStateFlow<Analytics?>(null),
+        "mcp" to MutableStateFlow<Analytics?>(null),
+    )
+    private val closed = MutableStateFlow(false)
+    fun record(
+        channel: String,
+        operations: Set<String>,
+        operation: String,
+        outcome: String,
+        durationMs: Long,
+        category: String? = outcomeCategories[outcome],
+    ) {
+        if (closed.value) return
+        val holder = clients.getValue(channel)
+        val analytics = holder.value ?: factory(channel, operations).let { candidate ->
+            if (holder.compareAndSet(null, candidate)) {
+                candidate
+            } else {
+                candidate.close()
+                requireNotNull(holder.value)
+            }
+        }
+        if (closed.value) {
+            analytics.close()
+        } else {
+            analytics.track(operationEvent(channel, operation, outcome, durationMs, category))
+        }
+    }
+
+    fun finish() {
+        if (!closed.compareAndSet(false, true)) return
+        for (analytics in clients.values.mapNotNull { it.value }) {
+            recordSafely {
+                runBlocking { analytics.flush(1500) }
+            }
+            recordSafely { analytics.close() }
+        }
+    }
+}
+
+private val operationEventNames = mapOf(
+    "cli" to "cli_operation_finished",
+    "mcp" to "mcp_tool_finished",
+)
+
+@OptIn(ExperimentalTime::class)
+internal fun operationEvent(
+    channel: String,
+    operation: String,
+    outcome: String,
+    durationMs: Long,
+    category: String?,
+): AnalyticsEvent =
+    AnalyticsEvent(
+        operationEventNames.getValue(channel),
+        Clock.System.now().epochSeconds,
+        buildMap {
+            put("operation", AnalyticsValue.Text(operation))
+            put("outcome", AnalyticsValue.Text(outcome))
+            put("duration_ms", AnalyticsValue.Number(durationMs.toDouble()))
+            category?.let { put("error_category", AnalyticsValue.Text(it)) }
+        },
+    )
+
+internal fun defaultAnalyticsSession(
+    environment: EnvironmentReader,
+    create: (MetricaConfig, String) -> Analytics = ::platformAnalytics,
+): CliAnalyticsSession =
+    CliAnalyticsSession { channel, operations ->
+        if (environment.get("DSBUILDER_ANALYTICS_DISABLED") == "1" ||
+            environment.get("DO_NOT_TRACK") == "1" || !BuiltAnalyticsConfig.enabled
+        ) {
+            NoOpAnalytics
+        } else {
+            create(
+                MetricaConfig(
+                    BuiltAnalyticsConfig.COUNTER_ID,
+                    if (channel == "cli") BuiltAnalyticsConfig.CLI_TOKEN else BuiltAnalyticsConfig.MCP_TOKEN,
+                    BuiltAnalyticsConfig.BASE_URL,
+                    operations,
+                ),
+                channel,
+            )
+        }
+    }
+
+internal expect fun platformAnalytics(config: MetricaConfig, channel: String): Analytics
+
+/** Мост к уже существующим атомарной файловой записи и межпроцессной блокировке. */
+internal class CliMetricaIdentityStore(
+    private val fs: CredentialStoreFileSystem,
+    private val lock: CredentialStoreLock,
+    private val homeDirectory: () -> String = fs::homeDirectory,
+) : MetricaIdentityStore {
+    override suspend fun getOrCreateInstallationId(): String {
+        val home = homeDirectory()
+        require(isAbsolutePath(home))
+        val directory = fs.resolve(home, ".dsbuilder/analytics")
+        fs.createDirectories(directory)
+        fs.setPosixPermissions(directory, "0700")
+        val target = fs.resolve(directory, "installation-id")
+        return lock.withLock(fs.resolve(directory, "identity.lock")) {
+            if (fs.exists(target)) {
+                fs.readText(target).trim().let { saved ->
+                    require(saved.startsWith("1:"))
+                    saved.removePrefix("1:")
+                }.also { require(it.toLongOrNull()?.let { value -> value > 0 } == true) }
+            } else {
+                val id = Random.nextLong(1, Long.MAX_VALUE).toString()
+                val temporary = fs.resolve(directory, "pending-$id")
+                try {
+                    fs.writeText(temporary, "1:$id")
+                    fs.setPosixPermissions(temporary, "0600")
+                    fs.atomicReplace(temporary, target)
+                    id
+                } finally { fs.deleteFile(temporary) }
+            }
+        }
+    }
+}
+
+/** Ошибки телеметрии изолируются одинаково при регистрации и освобождении ресурсов. */
+@Suppress("TooGenericExceptionCaught", "SwallowedException")
+internal inline fun recordSafely(block: () -> Unit) {
+    try {
+        block()
+    } catch (_: Exception) {
+        // Без вывода: событие и исключение могут содержать непубличные данные.
+    }
+}

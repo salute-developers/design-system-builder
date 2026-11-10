@@ -27,6 +27,7 @@ import {
 } from './pages';
 
 import { authService, designSystemsApi } from './api';
+import { AnalyticsNavigation } from './analytics/AnalyticsNavigation';
 import { getBaseName } from './utils/baseName';
 import {
     CreateDesignSystemDialog,
@@ -88,6 +89,7 @@ const LegacyThemeRedirect = () => {
 function App() {
     return (
         <Router basename={getBaseName()}>
+            <AnalyticsNavigation />
             <Routes>
                 <Route
                     path="/login"
