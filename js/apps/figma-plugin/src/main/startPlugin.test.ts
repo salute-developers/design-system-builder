@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ExportPlan, ExportReport } from '../shared/exportPlan';
 import type { UiToMain } from '../shared/messages';
 import { startPlugin, type EditorApi } from './startPlugin';
 
@@ -60,5 +61,34 @@ describe('запуск основного потока', () => {
         send({ type: 'open-external', url: 'https://example.test/device' });
 
         expect(editor.ui.postMessage).toHaveBeenCalledWith({ type: 'open-url', url: 'https://example.test/device' });
+    });
+
+    it('записывает план через переданную функцию', async () => {
+        const report = { stale: {} } as unknown as ExportReport;
+        const applyExport = vi.fn(async () => report);
+        const { editor, send } = createEditor();
+        startPlugin(editor, '<html>', applyExport);
+
+        send({ type: 'export:apply', requestId: '1', plan: {} as ExportPlan });
+
+        await vi.waitFor(() =>
+            expect(editor.ui.postMessage).toHaveBeenCalledWith({ type: 'export:result', requestId: '1', report }),
+        );
+    });
+
+    it('отвечает отказом, если редактор не умеет записывать план', async () => {
+        const { editor, send } = createEditor();
+        startPlugin(editor, '<html>');
+
+        send({ type: 'export:apply', requestId: '1', plan: {} as ExportPlan });
+
+        await vi.waitFor(() =>
+            expect(editor.ui.postMessage).toHaveBeenCalledWith({
+                type: 'export:result',
+                requestId: '1',
+                report: null,
+                error: 'Экспорт в этот редактор пока не поддерживается.',
+            }),
+        );
     });
 });

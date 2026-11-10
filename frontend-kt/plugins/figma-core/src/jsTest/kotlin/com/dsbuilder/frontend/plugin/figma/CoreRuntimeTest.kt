@@ -140,6 +140,35 @@ class CoreRuntimeTest {
     }
 
     @Test
+    fun exportPlanReadsSixRoutesOnOneVersionAndBuildsPlan() = runTest {
+        val paths = mutableListOf<String>()
+        val core = runtime { request ->
+            paths += request.url.encodedPathAndQuery
+            val path = request.url.encodedPath
+            respond(
+                if (path.endsWith("tokens") || path.endsWith("token-values") || path.endsWith("groups")) "[]" else "{}",
+            )
+        }
+
+        val plan = core.exportPlan(ThemeContext("p1", "ds1", "t1"), "v1", "Malachite")
+
+        assertEquals(6, paths.size)
+        assertEquals(true, paths.all { it.contains("versionId=v1") })
+        assertEquals(true, plan.contains("\"themeName\":\"Malachite\""))
+        assertEquals(true, plan.contains("\"name\":\"05. Spacing\""))
+    }
+
+    @Test
+    fun exportPlanKeepsReadStatusForTheScreen() = runTest {
+        val core = runtime { request ->
+            if (request.url.encodedPath.endsWith("palette")) respond("", HttpStatusCode.Forbidden) else respond("[]")
+        }
+
+        val failure = assertFailsWith<CoreFailure> { core.exportPlan(ThemeContext("p1", "ds1", "t1"), null, "T") }
+        assertEquals("forbidden", failure.kind)
+    }
+
+    @Test
     fun loginFailureKeepsOAuthCode() = runTest {
         val core = runtime { respond("""{"error":"not_allowed"}""", HttpStatusCode.BadRequest) }
 

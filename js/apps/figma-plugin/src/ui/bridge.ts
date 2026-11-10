@@ -1,3 +1,4 @@
+import type { ExportPlan, ExportReport } from '../shared/exportPlan';
 import type { MainToUi, StorageKey, UiToMain } from '../shared/messages';
 
 /** Хранилище основного потока для окна плагина. */
@@ -7,25 +8,29 @@ export interface PluginStorage {
     delete(key: StorageKey): Promise<void>;
 }
 
+/** Запись плана экспорта в документ: её выполняет основной поток. */
+export type ApplyExport = (plan: ExportPlan) => Promise<ExportReport>;
+
 /** Команды окна основному потоку. */
 export interface PluginBridge extends PluginStorage {
     openExternal(url: string): void;
+    applyExport: ApplyExport;
 }
 
 const WEB_URL = /^https?:\/\//i;
 
-type Pending = { resolve: (value: string | null) => void; reject: (error: Error) => void };
+type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void };
 
 /** Связывает запросы окна с ответами основного потока по `requestId`. */
 export const createBridge = (target: Window = window): PluginBridge => {
     const pending = new Map<string, Pending>();
     let lastRequestId = 0;
     const post = (message: UiToMain) => target.parent.postMessage({ pluginMessage: message }, '*');
-    const request = (message: (requestId: string) => UiToMain) =>
-        new Promise<string | null>((resolve, reject) => {
+    const request = <T>(message: (requestId: string) => UiToMain) =>
+        new Promise<T>((resolve, reject) => {
             // Не `crypto.randomUUID`: у окна плагина origin `null`, в таком контексте этого API может не быть.
             const requestId = String(++lastRequestId);
-            pending.set(requestId, { resolve, reject });
+            pending.set(requestId, { resolve: resolve as (value: unknown) => void, reject });
             post(message(requestId));
         });
 
@@ -40,11 +45,11 @@ export const createBridge = (target: Window = window): PluginBridge => {
         if (!message || !waiting) return;
         pending.delete(message.requestId);
         if (message.error) waiting.reject(new Error(message.error));
-        else waiting.resolve(message.value);
+        else waiting.resolve(message.type === 'export:result' ? message.report : message.value);
     });
 
     return {
-        get: (key) => request((requestId) => ({ type: 'storage:get', requestId, key })),
+        get: (key) => request<string | null>((requestId) => ({ type: 'storage:get', requestId, key })),
         set: async (key, value) => {
             await request((requestId) => ({ type: 'storage:set', requestId, key, value }));
         },
@@ -52,5 +57,6 @@ export const createBridge = (target: Window = window): PluginBridge => {
             await request((requestId) => ({ type: 'storage:delete', requestId, key }));
         },
         openExternal: (url) => post({ type: 'open-external', url }),
+        applyExport: (plan) => request<ExportReport>((requestId) => ({ type: 'export:apply', requestId, plan })),
     };
 };

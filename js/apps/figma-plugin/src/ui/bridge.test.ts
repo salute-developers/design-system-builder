@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ExportPlan } from '../shared/exportPlan';
 import { createBridge } from './bridge';
 
 /** Окно плагина и родитель: команды уходят родителю, ответы приходят событием `message`. */
@@ -88,5 +89,30 @@ describe('обмен с основным потоком', () => {
         deliver({ pluginMessage: { type: 'open-url', url: 'file:///etc/passwd' } });
 
         expect(open).not.toHaveBeenCalled();
+    });
+
+    it('передаёт план основному потоку и возвращает отчёт или ошибку записи', async () => {
+        const { target, postMessage, deliver } = createTarget();
+        const bridge = createBridge(target);
+        const plan = { collections: [] } as unknown as ExportPlan;
+
+        const applied = bridge.applyExport(plan);
+        const failed = bridge.applyExport(plan);
+        const [[first], [second]] = postMessage.mock.calls;
+        expect(first.pluginMessage).toMatchObject({ type: 'export:apply', plan });
+        deliver({
+            pluginMessage: { type: 'export:result', requestId: first.pluginMessage.requestId, report: { stale: 1 } },
+        });
+        deliver({
+            pluginMessage: {
+                type: 'export:result',
+                requestId: second.pluginMessage.requestId,
+                report: null,
+                error: 'boom',
+            },
+        });
+
+        await expect(applied).resolves.toEqual({ stale: 1 });
+        await expect(failed).rejects.toThrow('boom');
     });
 });

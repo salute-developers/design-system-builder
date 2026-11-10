@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { ExportCounts, ExportPlan, ExportReport } from '../../shared/exportPlan';
 import type { StorageKey } from '../../shared/messages';
 import { App } from '../App';
 import type { PluginBridge } from '../bridge';
@@ -50,6 +51,27 @@ const snapshot = (name = 'text.default.accent'): TokenSnapshot => ({
     shadows: [{ id: 'h1', name: 'card', layers: [{ offsetX: 0, offsetY: 2, blur: 4, spread: 0, color: '#00000033' }] }],
 });
 
+const exportPlan = { collections: [], skipped: [] } as unknown as ExportPlan;
+
+const counts = (variables = 0): ExportCounts => ({
+    collections: 0,
+    variables,
+    textStyles: 0,
+    effectStyles: 0,
+    paintStyles: 0,
+});
+
+const exportReport = (overrides: Partial<ExportReport> = {}): ExportReport => ({
+    source: { themeName: 'Default', tenantId: 't1', versionId: 'v2' },
+    created: counts(12),
+    updated: counts(3),
+    stale: counts(1),
+    skipped: [{ name: 'Header/H1 B', reason: 'шрифт не найден' }],
+    omitted: { disabled: 2 },
+    missingFonts: [],
+    ...overrides,
+});
+
 const createApi = (overrides: Partial<DsBuilderApi> = {}) =>
     ({
         projects: vi.fn(async () => [{ id: 'p1', name: 'Project' }]),
@@ -63,6 +85,7 @@ const createApi = (overrides: Partial<DsBuilderApi> = {}) =>
             { id: 'v2', version: '1.1.0', sequenceNumber: 2, publishedAt: '2026-02-01' },
         ]),
         snapshot: vi.fn(async () => snapshot()),
+        exportPlan: vi.fn(async () => exportPlan),
         ...overrides,
     }) as unknown as DsBuilderApi;
 
@@ -73,6 +96,7 @@ const createBridge = (initial: Partial<Record<StorageKey, string>> = { 'refresh-
         set: async (key, value) => void values.set(key, value),
         delete: async (key) => void values.delete(key),
         openExternal: vi.fn(),
+        applyExport: vi.fn(async () => exportReport()),
     };
     return { bridge, values };
 };
@@ -384,7 +408,7 @@ describe('просмотр токенов', () => {
         expect(screen.getByText('#ffffff')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('tab', { name: 'Типографика' }));
-        expect(screen.getByText('16/20 · 400, 600 · SB Sans Text')).toBeInTheDocument();
+        expect(screen.getByText('16/20').closest('li')).toHaveTextContent('16/20 · 400, 600 · SB Sans Text');
 
         fireEvent.click(screen.getByRole('tab', { name: 'Размеры' }));
         expect(screen.getByText('8 px')).toBeInTheDocument();
@@ -489,6 +513,168 @@ describe('просмотр токенов', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
 
         expect(await screen.findByText('Accent')).toBeInTheDocument();
+    });
+});
+
+describe('экспорт в Figma', () => {
+    it('строит план выбранной темы и версии, записывает его и показывает отчёт', async () => {
+        const { api, bridge } = mount();
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        const report = await screen.findByTestId('export-report');
+        expect(api.exportPlan).toHaveBeenCalledWith(
+            { projectId: 'p1', designSystemId: 'd1', tenantId: 't1' },
+            'v2',
+            'Default',
+        );
+        expect(bridge.applyExport).toHaveBeenCalledWith(exportPlan);
+        expect(report).toHaveTextContent('Тема «Default», версия 1.1.0');
+        const row = within(report).getByRole('row', { name: /Переменные/ });
+        expect(row).toHaveTextContent('Переменные1231');
+        expect(report).toHaveTextContent('Выключенные в DS Builder токены не экспортируются: 2.');
+        expect(screen.queryByTestId('missing-fonts')).toBeNull();
+        expect(report).toHaveTextContent('шрифт не найден · 1Header/H1 B');
+        fireEvent.click(within(report).getByRole('button', { name: 'Скрыть' }));
+        expect(screen.queryByTestId('export-report')).toBeNull();
+    });
+
+    it('подсказывает установить недостающие шрифты', async () => {
+        const { bridge } = mount();
+        vi.mocked(bridge.applyExport).mockResolvedValueOnce(exportReport({ missingFonts: ['SB Sans Display'] }));
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        expect(await screen.findByTestId('missing-fonts')).toHaveTextContent(
+            'Не найдены шрифты: SB Sans Display. Установите их на компьютер и повторите экспорт',
+        );
+    });
+
+    it('экспортирует черновик без `versionId`', async () => {
+        const { api } = mount();
+        await chooseTenant();
+        await screen.findByText('Accent');
+        fireEvent.change(screen.getByRole('combobox', { name: 'Версия' }), { target: { value: 'draft' } });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        await waitFor(() => expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), null, 'Default'));
+        expect(await screen.findByTestId('export-report')).toHaveTextContent('черновик');
+    });
+
+    it('при ошибке чтения не трогает файл и даёт повторить', async () => {
+        const plan = vi.fn(async () => exportPlan);
+        plan.mockRejectedValueOnce(new ApiError('server', 'Сервер DS Builder ответил ошибкой'));
+        const { bridge } = mount({ api: createApi({ exportPlan: plan }) });
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        expect(
+            await screen.findByText('Не удалось экспортировать: Сервер DS Builder ответил ошибкой'),
+        ).toBeInTheDocument();
+        expect(bridge.applyExport).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+        expect(await screen.findByTestId('export-report')).toBeInTheDocument();
+    });
+
+    it('не даёт запустить экспорт второй раз, пока идёт первый, и показывает причину остановки', async () => {
+        let finish: (report: ExportReport) => void = () => undefined;
+        const { bridge } = mount();
+        vi.mocked(bridge.applyExport).mockImplementationOnce(
+            () => new Promise<ExportReport>((resolve) => (finish = resolve)),
+        );
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        const running = await screen.findByRole('button', { name: 'Экспортируем…' });
+        expect(running).toBeDisabled();
+        expect(screen.getByRole('combobox', { name: 'Версия' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Выйти' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Base' })).toBeDisabled();
+        await act(async () => finish(exportReport({ failure: 'Число режимов ограничено тарифом файла.' })));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Экспорт прерван: Число режимов ограничено тарифом');
+        expect(bridge.applyExport).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('копирование из просмотра', () => {
+    const copied: string[] = [];
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        Reflect.deleteProperty(document, 'execCommand');
+    });
+    const stubCopy = (works: boolean) => {
+        copied.length = 0;
+        Object.defineProperty(document, 'execCommand', {
+            configurable: true,
+            value: vi.fn(() => {
+                if (works) copied.push(document.querySelector<HTMLTextAreaElement>('textarea[readonly]')?.value ?? '');
+                return works;
+            }),
+        });
+        vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
+    };
+
+    it('копирует HEX, имя и значения типографики и показывает подтверждение', async () => {
+        stubCopy(true);
+        mount();
+        await chooseTenant();
+
+        fireEvent.click(await screen.findByRole('button', { name: '#000000' }));
+        await waitFor(() => expect(screen.getByTestId('copy-toast')).toHaveTextContent('Скопировано: #000000'));
+        fireEvent.click(screen.getByRole('button', { name: 'Accent' }));
+        fireEvent.click(screen.getByRole('tab', { name: 'Типографика' }));
+        fireEvent.click(screen.getByRole('button', { name: 'SB Sans Text' }));
+        fireEvent.click(screen.getByRole('tab', { name: 'Размеры' }));
+        fireEvent.click(screen.getByRole('button', { name: '8 px' }));
+
+        await waitFor(() => expect(copied).toEqual(['#000000', 'Accent', 'SB Sans Text', '8px']));
+    });
+
+    it('копирует через `navigator.clipboard`, если `execCommand` не сработал', async () => {
+        stubCopy(false);
+        const writeText = vi.fn(async () => undefined);
+        vi.stubGlobal('navigator', { clipboard: { writeText } });
+        mount();
+        await chooseTenant();
+
+        fireEvent.click(await screen.findByRole('button', { name: '#000000' }));
+
+        await waitFor(() => expect(screen.getByTestId('copy-toast')).toHaveTextContent('Скопировано: #000000'));
+        expect(writeText).toHaveBeenCalledWith('#000000');
+    });
+
+    it('сообщает, если скопировать не удалось', async () => {
+        stubCopy(false);
+        mount();
+        await chooseTenant();
+
+        fireEvent.click(await screen.findByRole('button', { name: '#000000' }));
+
+        await waitFor(() => expect(screen.getByTestId('copy-toast')).toHaveTextContent('Не удалось скопировать'));
+        expect(screen.getByText('Accent')).toBeInTheDocument();
+    });
+});
+
+describe('экспорт без доступа', () => {
+    it('при отказе в доступе возвращает к выбору темы', async () => {
+        const plan = vi.fn().mockRejectedValue(new ApiError('forbidden', 'Нет доступа'));
+        mount({ api: createApi({ exportPlan: plan }) });
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        expect(await screen.findByText('Нет доступа к этой теме.')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Тема' })).toBeInTheDocument();
     });
 });
 

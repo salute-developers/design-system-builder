@@ -33,23 +33,49 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
         credential: BackendCredential,
         context: ThemeContext,
         versionId: String?,
-    ): ModelReadResult = coroutineScope {
-        val client = clients.create(apiUrl, credential)
-        val system = "${root(context.projectId)}/design-systems/${encodeModelSegment(context.designSystemId)}"
-        val tenant = "${root(context.projectId)}/tenants/${encodeModelSegment(context.tenantId)}"
+    ): ModelReadResult = readAll(clients.create(apiUrl, credential), sections(context, versionId))
+
+    override suspend fun exportSource(
+        apiUrl: String,
+        credential: BackendCredential,
+        context: ThemeContext,
+        versionId: String?,
+    ): ModelReadResult {
         val version = versionId?.let { "versionId=${encodeModelSegment(it)}" }
-        val paths = mapOf(
-            "tokens" to "$system/tokens${query(version)}",
-            "values" to "$tenant/token-values${query(version, "types=${encodeModelSegment(COLOR_TYPES)}")}",
-            "typography" to "$tenant/typography-styles${query(version)}",
-            "sizes" to "$tenant/size-tokens${query(version)}",
+        val paths = sections(context, versionId) + mapOf(
+            "palette" to "${tenant(context)}/palette${query(version)}",
+            "groups" to "${system(context)}/token-groups${query(version)}",
         )
-        val results = paths.map { (name, path) -> async { name to read(client, path) } }.awaitAll()
-        results.firstNotNullOfOrNull { (_, result) -> result as? ModelReadResult.Failed }
-            ?: ModelReadResult.Success(
-                JsonObject(results.associate { (name, result) -> name to (result as ModelReadResult.Success).value }),
-            )
+        return readAll(clients.create(apiUrl, credential), paths)
     }
+
+    private fun sections(context: ThemeContext, versionId: String?): Map<String, String> {
+        val version = versionId?.let { "versionId=${encodeModelSegment(it)}" }
+        return mapOf(
+            "tokens" to "${system(context)}/tokens${query(version)}",
+            "values" to "${tenant(context)}/token-values${query(version, "types=${encodeModelSegment(COLOR_TYPES)}")}",
+            "typography" to "${tenant(context)}/typography-styles${query(version)}",
+            "sizes" to "${tenant(context)}/size-tokens${query(version)}",
+        )
+    }
+
+    /** Все чтения параллельно; первый отказ возвращается вместо частичного ответа. */
+    private suspend fun readAll(client: AuthenticatedHttpClient, paths: Map<String, String>): ModelReadResult =
+        coroutineScope {
+            val results = paths.map { (name, path) -> async { name to read(client, path) } }.awaitAll()
+            results.firstNotNullOfOrNull { (_, result) -> result as? ModelReadResult.Failed }
+                ?: ModelReadResult.Success(
+                    JsonObject(
+                        results.associate { (name, result) -> name to (result as ModelReadResult.Success).value },
+                    ),
+                )
+        }
+
+    private fun system(context: ThemeContext) =
+        "${root(context.projectId)}/design-systems/${encodeModelSegment(context.designSystemId)}"
+
+    private fun tenant(context: ThemeContext) =
+        "${root(context.projectId)}/tenants/${encodeModelSegment(context.tenantId)}"
 
     private suspend fun read(client: AuthenticatedHttpClient, path: String): ModelReadResult =
         when (val response = client.get(path)) {
