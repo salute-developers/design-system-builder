@@ -76,7 +76,8 @@ class HttpThemeTokensClientTest {
             setOf(
                 "/api/projects/p%201/ds/design-systems/ds1/tokens?versionId=v1",
                 "/api/projects/p%201/ds/tenants/t1/token-values?versionId=v1" +
-                    "&types=color%2Cgradient%2CfontFamily&platforms=ios%2Cweb",
+                    "&types=color%2Cgradient&platforms=ios%2Cweb",
+                "/api/projects/p%201/ds/tenants/t1/token-values?versionId=v1&types=fontFamily",
                 "/api/projects/p%201/ds/tenants/t1/typography-styles?versionId=v1",
                 "/api/projects/p%201/ds/tenants/t1/size-tokens?versionId=v1",
                 "/api/projects/p%201/ds/tenants/t1/palette?versionId=v1",
@@ -85,7 +86,7 @@ class HttpThemeTokensClientTest {
             requests.toSet(),
         )
         val value = assertIs<ModelReadResult.Success>(result).value as JsonObject
-        assertEquals(setOf("tokens", "values", "typography", "sizes", "palette", "groups"), value.keys)
+        assertEquals(setOf("tokens", "values", "typography", "sizes", "fonts", "palette", "groups"), value.keys)
     }
 
     @Test

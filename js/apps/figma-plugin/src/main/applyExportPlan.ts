@@ -274,11 +274,13 @@ const writeVariables = async (
         for (const variable of planned.variables) {
             const target = written.get(variable.key);
             if (!target) continue;
+            // `valuesByMode` в Figma собирается при каждом чтении: один раз на переменную.
+            const current = target.valuesByMode;
             for (const [mode, value] of Object.entries(variable.values)) {
                 const modeId = modes.get(mode);
                 const resolved = modeId ? figmaValue(value, lookup, figma) : null;
                 if (modeId && resolved !== null) {
-                    if (!same(target.valuesByMode[modeId], resolved)) target.setValueForMode(modeId, resolved);
+                    if (!same(current[modeId], resolved)) target.setValueForMode(modeId, resolved);
                 } else if (!modeId) skip({ name: variable.name, reason: `в коллекции нет режима ${mode}` });
                 else skip({ name: variable.name, reason: `нет переменной для ссылки в режиме ${mode}` });
             }

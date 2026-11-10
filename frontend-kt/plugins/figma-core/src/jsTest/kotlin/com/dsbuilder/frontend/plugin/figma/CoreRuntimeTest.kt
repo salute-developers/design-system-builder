@@ -157,7 +157,7 @@ class CoreRuntimeTest {
     }
 
     @Test
-    fun exportPlanReadsSixRoutesOnOneVersionAndBuildsPlan() = runTest {
+    fun exportPlanReadsSevenRoutesOnOneVersionAndBuildsPlan() = runTest {
         val paths = mutableListOf<String>()
         val core = runtime { request ->
             paths += request.url.encodedPathAndQuery
@@ -169,11 +169,41 @@ class CoreRuntimeTest {
 
         val plan = core.exportPlan(ThemeContext("p1", "ds1", "t1"), "v1", "Malachite", "ios")
 
-        assertEquals(6, paths.size)
+        assertEquals(7, paths.size)
         assertEquals(true, paths.all { it.contains("versionId=v1") })
+        assertEquals(true, paths.any { it.endsWith("types=color%2Cgradient&platforms=ios%2Cweb") })
+        // Шрифты всех платформ: ссылки на `.otf` есть только у iOS и Android.
+        assertEquals(true, paths.any { it.endsWith("types=fontFamily") })
         assertEquals(true, plan.contains("\"themeName\":\"Malachite\""))
         assertEquals(true, plan.contains("\"name\":\"05. Spacing\""))
         assertEquals(true, plan.contains("\"platform\":\"ios\""))
+    }
+
+    @Test
+    fun webExportKeepsFontFilesOfMobilePlatforms() = runTest {
+        val core = runtime { request ->
+            val query = request.url.encodedQuery
+            val path = request.url.encodedPath
+            respond(
+                when {
+                    path.endsWith("tokens") ->
+                        """[{"id":"f","name":"display","type":"fontFamily","enabled":true}]"""
+                    query.contains("fontFamily") ->
+                        """[{"tokenId":"f","platform":"ios","mode":null,"value":[{"name":"SB Sans Display",""" +
+                            """"fonts":[{"link":"https://cdn.example/Display-Bold.otf","weight":"bold"}]}]}]"""
+                    path.endsWith("token-values") || path.endsWith("groups") -> "[]"
+                    path.endsWith("typography-styles") ->
+                        """{"families":[{"name":"display","fontName":"SB Sans Display"}],"screens":[{"screen":""" +
+                            """"screen-l","styles":[{"group":"display","size":"l","sizePx":48,"fontFamily":""" +
+                            """"display","variants":{"bold":{"tokenId":"ty","weight":700}}}]}]}"""
+                    else -> "{}"
+                },
+            )
+        }
+
+        val plan = core.exportPlan(ThemeContext("p1", "ds1", "t1"), null, "T", "web")
+
+        assertEquals(true, plan.contains("Display-Bold.otf"))
     }
 
     @Test

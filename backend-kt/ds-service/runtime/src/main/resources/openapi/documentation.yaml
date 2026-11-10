@@ -1120,8 +1120,22 @@ paths:
         (paletteRef) sourceValue не отдаётся. overridden — своё значение платформы. Ссылка, которую палитра темы не
         раскрывает, остаётся в значении без paletteRef; форма значения по типу токена применяется всегда.
         Необязательный types ограничивает чтение типами текущего раздела; без него сохраняется полный ответ.
+        Необязательный platforms оставляет значения только этих платформ; значения без платформы при нём не отдаются.
       parameters:
         - $ref: '#/components/parameters/VersionId'
+        - name: platforms
+          in: query
+          required: false
+          description: >-
+            Платформы через запятую. Неизвестные, пустые или повторённые значения отклоняются с 400
+            invalid_platforms.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [web, ios, android]
+          style: form
+          explode: false
         - name: types
           in: query
           required: false
