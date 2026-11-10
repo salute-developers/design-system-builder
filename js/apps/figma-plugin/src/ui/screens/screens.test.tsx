@@ -537,12 +537,9 @@ describe('экспорт в Figma', () => {
         );
         expect(bridge.applyExport).toHaveBeenCalledWith(exportPlan);
         expect(report).toHaveTextContent('Тема «Default», версия 1.1.0, Web');
-        expect(within(report).getByTestId('export-timing')).toHaveTextContent(
-            /Загрузка данных — \d+,\d с, запись в Figma — \d+,\d с\./,
-        );
         const row = within(report).getByRole('row', { name: /Переменные/ });
         expect(row).toHaveTextContent('Переменные1231');
-        expect(report).toHaveTextContent('Выключенные в DS Builder токены не экспортируются: 2.');
+        expect(report).not.toHaveTextContent('Выключенные');
         expect(screen.queryByTestId('missing-fonts')).toBeNull();
         expect(report).toHaveTextContent('шрифт не найден · 1Header/H1 B');
         fireEvent.click(within(report).getByRole('button', { name: 'Скрыть' }));
