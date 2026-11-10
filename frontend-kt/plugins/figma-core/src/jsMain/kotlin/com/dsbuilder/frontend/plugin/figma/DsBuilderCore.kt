@@ -12,6 +12,7 @@ import kotlinx.coroutines.asPromise
 import kotlinx.coroutines.async
 import kotlinx.coroutines.await
 import kotlinx.coroutines.coroutineScope
+import org.khronos.webgl.Int8Array
 import kotlin.js.Promise
 
 private const val REFRESH_TOKEN_KEY = "refresh-token"
@@ -112,6 +113,11 @@ public class DsBuilderCore(gatewayUrl: String, clientId: String, realm: String, 
         signal: CoreSignal?,
     ): Promise<String> = run(signal) {
         runtime.exportPlan(ThemeContext(projectId, designSystemId, tenantId), versionId, themeName)
+    }
+
+    /** Байты файла по публичной ссылке `https`, например файла шрифта: окно собирает из них архив. */
+    public fun fontFile(url: String, signal: CoreSignal?): Promise<Int8Array> = run(signal) {
+        runtime.publicFile(url).unsafeCast<Int8Array>()
     }
 
     private fun <T> run(signal: CoreSignal?, block: suspend () -> T): Promise<T> =

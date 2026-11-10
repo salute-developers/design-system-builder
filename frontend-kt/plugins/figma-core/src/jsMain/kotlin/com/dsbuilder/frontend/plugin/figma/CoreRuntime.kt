@@ -23,6 +23,9 @@ import com.dsbuilder.frontend.feature.theme.data.HttpDesignSystemTenantsClient
 import com.dsbuilder.frontend.plugin.figma.export.ExportThemeInfo
 import com.dsbuilder.frontend.plugin.figma.export.FigmaExportPlanner
 import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.readRawBytes
+import io.ktor.http.isSuccess
 import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.plugin
 import kotlinx.coroutines.CancellationException
@@ -72,7 +75,7 @@ private class StatusProbe(private val clients: AuthenticatedHttpClientFactory) :
 
 /** Вся работа окна плагина с бэкендом; [DsBuilderCore] только переводит её в вызовы JS. */
 internal class CoreRuntime(
-    http: HttpClient,
+    private val http: HttpClient,
     private val gatewayUrl: String,
     private val clientId: String,
     realm: String,
@@ -167,6 +170,23 @@ internal class CoreRuntime(
 
     suspend fun themeTokens(context: ThemeContext, versionId: String?): String = read { probe, credential ->
         HttpThemeTokensClient(probe).tokens(gatewayUrl, credential, context, versionId).valueOrNull()
+    }
+
+    /**
+     * Файл по публичной ссылке `https` без токена: файлы шрифтов из значений `fontFamily` лежат на CDN, а не в gateway.
+     * Ответ не 2xx — отказ `file` с кодом статуса, сбой сети — `network`.
+     */
+    suspend fun publicFile(url: String): ByteArray {
+        if (!url.startsWith("https://")) throw CoreFailure("file", "not-https")
+        val response = try {
+            http.get(url)
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Exception) {
+            throw CoreFailure("network", null)
+        }
+        if (!response.status.isSuccess()) throw CoreFailure("file", response.status.value.toString())
+        return response.readRawBytes()
     }
 
     /** План экспорта темы в Figma: все разделы читаются на одной границе версии, затем строится план. */

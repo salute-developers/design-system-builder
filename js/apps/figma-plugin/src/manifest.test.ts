@@ -7,8 +7,11 @@ import { GATEWAY_URL } from './ui/config';
 const manifest = JSON.parse(readFileSync(resolve(process.cwd(), 'manifest.json'), 'utf8'));
 
 describe('манифест плагина', () => {
-    it('разрешает только боевой gateway и локальный для разработки', () => {
-        expect(manifest.networkAccess.allowedDomains).toEqual(['https://gateway.design-system-builder.ru']);
+    it('разрешает боевой gateway, CDN шрифтов и локальный gateway для разработки', () => {
+        expect(manifest.networkAccess.allowedDomains).toEqual([
+            'https://gateway.design-system-builder.ru',
+            'https://cdn-app.sberdevices.ru',
+        ]);
         expect(manifest.networkAccess.devAllowedDomains).toEqual(['http://localhost:8080']);
         expect(manifest.networkAccess.allowedDomains).toContain(GATEWAY_URL);
     });

@@ -102,4 +102,20 @@ describe('команды основного потока', () => {
 
         expect(order).toEqual(['first:start', 'first:end', 'second:start']);
     });
+
+    it('упаковывает файлы окна в ZIP', async () => {
+        const { host } = createHost();
+
+        await handleMessage(
+            { type: 'zip:pack', requestId: '3', files: [{ path: 'Шрифт/Bold.otf', data: new Uint8Array([1, 2]) }] },
+            host,
+        );
+
+        const reply = vi.mocked(host.reply).mock.calls[0][0] as { type: string; requestId: string; bytes: Uint8Array };
+        expect(reply).toMatchObject({ type: 'zip:result', requestId: '3' });
+        // Сигнатура локального заголовка ZIP и имя в UTF-8: `Шрифт/Bold.otf`.
+        expect([...reply.bytes.subarray(0, 4)]).toEqual([0x50, 0x4b, 0x03, 0x04]);
+        const name = [208, 168, 209, 128, 208, 184, 209, 132, 209, 130, 47, 66, 111, 108, 100, 46, 111, 116, 102];
+        expect([...reply.bytes.subarray(30, 30 + name.length)]).toEqual(name);
+    });
 });

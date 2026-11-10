@@ -38,6 +38,22 @@ class CoreRuntimeTest {
     ) = CoreRuntime(HttpClient(MockEngine(handler)), "https://gw", "client", "dsbuilder", storage, backgroundScope)
 
     @Test
+    fun publicFileIsReadWithoutTokenOnlyOverHttps() = runTest {
+        val seen = mutableListOf<HttpRequestData>()
+        val core = runtime { request ->
+            seen += request
+            if (request.url.encodedPath.endsWith("missing.otf")) respond("", HttpStatusCode.NotFound) else respond("OTTO")
+        }
+
+        assertEquals("OTTO", core.publicFile("https://cdn.example/Font.otf").decodeToString())
+        assertEquals(null, seen.single().headers[HttpHeaders.Authorization])
+        assertEquals("404", assertFailsWith<CoreFailure> { core.publicFile("https://cdn.example/missing.otf") }.code)
+        val insecure = assertFailsWith<CoreFailure> { core.publicFile("http://cdn.example/Font.otf") }
+        assertEquals("file" to "not-https", insecure.kind to insecure.code)
+        assertEquals(2, seen.size)
+    }
+
+    @Test
     fun readsThroughSharedClientsAfterRefreshingExpiredToken() = runTest {
         val core = runtime { request ->
             when {

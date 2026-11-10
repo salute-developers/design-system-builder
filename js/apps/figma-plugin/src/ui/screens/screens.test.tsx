@@ -1,4 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { ArchiveFile } from '../../shared/zip';
+import { zip } from '../../shared/zip';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExportCounts, ExportPlan, ExportReport } from '../../shared/exportPlan';
@@ -99,6 +101,7 @@ const createBridge = (initial: Partial<Record<StorageKey, string>> = { 'refresh-
         delete: async (key) => void values.delete(key),
         openExternal: vi.fn(),
         applyExport: vi.fn(async () => exportReport()),
+        packZip: vi.fn(async (files: ArchiveFile[]) => zip(files)),
     };
     return { bridge, values };
 };
@@ -574,30 +577,65 @@ describe('экспорт в Figma', () => {
         expect(screen.getByTestId('export-skipped')).toHaveTextContent('Пропущено: 1');
     });
 
-    it('даёт ссылки на файлы недостающего шрифта и открывает их во внешнем браузере', async () => {
-        const { bridge } = mount();
-        const url = 'https://cdn.example/SBSansDisplay-Semibold.otf';
-        vi.mocked(bridge.applyExport).mockResolvedValueOnce(
-            exportReport({
-                missingFonts: ['SB Sans Display'],
-                fontFiles: [
-                    {
-                        family: 'SB Sans Display',
-                        files: [{ name: 'SBSansDisplay-Semibold.otf', url, weight: 'semibold', style: 'normal' }],
-                    },
-                ],
-            }),
-        );
+    const missingFontReport = () =>
+        exportReport({
+            missingFonts: ['SB Sans Display'],
+            fontFiles: [
+                {
+                    family: 'SB Sans Display',
+                    files: [
+                        { name: 'SBSansDisplay-Bold.otf', url: 'https://cdn.example/SBSansDisplay-Bold.otf' },
+                        { name: 'SBSansDisplay-Light.otf', url: 'https://cdn.example/SBSansDisplay-Light.otf' },
+                    ],
+                },
+            ],
+        });
+
+    it('скачивает недостающие шрифты одним архивом по кнопке', async () => {
+        const fontFile = vi.fn(async (url: string) => new TextEncoder().encode(url));
+        const { bridge } = mount({ api: createApi({ fontFile }) });
+        const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:fonts');
+        const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+        Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
+        vi.mocked(bridge.applyExport).mockResolvedValueOnce(missingFontReport());
         await chooseTenant();
         await screen.findByText('Accent');
-
         fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
-
         const files = await screen.findByTestId('font-files');
-        expect(files).toHaveTextContent('Файлы SB Sans Display:');
-        expect(files).toHaveTextContent('semibold');
-        fireEvent.click(within(files).getByRole('button', { name: 'SBSansDisplay-Semibold.otf' }));
-        expect(bridge.openExternal).toHaveBeenCalledWith(url);
+        expect(within(files).queryByText('SBSansDisplay-Bold.otf')).toBeNull();
+
+        fireEvent.click(within(files).getByRole('button', { name: 'Скачать шрифты одним архивом (ZIP)' }));
+
+        expect(await within(files).findByRole('status')).toHaveTextContent('Архив dsbuilder-fonts.zip в загрузках');
+        expect(fontFile).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(bridge.packZip).mock.calls[0][0].map((file) => file.path)).toEqual([
+            'SB Sans Display/SBSansDisplay-Bold.otf',
+            'SB Sans Display/SBSansDisplay-Light.otf',
+        ]);
+        expect(createObjectURL.mock.calls[0][0].type).toBe('application/zip');
+        expect(click).toHaveBeenCalledTimes(1);
+        click.mockRestore();
+    });
+
+    it('при сбое скачивания называет файл и разрешает повторить', async () => {
+        const fontFile = vi.fn(async (url: string) => {
+            if (url.endsWith('Light.otf')) throw new Error('ответ 404');
+            return new Uint8Array([1]);
+        });
+        const { bridge } = mount({ api: createApi({ fontFile }) });
+        vi.mocked(bridge.applyExport).mockResolvedValueOnce(missingFontReport());
+        await chooseTenant();
+        await screen.findByText('Accent');
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+        const files = await screen.findByTestId('font-files');
+
+        fireEvent.click(within(files).getByRole('button', { name: 'Скачать шрифты одним архивом (ZIP)' }));
+
+        expect(await within(files).findByRole('alert')).toHaveTextContent(
+            'Не удалось скачать: SBSansDisplay-Light.otf (ответ 404)',
+        );
+        expect(bridge.packZip).not.toHaveBeenCalled();
+        expect(within(files).getByRole('button', { name: 'Скачать шрифты одним архивом (ZIP)' })).toBeEnabled();
     });
 
     it('экспортирует черновик без `versionId`', async () => {

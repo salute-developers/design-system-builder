@@ -70,7 +70,7 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
             api={core.api}
             storage={bridge}
             applyExport={bridge.applyExport}
-            openExternal={bridge.openExternal}
+            packZip={bridge.packZip}
             onSignOut={signOut}
         />
     );

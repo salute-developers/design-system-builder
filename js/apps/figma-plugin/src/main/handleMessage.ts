@@ -1,5 +1,6 @@
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
 import type { MainToUi, UiToMain } from '../shared/messages';
+import { zip } from '../shared/zip';
 
 /** Что нужно основному потоку от Figma: хранилище, внешний браузер и запись плана экспорта. */
 export interface PluginHost {
@@ -27,6 +28,10 @@ let exporting: Promise<unknown> = Promise.resolve();
 export const handleMessage = async (message: UiToMain, host: PluginHost) => {
     if (message.type === 'open-external') {
         host.openExternal(message.url);
+        return;
+    }
+    if (message.type === 'zip:pack') {
+        host.reply({ type: 'zip:result', requestId: message.requestId, bytes: zip(message.files) });
         return;
     }
     if (message.type === 'export:apply') {

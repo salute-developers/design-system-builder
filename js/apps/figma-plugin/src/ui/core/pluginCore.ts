@@ -74,6 +74,8 @@ export interface DsBuilderApi {
         themeName: string,
         signal?: AbortSignal,
     ): Promise<ExportPlan>;
+    /** Байты файла по публичной ссылке `https` без токена, например файла шрифта с CDN. */
+    fontFile(url: string, signal?: AbortSignal): Promise<Uint8Array>;
 }
 
 /** Всё, что окну нужно от бэкенда. */
@@ -113,6 +115,7 @@ export interface KotlinCore {
         themeName: string,
         signal?: AbortSignal,
     ): Promise<string>;
+    fontFile(url: string, signal?: AbortSignal): Promise<Int8Array>;
 }
 
 interface ThemeTokens {
@@ -127,7 +130,8 @@ const screenError = (error: unknown) => {
     const { kind, code } = error as { kind?: string; code?: string | null };
     if (kind === 'oauth') return new OAuthError(code ?? '');
     if (kind === 'storage') return new StorageError(code ?? 'Хранилище плагина недоступно');
-    if (kind === 'export') return new ExportPlanError(`Не удалось построить план экспорта: ${code ?? 'неизвестная причина'}`);
+    if (kind === 'export')
+        return new ExportPlanError(`Не удалось построить план экспорта: ${code ?? 'неизвестная причина'}`);
     if (kind && kind in MESSAGES) return new ApiError(kind as ApiErrorKind);
     return error;
 };
@@ -141,6 +145,14 @@ const translated = async <T>(call: Promise<T>) => {
 };
 
 const parsed = async <T>(call: Promise<string>) => JSON.parse(await translated(call)) as T;
+
+/** Отказ скачивания файла: CDN, а не DS Builder, поэтому без сообщений о сервере DS Builder. */
+const fileError = (error: unknown) => {
+    const { kind, code } = error as { kind?: string; code?: string | null };
+    if (kind === 'file') return new Error(code === 'not-https' ? 'ссылка не https' : `ответ ${code ?? 'с ошибкой'}`);
+    if (kind === 'network') return new Error('файл недоступен');
+    return error;
+};
 
 /** Связывает экраны с общими Kotlin-модулями: адресов и токенов здесь нет. */
 export const createPluginCore = (core: KotlinCore): PluginCore => {
@@ -171,6 +183,14 @@ export const createPluginCore = (core: KotlinCore): PluginCore => {
                 ),
             exportPlan: ({ projectId, designSystemId, tenantId }, versionId, themeName, signal) =>
                 parsed<ExportPlan>(core.exportPlan(projectId, designSystemId, tenantId, versionId, themeName, signal)),
+            fontFile: async (url, signal) => {
+                try {
+                    const bytes = await core.fontFile(url, signal);
+                    return new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                } catch (error) {
+                    throw fileError(error);
+                }
+            },
         },
     };
 };

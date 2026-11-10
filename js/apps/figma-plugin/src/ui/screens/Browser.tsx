@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { DesignSystemDto, ProjectDto, TenantDto } from '../api/types';
-import type { ApplyExport, PluginStorage } from '../bridge';
+import type { ApplyExport, PackZip, PluginStorage } from '../bridge';
 import { ApiError, type DsBuilderApi } from '../core/pluginCore';
 import { useResource, type Resource } from '../hooks/useResource';
 import { parseSavedContext, type SavedContext } from './contextSteps';
@@ -15,14 +15,13 @@ export const Browser = ({
     api,
     storage,
     applyExport,
-    openExternal,
+    packZip,
     onSignOut,
 }: {
     api: DsBuilderApi;
     storage: PluginStorage;
     applyExport: ApplyExport;
-    /** Открывает ссылку во внешнем браузере: окно плагина Figma ссылки не открывает. */
-    openExternal: (url: string) => void;
+    packZip: PackZip;
     onSignOut: () => void;
 }) => {
     const [saved, setSaved] = useState<SavedContext | null>(null);
@@ -213,7 +212,7 @@ export const Browser = ({
                     }}
                     themeName={tenant.name || 'Тема без названия'}
                     applyExport={applyExport}
-                    openExternal={openExternal}
+                    packZip={packZip}
                     onExportingChange={setExporting}
                     onForbidden={() => forbidden(backToTenants, 'Нет доступа к этой теме.')}
                 />

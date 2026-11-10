@@ -78,12 +78,38 @@ describe('обмен с основным потоком', () => {
         const failed = bridge.applyExport(plan);
         const [[first], [second]] = postMessage.mock.calls;
         expect(first.pluginMessage).toMatchObject({ type: 'export:apply', plan });
-        deliver({ pluginMessage: { type: 'export:result', requestId: first.pluginMessage.requestId, report: { stale: 1 } } });
         deliver({
-            pluginMessage: { type: 'export:result', requestId: second.pluginMessage.requestId, report: null, error: 'boom' },
+            pluginMessage: { type: 'export:result', requestId: first.pluginMessage.requestId, report: { stale: 1 } },
+        });
+        deliver({
+            pluginMessage: {
+                type: 'export:result',
+                requestId: second.pluginMessage.requestId,
+                report: null,
+                error: 'boom',
+            },
         });
 
         await expect(applied).resolves.toEqual({ stale: 1 });
         await expect(failed).rejects.toThrow('boom');
+    });
+
+    it('отдаёт файлы на упаковку основному потоку и возвращает архив', async () => {
+        const { target, postMessage, deliver } = createTarget();
+        const bridge = createBridge(target);
+        const files = [{ path: 'SB Sans Text/Bold.otf', data: new Uint8Array([1]) }];
+
+        const packed = bridge.packZip(files);
+        const [[message]] = postMessage.mock.calls;
+        expect(message.pluginMessage).toMatchObject({ type: 'zip:pack', files });
+        deliver({
+            pluginMessage: {
+                type: 'zip:result',
+                requestId: message.pluginMessage.requestId,
+                bytes: new Uint8Array([80, 75]),
+            },
+        });
+
+        await expect(packed).resolves.toEqual(new Uint8Array([80, 75]));
     });
 });

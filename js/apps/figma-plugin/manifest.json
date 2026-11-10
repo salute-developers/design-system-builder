@@ -7,8 +7,8 @@
     "editorType": ["figma"],
     "documentAccess": "dynamic-page",
     "networkAccess": {
-        "allowedDomains": ["https://gateway.design-system-builder.ru"],
+        "allowedDomains": ["https://gateway.design-system-builder.ru", "https://cdn-app.sberdevices.ru"],
         "devAllowedDomains": ["http://localhost:8080"],
-        "reasoning": "Вход в DS Builder и чтение токенов темы."
+        "reasoning": "Вход в DS Builder и чтение токенов темы; скачивание файлов шрифтов SB Sans с CDN для установки."
     }
 }
