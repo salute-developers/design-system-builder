@@ -17,6 +17,7 @@ internal val pluginPublishPaths = setOf(
 internal fun publicGatewayPath(path: String): Boolean =
     path.startsWith("/api/settings/personal-access-tokens") ||
         path in setOf("/health", "/ready", "/admin", "/api/projects", "/api/projects/") ||
+        path == "/api/privacy/analytics/consent" ||
         path == "/api/admin/component-config/import-api-meta" || path in pluginPublishPaths ||
         listOf("/api/projects/", "/auth/", "/realms/", "/resources/", "/admin/").any(path::startsWith)
 

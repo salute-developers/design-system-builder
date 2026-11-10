@@ -19,6 +19,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class FlywayPostgresIntegrationTest {
     @Test
     fun `baseline migrates empty database adopts matching legacy schema and rejects drift`() {

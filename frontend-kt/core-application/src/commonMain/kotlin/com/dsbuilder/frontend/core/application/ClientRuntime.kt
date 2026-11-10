@@ -28,6 +28,7 @@ import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
  * @property credentialStore persistent user-session storage.
  * @property tokenClient backend token lifecycle client.
  * @property close releases runtime-owned resources.
+ * @property analyticsConsent общий выбор аналитики установки; отсутствует у клиентов без поддержки согласий.
  * @property pkcePlatform платформенные порты интерактивного входа.
  * @property accessTokenCache кеш пользовательских токенов процесса.
  */
@@ -43,6 +44,7 @@ public data class ClientRuntime(
         com.dsbuilder.frontend.core.auth.UserAccessTokenCache(),
     public val pkcePlatform: PkcePlatform =
         UnavailablePkcePlatform,
+    public val analyticsConsent: com.dsbuilder.frontend.core.analytics.AnalyticsConsent? = null,
 )
 
 private object UnavailableProcessRunner : ProcessRunner {

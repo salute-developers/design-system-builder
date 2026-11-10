@@ -25,6 +25,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** Ответ массовой мутации проходит через обычный буфер nginx, не теряя сохранённых значений. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class MutationMetadataGatewayPostgresIntegrationTest {
     @Test
     fun `large family in multiple themes succeeds through a four kibibyte proxy buffer`() = runBlocking {

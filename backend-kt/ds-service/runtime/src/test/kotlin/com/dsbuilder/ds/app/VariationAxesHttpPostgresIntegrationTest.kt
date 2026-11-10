@@ -27,6 +27,7 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /** Оси вариации принадлежат дизайн-системе: изоляция, права, конфликт имён и версионирование в черновике. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class VariationAxesHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

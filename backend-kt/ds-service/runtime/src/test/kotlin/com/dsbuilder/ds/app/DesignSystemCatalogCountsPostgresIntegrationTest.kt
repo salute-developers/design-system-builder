@@ -11,6 +11,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class DesignSystemCatalogCountsPostgresIntegrationTest {
     @Test
     fun `counts active nontechnical systems in owned database including empty projects`() = runBlocking<Unit> {

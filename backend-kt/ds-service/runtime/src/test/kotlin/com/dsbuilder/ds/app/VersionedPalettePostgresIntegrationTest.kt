@@ -77,6 +77,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class VersionedPalettePostgresIntegrationTest {
     @Test
     fun `undo removes explicitly added and rebuilt ramp`() = runBlocking {

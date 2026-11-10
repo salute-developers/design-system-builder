@@ -23,6 +23,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class DraftTransactionMarkersPostgresIntegrationTest {
     @Test
     fun `publication waits before taking snapshot and releases session lock`() = runBlocking {

@@ -30,7 +30,15 @@ class ConfiguredAnalyticsTest {
     @Test fun channelsChooseTheirOwnTokenAndOneCounter() {
         val tokens = mutableMapOf<String, String>()
         val events = mutableListOf<AnalyticsEvent>()
-        val factory = defaultAnalyticsSession(EnvironmentReader { null }) { config, channel ->
+        val permission = object : com.dsbuilder.frontend.core.analytics.AnalyticsConsent {
+            override suspend fun prepare(prompt: ((String) -> Boolean?)?) = Unit
+            override suspend fun allowed() = true
+            override suspend fun enable(prompt: (String) -> Boolean?) = ""
+            override suspend fun disable() = ""
+            override suspend fun status() = ""
+            override fun close() = Unit
+        }
+        val factory = defaultAnalyticsSession(EnvironmentReader { null }, consent = permission) { config, channel ->
             assertEquals(BuiltAnalyticsConfig.COUNTER_ID, config.counterId)
             tokens[channel] = config.token
             object : Analytics {

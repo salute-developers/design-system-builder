@@ -11,6 +11,7 @@ import kotlin.test.assertTrue
 /**
  * Реальный запуск `/bin/sh`: контракт runner'а проверяется на самой платформе, а не на фейке.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class JvmProcessRunnerTest {
     private val runner = defaultClientRuntime().processRunner
     private val shell = "/bin/sh"

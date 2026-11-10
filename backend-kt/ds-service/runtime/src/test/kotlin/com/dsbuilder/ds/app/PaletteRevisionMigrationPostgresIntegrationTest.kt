@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class PaletteRevisionMigrationPostgresIntegrationTest {
     @Test
     fun `upgrade dev preserves palette identities values groups and immutable template`() {

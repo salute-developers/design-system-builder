@@ -21,6 +21,7 @@ import kotlin.test.assertFails
 import kotlin.test.assertTrue
 
 /** Полный каталог записывается пакетно, повтор не создаёт копий, поздний отказ откатывает все таблицы. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class GeneratedComponentInitializationPostgresIntegrationTest {
     @Test
     fun `full component initialization batches rows and remains repeatable`() = withFixture { database, id ->

@@ -15,6 +15,7 @@ internal abstract class AnalyticsCliCommand(name: String, private val operation:
 
     @Suppress("TooGenericExceptionCaught")
     final override fun run() {
+        currentContext.findObject<CliAnalyticsSession>()?.prepare(consentPrompt())
         userCancelled = false
         var outcome = "success"
         try {

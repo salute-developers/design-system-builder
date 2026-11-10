@@ -34,6 +34,7 @@ import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.obj
 import com.github.ajalt.clikt.core.parse
+import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.mordant.rendering.AnsiLevel
 import com.github.ajalt.mordant.terminal.Terminal
@@ -97,10 +98,16 @@ public class DsBuilderCli(
 
     private inline fun <T> withAnalytics(block: (RootCliCommand) -> T): T {
         val session = analyticsFactory?.let { CliAnalyticsSession(it) }
-            ?: defaultAnalyticsSession(runtime.environmentReader)
+            ?: defaultAnalyticsSession(runtime.environmentReader, consent = runtime.analyticsConsent)
         val command = rootCommand()
+        command.subcommands(
+            com.dsbuilder.frontend.cli.presentation.AnalyticsSettingsCliCommand(runtime.analyticsConsent),
+        )
         command.configureContext { obj = session }
-        try { return block(command) } finally { session.finish() }
+        try { return block(command) } finally {
+            session.finish()
+            runtime.analyticsConsent?.close()
+        }
     }
 
     private fun rootCommand(): RootCliCommand {

@@ -14,6 +14,7 @@ version = "1.0.0"
 application { mainClass = "com.dsbuilder.app.ApplicationKt" }
 dependencies {
     implementation("com.dsbuilder.settings:feature-user-settings:1.0.0")
+    implementation("com.dsbuilder.consent:consent-history:1.0.0")
     implementation("com.dsbuilder.identity:runtime:1.0.0")
     implementation("com.dsbuilder.projects:runtime:1.0.0")
     implementation("com.dsbuilder.ds:runtime:1.0.0")
@@ -40,6 +41,7 @@ dependencies {
     implementation(libs.koin.ktor)
     implementation(libs.koin.logger.slf4j)
     implementation(libs.logback.classic)
+    testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
 }

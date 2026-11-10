@@ -31,7 +31,15 @@ public actual fun defaultClientRuntime(): ClientRuntime {
     val httpClient = HttpClient(Darwin) {
         configureCliTimeouts()
     }
+    val consent = createCliConsent(
+        MacosCredentialStoreFileSystem,
+        MacosCredentialStoreLock,
+        EnvironmentReader { name -> getenv(name)?.toKString() },
+        MacosPkcePlatform,
+        { HttpClient(Darwin) { followRedirects = false } },
+    )
     return ClientRuntime(
+        analyticsConsent = consent,
         fileSystem = MacosWorkspaceFileSystem,
         environmentReader = EnvironmentReader { name -> getenv(name)?.toKString() },
         httpClientFactory = KtorAuthenticatedHttpClientFactory { httpClient },
@@ -39,7 +47,10 @@ public actual fun defaultClientRuntime(): ClientRuntime {
         credentialStore = FileCredentialStore(MacosCredentialStoreFileSystem, MacosCredentialStoreLock),
         tokenClient = KtorTokenClient(httpClient),
         pkcePlatform = MacosPkcePlatform,
-        close = { httpClient.close() },
+        close = {
+            consent.close()
+            httpClient.close()
+        },
     )
 }
 
@@ -80,14 +91,18 @@ internal object MacosCredentialStoreLock : CredentialStoreLock by ProcessCredent
 )
 
 @OptIn(ExperimentalTime::class, ExperimentalForeignApi::class)
-internal actual fun platformAnalytics(config: MetricaConfig, channel: String): Analytics {
+internal actual fun platformAnalytics(
+    config: MetricaConfig,
+    channel: String,
+    allowed: suspend () -> Boolean,
+): Analytics {
     return createMetricaAnalytics(
         config,
         AnalyticsContext(channel, VERSION, "macos"),
         CliMetricaIdentityStore(MacosCredentialStoreFileSystem, MacosCredentialStoreLock) {
             getenv("HOME")?.toKString() ?: error("Analytics home is unavailable")
         },
-        KtorMetricaTransport(HttpClient(Darwin)),
+        ConsentMetricaTransport(KtorMetricaTransport(HttpClient(Darwin)), allowed),
         { Clock.System.now().epochSeconds },
     )
 }

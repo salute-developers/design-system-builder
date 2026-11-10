@@ -9,6 +9,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ExposedPublicationReadRepositoryIntegrationTest {
     private val url = System.getenv("DOCUMENTATION_TEST_DATABASE_URL")?.also(::requireTestDatabase)
     private val user = System.getenv("DOCUMENTATION_TEST_DATABASE_USER") ?: "documentation"

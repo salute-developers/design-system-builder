@@ -11,6 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class AppearanceAxisRolesMigrationPostgresIntegrationTest {
     @Test
     fun `roles are migrated from flags by the fallback order and references hold`() {

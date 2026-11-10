@@ -45,6 +45,7 @@ import kotlin.test.assertTrue
 
 /** Операции редактора оформления: модель, оси, значения свойств, состояния, ссылки и конфигурации. */
 @Suppress("LargeClass", "TooManyFunctions")
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class AppearanceEditorHttpPostgresIntegrationTest {
     private lateinit var selectedDesignSystemId: String
     private val json = Json { ignoreUnknownKeys = true }

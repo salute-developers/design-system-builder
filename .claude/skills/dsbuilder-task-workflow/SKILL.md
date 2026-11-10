@@ -28,3 +28,9 @@ implementation and developer interaction in the main conversation. Use
 `tools/task` only for `create`, `list`, and `cleanup`; use `tools/verify` for
 FAST, FULL, policy and audit gates. Continue interrupted work from the current
 diff, OpenSpec artifacts and optional local task state.
+
+FAST starts with Strictacode compare for all selected contours, then runs static
+checks and fast unit tests. JVM IntegrationTest categories, native/KMP Node,
+installer and package smoke tests belong to FULL. FULL repeats the preflight
+before its self-contained complete test/build tasks. Use the canonical workflow
+for category names and Gradle entrypoints; never move analyzer fixes after review.

@@ -38,6 +38,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /** End-to-end contract gate for HTTP, RBAC, ownership and component-config transactions. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class DsServiceHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

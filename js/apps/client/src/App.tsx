@@ -27,6 +27,7 @@ import {
 } from './pages';
 
 import { authService, designSystemsApi } from './api';
+import { AnalyticsConsent } from './analytics/AnalyticsConsent';
 import { AnalyticsNavigation } from './analytics/AnalyticsNavigation';
 import { getBaseName } from './utils/baseName';
 import {
@@ -89,6 +90,7 @@ const LegacyThemeRedirect = () => {
 function App() {
     return (
         <Router basename={getBaseName()}>
+            <AnalyticsConsent />
             <AnalyticsNavigation />
             <Routes>
                 <Route

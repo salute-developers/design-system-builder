@@ -3,6 +3,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createMemoryRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom';
 
 vi.mock('../api', () => ({ authService: { isAuthenticated: () => true } }));
+const permitted = { allowed: true };
+vi.mock('./consent', () => ({ analyticsConsent: { subscribe: () => () => {}, getSnapshot: () => permitted } }));
 vi.mock('./metrica', () => ({ webAnalytics: { view: vi.fn() } }));
 import { AnalyticsNavigation } from './AnalyticsNavigation';
 import { webAnalytics } from './metrica';
@@ -78,7 +80,9 @@ it('tracks normalized screen immediately regardless of OAuth-like query or hash'
     render(<RouterProvider router={router} />);
     await settle();
     expect(webAnalytics.view).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(vi.mocked(webAnalytics.view).mock.calls)).not.toMatch(/private|secret|hidden|code=|access_token/);
+    expect(JSON.stringify(vi.mocked(webAnalytics.view).mock.calls)).not.toMatch(
+        /private|secret|hidden|code=|access_token/,
+    );
     await act(async () => {
         await router.navigate(colors, { replace: true });
     });

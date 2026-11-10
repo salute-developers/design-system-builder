@@ -14,3 +14,4 @@ includeBuild("../authorization-core")
 includeBuild("../runtime-contracts")
 
 includeBuild("../feature-user-settings")
+includeBuild("../consent-history")

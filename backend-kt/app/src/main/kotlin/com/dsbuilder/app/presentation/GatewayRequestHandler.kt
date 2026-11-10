@@ -27,6 +27,15 @@ internal class GatewayRequestHandler(
             return false
         }
         val path = java.net.URI(rawPath).path
+        if (path == "/api/privacy/analytics/consent") {
+            val origin = call.request.headers[HttpHeaders.Origin]
+            val allowedOrigin = origin == null || origin == configuration.webOrigin ||
+                configuration.webOrigin == null && Regex("http://(localhost|127\\.0\\.0\\.1):[0-9]+").matches(origin)
+            if (!allowedOrigin || call.request.httpMethod !in setOf(HttpMethod.Get, HttpMethod.Post)) {
+                reject(call, HttpStatusCode.Forbidden)
+                return false
+            }
+        }
         val policy = routePolicy(path)
         return acceptBody(call, path, policy) && authorize(call, path, policy.userRoute, policy.projectId)
     }
@@ -50,6 +59,7 @@ internal class GatewayRequestHandler(
         policy: RoutePolicy,
     ): Boolean {
         val maxBytes = when {
+            path == "/api/privacy/analytics/consent" -> 4096L
             policy.documentation -> configuration.documentationMaxBytes
             path in pluginPublishPaths -> 64L * 1024 * 1024
             policy.ds || path == "/api/admin/component-config/import-api-meta" -> 16L * 1024 * 1024
@@ -152,7 +162,7 @@ internal class GatewayRequestHandler(
         call.response.header(
             HttpHeaders.AccessControlAllowHeaders,
             "Authorization, Content-Type, Accept, X-Requested-With, " +
-                "X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key",
+                "X-Consent-Key, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key",
         )
         call.response.header(
             HttpHeaders.AccessControlExposeHeaders,

@@ -16,21 +16,25 @@ type PendingView = Readonly<{ url: string; title: string; referer: string }>;
 export const createWebAnalytics = (config: Config) => {
     let state: 'idle' | 'loading' | 'ready' | 'failed' = 'idle';
     let pending: PendingView[] = [];
+    let consent = true;
+    let scriptElement: HTMLScriptElement | undefined;
     let previousUrl = new URL(config.baseUrl, window.location.origin).href;
     const enabled = config.enabled && Number.isSafeInteger(config.counterId) && config.counterId > 0;
     const safeBase = new URL(config.baseUrl, window.location.origin).href.replace(/\/$/, '');
 
-    const send = (view: PendingView) => {
+    const invoke = (method: 'hit' | 'destruct', ...args: unknown[]) => {
         try {
-            window.ym?.(config.counterId, 'hit', view.url, {
-                title: view.title,
-                referer: view.referer,
-                params: { client_type: 'web' },
-            });
+            window.ym?.(config.counterId, method, ...args);
         } catch {
             /* Блокировщик или SDK не влияют на навигацию. */
         }
     };
+    const send = (view: PendingView) =>
+        invoke('hit', view.url, {
+            title: view.title,
+            referer: view.referer,
+            params: { client_type: 'web' },
+        });
     const fail = () => {
         state = 'failed';
         pending = [];
@@ -38,6 +42,7 @@ export const createWebAnalytics = (config: Config) => {
     const load = () => {
         state = 'loading';
         const script = document.createElement('script');
+        scriptElement = script;
         script.async = true;
         script.referrerPolicy = 'no-referrer';
         script.src = 'https://mc.yandex.ru/metrika/tag.js';
@@ -47,13 +52,14 @@ export const createWebAnalytics = (config: Config) => {
             window.ym ||
             Object.assign(
                 (...args: unknown[]) => {
-                    const queue = (window.ym!.a = window.ym!.a || []);
+                    const queue = (window.ym!.a ??= []);
                     if (queue.length >= 33) queue.shift();
                     queue.push(args);
                 },
                 { l: Date.now() },
             );
         script.onload = () => {
+            if (!consent || scriptElement !== script) return;
             try {
                 if (!window.ym) return fail();
                 window.ym(config.counterId, 'init', {
@@ -76,7 +82,9 @@ export const createWebAnalytics = (config: Config) => {
                 fail();
             }
         };
-        script.onerror = fail;
+        script.onerror = () => {
+            if (scriptElement === script) fail();
+        };
         try {
             document.head.appendChild(script);
         } catch {
@@ -84,14 +92,24 @@ export const createWebAnalytics = (config: Config) => {
         }
     };
     return {
+        setConsent(allowed: boolean) {
+            consent = allowed;
+            if (!allowed) {
+                pending = [];
+                scriptElement?.remove();
+                scriptElement = undefined;
+                if (state === 'ready') invoke('destruct');
+                state = 'idle';
+                previousUrl = new URL(config.baseUrl, window.location.origin).href;
+            }
+        },
         view(screen: AnalyticsView) {
-            if (!enabled || state === 'failed') return;
+            if (!consent || !enabled || state === 'failed') return;
             const view = { url: `${safeBase}${screen.path}`, title: screen.title, referer: previousUrl };
             previousUrl = view.url;
             if (state === 'ready') send(view);
             else {
-                pending.push(view);
-                if (pending.length > 32) pending.shift();
+                pending = [...pending, view].slice(-32);
                 if (state === 'idle') load();
             }
         },
@@ -103,3 +121,5 @@ export const webAnalytics = createWebAnalytics({
     counterId: Number(import.meta.env.VITE_METRICA_COUNTER_ID),
     baseUrl: getBaseName(),
 });
+
+webAnalytics.setConsent(false);

@@ -13,6 +13,7 @@ kotlin {
             // directly as public properties, and the ports/results expose core-domain types
             // (ProjectContext, PersonalAccessToken, ProjectApiUrl, CredentialEnvName) — all four core-*
             // modules cross this module's public API, so consumers need them transitively.
+            api(projects.coreAnalytics)
             api(projects.coreDomain)
             api(projects.coreNetwork)
             // ClientRuntime.processRunner — публичное свойство типа ProcessRunner.

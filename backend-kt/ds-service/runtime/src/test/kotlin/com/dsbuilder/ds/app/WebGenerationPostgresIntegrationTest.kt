@@ -28,6 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 /** Контракт данных web-генерации: web-адаптер и смещения в выгрузке. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class WebGenerationPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

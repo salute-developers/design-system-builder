@@ -34,6 +34,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** Палитра темы через HTTP на реальном PostgreSQL: копия шаблона, операции, ревизия, права и цвета значений токенов. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class TenantPaletteHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

@@ -31,6 +31,7 @@ import kotlin.test.assertTrue
  * `GET /api/design-systems/{id}/components/{componentId}/editor-bundle`: каждое поле совпадает
  * с ответом существующего маршрута, ограниченным компонентом, его свойствами и дизайн-системой.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ComponentEditorBundleHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = true }
 

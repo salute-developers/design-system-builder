@@ -44,6 +44,26 @@ class PublicGatewayTest {
     }
 
     @Test
+    fun `consent route is anonymous but exact origin method and body limits remain enforced`() = testApplication {
+        application {
+            installPublicGateway(configuration, authorizer)
+            routing {
+                get("/api/privacy/analytics/consent") { call.respondText("notice") }
+                post("/api/privacy/analytics/consent") { call.respondText("record") }
+            }
+        }
+        val path = "/api/privacy/analytics/consent"
+        assertEquals(HttpStatusCode.OK, client.get(path).status)
+        assertEquals(HttpStatusCode.OK, client.get(path) { header("Origin", "http://localhost:5173") }.status)
+        assertEquals(HttpStatusCode.Forbidden, client.get(path) { header("Origin", "https://unknown.example") }.status)
+        assertEquals(HttpStatusCode.PayloadTooLarge, client.post(path) { setBody("x".repeat(4097)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.get("$path/history").status)
+        val options = client.options(path) { header("Origin", "http://localhost:5173") }
+        assertTrue("X-Consent-Key" in options.headers["Access-Control-Allow-Headers"].orEmpty())
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/projects").status)
+    }
+
+    @Test
     fun `preflight cache is limited to allowed origins and does not authorize commands`() = testApplication {
         application {
             installPublicGateway(configuration, authorizer)

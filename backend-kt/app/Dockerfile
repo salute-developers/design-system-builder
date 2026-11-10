@@ -12,6 +12,7 @@ COPY backend-kt/identity-gateway backend-kt/identity-gateway
 COPY backend-kt/projects-service backend-kt/projects-service
 COPY backend-kt/ds-service backend-kt/ds-service
 COPY backend-kt/documentation-service backend-kt/documentation-service
+COPY backend-kt/consent-history backend-kt/consent-history
 COPY backend-kt/app backend-kt/app
 RUN --mount=type=cache,target=/home/gradle/.gradle GRADLE_USER_HOME=/home/gradle/.gradle gradle -p backend-kt/app shadowJar --no-daemon --build-cache --max-workers=1 \
     -Dorg.gradle.jvmargs="-Xmx2g -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process \

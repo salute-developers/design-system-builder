@@ -27,12 +27,17 @@ internal val CLI_ANALYTICS_OPERATIONS: Set<String> = setOf(
 /** Composition root аналитики. Фабрика вызывается лениво, только после первой операции. */
 internal class CliAnalyticsSession(
     private val factory: (String, Set<String>) -> Analytics,
+    private val consent: com.dsbuilder.frontend.core.analytics.AnalyticsConsent? = null,
+    private val requireConsent: Boolean = false,
 ) {
     private val clients = mapOf(
         "cli" to MutableStateFlow<Analytics?>(null),
         "mcp" to MutableStateFlow<Analytics?>(null),
     )
     private val closed = MutableStateFlow(false)
+    fun prepare(prompt: ((String) -> Boolean?)? = null) {
+        recordSafely { runBlocking { consent?.prepare(prompt) } }
+    }
     fun record(
         channel: String,
         operations: Set<String>,
@@ -40,6 +45,7 @@ internal class CliAnalyticsSession(
         outcome: String,
     ) {
         if (closed.value) return
+        if (requireConsent && runBlocking { consent?.allowed() != true }) return
         val holder = clients.getValue(channel)
         val analytics = holder.value ?: factory(channel, operations).let { candidate ->
             if (holder.compareAndSet(null, candidate)) {
@@ -87,27 +93,42 @@ internal fun operationEvent(
 internal fun defaultAnalyticsSession(
     environment: EnvironmentReader,
     enabled: Boolean = BuiltAnalyticsConfig.enabled,
-    create: (MetricaConfig, String) -> Analytics = ::platformAnalytics,
+    consent: com.dsbuilder.frontend.core.analytics.AnalyticsConsent? = null,
+    create: ((MetricaConfig, String) -> Analytics)? = null,
 ): CliAnalyticsSession =
-    CliAnalyticsSession { channel, operations ->
-        val optedOut = listOf("DSBUILDER_ANALYTICS_DISABLED", "DO_NOT_TRACK").any { environment.get(it) == "1" }
-        val runningInCi = environment.get("CI")?.lowercase() in setOf("true", "1")
-        if (!enabled || optedOut || runningInCi) {
-            NoOpAnalytics
-        } else {
-            create(
-                MetricaConfig(
+    CliAnalyticsSession(
+        factory = { channel, operations ->
+            if (!enabled || analyticsRuntimeDisabled(environment)) {
+                NoOpAnalytics
+            } else {
+                val config = MetricaConfig(
                     BuiltAnalyticsConfig.COUNTER_ID,
                     if (channel == "cli") BuiltAnalyticsConfig.CLI_TOKEN else BuiltAnalyticsConfig.MCP_TOKEN,
                     BuiltAnalyticsConfig.BASE_URL,
                     operations,
-                ),
-                channel,
-            )
-        }
-    }
+                )
+                create?.invoke(config, channel) ?: platformAnalytics(config, channel) { consent?.allowed() == true }
+            }
+        },
+        consent = consent,
+        requireConsent = true,
+    )
 
-internal expect fun platformAnalytics(config: MetricaConfig, channel: String): Analytics
+internal expect fun platformAnalytics(
+    config: MetricaConfig,
+    channel: String,
+    allowed: suspend () -> Boolean = { true },
+): Analytics
+
+/** Проверяет отзыв непосредственно перед HTTP и отбрасывает старую очередь без повторной отправки. */
+internal class ConsentMetricaTransport(
+    private val delegate: com.dsbuilder.frontend.analytics.metrica.MetricaTransport,
+    private val allowed: suspend () -> Boolean,
+) : com.dsbuilder.frontend.analytics.metrica.MetricaTransport {
+    override suspend fun send(request: com.dsbuilder.frontend.analytics.metrica.MetricaRequest): Boolean =
+        if (allowed()) delegate.send(request) else false
+    override fun close() = delegate.close()
+}
 
 /** Мост к уже существующим атомарной файловой записи и межпроцессной блокировке. */
 internal class CliMetricaIdentityStore(

@@ -29,6 +29,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Хранение ролей корня и цветовой схемы: заливка, выгрузка и ручки осей appearance. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class AppearanceAxisRolesHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

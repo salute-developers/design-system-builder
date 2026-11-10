@@ -33,6 +33,7 @@ import kotlin.test.assertTrue
  * только для своих комбинаций, журнал показывает создание темы без изменений значений, отказ проверки откатывает
  * создание темы целиком.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class TenantInitialValuesHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

@@ -10,6 +10,7 @@ import com.dsbuilder.app.presentation.pluginPublicationBodyConsumed
 import com.dsbuilder.app.presentation.verifiedRequestHeaders
 import com.dsbuilder.authorization.AuthorizationPolicyLoader
 import com.dsbuilder.authorization.PolicyEvaluator
+import com.dsbuilder.consent.presentation.consentRoutes
 import com.dsbuilder.documentation.app.DocumentationRuntime
 import com.dsbuilder.documentation.app.createDocumentationRuntime
 import com.dsbuilder.documentation.ingestion.presentation.configureIngestionPublicEntry
@@ -87,9 +88,13 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
         val koin = getKoin()
         owned += koin.get<DatabaseProvider>()
         initializeProjectsDatabase(koin)
-        val userSettings = koin.get<UserSettingsModule>()
-        owned += userSettings
+        val userSettings = koin.get<UserSettingsModule>().also { owned += it }
         userSettings.initialize()
+        val consent = com.dsbuilder.consent.di.ConsentRuntime(
+            requireNotNull(io.ktor.server.config.yaml.YamlConfig("dsbuilder/projects/defaults.yaml")),
+        ).also { owned += it }
+        routing { consentRoutes(consent.history) }
+
         val documentation = createDocumentationRuntime(evaluator, InProcessDesignSystemOwnership(koin.get()))
         owned += documentation
         val proxy = KeycloakProxy(configuration)

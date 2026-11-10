@@ -28,6 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** Операции над цветовым токеном через HTTP на реальном PostgreSQL: семейство, темы, ревизии, права и проверки. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ColorTokenHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

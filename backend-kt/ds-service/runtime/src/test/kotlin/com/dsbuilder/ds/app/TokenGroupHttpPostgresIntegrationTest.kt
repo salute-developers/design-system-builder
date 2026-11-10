@@ -32,6 +32,7 @@ import kotlin.test.assertTrue
  * Группы токенов и перенос цветового токена через HTTP на реальном PostgreSQL: раскладка дизайн-системы без групп,
  * операции над группами, сохранение идентификаторов при переименовании, конфигурации компонентов и признак публикации.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class TokenGroupHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

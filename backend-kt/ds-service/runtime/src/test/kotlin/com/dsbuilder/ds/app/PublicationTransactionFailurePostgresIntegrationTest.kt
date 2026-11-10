@@ -27,6 +27,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class PublicationTransactionFailurePostgresIntegrationTest {
     @Test
     fun `pool shutdown unregisters ordinary and publication databases`() = withPool { fixture ->

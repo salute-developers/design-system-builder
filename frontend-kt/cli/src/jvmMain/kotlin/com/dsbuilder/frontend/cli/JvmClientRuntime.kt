@@ -39,7 +39,15 @@ public actual fun defaultClientRuntime(): ClientRuntime {
     val httpClient = HttpClient(CIO) {
         configureCliTimeouts()
     }
+    val consent = createCliConsent(
+        JvmCredentialStoreFileSystem,
+        JvmCredentialStoreLock,
+        EnvironmentReader { name -> System.getenv(name) },
+        JvmPkcePlatform,
+        { HttpClient(CIO) { followRedirects = false } },
+    )
     return ClientRuntime(
+        analyticsConsent = consent,
         fileSystem = JvmWorkspaceFileSystem,
         environmentReader = EnvironmentReader { name -> System.getenv(name) },
         httpClientFactory = KtorAuthenticatedHttpClientFactory { httpClient },
@@ -47,7 +55,10 @@ public actual fun defaultClientRuntime(): ClientRuntime {
         credentialStore = FileCredentialStore(JvmCredentialStoreFileSystem, JvmCredentialStoreLock),
         tokenClient = KtorTokenClient(httpClient),
         pkcePlatform = JvmPkcePlatform,
-        close = { httpClient.close() },
+        close = {
+            consent.close()
+            httpClient.close()
+        },
     )
 }
 
@@ -171,12 +182,16 @@ internal object JvmCredentialStoreFileSystem : CredentialStoreFileSystem {
 internal object JvmCredentialStoreLock : CredentialStoreLock by ProcessCredentialStoreLock(JvmCredentialLockPlatform)
 
 @OptIn(ExperimentalTime::class)
-internal actual fun platformAnalytics(config: MetricaConfig, channel: String): Analytics {
+internal actual fun platformAnalytics(
+    config: MetricaConfig,
+    channel: String,
+    allowed: suspend () -> Boolean,
+): Analytics {
     return createMetricaAnalytics(
         config,
         AnalyticsContext(channel, VERSION, jvmAnalyticsOs()),
         CliMetricaIdentityStore(JvmCredentialStoreFileSystem, JvmCredentialStoreLock),
-        KtorMetricaTransport(HttpClient(CIO)),
+        ConsentMetricaTransport(KtorMetricaTransport(HttpClient(CIO)), allowed),
         { Clock.System.now().epochSeconds },
     )
 }

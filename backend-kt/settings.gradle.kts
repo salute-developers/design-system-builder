@@ -18,3 +18,4 @@ includeBuild("runtime-contracts")
 includeBuild("app")
 
 includeBuild("feature-user-settings")
+includeBuild("consent-history")

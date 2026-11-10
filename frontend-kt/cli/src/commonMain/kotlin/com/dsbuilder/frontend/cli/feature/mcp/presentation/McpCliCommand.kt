@@ -51,6 +51,7 @@ internal class McpServeCliCommand(
     private val workspace: String? by option("--workspace")
 
     override fun run() {
+        currentContext.findObject<CliAnalyticsSession>()?.prepare()
         runBlocking {
             try {
                 var operations: Set<String> = emptySet()

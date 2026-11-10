@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ResolvedRevisionIntegrityPostgresIntegrationTest {
     @Test
     fun `legacy duplicate system names do not block unrelated names and are not rewritten`() {

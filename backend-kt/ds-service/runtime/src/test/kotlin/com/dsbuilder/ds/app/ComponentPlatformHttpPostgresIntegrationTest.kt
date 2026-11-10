@@ -32,6 +32,7 @@ import kotlin.test.assertTrue
  * Platform identity of components, deprecated platform names and the platform-aware component-config routes
  * (change split-component-platforms-and-api-deprecated, mirrored from db-service).
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ComponentPlatformHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 
