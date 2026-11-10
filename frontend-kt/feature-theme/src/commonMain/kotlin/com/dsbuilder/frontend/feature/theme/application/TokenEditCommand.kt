@@ -59,8 +59,8 @@ public sealed interface TokenEditCommand {
         public val tenantId: String,
         /** Платформа web, ios или android. */
         public val platform: String,
-        /** Режим light или dark. */
-        public val mode: String,
+        /** Режим light/dark у цвета, null у значений без режима. */
+        public val mode: String?,
         /** Исходное значение, включая поддерживаемые backend составные формы. */
         public val value: JsonElement,
         /** Идентификатор палитры. */

@@ -41,7 +41,10 @@ internal val editorTokenTools: List<McpToolDefinition> = listOf(
             "tokenId" to editorString(required = true),
             "tenantId" to editorString(required = true),
             "platform" to editorPlatform(required = true),
-            "mode" to editorMode(required = true),
+            "mode" to editorMode(required = true).copy(
+                nullable = true,
+                description = "light/dark for colors; null for values without a mode.",
+            ),
             "value" to McpToolInputDefinition(type = "json", required = true, nullable = true),
             "paletteId" to editorString(),
         ),

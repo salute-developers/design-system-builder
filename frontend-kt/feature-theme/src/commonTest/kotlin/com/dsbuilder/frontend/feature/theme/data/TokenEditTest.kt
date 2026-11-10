@@ -135,7 +135,7 @@ class TokenEditTest {
                 ): CredentialResult =
                     CredentialResult.Selected(
                         BackendCredential.PersonalAccessToken("key"),
-                        com.dsbuilder.frontend.core.auth.BackendCredentialType.PROJECT_KEY,
+                        com.dsbuilder.frontend.core.auth.BackendCredentialType.PERSONAL_ACCESS_TOKEN,
                     )
             },
         )

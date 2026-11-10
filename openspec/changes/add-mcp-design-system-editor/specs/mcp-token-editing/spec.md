@@ -20,12 +20,16 @@ MCP SHALL предоставлять `token_create`, `token_update`, `token_dele
 
 ### Requirement: Точечное редактирование значений
 
-MCP SHALL предоставлять `token_value_create`, `token_value_update`, `token_value_delete`. Создание MUST требовать tokenId, tenantId, platform и mode; изменение и удаление MUST адресовать существующий valueId. Серверная проверка значения MUST сохраняться.
+MCP SHALL предоставлять `token_value_create`, `token_value_update`, `token_value_delete`. Создание MUST требовать tokenId, tenantId, platform и mode; mode SHALL принимать `null` для значений без режима и `light`/`dark` для цветовых значений; изменение и удаление MUST адресовать существующий valueId. Серверная проверка значения MUST сохраняться.
 
 #### Scenario: Изменение отдельной пары
 - **WHEN** меняется значение токена одной темы для web/dark
 - **THEN** инструмент MUST передать только запрошенные поля значения
 - **THEN** он MUST NOT записывать значения других тем, платформ и режимов от себя
+
+#### Scenario: Значение без режима
+- **WHEN** создаётся значение отступа с `platform=web`, `mode=null` и числовым значением
+- **THEN** MCP MUST передать явный `mode=null` в серверный запрос без подстановки цветового режима
 
 #### Scenario: Неизменяемый ключ
 - **WHEN** обновление существующего значения пытается изменить tokenId, tenantId, platform или mode

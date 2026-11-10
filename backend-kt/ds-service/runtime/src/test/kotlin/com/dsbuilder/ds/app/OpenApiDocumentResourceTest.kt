@@ -23,8 +23,8 @@ class OpenApiDocumentResourceTest {
     @Test
     fun `specialized value writes document repeatable responses`() {
         val operations = listOf(
-            "/api/ds/tenants/{tenantId}/size-tokens/{tokenId}/value" to "put",
-            "/api/ds/tenants/{tenantId}/typography-styles/{tokenId}" to "patch",
+            "/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens/{tokenId}/value" to "put",
+            "/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-styles/{tokenId}" to "patch",
         )
         for ((path, method) in operations) {
             val operation = paths.getValue(path).jsonObject.getValue(method).jsonObject

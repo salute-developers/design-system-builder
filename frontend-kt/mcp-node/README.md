@@ -52,7 +52,7 @@ authoritative DS Builder model API through `/api/projects/{projectId}/design-sys
 ## Editor tools
 
 Editor calls use `/api/projects/{projectId}/design-systems/{designSystemId}/...` and require the backend
-contract from `scope-design-system-routes` (#149). Integration and release depend on its implementation.
+contract from `scope-design-system-routes` (#149). The scoped backend implementation is included from #149; integration checks use that backend.
 Both launchers register the same schemas without resolving credentials during `tools/list`.
 
 - `token_edit_data_get`, `component_editor_get` read draft source data and subject revisions.
@@ -76,7 +76,8 @@ supported by the server. Reuse the original key, arguments and revisions when re
 A conflict remains a conflict. Bearer authorization can refresh once after HTTP 401 with the same command.
 
 For one value use `token_value_update` with `valueId` and `value`. Its token, tenant, platform and mode are
-immutable. To prepare a family update, read `token_edit_data_get(tokenId, tenantId)` and select members by
+immutable. At creation, use `mode: null` for values without a mode and `light`/`dark` for colors.
+To prepare a family update, read `token_edit_data_get(tokenId, tenantId)` and select members by
 `tokenId`. Preserve `sourceValue`, palette references, `paletteId` and `overridden` from the source data.
 Each selected member must supply all six web/ios/android and light/dark pairs with explicit `baseRevision`.
 The tool sends one family PUT and includes only the supplied members. Family and group operations also

@@ -68,6 +68,18 @@ class McpEditorToolsTest {
     }
 
     @Test
+    fun valuesWithoutAModeCanBeCreatedWithAnExplicitNullKey() = runTest {
+        val fixture = Fixture()
+        val args = Json.parseToJsonElement(
+            """{"tokenId":"t","tenantId":"theme","platform":"web","mode":null,"value":21,"idempotencyKey":"key"}""",
+        ).jsonObject
+        assertFalse(fixture.core.callTool("token_value_create", args).isError)
+        val body = Json.parseToJsonElement(fixture.writes.single().body!!).jsonObject
+        assertEquals(JsonNull, body.getValue("mode"))
+        assertEquals(JsonPrimitive(21), body.getValue("value"))
+    }
+
+    @Test
     fun familyUpdateRejectsMissingDuplicateAndStaleShapePairsBeforeWriting() = runTest {
         val tool = editorTokenTools.single { it.name == "color_token_values_update" }
         val valid = validArguments(tool)
@@ -449,7 +461,7 @@ class McpEditorToolsTest {
                     ): CredentialResult =
                         CredentialResult.Selected(
                             BackendCredential.PersonalAccessToken("key"),
-                            BackendCredentialType.PROJECT_KEY,
+                            BackendCredentialType.PERSONAL_ACCESS_TOKEN,
                         )
                 }
             }

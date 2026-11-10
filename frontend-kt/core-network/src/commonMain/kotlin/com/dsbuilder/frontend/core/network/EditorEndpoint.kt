@@ -10,7 +10,7 @@ import kotlinx.serialization.json.jsonPrimitive
 /** Единый внутренний формат типизированной команды. Дискриминатор не передаётся в HTTP-тело. */
 public val editorCommandJson: Json = Json { classDiscriminator = "operation" }
 
-private val pathParameter = Regex("\\{([A-Za-z][A-Za-z0-9]*)}")
+private val pathParameter = Regex("\\{([A-Za-z][A-Za-z0-9]*)\\}")
 
 /** Закрытое описание HTTP-контракта, задаваемое адаптером фичи. */
 public data class EditorEndpoint(

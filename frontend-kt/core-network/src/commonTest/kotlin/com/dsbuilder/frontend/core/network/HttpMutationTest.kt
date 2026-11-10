@@ -53,9 +53,10 @@ class HttpMutationTest {
     }
 
     @Test
-    fun failureResponsesKeepStatusAndBodyButOnlyAllowlistedHeaders() = runTest {
+    fun personalAccessTokenUsesBearerAndFailureKeepsOnlyAllowlistedHeaders() = runTest {
         HttpClient(
             MockEngine {
+                assertEquals("Bearer key", it.headers[HttpHeaders.Authorization])
                 respond(
                     """{"code":"IDEMPOTENCY_KEY_REUSED"}""",
                     HttpStatusCode.Conflict,
@@ -68,7 +69,8 @@ class HttpMutationTest {
                 )
             },
         ).use { http ->
-            val client = KtorAuthenticatedHttpClient(http, "https://example.test", BackendCredential.PersonalAccessToken("key"))
+            val client =
+                KtorAuthenticatedHttpClient(http, "https://example.test", BackendCredential.PersonalAccessToken("key"))
             val result = client.mutate(HttpMutationRequest(MutationHttpMethod.DELETE, "/resource", null, "key"))
                 as HttpMutationResult.Response
             assertEquals(409, result.statusCode)
@@ -88,7 +90,11 @@ class HttpMutationTest {
             },
         ).use { http ->
             val client =
-                KtorAuthenticatedHttpClient(http, "https://example.test", BackendCredential.PersonalAccessToken("secret"))
+                KtorAuthenticatedHttpClient(
+                    http,
+                    "https://example.test",
+                    BackendCredential.PersonalAccessToken("secret"),
+                )
             assertEquals(
                 HttpMutationResult.OutcomeUnknown("original"),
                 client.mutate(HttpMutationRequest(MutationHttpMethod.PUT, "/resource", "{}", "original")),
@@ -131,7 +137,8 @@ class HttpMutationTest {
     @Test
     fun cancellationPropagates() = runTest {
         HttpClient(MockEngine { throw CancellationException("cancelled") }).use { http ->
-            val client = KtorAuthenticatedHttpClient(http, "https://example.test", BackendCredential.PersonalAccessToken("key"))
+            val client =
+                KtorAuthenticatedHttpClient(http, "https://example.test", BackendCredential.PersonalAccessToken("key"))
             assertFailsWith<CancellationException> {
                 client.mutate(HttpMutationRequest(MutationHttpMethod.PATCH, "/resource", "{}", "key"))
             }

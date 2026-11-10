@@ -88,6 +88,7 @@ class McpCliLauncherContractTest {
             environment().remove("DSBUILDER_API_URL")
         }
         .start()
+
     private fun assertClosedEditorSchema(schema: JsonObject) {
         assertEquals("false", schema.getValue("additionalProperties").jsonPrimitive.content)
         val members = schema.getValue("properties").jsonObject.getValue("members").jsonObject
