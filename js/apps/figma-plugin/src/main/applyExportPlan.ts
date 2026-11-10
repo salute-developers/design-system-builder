@@ -8,6 +8,7 @@ import type {
     PlanSkip,
     PlanTextStyle,
     PlanValue,
+    PlanVariable,
     TextBinding,
 } from '../shared/exportPlan';
 
@@ -198,16 +199,32 @@ const writeVariables = async (
     const plannedKeys = new Set(collections.flatMap((item) => item.variables.map((variable) => variable.key)));
     const originalNames = new Map<Variable, string>();
     const written = new Map<string, Variable>();
+    const blocked = new Map<Variable, string>();
     try {
         for (const planned of collections) {
             const collectionId = targets.get(planned.key)!.id;
+            const renames = new Map<Variable, PlanVariable>();
             for (const variable of planned.variables) {
                 const target = existingVariables.get(variable.key);
                 if (target && target.variableCollectionId === collectionId && target.name !== variable.name) {
-                    originalNames.set(target, target.name);
-                    target.name = temporaryName(variable.key);
+                    renames.set(target, variable);
                 }
             }
+            const byName = new Map(
+                all
+                    .filter((item) => item.variableCollectionId === collectionId)
+                    .map((item) => [item.name, item] as const),
+            );
+            const claims = new Map<string, number>();
+            planned.variables.forEach(({ name }) => claims.set(name, (claims.get(name) ?? 0) + 1));
+            blockedRenames(renames, byName, claims, plannedKeys).forEach((reason, target) =>
+                blocked.set(target, reason),
+            );
+            renames.forEach((variable, target) => {
+                if (blocked.has(target)) return;
+                originalNames.set(target, target.name);
+                target.name = temporaryName(variable.key);
+            });
         }
         for (const planned of collections) {
             const collection = targets.get(planned.key)!;
@@ -222,15 +239,22 @@ const writeVariables = async (
                     skip({ name: variable.name, reason: 'переменная с этим ключом лежит в другой коллекции' });
                     continue;
                 }
+                const blockedReason = target && blocked.get(target);
+                if (blockedReason) {
+                    skip({ name: variable.name, reason: blockedReason });
+                    continue;
+                }
                 const owner = owners.get(variable.name);
                 if (owner && owner !== target) {
                     const ownerKey = keyOf(owner);
                     if (!ownerKey || plannedKeys.has(ownerKey)) {
                         skip({
                             name: variable.name,
-                            reason: ownerKey
-                                ? 'в плане два объекта с этим именем'
-                                : 'имя занято переменной, созданной не DS Builder',
+                            reason: !ownerKey
+                                ? 'имя занято переменной, созданной не DS Builder'
+                                : blocked.has(owner)
+                                  ? 'имя занято переменной плана, которую нельзя переименовать'
+                                  : 'в плане два объекта с этим именем',
                         });
                         continue;
                     }
@@ -297,6 +321,44 @@ const writeVariables = async (
     return lookup;
 };
 
+/**
+ * Переименования, которые нельзя выполнить, с причиной. Имя освобождает только устаревшая переменная DS Builder или
+ * переменная плана, которая сама переименовывается; иначе пропуск тянет за собой всю цепочку `A → B → C`. Имя, которое
+ * в плане носят два объекта, не достаётся переименованию: первым его может занять другой объект. Проверка идёт до
+ * временных имён: пропущенное посреди цепочки переименование оставило бы переменную без прежнего имени.
+ */
+const blockedRenames = (
+    renames: Map<Variable, PlanVariable>,
+    byName: Map<string, Variable>,
+    claims: Map<string, number>,
+    plannedKeys: Set<string>,
+) => {
+    const blocked = new Map<Variable, string>();
+    for (let changed = true; changed; ) {
+        changed = false;
+        renames.forEach((variable, target) => {
+            if (blocked.has(target)) return;
+            if ((claims.get(variable.name) ?? 0) > 1) {
+                blocked.set(target, 'в плане два объекта с этим именем');
+                changed = true;
+                return;
+            }
+            const owner = byName.get(variable.name);
+            if (!owner || owner === target) return;
+            const key = keyOf(owner);
+            if (key && (!plannedKeys.has(key) || (renames.has(owner) && !blocked.has(owner)))) return;
+            blocked.set(
+                target,
+                key
+                    ? 'имя занято переменной плана, которую нельзя переименовать'
+                    : 'имя занято переменной, созданной не DS Builder',
+            );
+            changed = true;
+        });
+    }
+    return blocked;
+};
+
 /** Переменные, оставшиеся на временном имени после пропуска или отказа Figma, получают прежнее имя, если оно свободно. */
 const restoreNames = (originalNames: Map<Variable, string>) => {
     originalNames.forEach((name, variable) => {
@@ -318,13 +380,22 @@ const ensureModes = (collection: VariableCollection, planned: PlanCollection) =>
     const alive = new Set(collection.modes.map((mode) => mode.modeId));
     // Свободный режим занимается, только пока соответствие не сохранено: режимы дизайнера не переименовываются.
     const free = Object.keys(saved).length ? [] : collection.modes.map((mode) => mode.modeId);
-    for (const mode of planned.modes) {
-        let id = saved[mode.key];
-        if (!id || !alive.has(id)) id = free.shift() ?? addMode(collection, mode.name);
-        collection.renameMode(id, mode.name);
-        ids.set(mode.key, id);
+    let complete = false;
+    try {
+        for (const mode of planned.modes) {
+            let id = saved[mode.key];
+            if (!id || !alive.has(id)) id = free.shift() ?? addMode(collection, mode.name);
+            // Соответствие раньше переименования: отказ `renameMode` не теряет только что добавленный режим.
+            ids.set(mode.key, id);
+            collection.renameMode(id, mode.name);
+        }
+        complete = true;
+    } finally {
+        // Отказ тарифа посреди списка: добавленные режимы и ещё не пройденные сохранённые остаются в соответствии,
+        // иначе повторный экспорт создал бы их заново и снова упёрся в лимит.
+        const next = complete ? Object.fromEntries(ids) : { ...saved, ...Object.fromEntries(ids) };
+        collection.setSharedPluginData(NAMESPACE, MODES, JSON.stringify(next));
     }
-    collection.setSharedPluginData(NAMESPACE, MODES, JSON.stringify(Object.fromEntries(ids)));
     return ids;
 };
 

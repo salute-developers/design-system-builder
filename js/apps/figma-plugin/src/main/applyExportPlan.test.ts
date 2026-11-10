@@ -459,20 +459,97 @@ describe('запись плана экспорта', () => {
         expect(variables[1].name).toBe('Text&Icons/Default/General/Main');
     });
 
-    it('возвращает переменную с занятым прежним именем под пометкой «(устарело)», а не на временное имя', async () => {
+    it('не начинает цепочку переименований, конец которой упирается в чужое имя', async () => {
         const { figma, collections, variables } = createFigma();
         await applyExportPlan(createPlan(), figma);
         const [, , family, size] = variables;
         figma.variables.createVariable('Taken', collections[2] as unknown as VariableCollection, 'FLOAT');
         const plan = createPlan();
-        // `size` хочет занятое чужое имя и будет пропущен, `family` забирает прежнее имя `size`.
+        // Цепочка `family → имя size`, `size → Taken`: Taken занято дизайнером, поэтому не переименовывается никто.
         plan.collections[2].variables[1].name = 'Taken';
         plan.collections[2].variables[0].name = 'Header/H1 B/Font Size';
 
+        const report = await applyExportPlan(plan, figma);
+
+        expect(family.name).toBe('FontFamily/Header');
+        expect(size.name).toBe('Header/H1 B/Font Size');
+        expect(variables.map((item) => item.name)).not.toContainEqual(expect.stringMatching(/устарело|dsbuilder-tmp/));
+        expect(report.skipped).toEqual(
+            expect.arrayContaining([
+                { name: 'Taken', reason: 'имя занято переменной, созданной не DS Builder' },
+                { name: 'Header/H1 B/Font Size', reason: 'имя занято переменной плана, которую нельзя переименовать' },
+            ]),
+        );
+    });
+
+    it('не переименовывает переменную в имя, которое в плане носят два объекта', async () => {
+        const { figma, variables } = createFigma();
+        await applyExportPlan(createPlan(), figma);
+        const [, , family, size] = variables;
+        const plan = createPlan();
+        const typography = plan.collections[2].variables;
+        // Новая переменная первой занимает `N`, `size` тоже хочет `N`, а `family` — прежнее имя `size`.
+        typography.unshift({ ...typography[1], key: 'typography:new', name: 'N' });
+        typography[2].name = 'N';
+        typography[1].name = 'Header/H1 B/Font Size';
+
+        const report = await applyExportPlan(plan, figma);
+
+        expect(family.name).toBe('FontFamily/Header');
+        expect(size.name).toBe('Header/H1 B/Font Size');
+        expect(variables.map((item) => item.name)).not.toContainEqual(expect.stringMatching(/устарело|dsbuilder-tmp/));
+        expect(report.skipped).toContainEqual({ name: 'N', reason: 'в плане два объекта с этим именем' });
+    });
+
+    it('называет причиной пропуска новой переменной заблокированное переименование', async () => {
+        const { figma, collections, variables } = createFigma();
+        await applyExportPlan(createPlan(), figma);
+        figma.variables.createVariable('Taken', collections[2] as unknown as VariableCollection, 'FLOAT');
+        const plan = createPlan();
+        const typography = plan.collections[2].variables;
+        typography[1].name = 'Taken';
+        typography.push({ ...typography[1], key: 'typography:new', name: 'Header/H1 B/Font Size' });
+
+        const report = await applyExportPlan(plan, figma);
+
+        expect(variables[3].name).toBe('Header/H1 B/Font Size');
+        expect(report.skipped).toContainEqual({
+            name: 'Header/H1 B/Font Size',
+            reason: 'имя занято переменной плана, которую нельзя переименовать',
+        });
+    });
+
+    it('сохраняет добавленный режим в соответствии, даже если Figma не дала его переименовать', async () => {
+        const { figma, collections } = createFigma();
+        await applyExportPlan(createPlan(), figma);
+        const plan = createPlan();
+        plan.collections[1].modes.push({ key: 'contrast', name: 'Contrast' });
+        const rename = collections[1].renameMode.bind(collections[1]);
+        collections[1].renameMode = (modeId, name) => {
+            if (name === 'Contrast') throw new Error('locked');
+            rename(modeId, name);
+        };
+        await applyExportPlan(plan, figma);
+        collections[1].renameMode = rename;
+
         await applyExportPlan(plan, figma);
 
-        expect(family.name).toBe('Header/H1 B/Font Size');
-        expect(size.name).toBe('Header/H1 B/Font Size (устарело)');
+        expect(collections[1].modes.map((mode) => mode.name)).toEqual(['Light', 'Dark', 'Contrast']);
+    });
+
+    it('сохраняет соответствие добавленных режимов, если тариф отказал на следующем', async () => {
+        const { figma, collections } = createFigma({ modeLimit: 3 });
+        await applyExportPlan(createPlan(), figma);
+        const plan = createPlan();
+        plan.collections[1].modes.push({ key: 'contrast', name: 'Contrast' }, { key: 'extra', name: 'Extra' });
+
+        const first = await applyExportPlan(plan, figma);
+        const second = await applyExportPlan(plan, figma);
+
+        expect(first.failure).toContain('режим «Extra»');
+        // Повторный экспорт узнаёт добавленный Contrast и упирается в лимит снова только на Extra.
+        expect(second.failure).toContain('режим «Extra»');
+        expect(collections[1].modes.map((mode) => mode.name)).toEqual(['Light', 'Dark', 'Contrast']);
     });
 
     it('не занимает режим, добавленный дизайнером, когда соответствие уже сохранено', async () => {
