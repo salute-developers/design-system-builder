@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.latestRevision
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.data.selectedVersionBoundary
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.tokens.application.CreateToken
@@ -300,7 +301,11 @@ class ExposedTokenRepository(
 
     private fun ownedDesignSystem(projectId: ProjectId, id: UUID): Boolean = TokenDesignSystemsTable
         .selectAll()
-        .where { (TokenDesignSystemsTable.id eq id) and (TokenDesignSystemsTable.projectId eq projectId.value) }
+        .where {
+            (TokenDesignSystemsTable.id eq id) and
+                (TokenDesignSystemsTable.projectId eq projectId.value) and
+                requestDesignSystemScope(TokenDesignSystemsTable.id)
+        }
         .limit(1)
         .any()
 }

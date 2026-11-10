@@ -1,8 +1,12 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.entityEditRevisions
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.modelReadPage
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.CreateTenant
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValues
@@ -24,6 +28,8 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.like
+import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
@@ -40,6 +46,29 @@ class ExposedTenantRepository : TenantRepository {
         val revisions = tenantEditRevisions(rows)
         return rows.map { row -> toTenant(row, revisions[row[TenantsTable.id]] ?: 0) }
             .let(::withResolvedPreviews)
+    }
+
+    override suspend fun pageAccessible(
+        projectId: ProjectId,
+        read: ModelReadQuery,
+    ): ModelReadItems<Tenant> {
+        val query = currentTenantQuery(projectId)
+        query.adjustWhere {
+            var filter = requireNotNull(this)
+            read.name?.let { filter = filter and (TenantRevisionsTable.name eq it) }
+            read.query?.takeIf(String::isNotBlank)?.let {
+                val pattern = "%${it.trim().lowercase()}%"
+                filter = filter and (
+                    (TenantRevisionsTable.name.lowerCase() like pattern) or
+                        (TenantRevisionsTable.description.lowerCase() like pattern)
+                    )
+            }
+            filter
+        }
+        val selected = query.modelReadPage(read, "tenants", TenantRevisionsTable.name, TenantsTable.id)
+        val revisions = tenantEditRevisions(selected.items)
+        val tenants = selected.items.map { row -> toTenant(row, revisions[row[TenantsTable.id]] ?: 0) }
+        return ModelReadItems(withResolvedPreviews(tenants), selected.page)
     }
 
     override suspend fun findAccessible(
@@ -336,7 +365,11 @@ class ExposedTenantRepository : TenantRepository {
 
     private fun ownedDesignSystem(projectId: ProjectId, id: UUID): Boolean = ThemeDesignSystemsTable
         .selectAll()
-        .where { (ThemeDesignSystemsTable.id eq id) and (ThemeDesignSystemsTable.projectId eq projectId.value) }
+        .where {
+            (ThemeDesignSystemsTable.id eq id) and
+                (ThemeDesignSystemsTable.projectId eq projectId.value) and
+                requestDesignSystemScope(ThemeDesignSystemsTable.id)
+        }
         .limit(1)
         .any()
 

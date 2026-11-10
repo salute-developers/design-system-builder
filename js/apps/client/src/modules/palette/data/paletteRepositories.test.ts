@@ -207,7 +207,7 @@ describe('адаптер api', () => {
         const repository = createHttpPaletteRepository();
         mocked.get.mockResolvedValueOnce({ data: { tenantId: 't1' } });
         await repository.load(ctx);
-        expect(mocked.get).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette', {
+        expect(mocked.get).toHaveBeenCalledWith('/api/projects/p1/design-systems/ds1/tenants/t1/palette', {
             signal: expect.any(AbortSignal),
             params: undefined,
         });
@@ -215,7 +215,7 @@ describe('адаптер api', () => {
         mocked.put.mockResolvedValueOnce({ data: { editRevision: 2, value: {} } });
         await repository.replaceSource(ctx, 'g-1', green, h190, 1);
         expect(mocked.put).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps/general/green/source',
+            '/api/projects/p1/design-systems/ds1/tenants/t1/palette/groups/g-1/ramps/general/green/source',
             { type: 'additional', shade: 'h190', editRevision: 1 },
             { headers },
         );
@@ -223,7 +223,7 @@ describe('адаптер api', () => {
         mocked.delete.mockResolvedValueOnce({ data: { editRevision: 3, value: { reassigned: 1 } } });
         await repository.removeRamp(ctx, 'g-1', green, { strategy: 'replace', replacement: h190, editRevision: 2 });
         expect(mocked.delete).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps/general/green',
+            '/api/projects/p1/design-systems/ds1/tenants/t1/palette/groups/g-1/ramps/general/green',
             {
                 data: { strategy: 'replace', replacement: h190, editRevision: 2 },
                 headers,
@@ -251,7 +251,7 @@ describe('адаптер api', () => {
         mocked.post.mockResolvedValueOnce({ data: { editRevision: 2, value: {} } });
         await repository.addRamp(ctx, 'g-1', templateRamp, 1);
         expect(mocked.post).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps',
+            '/api/projects/p1/design-systems/ds1/tenants/t1/palette/groups/g-1/ramps',
             {
                 type: 'additional',
                 shade: 'h190',
@@ -282,7 +282,7 @@ describe('адаптер api', () => {
         const input = { anchorStep: 500, value: '#1F8A70', preview: true, editRevision: 4 };
         const result = await repository.rebuild(ctx, 'g-1', green, input);
         expect(mocked.post).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps/general/green/rebuild',
+            '/api/projects/p1/design-systems/ds1/tenants/t1/palette/groups/g-1/ramps/general/green/rebuild',
             input,
             { params: { versionId: undefined } },
         );
@@ -294,7 +294,7 @@ describe('адаптер api', () => {
         mocked.patch.mockResolvedValueOnce({ data: { editRevision: 5, value: { id: 'g-1', label: 'Icons' } } });
         await repository.renameGroup(ctx, 'g-1', 'Icons', 4);
         expect(mocked.patch).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/palette/groups/g-1',
+            '/api/projects/p1/design-systems/ds1/tenants/t1/palette/groups/g-1',
             {
                 label: 'Icons',
                 editRevision: 4,

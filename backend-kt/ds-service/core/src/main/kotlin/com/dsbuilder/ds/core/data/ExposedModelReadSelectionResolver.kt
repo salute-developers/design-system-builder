@@ -27,7 +27,9 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
             is DsResult.Success -> parsed.value
         }
         val owner = owner(context, target) ?: return DsResult.Failure(DsFailure.NotFound)
-        return if (target.kind == ModelReadTarget.Kind.VERSION_HISTORY) {
+        return if (context.designSystemId != null && context.designSystemId != owner) {
+            DsResult.Failure(DsFailure.NotFound)
+        } else if (target.kind == ModelReadTarget.Kind.VERSION_HISTORY) {
             DsResult.Success(
                 ResolvedModelRead(
                     context.copy(

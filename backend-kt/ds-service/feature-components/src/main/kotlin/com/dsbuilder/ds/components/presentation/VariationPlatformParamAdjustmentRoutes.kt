@@ -40,7 +40,7 @@ fun Route.variationPlatformParamAdjustmentRoutes(
     delete: DeleteVariationPlatformParamAdjustmentUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/variation-platform-param-adjustments")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/variation-platform-param-adjustments")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

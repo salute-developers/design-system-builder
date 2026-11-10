@@ -5,8 +5,6 @@ import kotlinx.serialization.Serializable
 /** HTTP body for variation creation. */
 @Serializable
 data class CreateVariationRequest(
-    /** Design system that will own the variation axis. */
-    val designSystemId: String,
     /** Component id carried by this contract. */
     val componentId: String,
     /** Name carried by this contract. */

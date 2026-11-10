@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.HttpClient
@@ -37,13 +39,13 @@ class ColorTokenHttpPostgresIntegrationTest {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystem = """{"name":"alpha","projectName":"alpha"}"""
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, designSystem)
+                val designSystemId = api.create("/api/design-systems", OWNER, designSystem)
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
-                val initialResponse = api.call("GET", "/api/ds/design-systems/$designSystemId/changes", VIEWER)
+                val initialResponse = api.call("GET", "/api/design-systems/$designSystemId/changes", VIEWER)
                 assertEquals(HttpStatusCode.OK, initialResponse.status, initialResponse.bodyAsText())
                 val initialChanges = api.body(initialResponse).jsonArray
-                val initialSummary = api.read("/api/ds/design-systems/$designSystemId/changes/summary")
+                val initialSummary = api.read("/api/design-systems/$designSystemId/changes/summary")
                 assertEquals(
                     initialSummary.jsonObject.getValue("total").jsonPrimitive.content,
                     initialResponse.headers["X-DS-Journal-Total"],
@@ -51,7 +53,7 @@ class ColorTokenHttpPostgresIntegrationTest {
                 assertTrue(
                     initialChanges.none { it.text("entityType") in setOf("token", "token-value", "token-group") },
                 )
-                val palette = api.read("/api/ds/tenants/$tenantA/palette")
+                val palette = api.read("/api/design-systems/$designSystemId/tenants/$tenantA/palette")
                 val accent = palette.array("groups").single { it.text("systemKey") == "accent" }.text("id")
                 val reference = palette.array("template").first().let { ramp ->
                     val step = ramp.array("steps").first().number("step")
@@ -60,18 +62,20 @@ class ColorTokenHttpPostgresIntegrationTest {
                 val primary = palette.array("tokens")
                     .first { it.text("tokenName") == "text.default.primary" }
                     .text("tokenId")
-                val base = "/api/ds/tenants/$tenantA/color-tokens"
-                val revisionA = api.revision(tenantA)
-                val revisionB = api.revision(tenantB)
+                val base = "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens"
+                val revisionA = api.revision(designSystemId, tenantA)
+                val revisionB = api.revision(designSystemId, tenantB)
 
                 // Отказы создания до записи: группа палитры чужой темы, недопустимое имя и значение.
-                val foreignGroup = api.read("/api/ds/tenants/$tenantB/palette").array("groups")
+                val foreignGroup = api.read(
+                    "/api/design-systems/$designSystemId/tenants/$tenantB/palette",
+                ).array("groups")
                     .single { it.text("systemKey") == "accent" }.text("id")
                 val foreignGroupBody = createBody(revisionA, foreignGroup, reference)
                 api.reject("POST", base, MAINTAINER, foreignGroupBody, HttpStatusCode.NotFound)
                 assertEquals(0, count(postgres, "SELECT count(*) FROM tokens WHERE name LIKE 'text.%.highlight%'"))
-                assertEquals(revisionA, api.revision(tenantA))
-                assertEquals(revisionB, api.revision(tenantB))
+                assertEquals(revisionA, api.revision(designSystemId, tenantA))
+                assertEquals(revisionB, api.revision(designSystemId, tenantB))
                 val badName = createBody(revisionA, null, reference).replace("\"group\":\"text\"", "\"group\":\"Text\"")
                 api.reject("POST", base, MAINTAINER, badName, HttpStatusCode.BadRequest, "INVALID_TOKEN_NAME")
                 val badValue = createBody(revisionA, null, "[general.missing.500]")
@@ -99,8 +103,8 @@ class ColorTokenHttpPostgresIntegrationTest {
                 }
                 assertEquals(MEMBERS.size, count(postgres, groupCount(tenantA, accent)))
                 assertEquals(0, count(postgres, groupCount(tenantB, null)))
-                assertEquals(revisionB, api.revision(tenantB))
-                val tokens = api.read("/api/ds/tenants/$tenantA/palette").array("tokens")
+                assertEquals(revisionB, api.revision(designSystemId, tenantB))
+                val tokens = api.read("/api/design-systems/$designSystemId/tenants/$tenantA/palette").array("tokens")
                 val assignment = tokens.single { it.text("tokenId") == members.getValue("text.default.highlight") }
                 assertEquals("explicit", assignment.text("assignment"))
                 assertEquals(accent, assignment.text("groupId"))
@@ -128,10 +132,10 @@ class ColorTokenHttpPostgresIntegrationTest {
                 assertEquals(VALUES_PER_MEMBER, count(postgres, valueEquals(tenantA, defaultId, "#000000")))
                 assertEquals(0, count(postgres, valueEquals(tenantB, defaultId, "#000000")))
                 assertEquals(0, count(postgres, valueEquals(tenantA, hoverId, "#000000")))
-                assertEquals(revisionB, api.revision(tenantB))
+                assertEquals(revisionB, api.revision(designSystemId, tenantB))
 
                 // Прежний общий счётчик темы не блокирует адресную запись и не меняет соседние значения.
-                val current = api.revision(tenantA)
+                val current = api.revision(designSystemId, tenantA)
                 val stale = api.call("PUT", values, EDITOR, updateBody(revision + 100, defaultId, "#000000"))
                 assertEquals(HttpStatusCode.OK, stale.status, stale.bodyAsText())
                 val foreign = updateBody(current, primary, "#111111")
@@ -147,7 +151,7 @@ class ColorTokenHttpPostgresIntegrationTest {
                 assertTrue(invalid.obj("details").text("address").startsWith("$defaultId:"))
                 assertEquals(VALUES_PER_MEMBER, count(postgres, valueEquals(tenantA, defaultId, "#000000")))
                 api.reject("PUT", values, VIEWER, updateBody(current, defaultId, "#111111"), HttpStatusCode.Forbidden)
-                assertEquals(current, api.revision(tenantA))
+                assertEquals(current, api.revision(designSystemId, tenantA))
 
                 // Токен вне семейства и токен другой дизайн-системы.
                 val typography = text(postgres, tokenIdSql(designSystemId, "typography"))
@@ -155,23 +159,23 @@ class ColorTokenHttpPostgresIntegrationTest {
                 val outside = updateBody(current, typography, "#111111")
                 api.reject("PUT", typographyValues, EDITOR, outside, HttpStatusCode.BadRequest, "INVALID_TOKEN_FAMILY")
                 val otherSystem = api.create(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     OWNER,
                     """{"name":"beta","projectName":"beta"}""",
                 )
                 val otherToken = text(postgres, tokenIdSql(otherSystem, "color"))
                 val otherBody = updateBody(current, otherToken, "#111111")
                 api.reject("PUT", "$base/$otherToken/values", EDITOR, otherBody, HttpStatusCode.NotFound)
-                assertEquals(current, api.revision(tenantA))
+                assertEquals(current, api.revision(designSystemId, tenantA))
 
                 // Пакетное сохранение темы тоже проверяет цвет и не меняет данные при отказе.
                 val blue = """{"tokenId":"$primary","platform":"web","mode":"light",""" +
                     """"paletteId":null,"value":["blue"]}"""
                 val batch = """{"editRevision":$current,"values":[$blue]}"""
-                val batchPath = "/api/ds/tenants/$tenantA/token-values"
+                val batchPath = "/api/design-systems/$designSystemId/tenants/$tenantA/token-values"
                 api.reject("PUT", batchPath, EDITOR, batch, HttpStatusCode.BadRequest, "INVALID_TOKEN_VALUE")
                 assertEquals(VALUES_PER_MEMBER, count(postgres, valueCount(tenantA, defaultId)))
-                assertEquals(current, api.revision(tenantA))
+                assertEquals(current, api.revision(designSystemId, tenantA))
 
                 // Удаление: Editor не может; Maintainer удаляет семейство целиком, ревизии обеих тем растут.
                 val deletePath = "$base/$hoverId"
@@ -181,7 +185,7 @@ class ColorTokenHttpPostgresIntegrationTest {
                 assertEquals(0, api.body(deleted).jsonObject.number("editRevision"))
                 assertEquals(0, count(postgres, "SELECT count(*) FROM tokens WHERE name LIKE 'text.%.highlight%'"))
                 assertEquals(0, count(postgres, groupCount(tenantA, accent)))
-                assertEquals(revisionB, api.revision(tenantB))
+                assertEquals(revisionB, api.revision(designSystemId, tenantB))
                 val again = """{"editRevision":${current + 1}}"""
                 api.reject("DELETE", deletePath, MAINTAINER, again, HttpStatusCode.NotFound)
             }
@@ -210,10 +214,12 @@ class ColorTokenHttpPostgresIntegrationTest {
             return body(response).text("id")
         }
 
-        suspend fun revision(tenantId: String): Int = read("/api/ds/tenants/$tenantId").number("editRevision")
+        suspend fun revision(designSystemId: String, tenantId: String): Int = read(
+            "/api/design-systems/$designSystemId/tenants/$tenantId",
+        ).number("editRevision")
 
         suspend fun createTenant(designSystemId: String, name: String) =
-            create("/api/ds/tenants", EDITOR, """{"designSystemId":"$designSystemId","name":"$name"}""")
+            create("/api/design-systems/$designSystemId/tenants", EDITOR, """{"name":"$name"}""")
 
         /** Отклонённая операция: статус и код ошибки. */
         suspend fun reject(

@@ -24,7 +24,7 @@ BATCH = 400
 
 
 def main(gateway, token, project, design_system, tenant, package):
-    base = f"{gateway}/api/projects/{project}/ds"
+    base = f"{gateway}/api/projects/{project}/design-systems/{design_system}"
 
     def call(method, path, body=None):
         request = urllib.request.Request(
@@ -41,7 +41,7 @@ def main(gateway, token, project, design_system, tenant, package):
         with open(f"{package}/android/{file}.json") as handle:
             package_values[token_type] = json.load(handle)
 
-    tokens = {item["id"]: item for item in call("GET", f"/design-systems/{design_system}/tokens")}
+    tokens = {item["id"]: item for item in call("GET", "/tokens")}
     current = call("GET", f"/tenants/{tenant}/token-values")
     revision = call("GET", f"/tenants/{tenant}")["editRevision"]
 

@@ -12,7 +12,7 @@
 
 #### Scenario: Копия при создании темы
 
-- **WHEN** редактор создаёт тему `POST /api/ds/tenants`
+- **WHEN** редактор создаёт тему `POST /api/design-systems/{designSystemId}/tenants`
 - **THEN** в той же транзакции `ds-service` MUST сохранить копию всех ступеней общей палитры и системные группы `neutral`, `accent`, `status`, `data`, `syntax` этой темы
 
 #### Scenario: Существующие темы
@@ -66,7 +66,7 @@ web-градиента, элемент `colors` или `background` слоя `io
 
 #### Scenario: Создание пользовательской группы
 
-- **WHEN** редактор отправляет `POST /api/ds/tenants/{tenantId}/palette/groups` с `{ "label": "Avatars", "editRevision": 4 }`
+- **WHEN** редактор отправляет `POST /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups` с `{ "label": "Avatars", "editRevision": 4 }`
 - **THEN** `ds-service` MUST вернуть `201` с `{ editRevision: 5, value: { id, kind: "custom", systemKey: null, label: "Avatars", ramps: [] } }`, где `id` — новый UUID
 
 #### Scenario: Некорректное или повторное название
@@ -78,12 +78,12 @@ web-градиента, элемент `colors` или `background` слоя `io
 
 #### Scenario: Переименование пользовательской группы
 
-- **WHEN** редактор отправляет `PATCH /api/ds/tenants/{tenantId}/palette/groups/{groupId}` с `{ "label": "Icons", "editRevision": 5 }`
+- **WHEN** редактор отправляет `PATCH /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}` с `{ "label": "Icons", "editRevision": 5 }`
 - **THEN** `ds-service` MUST вернуть `200` с `{ editRevision: 6, value }`, где `value` — группа с новым `label`; пустое или длинное название MUST давать `400`, совпадение с другой группой без учёта регистра — `409 PALETTE_GROUP_EXISTS`, системная группа — `409 PALETTE_GROUP_SYSTEM`
 
 #### Scenario: Удаление пользовательской группы
 
-- **WHEN** редактор отправляет `DELETE /api/ds/tenants/{tenantId}/palette/groups/{groupId}` для пользовательской группы
+- **WHEN** редактор отправляет `DELETE /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}` для пользовательской группы
 - **THEN** растяжки группы с источником и правками ступеней MUST перейти в группу `neutral`; при совпадении слота MUST остаться растяжка `neutral`
 - **THEN** явные привязки токенов к группе MUST быть удалены, и эти токены MUST вернуться к группе по умолчанию
 
@@ -118,7 +118,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 
 #### Scenario: Явная привязка
 
-- **WHEN** редактор отправляет `PUT /api/ds/tenants/{tenantId}/palette/token-groups/{tokenId}` с `{ "groupId": "<id группы Avatars>", "editRevision": 5 }`
+- **WHEN** редактор отправляет `PUT /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/token-groups/{tokenId}` с `{ "groupId": "<id группы Avatars>", "editRevision": 5 }`
 - **THEN** `ds-service` MUST вернуть `{ editRevision: 6, value: { tokenId, tokenName, groupId, assignment: "explicit" } }`
 - **THEN** связи токена MUST учитываться в группе «Avatars», а его цвет MUST вычисляться по её экземплярам растяжек
 
@@ -141,7 +141,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 
 #### Scenario: Чтение палитры темы
 
-- **WHEN** участник проекта отправляет `GET /api/ds/tenants/{tenantId}/palette`
+- **WHEN** участник проекта отправляет `GET /api/design-systems/{designSystemId}/tenants/{tenantId}/palette`
 - **THEN** `ds-service` MUST вернуть `200` и `ThemePalette { tenantId, editRevision, canEdit, offBrand, groups, tokens, template }`
 - **THEN** каждая группа MUST содержать `id`, `kind`, `systemKey`, `label` и `ramps`
 - **THEN** каждая растяжка MUST содержать `slot`, `source`, `displayName`, `origin` (`template` или `rebuild`), `anchor`, `added`, `modified`, `linkedCount` и `steps`, а каждая ступень — `step`, `value`, `templateValue`, `overridden` и `linkedCount`
@@ -178,7 +178,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 ### Requirement: Связанные токены растяжки
 
 `ds-service` SHALL возвращать связи токенов темы со слотом через
-`GET /api/ds/tenants/{tenantId}/palette/links` с параметрами `type`, `shade`, необязательными `groupId` и
+`GET /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/links` с параметрами `type`, `shade`, необязательными `groupId` и
 `step`. Связью SHALL считаться и ссылка в стопе градиента.
 
 #### Scenario: Связи в группе
@@ -218,7 +218,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 ### Requirement: Добавление растяжки в группу
 
 Редактор SHALL добавлять растяжку копии шаблона темы в группу через
-`POST /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps` с телом `{ type, shade, editRevision }`.
+`POST /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps` с телом `{ type, shade, editRevision }`.
 
 #### Scenario: Добавление и повтор
 
@@ -232,7 +232,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 ### Requirement: Замена растяжки в группе
 
 Редактор SHALL заменять источник растяжки только внутри одной группы через
-`PUT /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/source`. Источником SHALL быть
+`PUT /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/source`. Источником SHALL быть
 растяжка копии шаблона темы. Слот и ссылки токенов SHALL сохраняться, правки ступеней и данные перестройки
 растяжки в группе SHALL сбрасываться.
 
@@ -250,7 +250,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 ### Requirement: Перестройка растяжки от опорного цвета
 
 Редактор SHALL перестраивать растяжку в группе через
-`POST /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/rebuild` с телом
+`POST /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/rebuild` с телом
 `{ anchorStep, value, preview, editRevision }`.
 
 #### Scenario: Расчёт растяжки в HSL
@@ -280,7 +280,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 ### Requirement: Правка ступени
 
 Редактор SHALL менять одну ступень растяжки в группе через
-`PATCH /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/steps/{step}` с телом
+`PATCH /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/steps/{step}` с телом
 `{ value, editRevision }`.
 
 #### Scenario: Правка ступени
@@ -297,7 +297,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 ### Requirement: Удаление растяжки из группы
 
 Редактор SHALL убирать растяжку из группы через
-`DELETE /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}` с телом
+`DELETE /api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}` с телом
 `{ strategy?, replacement?, editRevision }`. Удаление MUST NOT оставлять ссылки токенов группы на
 убранный слот, включая ссылки в стопах градиентов, и MUST выполняться атомарно.
 
@@ -353,7 +353,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 
 ### Requirement: Цвета палитры темы для потребителей
 
-`GET /api/ds/tenants/{tenantId}/token-values` SHALL всегда заменять ссылки на палитру в цветовых значениях на
+`GET /api/design-systems/{designSystemId}/tenants/{tenantId}/token-values` SHALL всегда заменять ссылки на палитру в цветовых значениях на
 HEX, вычисленный по палитре темы с учётом группы токена, отдавать у таких значений `paletteId = null` и
 добавлять поле `paletteRef` с исходной ссылкой. Ссылки внутри градиента SHALL заменяться так же, а исходное
 значение со ссылками SHALL отдаваться в поле `sourceValue`; если у значения уже есть `paletteRef`, поле `sourceValue`

@@ -21,7 +21,13 @@ internal fun currentTenantRows(
     projectId: ProjectId? = null,
     designSystemId: UUID? = null,
     tenantId: UUID? = null,
-): List<ResultRow> = TenantsTable
+): List<ResultRow> = currentTenantQuery(projectId, designSystemId, tenantId).toList()
+
+internal fun currentTenantQuery(
+    projectId: ProjectId? = null,
+    designSystemId: UUID? = null,
+    tenantId: UUID? = null,
+): org.jetbrains.exposed.v1.jdbc.Query = TenantsTable
     .join(TenantRevisionsTable, JoinType.INNER, TenantsTable.id, TenantRevisionsTable.tenantId)
     .join(ThemeDesignSystemsTable, JoinType.INNER, TenantsTable.designSystemId, ThemeDesignSystemsTable.id)
     .join(
@@ -44,7 +50,6 @@ internal fun currentTenantRows(
         tenantId?.let { predicate = predicate and (TenantsTable.id eq it) }
         predicate
     }
-    .toList()
 
 internal fun currentThemeTokenRows(
     designSystemId: UUID? = null,

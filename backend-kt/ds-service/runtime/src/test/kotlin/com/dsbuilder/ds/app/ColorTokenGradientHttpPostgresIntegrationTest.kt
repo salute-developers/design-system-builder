@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.HttpClient
@@ -45,27 +47,37 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"g","projectName":"g"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"g","projectName":"g"}""")
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
-                val paletteB = api.read("/api/ds/tenants/$tenantB/palette")
+                val paletteB = api.read("/api/design-systems/$designSystemId/tenants/$tenantB/palette")
                 val green = paletteB.array("template")
                     .single { it.text("type") == "general" && it.text("shade") == "green" }
                 val greenHex = green.array("steps").single { it.number("step") == STEP }.text("value")
-                val created = api.call("POST", "/api/ds/tenants/$tenantA/color-tokens", MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val family = api.body(created).jsonObject.getValue("value").jsonObject
                 assertEquals("color", family.text("type"))
                 val members = family.array("members").associate { it.text("name") to it.text("tokenId") }
                 val base = members.getValue("text.default.highlight")
                 val hover = members.getValue("text.default.highlight-hover")
-                val valuesPath = "/api/ds/tenants/$tenantB/color-tokens/$base/values"
+                val valuesPath = "/api/design-systems/$designSystemId/tenants/$tenantB/color-tokens/$base/values"
                 // Токен опубликован: дальше журнал показывает только изменения, а не создание.
                 api.publish(postgres, designSystemId, "1.0.0")
                 val revisionsOfA = count(postgres, valueRevisions(tenantA))
 
                 // Градиент в Dark темы B на всех платформах; Android — своё значение платформы.
-                val update = api.call("PUT", valuesPath, EDITOR, gradientBody(base, api.revisions(tenantB, base)))
+                val update = api.call(
+                    "PUT",
+                    valuesPath,
+                    EDITOR,
+                    gradientBody(base, api.revisions(designSystemId, tenantB, base)),
+                )
                 assertEquals(HttpStatusCode.OK, update.status, update.bodyAsText())
                 assertEquals("gradient", api.body(update).jsonObject.text("type"))
                 val confirmed = api.body(update).jsonObject.getValue("confirmedValues").jsonArray
@@ -83,12 +95,12 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(revisionsOfA, count(postgres, valueRevisions(tenantA)), "значения темы A не меняются")
 
                 // Чтение: тема A отдаёт сплошные ios и android слоем color, тема B раскрывает ссылки в градиенте.
-                val valuesA = api.values(tenantA)
+                val valuesA = api.values(designSystemId, tenantA)
                 val iosA = value(valuesA, base, "ios", "dark")
                 assertEquals(layer("#FFFFFF"), iosA.getValue("value"))
                 assertEquals(JsonArray(listOf(JsonPrimitive("#FFFFFF"))), iosA.getValue("sourceValue"))
                 assertNull(value(valuesA, base, "web", "dark")["sourceValue"])
-                val valuesB = api.values(tenantB)
+                val valuesB = api.values(designSystemId, tenantB)
                 val webB = value(valuesB, base, "web", "dark")
                 val resolvedWeb = webB.getValue("value").toString().uppercase()
                 assertTrue(greenHex.uppercase() in resolvedWeb && "[GENERAL" !in resolvedWeb, resolvedWeb)
@@ -117,7 +129,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                         """"baseRevision":$before}]}]}""",
                 )
                 assertEquals(HttpStatusCode.OK, flagOnly.status, flagOnly.bodyAsText())
-                val afterFlag = value(api.values(tenantB), base, "android", "dark")
+                val afterFlag = value(api.values(designSystemId, tenantB), base, "android", "dark")
                 assertEquals(false, afterFlag.getValue("overridden").jsonPrimitive.boolean)
                 assertTrue(afterFlag.getValue("editRevision").jsonPrimitive.long > before)
 
@@ -125,13 +137,18 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 val primary = text(postgres, tokenIdSql(designSystemId, "text.default.primary"))
                 val batch = """{"editRevision":0,"values":[{"tokenId":"$primary","platform":"web","mode":"light",""" +
                     """"value":${gradientWeb("#FFFFFF")}}]}"""
-                api.reject("PUT", "/api/ds/tenants/$tenantB/token-values", batch, "INVALID_TOKEN_VALUE")
+                api.reject(
+                    "PUT",
+                    "/api/design-systems/$designSystemId/tenants/$tenantB/token-values",
+                    batch,
+                    "INVALID_TOKEN_VALUE",
+                )
 
                 // Общий маршрут значения: проверка вида, сплошной слой хранится строкой, тип семейства пересчитывается.
                 // Значение без palette_id: у ссылки на общую палитру значение — только прозрачность.
                 val accent = text(postgres, tokenIdSql(designSystemId, "surface.default.accent-hover"))
-                val accentIos = value(api.values(tenantB), accent, "ios", "dark")
-                val accentValue = "/api/ds/token-values/${accentIos.text("id")}"
+                val accentIos = value(api.values(designSystemId, tenantB), accent, "ios", "dark")
+                val accentValue = "/api/design-systems/$designSystemId/token-values/${accentIos.text("id")}"
                 api.reject("PATCH", accentValue, """{"value":["not-a-color"]}""", "INVALID_TOKEN_VALUE")
                 val solidLayer = api.call("PATCH", accentValue, EDITOR, """{"value":${layer("#123456")}}""")
                 assertEquals(HttpStatusCode.OK, solidLayer.status, solidLayer.bodyAsText())
@@ -142,7 +159,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(0, count(postgres, accentTypeCount(designSystemId, "color")), "всё семейство — gradient")
                 assertTrue(count(postgres, accentTypeCount(designSystemId, "gradient")) > 1)
                 // Превью темы берёт цвет только из сплошных значений цветовых токенов и не падает на слоях.
-                val preview = api.read("/api/ds/tenants/$tenantB").obj("preview")
+                val preview = api.read("/api/design-systems/$designSystemId/tenants/$tenantB").obj("preview")
                 assertTrue(preview.text("accentDark").startsWith("#"), preview.toString())
                 val layeredChange = api.journal(designSystemId).single { it.text("entityId") == accentIos.text("id") }
                 assertEquals(HttpStatusCode.OK, api.revert(designSystemId, layeredChange).status)
@@ -160,7 +177,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
                 // Параллельная запись в двух темах: градиент в A и сплошной цвет в B сериализуются по семейству.
                 coroutineScope {
-                    val pathA = "/api/ds/tenants/$tenantA/color-tokens/$base/values"
+                    val pathA = "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens/$base/values"
                     val inA = async { api.call("PUT", pathA, EDITOR, gradientBody(base, emptyMap())) }
                     val inB = async { api.call("PUT", valuesPath, EDITOR, solidBody(base, "#123456")) }
                     assertEquals(HttpStatusCode.OK, inA.await().status)
@@ -169,16 +186,16 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(2, count(postgres, typeCount(designSystemId, "gradient")))
 
                 // Опубликованная версия раскрывает ссылку стопа по палитре своей границы, а черновик — по своей.
-                val groupA = api.read("/api/ds/tenants/$tenantA/palette").array("tokens")
+                val groupA = api.read("/api/design-systems/$designSystemId/tenants/$tenantA/palette").array("tokens")
                     .single { it.text("tokenId") == base }.text("groupId")
-                val step = "/api/ds/tenants/$tenantA/palette/groups/$groupA/ramps/general/green/steps/$STEP"
+                val step = "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green/steps/$STEP"
                 val edited = api.call("PATCH", step, EDITOR, """{"value":"#112233","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, edited.status, edited.bodyAsText())
                 val publishedId = api.publish(postgres, designSystemId, "1.0.1")
                 val reedited = api.call("PATCH", step, EDITOR, """{"value":"#445566","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, reedited.status, reedited.bodyAsText())
                 suspend fun webA(version: String?) = value(
-                    api.values(tenantA, version),
+                    api.values(designSystemId, tenantA, version),
                     base,
                     "web",
                     "dark",
@@ -186,7 +203,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertTrue("#112233" in webA(publishedId), webA(publishedId))
                 assertTrue("#445566" in webA(null), webA(null))
                 val publishedIos = value(
-                    api.values(tenantA, publishedId),
+                    api.values(designSystemId, tenantA, publishedId),
                     hover,
                     "ios",
                     "light",
@@ -194,12 +211,14 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(layer("#FFFFFF"), publishedIos.getValue("value"), "форма по типу на границе версии")
 
                 // Связь через стоп градиента и удаление растяжки «как Custom» переписывает только ссылки.
-                val links = api.read("/api/ds/tenants/$tenantA/palette/links?type=general&shade=green&groupId=$groupA")
+                val links = api.read(
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/palette/links?type=general&shade=green&groupId=$groupA",
+                )
                     .let { JsonArray(it.array("items")) }
                 assertTrue(
                     links.any { it.text("tokenId") == base && it.text("mode") == "dark" && it.number("step") == STEP },
                 )
-                val ramp = "/api/ds/tenants/$tenantA/palette/groups/$groupA/ramps/general/green"
+                val ramp = "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green"
                 val removed = api.call("DELETE", ramp, EDITOR, """{"strategy":"detach","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
                 val storedWeb = text(postgres, storedValueSql(tenantA, base, "web", "dark"))
@@ -229,20 +248,25 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
                 val tenant = api.createTenant(designSystemId, "a")
-                val created = api.call("POST", "/api/ds/tenants/$tenant/color-tokens", MAINTAINER, createBody("brand"))
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val tokenId = api.body(created).jsonObject.getValue("value").array("members").single().text("tokenId")
                 api.publish(postgres, designSystemId, "1.0.0")
 
                 // В черновике значение стало градиентом, а определение переименовано.
-                val values = "/api/ds/tenants/$tenant/color-tokens/$tokenId/values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$tokenId/values"
                 val gradient = api.call("PUT", values, EDITOR, gradientBody(tokenId, emptyMap()))
                 assertEquals("gradient", api.body(gradient).jsonObject.text("type"))
                 val renamed = api.call(
                     "PATCH",
-                    "/api/ds/tokens/$tokenId",
+                    "/api/design-systems/$designSystemId/tokens/$tokenId",
                     EDITOR,
                     """{"name":"text.default.renamed"}""",
                 )
@@ -266,18 +290,23 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"b","projectName":"b"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"b","projectName":"b"}""")
                 val tenant = api.createTenant(designSystemId, "a")
-                val created = api.call("POST", "/api/ds/tenants/$tenant/color-tokens", MAINTAINER, createBody("brand"))
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val tokenId = api.body(created).jsonObject.getValue("value").array("members").single().text("tokenId")
                 api.publish(postgres, designSystemId, "1.0.0")
-                val values = "/api/ds/tenants/$tenant/color-tokens/$tokenId/values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$tokenId/values"
                 val gradient = api.call("PUT", values, EDITOR, gradientBody(tokenId, emptyMap()))
                 assertEquals("gradient", api.body(gradient).jsonObject.text("type"))
                 val renamed = api.call(
                     "PATCH",
-                    "/api/ds/tokens/$tokenId",
+                    "/api/design-systems/$designSystemId/tokens/$tokenId",
                     EDITOR,
                     """{"name":"text.default.renamed"}""",
                 )
@@ -295,7 +324,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     """{"changeId":"${it.text("changeId")}","expectedRevision":${revisionOf(it)}}"""
                 }
                 val revisionOf = { change: JsonObject -> change.getValue("editRevision").jsonPrimitive.long }
-                val path = "/api/ds/design-systems/$designSystemId/changes/revert"
+                val path = "/api/design-systems/$designSystemId/changes/revert"
 
                 // Устаревшая последняя запись: пакет не меняет ничего, отказ называет позицию записи.
                 val stale = api.call(
@@ -337,9 +366,14 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"m","projectName":"m"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"m","projectName":"m"}""")
                 val tenant = api.createTenant(designSystemId, "a")
-                val created = api.call("POST", "/api/ds/tenants/$tenant/color-tokens", MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val members = api.body(created).jsonObject.getValue("value").array("members")
                     .associate { it.text("name") to it.text("tokenId") }
@@ -348,12 +382,17 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 api.publish(postgres, designSystemId, "1.0.0")
 
                 // Градиент только у `-hover`; у `highlight` — своя правка определения в черновике.
-                val values = "/api/ds/tenants/$tenant/color-tokens/$hover/values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$hover/values"
                 assertEquals(
                     "gradient",
                     api.body(api.call("PUT", values, EDITOR, gradientBody(hover, emptyMap()))).jsonObject.text("type"),
                 )
-                val described = api.call("PATCH", "/api/ds/tokens/$base", EDITOR, """{"description":"described"}""")
+                val described = api.call(
+                    "PATCH",
+                    "/api/design-systems/$designSystemId/tokens/$base",
+                    EDITOR,
+                    """{"description":"described"}""",
+                )
                 assertEquals(HttpStatusCode.OK, described.status, described.bodyAsText())
                 val change = api.journal(designSystemId)
                     .single { it.text("entityType") == "token" && it.text("entityId") == base }
@@ -373,16 +412,21 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"d","projectName":"d"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"d","projectName":"d"}""")
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantC = api.createTenant(designSystemId, "c")
-                val created = api.call("POST", "/api/ds/tenants/$tenantA/color-tokens", MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val base = api.body(created).jsonObject.getValue("value").array("members").first().text("tokenId")
                 api.publish(postgres, designSystemId, "1.0.0")
                 suspend fun gradientIn(tenant: String) = api.call(
                     "PUT",
-                    "/api/ds/tenants/$tenant/color-tokens/$base/values",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$base/values",
                     EDITOR,
                     gradientBody(base, emptyMap()),
                 ).let { assertEquals("gradient", api.body(it).jsonObject.text("type"), it.bodyAsText()) }
@@ -398,7 +442,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
                 // Удаление опубликованной темы с единственным градиентом и откат удаления.
                 gradientIn(tenantC)
-                val deleted = api.call("DELETE", "/api/ds/tenants/$tenantC", OWNER)
+                val deleted = api.call("DELETE", "/api/design-systems/$designSystemId/tenants/$tenantC", OWNER)
                 assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
                 assertEquals(0, count(postgres, typeCount(designSystemId, "gradient")), "удаление темы")
                 assertTrue(api.journal(designSystemId).none { it.text("entityType") == "token" })
@@ -416,13 +460,18 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"n","projectName":"n"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"n","projectName":"n"}""")
                 val tenantA = api.createTenant(designSystemId, "a")
-                val created = api.call("POST", "/api/ds/tenants/$tenantA/color-tokens", MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val members = api.body(created).jsonObject.getValue("value").array("members").map { it.text("tokenId") }
                 val base = members.first()
-                val values = "/api/ds/tenants/$tenantA/color-tokens/$base/values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens/$base/values"
                 assertEquals(
                     "gradient",
                     api.body(api.call("PUT", values, EDITOR, gradientBody(base, emptyMap()))).jsonObject.text("type"),
@@ -430,7 +479,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
                 val tenantC = api.createTenant(designSystemId, "c")
 
-                val valuesC = api.values(tenantC)
+                val valuesC = api.values(designSystemId, tenantC)
                 members.forEach { member ->
                     val keys = valuesC.filter { it.text("tokenId") == member }
                         .map { it.text("platform") to it.text("mode") }.toSet()
@@ -451,19 +500,23 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"v","projectName":"v"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"v","projectName":"v"}""")
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
                 val accent = text(postgres, tokenIdSql(designSystemId, "surface.default.accent-hover"))
-                val accentIos = value(api.values(tenantB), accent, "ios", "dark")
-                val accentValue = "/api/ds/token-values/${accentIos.text("id")}"
+                val accentIos = value(api.values(designSystemId, tenantB), accent, "ios", "dark")
+                val accentValue = "/api/design-systems/$designSystemId/token-values/${accentIos.text("id")}"
                 val layered = api.call("PATCH", accentValue, EDITOR, """{"value":${nativeGradient()}}""")
                 assertEquals(HttpStatusCode.OK, layered.status, layered.bodyAsText())
                 assertEquals(0, count(postgres, accentTypeCount(designSystemId, "color")), "всё семейство — gradient")
 
                 // Общий GET отдаёт ту же форму, что чтение по теме: слой color, раскрытые ссылки, sourceValue/paletteRef.
-                val general = JsonArray(api.read("/api/ds/token-values").array("items")).associateBy { it.text("id") }
-                listOf(tenantA, tenantB).flatMap { api.values(it) }.forEach { tenantValue ->
+                val general = JsonArray(
+                    api.read("/api/design-systems/$designSystemId/token-values").array("items"),
+                ).associateBy {
+                    it.text("id")
+                }
+                listOf(tenantA, tenantB).flatMap { api.values(designSystemId, it) }.forEach { tenantValue ->
                     val id = tenantValue.text("id")
                     val listed = general.getValue(id).jsonObject
                     listOf("value", "paletteRef", "sourceValue").forEach { field ->
@@ -471,7 +524,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     }
                     assertEquals(tenantValue.jsonObject["paletteId"], listed["paletteId"], "$id paletteId")
                 }
-                val solidA = value(api.values(tenantA), accent, "android", "light")
+                val solidA = value(api.values(designSystemId, tenantA), accent, "android", "light")
                 assertEquals(
                     "color",
                     general.getValue(solidA.text("id")).jsonObject.getValue("value").jsonArray.single()
@@ -482,7 +535,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     general.values.filter { "paletteRef" in it.jsonObject }.none { "sourceValue" in it.jsonObject },
                     "при paletteRef sourceValue не отдаётся",
                 )
-                val single = api.read("/api/ds/token-values/${solidA.text("id")}")
+                val single = api.read("/api/design-systems/$designSystemId/token-values/${solidA.text("id")}")
                 assertEquals(general.getValue(solidA.text("id")).jsonObject.getValue("value"), single.getValue("value"))
 
                 // DELETE единственного градиентного значения возвращает семейству тип color.
@@ -495,18 +548,18 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     """{"tokenId":"$tokenId","tenantId":"$tenantB","platform":"ios","mode":"dark","value":$value}"""
                 api.reject(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     createBody(accent, """["not-a-color"]"""),
                     "INVALID_TOKEN_VALUE",
                 )
                 assertTrue(
-                    api.values(tenantB).none {
+                    api.values(designSystemId, tenantB).none {
                         it.text("tokenId") == accent && it.text("platform") == "ios" && it.text("mode") == "dark"
                     },
                 )
                 val created = api.call(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     EDITOR,
                     createBody(accent, layer("#123456").toString()),
                 )
@@ -516,16 +569,16 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
                 // Токен чужого проекта: 404 до проверки значения, а не 400.
                 val foreignOwner = Actor("project-b", "owner")
-                val foreign = api.create("/api/ds/design-systems", foreignOwner, """{"name":"f","projectName":"f"}""")
+                val foreign = api.create("/api/design-systems", foreignOwner, """{"name":"f","projectName":"f"}""")
                 api.create(
-                    "/api/ds/tenants",
+                    "/api/design-systems/$foreign/tenants",
                     Actor("project-b", "editor"),
-                    """{"designSystemId":"$foreign","name":"f"}""",
+                    """{"name":"f"}""",
                 )
                 val foreignAccent = text(postgres, tokenIdSql(foreign, "surface.default.accent-hover"))
                 val foreignCreate = api.call(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     EDITOR,
                     createBody(foreignAccent, """["not-a-color"]"""),
                 )
@@ -541,11 +594,11 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"t","projectName":"t"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"t","projectName":"t"}""")
                 val tenant = api.createTenant(designSystemId, "a")
                 val accent = text(postgres, tokenIdSql(designSystemId, "surface.default.accent-hover"))
                 val accentBase = text(postgres, tokenIdSql(designSystemId, "surface.default.accent"))
-                val values = api.values(tenant)
+                val values = api.values(designSystemId, tenant)
                 val light = value(values, accent, "web", "light")
                 val dark = value(values, accent, "web", "dark")
                 val reference = """["$REFERENCE"]"""
@@ -554,7 +607,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 dropTemplate(postgres, tenant)
                 val patched = api.call(
                     "PATCH",
-                    "/api/ds/token-values/${light.text("id")}",
+                    "/api/design-systems/$designSystemId/token-values/${light.text("id")}",
                     EDITOR,
                     """{"value":$reference}""",
                 )
@@ -564,12 +617,16 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 // POST: то же для нового значения.
                 assertEquals(
                     HttpStatusCode.OK,
-                    api.call("DELETE", "/api/ds/token-values/${dark.text("id")}", OWNER).status,
+                    api.call(
+                        "DELETE",
+                        "/api/design-systems/$designSystemId/token-values/${dark.text("id")}",
+                        OWNER,
+                    ).status,
                 )
                 dropTemplate(postgres, tenant)
                 val created = api.call(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     EDITOR,
                     """{"tokenId":"$accent","tenantId":"$tenant","platform":"web","mode":"dark","value":$reference}""",
                 )
@@ -580,17 +637,17 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 dropTemplate(postgres, tenant)
                 val put = api.call(
                     "PUT",
-                    "/api/ds/tenants/$tenant/color-tokens/$accentBase/values",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$accentBase/values",
                     EDITOR,
                     solidBody(accentBase, REFERENCE),
                 )
                 assertEquals(HttpStatusCode.OK, put.status, put.bodyAsText())
 
                 // Системный администратор читает общий GET в той же форме: ссылки раскрыты по палитре темы.
-                val general = api.call("GET", "/api/ds/token-values", ADMIN)
+                val general = api.call("GET", "/api/design-systems/$designSystemId/token-values", ADMIN)
                 assertEquals(HttpStatusCode.OK, general.status, general.bodyAsText())
                 val listed = api.body(general).jsonArray.associateBy { it.text("id") }
-                val referenced = api.values(tenant).filter { it.jsonObject.containsKey("paletteRef") }
+                val referenced = api.values(designSystemId, tenant).filter { it.jsonObject.containsKey("paletteRef") }
                 assertTrue(referenced.any { it.text("id") == light.text("id") }, "ссылка на всё значение")
                 referenced.forEach { tenantValue ->
                     val item = listed.getValue(tenantValue.text("id")).jsonObject
@@ -608,26 +665,36 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
                 val tenant = api.createTenant(designSystemId, "a")
                 val accent = text(postgres, tokenIdSql(designSystemId, "surface.default.accent-hover"))
-                val ios = value(api.values(tenant), accent, "ios", "dark")
+                val ios = value(api.values(designSystemId, tenant), accent, "ios", "dark")
                 assertEquals(
                     HttpStatusCode.OK,
-                    api.call("DELETE", "/api/ds/token-values/${ios.text("id")}", OWNER).status,
+                    api.call(
+                        "DELETE",
+                        "/api/design-systems/$designSystemId/token-values/${ios.text("id")}",
+                        OWNER,
+                    ).status,
                 )
                 fun body(value: String) =
                     """{"tokenId":"$accent","tenantId":"$tenant","platform":"ios","mode":"dark","value":$value}"""
                 val layered = body(layer("#123456").toString())
 
-                val created = api.call("POST", "/api/ds/token-values", EDITOR, layered, idempotencyKey = KEY)
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/token-values",
+                    EDITOR,
+                    layered,
+                    idempotencyKey = KEY,
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 assertEquals("""["#123456"]""", text(postgres, storedValueSql(tenant, accent, "ios", "dark")))
 
                 // Другое исходное тело с той же хранимой формой — повторное использование ключа, а не повтор.
                 val reused = api.call(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     EDITOR,
                     body("""["#123456"]"""),
                     idempotencyKey = KEY,
@@ -636,9 +703,15 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals("IDEMPOTENCY_KEY_REUSED", api.body(reused).text("code"))
 
                 // Повтор успешного запроса после удаления токена возвращает сохранённый ответ 201.
-                val deleted = api.call("DELETE", "/api/ds/tokens/$accent", OWNER)
+                val deleted = api.call("DELETE", "/api/design-systems/$designSystemId/tokens/$accent", OWNER)
                 assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
-                val repeated = api.call("POST", "/api/ds/token-values", EDITOR, layered, idempotencyKey = KEY)
+                val repeated = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/token-values",
+                    EDITOR,
+                    layered,
+                    idempotencyKey = KEY,
+                )
                 assertEquals(HttpStatusCode.Created, repeated.status, repeated.bodyAsText())
                 assertEquals(api.body(created).text("id"), api.body(repeated).text("id"))
             }
@@ -683,29 +756,31 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
         }
 
         suspend fun createTenant(designSystemId: String, name: String) =
-            create("/api/ds/tenants", EDITOR, """{"designSystemId":"$designSystemId","name":"$name"}""")
+            create("/api/design-systems/$designSystemId/tenants", EDITOR, """{"name":"$name"}""")
 
         /** Технические редакции значений токена [tokenId] в теме: `platform:mode` → редакция. */
-        suspend fun revisions(tenantId: String, tokenId: String): Map<String, Long> =
-            read("/api/ds/tenants/$tenantId/token-values").array("items")
+        suspend fun revisions(designSystemId: String, tenantId: String, tokenId: String): Map<String, Long> =
+            read("/api/design-systems/$designSystemId/tenants/$tenantId/token-values").array("items")
                 .filter { it.text("tokenId") == tokenId }
                 .associate { value ->
                     "${value.text("platform")}:${value.text("mode")}" to
                         value.jsonObject.getValue("editRevision").jsonPrimitive.long
                 }
 
-        suspend fun values(tenantId: String, version: String? = null): JsonArray =
+        suspend fun values(designSystemId: String, tenantId: String, version: String? = null): JsonArray =
             JsonArray(
-                read("/api/ds/tenants/$tenantId/token-values" + version?.let { "?versionId=$it" }.orEmpty())
+                read(
+                    "/api/design-systems/$designSystemId/tenants/$tenantId/token-values" + version?.let { "?versionId=$it" }.orEmpty(),
+                )
                     .array("items"),
             )
 
         suspend fun journal(designSystemId: String) =
-            read("/api/ds/design-systems/$designSystemId/changes").array("items").map { it.jsonObject }
+            read("/api/design-systems/$designSystemId/changes").array("items").map { it.jsonObject }
 
         suspend fun revert(designSystemId: String, change: JsonObject) = call(
             "POST",
-            "/api/ds/design-systems/$designSystemId/changes/${change.text("changeId")}/revert",
+            "/api/design-systems/$designSystemId/changes/${change.text("changeId")}/revert",
             OWNER,
             "{}",
             change.getValue("editRevision").jsonPrimitive.long,
@@ -719,9 +794,9 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             val (draftId, revision) = draft.split(':')
             val response = call(
                 "POST",
-                "/api/ds/design-system-versions",
+                "/api/design-systems/$designSystemId/versions",
                 OWNER,
-                """{"designSystemId":"$designSystemId","draftId":"$draftId","draftRevision":$revision,""" +
+                """{"draftId":"$draftId","draftRevision":$revision,""" +
                     """"version":"$version","changelog":"gradient"}""",
                 idempotencyKey = "publish-$version",
             )

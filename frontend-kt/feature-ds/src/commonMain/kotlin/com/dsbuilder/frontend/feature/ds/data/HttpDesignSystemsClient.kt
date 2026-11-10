@@ -21,7 +21,7 @@ public class HttpDesignSystemsClient(private val clients: AuthenticatedHttpClien
         projectId: String,
     ): DesignSystemsReadResult = when (
         val response = clients.create(apiUrl, credential).get(
-            "/api/projects/${encodeModelSegment(projectId)}/ds/design-systems",
+            "/api/projects/${encodeModelSegment(projectId)}/design-systems",
         )
     ) {
         is AuthenticatedHttpResult.Success -> decode(response.body)

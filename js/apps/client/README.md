@@ -13,7 +13,7 @@ Currently, two official plugins are available:
 |---|---|---|---|
 | `VITE_API_GATEWAY_URL` | URL | `''` | Адрес API gateway |
 | `VITE_CLIENT_ID` | строка | — | OIDC client id |
-| `VITE_PALETTE_SOURCE` | `api` \| `local` | `api` | Источник палитры темы: `api` работает с `ds-service` (`/api/projects/{p}/ds/tenants/{t}/palette`), `local` хранит её в `localStorage` браузера (для разработки без сервера) |
+| `VITE_PALETTE_SOURCE` | `api` \| `local` | `api` | Источник палитры темы: `api` работает с `ds-service` (`/api/projects/{p}/design-systems/{s}/tenants/{t}/palette`), `local` хранит её в `localStorage` браузера (для разработки без сервера) |
 | `VITE_WEB_PREVIEW_PLUGIN_URL` | URL | не задан | Прямой адрес web-плагина превью для разработки самого плагина; без него адрес активного web-билда приходит от бэкенда. См. [Web preview plugin](#web-preview-plugin) |
 
 ## Expanding the ESLint configuration
@@ -108,7 +108,7 @@ There are two sources, and the first one that applies wins:
    a plugin built from a feature branch). The client does not ask the backend anything. `js/docker-compose.dev.yml`
    leaves it empty by default, so the backend is used.
 2. **The active build of the backend.** Without the variable the client requests
-   `GET /api/projects/{projectId}/ds/compose-preview/plugin` once per page and project and loads the plugin from
+   `GET /api/projects/{projectId}/design-systems/catalog/compose-preview/plugin` once per page and project and loads the plugin from
    the returned `pluginUrl`. The answer does not depend on the design system version you are viewing. The build
    and the component API meta it was built from are published together, so they match.
 
@@ -235,7 +235,7 @@ related components in `styles`, the mode colors and the body font in `theme`. Th
   1. **Direct address** `VITE_WEB_PREVIEW_PLUGIN_URL`, for work on the plugin itself (see below). The client does not
      ask the backend anything.
   2. **The active web build of the backend.** Without the variable the client requests
-     `GET /api/projects/{projectId}/ds/web-preview/plugin` once per page and project and loads the plugin from the
+     `GET /api/projects/{projectId}/design-systems/catalog/web-preview/plugin` once per page and project and loads the plugin from the
      returned `pluginUrl`. The answer does not depend on the design system version; a failed request is not cached.
      The request is made only when the components section has web components (the plugin warms up there) or a web
      component preview is shown (the component canvas of the colors section).

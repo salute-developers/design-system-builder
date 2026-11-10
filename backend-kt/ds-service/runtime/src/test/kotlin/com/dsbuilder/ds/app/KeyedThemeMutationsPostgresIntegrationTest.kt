@@ -41,7 +41,7 @@ class KeyedThemeMutationsPostgresIntegrationTest {
                     api(
                         client,
                         "POST",
-                        "/api/ds/design-systems",
+                        "/api/design-systems",
                         """{"name":"keyed","projectName":"keyed"}""",
                     ),
                 ).field("id")
@@ -49,11 +49,11 @@ class KeyedThemeMutationsPostgresIntegrationTest {
                     api(
                         client,
                         "POST",
-                        "/api/ds/tenants",
-                        """{"designSystemId":"$system","name":"a"}""",
+                        "/api/design-systems/$system/tenants",
+                        """{"name":"a"}""",
                     ),
                 ).field("id")
-                val base = "/api/ds/tenants/$tenant/palette"
+                val base = "/api/design-systems/$system/tenants/$tenant/palette"
                 val group = replay(client, system, "POST", "$base/groups", """{"label":"A","editRevision":0}""")
                     .jsonObject.getValue("value").field("id")
                 val patch = """{"label":"B","editRevision":0}"""
@@ -68,7 +68,7 @@ class KeyedThemeMutationsPostgresIntegrationTest {
                     """{"groupId":"$group","editRevision":0}""",
                 )
                 replay(client, system, "DELETE", "$base/groups/$group", """{"editRevision":0}""")
-                verifyAutosaveReplay(client, tenant, token)
+                verifyAutosaveReplay(client, system, tenant, token)
                 api(client, "GET", base, key = "read-key")
                 DriverManager.getConnection(database.jdbcUrl, database.username, database.password).use { connection ->
                     connection.createStatement().use { statement ->
@@ -83,8 +83,8 @@ class KeyedThemeMutationsPostgresIntegrationTest {
         }
     }
 
-    private suspend fun verifyAutosaveReplay(client: HttpClient, tenant: String, token: String) {
-        val path = "/api/ds/tenants/$tenant/token-values"
+    private suspend fun verifyAutosaveReplay(client: HttpClient, ds: String, tenant: String, token: String) {
+        val path = "/api/design-systems/$ds/tenants/$tenant/token-values"
         val original = payload(api(client, "GET", path)).jsonArray.first { it.field("tokenId") == token }
         fun body(revision: String, color: String) = """{"editRevision":0,"values":[{"tokenId":"$token",""" +
             """"platform":${original.jsonObject.getValue("platform")},""" +
@@ -106,11 +106,16 @@ class KeyedThemeMutationsPostgresIntegrationTest {
         assertEquals(HttpStatusCode.Conflict, mismatch.status, mismatch.bodyAsText())
         assertTrue(mismatch.bodyAsText().contains("IDEMPOTENCY_KEY_REUSED"))
         val nextValue = payload(next).jsonObject.getValue("values").jsonArray.single()
-        verifyDirectValueReplay(client, path, nextValue)
+        verifyDirectValueReplay(client, ds, path, nextValue)
     }
 
-    private suspend fun verifyDirectValueReplay(client: HttpClient, tenantPath: String, value: JsonElement) {
-        val path = "/api/ds/token-values/${value.field("id")}"
+    private suspend fun verifyDirectValueReplay(
+        client: HttpClient,
+        ds: String,
+        tenantPath: String,
+        value: JsonElement,
+    ) {
+        val path = "/api/design-systems/$ds/token-values/${value.field("id")}"
         val key = UUID.randomUUID().toString()
         val body = """{"value":["#abcdef"]}"""
         val revision = value.field("editRevision")
@@ -141,7 +146,7 @@ class KeyedThemeMutationsPostgresIntegrationTest {
         val first = api(client, method, path, body, key)
         val expectedStatus = if (method == "POST") HttpStatusCode.Created else HttpStatusCode.OK
         assertEquals(expectedStatus, first.status, first.bodyAsText())
-        val cursor = payload(api(client, "GET", "/api/ds/design-systems/$system")).field("draftRevision")
+        val cursor = payload(api(client, "GET", "/api/design-systems/$system")).field("draftRevision")
         val second = api(client, method, path, body, key)
         assertEquals(first.status, second.status)
         assertEquals(first.bodyAsText(), second.bodyAsText())
@@ -150,7 +155,7 @@ class KeyedThemeMutationsPostgresIntegrationTest {
             first.headers["X-DS-Mutation-Metadata-Truncated"],
             second.headers["X-DS-Mutation-Metadata-Truncated"],
         )
-        assertEquals(cursor, payload(api(client, "GET", "/api/ds/design-systems/$system")).field("draftRevision"))
+        assertEquals(cursor, payload(api(client, "GET", "/api/design-systems/$system")).field("draftRevision"))
         return payload(first)
     }
 

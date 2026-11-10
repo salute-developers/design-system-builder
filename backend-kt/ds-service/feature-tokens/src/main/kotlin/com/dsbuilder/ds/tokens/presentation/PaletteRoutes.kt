@@ -44,7 +44,7 @@ fun Route.paletteRoutes(
     delete: DeletePaletteEntryUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/palette")) {
+    route(dsRoutePath("/api/design-systems/catalog/palette")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

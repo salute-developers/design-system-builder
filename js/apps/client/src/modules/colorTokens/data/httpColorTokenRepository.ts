@@ -74,8 +74,8 @@ const tokenMutation = <T extends { data: unknown }>(
         },
     );
 
-const tokensPath = ({ projectId, tenantId }: ColorTokenContext, suffix = '') =>
-    `/api/projects/${projectId}/ds/tenants/${tenantId}/color-tokens${suffix}`;
+const tokensPath = ({ projectId, designSystemId, tenantId }: ColorTokenContext, suffix = '') =>
+    `/api/projects/${projectId}/design-systems/${designSystemId}/tenants/${tenantId}/color-tokens${suffix}`;
 
 /** Сверка только записанных сущностей по уже существующим mutation metadata и GET-by-id. */
 const updateValues = (
@@ -131,7 +131,7 @@ const updateValues = (
                                     async (id) =>
                                         (
                                             await readEditor<TenantTokenValueDto[]>(
-                                                `/api/projects/${context.projectId}/ds/tokens/${encodeURIComponent(id)}/values`,
+                                                `/api/projects/${context.projectId}/design-systems/${context.designSystemId}/tokens/${encodeURIComponent(id)}/values`,
                                                 { params: { tenantId: context.tenantId } },
                                             )
                                         ).data,
@@ -196,7 +196,7 @@ export const createHttpColorTokenRepository = (): ColorTokenRepository => ({
         await call(() =>
             subjectMutation(context, () =>
                 http.patch(
-                    `${apiRoot(context.projectId)}/tokens/${encodeURIComponent(tokenId)}`,
+                    `${apiRoot(context.projectId, context.designSystemId)}/tokens/${encodeURIComponent(tokenId)}`,
                     // Пустое описание сервер хранит как `null`, как у «Типографики» и «Размеров».
                     { description: description || null },
                     { headers: subjectMutationHeaders() },

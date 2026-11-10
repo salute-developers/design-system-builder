@@ -1756,6 +1756,7 @@
 .color-tokens-screen .ct-tile-half {
     display: flex;
     flex: 1;
+    width: 100%;
     align-items: flex-end;
     box-sizing: border-box;
     padding: var(--tw-space-s) var(--tw-space-m);

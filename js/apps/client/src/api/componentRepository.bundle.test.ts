@@ -26,7 +26,8 @@ vi.mock('../utils/featureFlags', () => ({ isComponentEditorEnabled: () => true }
 import { componentRepository } from './componentRepository';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
-const root = '/api/projects/project-1/ds';
+const root = '/api/projects/project-1/design-systems/ds-1';
+const rootCatalog = '/api/projects/project-1/design-systems/catalog';
 
 /**
  * Одна ДС-фикстура для обоих путей: Web и Compose Button с оформлениями, осями, стилями, параметрами
@@ -162,11 +163,11 @@ const exports: Record<'web' | 'compose', ComponentConfigExportDto['components']>
 
 const listResponses: Record<string, unknown> = {
     [`${root}/design-system-components`]: links,
-    [`${root}/components`]: catalog,
-    [`${root}/design-systems/ds-1/appearances`]: appearances,
-    [`${root}/property-platform-params`]: platformParams,
+    [`${rootCatalog}/components`]: catalog,
+    [`${root}/appearances`]: appearances,
+    [`${rootCatalog}/property-platform-params`]: platformParams,
     [`${root}/property-variations`]: propertyVariations,
-    [`${root}/component-deps`]: dependencies,
+    [`${rootCatalog}/component-deps`]: dependencies,
     ...Object.fromEntries(
         Object.keys(properties).flatMap((id) => [
             [
@@ -177,7 +178,7 @@ const listResponses: Record<string, unknown> = {
                 })),
             ],
             [`${root}/components/${id}/variations`, variations[id]],
-            [`${root}/design-systems/ds-1/components/${id}/styles`, styles[id]],
+            [`${root}/components/${id}/styles`, styles[id]],
         ]),
     ),
 };
@@ -207,7 +208,7 @@ const bundle = (componentId: string, platform: 'web' | 'compose'): ComponentEdit
     };
 };
 
-const bundleUrl = (componentId: string) => `${root}/design-systems/ds-1/components/${componentId}/editor-bundle`;
+const bundleUrl = (componentId: string) => `${root}/components/${componentId}/editor-bundle`;
 
 beforeEach(() => {
     get.mockReset();

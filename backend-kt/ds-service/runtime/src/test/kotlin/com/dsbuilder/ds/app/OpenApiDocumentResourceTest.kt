@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import com.dsbuilder.ds.designsystems.presentation.CreateDesignSystemVersionRequest
@@ -21,13 +23,13 @@ class OpenApiDocumentResourceTest {
     @Test
     fun `versioned read contract keeps array bodies and exposes metadata outside them`() {
         val lists = listOf(
-            "/api/ds/design-systems/{id}/tokens",
-            "/api/ds/design-systems/{id}/components",
-            "/api/ds/design-systems/{id}/tenants",
-            "/api/ds/design-systems/{id}/token-groups",
-            "/api/ds/design-systems/{id}/changes",
-            "/api/ds/design-systems/{id}/components/{componentId}/styles",
-            "/api/ds/design-system-versions/by-design-system/{designSystemId}",
+            "/api/design-systems/{designSystemId}/tokens",
+            "/api/design-systems/{designSystemId}/components",
+            "/api/design-systems/{designSystemId}/tenants",
+            "/api/design-systems/{designSystemId}/token-groups",
+            "/api/design-systems/{designSystemId}/changes",
+            "/api/design-systems/{designSystemId}/components/{componentId}/styles",
+            "/api/design-systems/{designSystemId}/versions",
         )
         lists.forEach { path ->
             val operation = paths.getValue(path).jsonObject.getValue("get").jsonObject
@@ -47,9 +49,15 @@ class OpenApiDocumentResourceTest {
                 .jsonObject.getValue("schema").jsonObject
             assertEquals("array", schema.getValue("type").jsonPrimitive.content, path)
         }
-        val appearance = paths.getValue("/api/ds/appearances/{id}/variations").jsonObject.getValue("get").jsonObject
+        val appearance = paths.getValue(
+            "/api/design-systems/{designSystemId}/appearances/{id}/variations",
+        ).jsonObject.getValue("get").jsonObject
         val parameters = appearance.getValue("parameters").jsonArray
-        assertFalse(parameters.any { it.jsonObject["name"]?.jsonPrimitive?.content == "designSystemId" })
+        assertFalse(
+            parameters.any {
+                it.jsonObject["name"]?.jsonPrimitive?.content == "designSystemId" && it.jsonObject["in"]?.jsonPrimitive?.content == "query"
+            },
+        )
         assertTrue("404" in appearance.getValue("responses").jsonObject)
         listOf("nginx.local.conf", "nginx.prod.conf.template").forEach { name ->
             val gateway = File("../../identity-gateway/gateway/$name").readText()
@@ -65,9 +73,9 @@ class OpenApiDocumentResourceTest {
     @Test
     fun `palette and color operations document version reads and optional revision metadata`() {
         listOf(
-            "/api/ds/tenants/{tenantId}/palette",
-            "/api/ds/tenants/{tenantId}/palette/links",
-            "/api/ds/design-systems/{id}/token-groups",
+            "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette",
+            "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/links",
+            "/api/design-systems/{designSystemId}/token-groups",
         ).forEach { path ->
             val parameters = paths.getValue(path).jsonObject.getValue("get").jsonObject.getValue("parameters").jsonArray
             assertTrue(
@@ -77,9 +85,9 @@ class OpenApiDocumentResourceTest {
             )
         }
         listOf(
-            "/api/ds/tenants/{tenantId}/palette/groups",
-            "/api/ds/tenants/{tenantId}/color-tokens",
-            "/api/ds/tenants/{tenantId}/token-groups",
+            "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups",
+            "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens",
+            "/api/design-systems/{designSystemId}/tenants/{tenantId}/token-groups",
         ).forEach { path ->
             val operation = paths.getValue(path).jsonObject.getValue("post").jsonObject
             val parameters = operation.getValue("parameters").jsonArray.mapNotNull {
@@ -102,7 +110,7 @@ class OpenApiDocumentResourceTest {
     /** Токены размеров: чтение на границе версии, предметные мутации с метаданными и без `editRevision`. */
     @Test
     fun `size token operations document version reads and subject mutations`() {
-        val base = "/api/ds/tenants/{tenantId}/size-tokens"
+        val base = "/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens"
         val operations = mapOf(
             "get" to paths.getValue(base),
             "post" to paths.getValue(base),
@@ -142,22 +150,26 @@ class OpenApiDocumentResourceTest {
             setOf("editRevision", "type"),
             values.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet(),
         )
-        val response = paths.getValue("/api/ds/tenants/{tenantId}/color-tokens/{tokenId}/values").jsonObject
+        val response = paths.getValue(
+            "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/values",
+        ).jsonObject
             .getValue("put").jsonObject.getValue("responses").jsonObject.getValue("200").toString()
         assertTrue("ColorTokenValues" in response)
         val tenantValue = schemas.getValue("TenantTokenValue").toString()
         assertTrue("overridden" in tenantValue && "#/components/schemas/TokenValue" in tenantValue)
-        // sourceValue и paletteRef — в общей схеме: общий GET /api/ds/token-values отдаёт ту же форму, что чтение темы.
+        // sourceValue и paletteRef — в общей схеме: общий GET /api/design-systems/{designSystemId}/token-values отдаёт ту же форму, что чтение темы.
         val tokenValue = schemas.getValue("TokenValue").jsonObject.getValue("properties").jsonObject
         assertTrue("sourceValue" in tokenValue && "paletteRef" in tokenValue)
-        val list = paths.getValue("/api/ds/token-values").jsonObject.getValue("get").jsonObject
+        val list = paths.getValue(
+            "/api/design-systems/{designSystemId}/token-values",
+        ).jsonObject.getValue("get").jsonObject
         assertTrue("sourceValue" in list.getValue("description").jsonPrimitive.content)
     }
 
     /** Отмена параметра расширяет существующий маршрут, не меняя смысл пустого запроса. */
     @Test
     fun `revert accepts optional parameter paths without adding a route`() {
-        val operation = paths.getValue("/api/ds/design-systems/{id}/changes/{changeId}/revert")
+        val operation = paths.getValue("/api/design-systems/{designSystemId}/changes/{changeId}/revert")
             .jsonObject.getValue("post").jsonObject
         assertEquals("false", operation.getValue("requestBody").jsonObject.getValue("required").jsonPrimitive.content)
         assertTrue("400" in operation.getValue("responses").jsonObject)
@@ -183,7 +195,7 @@ class OpenApiDocumentResourceTest {
     /** Пакетный откат — отдельный маршрут с обязательным телом, ограниченным числом записей и правом записи. */
     @Test
     fun `batch revert is a separate write operation with bounded changes`() {
-        val operation = paths.getValue("/api/ds/design-systems/{id}/changes/revert").jsonObject
+        val operation = paths.getValue("/api/design-systems/{designSystemId}/changes/revert").jsonObject
             .getValue("post").jsonObject
         assertEquals("design-systems:write", operation.getValue("x-permission").jsonPrimitive.content)
         assertEquals("true", operation.getValue("requestBody").jsonObject.getValue("required").jsonPrimitive.content)
@@ -207,7 +219,7 @@ class OpenApiDocumentResourceTest {
         assertFalse("minLength" in notes)
 
         val request = Json.decodeFromString<CreateDesignSystemVersionRequest>(
-            """{"designSystemId":"ds","draftId":"draft","draftRevision":0,"version":"1.0.0"}""",
+            """{"draftId":"draft","draftRevision":0,"version":"1.0.0"}""",
         )
         assertEquals("", request.changelog)
     }
@@ -219,14 +231,14 @@ class OpenApiDocumentResourceTest {
 
         // Включая компактный список изменённых токенов, пакет редактора компонента, пакетный откат журнала и группы
         // типографии.
-        assertEquals(198, operationCount)
-        assertTrue("/api/ds/design-systems/{id}/components/{componentId}/editor-bundle" in paths)
-        assertTrue("/api/ds/design-systems/{id}/changes/summary" in paths)
-        assertTrue("/api/ds/web-preview/plugin" in paths)
-        assertTrue("/api/ds/design-systems" in paths)
-        assertTrue("/api/ds/component-config/import" in paths)
-        assertTrue("/api/ds/component-config/web-adapter" in paths)
-        assertFalse("/api/ds/component-configurations" in paths)
+        assertEquals(196, operationCount)
+        assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
+        assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)
+        assertTrue("/api/design-systems/catalog/web-preview/plugin" in paths)
+        assertTrue("/api/design-systems" in paths)
+        assertTrue("/api/design-systems/{designSystemId}/component-config/import" in paths)
+        assertTrue("/api/design-systems/{designSystemId}/component-config/web-adapter" in paths)
+        assertFalse("/api/design-systems/{designSystemId}/component-configurations" in paths)
     }
 
     /** Операции групп манифеста с `origin: ds-service` есть в документе с тем же методом и правом. */
@@ -245,7 +257,9 @@ class OpenApiDocumentResourceTest {
                     operation[5].jsonPrimitive.content,
                 )
             }
-        assertTrue(expected.any { (_, path) -> path == "/api/ds/tenants/{tenantId}/color-tokens" })
+        assertTrue(
+            expected.any { (_, path) -> path == "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens" },
+        )
         expected.forEach { (method, path, permission) ->
             val operation = paths[path]?.jsonObject?.get(method)?.jsonObject
             assertEquals(permission, operation?.get("x-permission")?.jsonPrimitive?.content, "$method $path")
@@ -261,17 +275,17 @@ class OpenApiDocumentResourceTest {
         assertFalse("admin" in routeNames)
         assertFalse("documentation-pages" in routeNames)
         assertFalse("generate" in routeNames)
-        assertFalse("/api/ds/design-system-changes" in routeNames)
-        assertFalse("patch" in paths.getValue("/api/ds/design-system-versions/{id}").jsonObject)
-        assertFalse("delete" in paths.getValue("/api/ds/design-system-versions/{id}").jsonObject)
+        assertFalse("/api/design-systems/{designSystemId}/design-system-changes" in routeNames)
+        assertFalse("patch" in paths.getValue("/api/design-systems/{designSystemId}/versions/{id}").jsonObject)
+        assertFalse("delete" in paths.getValue("/api/design-systems/{designSystemId}/versions/{id}").jsonObject)
         listOf(
-            "/api/ds/components/{id}",
-            "/api/ds/component-deps/{id}",
-            "/api/ds/properties/{id}",
-            "/api/ds/variations/{id}",
-            "/api/ds/property-platform-params/{id}",
-            "/api/ds/property-variations/{id}",
-            "/api/ds/states/{id}",
+            "/api/design-systems/catalog/components/{id}",
+            "/api/design-systems/catalog/component-deps/{id}",
+            "/api/design-systems/catalog/properties/{id}",
+            "/api/design-systems/{designSystemId}/variations/{id}",
+            "/api/design-systems/catalog/property-platform-params/{id}",
+            "/api/design-systems/{designSystemId}/property-variations/{id}",
+            "/api/design-systems/catalog/states/{id}",
         ).forEach { path -> assertFalse("delete" in paths.getValue(path).jsonObject, path) }
     }
 
@@ -281,27 +295,27 @@ class OpenApiDocumentResourceTest {
         val schemas = document.getValue("components").jsonObject.getValue("schemas").jsonObject
         assertTrue(schemas.getValue("DesignSystem").jsonObject.getValue("properties").jsonObject.isNotEmpty())
 
-        val idParameters = paths.getValue("/api/ds/design-systems/{id}").jsonObject
+        val idParameters = paths.getValue("/api/design-systems/{designSystemId}").jsonObject
             .getValue("get").jsonObject.getValue("parameters").jsonArray
-        assertTrue(idParameters.any { it.jsonObject["name"]?.jsonPrimitive?.content == "id" })
+        assertTrue(idParameters.any { it.jsonObject["name"]?.jsonPrimitive?.content == "designSystemId" })
 
-        val queryParameters = paths.getValue("/api/ds/component-config").jsonObject
+        val queryParameters = paths.getValue("/api/design-systems/{designSystemId}/component-config").jsonObject
             .getValue("get").jsonObject.getValue("parameters").jsonArray
         assertTrue(
             queryParameters.any { it.jsonObject["\$ref"]?.jsonPrimitive?.content?.endsWith("/VersionId") == true },
         )
         assertEquals(
-            setOf("ds", "version", "appearance", "component", "platform"),
+            setOf("designSystemId", "ds", "version", "appearance", "component", "platform"),
             queryParameters.mapNotNull {
                 it.jsonObject["name"]?.jsonPrimitive?.content
             }.toSet(),
         )
 
         listOf(
-            "/api/ds/tokens" to "post",
-            "/api/ds/appearances/{id}" to "patch",
-            "/api/ds/style-combinations/{id}" to "delete",
-            "/api/ds/component-config/import" to "post",
+            "/api/design-systems/{designSystemId}/tokens" to "post",
+            "/api/design-systems/{designSystemId}/appearances/{id}" to "patch",
+            "/api/design-systems/{designSystemId}/style-combinations/{id}" to "delete",
+            "/api/design-systems/{designSystemId}/component-config/import" to "post",
         ).forEach { (path, method) ->
             val operation = paths.getValue(path).jsonObject.getValue(method).jsonObject
             val parameters = operation.getValue("parameters").jsonArray
@@ -326,7 +340,7 @@ class OpenApiDocumentResourceTest {
             assertTrue(required.all(properties::containsKey), "$name has undeclared required properties")
         }
 
-        val tenantValues = paths.getValue("/api/ds/tenants/{id}/token-values").jsonObject
+        val tenantValues = paths.getValue("/api/design-systems/{designSystemId}/tenants/{id}/token-values").jsonObject
         listOf("get", "put").forEach { method ->
             val response = tenantValues.getValue(method).jsonObject.getValue("responses").jsonObject.getValue("200")
             assertTrue(response.toString().contains("TenantTokenValue"), method)

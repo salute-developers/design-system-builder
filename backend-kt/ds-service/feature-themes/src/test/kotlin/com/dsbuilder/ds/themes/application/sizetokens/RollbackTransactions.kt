@@ -13,6 +13,11 @@ internal class RollbackTransactions(private val tokens: FakeSizeTokenRepository)
     /** Последний контекст чтения. */
     var readContext: DsRequestContext? = null
 
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = required(context, block)
+
     override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> {
         val before = tokens.state()
         return block().also { if (it is DsResult.Failure) tokens.restore(before) }

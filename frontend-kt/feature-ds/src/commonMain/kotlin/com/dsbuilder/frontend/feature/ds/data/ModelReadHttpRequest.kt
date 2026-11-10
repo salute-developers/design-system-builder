@@ -9,10 +9,10 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
         fun create(projectId: String, designSystemId: String, command: ModelReadCommand): ModelReadHttpRequest {
             val page = command.operation in PAGE_OPERATIONS || isPublishedVersion(command)
             val limit = if (command.operation == ModelReadOperation.VERSION && page) 1 else command.limit ?: 50
-            val query = parameters(command, designSystemId, page, limit).entries.joinToString("&") {
+            val query = parameters(command, page, limit).entries.joinToString("&") {
                 "${encodeModelSegment(it.key)}=${encodeModelSegment(it.value)}"
             }
-            val url = "/api/projects/${encodeModelSegment(projectId)}/ds/${path(command, designSystemId)}" +
+            val url = "/api/projects/${encodeModelSegment(projectId)}/${path(command, designSystemId)}" +
                 if (query.isEmpty()) "" else "?$query"
             return ModelReadHttpRequest(url, page, limit)
         }
@@ -22,16 +22,16 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
             return when (command.operation) {
                 ModelReadOperation.CONTEXT -> ds
                 ModelReadOperation.VERSIONS ->
-                    "design-system-versions/by-design-system/" +
-                        "${encodeModelSegment(designSystemId)}"
-                ModelReadOperation.VERSION -> versionPath(command, designSystemId, ds)
+                    "$ds/versions"
+                ModelReadOperation.VERSION -> versionPath(command, ds)
                 ModelReadOperation.CHANGES -> "$ds/changes"
                 ModelReadOperation.TENANTS -> "$ds/tenants"
                 ModelReadOperation.TOKENS -> "$ds/tokens"
                 ModelReadOperation.TOKEN_GROUPS -> "$ds/token-groups"
                 ModelReadOperation.COMPONENTS -> "$ds/components"
                 ModelReadOperation.COMPONENT_STYLES -> "$ds/components/$id/styles"
-                else -> resourcePath(command, id)
+                ModelReadOperation.COMPONENT -> "design-systems/catalog/components/$id"
+                else -> "$ds/${resourcePath(command, id)}"
             }
         }
 
@@ -46,27 +46,24 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
             else -> error("Unsupported resource operation")
         }
 
-        private fun versionPath(command: ModelReadCommand, designSystemId: String, ds: String): String =
+        private fun versionPath(command: ModelReadCommand, ds: String): String =
             if (command.version == "draft") {
                 ds
             } else {
-                "design-system-versions/by-design-system/${encodeModelSegment(designSystemId)}"
+                "$ds/versions"
             }
 
         private fun parameters(
             command: ModelReadCommand,
-            designSystemId: String,
             page: Boolean,
             limit: Int,
         ): Map<String, String> {
             val parameters = command.filters.toMutableMap()
             if (command.operation == ModelReadOperation.COMPONENT_PROPERTIES) {
                 parameters["include"] = "platformParams"
-                parameters["designSystemId"] = designSystemId
             }
             if (command.operation == ModelReadOperation.COMPONENT_DEPENDENCIES) {
                 parameters["include"] = "reuseConfig"
-                parameters["designSystemId"] = designSystemId
             }
             if (command.operation != ModelReadOperation.COMPONENT && command.operation != ModelReadOperation.VERSIONS) {
                 parameters["version"] = command.version ?: "draft"

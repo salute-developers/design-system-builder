@@ -91,8 +91,8 @@ describe('чтения редактора', () => {
         expect(mocks.post).toHaveBeenCalledTimes(2);
     });
     it('сохранение одного проекта не сбрасывает свежие данные другого', async () => {
-        const a = '/api/projects/p1/ds/design-systems/ds1';
-        const b = '/api/projects/p2/ds/design-systems/ds2';
+        const a = '/api/projects/p1/design-systems/ds1';
+        const b = '/api/projects/p2/design-systems/ds2';
         const first = Promise.all([readEditor(a, {}, undefined, 30_000), readEditor(b, {}, undefined, 30_000)]);
         await vi.runAllTimersAsync();
         await first;
@@ -102,6 +102,25 @@ describe('чтения редактора', () => {
         await second;
         expect(mocks.get.mock.calls.map((call) => call[0])).toEqual([a, b, a]);
     });
+    it.each([undefined, { projectId: 'p1' }])(
+        'сбрасывает список систем без завершающего слэша (%j)',
+        async (context) => {
+            const a = '/api/projects/p1/design-systems';
+            const b = '/api/projects/p2/design-systems';
+            const unrelated = '/api/projects/p1/design-systems-extra';
+            const read = () => Promise.all([a, b, unrelated].map((url) => readEditor(url, {}, undefined, 30_000)));
+            const first = read();
+            await vi.runAllTimersAsync();
+            await first;
+            invalidateEditorReads(context);
+            const next = read();
+            await vi.runAllTimersAsync();
+            await next;
+            expect(mocks.get.mock.calls.map((call) => call[0])).toEqual(
+                context ? [a, b, unrelated, a] : [a, b, unrelated, a, b],
+            );
+        },
+    );
     it('отмена одного владельца не прерывает другого', async () => {
         const remote = deferred();
         mocks.get.mockReturnValue(remote.promise);

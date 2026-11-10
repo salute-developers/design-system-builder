@@ -36,7 +36,7 @@ class ExposedTokenValueRepository : TokenValueRepository {
         .singleOrNull()
         ?.let(TokenValueRowMapper::map)
 
-    override suspend fun createAllowed(projectId: ProjectId, command: CreateTokenValue): Boolean {
+    override suspend fun createAllowed(projectId: ProjectId?, command: CreateTokenValue): Boolean {
         val designSystemId = command.tokenId?.let { ownedTokenDesignSystem(projectId, it) } ?: return false
         return validTenant(command.tenantId, designSystemId) && validPalette(command.paletteId)
     }
@@ -166,7 +166,7 @@ class ExposedTokenValueRepository : TokenValueRepository {
         return true
     }
 
-    private fun ownedTokenDesignSystem(projectId: ProjectId, id: UUID): UUID? = currentTokenRows(projectId, id = id)
+    private fun ownedTokenDesignSystem(projectId: ProjectId?, id: UUID): UUID? = currentTokenRows(projectId, id = id)
         .singleOrNull()
         ?.get(TokensTable.designSystemId)
 

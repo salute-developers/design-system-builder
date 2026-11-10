@@ -11,7 +11,7 @@
 
 #### Scenario: Список систем
 - **WHEN** авторизованный клиент передаёт projectId
-- **THEN** он MUST получить список из `GET /api/projects/{projectId}/ds/design-systems` с ID, именем и описанием при наличии
+- **THEN** он MUST получить список из `GET /api/projects/{projectId}/design-systems` с ID, именем и описанием при наличии
 - **THEN** CLI, MCP и Android Studio plugin MUST использовать общий сценарий получения списка
 
 #### Scenario: Пустой список

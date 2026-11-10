@@ -137,6 +137,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         systemAdmin: Boolean,
         styleId: UUID,
     ): List<VariationPropertyValue>? {
+        if (!ComponentOwnership.canReadStyle(projectId, systemAdmin, styleId)) return null
         return VariationPropertyValuesTable.selectAll().where {
             (VariationPropertyValuesTable.styleId eq styleId) and readableVariationValue(projectId, systemAdmin)
         }.map(::variationPropertyValue)
@@ -147,6 +148,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         systemAdmin: Boolean,
         appearanceId: UUID,
     ): List<VariationPropertyValue>? {
+        if (!ComponentOwnership.canReadAppearance(projectId, systemAdmin, appearanceId)) return null
         return VariationPropertyValuesTable.selectAll()
             .where {
                 (VariationPropertyValuesTable.appearanceId eq appearanceId) and

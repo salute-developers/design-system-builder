@@ -115,7 +115,7 @@ Endpoint MUST принимать `multipart/form-data` с ровно одной 
 - **THEN** upload endpoint SHALL NOT парсить `docs.json`, markdown или info-artifacts для семантической валидации
 
 ### Requirement: Проверка design system в project
-До сохранения bundle сервис MUST проверить, что `manifest.designSystem.id` доступен в trusted project context, вызвав ds-service `GET /api/ds/design-systems/{designSystemId}` с полученными от Gateway trusted headers.
+До сохранения bundle сервис MUST проверить, что `manifest.designSystem.id` доступен в trusted project context, вызвав ds-service `GET /api/design-systems/{designSystemId}` с полученными от Gateway trusted headers.
 
 #### Scenario: Design system принадлежит project
 - **WHEN** ds-service успешно возвращает design system для `manifest.designSystem.id` и trusted `X-Project-Id`

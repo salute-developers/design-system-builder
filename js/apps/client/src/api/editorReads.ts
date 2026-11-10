@@ -43,8 +43,10 @@ export const invalidateEditorReads = (context?: Pick<EditorContextKey, 'projectI
         const path = new URL(value.url).pathname;
         if (
             value.mutable &&
-            path.includes('/ds/') &&
-            (!context || path.startsWith(`/api/projects/${context.projectId}/ds/`))
+            /\/design-systems(?:\/|$)/.test(path) &&
+            (!context ||
+                path === `/api/projects/${context.projectId}/design-systems` ||
+                path.startsWith(`/api/projects/${context.projectId}/design-systems/`))
         )
             confirmed.delete(key);
     }
@@ -142,7 +144,7 @@ export function readEditor<T>(
                             mutable: ttl === 30_000,
                         });
                         if (ttl >= 300_000) {
-                            const projectId = path.match(/^\/api\/projects\/([^/]+)\/ds\//)?.[1];
+                            const projectId = path.match(/^\/api\/projects\/([^/]+)\/design-systems\//)?.[1];
                             if (projectId && metadataSeenAt.has(resourceKey)) {
                                 const group = `${projectId}:${request.params?.versionId ?? 'draft'}`;
                                 metadataRevisions.set(group, (metadataRevisions.get(group) ?? 0) + 1);

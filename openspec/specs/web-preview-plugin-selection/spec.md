@@ -5,7 +5,7 @@ TBD - created by archiving change publish-web-preview-plugin. Update Purpose aft
 ## Requirements
 ### Requirement: Клиент получает адрес web-плагина от бэкенда
 
-Без прямого адреса в `VITE_WEB_PREVIEW_PLUGIN_URL` клиент SHALL запрашивать `GET /api/projects/{projectId}/ds/web-preview/plugin` и загружать web-плагин из `pluginUrl` ответа. Адрес SHALL запрашиваться не чаще одного раза на страницу и проект; неудачный запрос MUST NOT кешироваться. Адрес MUST NOT зависеть от выбранной версии дизайн-системы. Запрос MUST выполняться только когда в разделе есть web-компоненты.
+Без прямого адреса в `VITE_WEB_PREVIEW_PLUGIN_URL` клиент SHALL запрашивать `GET /api/projects/{projectId}/design-systems/catalog/web-preview/plugin` и загружать web-плагин из `pluginUrl` ответа. Адрес SHALL запрашиваться не чаще одного раза на страницу и проект; неудачный запрос MUST NOT кешироваться. Адрес MUST NOT зависеть от выбранной версии дизайн-системы. Запрос MUST выполняться только когда в разделе есть web-компоненты.
 
 #### Scenario: Опубликованный билд
 

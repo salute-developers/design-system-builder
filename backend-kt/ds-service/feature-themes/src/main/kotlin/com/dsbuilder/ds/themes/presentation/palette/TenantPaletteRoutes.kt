@@ -37,9 +37,9 @@ import kotlinx.serialization.json.JsonNull
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
-/** Регистрирует маршруты палитры темы `/api/ds/tenants/{tenantId}/palette`. */
+/** Регистрирует маршруты палитры темы `/api/design-systems/{designSystemId}/tenants/{tenantId}/palette`. */
 fun Route.tenantPaletteRoutes(evaluator: PolicyEvaluator, useCases: TenantPaletteUseCases) {
-    route(dsRoutePath("/api/ds/tenants/{tenantId}/palette")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tenants/{tenantId}/palette")) {
         paletteReadRoutes(evaluator, useCases)
         paletteGroupRoutes(evaluator, useCases)
         route("/groups/{groupId}/ramps") {

@@ -25,7 +25,7 @@ class StreamingBodyCacheTest {
     @Test
     fun `large multipart is streamed once with actual monolith HTTP plugins`() = testApplication {
         application {
-            com.dsbuilder.ds.core.presentation.configureDsLegacyEntry(this)
+            com.dsbuilder.ds.core.presentation.configureDsServiceEntry(this)
             installDsHttpPlugins(Json, DsMetrics(), ::cacheDsJsonBody)
             routing {
                 post("/api/projects/p/documentation/upload") {

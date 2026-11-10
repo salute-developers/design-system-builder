@@ -54,7 +54,7 @@ class DesignSystemsHttpTest {
             val http = HttpClient(
                 MockEngine { request ->
                     assertEquals("Bearer fixture-access", request.headers[HttpHeaders.Authorization])
-                    assertEquals("/api/projects/p1/ds/design-systems", request.url.encodedPath)
+                    assertEquals("/api/projects/p1/design-systems", request.url.encodedPath)
                     respond(if (status == 200) "[]" else "fixture-secret", HttpStatusCode.fromValue(status))
                 },
             )

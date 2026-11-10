@@ -244,7 +244,7 @@ The `dsbuilder` CLI SHALL provide a `status` command that verifies the configure
 - **THEN** CLI MUST выбирать PAT или OAuth-сессию через общий provider
 - **THEN** CLI MUST resolve API URL through CLI core
 - **THEN** CLI MUST send `GET /api/projects/{projectId}` using `projectId` from config
-- **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}` using `projectId` and `designSystemId` from config
+- **THEN** CLI MUST send `GET /api/projects/{projectId}/design-systems/{designSystemId}` using `projectId` and `designSystemId` from config
 - **THEN** CLI MUST передать `Authorization: Bearer <PAT>` или Bearer OAuth access token согласно выбранному типу учётных данных
 
 #### Scenario: Status показывает только результат проверки
@@ -296,14 +296,14 @@ Use case фичи CLI SHALL обращаться к backend API только ч�
 
 - **WHEN** выполняется `dsbuilder components push`
 - **THEN** use case MUST отправлять пакет через port-интерфейс component-config remote source
-- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/ds/component-config/import` через CLI core authenticated HTTP client
+- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/import` через CLI core authenticated HTTP client
 - **THEN** отчёт импорта MUST приходить в use case доменной моделью
 
 #### Scenario: Components fetch обращается к backend через тот же port
 
 - **WHEN** выполняется `dsbuilder components fetch`
 - **THEN** use case MUST запрашивать пакет через тот же port-интерфейс component-config remote source
-- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/ds/component-config/export` через CLI core authenticated HTTP client
+- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/export` через CLI core authenticated HTTP client
 - **THEN** выгруженный пакет MUST приходить в use case доменной моделью
 - **THEN** use case MUST NOT импортировать `@Serializable` модель ответа export
 

@@ -49,7 +49,6 @@ class ComponentConfigContractTest {
         val request = json.decodeFromString<ImportComponentConfigRequest>(
             """
             {
-              "designSystemId":"2df66b98-13b7-46d9-b611-43459e4f4367",
               "platform":"compose",
               "meta":{"name":"fixture"},
               "components":[{
@@ -61,7 +60,7 @@ class ComponentConfigContractTest {
             """.trimIndent(),
         )
 
-        val value = request.toCommand(java.util.UUID.fromString(request.designSystemId))
+        val value = request.toCommand(java.util.UUID.fromString("2df66b98-13b7-46d9-b611-43459e4f4367"))
             .components.single().config.invariants.getValue("shape").value
         assertTrue(value is ComponentConfig.Scalar.ObjectValue)
     }

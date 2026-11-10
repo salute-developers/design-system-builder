@@ -167,6 +167,7 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
         systemAdmin: Boolean,
         combinationId: UUID,
     ): List<StyleCombinationMemberDetails>? {
+        if (find(projectId, systemAdmin, combinationId) == null) return null
         return StyleCombinationMembersTable.selectAll()
             .where {
                 (StyleCombinationMembersTable.combinationId eq combinationId) and

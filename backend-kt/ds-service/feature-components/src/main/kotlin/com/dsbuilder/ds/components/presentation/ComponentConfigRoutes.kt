@@ -41,7 +41,7 @@ fun Route.componentConfigRoutes(
     getWebAdapter: GetComponentWebAdapterUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/component-config")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/component-config")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
@@ -80,7 +80,7 @@ fun Route.componentConfigRoutes(
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<ExportComponentConfigRequest>()
-            val id = request.designSystemId.toUuidOrNull()
+            val id = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             if (
                 request.platform !in componentPlatforms ||
@@ -106,8 +106,8 @@ fun Route.componentConfigRoutes(
                 call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
-            val id = runCatching { call.receive<ComponentWebAdapterRequest>() }.getOrNull()
-                ?.designSystemId?.toUuidOrNull()
+            call.receive<ComponentWebAdapterRequest>()
+            val id = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             when (val result = getWebAdapter.execute(context, id)) {
                 is DsResult.Success -> call.respond(result.value.map(ComponentWebAdapterEntryResponse::from))
@@ -129,7 +129,7 @@ fun Route.componentConfigRoutes(
             val request = runCatching {
                 Json.decodeFromString<ImportComponentConfigRequest>(body.toString(Charsets.UTF_8))
             }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            val id = request.designSystemId.toUuidOrNull()
+            val id = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             if (
                 request.platform !in componentPlatforms || request.components.isEmpty() ||

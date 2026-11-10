@@ -40,7 +40,7 @@ fun Route.appearanceVariationValueRoutes(
     delete: DeleteAppearanceVariationValueUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/appearance-variation-values")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/appearance-variation-values")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

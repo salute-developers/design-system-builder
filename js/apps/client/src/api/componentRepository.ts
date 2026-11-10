@@ -137,7 +137,7 @@ const readComponentLists = async (
     platform: ComponentDto['platform'],
     componentName: string | undefined,
 ): Promise<ComponentSources> => {
-    const root = apiRoot(context.projectId);
+    const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
     // Web-параметры и панели вариаций нужны только web-превью; Compose-превью нужны только имена
     // Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
@@ -147,16 +147,16 @@ const readComponentLists = async (
     const [links, catalog, appearances, exported, params, propertyVariations, dependencies] =
         await Promise.all([
             readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-            readEditor<ComponentDto[]>(`${root}/components`, request, undefined, 300_000),
-            readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
+            readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request, undefined, 300_000),
+            readEditor<AppearanceDto[]>(`${root}/appearances`, request),
             readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-                designSystemId: context.designSystemId,
+
                 platform,
                 ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
             }),
             !componentName && (isWeb || isCompose)
                 ? readEditor<PropertyPlatformParamDto[]>(
-                      `${root}/property-platform-params`,
+                      `${apiRoot(context.projectId)}/property-platform-params`,
                       request,
                       undefined,
                       300_000,
@@ -165,7 +165,7 @@ const readComponentLists = async (
             isWeb
                 ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
                 : empty<PropertyVariationDto>(),
-            readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request, undefined, 300_000),
+            readEditor<ComponentDependencyDto[]>(`${apiRoot(context.projectId)}/component-deps`, request, undefined, 300_000),
         ]);
     const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
     return {
@@ -186,7 +186,7 @@ const readComponentLists = async (
                                   ...request,
                                   params: {
                                       ...request.params,
-                                      designSystemId: context.designSystemId,
+
                                       include: 'platformParams',
                                   },
                               }
@@ -205,7 +205,7 @@ const readComponentLists = async (
             const styles = componentName
                 ? (
                       await readEditor<ComponentStyleDto[]>(
-                          `${root}/design-systems/${context.designSystemId}/components/${component.id}/styles`,
+                          `${root}/components/${component.id}/styles`,
                           request,
                       )
                   ).data
@@ -235,7 +235,7 @@ const readEditorBundle = async (
 ): Promise<ComponentSources> => {
     const request = readRequest(context, signal);
     const { data } = await readEditor<ComponentEditorBundleDto>(
-        `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/components/${componentId}/editor-bundle`,
+        `${apiRoot(context.projectId, context.designSystemId)}/components/${componentId}/editor-bundle`,
         { ...request, params: { ...request.params, platform } },
     );
     const catalog = [data.component, ...data.dependencyComponents];
@@ -266,11 +266,11 @@ export const componentRepository = {
     /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей. */
     async loadComponentIndex(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const request = readRequest(context, signal);
         const [catalog, appearances] = await Promise.all([
-            readEditor<ComponentDto[]>(`${root}/components`, request, undefined, 300_000),
-            readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
+            readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request, undefined, 300_000),
+            readEditor<AppearanceDto[]>(`${root}/appearances`, request),
         ]);
         const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
         // Без активного билда (и без прямого адреса) Compose-компоненты в навигации не показываются; адрес плагина
@@ -461,22 +461,22 @@ export const componentRepository = {
         if ([binding?.componentId, binding?.appearanceId].some((value) => !value))
             throw new Error('COMPONENT_SERVER_BINDING_REQUIRED');
         const stableBinding = binding as { componentId: string; appearanceId: string };
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const request = { params: context.versionId ? { versionId: context.versionId } : undefined };
         const [axes, axisValues, invariantValues, variationValues, states, stateSets, tokens] = await Promise.all([
             readEditor<AppearanceVariationDto[]>(`${root}/appearance-variations`, request),
             readEditor<AppearanceVariationValueDto[]>(`${root}/appearance-variation-values`, request),
             readEditor<PropertyValueDto[]>(
-                `${root}/invariant-property-values/by-component/${stableBinding.componentId}/by-design-system/${context.designSystemId}`,
+                `${root}/invariant-property-values/by-component/${stableBinding.componentId}`,
                 request,
             ),
             readEditor<PropertyValueDto[]>(
                 `${root}/variation-property-values/by-appearance/${stableBinding.appearanceId}`,
                 request,
             ),
-            readEditor<ComponentStateDto[]>(`${root}/states`, request),
-            readEditor<ComponentStateSetDto[]>(`${root}/state-sets`, request),
-            readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
+            readEditor<ComponentStateDto[]>(`${apiRoot(context.projectId)}/states`, request),
+            readEditor<ComponentStateSetDto[]>(`${apiRoot(context.projectId)}/state-sets`, request),
+            readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
         ]);
         const revisions = { ...baseRevisions };
         const axisByVariation = new Map(
@@ -584,7 +584,7 @@ export const componentRepository = {
                 const created = await http.post<ComponentStyleDto>(
                     `${root}/styles`,
                     {
-                        designSystemId: context.designSystemId,
+
                         variationId: change.variationId,
                         name: change.name,
                     },
@@ -640,7 +640,7 @@ export const componentRepository = {
             if (stateIds.some((id) => !id)) throw new Error('COMPONENT_STATE_NOT_FOUND');
             return (
                 await http.post<{ id: string }>(
-                    `${root}/state-sets/resolve`,
+                    `${apiRoot(context.projectId)}/state-sets/resolve`,
                     { stateIds },
                     { headers: { 'Idempotency-Key': idempotency(`state-set:${key}`) } },
                 )
@@ -685,7 +685,7 @@ export const componentRepository = {
                     : {
                           ...body,
                           propertyId: change.propertyId,
-                          designSystemId: context.designSystemId,
+
                           componentId: stableBinding.componentId,
                           appearanceId: stableBinding.appearanceId,
                           stateSetId,

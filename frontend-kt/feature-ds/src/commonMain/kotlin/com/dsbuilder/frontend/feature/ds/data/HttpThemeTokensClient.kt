@@ -32,7 +32,7 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
     ): ModelReadResult = read(
         clients.create(apiUrl, credential),
         credential,
-        "${root(projectId)}/design-system-versions/by-design-system/${encodeModelSegment(designSystemId)}",
+        "${system(projectId, designSystemId)}/versions",
     )
 
     override suspend fun tokens(
@@ -90,11 +90,14 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
             )
     }
 
-    private fun system(context: ThemeContext) =
-        "${root(context.projectId)}/design-systems/${encodeModelSegment(context.designSystemId)}"
+    private fun system(context: ThemeContext) = system(context.projectId, context.designSystemId)
+
+    /** Маршруты дизайн-системы: gateway переписывает `/api/projects/{id}/design-systems/...` в маршрут ds-service. */
+    private fun system(projectId: String, designSystemId: String) =
+        "/api/projects/${encodeModelSegment(projectId)}/design-systems/${encodeModelSegment(designSystemId)}"
 
     private fun tenant(context: ThemeContext) =
-        "${root(context.projectId)}/tenants/${encodeModelSegment(context.tenantId)}"
+        "${system(context)}/tenants/${encodeModelSegment(context.tenantId)}"
 
     private suspend fun read(
         client: AuthenticatedHttpClient,
@@ -112,8 +115,6 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
                 ModelReadResult.Failed("INVALID_BACKEND_RESPONSE", "Backend returned an invalid theme response.")
             },
         )
-
-    private fun root(projectId: String) = "/api/projects/${encodeModelSegment(projectId)}/ds"
 
     private fun query(vararg parts: String?): String =
         parts.filterNotNull().joinToString("&").let { if (it.isEmpty()) "" else "?$it" }

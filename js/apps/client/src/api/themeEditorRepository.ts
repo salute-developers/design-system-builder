@@ -14,15 +14,15 @@ import type { ThemeSource } from '../controllers/designSystem';
 
 /** Оболочка не читает значения токенов, палитру, компоненты и историю. */
 export async function loadThemeShell(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
-    const root = apiRoot(context.projectId);
+    const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
     const [project, designSystem, tenant, links, version] = await Promise.all([
         readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
-        readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request, undefined, 30_000),
+        readEditor<DesignSystemDto>(`${root}`, request, undefined, 30_000),
         readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
         readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
         context.versionId
-            ? readEditor<DesignSystemVersionDto>(`${root}/design-system-versions/${context.versionId}`, request)
+            ? readEditor<DesignSystemVersionDto>(`${root}/versions/${context.versionId}`, request)
             : Promise.resolve(undefined),
     ]);
     if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
@@ -86,7 +86,7 @@ export type * from './editorContracts';
 export async function loadDesignSystemCursor(context: EditorContextKey, signal?: AbortSignal) {
     return (
         await readEditor<DesignSystemDto>(
-            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}`,
+            `${apiRoot(context.projectId, context.designSystemId)}`,
             readRequest(context, signal),
         )
     ).data;
@@ -94,11 +94,11 @@ export async function loadDesignSystemCursor(context: EditorContextKey, signal?:
 
 /** Первичная загрузка редактора объединяет независимые предметные данные. */
 export async function loadThemeEditor(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
-    const root = apiRoot(context.projectId);
+    const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
     const [project, designSystem, tokenData, components, composeComponentsData] = await Promise.all([
         readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
-        readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request),
+        readEditor<DesignSystemDto>(`${root}`, request),
         tokenRepository.loadTokenData(context, signal),
         componentRepository.loadComponentData(context, signal),
         componentRepository.loadComposeComponentData(context, signal),
