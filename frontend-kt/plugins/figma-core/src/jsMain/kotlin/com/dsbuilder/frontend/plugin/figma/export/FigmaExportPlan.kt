@@ -10,8 +10,20 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
-/** Тема и версия, из которых построен план: их показывает отчёт. */
-internal data class ExportThemeInfo(val themeName: String, val tenantId: String, val versionId: String?)
+/**
+ * Тема и версия, из которых построен план: их показывает отчёт. По [designSystemId] запись отличает переменные своей
+ * дизайн-системы от чужих в том же файле.
+ */
+internal data class ExportThemeInfo(
+    val themeName: String,
+    val tenantId: String,
+    val versionId: String?,
+    val designSystemId: String = "",
+    /** Платформа значений: `web`, `ios` или `android`; без своего значения платформы берётся web. */
+    val platform: String = WEB,
+)
+
+internal const val WEB = "web"
 
 /** Цвет 0–1 по каналам, как в Figma. */
 internal data class PlanColor(val r: Double, val g: Double, val b: Double, val a: Double) {
@@ -125,13 +137,14 @@ internal data class PlanTextStyle(
     }
 }
 
-/** Слой тени. */
+/** Слой тени; [colorKey] — переменная плана, к которой привязан цвет слоя. */
 internal data class PlanShadow(
     val x: Double,
     val y: Double,
     val blur: Double,
     val spread: Double,
     val color: PlanColor,
+    val colorKey: String? = null,
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("x", x)
@@ -139,6 +152,7 @@ internal data class PlanShadow(
         put("blur", blur)
         put("spread", spread)
         put("color", color.toJson())
+        colorKey?.let { put("colorKey", it) }
     }
 }
 
@@ -151,29 +165,35 @@ internal data class PlanEffectStyle(val key: String, val name: String, val shado
     }
 }
 
-/** Слой заливки: сплошной или линейный градиент с углом CSS. */
+/** Слой заливки: сплошной или линейный градиент с углом CSS; `key` привязывает цвет к переменной плана. */
 internal sealed interface PlanPaint {
     fun toJson(): JsonObject
 
     /** Сплошная заливка. */
-    data class Solid(val color: PlanColor) : PlanPaint {
+    data class Solid(val color: PlanColor, val key: String? = null) : PlanPaint {
         override fun toJson() = buildJsonObject {
             put("kind", "solid")
             put("color", color.toJson())
+            key?.let { put("key", it) }
         }
     }
 
-    /** Линейный градиент: [angle] в градусах CSS, позиции стопов 0–1. */
-    data class Linear(val angle: Double, val stops: List<Pair<Double, PlanColor>>) : PlanPaint {
+    /** Линейный градиент: [angle] в градусах CSS, позиции стопов 0–1, [keys] — переменные стопов по порядку. */
+    data class Linear(
+        val angle: Double,
+        val stops: List<Pair<Double, PlanColor>>,
+        val keys: List<String?> = emptyList(),
+    ) : PlanPaint {
         override fun toJson() = buildJsonObject {
             put("kind", "linear")
             put("angle", angle)
             putJsonArray("stops") {
-                stops.forEach { (position, color) ->
+                stops.forEachIndexed { index, (position, color) ->
                     add(
                         buildJsonObject {
                             put("position", position)
                             put("color", color.toJson())
+                            keys.getOrNull(index)?.let { put("key", it) }
                         },
                     )
                 }
@@ -192,7 +212,12 @@ internal data class PlanPaintStyle(val key: String, val name: String, val paints
 }
 
 /** Токен, который не попал в план, и причина. */
-internal data class PlanSkip(val name: String, val reason: String)
+internal data class PlanSkip(val name: String, val reason: String) {
+    fun toJson(): JsonObject = buildJsonObject {
+        put("name", name)
+        put("reason", reason)
+    }
+}
 
 /** Всё, что основной поток должен записать в документ. */
 internal data class FigmaExportPlan(
@@ -203,30 +228,28 @@ internal data class FigmaExportPlan(
     val paintStyles: List<PlanPaintStyle>,
     val skipped: List<PlanSkip>,
     val omittedDisabled: Int,
+    val fontFiles: List<PlanFontFamily> = emptyList(),
+    /** Экспортированное с оговоркой: отчёт показывает отдельно от пропусков. */
+    val notes: List<PlanSkip> = emptyList(),
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         putJsonObject("source") {
             put("themeName", source.themeName)
             put("tenantId", source.tenantId)
             put("versionId", source.versionId)
+            put("designSystemId", source.designSystemId)
+            put("platform", source.platform)
         }
         putJsonArray("collections") { collections.forEach { add(it.toJson()) } }
         putJsonArray("textStyles") { textStyles.forEach { add(it.toJson()) } }
         putJsonArray("effectStyles") { effectStyles.forEach { add(it.toJson()) } }
         putJsonArray("paintStyles") { paintStyles.forEach { add(it.toJson()) } }
-        putJsonArray("skipped") {
-            skipped.forEach {
-                add(
-                    buildJsonObject {
-                        put("name", it.name)
-                        put("reason", it.reason)
-                    },
-                )
-            }
-        }
+        putJsonArray("skipped") { skipped.forEach { add(it.toJson()) } }
+        putJsonArray("notes") { notes.forEach { add(it.toJson()) } }
         putJsonObject("omitted") {
             put("disabled", omittedDisabled)
         }
+        putJsonArray("fontFiles") { fontFiles.forEach { add(it.toJson()) } }
     }
 }
 

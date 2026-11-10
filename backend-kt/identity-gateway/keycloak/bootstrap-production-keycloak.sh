@@ -226,6 +226,16 @@ if ! /opt/keycloak/bin/kcadm.sh get "clients/$studio_plugin_uuid/protocol-mapper
 fi
 
 figma_plugin_client_id="dsbuilder-figma-plugin"
+# Сессия плагина офлайновая: без верхнего срока украденный refresh token работал бы бессрочно.
+# Экран согласия называет приложение, которое просит доступ, — защита от фишинга через присланный device-код.
+figma_offline_idle_seconds=2592000
+figma_offline_max_seconds=7776000
+
+# offline_access нужен только плагину, поэтому верхний срок офлайн-сессий realm не задевает другие клиенты.
+/opt/keycloak/bin/kcadm.sh update "realms/$realm" \
+  -s "offlineSessionIdleTimeout=$figma_offline_idle_seconds" \
+  -s "offlineSessionMaxLifespanEnabled=true" \
+  -s "offlineSessionMaxLifespan=$figma_offline_max_seconds"
 
 figma_plugin_uuid="$(
   /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$figma_plugin_client_id" | extract_first_id
@@ -239,8 +249,12 @@ if [ -z "$figma_plugin_uuid" ]; then
     -s "directAccessGrantsEnabled=false" \
     -s "standardFlowEnabled=false" \
     -s "implicitFlowEnabled=false" \
+    -s "name=DS Builder для Figma" \
+    -s "consentRequired=true" \
     -s "attributes.\"oauth2.device.authorization.grant.enabled\"=true" \
     -s "attributes.login_theme=dsbuilder" \
+    -s "attributes.\"client.offline.session.idle.timeout\"=$figma_offline_idle_seconds" \
+    -s "attributes.\"client.offline.session.max.lifespan\"=$figma_offline_max_seconds" \
     -s "protocol=openid-connect"
 
   figma_plugin_uuid="$(
@@ -254,8 +268,12 @@ else
     -s "directAccessGrantsEnabled=false" \
     -s "standardFlowEnabled=false" \
     -s "implicitFlowEnabled=false" \
+    -s "name=DS Builder для Figma" \
+    -s "consentRequired=true" \
     -s "attributes.\"oauth2.device.authorization.grant.enabled\"=true" \
     -s "attributes.login_theme=dsbuilder" \
+    -s "attributes.\"client.offline.session.idle.timeout\"=$figma_offline_idle_seconds" \
+    -s "attributes.\"client.offline.session.max.lifespan\"=$figma_offline_max_seconds" \
     -s "protocol=openid-connect"
 fi
 

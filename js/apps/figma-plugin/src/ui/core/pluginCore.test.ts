@@ -14,10 +14,9 @@ const createKotlin = (overrides: Partial<KotlinCore> = {}): KotlinCore => ({
     designSystems: vi.fn(async () => '[]'),
     tenants: vi.fn(async () => '[{"id":"t1","name":null},{"id":"t2","name":"Dark"}]'),
     versions: vi.fn(async () => '[]'),
-    themeTokens: vi.fn(
-        async () => '{"tokens":[],"values":[],"typography":{"families":[],"screens":[]},"sizes":{}}',
-    ),
+    themeTokens: vi.fn(async () => '{"tokens":[],"values":[],"typography":{"families":[],"screens":[]},"sizes":{}}'),
     exportPlan: vi.fn(async () => '{"collections":[],"skipped":[]}'),
+    fontFile: vi.fn(async () => new Int8Array([79, 84, 84, 79])),
     ...overrides,
 });
 
@@ -48,12 +47,14 @@ describe('связь с Kotlin', () => {
         const kotlin = createKotlin();
         const { signal } = new AbortController();
 
-        const plan = await createPluginCore(kotlin).api.exportPlan(context, null, 'Malachite', signal);
+        const plan = await createPluginCore(kotlin).api.exportPlan(context, null, 'Malachite', 'ios', signal);
 
-        expect(kotlin.exportPlan).toHaveBeenCalledWith('p1', 'd1', 't1', null, 'Malachite', signal);
+        expect(kotlin.exportPlan).toHaveBeenCalledWith('p1', 'd1', 't1', null, 'Malachite', 'ios', signal);
         expect(plan.collections).toEqual([]);
-        const broken = createPluginCore(createKotlin({ exportPlan: vi.fn().mockRejectedValue(failure('export', 'bad')) }));
-        const error = await broken.api.exportPlan(context, null, 'Malachite').catch((reason: unknown) => reason);
+        const broken = createPluginCore(
+            createKotlin({ exportPlan: vi.fn().mockRejectedValue(failure('export', 'bad')) }),
+        );
+        const error = await broken.api.exportPlan(context, null, 'Malachite', 'web').catch((reason: unknown) => reason);
         expect(error).toBeInstanceOf(ExportPlanError);
         expect(error).toHaveProperty('message', 'Не удалось построить план экспорта: bad');
     });
@@ -107,5 +108,18 @@ describe('связь с Kotlin', () => {
         expire();
 
         expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('отдаёт байты файла шрифта и называет отказ без упоминания сервера DS Builder', async () => {
+        const fontFile = vi
+            .fn<KotlinCore['fontFile']>()
+            .mockResolvedValueOnce(new Int8Array([79, 84, 84, 79]))
+            .mockRejectedValueOnce(failure('file', '404'))
+            .mockRejectedValueOnce(failure('network'));
+        const { api } = createPluginCore(createKotlin({ fontFile }));
+
+        expect(new TextDecoder().decode(await api.fontFile('https://cdn/Font.otf'))).toBe('OTTO');
+        await expect(api.fontFile('https://cdn/Missing.otf')).rejects.toThrow('ответ 404');
+        await expect(api.fontFile('https://cdn/Font.otf')).rejects.toThrow('файл недоступен');
     });
 });

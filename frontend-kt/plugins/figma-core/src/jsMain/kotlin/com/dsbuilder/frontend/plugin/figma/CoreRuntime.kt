@@ -25,6 +25,9 @@ import com.dsbuilder.frontend.plugin.figma.export.FigmaExportPlanner
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.plugin
+import io.ktor.client.request.get
+import io.ktor.client.statement.readRawBytes
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -72,7 +75,7 @@ private class StatusProbe(private val clients: AuthenticatedHttpClientFactory) :
 
 /** Вся работа окна плагина с бэкендом; [DsBuilderCore] только переводит её в вызовы JS. */
 internal class CoreRuntime(
-    http: HttpClient,
+    private val http: HttpClient,
     private val gatewayUrl: String,
     private val clientId: String,
     realm: String,
@@ -169,12 +172,32 @@ internal class CoreRuntime(
         HttpThemeTokensClient(probe).tokens(gatewayUrl, credential, context, versionId).valueOrNull()
     }
 
+    /**
+     * Файл по публичной ссылке `https` без токена: файлы шрифтов из значений `fontFamily` лежат на CDN, а не в gateway.
+     * Ответ не 2xx — отказ `file` с кодом статуса, сбой сети — `network`.
+     */
+    suspend fun publicFile(url: String): ByteArray {
+        if (!url.startsWith("https://")) throw CoreFailure("file", "not-https")
+        val response = try {
+            http.get(url)
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: Exception) {
+            throw CoreFailure("network", null)
+        }
+        if (!response.status.isSuccess()) throw CoreFailure("file", response.status.value.toString())
+        return response.readRawBytes()
+    }
+
     /** План экспорта темы в Figma: все разделы читаются на одной границе версии, затем строится план. */
-    suspend fun exportPlan(context: ThemeContext, versionId: String?, themeName: String): String {
+    suspend fun exportPlan(context: ThemeContext, versionId: String?, themeName: String, platform: String): String {
         val source = read { probe, credential ->
             HttpThemeTokensClient(probe).exportSource(gatewayUrl, credential, context, versionId).valueOrNull()
         }
-        return buildPlan(source, ExportThemeInfo(themeName, context.tenantId, versionId))
+        return buildPlan(
+            source,
+            ExportThemeInfo(themeName, context.tenantId, versionId, context.designSystemId, platform),
+        )
     }
 
     /** Сбой построения плана — не сеть: экран показывает, что план не построен. */

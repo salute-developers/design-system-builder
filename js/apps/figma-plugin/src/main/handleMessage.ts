@@ -1,5 +1,6 @@
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
 import type { MainToUi, UiToMain } from '../shared/messages';
+import { zip } from '../shared/zip';
 
 /** Что нужно основному потоку от редактора: хранилище, внешний браузер и запись плана экспорта. */
 export interface PluginHost {
@@ -27,6 +28,16 @@ let exporting: Promise<unknown> = Promise.resolve();
 export const handleMessage = async (message: UiToMain, host: PluginHost) => {
     if (message.type === 'open-external') {
         host.openExternal(message.url);
+        return;
+    }
+    if (message.type === 'zip:pack') {
+        // Без ответа окно ждало бы архив бесконечно: ошибка упаковки тоже уходит ответом.
+        try {
+            host.reply({ type: 'zip:result', requestId: message.requestId, bytes: zip(message.files) });
+        } catch (error) {
+            const text = error instanceof Error ? error.message : String(error);
+            host.reply({ type: 'zip:result', requestId: message.requestId, bytes: null, error: text });
+        }
         return;
     }
     if (message.type === 'export:apply') {

@@ -335,6 +335,15 @@ button.link {
     color: var(--figma-color-text, #1e1e1e);
 }
 
+.export-font-files ul {
+    margin: 2px 0 6px;
+    padding-left: 16px;
+}
+
+.export-font-files li {
+    overflow-wrap: anywhere;
+}
+
 .export-hint {
     color: var(--figma-color-text-secondary, #6b6b6b);
 }

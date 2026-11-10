@@ -14,6 +14,8 @@ import type {
 /** Общие данные плагина: их читают и обновляют все инструменты DS Builder. */
 const NAMESPACE = 'dsbuilder';
 const KEY = 'key';
+/** Дизайн-система переменной: ключ переходит только к переменной своей системы, а не чужой из того же файла. */
+const DESIGN_SYSTEM = 'designSystem';
 const MODES = 'modes';
 
 /** Часть Plugin API, которая нужна записи; тесты подставляют поддельную реализацию. */
@@ -66,14 +68,37 @@ export const gradientTransform = (angle: number): Transform => {
     ];
 };
 
-const figmaPaint = (paint: PlanPaint): Paint =>
-    paint.kind === 'solid'
-        ? { type: 'SOLID', color: rgb(paint.color), opacity: paint.color.a }
-        : {
-              type: 'GRADIENT_LINEAR',
-              gradientTransform: gradientTransform(paint.angle),
-              gradientStops: paint.stops.map(({ position, color }) => ({ position, color: rgba(color) })),
-          };
+type Lookup = (key: string) => Variable | undefined;
+
+/**
+ * Слой стиля; цвет сплошного слоя и стопов привязывается к переменной по ключу плана, поэтому один стиль меняется
+ * вместе с режимом `01. Theme`. Ключ без переменной оставляет цвет из плана и попадает в [unbound].
+ */
+const figmaPaint = (paint: PlanPaint, lookup: Lookup, figma: ExportFigmaApi, unbound: Set<string>): Paint => {
+    const variable = (key: string | undefined) => {
+        const found = key ? lookup(key) : undefined;
+        if (key && !found) unbound.add(key);
+        return found;
+    };
+    if (paint.kind === 'solid') {
+        const bound = variable(paint.key);
+        // Альфа привязанного цвета живёт в переменной: прозрачность слоя умножилась бы на неё ещё раз.
+        if (bound) {
+            const solid: SolidPaint = { type: 'SOLID', color: rgb(paint.color), opacity: 1 };
+            return figma.variables.setBoundVariableForPaint(solid, 'color', bound);
+        }
+        return { type: 'SOLID', color: rgb(paint.color), opacity: paint.color.a };
+    }
+    return {
+        type: 'GRADIENT_LINEAR',
+        gradientTransform: gradientTransform(paint.angle),
+        gradientStops: paint.stops.map(({ position, color, key }) => {
+            const bound = variable(key);
+            const stop: ColorStop = { position, color: rgba(color) };
+            return bound ? { ...stop, boundVariables: { color: figma.variables.createVariableAlias(bound) } } : stop;
+        }),
+    };
+};
 
 /** Начертания по насыщенности: имена стилей шрифтов в Figma не стандартизованы. */
 const WEIGHT_STYLES: Record<number, string[]> = {
@@ -104,8 +129,10 @@ export const applyExportPlan = async (plan: ExportPlan, figma: ExportFigmaApi): 
         updated: counts(),
         stale: counts(),
         skipped: [...plan.skipped],
+        notes: [...(plan.notes ?? [])],
         omitted: plan.omitted,
         missingFonts: [],
+        fontFiles: [],
     };
     const touch = (created: boolean, kind: keyof ExportCounts) => {
         (created ? report.created : report.updated)[kind] += 1;
@@ -117,13 +144,14 @@ export const applyExportPlan = async (plan: ExportPlan, figma: ExportFigmaApi): 
         return report;
     }
     try {
-        const variables = await writeVariables(plan.collections, figma, touch, skip, report);
-        await writeEffectStyles(plan, figma, touch, report);
-        await writePaintStyles(plan, figma, touch, report);
+        const variables = await writeVariables(plan, figma, touch, skip, report);
+        await writeEffectStyles(plan, variables, figma, touch, report);
+        await writePaintStyles(plan, variables, figma, touch, report);
         await writeTextStyles(plan.textStyles, variables, figma, touch, skip, report);
     } catch (error) {
         report.failure = error instanceof ExportStopped ? error.message : `Figma отказала: ${String(error)}`;
     }
+    report.fontFiles = (plan.fontFiles ?? []).filter((family) => report.missingFonts.includes(family.family));
     return report;
 };
 
@@ -140,12 +168,14 @@ const staleName = (name: string, taken: Map<string, Variable>) => {
 };
 
 const writeVariables = async (
-    collections: PlanCollection[],
+    plan: ExportPlan,
     figma: ExportFigmaApi,
     touch: Touch,
     skip: (entry: PlanSkip) => void,
     report: ExportReport,
 ) => {
+    const collections = plan.collections;
+    const designSystem = plan.source.designSystemId ?? '';
     const all = await figma.variables.getLocalVariablesAsync();
     const existingCollections = byKey(await figma.variables.getLocalVariableCollectionsAsync());
     const existingVariables = byKey(all);
@@ -204,15 +234,26 @@ const writeVariables = async (
                         });
                         continue;
                     }
-                    // Устаревшая переменная DS Builder уступает имя и остаётся для привязанных слоёв.
-                    owner.name = staleName(variable.name, owners);
-                    owners.set(owner.name, owner);
+                    const sameSystem =
+                        designSystem !== '' && owner.getSharedPluginData(NAMESPACE, DESIGN_SYSTEM) === designSystem;
+                    if (!target && sameSystem && owner.resolvedType === variable.type) {
+                        // Ключ сменился, а имя то же (токен создан заново, у подтемы сменился запасной токен):
+                        // переменная переходит к новому ключу, и привязанные слои продолжают обновляться.
+                        existingVariables.delete(ownerKey);
+                        owner.setSharedPluginData(NAMESPACE, KEY, variable.key);
+                        target = owner;
+                    } else {
+                        // Устаревшая переменная DS Builder уступает имя и остаётся для привязанных слоёв.
+                        owner.name = staleName(variable.name, owners);
+                        owners.set(owner.name, owner);
+                    }
                 }
                 touch(!target, 'variables');
                 if (!target) {
                     target = figma.variables.createVariable(variable.name, collection, variable.type);
                     target.setSharedPluginData(NAMESPACE, KEY, variable.key);
                 }
+                if (designSystem) target.setSharedPluginData(NAMESPACE, DESIGN_SYSTEM, designSystem);
                 target.name = variable.name;
                 originalNames.delete(target);
                 owners.set(variable.name, target);
@@ -314,7 +355,13 @@ const figmaValue = (
     return value.opacity === undefined ? alias : { color: alias, opacity: value.opacity };
 };
 
-const writeEffectStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch: Touch, report: ExportReport) => {
+const writeEffectStyles = async (
+    plan: ExportPlan,
+    lookup: Lookup,
+    figma: ExportFigmaApi,
+    touch: Touch,
+    report: ExportReport,
+) => {
     const existing = byKey(await figma.getLocalEffectStylesAsync());
     for (const planned of plan.effectStyles) {
         let style = existing.get(planned.key);
@@ -324,8 +371,9 @@ const writeEffectStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch:
             style.setSharedPluginData(NAMESPACE, KEY, planned.key);
         }
         style.name = planned.name;
-        style.effects = planned.shadows.map(
-            (shadow): DropShadowEffect => ({
+        let unbound = false;
+        style.effects = planned.shadows.map((shadow): Effect => {
+            const effect: DropShadowEffect = {
                 type: 'DROP_SHADOW',
                 color: rgba(shadow.color),
                 offset: { x: shadow.x, y: shadow.y },
@@ -333,13 +381,30 @@ const writeEffectStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch:
                 spread: shadow.spread,
                 visible: true,
                 blendMode: 'NORMAL',
-            }),
-        );
+            };
+            if (!shadow.colorKey) return effect;
+            // Цвет слоя со ссылкой на палитру берётся из переменной `ShadowColors/…` вместе с прозрачностью.
+            const variable = lookup(shadow.colorKey);
+            if (!variable) unbound = true;
+            return variable ? figma.variables.setBoundVariableForEffect(effect, 'color', variable) : effect;
+        });
+        if (unbound) {
+            report.notes.push({
+                name: planned.name,
+                reason: 'цвет слоя тени не привязан к переменной: переменной нет',
+            });
+        }
     }
     report.stale.effectStyles = staleCount(existing, plan.effectStyles);
 };
 
-const writePaintStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch: Touch, report: ExportReport) => {
+const writePaintStyles = async (
+    plan: ExportPlan,
+    lookup: Lookup,
+    figma: ExportFigmaApi,
+    touch: Touch,
+    report: ExportReport,
+) => {
     const existing = byKey(await figma.getLocalPaintStylesAsync());
     for (const planned of plan.paintStyles) {
         let style = existing.get(planned.key);
@@ -350,7 +415,14 @@ const writePaintStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch: 
         }
         style.name = planned.name;
         // В Figma верхний слой — последний, в CSS — первый.
-        style.paints = [...planned.paints].reverse().map(figmaPaint);
+        const unbound = new Set<string>();
+        style.paints = [...planned.paints].reverse().map((paint) => figmaPaint(paint, lookup, figma, unbound));
+        if (unbound.size) {
+            report.notes.push({
+                name: planned.name,
+                reason: 'цвет слоя не привязан к переменной: переменной стопа нет',
+            });
+        }
     }
     report.stale.paintStyles = staleCount(existing, plan.paintStyles);
 };
@@ -372,7 +444,8 @@ const writeTextStyles = async (
     for (const planned of styles) {
         const font = fontFor(fonts, planned.fontFamily, planned.fontWeight);
         const familyMissing = !fonts.some((item) => item.fontName.family === planned.fontFamily);
-        if (familyMissing && !report.missingFonts.includes(planned.fontFamily)) report.missingFonts.push(planned.fontFamily);
+        if (familyMissing && !report.missingFonts.includes(planned.fontFamily))
+            report.missingFonts.push(planned.fontFamily);
         if (!font) {
             skip({
                 name: planned.name,

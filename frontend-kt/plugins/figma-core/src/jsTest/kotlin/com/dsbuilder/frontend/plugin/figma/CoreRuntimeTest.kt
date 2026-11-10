@@ -38,6 +38,23 @@ class CoreRuntimeTest {
     ) = CoreRuntime(HttpClient(MockEngine(handler)), "https://gw", "client", "dsbuilder", storage, backgroundScope)
 
     @Test
+    fun publicFileIsReadWithoutTokenOnlyOverHttps() = runTest {
+        val seen = mutableListOf<HttpRequestData>()
+        val core = runtime { request ->
+            seen += request
+            val missing = request.url.encodedPath.endsWith("missing.otf")
+            if (missing) respond("", HttpStatusCode.NotFound) else respond("OTTO")
+        }
+
+        assertEquals("OTTO", core.publicFile("https://cdn.example/Font.otf").decodeToString())
+        assertEquals(null, seen.single().headers[HttpHeaders.Authorization])
+        assertEquals("404", assertFailsWith<CoreFailure> { core.publicFile("https://cdn.example/missing.otf") }.code)
+        val insecure = assertFailsWith<CoreFailure> { core.publicFile("http://cdn.example/Font.otf") }
+        assertEquals("file" to "not-https", insecure.kind to insecure.code)
+        assertEquals(2, seen.size)
+    }
+
+    @Test
     fun readsThroughSharedClientsAfterRefreshingExpiredToken() = runTest {
         val core = runtime { request ->
             when {
@@ -150,12 +167,13 @@ class CoreRuntimeTest {
             )
         }
 
-        val plan = core.exportPlan(ThemeContext("p1", "ds1", "t1"), "v1", "Malachite")
+        val plan = core.exportPlan(ThemeContext("p1", "ds1", "t1"), "v1", "Malachite", "ios")
 
         assertEquals(6, paths.size)
         assertEquals(true, paths.all { it.contains("versionId=v1") })
         assertEquals(true, plan.contains("\"themeName\":\"Malachite\""))
         assertEquals(true, plan.contains("\"name\":\"05. Spacing\""))
+        assertEquals(true, plan.contains("\"platform\":\"ios\""))
     }
 
     @Test
@@ -164,7 +182,8 @@ class CoreRuntimeTest {
             if (request.url.encodedPath.endsWith("palette")) respond("", HttpStatusCode.Forbidden) else respond("[]")
         }
 
-        val failure = assertFailsWith<CoreFailure> { core.exportPlan(ThemeContext("p1", "ds1", "t1"), null, "T") }
+        val failure =
+            assertFailsWith<CoreFailure> { core.exportPlan(ThemeContext("p1", "ds1", "t1"), null, "T", "web") }
         assertEquals("forbidden", failure.kind)
     }
 

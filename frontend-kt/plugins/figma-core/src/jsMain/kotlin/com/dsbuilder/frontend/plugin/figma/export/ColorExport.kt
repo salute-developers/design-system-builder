@@ -2,8 +2,12 @@ package com.dsbuilder.frontend.plugin.figma.export
 
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlin.math.abs
 
 private const val NAME_SEGMENTS = 3
+
+/** Допуск сравнения позиций стопов и угла в режимах: `99.688%` и `100%` — один стоп. */
+private const val POSITION_TOLERANCE = 0.01
 private val STATE_SUFFIXES = listOf("hover", "active", "brightness")
 private const val BACKGROUND = "background"
 private const val DEFAULT_CONTEXT = "default"
@@ -16,7 +20,7 @@ private val CONTEXT_NAMES = mapOf(
 )
 private val BACKGROUND_CONTEXTS = mapOf("dark" to "on-dark", "light" to "on-light")
 private val THEME_MODES = listOf(PlanMode("light", "Light"), PlanMode("dark", "Dark"))
-private val PALETTE_REF = Regex("""^\[(general|additional)\.([A-Za-z0-9]+)\.(\d+)\](?:\[(\d+(?:\.\d+)?)\])?$""")
+internal val PALETTE_REF = Regex("""^\[(general|additional)\.([A-Za-z0-9]+)\.(\d+)\](?:\[(\d+(?:\.\d+)?)\])?$""")
 private val ALL_SCOPES = listOf("ALL_SCOPES")
 
 /** Коллекции цвета, стили градиентов и пропуски. */
@@ -27,7 +31,12 @@ internal data class ColorExportResult(
     val paintStyles: List<PlanPaintStyle>,
     val skipped: List<PlanSkip>,
     val omittedDisabled: Int,
+    /** Экспортировано, но не так, как обычно: например, градиент парой стилей. */
+    val notes: List<PlanSkip> = emptyList(),
 )
+
+/** Стили градиента и переменные его стопов. */
+private class GradientExport(val styles: List<PlanPaintStyle>, val variables: List<PlanVariable>)
 
 private data class TokenGroup(val id: String, val parentId: String?, val label: String)
 
@@ -47,11 +56,12 @@ private data class PaletteSlot(val groupId: String, val type: String, val shade:
  * Цвета темы в структуре образца: `00. Palette`, `01. Theme` со ссылками на палитру и `02. SubTheme` со ссылками
  * на тему. Имена берутся из подписей групп токенов, поэтому новые группы попадают в Figma без изменения кода.
  */
-internal class ColorExport(source: JsonObject) {
+internal class ColorExport(source: JsonObject, private val platform: String = WEB) {
     private val tokens = source["tokens"].arr().mapNotNull { it.obj() }
-    private val webValues = source["values"].arr().mapNotNull { it.obj() }
-        .filter { it.str("platform") == "web" }
-        .groupBy { it.str("tokenId") }
+    private val allValues = source["values"].arr().mapNotNull { it.obj() }
+    private val webValues = allValues.filter { it.str("platform") == WEB }.groupBy { it.str("tokenId") }
+    private val missingValues = if (platform == WEB) "нет значений web" else "нет значений $platform и web"
+    private val platformValues = allValues.filter { it.str("platform") == platform }.groupBy { it.str("tokenId") }
     private val palette = source["palette"].obj()
     private val groups = source["groups"].arr().mapNotNull { it.obj() }.mapNotNull { group ->
         val id = group.str("id") ?: return@mapNotNull null
@@ -62,6 +72,7 @@ internal class ColorExport(source: JsonObject) {
         .toMap()
     private val paletteKeys = mutableMapOf<PaletteSlot, String>()
     private val skipped = mutableListOf<PlanSkip>()
+    private val notes = mutableListOf<PlanSkip>()
     private var disabled = 0
 
     fun build(): ColorExportResult {
@@ -79,13 +90,16 @@ internal class ColorExport(source: JsonObject) {
             val modes = modeValues(token.id)
             val solid = modes.mapValues { (_, layers) -> layers.singleOrNull()?.let(::parseHex) }
             val added = when {
-                modes.isEmpty() -> false.also { skipped += PlanSkip(token.name, "нет значений web") }
+                modes.isEmpty() -> false.also { skipped += PlanSkip(token.name, missingValues) }
                 solid.values.all { it != null } -> {
                     themeVariables += themeVariable(token, modes, solid.mapValues { it.value!! })
                     themeTokens += token
                     true
                 }
-                token.type == "gradient" -> gradientStyles(token, modes).also { paintStyles += it }.isNotEmpty()
+                token.type == "gradient" -> gradientExport(token, modes)?.also {
+                    paintStyles += it.styles
+                    themeVariables += it.variables
+                } != null
                 else -> false.also {
                     skipped += PlanSkip(token.name, "значение не цвет: ${modes.values.flatten().first()}")
                 }
@@ -100,6 +114,7 @@ internal class ColorExport(source: JsonObject) {
             paintStyles = paintStyles,
             skipped = skipped.toList(),
             omittedDisabled = disabled,
+            notes = notes.toList(),
         )
     }
 
@@ -190,7 +205,7 @@ internal class ColorExport(source: JsonObject) {
         )
     }
 
-    /** Слои web по режиму; режим без значения получает значение другого режима. */
+    /** Слои выбранной платформы по режиму; режим без значения получает значение другого режима. */
     private fun modeValues(tokenId: String): Map<String, List<String>> {
         val layers = THEME_MODES.associate { mode -> mode.key to layers(valueFor(tokenId, mode.key)) }
         return if (layers.values.all { it.isEmpty() }) emptyMap() else layers
@@ -198,15 +213,20 @@ internal class ColorExport(source: JsonObject) {
 
     /** Как в просмотре: точный режим, затем значение без режима; иначе — значение другого режима. */
     private fun valueFor(tokenId: String, mode: String): JsonObject? {
-        val values = webValues[tokenId].orEmpty()
-        return values.firstOrNull { it.str("mode") == mode }
-            ?: values.firstOrNull { it.str("mode") == null }
-            ?: values.firstOrNull()
+        // Без своего значения режима платформа наследует web того же режима, как в DS Builder.
+        val own = platformValues[tokenId].orEmpty()
+        val web = webValues[tokenId].orEmpty()
+        return own.inMode(mode) ?: web.inMode(mode) ?: own.firstOrNull() ?: web.firstOrNull()
     }
+
+    private fun List<JsonObject>.inMode(mode: String) =
+        firstOrNull { it.str("mode") == mode } ?: firstOrNull { it.str("mode") == null }
 
     private fun layers(value: JsonObject?): List<String> = when (val raw = value?.get("value")) {
         is JsonPrimitive -> listOfNotNull(raw.takeIf { it.isString }?.content)
-        else -> raw.arr().mapNotNull { (it as? JsonPrimitive)?.takeIf { item -> item.isString }?.content }
+        else -> raw.arr().mapNotNull { item ->
+            (item as? JsonPrimitive)?.takeIf { it.isString }?.content ?: item.obj()?.let(::nativeLayer)
+        }
     }
 
     private fun themeVariable(
@@ -231,21 +251,89 @@ internal class ColorExport(source: JsonObject) {
         return PlanValue.Alias(key, alpha?.let(::opacityPercent))
     }
 
-    private fun gradientStyles(token: ThemeToken, modes: Map<String, List<String>>): List<PlanPaintStyle> {
+    /**
+     * Градиент: стопы и сплошные слои становятся переменными темы `GradientStops/<имя>/Stop N` и `Fill N`, а стиль
+     * один и привязан к ним. Если слои режимов несовместимы, остаётся пара стилей `Light/…` и `Dark/…`.
+     */
+    private fun gradientExport(token: ThemeToken, modes: Map<String, List<String>>): GradientExport? {
         val paints = modes.mapValues { (_, layers) -> layers.map(::parsePaint) }
         val broken = paints.values.any { layers -> layers.isEmpty() || layers.any { it == null } }
         if (broken) {
             val raw = modes.values.flatten().distinct().joinToString()
             skipped += PlanSkip(token.name, "не удалось разобрать градиент: $raw")
-            return emptyList()
+            return null
         }
-        return THEME_MODES.map { mode ->
-            PlanPaintStyle(
-                key = "gradient:${token.id}:${mode.key}",
-                name = "${mode.name}/${token.themeName}",
-                paints = paints.getValue(mode.key).filterNotNull(),
+        val light = paints.getValue("light").filterNotNull()
+        val dark = paints.getValue("dark").filterNotNull()
+        val mismatch = gradientMismatch(light, dark)
+        if (mismatch != null) {
+            notes += PlanSkip(token.name, "градиент описан парой стилей Light и Dark: $mismatch")
+            return GradientExport(
+                styles = THEME_MODES.map { mode ->
+                    PlanPaintStyle(
+                        key = "gradient:${token.id}:${mode.key}",
+                        name = "${mode.name}/${token.themeName}",
+                        paints = paints.getValue(mode.key).filterNotNull(),
+                    )
+                },
+                variables = emptyList(),
             )
         }
+        return boundGradient(token, light, dark)
+    }
+
+    private fun boundGradient(token: ThemeToken, light: List<PlanPaint>, dark: List<PlanPaint>): GradientExport {
+        val variables = mutableListOf<PlanVariable>()
+        var stop = 0
+        var fill = 0
+        val stopVariable = { key: String, label: String, lightColor: PlanColor, darkColor: PlanColor ->
+            variables += PlanVariable(
+                key = key,
+                name = "GradientStops/${token.themeName}/$label",
+                type = "COLOR",
+                scopes = emptyList(),
+                values = mapOf("light" to PlanValue.Color(lightColor), "dark" to PlanValue.Color(darkColor)),
+            )
+            key
+        }
+        val paints = light.zip(dark).mapIndexed { layer, (lightPaint, darkPaint) ->
+            when (lightPaint) {
+                is PlanPaint.Solid -> {
+                    val darkColor = (darkPaint as PlanPaint.Solid).color
+                    val key = "gradient-stop:${token.id}:$layer"
+                    lightPaint.copy(key = stopVariable(key, "Fill ${++fill}", lightPaint.color, darkColor))
+                }
+                is PlanPaint.Linear -> {
+                    val darkStops = (darkPaint as PlanPaint.Linear).stops
+                    val keys = lightPaint.stops.mapIndexed { index, (_, color) ->
+                        val key = "gradient-stop:${token.id}:$layer:$index"
+                        stopVariable(key, "Stop ${++stop}", color, darkStops[index].second)
+                    }
+                    lightPaint.copy(keys = keys)
+                }
+            }
+        }
+        return GradientExport(listOf(PlanPaintStyle("gradient:${token.id}", token.themeName, paints)), variables)
+    }
+
+    /** Причина, по которой градиент режимов нельзя описать одним стилем, или `null`. */
+    private fun gradientMismatch(light: List<PlanPaint>, dark: List<PlanPaint>): String? {
+        if (light.size != dark.size) return "в режимах разное число слоёв"
+        return light.zip(dark).firstNotNullOfOrNull { (a, b) ->
+            when {
+                a is PlanPaint.Solid && b is PlanPaint.Solid -> null
+                a is PlanPaint.Linear && b is PlanPaint.Linear -> linearMismatch(a, b)
+                else -> "в режимах разные типы слоёв"
+            }
+        }
+    }
+
+    private fun linearMismatch(a: PlanPaint.Linear, b: PlanPaint.Linear): String? = when {
+        abs(a.angle - b.angle) > POSITION_TOLERANCE -> "в режимах разный угол градиента"
+        a.stops.size != b.stops.size -> "в режимах разное число стопов"
+        a.stops.zip(b.stops).any { (x, y) -> abs(x.first - y.first) > POSITION_TOLERANCE } ->
+            "в режимах разные позиции стопов"
+        else -> null
     }
 
     /** Подтема ссылается на тему своего контекста, а без него — на контекст `default`. */
@@ -287,3 +375,25 @@ internal fun leafName(member: String, category: List<String>): String {
     val trimmed = if (repeats) words.drop(1) else words
     return trimmed.joinToString("") { word -> word.replaceFirstChar { it.uppercaseChar() } }
 }
+
+/** Слой iOS и Android: сплошной `{kind: "color", background}` — его цвет, градиент — запись CSS. */
+internal fun nativeLayer(layer: JsonObject): String =
+    layer.str("background")?.takeIf { layer.str("kind") == "color" } ?: nativeGradient(layer)
+
+/**
+ * Градиент iOS и Android `{kind, angle, locations, colors}` в записи CSS, которую разбирает [parsePaint]: угол и
+ * позиции те же, что у web. Не линейный градиент остаётся записью, которую разбор отклонит с причиной.
+ */
+internal fun nativeGradient(layer: JsonObject): String {
+    val colors = layer["colors"].arr().mapNotNull { (it as? JsonPrimitive)?.content }
+    val locations = layer["locations"].arr().mapNotNull { (it as? JsonPrimitive)?.content?.toDoubleOrNull() }
+    val kind = layer.str("kind") ?: "unknown"
+    if (kind != "linear" || colors.isEmpty()) return "$kind-gradient(${colors.joinToString()})"
+    val stops = colors.mapIndexed { index, color ->
+        locations.getOrNull(index)?.let { "$color ${it * PERCENT_SCALE}%" } ?: color
+    }
+    return "linear-gradient(${layer.num("angle") ?: DEFAULT_ANGLE}deg, ${stops.joinToString()})"
+}
+
+private const val PERCENT_SCALE = 100
+private const val DEFAULT_ANGLE = 180.0

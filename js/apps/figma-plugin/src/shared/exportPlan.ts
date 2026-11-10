@@ -55,6 +55,8 @@ export interface PlanShadow {
     blur: number;
     spread: number;
     color: PlanColor;
+    /** Переменная плана, к которой привязан цвет слоя. */
+    colorKey?: string;
 }
 
 export interface PlanEffectStyle {
@@ -63,10 +65,17 @@ export interface PlanEffectStyle {
     shadows: PlanShadow[];
 }
 
-/** Слой заливки; угол линейного градиента — в градусах CSS. */
+/** Стоп градиента; `key` — переменная плана, к которой привязан цвет. */
+export interface PlanStop {
+    position: number;
+    color: PlanColor;
+    key?: string;
+}
+
+/** Слой заливки; угол линейного градиента — в градусах CSS, `key` сплошного слоя привязывает цвет к переменной. */
 export type PlanPaint =
-    | { kind: 'solid'; color: PlanColor }
-    | { kind: 'linear'; angle: number; stops: Array<{ position: number; color: PlanColor }> };
+    | { kind: 'solid'; color: PlanColor; key?: string }
+    | { kind: 'linear'; angle: number; stops: PlanStop[] };
 
 export interface PlanPaintStyle {
     key: string;
@@ -80,10 +89,31 @@ export interface PlanSkip {
     reason: string;
 }
 
+/** Файл начертания из значения токена `fontFamily`. */
+export interface PlanFontFile {
+    name: string;
+    url: string;
+    weight?: string;
+    style?: string;
+}
+
+/** Файлы начертаний семейства, которое использует типографика. */
+export interface PlanFontFamily {
+    family: string;
+    files: PlanFontFile[];
+}
+
+/** Платформа, значения которой экспортируются; без своего значения платформы берётся web. */
+export type ExportPlatform = 'web' | 'ios' | 'android';
+
 export interface ExportSource {
     themeName: string;
     tenantId: string;
     versionId: string | null;
+    /** Дизайн-система плана; в плане старой версии ядра его нет. */
+    designSystemId?: string;
+    /** Платформа значений; в плане старой версии ядра её нет. */
+    platform?: ExportPlatform;
 }
 
 export interface ExportPlan {
@@ -94,6 +124,10 @@ export interface ExportPlan {
     paintStyles: PlanPaintStyle[];
     skipped: PlanSkip[];
     omitted: { disabled: number };
+    /** Ссылки на файлы шрифтов; в плане старой версии ядра их нет. */
+    fontFiles?: PlanFontFamily[];
+    /** Экспортированное с оговоркой, например градиент парой стилей; в плане старой версии ядра их нет. */
+    notes?: PlanSkip[];
 }
 
 /** Число объектов каждого вида. */
@@ -113,9 +147,13 @@ export interface ExportReport {
     /** Объекты с ключом DS Builder, которых нет в плане: не удаляются. */
     stale: ExportCounts;
     skipped: PlanSkip[];
+    /** Создано с оговоркой: показывается отдельно от пропусков. */
+    notes: PlanSkip[];
     omitted: { disabled: number };
     /** Семейства шрифтов, которых нет в Figma: их текстовые стили пропущены. */
     missingFonts: string[];
+    /** Файлы недостающих семейств для установки. */
+    fontFiles: PlanFontFamily[];
     /** Причина, по которой запись прекратилась; созданное до неё остаётся. */
     failure?: string;
 }

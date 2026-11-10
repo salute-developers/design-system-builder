@@ -1,5 +1,6 @@
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
 import type { MainToUi, StorageKey, UiToMain } from '../shared/messages';
+import type { ArchiveFile } from '../shared/zip';
 
 /** Хранилище основного потока для окна плагина. */
 export interface PluginStorage {
@@ -11,10 +12,14 @@ export interface PluginStorage {
 /** Запись плана экспорта в документ: её выполняет основной поток. */
 export type ApplyExport = (plan: ExportPlan) => Promise<ExportReport>;
 
+/** Упаковка файлов в ZIP: её выполняет основной поток, чтобы код архиватора не увеличивал окно. */
+export type PackZip = (files: ArchiveFile[]) => Promise<Uint8Array>;
+
 /** Команды окна основному потоку. */
 export interface PluginBridge extends PluginStorage {
     openExternal(url: string): void;
     applyExport: ApplyExport;
+    packZip: PackZip;
 }
 
 const WEB_URL = /^https?:\/\//i;
@@ -45,7 +50,9 @@ export const createBridge = (target: Window = window): PluginBridge => {
         if (!message || !waiting) return;
         pending.delete(message.requestId);
         if (message.error) waiting.reject(new Error(message.error));
-        else waiting.resolve(message.type === 'export:result' ? message.report : message.value);
+        else if (message.type === 'export:result') waiting.resolve(message.report);
+        else if (message.type === 'zip:result') waiting.resolve(message.bytes);
+        else waiting.resolve(message.value);
     });
 
     return {
@@ -58,5 +65,6 @@ export const createBridge = (target: Window = window): PluginBridge => {
         },
         openExternal: (url) => post({ type: 'open-external', url }),
         applyExport: (plan) => request<ExportReport>((requestId) => ({ type: 'export:apply', requestId, plan })),
+        packZip: (files) => request<Uint8Array>((requestId) => ({ type: 'zip:pack', requestId, files })),
     };
 };

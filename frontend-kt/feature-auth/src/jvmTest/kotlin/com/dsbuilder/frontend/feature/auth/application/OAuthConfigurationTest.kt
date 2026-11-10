@@ -73,6 +73,26 @@ class OAuthConfigurationTest {
     }
 
     @Test
+    fun figmaPluginAsksConsentAndHasBoundedOfflineSession() {
+        val realm = Json.parseToJsonElement(File(identity, "keycloak/dsbuilder-realm.json").readText()).jsonObject
+        val plugin = realm.getValue("clients").jsonArray.map { it.jsonObject }
+            .single { it.getValue("clientId").jsonPrimitive.content == "dsbuilder-figma-plugin" }
+        assertEquals("true", plugin.getValue("consentRequired").jsonPrimitive.content)
+        val attributes = plugin.getValue("attributes").jsonObject
+        assertEquals("2592000", attributes["client.offline.session.idle.timeout"]?.jsonPrimitive?.content)
+        assertEquals("7776000", attributes["client.offline.session.max.lifespan"]?.jsonPrimitive?.content)
+        assertEquals("true", realm.getValue("offlineSessionMaxLifespanEnabled").jsonPrimitive.content)
+        assertEquals("7776000", realm.getValue("offlineSessionMaxLifespan").jsonPrimitive.content)
+        val bootstrap = File(identity, "keycloak/bootstrap-production-keycloak.sh").readText()
+        // Блок плагина заканчивается перед поиском клиента сервиса проектов.
+        val figmaSettings = bootstrap.substringAfter("figma_plugin_client_id=").substringBefore("projects_client_uuid=")
+        assertTrue(figmaSettings.length < bootstrap.length / 2)
+        assertEquals(2, Regex("consentRequired=true").findAll(figmaSettings).count())
+        assertEquals(2, Regex("client\\.offline\\.session\\.max\\.lifespan").findAll(figmaSettings).count())
+        assertTrue(figmaSettings.contains("offlineSessionMaxLifespanEnabled=true"))
+    }
+
+    @Test
     fun localAndProductionGatewayKeepTokenLogoutAndRealmEndpoints() {
         for (name in listOf("nginx.local.conf", "nginx.prod.conf.template")) {
             val config = File(identity, "gateway/$name").readText()
