@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { zip, type ArchiveFile } from '../../shared/zip';
+import { FIGMA_EDITOR, PIXSO_EDITOR } from '../../shared/editor';
 import type { ExportCounts, ExportPlan, ExportReport } from '../../shared/exportPlan';
 import type { StorageKey } from '../../shared/messages';
 import { App } from '../App';
@@ -101,6 +102,7 @@ const createBridge = (initial: Partial<Record<StorageKey, string>> = { 'refresh-
         openExternal: vi.fn(),
         applyExport: vi.fn(async () => exportReport()),
         packZip: vi.fn(async (files: ArchiveFile[]) => zip(files)),
+        editor: vi.fn(async () => FIGMA_EDITOR),
     };
     return { bridge, values };
 };
@@ -534,6 +536,7 @@ describe('экспорт в Figma', () => {
             'v2',
             'Default',
             'web',
+            true,
         );
         expect(bridge.applyExport).toHaveBeenCalledWith(exportPlan);
         expect(report).toHaveTextContent('Тема «Default», версия 1.1.0, Web');
@@ -558,6 +561,33 @@ describe('экспорт в Figma', () => {
             'Не найдены шрифты: SB Sans Display. Установите их на компьютер и повторите экспорт',
         );
         expect(screen.queryByTestId('font-files')).toBeNull();
+    });
+
+    it('не даёт экспортировать, пока основной поток не назвал редактор', async () => {
+        const { bridge } = createBridge();
+        vi.mocked(bridge.editor).mockReturnValue(new Promise(() => undefined));
+        mount({ bridge });
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        expect(screen.getByRole('button', { name: 'Экспортировать в Figma' })).toBeDisabled();
+    });
+
+    it('в Pixso называет свой редактор и не советует установщик шрифтов Figma', async () => {
+        const { bridge } = createBridge();
+        vi.mocked(bridge.editor).mockResolvedValue(PIXSO_EDITOR);
+        vi.mocked(bridge.applyExport).mockResolvedValueOnce(exportReport({ missingFonts: ['SB Sans Display'] }));
+        const { api } = mount({ bridge });
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Экспортировать в Pixso' }));
+
+        const hint = await screen.findByTestId('missing-fonts');
+        expect(hint).toHaveTextContent('Установите их на компьютер и повторите экспорт. Переменные типографики');
+        expect(hint).not.toHaveTextContent('Figma');
+        // Pixso не привязывает стопы: план строится с парами стилей градиентов.
+        expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), 'v2', 'Default', 'web', false);
     });
 
     it('показывает созданное с оговоркой отдельно от пропусков', async () => {
@@ -656,7 +686,7 @@ describe('экспорт в Figma', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
 
         expect(await screen.findByTestId('export-report')).toHaveTextContent('версия 1.1.0, iOS');
-        expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), 'v2', 'Default', 'ios');
+        expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), 'v2', 'Default', 'ios', true);
     });
 
     it('экспортирует черновик без `versionId`', async () => {
@@ -667,7 +697,9 @@ describe('экспорт в Figma', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
 
-        await waitFor(() => expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), null, 'Default', 'web'));
+        await waitFor(() =>
+            expect(api.exportPlan).toHaveBeenCalledWith(expect.anything(), null, 'Default', 'web', true),
+        );
         expect(await screen.findByTestId('export-report')).toHaveTextContent('черновик');
     });
 

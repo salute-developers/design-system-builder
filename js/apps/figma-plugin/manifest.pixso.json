@@ -1,0 +1,7 @@
+{
+    "name": "DS Builder Tokens",
+    "id": "dsbuilder-tokens",
+    "main": "code.js",
+    "ui": "ui.html",
+    "editorType": ["pixso"]
+}

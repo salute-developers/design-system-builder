@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { ExportCounts, ExportPlatform, ExportReport } from '../../shared/exportPlan';
 import type { ApplyExport, PackZip } from '../bridge';
 import { copyText } from '../clipboard';
+import { FIGMA_EDITOR } from '../../shared/editor';
+import { useEditor } from '../editor';
 import { ApiError, type DsBuilderApi, type TenantContext } from '../core/pluginCore';
 import { FontArchiveButton } from '../fonts/FontArchiveButton';
 import type { TypographyScreenId } from '../api/types';
@@ -232,12 +234,14 @@ const ExportResult = ({
     onClose,
     loadFont,
     packZip,
+    editorName,
 }: {
     report: ExportReport;
     version: string;
     onClose: () => void;
     loadFont: (url: string) => Promise<Uint8Array>;
     packZip: PackZip;
+    editorName: string;
 }) => (
     <section className="export-report" data-testid="export-report" aria-label="Отчёт экспорта">
         <header>
@@ -275,9 +279,11 @@ const ExportResult = ({
         </table>
         {report.missingFonts.length > 0 && (
             <p className="export-fonts" data-testid="missing-fonts">
-                Не найдены шрифты: {report.missingFonts.join(', ')}. Установите их на компьютер и повторите экспорт:
-                Figma desktop видит шрифты, установленные в системе (в браузере нужен Figma Font Installer). Переменные
-                типографики уже созданы, текстовые стили появятся после повторного экспорта.
+                Не найдены шрифты: {report.missingFonts.join(', ')}. Установите их на компьютер и повторите экспорт
+                {editorName === 'Figma'
+                    ? ': Figma desktop видит шрифты, установленные в системе (в браузере нужен Figma Font Installer).'
+                    : '.'}{' '}
+                Переменные типографики уже созданы, текстовые стили появятся после повторного экспорта.
             </p>
         )}
         {report.fontFiles.length > 0 && (
@@ -293,7 +299,7 @@ const errorText = (error: unknown) => {
     return error instanceof Error ? error.message : String(error);
 };
 
-/** Экспорт выбранной темы и версии в переменные и стили открытого файла Figma. */
+/** Экспорт выбранной темы и версии в переменные и стили открытого файла редактора. */
 const PLATFORMS: Record<ExportPlatform, string> = { web: 'Web', ios: 'iOS', android: 'Android' };
 
 const ExportPanel = ({
@@ -315,6 +321,7 @@ const ExportPanel = ({
     packZip: PackZip;
 }) => {
     const [result, setResult] = useState<ExportState>({ state: 'idle' });
+    const editorName = useEditor()?.name ?? FIGMA_EDITOR.name;
     // В файле одна платформа: повторный экспорт с другой платформой перезаписывает значения тех же переменных.
     const [platform, setPlatform] = useState<ExportPlatform>('web');
     useEffect(() => {
@@ -350,7 +357,7 @@ const ExportPanel = ({
                 ))}
             </div>
             <button type="button" disabled={!run || result.state === 'running'} onClick={start}>
-                {result.state === 'running' ? 'Экспортируем…' : 'Экспортировать в Figma'}
+                {result.state === 'running' ? 'Экспортируем…' : `Экспортировать в ${editorName}`}
             </button>
             {result.state === 'done' && (
                 <ExportResult
@@ -359,6 +366,7 @@ const ExportPanel = ({
                     onClose={() => setResult({ state: 'idle' })}
                     loadFont={loadFont}
                     packZip={packZip}
+                    editorName={editorName}
                 />
             )}
             {result.state === 'failed' && (
@@ -450,10 +458,20 @@ export const TokensView = ({
                       ? versions.resource.data.find((version) => version.id === versionId)?.version
                       : undefined) ?? ''
               }`;
-    const runExport = versionId
-        ? async (platform: ExportPlatform) =>
-              applyExport(await api.exportPlan(context, versionId === DRAFT ? null : versionId, themeName, platform))
-        : null;
+    const editor = useEditor();
+    const runExport =
+        versionId && editor
+            ? async (platform: ExportPlatform) =>
+                  applyExport(
+                      await api.exportPlan(
+                          context,
+                          versionId === DRAFT ? null : versionId,
+                          themeName,
+                          platform,
+                          editor.gradientStopBindings,
+                      ),
+                  )
+            : null;
 
     const snapshotView = missing
         ? { ...snapshot, resource: { state: 'failed', error: new Error('Этой темы нет в выбранной версии.') } as const }

@@ -111,9 +111,16 @@ public class DsBuilderCore(gatewayUrl: String, clientId: String, realm: String, 
         versionId: String?,
         themeName: String,
         platform: String,
+        bindGradientStops: Boolean,
         signal: CoreSignal?,
     ): Promise<String> = run(signal) {
-        runtime.exportPlan(ThemeContext(projectId, designSystemId, tenantId), versionId, themeName, platform)
+        runtime.exportPlan(
+            ThemeContext(projectId, designSystemId, tenantId),
+            versionId,
+            themeName,
+            platform,
+            bindGradientStops,
+        )
     }
 
     /** Байты файла по публичной ссылке `https`, например файла шрифта: окно собирает из них архив. */

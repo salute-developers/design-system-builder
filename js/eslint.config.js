@@ -8,6 +8,7 @@ export default [
             'cli/.sdds/**',
             'cli/output/**',
             '**/dist/**',
+            'apps/figma-plugin/dist-pixso/**',
             'apps/figma-plugin/src/ui/core/generated/**',
             '**/coverage/**',
             '**/test-results/**',

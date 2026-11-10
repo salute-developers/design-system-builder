@@ -191,7 +191,13 @@ internal class CoreRuntime(
     }
 
     /** План экспорта темы в Figma: все разделы читаются на одной границе версии, затем строится план. */
-    suspend fun exportPlan(context: ThemeContext, versionId: String?, themeName: String, platform: String): String {
+    suspend fun exportPlan(
+        context: ThemeContext,
+        versionId: String?,
+        themeName: String,
+        platform: String,
+        bindGradientStops: Boolean = true,
+    ): String {
         val source = read { probe, credential ->
             HttpThemeTokensClient(probe)
                 .exportSource(gatewayUrl, credential, context, versionId, listOf(platform, WEB).distinct())
@@ -199,7 +205,14 @@ internal class CoreRuntime(
         }
         return buildPlan(
             source,
-            ExportThemeInfo(themeName, context.tenantId, versionId, context.designSystemId, platform),
+            ExportThemeInfo(
+                themeName,
+                context.tenantId,
+                versionId,
+                context.designSystemId,
+                platform,
+                bindGradientStops,
+            ),
         )
     }
 

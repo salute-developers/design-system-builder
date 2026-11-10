@@ -21,8 +21,10 @@ class FigmaExportPlannerEdgeTest {
         ]
     """.trimIndent()
 
-    private fun plan(json: String): FigmaExportPlan =
-        FigmaExportPlanner.plan(Json.parseToJsonElement(json).jsonObject, ExportThemeInfo("T", "t", null))
+    private fun plan(json: String, bindGradientStops: Boolean = true): FigmaExportPlan = FigmaExportPlanner.plan(
+        Json.parseToJsonElement(json).jsonObject,
+        ExportThemeInfo("T", "t", null, bindGradientStops = bindGradientStops),
+    )
 
     private fun radiusNames(plan: FigmaExportPlan) =
         plan.collections.single { it.name == "04. Numbers" }.variables.map { it.name }
@@ -70,7 +72,7 @@ class FigmaExportPlannerEdgeTest {
                 PlanSkip("text.default.primary", "нет значений web"),
                 PlanSkip(
                     "text.default.primary",
-                    "имя Figma Text&Icons/Default/General/Primary уже занято токеном text.default.primary",
+                    "имя переменной Text&Icons/Default/General/Primary уже занято токеном text.default.primary",
                 ),
                 PlanSkip("text.default.broken", "не удалось разобрать градиент: radial-gradient(#000, #fff)"),
             ),
@@ -328,7 +330,7 @@ class FigmaExportPlannerEdgeTest {
         ]
     """.trimIndent()
 
-    private fun gradient(light: String, dark: String) = plan(
+    private fun gradient(light: String, dark: String, bindGradientStops: Boolean = true) = plan(
         """
         {"groups": $accentGroups,
          "tokens": [
@@ -340,7 +342,38 @@ class FigmaExportPlannerEdgeTest {
            {"tokenId": "g", "platform": "web", "mode": "dark", "value": $dark}
          ]}
         """.trimIndent(),
+        bindGradientStops,
     )
+
+    @Test
+    fun editorWithoutStopBindingsGetsStylePairWithoutStopVariables() {
+        val plan = gradient(
+            """["#FFFFFF80", "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"]""",
+            """["#00000080", "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 99.688%)"]""",
+            bindGradientStops = false,
+        )
+
+        assertTrue(theme(plan).none { it.name.startsWith("GradientStops/") })
+        assertEquals(
+            listOf(
+                "Light/Surfaces/Default/Accent/Solid/AccentGradient",
+                "Dark/Surfaces/Default/Accent/Solid/AccentGradient",
+            ),
+            plan.paintStyles.map { it.name },
+        )
+        val dark = plan.paintStyles.last().paints[1] as PlanPaint.Linear
+        assertEquals(parseHex("#04C6C9FF"), dark.stops.last().second)
+        assertTrue(dark.keys.all { it == null })
+        assertEquals(
+            listOf(
+                PlanSkip(
+                    "Стили градиентов",
+                    "описаны парой стилей Light и Dark: 1. Редактор не привязывает стопы к переменным",
+                ),
+            ),
+            plan.notes,
+        )
+    }
 
     @Test
     fun gradientStopsBecomeThemeVariablesAndOneBoundStyle() {
@@ -367,6 +400,18 @@ class FigmaExportPlannerEdgeTest {
         // Сплошной слой и стопы уходят в JSON с ключами переменных.
         val json = style.toJson().toString()
         assertTrue("\"key\":\"gradient-stop:g:0\"" in json && "\"key\":\"gradient-stop:g:1:1\"" in json)
+    }
+
+    @Test
+    fun incompatibleGradientWithoutStopBindingsKeepsOnlyItsOwnReason() {
+        val plan = gradient(
+            """["linear-gradient(90deg, #000000 0%, #FFFFFF 100%)"]""",
+            """["linear-gradient(45deg, #000000 0%, #FFFFFF 100%)"]""",
+            bindGradientStops = false,
+        )
+
+        assertEquals(2, plan.paintStyles.size)
+        assertEquals(listOf("surface.default.accent-gradient"), plan.notes.map { it.name })
     }
 
     @Test

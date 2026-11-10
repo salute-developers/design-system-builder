@@ -10,7 +10,7 @@ For a public-facing overview see [README.md](README.md). **This file is for thin
 |---|---|---|---|
 | Client | [apps/client](apps/client/) | 3002 | React 18 + Vite + `@salutejs/plasma-*` |
 | CLI generator | [cli](cli/) | — | tsx, `@salutejs/plasma-new-hope` |
-| Figma plugin | [apps/figma-plugin](apps/figma-plugin/) | — | React + Vite, один HTML для Figma |
+| Figma plugin | [apps/figma-plugin](apps/figma-plugin/) | — | React + Vite, один HTML для Figma и Pixso |
 
 **Data flow:** `Client` → gateway (`http://localhost:8080`) → Kotlin `ds-service` (source of truth, [../backend-kt/ds-service](../backend-kt/ds-service/)). There is no Node.js service in `js/`: `db-service` was removed, its schema is owned by Flyway in `ds-service`. The npm package is generated locally by [cli](cli/) from `.sdds` data downloaded with `dsbuilder ds fetch`; the generator code lives in [cli/src/generator](cli/src/generator/).
 
