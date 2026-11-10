@@ -6,6 +6,7 @@ import com.dsbuilder.ds.components.domain.ComponentEditorPlatform
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
 import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
@@ -15,20 +16,20 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 
 /**
- * Регистрирует `GET /api/ds/design-systems/{designSystemId}/components/{componentId}/editor-bundle`:
+ * Регистрирует `GET /api/design-systems/{designSystemId}/components/{componentId}/editor-bundle`:
  * данные одного компонента для редактора одним запросом.
  *
  * `platform` обязателен (`web` или `compose`), иначе `400`; `versionId` выбирает опубликованную версию.
  */
 fun Route.componentEditorBundleRoutes(evaluator: PolicyEvaluator, bundle: GetComponentEditorBundleUseCase) {
-    route(dsRoutePath("/api/ds/design-systems")) {
+    route(dsRoutePath("/api/design-systems")) {
         get("/{designSystemId}/components/{componentId}/editor-bundle") {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             ) ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val designSystemId = call.parameters["designSystemId"].toUuidOrNull()
+            val designSystemId = call.dsPathDesignSystemId().toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
             val componentId = call.parameters["componentId"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_component_id"))

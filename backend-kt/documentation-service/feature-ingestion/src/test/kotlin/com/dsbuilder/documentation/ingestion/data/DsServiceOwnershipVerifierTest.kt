@@ -18,7 +18,7 @@ import kotlin.test.assertNull
 class DsServiceOwnershipVerifierTest {
     @Test fun `request uses internal URL and trusted headers without authorization`() = runBlocking {
         val engine = MockEngine { request ->
-            assertEquals("http://ds:8085/api/ds/design-systems/ds-1", request.url.toString())
+            assertEquals("http://ds:8085/api/design-systems/ds-1", request.url.toString())
             assertEquals("project-1", request.headers["X-Project-Id"])
             assertEquals("user-1", request.headers["X-User-Id"])
             assertNull(request.headers["Authorization"])

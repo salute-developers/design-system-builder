@@ -37,7 +37,7 @@ fun Route.propertyRoutes(
     update: UpdatePropertyUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/properties")) {
+    route(dsRoutePath("/api/design-systems/catalog/properties")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

@@ -10,6 +10,13 @@ interface TenantRepository {
     /** Performs the listaccessible operation. */
     suspend fun listAccessible(projectId: ProjectId): List<Tenant>
 
+    /** Возвращает страницу тем до вычисления их превью. */
+    suspend fun pageAccessible(
+        projectId: ProjectId,
+        read: com.dsbuilder.ds.core.application.ModelReadQuery,
+    ): com.dsbuilder.ds.core.application.ModelReadItems<Tenant> =
+        com.dsbuilder.ds.core.application.ModelReadItems(listAccessible(projectId))
+
     /** Performs the findaccessible operation. */
     suspend fun findAccessible(projectId: ProjectId, id: UUID): Tenant?
 

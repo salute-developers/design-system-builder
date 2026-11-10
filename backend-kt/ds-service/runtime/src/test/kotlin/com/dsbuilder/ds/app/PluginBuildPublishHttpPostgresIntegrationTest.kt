@@ -258,14 +258,14 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
 
     @Test
     fun `the publisher role opens nothing except the publication`() = withService {
-        val import = service.builder.client.post("/api/ds/admin/component-config/import-api-meta") {
+        val import = service.builder.client.post("/api/admin/component-config/import-api-meta") {
             actor(Actor.PUBLISHER)
             contentType(ContentType.Application.Json)
             setBody(metaBody())
         }
         assertEquals(HttpStatusCode.Forbidden, import.status)
         assertEquals(0, count("components"))
-        val publisherOnProjectRoute = service.builder.client.get("/api/ds/components") {
+        val publisherOnProjectRoute = service.builder.client.get("/api/design-systems/catalog/components") {
             header("X-Actor-Type", "user")
             header("X-User-Id", "compose-publisher")
             header("X-Project-Id", "project-a")
@@ -273,7 +273,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
             header("X-Compose-Preview-Publisher", "true")
         }
         assertEquals(HttpStatusCode.Forbidden, publisherOnProjectRoute.status)
-        val withProjectRole = service.builder.client.get("/api/ds/components") {
+        val withProjectRole = service.builder.client.get("/api/design-systems/catalog/components") {
             header("X-Actor-Type", "user")
             header("X-User-Id", "compose-publisher")
             header("X-Project-Id", "project-a")
@@ -504,8 +504,8 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     }
 
     private companion object {
-        const val PATH = "/api/ds/admin/compose-preview/plugin-builds"
-        const val ACTIVE = "/api/ds/compose-preview/plugin"
+        const val PATH = "/api/admin/compose-preview/plugin-builds"
+        const val ACTIVE = "/api/design-systems/catalog/compose-preview/plugin"
         const val PUBLIC_BASE = "https://plugins.example.test/compose-preview"
         const val COMMIT_A = "aaaaaaaaaaaa1111111111111111111111111111"
         const val COMMIT_B = "bbbbbbbbbbbb2222222222222222222222222222"

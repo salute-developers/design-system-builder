@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import YAML from 'yaml';
+import { serviceSources } from '../src/catalog.mjs';
 import { transformOpenApi } from '../src/openapi-transform.mjs';
 
 const servers = [{ url: '/targets/local', description: 'Local gateway' }];
@@ -14,26 +17,26 @@ test('rewrites every design-system path with one service prefix and projectId', 
   const document = {
     openapi: '3.0.3',
     paths: {
-      '/api/ds/design-systems': { get: { responses: { 200: { description: 'ok' } } } },
-      '/api/ds/themes': { post: { responses: { 201: { description: 'created' } } } },
+      '/api/design-systems': { get: { responses: { 200: { description: 'ok' } } } },
+      '/api/design-systems/themes': { post: { responses: { 201: { description: 'created' } } } },
     },
   };
   const result = transformOpenApi(document, {
     id: 'design-systems',
-    sourcePrefix: '/api/ds',
-    gatewayPrefix: '/api/projects/{projectId}/ds',
+    sourcePrefix: '/api/design-systems',
+    gatewayPrefix: '/api/projects/{projectId}/design-systems',
     requiresProjectId: true,
     requiresAuthentication: true,
   }, servers, { projectId: 'project-42' });
 
   assert.deepEqual(Object.keys(result.paths), [
-    '/api/projects/{projectId}/ds/design-systems',
-    '/api/projects/{projectId}/ds/themes',
+    '/api/projects/{projectId}/design-systems',
+    '/api/projects/{projectId}/design-systems/themes',
   ]);
-  assert.deepEqual(result.paths['/api/projects/{projectId}/ds/themes'].post.parameters, [{
+  assert.deepEqual(result.paths['/api/projects/{projectId}/design-systems/themes'].post.parameters, [{
     name: 'projectId', in: 'path', required: true, schema: { type: 'string', default: 'project-42' },
   }]);
-  assert.deepEqual(result.paths['/api/projects/{projectId}/ds/themes'].post.security, [{ GatewayOAuth: ['openid'] }]);
+  assert.deepEqual(result.paths['/api/projects/{projectId}/design-systems/themes'].post.security, [{ GatewayOAuth: ['openid'] }]);
   assert.equal(result.components.securitySchemes.GatewayOAuth.type, 'oauth2');
   assert.equal(result.components.securitySchemes.GatewayOAuth.flows.password.tokenUrl, 'auth/token');
   assert.equal(result.components.securitySchemes.GatewayOAuth.flows.password['x-scalar-credentials-location'], 'body');
@@ -67,19 +70,19 @@ test('applies a configured project default to referenced project parameters', ()
 test('leaves project-scoped parameters empty until a local project context is selected', () => {
   const document = {
     paths: {
-      '/api/ds/themes': { get: { responses: { 200: { description: 'ok' } } } },
+      '/api/design-systems/themes': { get: { responses: { 200: { description: 'ok' } } } },
     },
   };
   const result = transformOpenApi(document, {
     id: 'design-systems',
-    sourcePrefix: '/api/ds',
-    gatewayPrefix: '/api/projects/{projectId}/ds',
+    sourcePrefix: '/api/design-systems',
+    gatewayPrefix: '/api/projects/{projectId}/design-systems',
     requiresProjectId: true,
     requiresAuthentication: true,
   }, servers);
 
   assert.equal(
-    result.paths['/api/projects/{projectId}/ds/themes'].get.parameters[0].schema.default,
+    result.paths['/api/projects/{projectId}/design-systems/themes'].get.parameters[0].schema.default,
     '',
   );
 });
@@ -116,4 +119,22 @@ test('filters non-service paths and removes trusted headers from public operatio
   ]);
   assert.deepEqual(result.components.parameters, {});
   assert.deepEqual(result.paths['/api/projects'].get.security, [{ GatewayOAuth: ['openid'] }]);
+});
+
+
+test('transforms the actual ds-service document using the registered catalog descriptor', () => {
+  const descriptor = serviceSources.find(({ id }) => id === 'design-systems');
+  const source = YAML.parse(readFileSync(descriptor.specPath, 'utf8'));
+  const result = transformOpenApi(source, descriptor, servers);
+  const prefix = '/api/projects/{projectId}/design-systems';
+
+  assert.equal(descriptor.sourcePrefix, '/api/design-systems');
+  assert.ok(result.paths[`${prefix}/{designSystemId}/tokens`].get);
+  assert.ok(result.paths[`${prefix}/{designSystemId}/component-config/import`].post);
+  assert.ok(result.paths[`${prefix}/catalog/components`].get);
+  assert.ok(result.paths[`${prefix}/catalog/palette`].get);
+  assert.equal(Object.keys(result.paths).length, Object.keys(source.paths).filter(
+    (path) => path === descriptor.sourcePrefix || path.startsWith(`${descriptor.sourcePrefix}/`),
+  ).length);
+  assert.ok(Object.keys(result.paths).every((path) => path.startsWith(prefix) && !path.includes('/ds/')));
 });

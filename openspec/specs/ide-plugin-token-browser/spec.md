@@ -83,7 +83,7 @@
 #### Scenario: Просмотр токенов выбранной дизайн-системы
 
 - **WHEN** пользователь выбрал проект, дизайн-систему и tenant
-- **THEN** плагин запрашивает `GET /api/projects/{projectId}/ds/tokens` и `GET /api/projects/{projectId}/ds/token-values`
+- **THEN** плагин запрашивает `GET /api/projects/{projectId}/design-systems/{designSystemId}/tokens` и `GET /api/projects/{projectId}/design-systems/{designSystemId}/token-values`
 - **THEN** плагин показывает токены, сгруппированные по типу (`color`, `gradient`, `typography`, `spacing`, `shape`, `shadow`) во вкладках с поиском по имени токена внутри вкладки; тип `fontFamily` из просмотра исключён — его значение является именем шрифта и не несёт визуальной информации, полезной в этом UI
 
 #### Scenario: Значение токена подбирается под выбранную тему
@@ -164,7 +164,7 @@ UI плагина SHALL быть реализован на Compose Desktop, вс
 
 #### Scenario: У дизайн-системы один tenant
 
-- **WHEN** пользователь выбрал дизайн-систему, у которой ровно один tenant (`GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tenants`, use case `feature-theme`)
+- **WHEN** пользователь выбрал дизайн-систему, у которой ровно один tenant (`GET /api/projects/{projectId}/design-systems/{designSystemId}/tenants`, use case `feature-theme`)
 - **THEN** плагин выбирает этот tenant автоматически, не показывая отдельный шаг выбора
 
 #### Scenario: У дизайн-системы несколько tenant

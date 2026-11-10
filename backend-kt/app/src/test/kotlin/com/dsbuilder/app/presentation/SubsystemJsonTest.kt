@@ -29,11 +29,11 @@ class SubsystemJsonTest {
     fun `real HTTP plugins isolate project JSON from strict DS and documentation JSON`() = testApplication {
         application {
             installDsHttpPlugins(Json { explicitNulls = true }, DsMetrics(), ::cacheDsJsonBody)
-            configureDsPublicEntry("/api/projects/{projectId}/ds") { Headers.Empty }
+            configureDsPublicEntry("/api/projects/{projectId}/design-systems") { Headers.Empty }
             routing {
                 projectsPublicEntry().post("/api/projects") { call.respond(call.receive<Payload>()) }
-                post("/api/projects/{projectId}/ds/design-systems") { call.respond(call.receive<Payload>()) }
-                post("/api/projects/p/ds/probe") { call.respond(call.receive<Payload>()) }
+                post("/api/projects/{projectId}/design-systems") { call.respond(call.receive<Payload>()) }
+                post("/api/projects/p/design-systems/probe") { call.respond(call.receive<Payload>()) }
                 post("/api/projects/p/documentation/probe") { call.respond(call.receive<Payload>()) }
             }
         }
@@ -44,7 +44,7 @@ class SubsystemJsonTest {
         }
         assertEquals(HttpStatusCode.OK, project.status)
         assertEquals("""{"name":"probe"}""", project.bodyAsText())
-        for (path in listOf("/api/projects/p/ds/probe", "/api/projects/p/documentation/probe")) {
+        for (path in listOf("/api/projects/p/design-systems/probe", "/api/projects/p/documentation/probe")) {
             val strict = client.post(path) {
                 header("Content-Type", "application/json")
                 setBody(body)
@@ -52,7 +52,7 @@ class SubsystemJsonTest {
             assertEquals(HttpStatusCode.BadRequest, strict.status)
         }
         for (contentType in listOf("application/json", "Application/Json; Charset=UTF-8")) {
-            val invalid = client.post("/api/projects/p/ds/design-systems") {
+            val invalid = client.post("/api/projects/p/design-systems") {
                 header("Content-Type", contentType)
                 setBody("""{"name":42,"projectName":"alpha"}""")
             }

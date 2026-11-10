@@ -45,7 +45,7 @@ class HttpProjectAccessVerifierTest {
         val verifier = HttpProjectAccessVerifier(
             factory { request ->
                 requestedPaths += request.url.encodedPath
-                if (request.url.encodedPath.endsWith("/ds/design-systems/ds-a")) {
+                if (request.url.encodedPath.endsWith("/design-systems/ds-a")) {
                     HttpStatusCode.OK to """{"name":"DS A"}"""
                 } else {
                     HttpStatusCode.OK to """{"name":"Project A"}"""
@@ -59,7 +59,7 @@ class HttpProjectAccessVerifierTest {
         assertEquals("Project A", result.projectName)
         assertEquals("DS A", result.designSystemName)
         assertEquals(
-            listOf("/api/projects/project-a", "/api/projects/project-a/ds/design-systems/ds-a"),
+            listOf("/api/projects/project-a", "/api/projects/project-a/design-systems/ds-a"),
             requestedPaths,
         )
     }
@@ -80,7 +80,7 @@ class HttpProjectAccessVerifierTest {
     fun returnsFailedWhenDesignSystemRequestIsNotFound() = runTest {
         val verifier = HttpProjectAccessVerifier(
             factory { request ->
-                if (request.url.encodedPath.endsWith("/ds/design-systems/ds-a")) {
+                if (request.url.encodedPath.endsWith("/design-systems/ds-a")) {
                     HttpStatusCode.NotFound to "{}"
                 } else {
                     HttpStatusCode.OK to """{"name":"Project A"}"""

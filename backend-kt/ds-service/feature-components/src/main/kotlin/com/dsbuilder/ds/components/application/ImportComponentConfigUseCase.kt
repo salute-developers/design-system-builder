@@ -13,6 +13,7 @@ import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
 import com.dsbuilder.ds.core.application.RequestHash
 import com.dsbuilder.ds.core.application.TransactionRunner
+import com.dsbuilder.ds.core.application.scopedOperation
 
 /** Imports a package in one transaction, including dry-run rollback and change journaling. */
 class ImportComponentConfigUseCase(
@@ -49,11 +50,11 @@ class ImportComponentConfigUseCase(
             }
         }
         if (command.dryRun) {
-            transactions.rollback(execute)
+            transactions.rollback(context, execute)
         } else {
             transactions.required(context) {
                 if (idempotencyKey.isNullOrBlank()) return@required execute()
-                val operation = "import-component-config"
+                val operation = context.scopedOperation("import-component-config")
                 val hash = RequestHash.canonical(command)
                 when (val previous = repeatedRequests.lookup(context.projectId, idempotencyKey, operation, hash)) {
                     IdempotentRequestLookup.PayloadMismatch ->

@@ -5,7 +5,7 @@ import { apiRequest } from '../../../shared/data/apiRequest';
 import type { DesignSystem, DesignSystemTokenDefinition } from '../domain/designSystem';
 
 const projectPath = (suffix = '') => `/api/projects${suffix}`;
-const dsPath = (projectId: string, suffix: string) => projectPath(`/${projectId}/ds${suffix}`);
+const dsPath = (projectId: string, suffix: string) => projectPath(`/${projectId}${suffix}`);
 
 const changed = async <T>(projectId: string, operation: () => Promise<{ data: T }>, id?: string) => {
     const value = await apiRequest<T>(operation);

@@ -188,12 +188,9 @@ import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemDraftCursorUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemVersionUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemAppearancesUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemComponentStylesUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemComponentsUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemTenantsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemTokensUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemVersionsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.ListVersionsByDesignSystemUseCase
@@ -237,7 +234,6 @@ import com.dsbuilder.ds.tokens.application.GetTokenValuesUseCase
 import com.dsbuilder.ds.tokens.application.ListPaletteByTypeUseCase
 import com.dsbuilder.ds.tokens.application.ListPaletteUseCase
 import com.dsbuilder.ds.tokens.application.ListTokenValuesUseCase
-import com.dsbuilder.ds.tokens.application.ListTokensUseCase
 import com.dsbuilder.ds.tokens.application.UpdatePaletteEntryUseCase
 import com.dsbuilder.ds.tokens.application.UpdateTokenUseCase
 import com.dsbuilder.ds.tokens.application.UpdateTokenValueUseCase
@@ -254,6 +250,7 @@ import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.NotFoundException
 import io.ktor.server.plugins.callid.CallId
 import io.ktor.server.plugins.callid.callId
 import io.ktor.server.plugins.callid.callIdMdc
@@ -288,7 +285,7 @@ fun Application.module(
     configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment(),
     pluginStorages: Map<PreviewPluginPlatform, PluginBuildStorage> = emptyMap(),
 ) {
-    com.dsbuilder.ds.core.presentation.configureDsLegacyEntry(this)
+    com.dsbuilder.ds.core.presentation.configureDsServiceEntry(this)
     val runtime = createDsRuntime(configuration)
     monitor.subscribe(ApplicationStopped) {
         runtime.close()
@@ -399,6 +396,13 @@ private fun Application.installDsErrorPages(json: Json, validationErrors: Legacy
     install(StatusPages) {
         exception<IdempotentReplayException> { call, cause ->
             call.respondIdempotentReplay(cause.response)
+        }
+        exception<NotFoundException> { call, _ ->
+            call.respondText(
+                json.encodeToString(ErrorResponse.serializer(), ErrorResponse("Not found")),
+                ContentType.Application.Json,
+                HttpStatusCode.NotFound,
+            )
         }
         exception<BadRequestException> { call, cause ->
             call.markDsFailureOutcome("invalid_request")
@@ -696,13 +700,10 @@ private fun Route.registerDesignSystemFeature(runtime: DsRuntime, json: Json, ko
         koin.get<ListDesignSystemComponentsUseCase>(),
         koin.get<ListDesignSystemTokensUseCase>(),
         koin.get<ListDesignSystemComponentStylesUseCase>(),
-        koin.get<ListDesignSystemTenantsUseCase>(),
-        koin.get<ListDesignSystemAppearancesUseCase>(),
         json,
     )
     designSystemVersionRoutes(
         runtime.evaluator,
-        koin.get<ListDesignSystemVersionsUseCase>(),
         koin.get<GetDesignSystemVersionUseCase>(),
         koin.get<ListVersionsByDesignSystemUseCase>(),
         koin.get<CreateDesignSystemVersionUseCase>(),
@@ -745,7 +746,6 @@ private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Ko
 private fun Route.registerTokensFeature(runtime: DsRuntime, json: Json, koin: Koin) {
     tokenRoutes(
         runtime.evaluator,
-        koin.get<ListTokensUseCase>(),
         koin.get<GetTokenUseCase>(),
         koin.get<CreateTokenUseCase>(),
         koin.get<UpdateTokenUseCase>(),

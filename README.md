@@ -1,4 +1,4 @@
-# Design System Builder
+   # Design System Builder
 
 Монорепозиторий DS Builder объединяет текущую JavaScript/TypeScript реализацию и новую Kotlin-архитектуру.
 

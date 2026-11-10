@@ -31,11 +31,11 @@ import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * Регистрирует операции раздела «Отступы, радиусы и тени» `/api/ds/tenants/{tenantId}/size-tokens`. Чтение
+ * Регистрирует операции раздела «Отступы, радиусы и тени» `/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens`. Чтение
  * принимает `versionId`; мутации пишут предметные редакции и отдают их в `X-DS-Mutation-Metadata`.
  */
 fun Route.sizeTokenRoutes(evaluator: PolicyEvaluator, useCases: SizeTokenUseCases) {
-    route(dsRoutePath("/api/ds/tenants/{tenantId}/size-tokens")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens")) {
         sizeTokenReadRoute(evaluator, useCases)
         sizeTokenCreateRoute(evaluator, useCases)
         sizeTokenUpdateRoute(evaluator, useCases)

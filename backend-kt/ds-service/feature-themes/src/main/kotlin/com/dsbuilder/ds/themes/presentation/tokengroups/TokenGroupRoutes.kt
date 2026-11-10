@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
 import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
@@ -31,9 +32,9 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /** Регистрирует список групп токенов дизайн-системы и операции над ними в теме. */
 fun Route.tokenGroupRoutes(evaluator: PolicyEvaluator, useCases: TokenGroupUseCases) {
-    get(dsRoutePath("/api/ds/design-systems/{designSystemId}/token-groups")) {
+    get(dsRoutePath("/api/design-systems/{designSystemId}/token-groups")) {
         val context = call.modelReadContext(evaluator) ?: return@get
-        val designSystemId = uuid(call.parameters["designSystemId"])
+        val designSystemId = uuid(call.dsPathDesignSystemId())
             ?: return@get call.respondFailure(invalidId("дизайн-системы"))
         val kind = call.groupKind() ?: return@get
         when (val result = useCases.list.execute(context, designSystemId, kind)) {
@@ -41,7 +42,7 @@ fun Route.tokenGroupRoutes(evaluator: PolicyEvaluator, useCases: TokenGroupUseCa
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }
-    route(dsRoutePath("/api/ds/tenants/{tenantId}/token-groups")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tenants/{tenantId}/token-groups")) {
         post {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
             val command = call.body<CreateTokenGroupRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)

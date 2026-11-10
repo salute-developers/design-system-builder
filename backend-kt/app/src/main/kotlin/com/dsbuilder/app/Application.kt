@@ -105,7 +105,7 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
         )
         install(RequestBodyLimit)
         configureDsBodyConsumption { it.pluginPublicationBodyConsumed() }
-        configureDsPublicEntry("/api/projects/{projectId}/ds") { it.verifiedRequestHeaders() }
+        configureDsPublicEntry("/api/projects/{projectId}/design-systems") { it.verifiedRequestHeaders() }
         configureProjectsPublicEntry("/projects") { it.verifiedRequestHeaders() }
         val documentationPrefix = "/api/projects/{projectId}/documentation"
         configureIngestionPublicEntry(documentationPrefix) { it.verifiedRequestHeaders() }

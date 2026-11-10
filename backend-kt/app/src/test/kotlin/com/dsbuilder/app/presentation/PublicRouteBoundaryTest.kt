@@ -21,13 +21,17 @@ class PublicRouteBoundaryTest {
     @Test
     fun `DS route requires explicit entry and preserves a verified context`() = testApplication {
         application {
-            routing { assertFailsWith<IllegalStateException> { dsRoutePath("/api/ds/probe") } }
-            configureDsPublicEntry("/api/projects/{projectId}/ds") { Headers.build { append("X-User-Id", "verified") } }
+            routing { assertFailsWith<IllegalStateException> { dsRoutePath("/api/design-systems/probe") } }
+            configureDsPublicEntry(
+                "/api/projects/{projectId}/design-systems",
+            ) { Headers.build { append("X-User-Id", "verified") } }
             routing {
-                get(dsRoutePath("/api/ds/probe")) { call.respondText(call.dsTrustedHeaders()["X-User-Id"].orEmpty()) }
+                get(
+                    dsRoutePath("/api/design-systems/probe"),
+                ) { call.respondText(call.dsTrustedHeaders()["X-User-Id"].orEmpty()) }
             }
         }
-        assertEquals("verified", client.get("/api/projects/p/ds/probe").bodyAsText())
+        assertEquals("verified", client.get("/api/projects/p/design-systems/probe").bodyAsText())
     }
 
     @Test
@@ -42,7 +46,7 @@ class PublicRouteBoundaryTest {
             routing {
                 get("/health") {}
                 projectsPublicEntry().get("/api/projects") {}
-                route("/api/projects/{projectId}/ds") { get("/tenants/{tenantId}/size-tokens") {} }
+                route("/api/projects/{projectId}/design-systems") { get("/tenants/{tenantId}/size-tokens") {} }
                 route("/{path...}") { handle {} }
                 requirePublicRoutes(this)
                 get("/api/ds/tenants/{tenantId}/size-tokens") {}

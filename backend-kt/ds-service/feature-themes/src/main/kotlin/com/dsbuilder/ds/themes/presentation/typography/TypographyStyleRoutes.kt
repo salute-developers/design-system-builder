@@ -33,18 +33,18 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Регистрирует чтение, изменение, создание, переименование и удаление стилей типографии
- * `/api/ds/tenants/{tenantId}/typography-styles`, переименование и удаление своих групп
- * `/api/ds/tenants/{tenantId}/typography-groups/{group}`.
+ * `/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-styles`, переименование и удаление своих групп
+ * `/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-groups/{group}`.
  */
 fun Route.typographyStyleRoutes(evaluator: PolicyEvaluator, useCases: TypographyStyleUseCases) {
-    route(dsRoutePath("/api/ds/tenants/{tenantId}/typography-styles")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-styles")) {
         typographyReadRoute(evaluator, useCases)
         typographyCreateRoute(evaluator, useCases)
         typographyRenameRoute(evaluator, useCases)
         typographyDeleteRoute(evaluator, useCases)
         typographyUpdateRoute(evaluator, useCases)
     }
-    route(dsRoutePath("/api/ds/tenants/{tenantId}/typography-groups/{group}")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-groups/{group}")) {
         typographyGroupRenameRoute(evaluator, useCases)
         typographyGroupDeleteRoute(evaluator, useCases)
     }

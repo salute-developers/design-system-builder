@@ -62,7 +62,7 @@ private fun Route.pluginBuildPublishRoute(
     publish: PublishPluginBuildUseCase,
     maxArchiveBytes: Long,
 ) {
-    route(dsRoutePath("/api/ds/admin/${platform.routeSegment}")) {
+    route(dsRoutePath("/api/admin/${platform.routeSegment}")) {
         post("/plugin-builds") {
             val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
@@ -127,7 +127,7 @@ private suspend fun ApplicationCall.readPluginUpload(maxArchiveBytes: Long): Plu
 /** Выдача адреса активного билда плагина участнику проекта: по маршруту на платформу. */
 fun Route.activePluginBuildRoutes(evaluator: PolicyEvaluator, active: GetActivePluginBuildUseCase) {
     PreviewPluginPlatform.entries.forEach { platform ->
-        route(dsRoutePath("/api/ds/${platform.routeSegment}")) {
+        route(dsRoutePath("/api/design-systems/catalog/${platform.routeSegment}")) {
             get("/plugin") {
                 // `versionId` намеренно не передаётся: активный билд не зависит от версии дизайн-системы.
                 val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)

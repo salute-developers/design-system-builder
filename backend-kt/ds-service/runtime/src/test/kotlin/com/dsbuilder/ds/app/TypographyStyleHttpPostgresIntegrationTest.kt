@@ -46,17 +46,17 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 // Компоненты дизайн-системы сидятся при её создании, поэтому каталог загружается раньше.
                 ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                 val designSystemId = api.create(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
-                val base = "/api/ds/tenants/$tenantA/typography-styles"
+                val base = "/api/design-systems/$designSystemId/tenants/$tenantA/typography-styles"
 
                 // Компоненты другой дизайн-системы со ссылками на те же стили в использование не попадают.
                 val otherSystem = api.create(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     OWNER,
                     """{"name":"beta","projectName":"beta"}""",
                 )
@@ -165,7 +165,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
         api.reject("POST", base, OWNER, """{"group":"caption","size":"promo-title"}""", 201)
         var read = api.read(base, VIEWER)
         assertTrue(hasStyle(read, "caption", "promo-title"))
-        val groups = "/api/ds/tenants/${base.split('/')[4]}/typography-groups"
+        val groups = "${base.substringBeforeLast('/')}/typography-groups"
         api.reject("PATCH", "$groups/body", EDITOR, """{"name":"copy"}""", 400)
         api.reject("PATCH", "$groups/caption", EDITOR, """{"name":"body"}""", 409)
         api.reject("PATCH", "$groups/caption", EDITOR, """{"name":"note"}""", 200)
@@ -442,16 +442,16 @@ class TypographyStyleHttpPostgresIntegrationTest {
         }
 
         suspend fun createTenant(designSystemId: String, name: String) =
-            create("/api/ds/tenants", EDITOR, """{"designSystemId":"$designSystemId","name":"$name"}""")
+            create("/api/design-systems/$designSystemId/tenants", EDITOR, """{"name":"$name"}""")
 
         suspend fun publish(designSystemId: String): String {
-            val system = read("/api/ds/design-systems/$designSystemId", VIEWER)
-            val response = client.request("/api/ds/design-system-versions") {
+            val system = read("/api/design-systems/$designSystemId", VIEWER)
+            val response = client.request("/api/design-systems/$designSystemId/versions") {
                 method = HttpMethod.Post
                 trusted(OWNER)
                 header("Idempotency-Key", UUID.randomUUID().toString())
                 jsonBody(
-                    """{"designSystemId":"$designSystemId","draftId":"${system.text("draftId")}",""" +
+                    """{"draftId":"${system.text("draftId")}",""" +
                         """"draftRevision":${system.number("draftRevision")},""" +
                         """"version":"1.0.0","changelog":"Typography"}""",
                 )
@@ -461,13 +461,13 @@ class TypographyStyleHttpPostgresIntegrationTest {
         }
 
         suspend fun changes(designSystemId: String): JsonArray {
-            val response = call("GET", "/api/ds/design-systems/$designSystemId/changes", VIEWER)
+            val response = call("GET", "/api/design-systems/$designSystemId/changes", VIEWER)
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
             return body(response).jsonArray
         }
 
         suspend fun revert(designSystemId: String, changeId: String, revision: Long) {
-            val response = client.request("/api/ds/design-systems/$designSystemId/changes/$changeId/revert") {
+            val response = client.request("/api/design-systems/$designSystemId/changes/$changeId/revert") {
                 method = HttpMethod.Post
                 trusted(OWNER)
                 header("X-DS-Base-Revision", revision.toString())

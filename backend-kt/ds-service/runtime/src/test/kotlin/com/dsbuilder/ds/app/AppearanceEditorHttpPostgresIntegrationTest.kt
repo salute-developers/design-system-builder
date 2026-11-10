@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import com.dsbuilder.authorization.ProjectActorType
@@ -44,6 +46,7 @@ import kotlin.test.assertTrue
 /** Операции редактора оформления: модель, оси, значения свойств, состояния, ссылки и конфигурации. */
 @Suppress("LargeClass", "TooManyFunctions")
 class AppearanceEditorHttpPostgresIntegrationTest {
+    private lateinit var selectedDesignSystemId: String
     private val json = Json { ignoreUnknownKeys = true }
 
     // ── модель и переименование ────────────────────────────────────────────────────────────────────
@@ -69,22 +72,22 @@ class AppearanceEditorHttpPostgresIntegrationTest {
             setValue(fixture.appearance, background, listOf(sizeStyle), value = "blue").status,
         )
 
-        val list = get("/api/ds/appearances?designSystemId=${fixture.ds}&componentId=${fixture.component}")
+        val list = get("/api/design-systems/${fixture.ds}/appearances?componentId=${fixture.component}")
         assertEquals(HttpStatusCode.OK, list.status, list.bodyAsText())
         assertEquals(
             fixture.appearance,
             json.parseToJsonElement(list.bodyAsText()).jsonObject
                 .getValue("items").jsonArray.single().jsonObject.string("id"),
         )
-        val unfiltered = get("/api/ds/appearances")
+        val unfiltered = get("/api/design-systems/${fixture.ds}/appearances")
         assertEquals(HttpStatusCode.OK, unfiltered.status, unfiltered.bodyAsText())
         assertTrue(json.parseToJsonElement(unfiltered.bodyAsText()).jsonArray.isNotEmpty())
         assertEquals(
-            HttpStatusCode.BadRequest,
-            get("/api/ds/appearances?componentId=${fixture.component}").status,
+            list.bodyAsText(),
+            get("/api/design-systems/${fixture.ds}/appearances?componentId=${fixture.component}").bodyAsText(),
         )
 
-        val url = "/api/ds/appearances/${fixture.appearance}/resolved-properties"
+        val url = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/resolved-properties"
         val base = get(url)
         assertEquals(HttpStatusCode.OK, base.status, base.bodyAsText())
         assertEquals("24", resolvedValue(base, height))
@@ -115,8 +118,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val fill = property("fill", "color")
         val token = id(
             post(
-                "/api/ds/tokens",
-                """{"designSystemId":"${fixture.ds}","name":"surface","type":"color"}""",
+                "/api/design-systems/${fixture.ds}/tokens",
+                """{"name":"surface","type":"color"}""",
             ).bodyAsText(),
         )
         val editor = model(fixture.appearance)
@@ -124,7 +127,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, fill, listOf(style), token = token).status)
         val viewValue = valueOf(editor, "view", "default")
         val sizeValue = valueOf(editor, "size", "a")
-        val url = "/api/ds/appearances/${fixture.appearance}/token-references"
+        val url = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/token-references"
         assertEquals(HttpStatusCode.BadRequest, get("$url?selectedValueId=$sizeValue").status)
         val complete = get("$url?selectedValueId=$viewValue&selectedValueId=$sizeValue")
         assertEquals(HttpStatusCode.OK, complete.status, complete.bodyAsText())
@@ -138,8 +141,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         publish(fixture.ds)
         val replacement = id(
             post(
-                "/api/ds/tokens",
-                """{"designSystemId":"${fixture.ds}","name":"surface-new","type":"color"}""",
+                "/api/design-systems/${fixture.ds}/tokens",
+                """{"name":"surface-new","type":"color"}""",
             ).bodyAsText(),
         )
         assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, fill, listOf(style), token = replacement).status)
@@ -159,15 +162,15 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val oldToken =
             id(
                 post(
-                    "/api/ds/tokens",
-                    """{"designSystemId":"${fixture.ds}","name":"old","type":"color"}""",
+                    "/api/design-systems/${fixture.ds}/tokens",
+                    """{"name":"old","type":"color"}""",
                 ).bodyAsText(),
             )
         val newToken =
             id(
                 post(
-                    "/api/ds/tokens",
-                    """{"designSystemId":"${fixture.ds}","name":"new","type":"color"}""",
+                    "/api/design-systems/${fixture.ds}/tokens",
+                    """{"name":"new","type":"color"}""",
                 ).bodyAsText(),
             )
         val editor = model(fixture.appearance)
@@ -210,7 +213,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
             assertEquals(
                 HttpStatusCode.OK,
                 post(
-                    "/api/ds/appearances/${fixture.appearance}/axis-order",
+                    "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axis-order",
                     """{"axisIds":["$sizeAxis","$viewAxis"]}""",
                 ).status,
             )
@@ -232,7 +235,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals("blue", snapshot.values.single { it.propertyId.toString() == background }.value)
         assertEquals(oldToken, snapshot.values.single { it.propertyId.toString() == fill }.tokenId.toString())
         val current = get(
-            "/api/ds/appearances/${fixture.appearance}/resolved-properties" +
+            "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/resolved-properties" +
                 "?selectedValueId=${selectedIds[0]}&selectedValueId=${selectedIds[1]}",
         )
         assertEquals("40", resolvedValue(current, height))
@@ -268,7 +271,12 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val fixture = fixture()
         val copy = duplicate(fixture.appearance, "Button copy")
         val size = axisOf(model(fixture.appearance), "size")
-        val renamed = patch("/api/ds/appearance-variations/$size", """{"displayName":"scale"}""", base = 0)
+        val renamed =
+            patch(
+                "/api/design-systems/${fixture.ds}/appearance-variations/$size",
+                """{"displayName":"scale"}""",
+                base = 0,
+            )
         assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
 
         assertEquals(listOf("view", "scale"), axisNames(model(fixture.appearance)))
@@ -288,13 +296,21 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val model = model(fixture.appearance)
         val view = axisOf(model, "view")
         val size = axisOf(model, "size")
-        assertEquals("axis_locked", code(patch("/api/ds/appearance-variations/$view", """{"displayName":"scheme"}""")))
-        assertEquals("axis_locked", code(delete("/api/ds/appearance-variations/$view")))
-        val clash = patch("/api/ds/appearance-variations/$size", """{"displayName":"VIEW"}""")
+        assertEquals(
+            "axis_locked",
+            code(
+                patch("/api/design-systems/${fixture.ds}/appearance-variations/$view", """{"displayName":"scheme"}"""),
+            ),
+        )
+        assertEquals("axis_locked", code(delete("/api/design-systems/${fixture.ds}/appearance-variations/$view")))
+        val clash = patch("/api/design-systems/${fixture.ds}/appearance-variations/$size", """{"displayName":"VIEW"}""")
         assertEquals("axis_name_taken", code(clash))
         val onlyValue = valueOf(model, "view", "default")
-        assertEquals("axis_locked", code(delete("/api/ds/appearance-variation-values/$onlyValue")))
-        val same = patch("/api/ds/appearance-variations/$size", """{"displayName":"size"}""")
+        assertEquals(
+            "axis_locked",
+            code(delete("/api/design-systems/${fixture.ds}/appearance-variation-values/$onlyValue")),
+        )
+        val same = patch("/api/design-systems/${fixture.ds}/appearance-variations/$size", """{"displayName":"size"}""")
         assertEquals(HttpStatusCode.OK, same.status)
     }
 
@@ -303,15 +319,17 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val fixture = fixture()
         val copy = duplicate(fixture.appearance, "Button copy")
         val value = valueOf(model(fixture.appearance), "size", "a")
-        val renamed = patch("/api/ds/appearance-variation-values/$value", """{"displayName":"alpha"}""")
+        val renamed =
+            patch("/api/design-systems/${fixture.ds}/appearance-variation-values/$value", """{"displayName":"alpha"}""")
         assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
         assertEquals(listOf("alpha", "b"), valueNames(model(fixture.appearance), "size"))
         assertEquals(listOf("a", "b"), valueNames(model(copy), "size"))
-        val taken = patch("/api/ds/appearance-variation-values/$value", """{"displayName":"B"}""")
+        val taken =
+            patch("/api/design-systems/${fixture.ds}/appearance-variation-values/$value", """{"displayName":"B"}""")
         assertEquals("value_name_taken", code(taken))
 
         val variation = query("SELECT id FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE name = 'size'")
-        val denied = service.builder.client.patch("/api/ds/variations/$variation") {
+        val denied = service.builder.client.patch("/api/design-systems/${fixture.ds}/variations/$variation") {
             actor(admin = false, role = "owner")
             contentType(ContentType.Application.Json)
             setBody("""{"name":"scale"}""")
@@ -328,11 +346,16 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     fun `renaming an axis of the catalog to a display name used in an appearance is rejected`() = withService {
         val fixture = fixture()
         val size = axisOf(model(fixture.appearance), "size")
-        val displayed = patch("/api/ds/appearance-variations/$size", """{"displayName":"scale"}""", base = 0)
+        val displayed =
+            patch(
+                "/api/design-systems/${fixture.ds}/appearance-variations/$size",
+                """{"displayName":"scale"}""",
+                base = 0,
+            )
         assertEquals(HttpStatusCode.OK, displayed.status, displayed.bodyAsText())
         val view = query("SELECT id FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE name = 'view'")
 
-        val clash = patch("/api/ds/variations/$view", """{"name":"scale"}""")
+        val clash = patch("/api/design-systems/${fixture.ds}/variations/$view", """{"name":"scale"}""")
         assertEquals(HttpStatusCode.Conflict, clash.status, clash.bodyAsText())
         assertEquals("view", query("SELECT name FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE id = '$view'"))
     }
@@ -342,7 +365,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     @Test
     fun `an axis is added with values ordered and removed with its dependent values`() = withService {
         val fixture = fixture()
-        val axesPath = "/api/ds/appearances/${fixture.appearance}/axes"
+        val axesPath = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes"
         val added = post(axesPath, """{"name":"shape","values":["square","round"],"position":1}""")
         assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
         val axis = json.parseToJsonElement(added.bodyAsText()).jsonObject
@@ -357,7 +380,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.OK, reordered.status, reordered.bodyAsText())
         assertEquals(listOf("round", "square"), valueNames(model(fixture.appearance), "shape"))
         val ids = listOf("size", "shape", "view").map { axisOf(model(fixture.appearance), it) }
-        val orderPath = "/api/ds/appearances/${fixture.appearance}/axis-order"
+        val orderPath = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axis-order"
         val moved = post(orderPath, """{"axisIds":[${ids.joinToString(",") { "\"$it\"" }}]}""")
         assertEquals(HttpStatusCode.OK, moved.status, moved.bodyAsText())
         assertEquals(listOf("size", "shape", "view"), axisNames(model(fixture.appearance)))
@@ -378,13 +401,13 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     fun `a value is added to an axis and removed with a default style cleared`() = withService {
         val fixture = fixture()
         val size = axisOf(model(fixture.appearance), "size")
-        val valuesPath = "/api/ds/appearances/${fixture.appearance}/axes/$size/values"
+        val valuesPath = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes/$size/values"
         val added = post(valuesPath, """{"name":"c","position":0}""")
         assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
         assertEquals(listOf("c", "a", "b"), valueNames(model(fixture.appearance), "size"))
         assertEquals("value_name_taken", code(post(valuesPath, """{"name":"C"}""")))
         val c = valueOf(model(fixture.appearance), "size", "c")
-        val removed = delete("/api/ds/appearances/${fixture.appearance}/axis-values/$c")
+        val removed = delete("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axis-values/$c")
         assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
         assertEquals(listOf("a", "b"), valueNames(model(fixture.appearance), "size"))
     }
@@ -414,7 +437,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals("2", stored.first { it.states().isEmpty() }.string("value"))
         assertEquals("5", stored.first { it.states() == listOf("pressed") }.string("value"))
 
-        val orderPath = "/api/ds/appearances/${fixture.appearance}/state-order"
+        val orderPath = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/state-order"
         val swapped = """{"propertyId":"$padding","styleIds":["$styleA"],"states":[["hovered"],["pressed"]]}"""
         val order = put(orderPath, swapped)
         assertEquals(HttpStatusCode.OK, order.status, order.bodyAsText())
@@ -425,7 +448,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals("invalid_order", code(partial))
 
         val scope = "propertyId=$padding&styleIds=$styleA&states=pressed"
-        val valuesPath = "/api/ds/appearances/${fixture.appearance}/property-values"
+        val valuesPath = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/property-values"
         val removed = service.builder.client.delete("$valuesPath?$scope") { actor() }
         assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
         assertTrue(valuesOf(fixture.appearance, padding, styleA).none { it.states() == listOf("pressed") })
@@ -452,15 +475,18 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     fun `a token reference stores the token id with an empty value and follows a rename`() = withService {
         val fixture = fixture()
         val fill = property("fill", "color")
-        val tokenBody = """{"designSystemId":"${fixture.ds}","name":"surface","type":"color"}"""
-        val token = id(post("/api/ds/tokens", tokenBody).bodyAsText())
+        val tokenBody = """{"name":"surface","type":"color"}"""
+        val token = id(post("/api/design-systems/${fixture.ds}/tokens", tokenBody).bodyAsText())
         val styleA = styleOf(model(fixture.appearance), "size", "a")
         val set = setValue(fixture.appearance, fill, listOf(styleA), token = token)
         assertEquals(HttpStatusCode.OK, set.status, set.bodyAsText())
         val stored = "SELECT token_id || '|' || coalesce(value, '') FROM variation_property_value_revisions " +
             "ORDER BY version_sequence_number DESC LIMIT 1"
         assertEquals("$token|", query(stored))
-        assertEquals(HttpStatusCode.OK, patch("/api/ds/tokens/$token", """{"name":"surface-renamed"}""").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/design-systems/${fixture.ds}/tokens/$token", """{"name":"surface-renamed"}""").status,
+        )
         val value = valuesOf(fixture.appearance, fill, styleA).single()
         assertEquals(token, value.string("tokenId"))
         assertTrue(value.getValue("value") is JsonNull)
@@ -496,7 +522,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals("2", query("SELECT count(*) FROM component_style_references"))
 
         val xValue = valueOf(model(child), "size", "x")
-        val renamed = patch("/api/ds/appearance-variation-values/$xValue", """{"displayName":"xl"}""")
+        val renamed =
+            patch("/api/design-systems/${fixture.ds}/appearance-variation-values/$xValue", """{"displayName":"xl"}""")
         assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
         val texts = valuesOf(fixture.appearance, nested, styleA)
             .map { it.getValue("reference").jsonObject.string("reference") }
@@ -505,9 +532,13 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals(setOf("Child.xl"), valuesOf(fixture.appearance, nested, styleA).map { it.string("value") }.toSet())
 
         val childSize = axisOf(model(child), "size")
-        assertEquals("reference_in_use", code(delete("/api/ds/appearances/$child")))
-        assertEquals("reference_in_use", code(delete("/api/ds/appearances/$child/axes/$childSize")))
-        val cascaded = delete("/api/ds/appearances/$child/axes/$childSize?confirmCascade=true")
+        assertEquals("reference_in_use", code(delete("/api/design-systems/${fixture.ds}/appearances/$child")))
+        assertEquals(
+            "reference_in_use",
+            code(delete("/api/design-systems/${fixture.ds}/appearances/$child/axes/$childSize")),
+        )
+        val cascaded =
+            delete("/api/design-systems/${fixture.ds}/appearances/$child/axes/$childSize?confirmCascade=true")
         assertEquals(HttpStatusCode.OK, cascaded.status, cascaded.bodyAsText())
         assertTrue(valuesOf(fixture.appearance, nested, styleA).isEmpty())
     }
@@ -546,8 +577,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     @Test
     fun `a new configuration gets a color scheme axis and the default one cannot be removed`() = withService {
         val fixture = fixture()
-        val newBody = """{"designSystemId":"${fixture.ds}","componentId":"${fixture.component}"}"""
-        val created = post("/api/ds/appearances/new", newBody)
+        val newBody = """{"componentId":"${fixture.component}"}"""
+        val created = post("/api/design-systems/${fixture.ds}/appearances/new", newBody)
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
         val appearance = json.parseToJsonElement(created.bodyAsText()).jsonObject
         assertEquals("Button new", appearance.string("name"))
@@ -557,13 +588,20 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val axis = model.getValue("axes").jsonArray.single().jsonObject
         assertEquals("true", axis.getValue("locked").jsonPrimitive.content)
         assertEquals(emptyList(), model.getValue("propertyValues").jsonArray.toList())
-        val named = """{"designSystemId":"${fixture.ds}","componentId":"${fixture.component}","name":"button new"}"""
-        assertEquals("appearance_name_taken", code(post("/api/ds/appearances/new", named)))
+        val named = """{"componentId":"${fixture.component}","name":"button new"}"""
+        assertEquals("appearance_name_taken", code(post("/api/design-systems/${fixture.ds}/appearances/new", named)))
 
-        assertEquals("default_appearance_protected", code(delete("/api/ds/appearances/${fixture.appearance}")))
-        val renamed = patch("/api/ds/appearances/${fixture.appearance}", """{"name":"Main"}""")
+        assertEquals(
+            "default_appearance_protected",
+            code(delete("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}")),
+        )
+        val renamed =
+            patch("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}", """{"name":"Main"}""")
         assertEquals(HttpStatusCode.OK, renamed.status)
-        assertEquals(HttpStatusCode.OK, delete("/api/ds/appearances/${appearance.string("id")}").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            delete("/api/design-systems/${fixture.ds}/appearances/${appearance.string("id")}").status,
+        )
     }
 
     @Test
@@ -578,7 +616,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         setValue(fixture.appearance, padding, listOf(styleA), value = "5", states = listOf("pressed"))
         setValue(fixture.appearance, nested, listOf(styleA), reference = reference(child, childX))
 
-        val path = "/api/ds/appearances/${fixture.appearance}/duplicate"
+        val path = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/duplicate"
         val first = post(path, """{"name":"Copy"}""", key = "dup-1")
         val replay = post(path, """{"name":"Copy"}""", key = "dup-1")
         assertEquals(HttpStatusCode.Created, first.status, first.bodyAsText())
@@ -605,12 +643,27 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val value = valueOf(model, "size", "a")
         val base = query("SELECT revision::text FROM entity_edit_states WHERE entity_id = '$size'").toLong()
 
-        val first = patch("/api/ds/appearance-variations/$size", """{"displayName":"scale"}""", base = base)
+        val first =
+            patch(
+                "/api/design-systems/${fixture.ds}/appearance-variations/$size",
+                """{"displayName":"scale"}""",
+                base = base,
+            )
         assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
         assertTrue(first.headers["X-DS-Mutation-Metadata"].orEmpty().contains("\"warnings\": []"))
-        val other = patch("/api/ds/appearance-variation-values/$value", """{"displayName":"alpha"}""", base = 0)
+        val other =
+            patch(
+                "/api/design-systems/${fixture.ds}/appearance-variation-values/$value",
+                """{"displayName":"alpha"}""",
+                base = 0,
+            )
         assertEquals(HttpStatusCode.OK, other.status, other.bodyAsText())
-        val stale = patch("/api/ds/appearance-variations/$size", """{"displayName":"measure"}""", base = base)
+        val stale =
+            patch(
+                "/api/design-systems/${fixture.ds}/appearance-variations/$size",
+                """{"displayName":"measure"}""",
+                base = base,
+            )
         assertEquals(HttpStatusCode.OK, stale.status, stale.bodyAsText())
         assertTrue(stale.headers["X-DS-Mutation-Metadata"].orEmpty().contains("/display_name"))
         assertEquals(listOf("view", "measure"), axisNames(model(fixture.appearance)))
@@ -623,7 +676,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val fixture = fixture()
         publish(fixture.ds)
         val size = axisOf(model(fixture.appearance), "size")
-        val renamed = patch("/api/ds/appearance-variations/$size", """{"displayName":"scale"}""")
+        val renamed =
+            patch("/api/design-systems/${fixture.ds}/appearance-variations/$size", """{"displayName":"scale"}""")
         assertEquals(HttpStatusCode.OK, renamed.status)
 
         val change = changes(fixture.ds).single {
@@ -639,7 +693,11 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     @Test
     fun `reverting the creation of an axis that already carries values is refused without a cascade`() = withService {
         val fixture = fixture()
-        val added = post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"shape","values":["square"]}""")
+        val added =
+            post(
+                "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes",
+                """{"name":"shape","values":["square"]}""",
+            )
         assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
         val axis = json.parseToJsonElement(added.bodyAsText()).jsonObject.string("id")
         val padding = property("padding", "dimension")
@@ -661,9 +719,9 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     fun `an import keeps display names of axes and values`() = withService {
         val fixture = fixture()
         val size = axisOf(model(fixture.appearance), "size")
-        patch("/api/ds/appearance-variations/$size", """{"displayName":"scale"}""")
+        patch("/api/design-systems/${fixture.ds}/appearance-variations/$size", """{"displayName":"scale"}""")
         val value = valueOf(model(fixture.appearance), "scale", "a")
-        patch("/api/ds/appearance-variation-values/$value", """{"displayName":"alpha"}""")
+        patch("/api/design-systems/${fixture.ds}/appearance-variation-values/$value", """{"displayName":"alpha"}""")
 
         val again = importConfig(fixture.ds, "default", config("view", "scale", values = listOf("alpha", "b")))
         assertEquals(HttpStatusCode.OK, again.status, again.bodyAsText())
@@ -684,7 +742,9 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     @Test
     fun `a viewer cannot change the model and a foreign design system is not found`() = withService {
         val fixture = fixture()
-        val denied = service.builder.client.post("/api/ds/appearances/${fixture.appearance}/axes") {
+        val denied = service.builder.client.post(
+            "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes",
+        ) {
             actor(admin = false, role = "viewer")
             contentType(ContentType.Application.Json)
             setBody("""{"name":"shape"}""")
@@ -692,14 +752,14 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         // Дизайн-система фикстуры глобальная для проекта-читателя: запись недоступна, оформление не раскрывается.
         assertTrue(denied.status == HttpStatusCode.Forbidden || denied.status == HttpStatusCode.NotFound)
         assertEquals("1", query("SELECT count(*) FROM $RESOLVED_VARIATIONS_TEST_SQL variations WHERE name = 'size'"))
-        val unknown = get("/api/ds/appearances/$MISSING_ID/editor-model")
+        val unknown = get("/api/design-systems/${fixture.ds}/appearances/$MISSING_ID/editor-model")
         assertEquals(HttpStatusCode.NotFound, unknown.status)
     }
 
     @Test
     fun `axis creation repeats the saved result and a legacy delete leaves own values to the client`() = withService {
         val fixture = fixture()
-        val path = "/api/ds/appearances/${fixture.appearance}/axes"
+        val path = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes"
         val first = post(path, """{"name":"shape","values":["square"]}""", key = "axis-1")
         val replay = post(path, """{"name":"shape","values":["square"]}""", key = "axis-1")
         assertEquals(HttpStatusCode.Created, first.status, first.bodyAsText())
@@ -710,7 +770,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val square = styleOf(model(fixture.appearance), "shape", "square")
         setValue(fixture.appearance, padding, listOf(square), value = "4")
         val squareValue = valueOf(model(fixture.appearance), "shape", "square")
-        val removed = delete("/api/ds/appearance-variation-values/$squareValue")
+        val removed = delete("/api/design-systems/${fixture.ds}/appearance-variation-values/$squareValue")
         assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
         assertTrue(valueNames(model(fixture.appearance), "shape").isEmpty())
     }
@@ -718,9 +778,12 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     @Test
     fun `removals and reorders repeat the saved result for the same key`() = withService {
         val fixture = fixture()
-        post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"shape","values":["square"]}""")
+        post(
+            "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes",
+            """{"name":"shape","values":["square"]}""",
+        )
         val shape = axisOf(model(fixture.appearance), "shape")
-        val path = "/api/ds/appearances/${fixture.appearance}/axes/$shape"
+        val path = "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes/$shape"
         val first = delete(path, key = "remove-1")
         val replay = delete(path, key = "remove-1")
         assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
@@ -733,8 +796,14 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     fun `a combination is found by its styles and written in the key order of the import`() = withService {
         val fixture = fixture()
         val values = """["a","b","c","d","e","f"]"""
-        post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"shape","values":$values}""")
-        post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"tone","values":$values}""")
+        post(
+            "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes",
+            """{"name":"shape","values":$values}""",
+        )
+        post(
+            "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes",
+            """{"name":"tone","values":$values}""",
+        )
         val padding = property("padding", "dimension")
         val model = model(fixture.appearance)
         val shapes = valueNames(model, "shape").map { styleOf(model, "shape", it) }
@@ -755,7 +824,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         }
         assertEquals("2", stored.single().string("value"))
         val scope = "propertyId=$padding&styleIds=${pair.joinToString(",")}"
-        val removed = delete("/api/ds/appearances/${fixture.appearance}/property-values?$scope")
+        val removed =
+            delete("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/property-values?$scope")
         assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
     }
 
@@ -763,8 +833,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     fun `a published version is read as it was and token names follow renames`() = withService {
         val fixture = fixture()
         val fill = property("fill", "color")
-        val tokenBody = """{"designSystemId":"${fixture.ds}","name":"surface","type":"color"}"""
-        val token = id(post("/api/ds/tokens", tokenBody).bodyAsText())
+        val tokenBody = """{"name":"surface","type":"color"}"""
+        val token = id(post("/api/design-systems/${fixture.ds}/tokens", tokenBody).bodyAsText())
         val styleA = styleOf(model(fixture.appearance), "size", "a")
         setValue(fixture.appearance, fill, listOf(styleA), token = token)
         publish(fixture.ds)
@@ -774,13 +844,14 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         )
 
         val size = axisOf(model(fixture.appearance), "size")
-        patch("/api/ds/appearance-variations/$size", """{"displayName":"scale"}""")
-        patch("/api/ds/tokens/$token", """{"name":"surface-renamed"}""")
+        patch("/api/design-systems/${fixture.ds}/appearance-variations/$size", """{"displayName":"scale"}""")
+        patch("/api/design-systems/${fixture.ds}/tokens/$token", """{"name":"surface-renamed"}""")
 
         val current = model(fixture.appearance)
         assertEquals(listOf("view", "scale"), axisNames(current))
         assertEquals("surface-renamed", valuesOf(fixture.appearance, fill, styleA).single().string("tokenName"))
-        val old = get("/api/ds/appearances/${fixture.appearance}/editor-model?versionId=$version")
+        val old =
+            get("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/editor-model?versionId=$version")
         assertEquals(HttpStatusCode.OK, old.status, old.bodyAsText())
         val oldModel = json.parseToJsonElement(old.bodyAsText()).jsonObject
         assertEquals(listOf("view", "size"), axisNames(oldModel))
@@ -798,7 +869,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals("Child.default.x", valuesOf(fixture.appearance, nested, styleA).single().string("value"))
 
         val ids = listOf("size", "view").map { axisOf(model(child), it) }
-        val orderPath = "/api/ds/appearances/$child/axis-order"
+        val orderPath = "/api/design-systems/${fixture.ds}/appearances/$child/axis-order"
         val moved = post(orderPath, """{"axisIds":[${ids.joinToString(",") { "\"$it\"" }}]}""")
         assertEquals(HttpStatusCode.OK, moved.status, moved.bodyAsText())
         val text = valuesOf(fixture.appearance, nested, styleA).single().getValue("reference").jsonObject
@@ -831,7 +902,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val child = importChild(fixture.ds)
         val nested = property("buttonStyle", "component_style")
         val xValue = valueOf(model(child), "size", "x")
-        patch("/api/ds/appearance-variation-values/$xValue", """{"displayName":"xl"}""")
+        patch("/api/design-systems/${fixture.ds}/appearance-variation-values/$xValue", """{"displayName":"xl"}""")
         val body = """{"colorSchemeVariationId":"view","invariants":{},"variations":[
             {"id":"view","name":"view","values":[{"name":"default","properties":{}}]},
             {"id":"size","name":"size","values":[
@@ -847,12 +918,15 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     @Test
     fun `an import with names that point to different axes after a swap is rejected`() = withService {
         val fixture = fixture()
-        post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"kind","values":["p"]}""")
+        post(
+            "/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/axes",
+            """{"name":"kind","values":["p"]}""",
+        )
         val kind = axisOf(model(fixture.appearance), "kind")
         val size = axisOf(model(fixture.appearance), "size")
-        patch("/api/ds/appearance-variations/$kind", """{"displayName":"tmp"}""")
-        patch("/api/ds/appearance-variations/$size", """{"displayName":"kind"}""")
-        patch("/api/ds/appearance-variations/$kind", """{"displayName":"size"}""")
+        patch("/api/design-systems/${fixture.ds}/appearance-variations/$kind", """{"displayName":"tmp"}""")
+        patch("/api/design-systems/${fixture.ds}/appearance-variations/$size", """{"displayName":"kind"}""")
+        patch("/api/design-systems/${fixture.ds}/appearance-variations/$kind", """{"displayName":"size"}""")
         val before = axisNames(model(fixture.appearance))
 
         val body = """{"colorSchemeVariationId":"view","invariants":{},"variations":[
@@ -869,9 +943,16 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     private class Fixture(val ds: String, val component: String, val appearance: String)
 
     private suspend fun fixture(): Fixture {
-        val ds = id(post("/api/ds/design-systems", """{"name":"alpha","projectName":"alpha"}""").bodyAsText())
-        val component = id(post("/api/ds/components", """{"name":"Button","platform":"compose"}""").bodyAsText())
-        post("/api/ds/components", """{"name":"Child","platform":"compose"}""")
+        val ds = id(post("/api/design-systems", """{"name":"alpha","projectName":"alpha"}""").bodyAsText())
+        selectedDesignSystemId = ds
+        val component =
+            id(
+                post(
+                    "/api/design-systems/catalog/components",
+                    """{"name":"Button","platform":"compose"}""",
+                ).bodyAsText(),
+            )
+        post("/api/design-systems/catalog/components", """{"name":"Child","platform":"compose"}""")
         val imported = importConfig(ds, "default", config("view", "size"))
         assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
         return Fixture(ds, component, appearanceNamed("default"))
@@ -899,8 +980,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         config: String,
         component: String = "button",
     ): HttpResponse = post(
-        "/api/ds/component-config/import",
-        """{"designSystemId":"$ds","platform":"compose","meta":{"name":"fixture","source":"kotlin-test"},
+        "/api/design-systems/$ds/component-config/import",
+        """{"platform":"compose","meta":{"name":"fixture","source":"kotlin-test"},
            "dryRun":false,"components":[{"componentName":"$component","styleName":"$style","config":$config}]}""",
     )
 
@@ -911,13 +992,21 @@ class AppearanceEditorHttpPostgresIntegrationTest {
                 "WHERE component_id = '$componentId' AND name = '$name'), '')",
         )
         if (existing.isNotEmpty()) return existing
-        val response = post("/api/ds/properties", """{"componentId":"$componentId","name":"$name","type":"$type"}""")
+        val response =
+            post(
+                "/api/design-systems/catalog/properties",
+                """{"componentId":"$componentId","name":"$name","type":"$type"}""",
+            )
         assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
         return id(response.bodyAsText())
     }
 
     private suspend fun duplicate(appearance: String, name: String): String {
-        val response = post("/api/ds/appearances/$appearance/duplicate", """{"name":"$name"}""")
+        val response =
+            post(
+                "/api/design-systems/$selectedDesignSystemId/appearances/$appearance/duplicate",
+                """{"name":"$name"}""",
+            )
         assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
         return id(response.bodyAsText())
     }
@@ -926,8 +1015,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     private suspend fun publish(ds: String) {
         val draft = "SELECT %s FROM design_system_versions WHERE design_system_id = '$ds' AND status = 'draft'"
         val response = post(
-            "/api/ds/design-system-versions",
-            """{"designSystemId":"$ds","draftId":"${query(draft.format("id::text"))}",""" +
+            "/api/design-systems/$ds/versions",
+            """{"draftId":"${query(draft.format("id::text"))}",""" +
                 """"draftRevision":${query(draft.format("resolved_draft_revision(id)::text"))},""" +
                 """"version":"2.0.0","changelog":"fixture"}""",
             key = "publish-$ds",
@@ -952,7 +1041,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     // ── чтение ответов ─────────────────────────────────────────────────────────────────────────────
 
     private suspend fun model(appearance: String): JsonObject {
-        val response = get("/api/ds/appearances/$appearance/editor-model")
+        val response = get("/api/design-systems/$selectedDesignSystemId/appearances/$appearance/editor-model")
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         return json.parseToJsonElement(response.bodyAsText()).jsonObject
     }
@@ -987,11 +1076,11 @@ class AppearanceEditorHttpPostgresIntegrationTest {
             reference?.let { append(""","reference":$it""") }
             append("}")
         }
-        return put("/api/ds/appearances/$appearance/property-values", body)
+        return put("/api/design-systems/$selectedDesignSystemId/appearances/$appearance/property-values", body)
     }
 
     private suspend fun changes(ds: String): List<JsonObject> {
-        val response = get("/api/ds/design-systems/$ds/changes")
+        val response = get("/api/design-systems/$ds/changes")
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         val body = json.parseToJsonElement(response.bodyAsText())
         val array = (body as? JsonArray) ?: body.jsonObject.getValue("changes").jsonArray
@@ -999,7 +1088,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     private suspend fun revert(ds: String, change: JsonObject): HttpResponse =
-        service.builder.client.post("/api/ds/design-systems/$ds/changes/${change.string("changeId")}/revert") {
+        service.builder.client.post("/api/design-systems/$ds/changes/${change.string("changeId")}/revert") {
             actor()
             header("X-DS-Base-Revision", change.getValue("editRevision").jsonPrimitive.content)
             header("Idempotency-Key", "revert-${change.string("changeId")}")
@@ -1025,7 +1114,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         valueRow(model, axis, value).string("styleId")
 
     private suspend fun exportedAxisNames(ds: String, style: String): List<String> {
-        val response = post("/api/ds/component-config/export", """{"designSystemId":"$ds","platform":"compose"}""")
+        val response = post("/api/design-systems/$ds/component-config/export", """{"platform":"compose"}""")
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         val config = json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("components").jsonArray
             .map { it.jsonObject }

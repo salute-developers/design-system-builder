@@ -129,6 +129,11 @@ class ComponentEditorBundleUseCaseTest {
 
 private class RecordingBundleTransactions : TransactionRunner {
     val readContexts = mutableListOf<DsRequestContext>()
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = required(context, block)
+
     override suspend fun <T> required(block: suspend () -> DsResult<T>) = block()
     override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
     override suspend fun <T> readOnly(context: DsRequestContext, block: suspend () -> DsResult<T>): DsResult<T> {

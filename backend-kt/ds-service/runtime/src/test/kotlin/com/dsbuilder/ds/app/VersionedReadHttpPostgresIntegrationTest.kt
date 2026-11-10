@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import com.dsbuilder.authorization.ProjectActorType
@@ -43,13 +45,21 @@ class VersionedReadHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "lists").field("id")
-                val base = "/api/ds/design-systems/$ds"
-                val tenant = api(client, "POST", "/api/ds/tenants", """{"designSystemId":"$ds","name":"Target"}""")
+                val base = "/api/design-systems/$ds"
+                val tenant =
+                    api(
+                        client,
+                        "POST",
+                        "/api/design-systems/$ds/tenants",
+                        """{"name":"Target","description":"description-only-match"}""",
+                    )
                 assertEquals(HttpStatusCode.Created, tenant.status, tenant.bodyAsText())
                 val tenants = api(client, "GET", "$base/tenants?name=Target&limit=1")
                 assertEquals(listOf("Target"), tenants.array().map { it.jsonObject.field("name") })
                 val tenantSearch = api(client, "GET", "$base/tenants?query=arge&limit=1")
                 assertEquals(tenants.array(), tenantSearch.array())
+                val descriptionSearch = api(client, "GET", "$base/tenants?query=description-only-match&limit=1")
+                assertEquals(tenants.array(), descriptionSearch.array())
                 val components = api(client, "GET", "$base/components?platform=web&limit=1")
                 assertEquals(1, components.array().size)
                 val component = components.array().single().jsonObject
@@ -83,7 +93,7 @@ class VersionedReadHttpPostgresIntegrationTest {
                 assertEquals("1", journal.headers["X-DS-Page-Limit"])
                 assertEquals(1, journal.array().size)
                 val tenantId = tenant.obj().field("id")
-                val palettePath = "/api/ds/tenants/$tenantId/palette"
+                val palettePath = "/api/design-systems/$ds/tenants/$tenantId/palette"
                 assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$palettePath?shade=green").status)
                 val palette = api(client, "GET", palettePath).obj()
                 val paletteGroup = palette.getValue("groups").jsonArray.first().jsonObject
@@ -107,7 +117,7 @@ class VersionedReadHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "access").field("id")
-                val path = "/api/ds/design-systems/$ds/tokens?limit=1"
+                val path = "/api/design-systems/$ds/tokens?limit=1"
                 val key = UUID.randomUUID().toString()
                 val allowed = api(client, "GET", path, key = key, scopes = "tokens:read")
                 assertEquals(HttpStatusCode.OK, allowed.status, allowed.bodyAsText())
@@ -132,12 +142,12 @@ class VersionedReadHttpPostgresIntegrationTest {
                 val created = api(
                     client,
                     "POST",
-                    "/api/ds/tokens",
-                    """{"designSystemId":"$ds","name":"concurrent-old","type":"color"}""",
+                    "/api/design-systems/$ds/tokens",
+                    """{"name":"concurrent-old","type":"color"}""",
                 )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val tokenId = UUID.fromString(created.obj().field("id"))
-                val before = api(client, "GET", "/api/ds/tokens/$tokenId").context()
+                val before = api(client, "GET", "/api/design-systems/$ds/tokens/$tokenId").context()
                 val db = Database.connect(database.jdbcUrl, user = database.username, password = database.password)
                 val runner = ExposedTransactionRunner(db, PostgresTransactionFailureMapper())
                 val context = DsRequestContext(
@@ -148,14 +158,18 @@ class VersionedReadHttpPostgresIntegrationTest {
                     context,
                     ModelReadTarget(ModelReadTarget.Kind.TOKEN, tokenId),
                 ) { selected ->
-                    val updated = api(client, "PATCH", "/api/ds/tokens/$tokenId", """{"name":"concurrent-new"}""")
+                    val updated =
+                        api(client, "PATCH", "/api/design-systems/$ds/tokens/$tokenId", """{"name":"concurrent-new"}""")
                     assertEquals(HttpStatusCode.OK, updated.status, updated.bodyAsText())
                     DsResult.Success(ExposedTokenRepository().findAccessible(selected.projectId, tokenId)?.name)
                 }
                 val success = assertIs<DsResult.Success<String?>>(result)
                 assertEquals("concurrent-old", success.value)
                 assertEquals(before.field("draftRevision").toLong(), success.readContext?.draftRevision)
-                assertEquals("concurrent-new", api(client, "GET", "/api/ds/tokens/$tokenId").obj().field("name"))
+                assertEquals(
+                    "concurrent-new",
+                    api(client, "GET", "/api/design-systems/$ds/tokens/$tokenId").obj().field("name"),
+                )
             }
         }
     }
@@ -167,11 +181,11 @@ class VersionedReadHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "axes").field("id")
-                val appearances = api(client, "GET", "/api/ds/design-systems/$ds/appearances").array()
+                val appearances = api(client, "GET", "/api/design-systems/$ds/appearances").array()
                 assertTrue(appearances.isNotEmpty())
                 val appearance = appearances.first().jsonObject
                 val appearanceId = appearance.field("id")
-                val path = "/api/ds/appearances/$appearanceId/variations"
+                val path = "/api/design-systems/$ds/appearances/$appearanceId/variations"
                 val axes = api(client, "GET", path).array()
                 assertTrue(axes.isNotEmpty())
                 val axis = axes.first().jsonObject
@@ -180,13 +194,18 @@ class VersionedReadHttpPostgresIntegrationTest {
                     api(
                         client,
                         "PATCH",
-                        "/api/ds/appearance-variations/$axisId",
+                        "/api/design-systems/$ds/appearance-variations/$axisId",
                         """{"declaredType":"published-type"}""",
                     )
                 assertEquals(HttpStatusCode.OK, edited.status, edited.bodyAsText())
-                val published = publish(client, api(client, "GET", "/api/ds/design-systems/$ds").obj(), "1.0.0")
+                val published = publish(client, api(client, "GET", "/api/design-systems/$ds").obj(), "1.0.0")
                 val changed =
-                    api(client, "PATCH", "/api/ds/appearance-variations/$axisId", """{"declaredType":"draft-type"}""")
+                    api(
+                        client,
+                        "PATCH",
+                        "/api/design-systems/$ds/appearance-variations/$axisId",
+                        """{"declaredType":"draft-type"}""",
+                    )
                 assertEquals(HttpStatusCode.OK, changed.status, changed.bodyAsText())
                 val historical = api(client, "GET", "$path?version=1.0.0")
                 assertEquals(HttpStatusCode.OK, historical.status, historical.bodyAsText())
@@ -198,12 +217,12 @@ class VersionedReadHttpPostgresIntegrationTest {
                 assertEquals(published.field("id"), historical.context().field("versionId"))
                 val current = api(client, "GET", path).array().single { it.jsonObject.field("id") == axisId }.jsonObject
                 assertEquals("draft-type", current.field("declaredType"))
-                val removed = api(client, "DELETE", "/api/ds/appearances/$appearanceId")
+                val removed = api(client, "DELETE", "/api/design-systems/$ds/appearances/$appearanceId")
                 assertEquals(HttpStatusCode.UnprocessableEntity, removed.status, removed.bodyAsText())
                 assertEquals(HttpStatusCode.OK, api(client, "GET", path).status)
                 assertEquals(HttpStatusCode.OK, api(client, "GET", "$path?version=1.0.0").status)
                 val versionList =
-                    api(client, "GET", "/api/ds/design-system-versions/by-design-system/$ds?version=1.0.0&limit=1")
+                    api(client, "GET", "/api/design-systems/$ds/versions?version=1.0.0&limit=1")
                 assertEquals(listOf("1.0.0"), versionList.array().map { it.jsonObject.field("version") })
             }
         }
@@ -216,13 +235,13 @@ class VersionedReadHttpPostgresIntegrationTest {
                 application { module(configuration(database)) }
                 val system = createSystem(client, "first")
                 val ds = system.field("id")
-                val path = "/api/ds/design-systems/$ds/tokens"
+                val path = "/api/design-systems/$ds/tokens"
                 listOf("read-a", "read-b", "read-c").forEach { name ->
                     val response = api(
                         client,
                         "POST",
-                        "/api/ds/tokens",
-                        """{"designSystemId":"$ds","name":"$name","type":"color"}""",
+                        "/api/design-systems/$ds/tokens",
+                        """{"name":"$name","type":"color"}""",
                     )
                     assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
                 }
@@ -238,7 +257,7 @@ class VersionedReadHttpPostgresIntegrationTest {
                 val explicitDraft = api(client, "GET", "$path?query=read-&version=draft&limit=1")
                 assertEquals(cursor, explicitDraft.headers["X-DS-Next-Cursor"])
                 val oldContext = first.context()
-                val deleted = api(client, "DELETE", "/api/ds/tokens/${row.field("id")}")
+                val deleted = api(client, "DELETE", "/api/design-systems/$ds/tokens/${row.field("id")}")
                 assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
                 val second = api(client, "GET", "$path?query=read-&limit=2&cursor=$cursor")
                 assertEquals(listOf("read-b", "read-c"), second.array().map { it.jsonObject.field("name") })
@@ -259,13 +278,13 @@ class VersionedReadHttpPostgresIntegrationTest {
                     HttpStatusCode.BadRequest,
                     api(client, "GET", "$path?version=draft&versionId=${UUID.randomUUID()}").status,
                 )
-                val beforePublish = api(client, "GET", "/api/ds/design-systems/$ds").obj()
+                val beforePublish = api(client, "GET", "/api/design-systems/$ds").obj()
                 val published = publish(client, beforePublish, "1.0.0")
                 assertEquals(
                     HttpStatusCode.BadRequest,
                     api(client, "GET", "$path?query=read-&cursor=$cursor").status,
                 )
-                val history = api(client, "GET", "/api/ds/design-system-versions/by-design-system/$ds?limit=1")
+                val history = api(client, "GET", "/api/design-systems/$ds/versions?limit=1")
                 assertEquals(setOf("designSystemId"), history.context().keys)
                 assertEquals("1.0.0", history.array().single().jsonObject.field("version"))
                 val exact = api(client, "GET", "$path?version=1.0.0&name=read-b")
@@ -273,33 +292,39 @@ class VersionedReadHttpPostgresIntegrationTest {
                 assertEquals("1.0.0", exact.context().field("version"))
                 assertEquals(published.field("id"), exact.context().field("versionId"))
                 val tokenId = exact.array().single().jsonObject.field("id")
-                val edited = api(client, "PATCH", "/api/ds/tokens/$tokenId", """{"name":"read-renamed"}""")
+                val edited =
+                    api(client, "PATCH", "/api/design-systems/$ds/tokens/$tokenId", """{"name":"read-renamed"}""")
                 assertEquals(HttpStatusCode.OK, edited.status, edited.bodyAsText())
-                val historical = api(client, "GET", "/api/ds/tokens/$tokenId?version=1.0.0")
+                val historical = api(client, "GET", "/api/design-systems/$ds/tokens/$tokenId?version=1.0.0")
                 assertEquals("read-b", historical.obj().field("name"))
                 assertEquals(
                     HttpStatusCode.NotFound,
-                    api(client, "GET", "/api/ds/tokens/$tokenId?version=9.9.9").status,
+                    api(client, "GET", "/api/design-systems/$ds/tokens/$tokenId?version=9.9.9").status,
                 )
                 val other = createSystem(client, "second")
                 val otherId = other.field("id")
                 assertEquals(
                     HttpStatusCode.OK,
-                    api(client, "PATCH", "/api/ds/design-systems/$otherId", "{\"description\":\"changed\"}").status,
+                    api(client, "PATCH", "/api/design-systems/$otherId", "{\"description\":\"changed\"}").status,
                 )
-                val otherVersion = publish(client, api(client, "GET", "/api/ds/design-systems/$otherId").obj(), "1.0.0")
+                val otherVersion = publish(client, api(client, "GET", "/api/design-systems/$otherId").obj(), "1.0.0")
                 assertEquals(
                     HttpStatusCode.NotFound,
-                    api(client, "GET", "/api/ds/tokens/$tokenId?versionId=${otherVersion.field("id")}").status,
+                    api(
+                        client,
+                        "GET",
+                        "/api/design-systems/$ds/tokens/$tokenId?versionId=${otherVersion.field("id")}",
+                    ).status,
                 )
-                val unknownAppearance = api(client, "GET", "/api/ds/appearances/${UUID.randomUUID()}/variations")
+                val unknownAppearance =
+                    api(client, "GET", "/api/design-systems/$ds/appearances/${UUID.randomUUID()}/variations")
                 assertEquals(HttpStatusCode.NotFound, unknownAppearance.status)
             }
         }
     }
 
     private suspend fun createSystem(client: HttpClient, name: String): JsonObject {
-        val response = api(client, "POST", "/api/ds/design-systems", """{"name":"$name","projectName":"test"}""")
+        val response = api(client, "POST", "/api/design-systems", """{"name":"$name","projectName":"test"}""")
         assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
         return response.obj()
     }
@@ -309,9 +334,9 @@ class VersionedReadHttpPostgresIntegrationTest {
             api(
                 client,
                 "POST",
-                "/api/ds/design-system-versions",
+                "/api/design-systems/${system.field("id")}/versions",
                 """
-            {"designSystemId":"${system.field("id")}","draftId":"${system.field("draftId")}",
+            {"draftId":"${system.field("draftId")}",
              "draftRevision":${system.field("draftRevision")},"version":"$version"}
                 """.trimIndent(),
             )

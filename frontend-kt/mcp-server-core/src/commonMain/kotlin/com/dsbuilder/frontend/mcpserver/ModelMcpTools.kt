@@ -237,37 +237,55 @@ private fun addModelFilters(
     }
 }
 
-private fun modelDescription(name: String, operation: ModelReadOperation): String = when (operation) {
-    ModelReadOperation.VERSIONS ->
-        "List published model versions with server cursor pagination. Without context, first call projects_list, " +
-            "then design_systems_list(projectId), then pass both projectId and designSystemId here. " +
-            "Use each returned designSystem URI in subsequent reads. " +
-            "User session required; run dsbuilder auth login. " +
-            "Alternatively retain existing URI/workspace calls. No global selection is stored."
-    ModelReadOperation.TOKEN_GROUPS ->
-        "List token groups and subgroups in tree position order with server cursor pagination. " +
-            "Use a group ID to filter tokens_list or palette_get."
-    ModelReadOperation.CHANGES, ModelReadOperation.TENANTS, ModelReadOperation.TOKENS,
-    ModelReadOperation.COMPONENTS, ModelReadOperation.COMPONENT_STYLES,
-    ->
-        "List authoritative model data through $name. Filters and cursor pagination are applied by the server. " +
-            "An explicit version overrides the selected context version; without either, reads the draft."
-    ModelReadOperation.TOKEN, ModelReadOperation.TOKEN_VALUES, ModelReadOperation.PALETTE,
-    ModelReadOperation.COMPONENT_PROPERTIES, ModelReadOperation.COMPONENT_DEPENDENCIES,
-    ->
-        "Read authoritative model data through $name. This is one resource read, not a paged list. " +
-            "An explicit version overrides the selected context version; without either, reads the draft."
-    ModelReadOperation.COMPONENT ->
-        "Read current component metadata by " +
-            "componentId without selecting a configuration."
-    ModelReadOperation.APPEARANCE_VARIATIONS ->
-        "Read axes, declared values and defaults of one versioned configuration by appearanceId. " +
-            "First call components_list, then component_configurations_list; pass this tool's value IDs to " +
-            "component_config_get. No default configuration is selected. For published " +
-            "code variations use code_binding_search and code_binding_get."
-    ModelReadOperation.CONTEXT -> "Read actual design-system context and safe local connection settings."
-    ModelReadOperation.VERSION -> "Read one exact published model version or the draft; this is not a paged list."
-}
+private fun modelDescription(name: String, operation: ModelReadOperation): String =
+    MODEL_DESCRIPTIONS.getValue(operation).replace("{tool}", name)
+
+private const val MODEL_DESCRIPTION_0 =
+    "List published model versions with server cursor pagination. Without context, first call projects_list, " +
+        "then design_systems_list(projectId), then pass both projectId and designSystemId here. " +
+        "Use each returned designSystem URI in subsequent reads. " +
+        "User session required; run dsbuilder auth login. " +
+        "Alternatively retain existing URI/workspace calls. No global selection is stored."
+private const val MODEL_DESCRIPTION_1 =
+    "List token groups and subgroups in tree position order with server cursor pagination. " +
+        "Use a group ID to filter tokens_list or palette_get."
+private const val MODEL_DESCRIPTION_2 =
+    "List authoritative model data through {tool}. Filters and cursor pagination are applied by the server. " +
+        "An explicit version overrides the selected context version; without either, reads the draft."
+private const val MODEL_DESCRIPTION_3 =
+    "Read authoritative model data through {tool}. This is one resource read, not a paged list. " +
+        "An explicit version overrides the selected context version; without either, reads the draft."
+private const val MODEL_DESCRIPTION_4 =
+    "Read current component metadata by " +
+        "componentId without selecting a configuration."
+private const val MODEL_DESCRIPTION_5 =
+    "Read axes, declared values and defaults of one versioned configuration by appearanceId. " +
+        "First call components_list, then component_configurations_list; pass this tool's value IDs to " +
+        "component_config_get. No default configuration is selected. For published " +
+        "code variations use code_binding_search and code_binding_get."
+private const val MODEL_DESCRIPTION_6 =
+    "Read actual design-system context and safe local connection settings."
+private const val MODEL_DESCRIPTION_7 =
+    "Read one exact published model version or the draft; this is not a paged list."
+
+private val MODEL_DESCRIPTIONS = mapOf(
+    ModelReadOperation.VERSIONS to MODEL_DESCRIPTION_0,
+    ModelReadOperation.TOKEN_GROUPS to MODEL_DESCRIPTION_1,
+    ModelReadOperation.CHANGES to MODEL_DESCRIPTION_2,
+    ModelReadOperation.TENANTS to MODEL_DESCRIPTION_2,
+    ModelReadOperation.TOKENS to MODEL_DESCRIPTION_2,
+    ModelReadOperation.COMPONENTS to MODEL_DESCRIPTION_2,
+    ModelReadOperation.COMPONENT_STYLES to MODEL_DESCRIPTION_2,
+    ModelReadOperation.TOKEN to MODEL_DESCRIPTION_3,
+    ModelReadOperation.TOKEN_VALUES to MODEL_DESCRIPTION_3,
+    ModelReadOperation.PALETTE to MODEL_DESCRIPTION_3,
+    ModelReadOperation.COMPONENT_PROPERTIES to MODEL_DESCRIPTION_3,
+    ModelReadOperation.COMPONENT_DEPENDENCIES to MODEL_DESCRIPTION_3,
+    ModelReadOperation.COMPONENT to MODEL_DESCRIPTION_4,
+    ModelReadOperation.APPEARANCE_VARIATIONS to MODEL_DESCRIPTION_5,
+    ModelReadOperation.CONTEXT to MODEL_DESCRIPTION_6,
+    ModelReadOperation.VERSION to MODEL_DESCRIPTION_7,
+)
 
 internal val pagedModelOperations = setOf(
     ModelReadOperation.VERSIONS,

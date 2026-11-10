@@ -68,9 +68,11 @@ internal data class ApiMetaDeprecation(
  * Словарь backend (`xml`, `compose`, `ios`, `web`) не совпадает со словарём CLI, поэтому
  * соответствие задаётся здесь, а не выводится из имени.
  */
-internal fun TargetPlatform.toApiMetaPlatform(): String = when (this) {
-    TargetPlatform.COMPOSE -> "compose"
-    TargetPlatform.ANDROID_VIEW -> "xml"
-    TargetPlatform.SWIFT_UI -> "ios"
-    TargetPlatform.REACT -> "web"
-}
+internal fun TargetPlatform.toApiMetaPlatform(): String = API_META_PLATFORMS.getValue(this)
+
+private val API_META_PLATFORMS = mapOf(
+    TargetPlatform.COMPOSE to "compose",
+    TargetPlatform.ANDROID_VIEW to "xml",
+    TargetPlatform.SWIFT_UI to "ios",
+    TargetPlatform.REACT to "web",
+)

@@ -1200,7 +1200,7 @@ function runComposite(args: Args) {
         console.log();
     }
     console.log(`  ${storyHints(args)}\n`);
-    if (args.apply) console.log(`Дальше: ${pushHint(args)}; связи compose из отчёта заведите через POST /ds/component-deps.`);
+    if (args.apply) console.log(`Дальше: ${pushHint(args)}; связи compose из отчёта заведите через POST /api/projects/{projectId}/design-systems/catalog/component-deps.`);
 }
 
 /** Команда заливки пакета после импорта: только компоненты пакета, платформа react. */

@@ -1,6 +1,5 @@
 package com.dsbuilder.frontend.core.workspace
 
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -29,8 +28,6 @@ public class ProjectConfigCodec {
                 throw ProjectConfigException("Replace credential.type project-key-env with pat-env for PAT.")
             }
             json.decodeFromString(ProjectConfig.serializer(), text)
-        } catch (exception: SerializationException) {
-            throw ProjectConfigException("Cannot parse .sdds/config.json: ${exception.message}", exception)
         } catch (exception: IllegalArgumentException) {
             throw ProjectConfigException("Cannot parse .sdds/config.json: ${exception.message}", exception)
         }

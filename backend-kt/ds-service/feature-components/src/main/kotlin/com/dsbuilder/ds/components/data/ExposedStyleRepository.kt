@@ -54,6 +54,7 @@ class ExposedStyleRepository : StyleRepository {
         variationId: UUID,
         designSystemId: UUID,
     ): List<ComponentStyleSummary>? {
+        if (!ComponentOwnership.canReadVariation(projectId, systemAdmin, variationId)) return null
         return ComponentStylesTable.selectAll().where {
             (ComponentStylesTable.variationId eq variationId) and
                 (ComponentStylesTable.designSystemId eq designSystemId) and

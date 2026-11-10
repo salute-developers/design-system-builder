@@ -11,6 +11,7 @@ import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
 import com.dsbuilder.ds.core.application.PublicationTransactionRunner
 import com.dsbuilder.ds.core.application.RequestHash
+import com.dsbuilder.ds.core.application.scopedOperation
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -22,63 +23,80 @@ class CreateDesignSystemVersionUseCase(
     private val repository: DesignSystemVersionRepository,
     private val repeatedRequests: IdempotentRequestRepository,
 ) {
-    /** Performs the execute operation. */
+    /** Публикует команду после проверки разрешения и повторяемости. */
     suspend fun execute(
         context: DsRequestContext,
         command: CreateDesignSystemVersion,
         idempotencyKey: String,
-    ): DsResult<DesignSystemVersion> =
+    ): DsResult<DesignSystemVersion> {
         if (idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
-            DsResult.Failure(DsFailure.InvalidRequest("idempotency_key_too_long"))
-        } else {
-            when (val allowed = policy.require(context, "design-systems:write")) {
-                is DsResult.Failure -> allowed
-                is DsResult.Success -> transactions.required(context, command.designSystemId.value) {
-                    val requestHash = RequestHash.canonical(command)
-                    when (
-                        val previous = repeatedRequests.lookup(
-                            context.projectId,
-                            idempotencyKey,
-                            PUBLISH_OPERATION,
-                            requestHash,
-                        )
-                    ) {
-                        IdempotentRequestLookup.PayloadMismatch ->
-                            return@required DsResult.Failure(DsFailure.Conflict("IDEMPOTENCY_KEY_REUSED"))
-                        is IdempotentRequestLookup.Replayed -> throw IdempotentReplayException(previous.response)
-                        IdempotentRequestLookup.New -> Unit
-                    }
-                    when (val result = repository.publish(context.projectId, command)) {
-                        is PublishDesignSystemResult.Published -> {
-                            repeatedRequests.save(
-                                context.projectId,
-                                idempotencyKey,
-                                context.principal.actorId,
-                                PUBLISH_OPERATION,
-                                requestHash,
-                                IdempotentResponse(
-                                    201,
-                                    context.idempotentResponseEncoder?.invoke(result.version)
-                                        ?: result.version.toStoredJson(),
-                                ),
-                            )
-                            DsResult.Success(result.version)
-                        }
-                        is PublishDesignSystemResult.DraftStale -> DsResult.Failure(
-                            DsFailure.Conflict(
-                                code = "DRAFT_STALE",
-                                draftId = result.draftId.value.toString(),
-                                draftRevision = result.draftRevision,
-                            ),
-                        )
-                        PublishDesignSystemResult.EmptyDraft ->
-                            DsResult.Failure(DsFailure.Conflict("DRAFT_EMPTY"))
-                        PublishDesignSystemResult.VersionAlreadyExists ->
-                            DsResult.Failure(DsFailure.Conflict("VERSION_ALREADY_EXISTS"))
-                        PublishDesignSystemResult.NotFound -> DsResult.Failure(DsFailure.NotFound)
-                    }
-                }
+            return DsResult.Failure(DsFailure.InvalidRequest("idempotency_key_too_long"))
+        }
+        return when (val allowed = policy.require(context, "design-systems:write")) {
+            is DsResult.Failure -> allowed
+            is DsResult.Success -> publish(context, command, idempotencyKey)
+        }
+    }
+
+    private suspend fun publish(
+        context: DsRequestContext,
+        command: CreateDesignSystemVersion,
+        idempotencyKey: String,
+    ): DsResult<DesignSystemVersion> {
+        val requestHash = RequestHash.canonical(command)
+        val operation = context.scopedOperation(PUBLISH_OPERATION)
+        val checkReplay: suspend () -> DsResult<Unit> = {
+            when (val previous = repeatedRequests.lookup(context.projectId, idempotencyKey, operation, requestHash)) {
+                IdempotentRequestLookup.PayloadMismatch ->
+                    DsResult.Failure(DsFailure.Conflict("IDEMPOTENCY_KEY_REUSED"))
+                is IdempotentRequestLookup.Replayed -> throw IdempotentReplayException(previous.response)
+                IdempotentRequestLookup.New -> DsResult.Success(Unit)
             }
+        }
+        return transactions.required(context, command.designSystemId.value, beforeLock = checkReplay) {
+            // Между предварительной проверкой и барьером ключ мог занять другой запрос.
+            when (val checked = checkReplay()) {
+                is DsResult.Failure -> checked
+                is DsResult.Success -> publishNew(context, command, idempotencyKey, operation, requestHash)
+            }
+        }
+    }
+
+    private suspend fun publishNew(
+        context: DsRequestContext,
+        command: CreateDesignSystemVersion,
+        idempotencyKey: String,
+        operation: String,
+        requestHash: String,
+    ): DsResult<DesignSystemVersion> =
+        when (val result = repository.publish(context.projectId, command)) {
+            is PublishDesignSystemResult.Published -> {
+                repeatedRequests.save(
+                    context.projectId,
+                    idempotencyKey,
+                    context.principal.actorId,
+                    operation,
+                    requestHash,
+                    IdempotentResponse(
+                        201,
+                        context.idempotentResponseEncoder?.invoke(result.version)
+                            ?: result.version.toStoredJson(),
+                    ),
+                )
+                DsResult.Success(result.version)
+            }
+            is PublishDesignSystemResult.DraftStale -> DsResult.Failure(
+                DsFailure.Conflict(
+                    code = "DRAFT_STALE",
+                    draftId = result.draftId.value.toString(),
+                    draftRevision = result.draftRevision,
+                ),
+            )
+            PublishDesignSystemResult.EmptyDraft ->
+                DsResult.Failure(DsFailure.Conflict("DRAFT_EMPTY"))
+            PublishDesignSystemResult.VersionAlreadyExists ->
+                DsResult.Failure(DsFailure.Conflict("VERSION_ALREADY_EXISTS"))
+            PublishDesignSystemResult.NotFound -> DsResult.Failure(DsFailure.NotFound)
         }
 
     private fun DesignSystemVersion.toStoredJson(): String = buildJsonObject {

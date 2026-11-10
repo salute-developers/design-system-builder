@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.application.mapItems
 import com.dsbuilder.ds.core.data.lockDesignSystemPublication
 import com.dsbuilder.ds.core.data.modelReadVersionPage
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.data.resolvedDraftRevision
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersion
@@ -124,7 +125,7 @@ class ExposedDesignSystemVersionRepository(
         .selectAll()
         .where {
             var predicate: Op<Boolean> = (VersionBoundariesTable.status eq DesignSystemVersionStatus.PUBLISHED) and
-                (DesignSystemsTable.projectId eq projectId.value)
+                (DesignSystemsTable.projectId eq projectId.value) and requestDesignSystemScope(DesignSystemsTable.id)
             designSystemId?.let { predicate = predicate and (VersionBoundariesTable.designSystemId eq it.value) }
             id?.let { predicate = predicate and (VersionBoundariesTable.id eq it.value) }
             predicate
@@ -135,7 +136,7 @@ class ExposedDesignSystemVersionRepository(
     private fun accessible(projectId: ProjectId, designSystemId: DesignSystemId): Boolean =
         DesignSystemsTable.selectAll().where {
             (DesignSystemsTable.id eq designSystemId.value) and
-                (DesignSystemsTable.projectId eq projectId.value)
+                (DesignSystemsTable.projectId eq projectId.value) and requestDesignSystemScope(DesignSystemsTable.id)
         }.limit(1).any()
 
     private fun owned(projectId: ProjectId, designSystemId: DesignSystemId): Boolean =

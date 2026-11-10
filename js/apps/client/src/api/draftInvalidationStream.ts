@@ -76,7 +76,7 @@ export const subscribeToDraftInvalidations = async ({
                 draftRevision: String(knownDraftRevision),
             });
             const response = await fetch(
-                `${PROJECTS_URL}/${context.projectId}/ds/design-systems/${context.designSystemId}/events?${query}`,
+                `${PROJECTS_URL}/${context.projectId}/design-systems/${context.designSystemId}/events?${query}`,
                 {
                     headers: {
                         Accept: 'text/event-stream',

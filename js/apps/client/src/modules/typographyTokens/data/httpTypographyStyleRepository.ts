@@ -31,11 +31,11 @@ interface StyleTokens {
     tokenIds: string[];
 }
 
-const stylesPath = ({ projectId, tenantId }: TypographyContext, suffix = '') =>
-    `/api/projects/${projectId}/ds/tenants/${tenantId}/typography-styles${suffix}`;
+const stylesPath = ({ projectId, designSystemId, tenantId }: TypographyContext, suffix = '') =>
+    `/api/projects/${projectId}/design-systems/${designSystemId}/tenants/${tenantId}/typography-styles${suffix}`;
 
-const groupsPath = ({ projectId, tenantId }: TypographyContext, group: string) =>
-    `/api/projects/${projectId}/ds/tenants/${tenantId}/typography-groups/${encodeURIComponent(group)}`;
+const groupsPath = ({ projectId, designSystemId, tenantId }: TypographyContext, group: string) =>
+    `/api/projects/${projectId}/design-systems/${designSystemId}/tenants/${tenantId}/typography-groups/${encodeURIComponent(group)}`;
 
 const toError = (error: unknown) => {
     if (error instanceof TypographyOperationError) return error;
@@ -131,7 +131,7 @@ export const createHttpTypographyStyleRepository = (): TypographyStyleRepository
         await call(() =>
             subjectMutation(context, () =>
                 http.patch(
-                    `${apiRoot(context.projectId)}/tokens/${encodeURIComponent(tokenId)}`,
+                    `${apiRoot(context.projectId, context.designSystemId)}/tokens/${encodeURIComponent(tokenId)}`,
                     { description: description || null },
                     { headers: subjectMutationHeaders() },
                 ),

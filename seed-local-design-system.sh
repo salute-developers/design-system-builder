@@ -144,10 +144,10 @@ for item in items:
 ' "$USER_ID")" || fail "Could not list the user's projects"
 [[ -n "$PROJECT_ID" ]] || fail "The user has no project. Run ./setup-local.sh first."
 PROJECT_NAME="$(api GET "/api/projects/$PROJECT_ID" | json_get "d['name']")"
-DS_BASE="/api/projects/$PROJECT_ID/ds"
+DS_BASE="/api/projects/$PROJECT_ID/design-systems"
 
 DESIGN_SYSTEM_ID=""
-existing="$(api GET "$DS_BASE/design-systems" | python3 -c '
+existing="$(api GET "$DS_BASE" | python3 -c '
 import json, sys
 items = json.load(sys.stdin)
 for name in sys.argv[1:]:
@@ -160,7 +160,7 @@ if [[ -n "$existing" ]]; then
 fi
 
 post_design_system() {
-  curl --silent --show-error --request POST "$GATEWAY_URL$DS_BASE/design-systems" \
+  curl --silent --show-error --request POST "$GATEWAY_URL$DS_BASE" \
     --header "Authorization: Bearer $TOKEN" --header 'Content-Type: application/json' \
     --data "$(python3 -c 'import json,sys; print(json.dumps({"name":sys.argv[1],"projectName":sys.argv[2],"projectId":sys.argv[3]}))' \
       "$DESIGN_SYSTEM_NAME" "$PROJECT_NAME" "$PROJECT_ID")" --write-out '\n%{http_code}'
@@ -182,11 +182,11 @@ else
   log "Reusing the design system '$DESIGN_SYSTEM_NAME'"
 fi
 
-THEMES="$(api GET "$DS_BASE/design-systems/$DESIGN_SYSTEM_ID/tenants" | json_get "len(d)")"
+THEMES="$(api GET "$DS_BASE/$DESIGN_SYSTEM_ID/tenants" | json_get "len(d)")"
 if [[ "$THEMES" == "0" ]]; then
   log "Creating the theme '$THEME_NAME' (starting palette: $THEME_PROFILE)"
-  api POST "$DS_BASE/tenants" \
-    --data "{\"designSystemId\":\"$DESIGN_SYSTEM_ID\",\"name\":\"$THEME_NAME\",\"profile\":\"$THEME_PROFILE\"}" \
+  api POST "$DS_BASE/$DESIGN_SYSTEM_ID/tenants" \
+    --data "{\"name\":\"$THEME_NAME\",\"profile\":\"$THEME_PROFILE\"}" \
     >/dev/null || fail "The theme could not be created"
 else
   log "The design system already has a theme"
@@ -194,7 +194,7 @@ fi
 
 if [[ -n "$THEME_PACKAGE" ]]; then
   [[ -f "$THEME_PACKAGE/android/android_color.json" ]] || fail "The theme package has no android/android_color.json: $THEME_PACKAGE"
-  TENANT_ID="$(api GET "$DS_BASE/design-systems/$DESIGN_SYSTEM_ID/tenants" | json_get "d[0]['id']")"
+  TENANT_ID="$(api GET "$DS_BASE/$DESIGN_SYSTEM_ID/tenants" | json_get "d[0]['id']")"
   log "Loading the Android token values of the theme package"
   python3 "$ROOT_DIR/local-dev/apply_theme_values.py" "$GATEWAY_URL" "$TOKEN" "$PROJECT_ID" "$DESIGN_SYSTEM_ID" \
     "$TENANT_ID" "$(cd "$THEME_PACKAGE" && pwd)" || fail "The theme values could not be loaded"

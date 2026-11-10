@@ -12,7 +12,8 @@ import java.util.UUID
  */
 fun selectedVersionBoundary(tableName: String): Op<Boolean> = object : Op<Boolean>() {
     override fun toQueryBuilder(queryBuilder: QueryBuilder) {
-        queryBuilder.append("((NULLIF(current_setting('ds.version_id', true), '') IS NULL AND ")
+        queryBuilder.append("(ds_request_matches_design_system($tableName.design_system_id) AND ((")
+        queryBuilder.append("NULLIF(current_setting('ds.version_id', true), '') IS NULL AND ")
         queryBuilder.append(tableName)
         queryBuilder.append(
             ".status = 'draft') OR (NULLIF(current_setting('ds.version_id', true), '') IS NOT NULL AND ",
@@ -20,7 +21,7 @@ fun selectedVersionBoundary(tableName: String): Op<Boolean> = object : Op<Boolea
         queryBuilder.append(tableName)
         queryBuilder.append(".id = NULLIF(current_setting('ds.version_id', true), '')::uuid AND ")
         queryBuilder.append(tableName)
-        queryBuilder.append(".status = 'published'))")
+        queryBuilder.append(".status = 'published')))")
     }
 }
 

@@ -15,8 +15,9 @@ interface TokenValueRepository {
     /**
      * Принадлежат ли токен и тема команды [command] дизайн-системе проекта [projectId] и существует ли палитра. Ничего
      * не создаёт; вызывается до предметных правил записи, чтобы они не читали чужие данные.
+     * `null` у [projectId] сохраняет административный обход проектной ACL, но не границы системы запроса.
      */
-    suspend fun createAllowed(projectId: ProjectId, command: CreateTokenValue): Boolean
+    suspend fun createAllowed(projectId: ProjectId?, command: CreateTokenValue): Boolean
 
     /**
      * Блокирует техническое состояние значения [id] проекта [projectId] до чтения итогового значения: изменение

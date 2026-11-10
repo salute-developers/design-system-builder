@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.HttpClient
@@ -43,10 +45,10 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 val api = PaletteApi(client)
 
                 val designSystem = """{"name":"alpha","projectName":"alpha"}"""
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, designSystem)
+                val designSystemId = api.create("/api/design-systems", OWNER, designSystem)
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
-                val base = "/api/ds/tenants/$tenantA/palette"
+                val base = "/api/design-systems/$designSystemId/tenants/$tenantA/palette"
 
                 // Чтение: системные группы по порядку, копия шаблона, право правки по роли, чужой проект.
                 val initial = api.read(base).jsonObject
@@ -64,7 +66,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 updateGlobalPalette(postgres, "#010203")
                 assertEquals(greenTemplate, templateStep(api.read(base).jsonObject, "general", "green", 500))
                 val tenantC = api.createTenant(designSystemId, "c")
-                val paletteC = api.read("/api/ds/tenants/$tenantC/palette").jsonObject
+                val paletteC = api.read("/api/design-systems/$designSystemId/tenants/$tenantC/palette").jsonObject
                 assertEquals("#010203", templateStep(paletteC, "general", "green", 500))
 
                 val groups = initial.array("groups").associate { it.text("systemKey") to it.text("id") }
@@ -72,7 +74,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 val tokens = initial.array("tokens")
                 val accentToken = tokens.first { it.text("groupId") == accent }.text("tokenId")
                 val neutralToken = tokens.first { it.text("groupId") == groups.getValue("neutral") }.text("tokenId")
-                val values = "/api/ds/tenants/$tenantA/token-values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenantA/token-values"
 
                 // Значения токенов: обе ссылки на green.500, в тёмной теме Accent — ступень 50, которой нет у h190.
                 api.saveValues(values, accentToken to "[general.green.50]", neutralToken)
@@ -192,7 +194,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 assertEquals(false, after.bool("offBrand"))
 
                 // Палитра другой темы той же дизайн-системы не изменилась.
-                val other = api.read("/api/ds/tenants/$tenantB/palette").jsonObject
+                val other = api.read("/api/design-systems/$designSystemId/tenants/$tenantB/palette").jsonObject
                 assertEquals(false, other.bool("offBrand"))
                 assertEquals(0, other.number("editRevision"))
             }
@@ -206,18 +208,18 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
                 val designSystem = """{"name":"beta","projectName":"beta"}"""
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, designSystem)
+                val designSystemId = api.create("/api/design-systems", OWNER, designSystem)
                 val tenant = api.createTenant(designSystemId, "a")
-                val base = "/api/ds/tenants/$tenant/palette"
+                val base = "/api/design-systems/$designSystemId/tenants/$tenant/palette"
 
                 // Копия шаблона создаётся вместе с темой; повторное чтение не создаёт дополнительных строк.
                 val legacy = api.createTenant(designSystemId, "second")
-                val legacyPalette = api.read("/api/ds/tenants/$legacy/palette").jsonObject
+                val legacyPalette = api.read("/api/design-systems/$designSystemId/tenants/$legacy/palette").jsonObject
                 assertEquals(5, legacyPalette.array("groups").size)
                 assertTrue(legacyPalette.array("template").isNotEmpty())
                 assertEquals(count(postgres, "SELECT count(*) FROM palette"), count(postgres, templateCount(legacy)))
-                api.read("/api/ds/tenants/$legacy/token-values")
-                api.read("/api/ds/tenants/$legacy/palette")
+                api.read("/api/design-systems/$designSystemId/tenants/$legacy/token-values")
+                api.read("/api/design-systems/$designSystemId/tenants/$legacy/palette")
                 assertEquals(count(postgres, "SELECT count(*) FROM palette"), count(postgres, templateCount(legacy)))
 
                 // Сгенерированные значения ссылаются через palette_id: связи считаются, чтение значений отдаёт HEX.
@@ -228,7 +230,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 val accent = initial.array("groups").single { it.text("systemKey") == "accent" }
                 val slot = accent.array("ramps").maxBy { it.number("linkedCount") }.obj("slot")
                 assertTrue(accent.array("ramps").first { it.obj("slot") == slot }.number("linkedCount") > 0)
-                val resolved = api.read("/api/ds/tenants/$tenant/token-values").jsonArray
+                val resolved = api.read("/api/design-systems/$designSystemId/tenants/$tenant/token-values").jsonArray
                 val referenced = resolved.filter { it.jsonObject.containsKey("paletteRef") }
                 assertTrue(referenced.isNotEmpty())
                 assertTrue(referenced.all { it.jsonObject.getValue("paletteId") == JsonNull })
@@ -277,18 +279,21 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
                 val designSystem = """{"name":"gamma","projectName":"gamma"}"""
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, designSystem)
+                val designSystemId = api.create("/api/design-systems", OWNER, designSystem)
                 api.createTenant(designSystemId, "a")
                 val paletteRows = count(postgres, "SELECT count(*) FROM palette")
 
                 // Прямо вставленная предметная тема не получает копию шаблона при чтении.
                 val first = insertTenant(postgres, designSystemId, "first-operation")
-                assertEquals(HttpStatusCode.NotFound, api.call("GET", "/api/ds/tenants/$first/palette", VIEWER).status)
+                assertEquals(
+                    HttpStatusCode.NotFound,
+                    api.call("GET", "/api/design-systems/$designSystemId/tenants/$first/palette", VIEWER).status,
+                )
                 assertEquals(0, count(postgres, templateCount(first)))
 
                 // Первым обращением может быть чтение значений токенов.
                 val resolved = insertTenant(postgres, designSystemId, "first-resolve")
-                api.read("/api/ds/tenants/$resolved/token-values")
+                api.read("/api/design-systems/$designSystemId/tenants/$resolved/token-values")
                 assertEquals(0, count(postgres, templateCount(resolved)))
                 assertEquals(0, count(postgres, systemGroupCount(resolved)))
 
@@ -299,7 +304,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
                         async {
                             api.call(
                                 "GET",
-                                "/api/ds/tenants/$concurrent/palette",
+                                "/api/design-systems/$designSystemId/tenants/$concurrent/palette",
                                 VIEWER,
                             ).status
                         }
@@ -311,13 +316,13 @@ class TenantPaletteHttpPostgresIntegrationTest {
 
                 // Тема общей дизайн-системы (project_id IS NULL): читается без права правки, изменения — 404.
                 val sharedSystem = api.create(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     OWNER,
                     """{"name":"shared","projectName":"shared"}""",
                 )
                 val shared = api.createTenant(sharedSystem, "shared")
                 makeShared(postgres, sharedSystem)
-                val base = "/api/ds/tenants/$shared/palette"
+                val base = "/api/design-systems/$sharedSystem/tenants/$shared/palette"
                 val palette = api.read(base, EDITOR).jsonObject
                 assertEquals(false, palette.bool("canEdit"))
                 val accent = palette.array("groups").single { it.text("systemKey") == "accent" }.text("id")
@@ -339,7 +344,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
-                val system = api.create("/api/ds/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
+                val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
                 DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
                     connection.createStatement().use {
                         it.execute(
@@ -355,7 +360,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
                         )
                     }
                 }
-                val failed = api.call("POST", "/api/ds/tenants", EDITOR, """{"designSystemId":"$system","name":"a"}""")
+                val failed = api.call("POST", "/api/design-systems/$system/tenants", EDITOR, """{"name":"a"}""")
                 assertEquals(HttpStatusCode.InternalServerError, failed.status, failed.bodyAsText())
                 assertEquals(0, count(postgres, "SELECT count(*) FROM palette"))
                 assertEquals(0, count(postgres, "SELECT count(*) FROM tenants"))
@@ -423,7 +428,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
         }
 
         suspend fun createTenant(designSystemId: String, name: String) =
-            create("/api/ds/tenants", EDITOR, """{"designSystemId":"$designSystemId","name":"$name"}""")
+            create("/api/design-systems/$designSystemId/tenants", EDITOR, """{"name":"$name"}""")
 
         /** Операция с текущей ревизией; ревизия ответа становится текущей. */
         suspend fun edit(

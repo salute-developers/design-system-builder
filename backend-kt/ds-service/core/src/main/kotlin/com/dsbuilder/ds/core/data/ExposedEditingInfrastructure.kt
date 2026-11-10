@@ -72,6 +72,8 @@ private enum class EditBoundaryStatus(val wireValue: String) { DRAFT("draft") }
 
 /** Не допускает публикацию до завершения обычной предметной транзакции этой дизайн-системы. */
 fun lockDesignSystemMutation(designSystemId: UUID) {
+    requireRequestDesignSystem(designSystemId)
+    requireRequestDesignSystemMutable()
     TransactionManager.current().exec(
         "SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(? AS text), 684313))",
         listOf(UUIDColumnType() to designSystemId),

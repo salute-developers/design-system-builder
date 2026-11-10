@@ -241,7 +241,7 @@ Read-only tools:
 - `component_properties_get`, `component_dependencies_get`, `component_configurations_list`, `component_config_get`, `component_tokens_get`
 
 `documentation_*` and `code_binding_*` read published documentation artifacts. Token and component tools read the
-authoritative DS Builder model API through `/api/projects/{projectId}/ds/...`; they do not reconstruct model state from
+authoritative DS Builder model API through `/api/projects/{projectId}/design-systems/{designSystemId}/...`; they do not reconstruct model state from
 published documentation.
 
 Оба launcher предоставляют 27 read-only tools. `component_config_get` теперь принимает `appearanceId` и
@@ -611,7 +611,7 @@ Legacy-снимок `component-configs.json` команда больше не з
 без локальной `.sdds` все backend-запросы используют выбранный контекст и credential.
 
 Для платформы React команда дополнительно загружает web-адаптер для локальной web-генерации —
-ответ `POST /ds/component-config/web-adapter` как есть: имена и описания компонентов, дочерние
+ответ `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/web-adapter` как есть: имена и описания компонентов, дочерние
 компоненты `compose` и шаблоны web-параметров по стилям — и пишет его в `.sdds/web/web-adapter.json`
 рядом с найденным `config.json` (без локальной `.sdds` — в `<directory>/web` из `--to`).
 Платформа выбирается как у `components generate`: `--platform`, иначе единственная

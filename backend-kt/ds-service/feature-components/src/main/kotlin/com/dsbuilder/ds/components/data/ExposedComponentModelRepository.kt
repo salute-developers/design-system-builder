@@ -183,6 +183,7 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         systemAdmin: Boolean,
         id: UUID,
     ): List<ComponentStyleSummary>? {
+        if (!ComponentOwnership.canReadVariation(projectId, systemAdmin, id)) return null
         return ComponentStylesTable.selectAll().where {
             (ComponentStylesTable.variationId eq id) and
                 ComponentOwnership.readableVariation(ComponentStylesTable.variationId, projectId, systemAdmin) and
@@ -195,6 +196,7 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         systemAdmin: Boolean,
         id: UUID,
     ): List<ComponentPropertySummary>? {
+        if (!ComponentOwnership.canReadVariation(projectId, systemAdmin, id)) return null
         return PropertiesTable.innerJoin(PropertyVariationsTable).select(PropertiesTable.columns).where {
             (PropertyVariationsTable.variationId eq id) and
                 ComponentOwnership.readableVariation(PropertyVariationsTable.variationId, projectId, systemAdmin) and

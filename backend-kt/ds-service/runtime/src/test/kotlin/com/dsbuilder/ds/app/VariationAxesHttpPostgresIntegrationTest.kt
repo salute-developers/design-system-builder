@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.request.HttpRequestBuilder
@@ -39,11 +41,17 @@ class VariationAxesHttpPostgresIntegrationTest {
 
         assertEquals(listOf(sizeA), axisIds(component, systemA))
         assertEquals(listOf(sizeB), axisIds(component, systemB))
-        assertEquals(setOf(sizeA, sizeB), axisIds(component, null).toSet())
-        assertEquals(systemA, field(adminGet("/api/ds/variations/$sizeA").bodyAsText(), "designSystemId"))
+        assertEquals(
+            HttpStatusCode.NotFound,
+            adminGet("/api/design-systems/catalog/components/$component/variations").status,
+        )
+        assertEquals(
+            systemA,
+            field(adminGet("/api/design-systems/$systemA/variations/$sizeA").bodyAsText(), "designSystemId"),
+        )
 
         // Структуру второй системы меняют независимо: переименование и вторая ось не видны в первой.
-        val renamed = patch("/api/ds/variations/$sizeB", """{"name":"scale"}""")
+        val renamed = patch("/api/design-systems/$systemB/variations/$sizeB", """{"name":"scale"}""")
         assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
         createAxis(systemB, component, "shape")
         assertEquals(listOf("size"), axisNames(component, systemA))
@@ -56,23 +64,28 @@ class VariationAxesHttpPostgresIntegrationTest {
         val other = component("Badge")
         val system = designSystem("alpha", component)
 
-        val withoutSystem = post("/api/ds/variations", """{"componentId":"$component","name":"size"}""", admin = true)
+        val withoutSystem =
+            post(
+                "/api/design-systems/not-a-uuid/variations",
+                """{"componentId":"$component","name":"size"}""",
+                admin = true,
+            )
         assertEquals(HttpStatusCode.BadRequest, withoutSystem.status, withoutSystem.bodyAsText())
         createAxis(system, component, "size")
         val duplicate = post(
-            "/api/ds/variations",
-            """{"designSystemId":"$system","componentId":"$component","name":"size"}""",
+            "/api/design-systems/$system/variations",
+            """{"componentId":"$component","name":"size"}""",
             admin = true,
         )
         assertEquals(HttpStatusCode.Conflict, duplicate.status, duplicate.bodyAsText())
         val unlinked = post(
-            "/api/ds/variations",
-            """{"designSystemId":"$system","componentId":"$other","name":"size"}""",
+            "/api/design-systems/$system/variations",
+            """{"componentId":"$other","name":"size"}""",
             admin = true,
         )
         assertEquals(HttpStatusCode.NotFound, unlinked.status, unlinked.bodyAsText())
         val taken = createAxis(system, component, "shape")
-        val clash = patch("/api/ds/variations/$taken", """{"name":"size"}""")
+        val clash = patch("/api/design-systems/$system/variations/$taken", """{"name":"size"}""")
         assertEquals(HttpStatusCode.Conflict, clash.status, clash.bodyAsText())
     }
 
@@ -83,14 +96,16 @@ class VariationAxesHttpPostgresIntegrationTest {
         val axis = createAxis(system, component, "size")
 
         createAxis(system, component, "shape")
-        val denied = patch("/api/ds/variations/$axis", """{"name":"shape"}""", admin = false, viewer = true)
+        val denied =
+            patch("/api/design-systems/$system/variations/$axis", """{"name":"shape"}""", admin = false, viewer = true)
         assertTrue(
             denied.status == HttpStatusCode.Forbidden || denied.status == HttpStatusCode.NotFound,
             denied.bodyAsText(),
         )
         assertEquals(setOf("size", "shape"), axisNames(component, system).toSet())
 
-        val allowed = patch("/api/ds/variations/$axis", """{"name":"scale"}""", admin = false, owner = true)
+        val allowed =
+            patch("/api/design-systems/$system/variations/$axis", """{"name":"scale"}""", admin = false, owner = true)
         assertEquals(HttpStatusCode.OK, allowed.status, allowed.bodyAsText())
         assertEquals(setOf("scale", "shape"), axisNames(component, system).toSet())
     }
@@ -102,11 +117,14 @@ class VariationAxesHttpPostgresIntegrationTest {
         val axis = createAxis(system, component, "size")
         val versionId = publish(system)
 
-        val renamed = patch("/api/ds/variations/$axis", """{"name":"scale"}""")
+        val renamed = patch("/api/design-systems/$system/variations/$axis", """{"name":"scale"}""")
         assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
 
-        assertEquals("scale", field(adminGet("/api/ds/variations/$axis").bodyAsText(), "name"))
-        assertEquals("size", field(adminGet("/api/ds/variations/$axis?versionId=$versionId").bodyAsText(), "name"))
+        assertEquals("scale", field(adminGet("/api/design-systems/$system/variations/$axis").bodyAsText(), "name"))
+        assertEquals(
+            "size",
+            field(adminGet("/api/design-systems/$system/variations/$axis?versionId=$versionId").bodyAsText(), "name"),
+        )
         assertEquals("2", query("SELECT count(*) FROM variation_revisions WHERE variation_id = '$axis'"))
     }
 
@@ -116,13 +134,13 @@ class VariationAxesHttpPostgresIntegrationTest {
         val system = designSystem("alpha", component)
         val axis = createAxis(system, component, "size")
 
-        val journal = json.parseToJsonElement(get("/api/ds/design-systems/$system/changes").bodyAsText()).jsonArray
+        val journal = json.parseToJsonElement(get("/api/design-systems/$system/changes").bodyAsText()).jsonArray
         val change = journal.map { it.jsonObject }.first { it["entityId"]?.jsonPrimitive?.content == axis }
         assertEquals("variation", change.getValue("entityType").jsonPrimitive.content)
         assertEquals("created", change.getValue("operation").jsonPrimitive.content.lowercase())
 
         val reverted = post(
-            "/api/ds/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
+            "/api/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
             "{}",
             owner = true,
             idempotencyKey = "variation-axis-revert",
@@ -139,13 +157,16 @@ class VariationAxesHttpPostgresIntegrationTest {
         val system = designSystem("alpha", component)
         val axis = createAxis(system, component, "size")
         publish(system)
-        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$axis", """{"name":"scale"}""").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/design-systems/$system/variations/$axis", """{"name":"scale"}""").status,
+        )
         assertEquals(listOf("scale"), axisNames(component, system))
 
-        val journal = json.parseToJsonElement(get("/api/ds/design-systems/$system/changes").bodyAsText()).jsonArray
+        val journal = json.parseToJsonElement(get("/api/design-systems/$system/changes").bodyAsText()).jsonArray
         val change = journal.map { it.jsonObject }.first { it["entityId"]?.jsonPrimitive?.content == axis }
         val reverted = post(
-            "/api/ds/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
+            "/api/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
             "{}",
             owner = true,
             idempotencyKey = "variation-rename-revert",
@@ -161,16 +182,16 @@ class VariationAxesHttpPostgresIntegrationTest {
         val system = designSystem("alpha", component)
         val axis = createAxis(system, component, "size")
         val style = post(
-            "/api/ds/styles",
-            """{"designSystemId":"$system","variationId":"$axis","name":"m"}""",
+            "/api/design-systems/$system/styles",
+            """{"variationId":"$axis","name":"m"}""",
             admin = true,
         )
         assertEquals(HttpStatusCode.Created, style.status, style.bodyAsText())
 
-        val journal = json.parseToJsonElement(get("/api/ds/design-systems/$system/changes").bodyAsText()).jsonArray
+        val journal = json.parseToJsonElement(get("/api/design-systems/$system/changes").bodyAsText()).jsonArray
         val change = journal.map { it.jsonObject }.first { it["entityId"]?.jsonPrimitive?.content == axis }
         val reverted = post(
-            "/api/ds/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
+            "/api/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
             "{}",
             owner = true,
             idempotencyKey = "variation-axis-revert-conflict",
@@ -187,8 +208,8 @@ class VariationAxesHttpPostgresIntegrationTest {
         val systemB = designSystem("beta", component)
         listOf(systemA, systemB).forEach { system ->
             val imported = post(
-                "/api/ds/component-config/import",
-                """{"designSystemId":"$system","platform":"web","meta":{"name":"fixture","source":"kotlin-test"},""" +
+                "/api/design-systems/$system/component-config/import",
+                """{"platform":"web","meta":{"name":"fixture","source":"kotlin-test"},""" +
                     """"dryRun":false,"components":[{"componentName":"Button","styleName":"default","config":""" +
                     """{"invariants":{},"variations":[{"id":"size","name":"size","values":[{"name":"m"}]}]}}]}""",
                 editor = true,
@@ -217,34 +238,46 @@ class VariationAxesHttpPostgresIntegrationTest {
             val component = component("Button")
             val own = designSystem("alpha", component)
             val foreign = id(
-                post("/api/ds/design-systems", """{"name":"base","projectName":"base"}""", admin = true).bodyAsText(),
+                post("/api/design-systems", """{"name":"base","projectName":"base"}""", admin = true).bodyAsText(),
             )
             val linked = post(
-                "/api/ds/design-system-components",
-                """{"designSystemId":"$foreign","componentId":"$component"}""",
+                "/api/design-systems/$foreign/design-system-components",
+                """{"componentId":"$component"}""",
                 admin = true,
             )
             assertEquals(HttpStatusCode.Created, linked.status, linked.bodyAsText())
             val foreignAxis = createAxis(foreign, component, "size")
 
             val created = post(
-                "/api/ds/variations",
-                """{"designSystemId":"$own","componentId":"$component","name":"size"}""",
+                "/api/design-systems/$own/variations",
+                """{"componentId":"$component","name":"size"}""",
                 owner = true,
             )
             assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
             val ownAxis = id(created.bodyAsText())
-            val renamed = patch("/api/ds/variations/$ownAxis", """{"name":"scale"}""", admin = false, owner = true)
+            val renamed =
+                patch(
+                    "/api/design-systems/$own/variations/$ownAxis",
+                    """{"name":"scale"}""",
+                    admin = false,
+                    owner = true,
+                )
             assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
 
-            val denied = patch("/api/ds/variations/$foreignAxis", """{"name":"scale"}""", admin = false, owner = true)
+            val denied =
+                patch(
+                    "/api/design-systems/$foreign/variations/$foreignAxis",
+                    """{"name":"scale"}""",
+                    admin = false,
+                    owner = true,
+                )
             assertTrue(
                 denied.status == HttpStatusCode.Forbidden || denied.status == HttpStatusCode.NotFound,
                 denied.bodyAsText(),
             )
             val deniedCreate = post(
-                "/api/ds/variations",
-                """{"designSystemId":"$foreign","componentId":"$component","name":"shape"}""",
+                "/api/design-systems/$foreign/variations",
+                """{"componentId":"$component","name":"shape"}""",
                 owner = true,
             )
             assertEquals(HttpStatusCode.NotFound, deniedCreate.status, deniedCreate.bodyAsText())
@@ -258,31 +291,40 @@ class VariationAxesHttpPostgresIntegrationTest {
         val shape = createAxis(system, component, "shape")
         val appearance = id(
             post(
-                "/api/ds/appearances",
-                """{"designSystemId":"$system","componentId":"$component","name":"default"}""",
+                "/api/design-systems/$system/appearances",
+                """{"componentId":"$component","name":"default"}""",
                 admin = true,
             ).bodyAsText(),
         )
-        declareAxis(appearance, size, 0)
-        val shapeAxis = declareAxis(appearance, shape, 1)
+        declareAxis(system, appearance, size, 0)
+        val shapeAxis = declareAxis(system, appearance, shape, 1)
         val published = publish(system)
-        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$size", """{"name":"scale"}""").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/design-systems/$system/variations/$size", """{"name":"scale"}""").status,
+        )
         for ((index, displayName) in listOf("size", " Size ").withIndex()) {
             assertEquals(
                 HttpStatusCode.OK,
-                patch("/api/ds/appearance-variations/$shapeAxis", """{"displayName":"$displayName"}""").status,
+                patch(
+                    "/api/design-systems/$system/appearance-variations/$shapeAxis",
+                    """{"displayName":"$displayName"}""",
+                ).status,
             )
             val before = draftSnapshot(system)
             val rejected = revertAxis(system, size, "appearance-name-conflict-$index")
             assertEquals(HttpStatusCode.Conflict, rejected.status, rejected.bodyAsText())
             assertEquals(before, draftSnapshot(system))
         }
-        assertEquals("scale", field(adminGet("/api/ds/variations/$size").bodyAsText(), "name"))
-        assertEquals("size", field(adminGet("/api/ds/variations/$size?versionId=$published").bodyAsText(), "name"))
+        assertEquals("scale", field(adminGet("/api/design-systems/$system/variations/$size").bodyAsText(), "name"))
+        assertEquals(
+            "size",
+            field(adminGet("/api/design-systems/$system/variations/$size?versionId=$published").bodyAsText(), "name"),
+        )
 
         assertEquals(
             HttpStatusCode.OK,
-            patch("/api/ds/appearance-variations/$shapeAxis", """{"displayName":null}""").status,
+            patch("/api/design-systems/$system/appearance-variations/$shapeAxis", """{"displayName":null}""").status,
         )
         val reverted = revertAxis(system, size, "appearance-name-resolved")
         assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
@@ -295,22 +337,31 @@ class VariationAxesHttpPostgresIntegrationTest {
         val system = designSystem("alpha", component)
         val size = createAxis(system, component, "size")
         val published = publish(system)
-        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$size", """{"name":"scale"}""").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/design-systems/$system/variations/$size", """{"name":"scale"}""").status,
+        )
         val conflicting = createAxis(system, component, "Size")
         val before = draftSnapshot(system)
         val rejected = revertAxis(system, size, "catalog-name-conflict")
         assertEquals(HttpStatusCode.Conflict, rejected.status, rejected.bodyAsText())
         assertEquals(before, draftSnapshot(system))
         assertEquals(setOf("scale", "Size"), axisNames(component, system).toSet())
-        assertEquals("size", field(adminGet("/api/ds/variations/$size?versionId=$published").bodyAsText(), "name"))
+        assertEquals(
+            "size",
+            field(adminGet("/api/design-systems/$system/variations/$size?versionId=$published").bodyAsText(), "name"),
+        )
 
-        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$conflicting", """{"name":"density"}""").status)
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/design-systems/$system/variations/$conflicting", """{"name":"density"}""").status,
+        )
         val otherSystem = designSystem("beta", component)
         createAxis(otherSystem, component, "Size")
         val otherComponent = component("Badge")
         val linked = post(
-            "/api/ds/design-system-components",
-            """{"designSystemId":"$system","componentId":"$otherComponent"}""",
+            "/api/design-systems/$system/design-system-components",
+            """{"componentId":"$otherComponent"}""",
             admin = true,
         )
         assertEquals(HttpStatusCode.Created, linked.status, linked.bodyAsText())
@@ -329,34 +380,46 @@ class VariationAxesHttpPostgresIntegrationTest {
         val size = createAxis(system, component, "size")
         val shape = createAxis(system, component, "shape")
         val created = post(
-            "/api/ds/appearances",
-            """{"designSystemId":"$system","componentId":"$component","name":"default"}""",
+            "/api/design-systems/$system/appearances",
+            """{"componentId":"$component","name":"default"}""",
             admin = true,
         )
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
         val appearance = id(created.bodyAsText())
-        val sizeAxis = declareAxis(appearance, size, 0)
-        val shapeAxis = declareAxis(appearance, shape, 1)
+        val sizeAxis = declareAxis(system, appearance, size, 0)
+        val shapeAxis = declareAxis(system, appearance, shape, 1)
         assertEquals(
             HttpStatusCode.OK,
-            patch("/api/ds/appearance-variations/$sizeAxis", """{"displayName":"density"}""").status,
+            patch(
+                "/api/design-systems/$system/appearance-variations/$sizeAxis",
+                """{"displayName":"density"}""",
+            ).status,
         )
         publish(system)
-        assertEquals(HttpStatusCode.OK, patch("/api/ds/variations/$size", """{"name":"scale"}""").status)
         assertEquals(
             HttpStatusCode.OK,
-            patch("/api/ds/appearance-variations/$shapeAxis", """{"displayName":"size"}""").status,
+            patch("/api/design-systems/$system/variations/$size", """{"name":"scale"}""").status,
+        )
+        assertEquals(
+            HttpStatusCode.OK,
+            patch("/api/design-systems/$system/appearance-variations/$shapeAxis", """{"displayName":"size"}""").status,
         )
         val reverted = revertAxis(system, size, "appearance-override-allowed")
         assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
-        assertEquals("size", field(adminGet("/api/ds/variations/$size").bodyAsText(), "name"))
-        assertEquals("density", field(adminGet("/api/ds/appearance-variations/$sizeAxis").bodyAsText(), "displayName"))
-        assertEquals("size", field(adminGet("/api/ds/appearance-variations/$shapeAxis").bodyAsText(), "displayName"))
+        assertEquals("size", field(adminGet("/api/design-systems/$system/variations/$size").bodyAsText(), "name"))
+        assertEquals(
+            "density",
+            field(adminGet("/api/design-systems/$system/appearance-variations/$sizeAxis").bodyAsText(), "displayName"),
+        )
+        assertEquals(
+            "size",
+            field(adminGet("/api/design-systems/$system/appearance-variations/$shapeAxis").bodyAsText(), "displayName"),
+        )
     }
 
-    private suspend fun declareAxis(appearance: String, variation: String, position: Int): String {
+    private suspend fun declareAxis(system: String, appearance: String, variation: String, position: Int): String {
         val created = post(
-            "/api/ds/appearance-variations",
+            "/api/design-systems/$system/appearance-variations",
             """{"appearanceId":"$appearance","variationId":"$variation","position":$position}""",
             admin = true,
         )
@@ -365,15 +428,15 @@ class VariationAxesHttpPostgresIntegrationTest {
     }
 
     private suspend fun draftSnapshot(system: String): List<String> = listOf(
-        get("/api/ds/design-systems/$system").bodyAsText(),
-        get("/api/ds/design-systems/$system/changes").bodyAsText(),
+        get("/api/design-systems/$system").bodyAsText(),
+        get("/api/design-systems/$system/changes").bodyAsText(),
     )
 
     private suspend fun revertAxis(system: String, axis: String, key: String): HttpResponse {
-        val journal = json.parseToJsonElement(get("/api/ds/design-systems/$system/changes").bodyAsText()).jsonArray
+        val journal = json.parseToJsonElement(get("/api/design-systems/$system/changes").bodyAsText()).jsonArray
         val change = journal.map { it.jsonObject }.first { it["entityId"]?.jsonPrimitive?.content == axis }
         return post(
-            "/api/ds/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
+            "/api/design-systems/$system/changes/${change.getValue("changeId").jsonPrimitive.content}/revert",
             "{}",
             owner = true,
             idempotencyKey = key,
@@ -384,14 +447,20 @@ class VariationAxesHttpPostgresIntegrationTest {
     // ── fixtures ───────────────────────────────────────────────────────────────────────────────────
 
     private suspend fun component(name: String): String =
-        id(post("/api/ds/components", """{"name":"$name","platform":"web"}""", admin = true).bodyAsText())
+        id(
+            post(
+                "/api/design-systems/catalog/components",
+                """{"name":"$name","platform":"web"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
 
     /** Публикует активный черновик системы и возвращает идентификатор опубликованной версии. */
     private suspend fun publish(system: String): String {
-        val draft = json.parseToJsonElement(get("/api/ds/design-systems/$system").bodyAsText()).jsonObject
+        val draft = json.parseToJsonElement(get("/api/design-systems/$system").bodyAsText()).jsonObject
         val published = post(
-            "/api/ds/design-system-versions",
-            """{"designSystemId":"$system","draftId":${draft.getValue("draftId")},""" +
+            "/api/design-systems/$system/versions",
+            """{"draftId":${draft.getValue("draftId")},""" +
                 """"draftRevision":${draft.getValue("draftRevision")},"version":"1.0.0"}""",
             owner = true,
             idempotencyKey = "variation-axes-publication-$system",
@@ -404,11 +473,11 @@ class VariationAxesHttpPostgresIntegrationTest {
 
     private suspend fun designSystem(name: String, component: String): String {
         val system = id(
-            post("/api/ds/design-systems", """{"name":"$name","projectName":"$name"}""", owner = true).bodyAsText(),
+            post("/api/design-systems", """{"name":"$name","projectName":"$name"}""", owner = true).bodyAsText(),
         )
         val linked = post(
-            "/api/ds/design-system-components",
-            """{"designSystemId":"$system","componentId":"$component"}""",
+            "/api/design-systems/$system/design-system-components",
+            """{"componentId":"$component"}""",
             admin = true,
         )
         assertEquals(HttpStatusCode.Created, linked.status, linked.bodyAsText())
@@ -417,26 +486,26 @@ class VariationAxesHttpPostgresIntegrationTest {
 
     private suspend fun createAxis(system: String, component: String, name: String): String {
         val created = post(
-            "/api/ds/variations",
-            """{"designSystemId":"$system","componentId":"$component","name":"$name"}""",
+            "/api/design-systems/$system/variations",
+            """{"componentId":"$component","name":"$name"}""",
             admin = true,
         )
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
         return id(created.bodyAsText())
     }
 
-    private suspend fun axes(component: String, system: String?) = json.parseToJsonElement(
+    private suspend fun axes(component: String, system: String) = json.parseToJsonElement(
         get(
-            "/api/ds/components/$component/variations" + (system?.let { "?designSystemId=$it" } ?: ""),
+            "/api/design-systems/$system/components/$component/variations",
             viewer = false,
             admin = true,
         ).bodyAsText(),
     ).jsonArray.map { it.jsonObject }
 
-    private suspend fun axisIds(component: String, system: String?) =
+    private suspend fun axisIds(component: String, system: String) =
         axes(component, system).map { it.getValue("id").jsonPrimitive.content }
 
-    private suspend fun axisNames(component: String, system: String?) =
+    private suspend fun axisNames(component: String, system: String) =
         axes(component, system).map { it.getValue("name").jsonPrimitive.content }
 
     // ── harness ────────────────────────────────────────────────────────────────────────────────────

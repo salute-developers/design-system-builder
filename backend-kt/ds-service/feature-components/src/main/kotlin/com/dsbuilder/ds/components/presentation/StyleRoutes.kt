@@ -14,6 +14,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
 import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
@@ -42,7 +43,7 @@ fun Route.styleRoutes(
     delete: DeleteStyleUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/styles")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/styles")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
@@ -58,7 +59,7 @@ fun Route.styleRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        get("/by-variation/{variationId}/by-design-system/{designSystemId}") {
+        get("/by-variation/{variationId}") {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
                 evaluator,
@@ -66,7 +67,7 @@ fun Route.styleRoutes(
             )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val variationId = call.parameters["variationId"].toUuidOrNull()
-            val designSystemId = call.parameters["designSystemId"].toUuidOrNull()
+            val designSystemId = call.dsPathDesignSystemId().toUuidOrNull()
             if (variationId == null || designSystemId == null) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             }
@@ -102,7 +103,7 @@ fun Route.styleRoutes(
             val payload = call.receive<JsonObject>()
             val request = runCatching { json.decodeFromJsonElement(CreateStyleRequest.serializer(), payload) }
                 .getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
             val variationId = request.variationId.toUuidOrNull()
             if (
                 designSystemId == null || variationId == null || !request.name.validName() ||

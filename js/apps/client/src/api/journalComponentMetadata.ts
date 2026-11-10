@@ -12,14 +12,14 @@ export async function loadJournalComponentMetadata(
     context: EditorContextKey,
     signal?: AbortSignal,
 ): Promise<JournalComponentMetadata> {
-    const root = apiRoot(context.projectId);
+    const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
     type NamedOwner = { id: string; name: string; componentId: string | null };
     type NamedStyle = { id: string; name: string; variationId: string; designSystemId: string };
     const [components, appearances, properties, variations, styles] = await Promise.all([
-        readEditor<ComponentDto[]>(`${root}/components`, request),
-        readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
-        readEditor<NamedOwner[]>(`${root}/properties`, request),
+        readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request),
+        readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+        readEditor<NamedOwner[]>(`${apiRoot(context.projectId)}/properties`, request),
         readEditor<NamedOwner[]>(`${root}/variations`, variationReadRequest(context, signal)),
         readEditor<NamedStyle[]>(`${root}/styles`, request),
     ]);

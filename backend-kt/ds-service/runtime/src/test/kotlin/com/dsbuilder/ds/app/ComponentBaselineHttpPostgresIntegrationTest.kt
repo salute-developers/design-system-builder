@@ -31,12 +31,12 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                 application { module(configuration(database)) }
                 val key = UUID.randomUUID().toString()
                 val body = """{"name":"baseline","projectName":"baseline"}"""
-                val created = api(client, "POST", "/api/ds/design-systems", body, key)
+                val created = api(client, "POST", "/api/design-systems", body, key)
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val system = Json.parseToJsonElement(created.bodyAsText()).field("id")
-                val repeated = api(client, "POST", "/api/ds/design-systems", body, key)
+                val repeated = api(client, "POST", "/api/design-systems", body, key)
                 assertEquals(created.bodyAsText(), repeated.bodyAsText())
-                val changesPath = "/api/ds/design-systems/$system/changes"
+                val changesPath = "/api/design-systems/$system/changes"
                 assertEquals("[]", api(client, "GET", changesPath).bodyAsText())
                 assertEquals(
                     "0",
@@ -48,13 +48,13 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                 assertEquals("0", query(database, "SELECT count(*) FROM entity_edit_states"))
                 assertTrue(query(database, "SELECT count(*) FROM appearance_revisions").toInt() > 0)
                 val appearance = query(database, "SELECT id FROM appearances ORDER BY id LIMIT 1")
-                val path = "/api/ds/appearances/$appearance"
+                val path = "/api/design-systems/$system/appearances/$appearance"
                 val original = Json.parseToJsonElement(api(client, "GET", path).bodyAsText()).field("name")
                 val theme = api(
                     client,
                     "POST",
-                    "/api/ds/tenants",
-                    """{"designSystemId":"$system","name":"first"}""",
+                    "/api/design-systems/$system/tenants",
+                    """{"name":"first"}""",
                 )
                 assertEquals(HttpStatusCode.Created, theme.status, theme.bodyAsText())
                 val changes = Json.parseToJsonElement(api(client, "GET", changesPath).bodyAsText()).jsonArray
@@ -91,7 +91,7 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                 val created = api(
                     client,
                     "POST",
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     """{"name":"late","projectName":"late"}""",
                 )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
@@ -100,8 +100,8 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                 val theme = api(
                     client,
                     "POST",
-                    "/api/ds/tenants",
-                    """{"designSystemId":"$system","name":"first"}""",
+                    "/api/design-systems/$system/tenants",
+                    """{"name":"first"}""",
                 )
                 assertEquals(HttpStatusCode.Created, theme.status, theme.bodyAsText())
                 assertEquals("0", query(database, "SELECT count(*) FROM design_system_components"))
@@ -109,16 +109,16 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                     api(
                         client,
                         "POST",
-                        "/api/ds/component-config/import",
+                        "/api/design-systems/$system/component-config/import",
                         """
-                    {"designSystemId":"$system","platform":"web","dryRun":false,
+                    {"platform":"web","dryRun":false,
                     "meta":{"name":"manual","source":"test"},"components":[
                     {"componentName":"button","styleName":"manual","config":{}}]}
                         """.trimIndent(),
                     )
                 assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
                 assertEquals("1", query(database, "SELECT count(*) FROM design_system_components"))
-                val changes = api(client, "GET", "/api/ds/design-systems/$system/changes")
+                val changes = api(client, "GET", "/api/design-systems/$system/changes")
                 assertTrue(
                     Json.parseToJsonElement(changes.bodyAsText()).jsonArray.any {
                         it.field("entityType") == "appearance"
@@ -150,7 +150,7 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                 application { module(configuration(database)) }
                 val key = UUID.randomUUID().toString()
                 val body = """{"name":"retry baseline","projectName":"retry-baseline"}"""
-                val failed = api(client, "POST", "/api/ds/design-systems", body, key)
+                val failed = api(client, "POST", "/api/design-systems", body, key)
                 assertTrue(failed.status.value >= 400, failed.bodyAsText())
                 listOf(
                     "design_systems",
@@ -166,7 +166,7 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                 }
                 execute(database, "DROP TRIGGER fail_initial_configuration ON variation_property_value_revisions")
                 execute(database, "DROP FUNCTION fail_initial_configuration()")
-                val retried = api(client, "POST", "/api/ds/design-systems", body, key)
+                val retried = api(client, "POST", "/api/design-systems", body, key)
                 assertEquals(HttpStatusCode.Created, retried.status, retried.bodyAsText())
             }
         }

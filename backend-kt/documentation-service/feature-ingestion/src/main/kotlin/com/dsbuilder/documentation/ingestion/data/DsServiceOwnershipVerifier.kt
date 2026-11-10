@@ -17,7 +17,7 @@ class DsServiceOwnershipVerifier(private val client: HttpClient, baseUrl: String
     private val baseUrl = baseUrl.trimEnd('/')
 
     override suspend fun verify(id: String, actor: ActorContext): OwnershipResult = try {
-        val response = client.get("$baseUrl/api/ds/design-systems/${id.encodeURLPathPart()}") {
+        val response = client.get("$baseUrl/api/design-systems/${id.encodeURLPathPart()}") {
             header("X-Actor-Type", actor.type.name.lowercase())
             header("X-Project-Id", actor.projectId)
             header("X-User-Id", actor.actorId)

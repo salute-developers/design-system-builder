@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.HttpClient
@@ -50,20 +52,20 @@ class DsServiceHttpPostgresIntegrationTest {
                     val operations = openApi.getValue("paths").jsonObject.flatMap { (template, pathItem) ->
                         pathItem.jsonObject.keys.map { method -> template to method }
                     }
-                    assertEquals(198, operations.size)
+                    assertEquals(196, operations.size)
                     operations.forEach { (template, method) ->
                         val path = template.replace(Regex("\\{[^}]+}"), MISSING_ID)
                         val response = client.request(path) { this.method = HttpMethod.parse(method.uppercase()) }
                         assertEquals(HttpStatusCode.Forbidden, response.status, "$method $template must enforce RBAC")
                     }
 
-                    val forbidden = client.post("/api/ds/design-systems") {
+                    val forbidden = client.post("/api/design-systems") {
                         trusted("project-a", "viewer")
                         jsonBody("""{"name":"forbidden","projectName":"forbidden"}""")
                     }
                     assertEquals(HttpStatusCode.Forbidden, forbidden.status)
 
-                    val invalid = client.post("/api/ds/design-systems") {
+                    val invalid = client.post("/api/design-systems") {
                         trusted("project-a", "owner")
                         jsonBody("""{"name":" ","projectName":"alpha"}""")
                     }
@@ -74,7 +76,7 @@ class DsServiceHttpPostgresIntegrationTest {
                         invalid.bodyAsText(),
                     )
 
-                    val missingFields = client.post("/api/ds/design-systems") {
+                    val missingFields = client.post("/api/design-systems") {
                         trusted("project-a", "owner")
                         jsonBody("{}")
                     }
@@ -85,7 +87,7 @@ class DsServiceHttpPostgresIntegrationTest {
                         missingFields.bodyAsText(),
                     )
 
-                    val wrongType = client.post("/api/ds/design-systems") {
+                    val wrongType = client.post("/api/design-systems") {
                         trusted("project-a", "owner")
                         jsonBody("""{"name":42,"projectName":"alpha"}""")
                     }
@@ -100,7 +102,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
                     val componentIds = seedComponentPrerequisites(postgres)
                     val componentId = componentIds.getValue("Button")
-                    val designSystem = client.post("/api/ds/design-systems") {
+                    val designSystem = client.post("/api/design-systems") {
                         trusted("project-a", "owner")
                         jsonBody("""{"name":"alpha","projectName":"alpha"}""")
                     }
@@ -112,23 +114,23 @@ class DsServiceHttpPostgresIntegrationTest {
                     assertTrue(rowCount(postgres, "design_system_components") > 0)
                     assertTrue(rowCount(postgres, "appearances") > 0)
 
-                    val changes = client.get("/api/ds/design-systems/$designSystemId/changes") {
+                    val changes = client.get("/api/design-systems/$designSystemId/changes") {
                         trusted("project-a", "viewer")
                     }
                     assertEquals(HttpStatusCode.OK, changes.status)
 
-                    val hidden = client.get("/api/ds/design-systems/$designSystemId") {
+                    val hidden = client.get("/api/design-systems/$designSystemId") {
                         trusted("project-b", "owner")
                     }
                     assertEquals(HttpStatusCode.NotFound, hidden.status)
 
-                    val tenant = client.post("/api/ds/tenants") {
+                    val tenant = client.post("/api/design-systems/$designSystemId/tenants") {
                         trusted("project-a", "editor")
-                        jsonBody("""{"designSystemId":"$designSystemId","name":"dark"}""")
+                        jsonBody("""{"name":"dark"}""")
                     }
                     assertEquals(HttpStatusCode.Created, tenant.status, tenant.bodyAsText())
                     val tenantId = id(tenant.bodyAsText())
-                    verifyEmptyTenantPatch(client, postgres, tenantId)
+                    verifyEmptyTenantPatch(client, designSystemId, postgres, tenantId)
                     assertEquals(63, rowCount(postgres, "design_system_components"))
                     assertEquals(66, rowCount(postgres, "appearances"))
                     assertEquals(
@@ -136,9 +138,9 @@ class DsServiceHttpPostgresIntegrationTest {
                         json.parseToJsonElement(tenant.bodyAsText()).jsonObject
                             .getValue("colorConfig").jsonObject.getValue("profile").jsonPrimitive.content,
                     )
-                    val duplicateTenant = client.post("/api/ds/tenants") {
+                    val duplicateTenant = client.post("/api/design-systems/$designSystemId/tenants") {
                         trusted("project-a", "editor")
-                        jsonBody("""{"designSystemId":"$designSystemId","name":"  dark  "}""")
+                        jsonBody("""{"name":"  dark  "}""")
                     }
                     assertEquals(HttpStatusCode.Conflict, duplicateTenant.status, duplicateTenant.bodyAsText())
                     assertEquals(
@@ -146,7 +148,9 @@ class DsServiceHttpPostgresIntegrationTest {
                         json.parseToJsonElement(duplicateTenant.bodyAsText()).jsonObject
                             .getValue("code").jsonPrimitive.content,
                     )
-                    val initialValues = client.get("/api/ds/tenants/$tenantId/token-values") {
+                    val initialValues = client.get(
+                        "/api/design-systems/$designSystemId/tenants/$tenantId/token-values",
+                    ) {
                         trusted("project-a", "viewer")
                     }
                     assertEquals(HttpStatusCode.OK, initialValues.status)
@@ -155,7 +159,7 @@ class DsServiceHttpPostgresIntegrationTest {
                         tenantTokenValueCount(postgres, tenantId),
                         tenantCreationBaselineCount(postgres, tenantId),
                     )
-                    val savedValues = client.put("/api/ds/tenants/$tenantId/token-values") {
+                    val savedValues = client.put("/api/design-systems/$designSystemId/tenants/$tenantId/token-values") {
                         trusted("project-a", "editor")
                         jsonBody("""{"editRevision":0,"values":[]}""")
                     }
@@ -168,7 +172,7 @@ class DsServiceHttpPostgresIntegrationTest {
                         0,
                         json.parseToJsonElement(savedValues.bodyAsText()).jsonObject.getValue("values").jsonArray.size,
                     )
-                    val staleValues = client.put("/api/ds/tenants/$tenantId/token-values") {
+                    val staleValues = client.put("/api/design-systems/$designSystemId/tenants/$tenantId/token-values") {
                         trusted("project-a", "editor")
                         jsonBody("""{"editRevision":0,"values":[]}""")
                     }
@@ -177,7 +181,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     val tokenFixture = verifyMultiUserTokenEditing(client, designSystemId, tenantId)
                     val tokenId = tokenFixture.tokenId
 
-                    val imported = client.post("/api/ds/component-config/import") {
+                    val imported = client.post("/api/design-systems/$designSystemId/component-config/import") {
                         trusted("project-a", "editor")
                         header("Idempotency-Key", "component-config-import")
                         jsonBody(importBody(designSystemId, "default", dryRun = false))
@@ -189,7 +193,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     assertEquals("0", report.getValue("created").jsonPrimitive.content, imported.bodyAsText())
                     assertEquals("1", report.getValue("updated").jsonPrimitive.content, imported.bodyAsText())
                     assertEquals("[]", report.getValue("unknownStates").toString())
-                    val repeatedImport = client.post("/api/ds/component-config/import") {
+                    val repeatedImport = client.post("/api/design-systems/$designSystemId/component-config/import") {
                         trusted("project-a", "editor")
                         header("Idempotency-Key", "component-config-import")
                         jsonBody(importBody(designSystemId, "default", dryRun = false))
@@ -197,11 +201,11 @@ class DsServiceHttpPostgresIntegrationTest {
                     assertEquals(imported.bodyAsText(), repeatedImport.bodyAsText())
 
                     val (draftId, draftRevision) = activeDraft(postgres, designSystemId)
-                    val version = client.post("/api/ds/design-system-versions") {
+                    val version = client.post("/api/design-systems/$designSystemId/versions") {
                         trusted("project-a", "owner")
                         header("Idempotency-Key", "integration-publication")
                         jsonBody(
-                            """{"designSystemId":"$designSystemId","draftId":"$draftId",""" +
+                            """{"draftId":"$draftId",""" +
                                 """"draftRevision":$draftRevision,"version":"1.0.0","changelog":"Integration"}""",
                         )
                     }
@@ -218,24 +222,24 @@ class DsServiceHttpPostgresIntegrationTest {
 
                     verifyInheritedNameConflicts(client, designSystemId)
 
-                    verifyPublishedTokenValueRestoration(client, tokenFixture, tenantId)
+                    verifyPublishedTokenValueRestoration(client, designSystemId, tokenFixture, tenantId)
 
                     val single = client.get(
-                        "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=default" +
+                        "/api/design-systems/$designSystemId/component-config?ds=alpha&version=1.0.0&appearance=default" +
                             "&component=Button&platform=web",
                     ) { trusted("project-a", "viewer") }
                     assertEquals(HttpStatusCode.OK, single.status, single.bodyAsText())
                     assertTrue(single.bodyAsText().contains("pressed"))
 
-                    val exported = client.post("/api/ds/component-config/export") {
+                    val exported = client.post("/api/design-systems/$designSystemId/component-config/export") {
                         trusted("project-a", "viewer")
-                        jsonBody("""{"designSystemId":"$designSystemId","platform":"web","components":["button"]}""")
+                        jsonBody("""{"platform":"web","components":["button"]}""")
                     }
                     assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
                     assertTrue(exported.bodyAsText().contains("\"version\":\"draft\""))
 
                     val countsBeforeDryRun = counts(postgres)
-                    val dryRun = client.post("/api/ds/component-config/import") {
+                    val dryRun = client.post("/api/design-systems/$designSystemId/component-config/import") {
                         trusted("project-a", "editor")
                         jsonBody(importBody(designSystemId, "preview", dryRun = true))
                     }
@@ -243,12 +247,12 @@ class DsServiceHttpPostgresIntegrationTest {
                     assertEquals(countsBeforeDryRun, counts(postgres))
 
                     val absentPreview = client.get(
-                        "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=preview" +
+                        "/api/design-systems/$designSystemId/component-config?ds=alpha&version=1.0.0&appearance=preview" +
                             "&component=Button&platform=web",
                     ) { trusted("project-a", "viewer") }
                     assertEquals(HttpStatusCode.NotFound, absentPreview.status)
 
-                    val tooLarge = client.post("/api/ds/component-config/import") {
+                    val tooLarge = client.post("/api/design-systems/$designSystemId/component-config/import") {
                         trusted("project-a", "editor")
                         jsonBody(
                             importBody(designSystemId, "oversize", dryRun = false)
@@ -257,25 +261,27 @@ class DsServiceHttpPostgresIntegrationTest {
                     }
                     assertEquals(HttpStatusCode.PayloadTooLarge, tooLarge.status)
 
-                    val crossProjectImport = client.post("/api/ds/component-config/import") {
+                    val crossProjectImport = client.post(
+                        "/api/design-systems/$designSystemId/component-config/import",
+                    ) {
                         trusted("project-b", "editor")
                         jsonBody(importBody(designSystemId, "hidden", dryRun = false))
                     }
                     assertEquals(HttpStatusCode.NotFound, crossProjectImport.status)
 
-                    val foreignDesignSystem = client.post("/api/ds/design-systems") {
+                    val foreignDesignSystem = client.post("/api/design-systems") {
                         trusted("project-b", "owner")
                         jsonBody("""{"name":"beta","projectName":"beta"}""")
                     }
                     assertEquals(HttpStatusCode.Created, foreignDesignSystem.status)
                     val foreignDesignSystemId = id(foreignDesignSystem.bodyAsText())
-                    val foreignTenant = client.post("/api/ds/tenants") {
+                    val foreignTenant = client.post("/api/design-systems/$foreignDesignSystemId/tenants") {
                         trusted("project-b", "editor")
-                        jsonBody("""{"designSystemId":"$foreignDesignSystemId","name":"foreign"}""")
+                        jsonBody("""{"name":"foreign"}""")
                     }
                     assertEquals(HttpStatusCode.Created, foreignTenant.status)
                     val foreignTenantId = id(foreignTenant.bodyAsText())
-                    val crossProjectTokenValue = client.post("/api/ds/token-values") {
+                    val crossProjectTokenValue = client.post("/api/design-systems/$designSystemId/token-values") {
                         trusted("project-a", "editor")
                         jsonBody("""{"tokenId":"$tokenId","tenantId":"$foreignTenantId","value":"#fff"}""")
                     }
@@ -283,30 +289,30 @@ class DsServiceHttpPostgresIntegrationTest {
 
                     verifyStateImpactIsolation(client, postgres, foreignDesignSystemId)
 
-                    val sharedMutation = client.patch("/api/ds/components/$componentId") {
+                    val sharedMutation = client.patch("/api/design-systems/catalog/components/$componentId") {
                         trusted("project-a", "editor")
                         jsonBody("""{"description":"must stay shared"}""")
                     }
                     assertEquals(HttpStatusCode.NotFound, sharedMutation.status)
 
-                    val privateComponent = client.post("/api/ds/components") {
+                    val privateComponent = client.post("/api/design-systems/catalog/components") {
                         trustedSystemAdmin()
                         jsonBody("""{"name":"PrivateButton","platform":"web"}""")
                     }
                     assertEquals(HttpStatusCode.Created, privateComponent.status)
                     val privateComponentId = id(privateComponent.bodyAsText())
-                    val privateLink = client.post("/api/ds/design-system-components") {
+                    val privateLink = client.post("/api/design-systems/$designSystemId/design-system-components") {
                         trusted("project-a", "editor")
-                        jsonBody("""{"designSystemId":"$designSystemId","componentId":"$privateComponentId"}""")
+                        jsonBody("""{"componentId":"$privateComponentId"}""")
                     }
                     assertEquals(HttpStatusCode.Created, privateLink.status)
-                    val privateState = client.post("/api/ds/states") {
+                    val privateState = client.post("/api/design-systems/catalog/states") {
                         trustedSystemAdmin()
                         jsonBody("""{"componentId":"$privateComponentId","name":"private-state"}""")
                     }
                     assertEquals(HttpStatusCode.Created, privateState.status)
                     val privateStateId = id(privateState.bodyAsText())
-                    val privateStateSet = client.post("/api/ds/state-sets/resolve") {
+                    val privateStateSet = client.post("/api/design-systems/catalog/state-sets/resolve") {
                         trustedSystemAdmin()
                         jsonBody("""{"stateIds":["$privateStateId"]}""")
                     }
@@ -316,14 +322,18 @@ class DsServiceHttpPostgresIntegrationTest {
                     val privateStateSetId = id(privateStateSet.bodyAsText())
                     assertEquals(
                         HttpStatusCode.NotFound,
-                        client.get("/api/ds/states/$privateStateId") { trusted("project-b", "viewer") }.status,
+                        client.get(
+                            "/api/design-systems/catalog/states/$privateStateId",
+                        ) { trusted("project-b", "viewer") }.status,
                     )
                     assertEquals(
                         HttpStatusCode.NotFound,
-                        client.get("/api/ds/state-sets/$privateStateSetId") { trusted("project-b", "viewer") }.status,
+                        client.get(
+                            "/api/design-systems/catalog/state-sets/$privateStateSetId",
+                        ) { trusted("project-b", "viewer") }.status,
                     )
 
-                    val chunkedOversize = client.post("/api/ds/component-config/import") {
+                    val chunkedOversize = client.post("/api/design-systems/$designSystemId/component-config/import") {
                         trusted("project-a", "editor")
                         contentType(ContentType.Application.Json)
                         setBody(ByteReadChannel("x".repeat(16 * 1024 * 1024 + 1).encodeToByteArray()))
@@ -347,18 +357,18 @@ class DsServiceHttpPostgresIntegrationTest {
         designSystemId: String,
         versionId: String,
     ) {
-        val renamed = client.patch("/api/ds/design-systems/$designSystemId") {
+        val renamed = client.patch("/api/design-systems/$designSystemId") {
             trusted("project-a", "owner")
             jsonBody("""{"name":"alpha-renamed"}""")
         }
         assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
-        assertHistoricalAppearance(client, versionId)
+        assertHistoricalAppearance(client, designSystemId, versionId)
 
-        val deleted = client.delete("/api/ds/design-systems/$designSystemId") {
+        val deleted = client.delete("/api/design-systems/$designSystemId") {
             trusted("project-a", "owner")
         }
         assertEquals(HttpStatusCode.OK, deleted.status)
-        assertHistoricalAppearance(client, versionId)
+        assertHistoricalAppearance(client, designSystemId, versionId)
         assertTrue(exists(postgres, "design_systems", designSystemId))
         assertEquals(
             1,
@@ -372,8 +382,8 @@ class DsServiceHttpPostgresIntegrationTest {
         )
     }
 
-    private suspend fun assertHistoricalAppearance(client: HttpClient, versionId: String) {
-        val historical = client.get("/api/ds/appearances?versionId=$versionId") {
+    private suspend fun assertHistoricalAppearance(client: HttpClient, designSystemId: String, versionId: String) {
+        val historical = client.get("/api/design-systems/$designSystemId/appearances?versionId=$versionId") {
             trusted("project-a", "viewer")
         }
         assertEquals(HttpStatusCode.OK, historical.status, historical.bodyAsText())
@@ -381,12 +391,12 @@ class DsServiceHttpPostgresIntegrationTest {
     }
 
     private suspend fun verifyEmptyDesignSystemPatch(client: HttpClient, designSystemId: String) {
-        val describedDesignSystem = client.patch("/api/ds/design-systems/$designSystemId") {
+        val describedDesignSystem = client.patch("/api/design-systems/$designSystemId") {
             trusted("project-a", "owner")
             jsonBody("""{"description":"description kept after no-op"}""")
         }
         assertEquals(HttpStatusCode.OK, describedDesignSystem.status, describedDesignSystem.bodyAsText())
-        val emptyDesignSystemPatch = client.patch("/api/ds/design-systems/$designSystemId") {
+        val emptyDesignSystemPatch = client.patch("/api/design-systems/$designSystemId") {
             trusted("project-a", "owner")
             jsonBody("{}")
         }
@@ -400,12 +410,15 @@ class DsServiceHttpPostgresIntegrationTest {
 
     private suspend fun verifyEmptyTenantPatch(
         client: HttpClient,
+        designSystemId: String,
         postgres: IsolatedPostgresDatabase,
         tenantId: String,
     ) {
         val revisionBefore = entityEditRevision(postgres, "tenant", tenantId)
-        val before = client.get("/api/ds/tenants/$tenantId") { trusted("project-a", "viewer") }
-        val emptyPatch = client.patch("/api/ds/tenants/$tenantId") {
+        val before = client.get(
+            "/api/design-systems/$designSystemId/tenants/$tenantId",
+        ) { trusted("project-a", "viewer") }
+        val emptyPatch = client.patch("/api/design-systems/$designSystemId/tenants/$tenantId") {
             trusted("project-a", "editor")
             jsonBody("{}")
         }
@@ -420,10 +433,10 @@ class DsServiceHttpPostgresIntegrationTest {
         designSystemId: String,
         tenantId: String,
     ): TokenFixture {
-        val token = client.post("/api/ds/tokens") {
+        val token = client.post("/api/design-systems/$designSystemId/tokens") {
             trusted("project-a", "owner")
             jsonBody(
-                """{"designSystemId":"$designSystemId",""" +
+                """{""" +
                     """"name":"integration.surface.default","type":"color"}""",
             )
         }
@@ -433,13 +446,13 @@ class DsServiceHttpPostgresIntegrationTest {
             json.parseToJsonElement(token.bodyAsText()).jsonObject.getValue("updatedAt").jsonPrimitive.content,
         )
         val repeatedTokenBody =
-            """{"designSystemId":"$designSystemId","name":"integration.idempotent","type":"color"}"""
-        val firstRepeatedToken = client.post("/api/ds/tokens") {
+            """{"name":"integration.idempotent","type":"color"}"""
+        val firstRepeatedToken = client.post("/api/design-systems/$designSystemId/tokens") {
             trusted("project-a", "editor")
             header("Idempotency-Key", "token-create-replay")
             jsonBody(repeatedTokenBody)
         }
-        val secondRepeatedToken = client.post("/api/ds/tokens") {
+        val secondRepeatedToken = client.post("/api/design-systems/$designSystemId/tokens") {
             trusted("project-a", "editor")
             header("Idempotency-Key", "token-create-replay")
             jsonBody(repeatedTokenBody)
@@ -447,30 +460,30 @@ class DsServiceHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.Created, firstRepeatedToken.status, firstRepeatedToken.bodyAsText())
         assertEquals(firstRepeatedToken.bodyAsText(), secondRepeatedToken.bodyAsText())
         val repeatedTokenId = id(firstRepeatedToken.bodyAsText())
-        val changedRepeatedToken = client.patch("/api/ds/tokens/$repeatedTokenId") {
+        val changedRepeatedToken = client.patch("/api/design-systems/$designSystemId/tokens/$repeatedTokenId") {
             trusted("project-a", "editor")
             jsonBody("""{"description":"must not change replay"}""")
         }
         assertEquals(HttpStatusCode.OK, changedRepeatedToken.status, changedRepeatedToken.bodyAsText())
-        val replayAfterUpdate = client.post("/api/ds/tokens") {
+        val replayAfterUpdate = client.post("/api/design-systems/$designSystemId/tokens") {
             trusted("project-a", "editor")
             header("Idempotency-Key", "token-create-replay")
             jsonBody(repeatedTokenBody)
         }
         assertEquals(firstRepeatedToken.bodyAsText(), replayAfterUpdate.bodyAsText())
-        val mismatchedRepeatedToken = client.post("/api/ds/tokens") {
+        val mismatchedRepeatedToken = client.post("/api/design-systems/$designSystemId/tokens") {
             trusted("project-a", "editor")
             header("Idempotency-Key", "token-create-replay")
             jsonBody(repeatedTokenBody.replace("integration.idempotent", "integration.other"))
         }
         assertEquals(HttpStatusCode.Conflict, mismatchedRepeatedToken.status)
-        val replayJournal = client.get("/api/ds/design-systems/$designSystemId/changes") {
+        val replayJournal = client.get("/api/design-systems/$designSystemId/changes") {
             trusted("project-a", "viewer")
         }
         val repeatedTokenChange = json.parseToJsonElement(replayJournal.bodyAsText()).jsonArray
             .first { it.jsonObject["entityId"]?.jsonPrimitive?.content == repeatedTokenId }
             .jsonObject
-        val revertPath = "/api/ds/design-systems/$designSystemId/changes/${
+        val revertPath = "/api/design-systems/$designSystemId/changes/${
             repeatedTokenChange.getValue("changeId").jsonPrimitive.content
         }/revert"
         val revertRevision = repeatedTokenChange.getValue("editRevision").jsonPrimitive.content
@@ -491,14 +504,14 @@ class DsServiceHttpPostgresIntegrationTest {
         assertEquals(firstRevert.bodyAsText(), repeatedRevert.bodyAsText())
         val (rename, description) = coroutineScope {
             val renameRequest = async {
-                client.patch("/api/ds/tokens/$tokenId") {
+                client.patch("/api/design-systems/$designSystemId/tokens/$tokenId") {
                     trusted("project-a", "editor")
                     header("X-DS-Base-Revision", "1")
                     jsonBody("""{"name":"integration.surface.renamed"}""")
                 }
             }
             val descriptionRequest = async {
-                client.patch("/api/ds/tokens/$tokenId") {
+                client.patch("/api/design-systems/$designSystemId/tokens/$tokenId") {
                     trusted("project-a", "editor")
                     header("X-DS-Base-Revision", "1")
                     jsonBody("""{"description":"changed in parallel"}""")
@@ -510,19 +523,21 @@ class DsServiceHttpPostgresIntegrationTest {
         assertTrue(rename.headers["X-DS-Mutation-Metadata"].orEmpty().contains("\"warnings\": []"))
         assertEquals(HttpStatusCode.OK, description.status, description.bodyAsText())
         assertTrue(description.headers["X-DS-Mutation-Metadata"].orEmpty().contains("\"warnings\": []"))
-        val merged = client.get("/api/ds/tokens/$tokenId") { trusted("project-a", "viewer") }
+        val merged = client.get(
+            "/api/design-systems/$designSystemId/tokens/$tokenId",
+        ) { trusted("project-a", "viewer") }
         val mergedBody = json.parseToJsonElement(merged.bodyAsText()).jsonObject
         assertEquals("integration.surface.renamed", mergedBody.getValue("name").jsonPrimitive.content)
         assertEquals("changed in parallel", mergedBody.getValue("description").jsonPrimitive.content)
         assertTrue(Instant.parse(mergedBody.getValue("updatedAt").jsonPrimitive.content) > initialTokenUpdatedAt)
-        val overlapping = client.patch("/api/ds/tokens/$tokenId") {
+        val overlapping = client.patch("/api/design-systems/$designSystemId/tokens/$tokenId") {
             trusted("project-a", "editor")
             header("X-DS-Base-Revision", "1")
             jsonBody("""{"name":"integration.surface.last"}""")
         }
         assertEquals(HttpStatusCode.OK, overlapping.status, overlapping.bodyAsText())
         assertTrue(overlapping.headers["X-DS-Mutation-Metadata"].orEmpty().contains("/name"))
-        val emptyTokenPatch = client.patch("/api/ds/tokens/$tokenId") {
+        val emptyTokenPatch = client.patch("/api/design-systems/$designSystemId/tokens/$tokenId") {
             trusted("project-a", "editor")
             jsonBody("{}")
         }
@@ -531,7 +546,7 @@ class DsServiceHttpPostgresIntegrationTest {
             "integration.surface.last",
             json.parseToJsonElement(emptyTokenPatch.bodyAsText()).jsonObject.getValue("name").jsonPrimitive.content,
         )
-        val persistentTokenValue = client.post("/api/ds/token-values") {
+        val persistentTokenValue = client.post("/api/design-systems/$designSystemId/token-values") {
             trusted("project-a", "editor")
             header("Idempotency-Key", "persistent-token-value")
             jsonBody(
@@ -541,12 +556,12 @@ class DsServiceHttpPostgresIntegrationTest {
         }
         assertEquals(HttpStatusCode.Created, persistentTokenValue.status, persistentTokenValue.bodyAsText())
         val tokenValueId = id(persistentTokenValue.bodyAsText())
-        val changedTokenValue = client.patch("/api/ds/token-values/$tokenValueId") {
+        val changedTokenValue = client.patch("/api/design-systems/$designSystemId/token-values/$tokenValueId") {
             trusted("project-a", "editor")
             jsonBody("""{"value":"#abcdef"}""")
         }
         assertEquals(HttpStatusCode.OK, changedTokenValue.status, changedTokenValue.bodyAsText())
-        val emptyTokenValuePatch = client.patch("/api/ds/token-values/$tokenValueId") {
+        val emptyTokenValuePatch = client.patch("/api/design-systems/$designSystemId/token-values/$tokenValueId") {
             trusted("project-a", "editor")
             jsonBody("{}")
         }
@@ -556,14 +571,14 @@ class DsServiceHttpPostgresIntegrationTest {
             json.parseToJsonElement(emptyTokenValuePatch.bodyAsText()).jsonObject.getValue("value")
                 .jsonPrimitive.content,
         )
-        val tenantValues = client.get("/api/ds/tenants/$tenantId/token-values") {
+        val tenantValues = client.get("/api/design-systems/$designSystemId/tenants/$tenantId/token-values") {
             trusted("project-a", "viewer")
         }
         val currentTokenValue = json.parseToJsonElement(tenantValues.bodyAsText()).jsonArray
             .first { it.jsonObject.getValue("id").jsonPrimitive.content == tokenValueId }
             .jsonObject
         val valueRevision = currentTokenValue.getValue("editRevision").jsonPrimitive.content.toLong()
-        val batchUpdate = client.put("/api/ds/tenants/$tenantId/token-values") {
+        val batchUpdate = client.put("/api/design-systems/$designSystemId/tenants/$tenantId/token-values") {
             trusted("project-a", "editor")
             jsonBody(
                 """{"editRevision":0,"values":[{"tokenId":"$tokenId","platform":"web",""" +
@@ -583,20 +598,20 @@ class DsServiceHttpPostgresIntegrationTest {
                         value.jsonObject.getValue("editRevision").jsonPrimitive.content.toLong() > valueRevision
                 },
         )
-        verifyConcurrentTokenValueWrites(client, tokenValueId, tenantId, tokenId, valueRevision)
-        val immutableKeyUpdate = client.patch("/api/ds/token-values/$tokenValueId") {
+        verifyConcurrentTokenValueWrites(client, designSystemId, tokenValueId, tenantId, tokenId, valueRevision)
+        val immutableKeyUpdate = client.patch("/api/design-systems/$designSystemId/token-values/$tokenValueId") {
             trusted("project-a", "editor")
             jsonBody("""{"platform":"ios"}""")
         }
         assertEquals(HttpStatusCode.BadRequest, immutableKeyUpdate.status)
-        val journal = client.get("/api/ds/design-systems/$designSystemId/changes") {
+        val journal = client.get("/api/design-systems/$designSystemId/changes") {
             trusted("project-a", "viewer")
         }
         val tokenChange = json.parseToJsonElement(journal.bodyAsText()).jsonArray
             .first { it.jsonObject["entityType"]?.jsonPrimitive?.content == "token" }
             .jsonObject
         val staleRevert = client.post(
-            "/api/ds/design-systems/$designSystemId/changes/${tokenChange.getValue(
+            "/api/design-systems/$designSystemId/changes/${tokenChange.getValue(
                 "changeId",
             ).jsonPrimitive.content}/revert",
         ) {
@@ -612,14 +627,15 @@ class DsServiceHttpPostgresIntegrationTest {
 
     private suspend fun verifyPublishedTokenValueRestoration(
         client: HttpClient,
+        designSystemId: String,
         fixture: TokenFixture,
         tenantId: String,
     ) {
-        val removed = client.delete("/api/ds/token-values/${fixture.tokenValueId}") {
+        val removed = client.delete("/api/design-systems/$designSystemId/token-values/${fixture.tokenValueId}") {
             trusted("project-a", "owner")
         }
         assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
-        val restored = client.post("/api/ds/token-values") {
+        val restored = client.post("/api/design-systems/$designSystemId/token-values") {
             trusted("project-a", "owner")
             header("Idempotency-Key", "restore-persistent-token-value")
             jsonBody(
@@ -632,25 +648,27 @@ class DsServiceHttpPostgresIntegrationTest {
     }
 
     private suspend fun verifyInheritedNameConflicts(client: HttpClient, designSystemId: String) {
-        val tenantDuplicate = client.post("/api/ds/tenants") {
+        val tenantDuplicate = client.post("/api/design-systems/$designSystemId/tenants") {
             trusted("project-a", "editor")
-            jsonBody("""{"designSystemId":"$designSystemId","name":" DARK "}""")
+            jsonBody("""{"name":" DARK "}""")
         }
         assertEquals(HttpStatusCode.Conflict, tenantDuplicate.status, tenantDuplicate.bodyAsText())
-        val tokenDuplicate = client.post("/api/ds/tokens") {
+        val tokenDuplicate = client.post("/api/design-systems/$designSystemId/tokens") {
             trusted("project-a", "editor")
             jsonBody(
-                """{"designSystemId":"$designSystemId",""" +
+                """{""" +
                     """"name":" INTEGRATION.SURFACE.LAST ","type":"color"}""",
             )
         }
         assertEquals(HttpStatusCode.Conflict, tokenDuplicate.status, tokenDuplicate.bodyAsText())
-        val renameCandidate = client.post("/api/ds/tokens") {
+        val renameCandidate = client.post("/api/design-systems/$designSystemId/tokens") {
             trusted("project-a", "editor")
-            jsonBody("""{"designSystemId":"$designSystemId","name":"rename-candidate","type":"color"}""")
+            jsonBody("""{"name":"rename-candidate","type":"color"}""")
         }
         assertEquals(HttpStatusCode.Created, renameCandidate.status, renameCandidate.bodyAsText())
-        val renameCollision = client.patch("/api/ds/tokens/${id(renameCandidate.bodyAsText())}") {
+        val renameCollision = client.patch(
+            "/api/design-systems/$designSystemId/tokens/${id(renameCandidate.bodyAsText())}",
+        ) {
             trusted("project-a", "editor")
             jsonBody("""{"name":"Integration.Surface.Last"}""")
         }
@@ -664,20 +682,20 @@ class DsServiceHttpPostgresIntegrationTest {
         draftRevision: Long,
         publishedBody: String,
     ) {
-        val replayed = client.post("/api/ds/design-system-versions") {
+        val replayed = client.post("/api/design-systems/$designSystemId/versions") {
             trusted("project-a", "owner")
             header("Idempotency-Key", "integration-publication")
             jsonBody(
-                """{"designSystemId":"$designSystemId","draftId":"$draftId",""" +
+                """{"draftId":"$draftId",""" +
                     """"draftRevision":$draftRevision,"version":"1.0.0","changelog":"Integration"}""",
             )
         }
         assertEquals(publishedBody, replayed.bodyAsText())
-        val stale = client.post("/api/ds/design-system-versions") {
+        val stale = client.post("/api/design-systems/$designSystemId/versions") {
             trusted("project-a", "owner")
             header("Idempotency-Key", "stale-integration-publication")
             jsonBody(
-                """{"designSystemId":"$designSystemId","draftId":"$draftId",""" +
+                """{"draftId":"$draftId",""" +
                     """"draftRevision":$draftRevision,"version":"2.0.0","changelog":"Stale"}""",
             )
         }
@@ -692,69 +710,73 @@ class DsServiceHttpPostgresIntegrationTest {
         tenantId: String,
     ) {
         val historical = client.get(
-            "/api/ds/design-systems/$designSystemId/tokens?versionId=$versionId",
+            "/api/design-systems/$designSystemId/tokens?versionId=$versionId",
         ) { trusted("project-a", "viewer") }
         assertEquals(HttpStatusCode.OK, historical.status, historical.bodyAsText())
         val historicalSystemBefore = client.get(
-            "/api/ds/design-systems/$designSystemId?versionId=$versionId",
+            "/api/design-systems/$designSystemId?versionId=$versionId",
         ) { trusted("project-a", "viewer") }
         assertEquals(HttpStatusCode.OK, historicalSystemBefore.status, historicalSystemBefore.bodyAsText())
         val historicalSystemJson = json.parseToJsonElement(historicalSystemBefore.bodyAsText()).jsonObject
         assertTrue(historicalSystemJson.getValue("draftId") is kotlinx.serialization.json.JsonNull)
         assertTrue(historicalSystemJson.getValue("draftRevision") is kotlinx.serialization.json.JsonNull)
-        val historicalTenantBefore = client.get("/api/ds/tenants/$tenantId?versionId=$versionId") {
+        val historicalTenantBefore = client.get(
+            "/api/design-systems/$designSystemId/tenants/$tenantId?versionId=$versionId",
+        ) {
             trusted("project-a", "viewer")
         }
         assertEquals(HttpStatusCode.OK, historicalTenantBefore.status, historicalTenantBefore.bodyAsText())
 
-        val currentValuesSave = client.put("/api/ds/tenants/$tenantId/token-values") {
+        val currentValuesSave = client.put("/api/design-systems/$designSystemId/tenants/$tenantId/token-values") {
             trusted("project-a", "editor")
             jsonBody("""{"editRevision":0,"values":[]}""")
         }
         assertEquals(HttpStatusCode.OK, currentValuesSave.status, currentValuesSave.bodyAsText())
-        val currentSystemUpdate = client.patch("/api/ds/design-systems/$designSystemId") {
+        val currentSystemUpdate = client.patch("/api/design-systems/$designSystemId") {
             trusted("project-a", "owner")
             jsonBody("""{"description":"current draft only"}""")
         }
         assertEquals(HttpStatusCode.OK, currentSystemUpdate.status, currentSystemUpdate.bodyAsText())
 
         val historicalSystemAfter = client.get(
-            "/api/ds/design-systems/$designSystemId?versionId=$versionId",
+            "/api/design-systems/$designSystemId?versionId=$versionId",
         ) { trusted("project-a", "viewer") }
-        val historicalTenantAfter = client.get("/api/ds/tenants/$tenantId?versionId=$versionId") {
+        val historicalTenantAfter = client.get(
+            "/api/design-systems/$designSystemId/tenants/$tenantId?versionId=$versionId",
+        ) {
             trusted("project-a", "viewer")
         }
         assertEquals(historicalSystemBefore.bodyAsText(), historicalSystemAfter.bodyAsText())
         assertEquals(historicalTenantBefore.bodyAsText(), historicalTenantAfter.bodyAsText())
         val missing = client.get(
-            "/api/ds/design-systems/$designSystemId/tokens?versionId=${UUID.randomUUID()}",
+            "/api/design-systems/$designSystemId/tokens?versionId=${UUID.randomUUID()}",
         ) { trusted("project-a", "viewer") }
         assertEquals(HttpStatusCode.NotFound, missing.status, missing.bodyAsText())
         val foreign = client.get(
-            "/api/ds/design-systems/$designSystemId/tokens?versionId=$versionId",
+            "/api/design-systems/$designSystemId/tokens?versionId=$versionId",
         ) { trusted("project-b", "viewer") }
         assertEquals(HttpStatusCode.NotFound, foreign.status, foreign.bodyAsText())
 
-        val otherDesignSystem = client.post("/api/ds/design-systems") {
+        val otherDesignSystem = client.post("/api/design-systems") {
             trusted("project-a", "owner")
             jsonBody("""{"name":"other-version-owner","projectName":"other-version-owner"}""")
         }
         assertEquals(HttpStatusCode.Created, otherDesignSystem.status, otherDesignSystem.bodyAsText())
         val otherDesignSystemId = id(otherDesignSystem.bodyAsText())
-        val otherDesignSystemUpdate = client.patch("/api/ds/design-systems/$otherDesignSystemId") {
+        val otherDesignSystemUpdate = client.patch("/api/design-systems/$otherDesignSystemId") {
             trusted("project-a", "owner")
             jsonBody("""{"description":"publishable change"}""")
         }
         assertEquals(HttpStatusCode.OK, otherDesignSystemUpdate.status, otherDesignSystemUpdate.bodyAsText())
-        val otherCurrent = client.get("/api/ds/design-systems/$otherDesignSystemId") {
+        val otherCurrent = client.get("/api/design-systems/$otherDesignSystemId") {
             trusted("project-a", "viewer")
         }
         val otherCurrentJson = json.parseToJsonElement(otherCurrent.bodyAsText()).jsonObject
-        val otherPublished = client.post("/api/ds/design-system-versions") {
+        val otherPublished = client.post("/api/design-systems/$otherDesignSystemId/versions") {
             trusted("project-a", "owner")
             header("Idempotency-Key", "other-version-selection")
             jsonBody(
-                """{"designSystemId":"$otherDesignSystemId",""" +
+                """{""" +
                     """"draftId":"${otherCurrentJson.getValue("draftId").jsonPrimitive.content}",""" +
                     """"draftRevision":${otherCurrentJson.getValue("draftRevision").jsonPrimitive.content},""" +
                     """"version":"1.0.0","changelog":"Other"}""",
@@ -762,7 +784,7 @@ class DsServiceHttpPostgresIntegrationTest {
         }
         assertEquals(HttpStatusCode.Created, otherPublished.status, otherPublished.bodyAsText())
         val mismatchedVersion = client.get(
-            "/api/ds/design-systems/$designSystemId/tokens?versionId=${id(otherPublished.bodyAsText())}",
+            "/api/design-systems/$designSystemId/tokens?versionId=${id(otherPublished.bodyAsText())}",
         ) { trusted("project-a", "viewer") }
         assertEquals(HttpStatusCode.NotFound, mismatchedVersion.status, mismatchedVersion.bodyAsText())
     }
@@ -824,7 +846,7 @@ class DsServiceHttpPostgresIntegrationTest {
         client: HttpClient,
         postgres: IsolatedPostgresDatabase,
     ) {
-        val designSystem = client.post("/api/ds/design-systems") {
+        val designSystem = client.post("/api/design-systems") {
             trusted("project-a", "owner")
             jsonBody("""{"name":"missing-prerequisites","projectName":"alpha"}""")
         }
@@ -847,9 +869,9 @@ class DsServiceHttpPostgresIntegrationTest {
                     "WHERE revision.design_system_id = '$designSystemId' AND boundary.status = 'draft'",
             ),
         )
-        val tenant = client.post("/api/ds/tenants") {
+        val tenant = client.post("/api/design-systems/$designSystemId/tenants") {
             trusted("project-a", "editor")
-            jsonBody("""{"designSystemId":"$designSystemId","name":"without-components"}""")
+            jsonBody("""{"name":"without-components"}""")
         }
         assertEquals(HttpStatusCode.Created, tenant.status, tenant.bodyAsText())
         val tenantId = id(tenant.bodyAsText())
@@ -859,7 +881,7 @@ class DsServiceHttpPostgresIntegrationTest {
         assertTrue(rowCount(postgres, "token_values") > 0)
         assertEquals(0, rowCount(postgres, "design_system_components"))
         assertEquals(0, rowCount(postgres, "appearances"))
-        val changes = client.get("/api/ds/design-systems/$designSystemId/changes") {
+        val changes = client.get("/api/design-systems/$designSystemId/changes") {
             trusted("project-a", "viewer")
         }
         assertEquals(HttpStatusCode.OK, changes.status, changes.bodyAsText())
@@ -870,7 +892,7 @@ class DsServiceHttpPostgresIntegrationTest {
             visibleChanges.single().jsonObject.getValue("entityType").jsonPrimitive.content,
             changes.bodyAsText(),
         )
-        val tenantDeleted = client.delete("/api/ds/tenants/$tenantId") {
+        val tenantDeleted = client.delete("/api/design-systems/$designSystemId/tenants/$tenantId") {
             trusted("project-a", "owner")
         }
         assertEquals(HttpStatusCode.OK, tenantDeleted.status, tenantDeleted.bodyAsText())
@@ -878,7 +900,7 @@ class DsServiceHttpPostgresIntegrationTest {
         assertEquals(0, rowCount(postgres, "token_values"))
         assertEquals(0, rowCount(postgres, "tenant_revisions"))
         assertEquals(0, rowCount(postgres, "token_value_revisions"))
-        val deleted = client.delete("/api/ds/design-systems/$designSystemId") {
+        val deleted = client.delete("/api/design-systems/$designSystemId") {
             trusted("project-a", "owner")
         }
         assertEquals(HttpStatusCode.OK, deleted.status)
@@ -956,40 +978,40 @@ class DsServiceHttpPostgresIntegrationTest {
         postgres: IsolatedPostgresDatabase,
         designSystemId: String,
     ) {
-        val component = client.post("/api/ds/components") {
+        val component = client.post("/api/design-systems/catalog/components") {
             trustedSystemAdmin()
             jsonBody("""{"name":"ForeignOnly","platform":"web"}""")
         }
         val componentId = id(component.bodyAsText())
-        val link = client.post("/api/ds/design-system-components") {
+        val link = client.post("/api/design-systems/$designSystemId/design-system-components") {
             trusted("project-b", "editor")
-            jsonBody("""{"designSystemId":"$designSystemId","componentId":"$componentId"}""")
+            jsonBody("""{"componentId":"$componentId"}""")
         }
         assertEquals(HttpStatusCode.Created, link.status, link.bodyAsText())
-        val property = client.post("/api/ds/properties") {
+        val property = client.post("/api/design-systems/catalog/properties") {
             trustedSystemAdmin()
             jsonBody("""{"componentId":"$componentId","name":"foreign","type":"value"}""")
         }
         val propertyId = id(property.bodyAsText())
-        val appearance = client.post("/api/ds/appearances") {
+        val appearance = client.post("/api/design-systems/$designSystemId/appearances") {
             trusted("project-b", "editor")
-            jsonBody("""{"designSystemId":"$designSystemId","componentId":"$componentId"}""")
+            jsonBody("""{"componentId":"$componentId"}""")
         }
         val appearanceId = id(appearance.bodyAsText())
-        val state = client.post("/api/ds/states") {
+        val state = client.post("/api/design-systems/catalog/states") {
             trustedSystemAdmin()
             jsonBody("""{"name":"global-impact"}""")
         }
         val stateId = id(state.bodyAsText())
-        val stateSet = client.post("/api/ds/state-sets/resolve") {
+        val stateSet = client.post("/api/design-systems/catalog/state-sets/resolve") {
             trustedSystemAdmin()
             jsonBody("""{"stateIds":["$stateId"]}""")
         }
         val stateSetId = id(stateSet.bodyAsText())
-        val value = client.post("/api/ds/invariant-property-values") {
+        val value = client.post("/api/design-systems/$designSystemId/invariant-property-values") {
             trusted("project-b", "editor")
             jsonBody(
-                """{"propertyId":"$propertyId","designSystemId":"$designSystemId",""" +
+                """{"propertyId":"$propertyId",""" +
                     """"componentId":"$componentId","appearanceId":"$appearanceId",""" +
                     """"value":"foreign","stateSetId":"$stateSetId"}""",
             )
@@ -1004,7 +1026,7 @@ class DsServiceHttpPostgresIntegrationTest {
             stateId,
             stateSetId,
         )
-        val scopedImpact = client.get("/api/ds/states/$stateId/impact") {
+        val scopedImpact = client.get("/api/design-systems/catalog/states/$stateId/impact") {
             trusted("project-a", "viewer")
         }
         assertEquals(HttpStatusCode.OK, scopedImpact.status)
@@ -1021,38 +1043,38 @@ class DsServiceHttpPostgresIntegrationTest {
         stateSetId: String,
     ) {
         val (draftId, draftRevision) = activeDraft(postgres, designSystemId)
-        val version = client.post("/api/ds/design-system-versions") {
+        val version = client.post("/api/design-systems/$designSystemId/versions") {
             trusted("project-b", "owner")
             header("Idempotency-Key", "foreign-impact-version")
             jsonBody(
-                """{"designSystemId":"$designSystemId","draftId":"$draftId",""" +
+                """{"draftId":"$draftId",""" +
                     """"draftRevision":$draftRevision,"version":"1.0.0",""" +
                     """"changelog":"Impact boundary"}""",
             )
         }
         assertEquals(HttpStatusCode.Created, version.status, version.bodyAsText())
         val versionId = id(version.bodyAsText())
-        val impactBefore = client.get("/api/ds/states/$stateId/impact?versionId=$versionId") {
+        val impactBefore = client.get("/api/design-systems/catalog/states/$stateId/impact?versionId=$versionId") {
             trusted("project-b", "viewer")
         }
         assertEquals(HttpStatusCode.OK, impactBefore.status, impactBefore.bodyAsText())
         // Дополнительное значение занимает другой логический слот, а не дублирует опубликованный.
-        val draftProperty = client.post("/api/ds/properties") {
+        val draftProperty = client.post("/api/design-systems/catalog/properties") {
             trustedSystemAdmin()
             jsonBody("""{"componentId":"$componentId","name":"foreignDraft","type":"value"}""")
         }
         assertEquals(HttpStatusCode.Created, draftProperty.status, draftProperty.bodyAsText())
         val draftPropertyId = id(draftProperty.bodyAsText())
-        val draftOnlyValue = client.post("/api/ds/invariant-property-values") {
+        val draftOnlyValue = client.post("/api/design-systems/$designSystemId/invariant-property-values") {
             trusted("project-b", "editor")
             jsonBody(
-                """{"propertyId":"$draftPropertyId","designSystemId":"$designSystemId",""" +
+                """{"propertyId":"$draftPropertyId",""" +
                     """"componentId":"$componentId","appearanceId":"$appearanceId",""" +
                     """"value":"draft-only","stateSetId":"$stateSetId"}""",
             )
         }
         assertEquals(HttpStatusCode.Created, draftOnlyValue.status, draftOnlyValue.bodyAsText())
-        val impactAfter = client.get("/api/ds/states/$stateId/impact?versionId=$versionId") {
+        val impactAfter = client.get("/api/design-systems/catalog/states/$stateId/impact?versionId=$versionId") {
             trusted("project-b", "viewer")
         }
         assertEquals(impactBefore.bodyAsText(), impactAfter.bodyAsText())
@@ -1060,6 +1082,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
     private suspend fun verifyConcurrentTokenValueWrites(
         client: HttpClient,
+        designSystemId: String,
         tokenValueId: String,
         tenantId: String,
         tokenId: String,
@@ -1068,14 +1091,14 @@ class DsServiceHttpPostgresIntegrationTest {
         val responses = coroutineScope {
             listOf(
                 async {
-                    client.patch("/api/ds/token-values/$tokenValueId") {
+                    client.patch("/api/design-systems/$designSystemId/token-values/$tokenValueId") {
                         trusted("project-a", "editor")
                         header("X-DS-Base-Revision", baseRevision.toString())
                         jsonBody("""{"value":"#112233"}""")
                     }
                 },
                 async {
-                    client.put("/api/ds/tenants/$tenantId/token-values") {
+                    client.put("/api/design-systems/$designSystemId/tenants/$tenantId/token-values") {
                         trusted("project-a", "editor")
                         jsonBody(
                             """{"editRevision":0,"values":[{"tokenId":"$tokenId","platform":"web",""" +
@@ -1109,7 +1132,6 @@ class DsServiceHttpPostgresIntegrationTest {
     private fun importBody(designSystemId: String, styleName: String, dryRun: Boolean) =
         """
         {
-          "designSystemId":"$designSystemId",
           "platform":"web",
           "meta":{"name":"integration-fixture","source":"kotlin-test"},
           "dryRun":$dryRun,

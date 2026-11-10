@@ -54,8 +54,8 @@ public class GetDesignSystemTokensUseCase(
         mode: TokenMode,
         tenantId: String,
     ): List<TokenWithValue> {
-        val tokens = client.listTokens(projectId).filter { it.designSystemId == designSystemId }
-        val values = client.listTokenValues(projectId)
+        val tokens = client.listTokens(projectId, designSystemId).filter { it.designSystemId == designSystemId }
+        val values = client.listTokenValues(projectId, designSystemId)
             .filter { it.tenantId == tenantId && it.platform == platform && (it.mode == null || it.mode == mode) }
             .groupBy { it.tokenId }
             .mapValues { (_, valuesForToken) ->

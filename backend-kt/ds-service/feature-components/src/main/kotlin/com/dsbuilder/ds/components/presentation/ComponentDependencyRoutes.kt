@@ -37,7 +37,7 @@ fun Route.componentDependencyRoutes(
     update: UpdateComponentDependencyUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/component-deps")) {
+    route(dsRoutePath("/api/design-systems/catalog/component-deps")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

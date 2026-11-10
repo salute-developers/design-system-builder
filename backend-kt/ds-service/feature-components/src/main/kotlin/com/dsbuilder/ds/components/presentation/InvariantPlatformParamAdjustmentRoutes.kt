@@ -40,7 +40,7 @@ fun Route.invariantPlatformParamAdjustmentRoutes(
     delete: DeleteInvariantPlatformParamAdjustmentUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/invariant-platform-param-adjustments")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/invariant-platform-param-adjustments")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

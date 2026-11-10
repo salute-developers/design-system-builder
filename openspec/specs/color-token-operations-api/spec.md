@@ -26,7 +26,7 @@
 
 ### Requirement: Создание цветового токена
 
-`ds-service` SHALL предоставлять `POST /api/ds/tenants/{tenantId}/color-tokens`, которая в одной транзакции
+`ds-service` SHALL предоставлять `POST /api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens`, которая в одной транзакции
 создаёт все переданные определения семейства в группе или подгруппе `groupId`, записывает их начальные
 значения во все темы дизайн-системы текущей темы и, если передан `paletteGroupId`, записывает явную привязку
 токена к группе палитры текущей темы.
@@ -85,7 +85,7 @@
 
 ### Requirement: Изменение значений цветового токена
 
-`ds-service` SHALL предоставлять `PUT /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/values`, которая
+`ds-service` SHALL предоставлять `PUT /api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/values`, которая
 записывает переданные значения членов семейства в текущей теме предметными редакциями активного черновика с
 базовой редакцией каждого значения и в той же транзакции вычисляет тип семейства.
 
@@ -187,7 +187,7 @@ SHALL быть согласованы с другими мутациями ДС.
 
 ### Requirement: Перенос и переименование цветового токена
 
-`ds-service` SHALL предоставлять `POST /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/move` с телом `{ editRevision, groupId, position, name? }`. Операция в одной транзакции переносит всё семейство определений в группу или подгруппу `groupId` на позицию `position` и при необходимости меняет его имя. Идентификаторы определений SHALL сохраняться.
+`ds-service` SHALL предоставлять `POST /api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/move` с телом `{ editRevision, groupId, position, name? }`. Операция в одной транзакции переносит всё семейство определений в группу или подгруппу `groupId` на позицию `position` и при необходимости меняет его имя. Идентификаторы определений SHALL сохраняться.
 
 #### Scenario: Перенос между подгруппами одной группы
 
@@ -295,7 +295,7 @@ SHALL быть согласованы с другими мутациями ДС.
 
 #### Scenario: Общий маршрут значения
 
-- **WHEN** значение цветового токена пишется через `PATCH /api/ds/token-values/{id}`
+- **WHEN** значение цветового токена пишется через `PATCH /api/design-systems/{designSystemId}/token-values/{id}`
 - **THEN** API MUST проверять его по правилам вида значения, хранить сплошное значение платформы строкой и
   пересчитывать тип семейства
 
@@ -303,7 +303,7 @@ SHALL быть согласованы с другими мутациями ДС.
 
 `ds-service` SHALL хранить сплошное значение `ios` и `android` цветового токена массивом из одной строки цвета
 при любом типе семейства. Значение, переданное слоем `[{ "kind": "color", "background": <цвет> }]`, SHALL
-сохраняться строкой `[<цвет>]`. `GET /api/ds/tenants/{tenantId}/token-values` и общий `GET /api/ds/token-values` SHALL отдавать сплошные
+сохраняться строкой `[<цвет>]`. `GET /api/design-systems/{designSystemId}/tenants/{tenantId}/token-values` и общий `GET /api/design-systems/{designSystemId}/token-values` SHALL отдавать сплошные
 значения `ios` и `android` семейства типа `gradient` слоем `[{ "kind": "color", "background": <цвет> }]`, а семейства
 типа `color` — строкой, так что потребители пакета получают значения в форме своего типа без перезаписи других
 тем при смене типа.
@@ -317,7 +317,7 @@ SHALL быть согласованы с другими мутациями ДС.
 
 #### Scenario: Общий маршрут значений
 
-- **WHEN** плагин читает те же значения через `GET /api/ds/token-values`
+- **WHEN** плагин читает те же значения через `GET /api/design-systems/{designSystemId}/token-values`
 - **THEN** сплошное значение `android` градиентного семейства MUST прийти слоем `color`, как в чтении по теме
 
 #### Scenario: Запись слоем цвета

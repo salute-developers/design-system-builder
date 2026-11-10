@@ -45,7 +45,7 @@ fun Route.tokenValueRoutes(
     delete: DeleteTokenValueUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/token-values")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/token-values")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

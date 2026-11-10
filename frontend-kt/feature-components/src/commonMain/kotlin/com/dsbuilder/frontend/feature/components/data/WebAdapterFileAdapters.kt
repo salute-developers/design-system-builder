@@ -15,7 +15,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 /** HTTP-источник web-адаптера. */
 internal class HttpWebAdapterFileSource(
@@ -25,8 +24,9 @@ internal class HttpWebAdapterFileSource(
 
     override suspend fun fetch(command: ExportComponentsCommand): WebAdapterFileResult {
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
-        val path = "/api/projects/${command.projectId.value}/ds/component-config/web-adapter"
-        val body = buildJsonObject { put("designSystemId", command.designSystemId.value) }.toString()
+        val path = "/api/projects/${command.projectId.value}/design-systems/" +
+            "${command.designSystemId.value}/component-config/web-adapter"
+        val body = buildJsonObject { }.toString()
         return when (val result = client.post(path, body)) {
             is AuthenticatedHttpResult.Failure -> WebAdapterFileResult.Failed(result.message)
             is AuthenticatedHttpResult.Success -> decode(result.body)

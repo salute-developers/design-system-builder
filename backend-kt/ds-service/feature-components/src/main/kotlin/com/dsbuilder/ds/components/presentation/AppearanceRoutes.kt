@@ -45,12 +45,12 @@ fun Route.appearanceRoutes(
     axes: ListAppearanceVariationAxesUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/appearances")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/appearances")) {
         get {
             val query = call.request.queryParameters
-            if (query["designSystemId"] != null || query["componentId"] != null) {
+            if (query["componentId"] != null) {
                 val context = call.modelReadContext(evaluator) ?: return@get
-                val designSystemId = query["designSystemId"].toUuidOrNull()
+                val designSystemId = context.designSystemId
                     ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
                 val componentId = query["componentId"].toUuidOrNull()
                     ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_component_id"))
@@ -99,7 +99,7 @@ fun Route.appearanceRoutes(
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateAppearanceRequest>()
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
             val componentId = request.componentId.toUuidOrNull()
             if (
                 designSystemId == null || componentId == null || request.name.trim().length > 255

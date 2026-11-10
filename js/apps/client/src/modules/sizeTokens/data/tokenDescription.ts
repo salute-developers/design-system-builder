@@ -11,7 +11,7 @@ export const saveSizeTokenDescription = async (context: SizeTokenContext, tokenI
     try {
         await subjectMutation(context, () =>
             http.patch(
-                `${apiRoot(context.projectId)}/tokens/${encodeURIComponent(tokenId)}`,
+                `${apiRoot(context.projectId, context.designSystemId)}/tokens/${encodeURIComponent(tokenId)}`,
                 { description: description || null },
                 { headers: { 'Idempotency-Key': crypto.randomUUID() } },
             ),

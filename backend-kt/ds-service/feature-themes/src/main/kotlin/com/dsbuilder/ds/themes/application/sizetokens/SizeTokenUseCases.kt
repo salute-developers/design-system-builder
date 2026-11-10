@@ -1,6 +1,6 @@
 package com.dsbuilder.ds.themes.application.sizetokens
 
-/** Use case токенов размеров для маршрутов `/api/ds/tenants/{tenantId}/size-tokens`. */
+/** Use case токенов размеров для маршрутов `/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens`. */
 data class SizeTokenUseCases(
     /** Чтение раздела. */
     val get: GetSizeTokensUseCase,

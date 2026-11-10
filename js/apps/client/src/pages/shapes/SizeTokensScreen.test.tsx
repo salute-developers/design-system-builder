@@ -437,7 +437,7 @@ describe('SizeTokensScreen', () => {
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
         expect(updates()).toEqual([{ valuePx: 14, platforms: {}, baseRevisions: { web: 0, ios: 0, android: 0 } }]);
         expect(sent('update')[0].path).toBe(
-            `/api/projects/project-1/ds/tenants/${context.tenantId}/size-tokens/id-round.m/value`,
+            `/api/projects/project-1/design-systems/ds-1/tenants/${context.tenantId}/size-tokens/id-round.m/value`,
         );
         expect(getDraftAutosaveStatus(context)).toBe('saved');
         expect(values.get('round.m')?.web).toBe(toRem(14));

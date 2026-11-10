@@ -35,7 +35,7 @@ internal suspend fun <T> modelFindList(
     block: suspend () -> List<T>?,
 ): DsResult<List<T>> = policy.read(context, ProjectScope.COMPONENT_VARIATIONS_READ) {
     transactions.readOnly(context) {
-        block()?.let { DsResult.Success(it) } ?: if (context.principal.globalAdmin) {
+        block()?.let { DsResult.Success(it) } ?: if (context.principal.globalAdmin && context.designSystemId == null) {
             DsResult.Success(emptyList())
         } else {
             DsResult.Failure(DsFailure.NotFound)

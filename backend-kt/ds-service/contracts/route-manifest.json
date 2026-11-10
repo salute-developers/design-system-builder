@@ -1,8 +1,7 @@
 {
   "schemaVersion": 1,
-  "publicPrefix": "/api/projects/{projectId}/ds",
-  "internalPrefix": "/api/ds",
-  "legacyOpenApiPrefix": "/ds",
+  "publicPrefix": "/api/projects/{projectId}/design-systems",
+  "internalPrefix": "/api/design-systems",
   "operationFields": ["method", "suffix", "requestDto", "responseDto", "successStatus", "permission", "ownershipOverride"],
   "defaultErrorStatuses": [400, 403, 404, 409, 422, 500],
   "groups": [
@@ -12,19 +11,19 @@
       "included": true,
       "ownership": "design-system-project-or-global",
       "operations": [
-        ["GET", "/design-systems", null, "DesignSystem[]", 200, "design-systems:read", null],
-        ["GET", "/design-systems/{id}", null, "DesignSystem", 200, "design-systems:read", null],
-        ["POST", "/design-systems", "CreateDesignSystemRequest", "DesignSystem", 201, "design-systems:write", "project-owned-create"],
-        ["PATCH", "/design-systems/{id}", "UpdateDesignSystemRequest", "DesignSystem", 200, "design-systems:write", null],
-        ["DELETE", "/design-systems/{id}", null, "OkResponse", 200, "design-systems:delete", null],
-        ["GET", "/design-systems/{id}/components", "DesignSystemComponentsQuery", "ComponentSummary[]", 200, "components:read", null],
-        ["GET", "/design-systems/{id}/tokens", "DesignSystemTokensQuery", "DesignSystemToken[]", 200, "tokens:read", null],
-        ["GET", "/design-systems/{id}/components/{componentId}/styles", null, "Style[]", 200, "components:read", "design-system-and-component-link"],
-        ["GET", "/design-systems/{id}/tenants", null, "Tenant[]", 200, "tenants:read", null],
-        ["GET", "/design-systems/{id}/appearances", null, "Appearance[]", 200, "components:variations:read", null],
-        ["GET", "/design-systems/{id}/changes", null, "DesignSystemChange[]", 200, "design-systems:read", null],
-        ["GET", "/design-systems/{id}/changes/token-ids", "ChangedTokenIdsQuery", "ChangedTokenIdsResponse", 200, "design-systems:read", null],
-        ["POST", "/design-systems/{id}/changes/revert", "RevertDraftChangesRequest", "OkResponse", 200, "design-systems:write", null]
+        ["GET", "", null, "DesignSystem[]", 200, "design-systems:read", null],
+        ["GET", "/{designSystemId}", null, "DesignSystem", 200, "design-systems:read", null],
+        ["POST", "", "CreateDesignSystemRequest", "DesignSystem", 201, "design-systems:write", "project-owned-create"],
+        ["PATCH", "/{designSystemId}", "UpdateDesignSystemRequest", "DesignSystem", 200, "design-systems:write", null],
+        ["DELETE", "/{designSystemId}", null, "OkResponse", 200, "design-systems:delete", null],
+        ["GET", "/{designSystemId}/components", "DesignSystemComponentsQuery", "ComponentSummary[]", 200, "components:read", null],
+        ["GET", "/{designSystemId}/tokens", "DesignSystemTokensQuery", "DesignSystemToken[]", 200, "tokens:read", null],
+        ["GET", "/{designSystemId}/components/{componentId}/styles", null, "Style[]", 200, "components:read", "design-system-and-component-link"],
+        ["GET", "/{designSystemId}/tenants", null, "Tenant[]", 200, "tenants:read", null],
+        ["GET", "/{designSystemId}/appearances", null, "Appearance[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/changes", null, "DesignSystemChange[]", 200, "design-systems:read", null],
+        ["GET", "/{designSystemId}/changes/token-ids", "ChangedTokenIdsQuery", "ChangedTokenIdsResponse", 200, "design-systems:read", null],
+        ["POST", "/{designSystemId}/changes/revert", "RevertDraftChangesRequest", "OkResponse", 200, "design-systems:write", null]
       ]
     },
     {
@@ -33,24 +32,9 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/design-system-versions", null, "DesignSystemVersion[]", 200, "design-systems:read", null],
-        ["GET", "/design-system-versions/{id}", null, "DesignSystemVersion", 200, "design-systems:read", null],
-        ["GET", "/design-system-versions/by-design-system/{designSystemId}", null, "DesignSystemVersion[]", 200, "design-systems:read", null],
-        ["POST", "/design-system-versions", "CreateDesignSystemVersionRequest", "DesignSystemVersion", 201, "design-systems:write", null],
-        ["PATCH", "/design-system-versions/{id}", "UpdateDesignSystemVersionRequest", "DesignSystemVersion", 200, "design-systems:write", null],
-        ["DELETE", "/design-system-versions/{id}", null, "OkResponse", 200, "design-systems:delete", null]
-      ]
-    },
-    {
-      "name": "design-system-changes",
-      "router": "src/routes/api/design-system-changes.ts",
-      "included": true,
-      "ownership": "via-design-system",
-      "operations": [
-        ["GET", "/design-system-changes", null, "DesignSystemChange[]", 200, "design-systems:read", null],
-        ["GET", "/design-system-changes/{id}", null, "DesignSystemChange", 200, "design-systems:read", null],
-        ["GET", "/design-system-changes/by-design-system/{designSystemId}", null, "DesignSystemChange[]", 200, "design-systems:read", null],
-        ["POST", "/design-system-changes", "CreateDesignSystemChangeRequest", "DesignSystemChange", 201, "design-systems:write", null]
+        ["GET", "/{designSystemId}/versions", null, "DesignSystemVersion[]", 200, "design-systems:read", null],
+        ["GET", "/{designSystemId}/versions/{id}", null, "DesignSystemVersion", 200, "design-systems:read", null],
+        ["POST", "/{designSystemId}/versions", "CreateDesignSystemVersionRequest", "DesignSystemVersion", 201, "design-systems:write", null]
       ]
     },
     {
@@ -59,13 +43,12 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/tenants", null, "Tenant[]", 200, "tenants:read", null],
-        ["GET", "/tenants/{id}", null, "Tenant", 200, "tenants:read", null],
-        ["POST", "/tenants", "CreateTenantRequest", "Tenant", 201, "tenants:write", null],
-        ["PATCH", "/tenants/{id}", "UpdateTenantRequest", "Tenant", 200, "tenants:write", null],
-        ["DELETE", "/tenants/{id}", null, "OkResponse", 200, "tenants:delete", null],
-        ["GET", "/tenants/{id}/token-values", null, "TokenValue[]", 200, "tenants:read", null],
-        ["PUT", "/tenants/{id}/token-values", "BatchSaveTenantTokenValuesRequest", "TenantTokenValuesSaveResponse", 200, "tenants:write", "tenant-edit-revision"]
+        ["GET", "/{designSystemId}/tenants/{id}", null, "Tenant", 200, "tenants:read", null],
+        ["POST", "/{designSystemId}/tenants", "CreateTenantRequest", "Tenant", 201, "tenants:write", null],
+        ["PATCH", "/{designSystemId}/tenants/{id}", "UpdateTenantRequest", "Tenant", 200, "tenants:write", null],
+        ["DELETE", "/{designSystemId}/tenants/{id}", null, "OkResponse", 200, "tenants:delete", null],
+        ["GET", "/{designSystemId}/tenants/{id}/token-values", null, "TokenValue[]", 200, "tenants:read", null],
+        ["PUT", "/{designSystemId}/tenants/{id}/token-values", "BatchSaveTenantTokenValuesRequest", "TenantTokenValuesSaveResponse", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {
@@ -75,17 +58,17 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/tenants/{tenantId}/palette", null, "ThemePalette", 200, "tenants:read", null],
-        ["GET", "/tenants/{tenantId}/palette/links", "PaletteLinksQuery", "PaletteLink[]", 200, "tenants:read", null],
-        ["POST", "/tenants/{tenantId}/palette/groups", "PaletteGroupLabelRequest", "PaletteGroupMutation", 201, "tenants:write", "tenant-edit-revision"],
-        ["PATCH", "/tenants/{tenantId}/palette/groups/{groupId}", "PaletteGroupLabelRequest", "PaletteGroupMutation", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/palette/groups/{groupId}", "PaletteRevisionRequest", "PaletteEmptyMutation", 200, "tenants:write", "tenant-edit-revision"],
-        ["PUT", "/tenants/{tenantId}/palette/token-groups/{tokenId}", "PaletteTokenGroupRequest", "PaletteTokenAssignmentMutation", 200, "tenants:write", "tenant-edit-revision"],
-        ["POST", "/tenants/{tenantId}/palette/groups/{groupId}/ramps", "PaletteRampRequest", "PaletteRampMutation", 201, "tenants:write", "tenant-edit-revision"],
-        ["PUT", "/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/source", "PaletteRampRequest", "PaletteRampMutation", 200, "tenants:write", "tenant-edit-revision"],
-        ["POST", "/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/rebuild", "PaletteRebuildRequest", "PaletteRebuildResponse", 200, "tenants:write", "tenant-edit-revision"],
-        ["PATCH", "/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/steps/{step}", "PaletteStepRequest", "PaletteRampMutation", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}", "PaletteRemoveRampRequest", "PaletteRemovedRampMutation", 200, "tenants:write", "tenant-edit-revision"]
+        ["GET", "/{designSystemId}/tenants/{tenantId}/palette", null, "ThemePalette", 200, "tenants:read", null],
+        ["GET", "/{designSystemId}/tenants/{tenantId}/palette/links", "PaletteLinksQuery", "PaletteLink[]", 200, "tenants:read", null],
+        ["POST", "/{designSystemId}/tenants/{tenantId}/palette/groups", "PaletteGroupLabelRequest", "PaletteGroupMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}", "PaletteGroupLabelRequest", "PaletteGroupMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}", "PaletteRevisionRequest", "PaletteEmptyMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["PUT", "/{designSystemId}/tenants/{tenantId}/palette/token-groups/{tokenId}", "PaletteTokenGroupRequest", "PaletteTokenAssignmentMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["POST", "/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps", "PaletteRampRequest", "PaletteRampMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["PUT", "/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/source", "PaletteRampRequest", "PaletteRampMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["POST", "/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/rebuild", "PaletteRebuildRequest", "PaletteRebuildResponse", 200, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/steps/{step}", "PaletteStepRequest", "PaletteRampMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}", "PaletteRemoveRampRequest", "PaletteRemovedRampMutation", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {
@@ -95,10 +78,10 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["POST", "/tenants/{tenantId}/color-tokens", "CreateColorTokenRequest", "ColorTokenMutation", 201, "tenants:write", "tenant-edit-revision"],
-        ["PUT", "/tenants/{tenantId}/color-tokens/{tokenId}/values", "UpdateColorTokenValuesRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/color-tokens/{tokenId}", "DeleteColorTokenRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
-        ["POST", "/tenants/{tenantId}/color-tokens/{tokenId}/move", "MoveColorTokenRequest", "ColorTokenMutation", 200, "tenants:write", "tenant-edit-revision"]
+        ["POST", "/{designSystemId}/tenants/{tenantId}/color-tokens", "CreateColorTokenRequest", "ColorTokenMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["PUT", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/values", "UpdateColorTokenValuesRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}", "DeleteColorTokenRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
+        ["POST", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/move", "MoveColorTokenRequest", "ColorTokenMutation", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {
@@ -108,13 +91,13 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/tenants/{tenantId}/typography-styles", null, "TypographyStyles", 200, "tenants:read", null],
-        ["POST", "/tenants/{tenantId}/typography-styles", "CreateTypographyStyleRequest", "CreatedTypographyStyle", 201, "tenants:write", "tenant-edit-revision"],
-        ["PATCH", "/tenants/{tenantId}/typography-styles/{tokenId}", "UpdateTypographyStyleRequest", "UpdatedTypographyStyle", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/typography-styles/{tokenId}", null, "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
-        ["PATCH", "/tenants/{tenantId}/typography-styles/{tokenId}/name", "RenameTypographyStyleRequest", "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
-        ["PATCH", "/tenants/{tenantId}/typography-groups/{group}", "RenameTypographyGroupRequest", "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/typography-groups/{group}", null, "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"]
+        ["GET", "/{designSystemId}/tenants/{tenantId}/typography-styles", null, "TypographyStyles", 200, "tenants:read", null],
+        ["POST", "/{designSystemId}/tenants/{tenantId}/typography-styles", "CreateTypographyStyleRequest", "CreatedTypographyStyle", 201, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/{designSystemId}/tenants/{tenantId}/typography-styles/{tokenId}", "UpdateTypographyStyleRequest", "UpdatedTypographyStyle", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/{designSystemId}/tenants/{tenantId}/typography-styles/{tokenId}", null, "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/{designSystemId}/tenants/{tenantId}/typography-styles/{tokenId}/name", "RenameTypographyStyleRequest", "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/{designSystemId}/tenants/{tenantId}/typography-groups/{group}", "RenameTypographyGroupRequest", "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/{designSystemId}/tenants/{tenantId}/typography-groups/{group}", null, "TypographyStyleTokens", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {
@@ -124,10 +107,10 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/design-systems/{id}/token-groups", null, "TokenGroup[]", 200, "tokens:read", null],
-        ["POST", "/tenants/{tenantId}/token-groups", "CreateTokenGroupRequest", "TokenGroupMutation", 201, "tenants:write", "tenant-edit-revision"],
-        ["PATCH", "/tenants/{tenantId}/token-groups/{groupId}", "UpdateTokenGroupRequest", "TokenGroupMutation", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/token-groups/{groupId}", "DeleteTokenGroupRequest", "TokenGroupRevision", 200, "tenants:write", "tenant-edit-revision"]
+        ["GET", "/{designSystemId}/token-groups", null, "TokenGroup[]", 200, "tokens:read", null],
+        ["POST", "/{designSystemId}/tenants/{tenantId}/token-groups", "CreateTokenGroupRequest", "TokenGroupMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/{designSystemId}/tenants/{tenantId}/token-groups/{groupId}", "UpdateTokenGroupRequest", "TokenGroupMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/{designSystemId}/tenants/{tenantId}/token-groups/{groupId}", "DeleteTokenGroupRequest", "TokenGroupRevision", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {
@@ -137,11 +120,11 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/tenants/{tenantId}/size-tokens", null, "SizeTokens", 200, "tenants:read", null],
-        ["POST", "/tenants/{tenantId}/size-tokens", "CreateSizeTokenRequest", "SizeTokenCreated", 201, "tenants:write", "tenant-edit-revision"],
-        ["PUT", "/tenants/{tenantId}/size-tokens/{tokenId}/value", "UpdateSizeTokenValueRequest", "SizeTokenUpdated", 200, "tenants:write", "tenant-edit-revision"],
-        ["PATCH", "/tenants/{tenantId}/size-tokens/{tokenId}", "RenameSizeTokenRequest", "SizeTokenRenamed", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/size-tokens/{tokenId}", null, "SizeTokenDeleted", 200, "tenants:write", "tenant-edit-revision"]
+        ["GET", "/{designSystemId}/tenants/{tenantId}/size-tokens", null, "SizeTokens", 200, "tenants:read", null],
+        ["POST", "/{designSystemId}/tenants/{tenantId}/size-tokens", "CreateSizeTokenRequest", "SizeTokenCreated", 201, "tenants:write", "tenant-edit-revision"],
+        ["PUT", "/{designSystemId}/tenants/{tenantId}/size-tokens/{tokenId}/value", "UpdateSizeTokenValueRequest", "SizeTokenUpdated", 200, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/{designSystemId}/tenants/{tenantId}/size-tokens/{tokenId}", "RenameSizeTokenRequest", "SizeTokenRenamed", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/{designSystemId}/tenants/{tenantId}/size-tokens/{tokenId}", null, "SizeTokenDeleted", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {
@@ -150,12 +133,11 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/tokens", null, "Token[]", 200, "tokens:read", null],
-        ["GET", "/tokens/{id}", null, "Token", 200, "tokens:read", null],
-        ["POST", "/tokens", "CreateTokenRequest", "Token", 201, "tokens:write", null],
-        ["PATCH", "/tokens/{id}", "UpdateTokenRequest", "Token", 200, "tokens:write", null],
-        ["DELETE", "/tokens/{id}", null, "OkResponse", 200, "tokens:delete", null],
-        ["GET", "/tokens/{id}/values", "TokenValuesQuery", "TokenValue[]", 200, "tokens:read", null]
+        ["GET", "/{designSystemId}/tokens/{id}", null, "Token", 200, "tokens:read", null],
+        ["POST", "/{designSystemId}/tokens", "CreateTokenRequest", "Token", 201, "tokens:write", null],
+        ["PATCH", "/{designSystemId}/tokens/{id}", "UpdateTokenRequest", "Token", 200, "tokens:write", null],
+        ["DELETE", "/{designSystemId}/tokens/{id}", null, "OkResponse", 200, "tokens:delete", null],
+        ["GET", "/{designSystemId}/tokens/{id}/values", "TokenValuesQuery", "TokenValue[]", 200, "tokens:read", null]
       ]
     },
     {
@@ -164,11 +146,11 @@
       "included": true,
       "ownership": "via-token-design-system",
       "operations": [
-        ["GET", "/token-values", null, "TokenValue[]", 200, "tokens:read", null],
-        ["GET", "/token-values/{id}", null, "TokenValue", 200, "tokens:read", null],
-        ["POST", "/token-values", "CreateTokenValueRequest", "TokenValue", 201, "tokens:write", null],
-        ["PATCH", "/token-values/{id}", "UpdateTokenValueRequest", "TokenValue", 200, "tokens:write", null],
-        ["DELETE", "/token-values/{id}", null, "OkResponse", 200, "tokens:delete", null]
+        ["GET", "/{designSystemId}/token-values", null, "TokenValue[]", 200, "tokens:read", null],
+        ["GET", "/{designSystemId}/token-values/{id}", null, "TokenValue", 200, "tokens:read", null],
+        ["POST", "/{designSystemId}/token-values", "CreateTokenValueRequest", "TokenValue", 201, "tokens:write", null],
+        ["PATCH", "/{designSystemId}/token-values/{id}", "UpdateTokenValueRequest", "TokenValue", 200, "tokens:write", null],
+        ["DELETE", "/{designSystemId}/token-values/{id}", null, "OkResponse", 200, "tokens:delete", null]
       ]
     },
     {
@@ -177,12 +159,12 @@
       "included": true,
       "ownership": "global-read-system-admin-write",
       "operations": [
-        ["GET", "/palette", null, "Palette[]", 200, "tokens:read", null],
-        ["GET", "/palette/{id}", null, "Palette", 200, "tokens:read", null],
-        ["GET", "/palette/by-type/{type}", null, "Palette[]", 200, "tokens:read", null],
-        ["POST", "/palette", "CreatePaletteRequest", "Palette", 201, "tokens:write", null],
-        ["PATCH", "/palette/{id}", "UpdatePaletteRequest", "Palette", 200, "tokens:write", null],
-        ["DELETE", "/palette/{id}", null, "OkResponse", 200, "tokens:delete", null]
+        ["GET", "/catalog/palette", null, "Palette[]", 200, "tokens:read", null],
+        ["GET", "/catalog/palette/{id}", null, "Palette", 200, "tokens:read", null],
+        ["GET", "/catalog/palette/by-type/{type}", null, "Palette[]", 200, "tokens:read", null],
+        ["POST", "/catalog/palette", "CreatePaletteRequest", "Palette", 201, "tokens:write", null],
+        ["PATCH", "/catalog/palette/{id}", "UpdatePaletteRequest", "Palette", 200, "tokens:write", null],
+        ["DELETE", "/catalog/palette/{id}", null, "OkResponse", 200, "tokens:delete", null]
       ]
     },
     {
@@ -191,14 +173,13 @@
       "included": true,
       "ownership": "via-design-system-component-link",
       "operations": [
-        ["GET", "/components", null, "Component[]", 200, "components:read", null],
-        ["GET", "/components/{id}", null, "Component", 200, "components:read", null],
-        ["POST", "/components", "CreateComponentRequest", "Component", 201, "components:write", "system-admin-or-project-component-create"],
-        ["PATCH", "/components/{id}", "UpdateComponentRequest", "Component", 200, "components:write", null],
-        ["DELETE", "/components/{id}", null, "OkResponse", 200, "components:delete", null],
-        ["GET", "/components/{id}/variations", null, "Variation[]", 200, "components:variations:read", null],
-        ["GET", "/components/{id}/properties", null, "Property[]", 200, "components:variations:read", null],
-        ["GET", "/components/{id}/deps", null, "ComponentDep[]", 200, "components:read", null]
+        ["GET", "/catalog/components", null, "Component[]", 200, "components:read", null],
+        ["GET", "/catalog/components/{id}", null, "Component", 200, "components:read", null],
+        ["POST", "/catalog/components", "CreateComponentRequest", "Component", 201, "components:write", "system-admin-or-project-component-create"],
+        ["PATCH", "/catalog/components/{id}", "UpdateComponentRequest", "Component", 200, "components:write", null],
+        ["GET", "/{designSystemId}/components/{id}/variations", null, "Variation[]", 200, "components:variations:read", null],
+        ["GET", "/catalog/components/{id}/properties", null, "Property[]", 200, "components:variations:read", null],
+        ["GET", "/catalog/components/{id}/deps", null, "ComponentDep[]", 200, "components:read", null]
       ]
     },
     {
@@ -207,10 +188,10 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/design-system-components", null, "DesignSystemComponent[]", 200, "components:read", null],
-        ["GET", "/design-system-components/{id}", null, "DesignSystemComponent", 200, "components:read", null],
-        ["POST", "/design-system-components", "CreateDesignSystemComponentRequest", "DesignSystemComponent", 201, "components:write", null],
-        ["DELETE", "/design-system-components/{id}", null, "OkResponse", 200, "components:delete", null]
+        ["GET", "/{designSystemId}/design-system-components", null, "DesignSystemComponent[]", 200, "components:read", null],
+        ["GET", "/{designSystemId}/design-system-components/{id}", null, "DesignSystemComponent", 200, "components:read", null],
+        ["POST", "/{designSystemId}/design-system-components", "CreateDesignSystemComponentRequest", "DesignSystemComponent", 201, "components:write", null],
+        ["DELETE", "/{designSystemId}/design-system-components/{id}", null, "OkResponse", 200, "components:delete", null]
       ]
     },
     {
@@ -219,11 +200,10 @@
       "included": true,
       "ownership": "via-component-design-system",
       "operations": [
-        ["GET", "/component-deps", null, "ComponentDep[]", 200, "components:read", null],
-        ["GET", "/component-deps/{id}", null, "ComponentDep", 200, "components:read", null],
-        ["POST", "/component-deps", "CreateComponentDepRequest", "ComponentDep", 201, "components:write", null],
-        ["PATCH", "/component-deps/{id}", "UpdateComponentDepRequest", "ComponentDep", 200, "components:write", null],
-        ["DELETE", "/component-deps/{id}", null, "OkResponse", 200, "components:delete", null]
+        ["GET", "/catalog/component-deps", null, "ComponentDep[]", 200, "components:read", null],
+        ["GET", "/catalog/component-deps/{id}", null, "ComponentDep", 200, "components:read", null],
+        ["POST", "/catalog/component-deps", "CreateComponentDepRequest", "ComponentDep", 201, "components:write", null],
+        ["PATCH", "/catalog/component-deps/{id}", "UpdateComponentDepRequest", "ComponentDep", 200, "components:write", null]
       ]
     },
     {
@@ -232,12 +212,12 @@
       "included": true,
       "ownership": "via-component-dependency-design-system",
       "operations": [
-        ["GET", "/component-reuse-configs", null, "ComponentReuseConfig[]", 200, "components:read", null],
-        ["GET", "/component-reuse-configs/{id}", null, "ComponentReuseConfig", 200, "components:read", null],
-        ["GET", "/component-reuse-configs/by-dep/{componentDepId}", null, "ComponentReuseConfig[]", 200, "components:read", null],
-        ["POST", "/component-reuse-configs", "CreateComponentReuseConfigRequest", "ComponentReuseConfig", 201, "components:write", null],
-        ["PATCH", "/component-reuse-configs/{id}", "UpdateComponentReuseConfigRequest", "ComponentReuseConfig", 200, "components:write", null],
-        ["DELETE", "/component-reuse-configs/{id}", null, "OkResponse", 200, "components:delete", null]
+        ["GET", "/{designSystemId}/component-reuse-configs", null, "ComponentReuseConfig[]", 200, "components:read", null],
+        ["GET", "/{designSystemId}/component-reuse-configs/{id}", null, "ComponentReuseConfig", 200, "components:read", null],
+        ["GET", "/{designSystemId}/component-reuse-configs/by-dep/{componentDepId}", null, "ComponentReuseConfig[]", 200, "components:read", null],
+        ["POST", "/{designSystemId}/component-reuse-configs", "CreateComponentReuseConfigRequest", "ComponentReuseConfig", 201, "components:write", null],
+        ["PATCH", "/{designSystemId}/component-reuse-configs/{id}", "UpdateComponentReuseConfigRequest", "ComponentReuseConfig", 200, "components:write", null],
+        ["DELETE", "/{designSystemId}/component-reuse-configs/{id}", null, "OkResponse", 200, "components:delete", null]
       ]
     },
     {
@@ -246,13 +226,12 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/variations", null, "Variation[]", 200, "components:variations:read", null],
-        ["GET", "/variations/{id}", null, "Variation", 200, "components:variations:read", null],
-        ["POST", "/variations", "CreateVariationRequest", "Variation", 201, "components:variations:write", null],
-        ["PATCH", "/variations/{id}", "UpdateVariationRequest", "Variation", 200, "components:variations:write", null],
-        ["DELETE", "/variations/{id}", null, "OkResponse", 200, "components:variations:delete", null],
-        ["GET", "/variations/{id}/styles", null, "Style[]", 200, "components:variations:read", null],
-        ["GET", "/variations/{id}/properties", null, "Property[]", 200, "components:variations:read", null]
+        ["GET", "/{designSystemId}/variations", null, "Variation[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/variations/{id}", null, "Variation", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/variations", "CreateVariationRequest", "Variation", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/variations/{id}", "UpdateVariationRequest", "Variation", 200, "components:variations:write", null],
+        ["GET", "/{designSystemId}/variations/{id}/styles", null, "Style[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/variations/{id}/properties", null, "Property[]", 200, "components:variations:read", null]
       ]
     },
     {
@@ -261,11 +240,10 @@
       "included": true,
       "ownership": "via-component-design-system",
       "operations": [
-        ["GET", "/properties", null, "Property[]", 200, "components:variations:read", null],
-        ["GET", "/properties/{id}", null, "Property", 200, "components:variations:read", null],
-        ["POST", "/properties", "CreatePropertyRequest", "Property", 201, "components:variations:write", null],
-        ["PATCH", "/properties/{id}", "UpdatePropertyRequest", "Property", 200, "components:variations:write", null],
-        ["DELETE", "/properties/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/catalog/properties", null, "Property[]", 200, "components:variations:read", null],
+        ["GET", "/catalog/properties/{id}", null, "Property", 200, "components:variations:read", null],
+        ["POST", "/catalog/properties", "CreatePropertyRequest", "Property", 201, "components:variations:write", null],
+        ["PATCH", "/catalog/properties/{id}", "UpdatePropertyRequest", "Property", 200, "components:variations:write", null]
       ]
     },
     {
@@ -274,11 +252,10 @@
       "included": true,
       "ownership": "via-property-component-design-system",
       "operations": [
-        ["GET", "/property-platform-params", null, "PropertyPlatformParam[]", 200, "components:variations:read", null],
-        ["GET", "/property-platform-params/{id}", null, "PropertyPlatformParam", 200, "components:variations:read", null],
-        ["POST", "/property-platform-params", "CreatePropertyPlatformParamRequest", "PropertyPlatformParam", 201, "components:variations:write", null],
-        ["PATCH", "/property-platform-params/{id}", "UpdatePropertyPlatformParamRequest", "PropertyPlatformParam", 200, "components:variations:write", null],
-        ["DELETE", "/property-platform-params/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/catalog/property-platform-params", null, "PropertyPlatformParam[]", 200, "components:variations:read", null],
+        ["GET", "/catalog/property-platform-params/{id}", null, "PropertyPlatformParam", 200, "components:variations:read", null],
+        ["POST", "/catalog/property-platform-params", "CreatePropertyPlatformParamRequest", "PropertyPlatformParam", 201, "components:variations:write", null],
+        ["PATCH", "/catalog/property-platform-params/{id}", "UpdatePropertyPlatformParamRequest", "PropertyPlatformParam", 200, "components:variations:write", null]
       ]
     },
     {
@@ -287,10 +264,9 @@
       "included": true,
       "ownership": "via-property-and-variation-design-system",
       "operations": [
-        ["GET", "/property-variations", null, "PropertyVariation[]", 200, "components:variations:read", null],
-        ["GET", "/property-variations/{id}", null, "PropertyVariation", 200, "components:variations:read", null],
-        ["POST", "/property-variations", "CreatePropertyVariationRequest", "PropertyVariation", 201, "components:variations:write", null],
-        ["DELETE", "/property-variations/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/property-variations", null, "PropertyVariation[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/property-variations/{id}", null, "PropertyVariation", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/property-variations", "CreatePropertyVariationRequest", "PropertyVariation", 201, "components:variations:write", null]
       ]
     },
     {
@@ -299,11 +275,11 @@
       "included": true,
       "ownership": "via-variation-component-design-system",
       "operations": [
-        ["GET", "/variation-platform-param-adjustments", null, "VariationPlatformParamAdjustment[]", 200, "components:variations:read", null],
-        ["GET", "/variation-platform-param-adjustments/{id}", null, "VariationPlatformParamAdjustment", 200, "components:variations:read", null],
-        ["POST", "/variation-platform-param-adjustments", "CreateVariationPlatformParamAdjustmentRequest", "VariationPlatformParamAdjustment", 201, "components:variations:write", null],
-        ["PATCH", "/variation-platform-param-adjustments/{id}", "UpdateVariationPlatformParamAdjustmentRequest", "VariationPlatformParamAdjustment", 200, "components:variations:write", null],
-        ["DELETE", "/variation-platform-param-adjustments/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/variation-platform-param-adjustments", null, "VariationPlatformParamAdjustment[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/variation-platform-param-adjustments/{id}", null, "VariationPlatformParamAdjustment", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/variation-platform-param-adjustments", "CreateVariationPlatformParamAdjustmentRequest", "VariationPlatformParamAdjustment", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/variation-platform-param-adjustments/{id}", "UpdateVariationPlatformParamAdjustmentRequest", "VariationPlatformParamAdjustment", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/variation-platform-param-adjustments/{id}", null, "OkResponse", 200, "components:variations:delete", null]
       ]
     },
     {
@@ -312,11 +288,11 @@
       "included": true,
       "ownership": "via-property-component-design-system",
       "operations": [
-        ["GET", "/invariant-platform-param-adjustments", null, "InvariantPlatformParamAdjustment[]", 200, "components:variations:read", null],
-        ["GET", "/invariant-platform-param-adjustments/{id}", null, "InvariantPlatformParamAdjustment", 200, "components:variations:read", null],
-        ["POST", "/invariant-platform-param-adjustments", "CreateInvariantPlatformParamAdjustmentRequest", "InvariantPlatformParamAdjustment", 201, "components:variations:write", null],
-        ["PATCH", "/invariant-platform-param-adjustments/{id}", "UpdateInvariantPlatformParamAdjustmentRequest", "InvariantPlatformParamAdjustment", 200, "components:variations:write", null],
-        ["DELETE", "/invariant-platform-param-adjustments/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/invariant-platform-param-adjustments", null, "InvariantPlatformParamAdjustment[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/invariant-platform-param-adjustments/{id}", null, "InvariantPlatformParamAdjustment", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/invariant-platform-param-adjustments", "CreateInvariantPlatformParamAdjustmentRequest", "InvariantPlatformParamAdjustment", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/invariant-platform-param-adjustments/{id}", "UpdateInvariantPlatformParamAdjustmentRequest", "InvariantPlatformParamAdjustment", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/invariant-platform-param-adjustments/{id}", null, "OkResponse", 200, "components:variations:delete", null]
       ]
     },
     {
@@ -325,12 +301,11 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/appearances", null, "Appearance[]", 200, "components:variations:read", null],
-        ["GET", "/appearances/{id}", null, "Appearance", 200, "components:variations:read", null],
-        ["POST", "/appearances", "CreateAppearanceRequest", "Appearance", 201, "components:variations:write", null],
-        ["PATCH", "/appearances/{id}", "UpdateAppearanceRequest", "Appearance", 200, "components:variations:write", null],
-        ["DELETE", "/appearances/{id}", null, "OkResponse", 200, "components:variations:delete", null],
-        ["GET", "/appearances/{id}/variations", null, "AppearanceVariation[]", 200, "components:variations:read", null]
+        ["GET", "/{designSystemId}/appearances/{id}", null, "Appearance", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/appearances", "CreateAppearanceRequest", "Appearance", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/appearances/{id}", "UpdateAppearanceRequest", "Appearance", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/appearances/{id}", null, "OkResponse", 200, "components:variations:delete", null],
+        ["GET", "/{designSystemId}/appearances/{id}/variations", null, "AppearanceVariation[]", 200, "components:variations:read", null]
       ]
     },
     {
@@ -340,20 +315,20 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/appearances/{id}/editor-model", null, "AppearanceEditorModel", 200, "components:variations:read", null],
-        ["GET", "/appearances/{id}/resolved-properties", null, "ResolvedComponentPropertiesResponse", 200, "components:variations:read", null],
-        ["GET", "/appearances/{id}/token-references", null, "ComponentTokenReferencesResponse", 200, "components:variations:read", null],
-        ["POST", "/appearances/{id}/axes", "AddAppearanceAxis", "EditorAxis", 201, "components:variations:write", null],
-        ["DELETE", "/appearances/{id}/axes/{axisId}", null, "EditorRemoval", 200, "components:variations:delete", null],
-        ["POST", "/appearances/{id}/axis-order", "ReorderAppearanceAxes", "EditorAxis[]", 200, "components:variations:write", null],
-        ["POST", "/appearances/{id}/axes/{axisId}/values", "AddAppearanceAxisValue", "EditorAxisValue", 201, "components:variations:write", null],
-        ["DELETE", "/appearances/{id}/axis-values/{valueId}", null, "EditorRemoval", 200, "components:variations:delete", null],
-        ["PUT", "/appearances/{id}/axes/{axisId}/value-order", "ReorderAppearanceAxisValues", "EditorAxis", 200, "components:variations:write", null],
-        ["PUT", "/appearances/{id}/property-values", "SetAppearancePropertyValue", "EditorPropertyValue", 200, "components:variations:write", null],
-        ["DELETE", "/appearances/{id}/property-values", null, "OkResponse", 200, "components:variations:delete", null],
-        ["PUT", "/appearances/{id}/state-order", "ReorderAppearanceStates", "EditorPropertyValue[]", 200, "components:variations:write", null],
-        ["POST", "/appearances/new", "CreateAppearanceConfiguration", "Appearance", 201, "components:variations:write", null],
-        ["POST", "/appearances/{id}/duplicate", "DuplicateAppearanceConfiguration", "Appearance", 201, "components:variations:write", null]
+        ["GET", "/{designSystemId}/appearances/{id}/editor-model", null, "AppearanceEditorModel", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/appearances/{id}/resolved-properties", null, "ResolvedComponentPropertiesResponse", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/appearances/{id}/token-references", null, "ComponentTokenReferencesResponse", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/appearances/{id}/axes", "AddAppearanceAxis", "EditorAxis", 201, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/appearances/{id}/axes/{axisId}", null, "EditorRemoval", 200, "components:variations:delete", null],
+        ["POST", "/{designSystemId}/appearances/{id}/axis-order", "ReorderAppearanceAxes", "EditorAxis[]", 200, "components:variations:write", null],
+        ["POST", "/{designSystemId}/appearances/{id}/axes/{axisId}/values", "AddAppearanceAxisValue", "EditorAxisValue", 201, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/appearances/{id}/axis-values/{valueId}", null, "EditorRemoval", 200, "components:variations:delete", null],
+        ["PUT", "/{designSystemId}/appearances/{id}/axes/{axisId}/value-order", "ReorderAppearanceAxisValues", "EditorAxis", 200, "components:variations:write", null],
+        ["PUT", "/{designSystemId}/appearances/{id}/property-values", "SetAppearancePropertyValue", "EditorPropertyValue", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/appearances/{id}/property-values", null, "OkResponse", 200, "components:variations:delete", null],
+        ["PUT", "/{designSystemId}/appearances/{id}/state-order", "ReorderAppearanceStates", "EditorPropertyValue[]", 200, "components:variations:write", null],
+        ["POST", "/{designSystemId}/appearances/new", "CreateAppearanceConfiguration", "Appearance", 201, "components:variations:write", null],
+        ["POST", "/{designSystemId}/appearances/{id}/duplicate", "DuplicateAppearanceConfiguration", "Appearance", 201, "components:variations:write", null]
       ]
     },
     {
@@ -362,11 +337,11 @@
       "included": true,
       "ownership": "via-appearance-design-system",
       "operations": [
-        ["GET", "/appearance-variations", null, "AppearanceVariation[]", 200, "components:variations:read", null],
-        ["GET", "/appearance-variations/{id}", null, "AppearanceVariation", 200, "components:variations:read", null],
-        ["POST", "/appearance-variations", "CreateAppearanceVariationRequest", "AppearanceVariation", 201, "components:variations:write", null],
-        ["PATCH", "/appearance-variations/{id}", "UpdateAppearanceVariationRequest", "AppearanceVariation", 200, "components:variations:write", null],
-        ["DELETE", "/appearance-variations/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/appearance-variations", null, "AppearanceVariation[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/appearance-variations/{id}", null, "AppearanceVariation", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/appearance-variations", "CreateAppearanceVariationRequest", "AppearanceVariation", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/appearance-variations/{id}", "UpdateAppearanceVariationRequest", "AppearanceVariation", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/appearance-variations/{id}", null, "OkResponse", 200, "components:variations:delete", null]
       ]
     },
     {
@@ -375,11 +350,11 @@
       "included": true,
       "ownership": "via-appearance-variation-design-system",
       "operations": [
-        ["GET", "/appearance-variation-values", null, "AppearanceVariationValue[]", 200, "components:variations:read", null],
-        ["GET", "/appearance-variation-values/{id}", null, "AppearanceVariationValue", 200, "components:variations:read", null],
-        ["POST", "/appearance-variation-values", "CreateAppearanceVariationValueRequest", "AppearanceVariationValue", 201, "components:variations:write", null],
-        ["PATCH", "/appearance-variation-values/{id}", "UpdateAppearanceVariationValueRequest", "AppearanceVariationValue", 200, "components:variations:write", null],
-        ["DELETE", "/appearance-variation-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/appearance-variation-values", null, "AppearanceVariationValue[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/appearance-variation-values/{id}", null, "AppearanceVariationValue", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/appearance-variation-values", "CreateAppearanceVariationValueRequest", "AppearanceVariationValue", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/appearance-variation-values/{id}", "UpdateAppearanceVariationValueRequest", "AppearanceVariationValue", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/appearance-variation-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
       ]
     },
     {
@@ -388,12 +363,12 @@
       "included": true,
       "ownership": "via-design-system-and-variation",
       "operations": [
-        ["GET", "/styles", null, "Style[]", 200, "components:variations:read", null],
-        ["GET", "/styles/{id}", null, "Style", 200, "components:variations:read", null],
-        ["GET", "/styles/by-variation/{variationId}/by-design-system/{designSystemId}", null, "Style[]", 200, "components:variations:read", null],
-        ["POST", "/styles", "CreateStyleRequest", "Style", 201, "components:variations:write", null],
-        ["PATCH", "/styles/{id}", "UpdateStyleRequest", "Style", 200, "components:variations:write", null],
-        ["DELETE", "/styles/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/styles", null, "Style[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/styles/{id}", null, "Style", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/styles/by-variation/{variationId}", null, "Style[]", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/styles", "CreateStyleRequest", "Style", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/styles/{id}", "UpdateStyleRequest", "Style", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/styles/{id}", null, "OkResponse", 200, "components:variations:delete", null]
       ]
     },
     {
@@ -402,13 +377,13 @@
       "included": true,
       "ownership": "via-style-or-appearance-design-system",
       "operations": [
-        ["GET", "/variation-property-values", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
-        ["GET", "/variation-property-values/{id}", null, "VariationPropertyValue", 200, "components:variations:read", null],
-        ["GET", "/variation-property-values/by-style/{styleId}", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
-        ["GET", "/variation-property-values/by-appearance/{appearanceId}", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
-        ["POST", "/variation-property-values", "CreateVariationPropertyValueRequest", "VariationPropertyValue", 201, "components:variations:write", null],
-        ["PATCH", "/variation-property-values/{id}", "UpdateVariationPropertyValueRequest", "VariationPropertyValue", 200, "components:variations:write", null],
-        ["DELETE", "/variation-property-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/variation-property-values", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/variation-property-values/{id}", null, "VariationPropertyValue", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/variation-property-values/by-style/{styleId}", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/variation-property-values/by-appearance/{appearanceId}", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/variation-property-values", "CreateVariationPropertyValueRequest", "VariationPropertyValue", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/variation-property-values/{id}", "UpdateVariationPropertyValueRequest", "VariationPropertyValue", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/variation-property-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
       ]
     },
     {
@@ -417,12 +392,12 @@
       "included": true,
       "ownership": "via-component-and-design-system",
       "operations": [
-        ["GET", "/invariant-property-values", null, "InvariantPropertyValue[]", 200, "components:variations:read", null],
-        ["GET", "/invariant-property-values/{id}", null, "InvariantPropertyValue", 200, "components:variations:read", null],
-        ["GET", "/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}", null, "InvariantPropertyValue[]", 200, "components:variations:read", null],
-        ["POST", "/invariant-property-values", "CreateInvariantPropertyValueRequest", "InvariantPropertyValue", 201, "components:variations:write", null],
-        ["PATCH", "/invariant-property-values/{id}", "UpdateInvariantPropertyValueRequest", "InvariantPropertyValue", 200, "components:variations:write", null],
-        ["DELETE", "/invariant-property-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/invariant-property-values", null, "InvariantPropertyValue[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/invariant-property-values/{id}", null, "InvariantPropertyValue", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/invariant-property-values/by-component/{componentId}", null, "InvariantPropertyValue[]", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/invariant-property-values", "CreateInvariantPropertyValueRequest", "InvariantPropertyValue", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/invariant-property-values/{id}", "UpdateInvariantPropertyValueRequest", "InvariantPropertyValue", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/invariant-property-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
       ]
     },
     {
@@ -431,12 +406,11 @@
       "included": true,
       "ownership": "global-read-system-admin-write",
       "operations": [
-        ["GET", "/states", "StatesQuery", "State[]", 200, "components:variations:read", null],
-        ["GET", "/states/{id}", null, "State", 200, "components:variations:read", null],
-        ["POST", "/states", "CreateStateRequest", "State", 201, "components:variations:write", null],
-        ["PATCH", "/states/{id}", "UpdateStateRequest", "State", 200, "components:variations:write", null],
-        ["DELETE", "/states/{id}", null, "OkResponse", 200, "components:variations:delete", null],
-        ["GET", "/states/{id}/impact", null, "StateImpact", 200, "components:variations:read", null]
+        ["GET", "/catalog/states", "StatesQuery", "State[]", 200, "components:variations:read", null],
+        ["GET", "/catalog/states/{id}", null, "State", 200, "components:variations:read", null],
+        ["POST", "/catalog/states", "CreateStateRequest", "State", 201, "components:variations:write", null],
+        ["PATCH", "/catalog/states/{id}", "UpdateStateRequest", "State", 200, "components:variations:write", null],
+        ["GET", "/catalog/states/{id}/impact", null, "StateImpact", 200, "components:variations:read", null]
       ]
     },
     {
@@ -445,9 +419,9 @@
       "included": true,
       "ownership": "global-read-system-admin-write",
       "operations": [
-        ["GET", "/state-sets", null, "StateSet[]", 200, "components:variations:read", null],
-        ["GET", "/state-sets/{id}", null, "StateSet", 200, "components:variations:read", null],
-        ["POST", "/state-sets/resolve", "ResolveStateSetRequest", "StateSet", 200, "components:variations:write", null]
+        ["GET", "/catalog/state-sets", null, "StateSet[]", 200, "components:variations:read", null],
+        ["GET", "/catalog/state-sets/{id}", null, "StateSet", 200, "components:variations:read", null],
+        ["POST", "/catalog/state-sets/resolve", "ResolveStateSetRequest", "StateSet", 200, "components:variations:write", null]
       ]
     },
     {
@@ -456,13 +430,13 @@
       "included": true,
       "ownership": "via-component-design-system",
       "operations": [
-        ["GET", "/style-combinations", null, "StyleCombination[]", 200, "components:variations:read", null],
-        ["GET", "/style-combinations/{id}", null, "StyleCombination", 200, "components:variations:read", null],
-        ["POST", "/style-combinations", "CreateStyleCombinationRequest", "StyleCombination", 201, "components:variations:write", null],
-        ["PATCH", "/style-combinations/{id}", "UpdateStyleCombinationRequest", "StyleCombination", 200, "components:variations:write", null],
-        ["DELETE", "/style-combinations/{id}", null, "OkResponse", 200, "components:variations:delete", null],
-        ["GET", "/style-combinations/{id}/members", null, "StyleCombinationMember[]", 200, "components:variations:read", null],
-        ["POST", "/style-combinations/{id}/members", "CreateStyleCombinationMemberRequest", "StyleCombinationMember", 201, "components:variations:write", null]
+        ["GET", "/{designSystemId}/style-combinations", null, "StyleCombination[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/style-combinations/{id}", null, "StyleCombination", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/style-combinations", "CreateStyleCombinationRequest", "StyleCombination", 201, "components:variations:write", null],
+        ["PATCH", "/{designSystemId}/style-combinations/{id}", "UpdateStyleCombinationRequest", "StyleCombination", 200, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/style-combinations/{id}", null, "OkResponse", 200, "components:variations:delete", null],
+        ["GET", "/{designSystemId}/style-combinations/{id}/members", null, "StyleCombinationMember[]", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/style-combinations/{id}/members", "CreateStyleCombinationMemberRequest", "StyleCombinationMember", 201, "components:variations:write", null]
       ]
     },
     {
@@ -471,10 +445,10 @@
       "included": true,
       "ownership": "via-style-combination-design-system",
       "operations": [
-        ["GET", "/style-combination-members", null, "StyleCombinationMember[]", 200, "components:variations:read", null],
-        ["GET", "/style-combination-members/{id}", null, "StyleCombinationMember", 200, "components:variations:read", null],
-        ["POST", "/style-combination-members", "CreateStyleCombinationMemberRequest", "StyleCombinationMember", 201, "components:variations:write", null],
-        ["DELETE", "/style-combination-members/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+        ["GET", "/{designSystemId}/style-combination-members", null, "StyleCombinationMember[]", 200, "components:variations:read", null],
+        ["GET", "/{designSystemId}/style-combination-members/{id}", null, "StyleCombinationMember", 200, "components:variations:read", null],
+        ["POST", "/{designSystemId}/style-combination-members", "CreateStyleCombinationMemberRequest", "StyleCombinationMember", 201, "components:variations:write", null],
+        ["DELETE", "/{designSystemId}/style-combination-members/{id}", null, "OkResponse", 200, "components:variations:delete", null]
       ]
     },
     {
@@ -483,10 +457,10 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/component-config", "ComponentConfigQuery", "ComponentConfig", 200, "components:read", null],
-        ["POST", "/component-config/import", "ImportComponentConfigRequest", "ComponentConfigImportReport", 200, "components:write", null],
-        ["POST", "/component-config/export", "ExportComponentConfigRequest", "ComponentConfigPackage", 200, "components:read", null],
-        ["POST", "/component-config/web-adapter", "ComponentWebAdapterRequest", "ComponentWebAdapter", 200, "components:read", null]
+        ["GET", "/{designSystemId}/component-config", "ComponentConfigQuery", "ComponentConfig", 200, "components:read", null],
+        ["POST", "/{designSystemId}/component-config/import", "ImportComponentConfigRequest", "ComponentConfigImportReport", 200, "components:write", null],
+        ["POST", "/{designSystemId}/component-config/export", "ExportComponentConfigRequest", "ComponentConfigPackage", 200, "components:read", null],
+        ["POST", "/{designSystemId}/component-config/web-adapter", "ComponentWebAdapterRequest", "ComponentWebAdapter", 200, "components:read", null]
       ]
     },
     {
@@ -496,7 +470,7 @@
       "included": true,
       "ownership": "via-design-system",
       "operations": [
-        ["GET", "/design-systems/{id}/components/{componentId}/editor-bundle", "ComponentEditorBundleQuery", "ComponentEditorBundle", 200, "components:variations:read", "design-system-and-component-link"]
+        ["GET", "/{designSystemId}/components/{componentId}/editor-bundle", "ComponentEditorBundleQuery", "ComponentEditorBundle", 200, "components:variations:read", "design-system-and-component-link"]
       ]
     },
     {
@@ -506,7 +480,7 @@
       "included": true,
       "ownership": "global-read-system-admin-write",
       "operations": [
-        ["GET", "/compose-preview/plugin", null, "ActivePluginBuild", 200, "components:read", null]
+        ["GET", "/catalog/compose-preview/plugin", null, "ActivePluginBuild", 200, "components:read", null]
       ]
     },
     {
@@ -516,7 +490,47 @@
       "included": true,
       "ownership": "global-read-system-admin-write",
       "operations": [
-        ["GET", "/web-preview/plugin", null, "ActiveWebPluginBuild", 200, "components:read", null]
+        ["GET", "/catalog/web-preview/plugin", null, "ActiveWebPluginBuild", 200, "components:read", null]
+      ]
+    },
+    {
+      "name": "GET-/api/design-systems/{designSystemId}/changes/summary",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/{designSystemId}/changes/summary", null, null, 200, "design-systems:read", null]
+      ]
+    },
+    {
+      "name": "GET-/api/design-systems/{designSystemId}/components/{id}/deps",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/{designSystemId}/components/{id}/deps", null, null, 200, "components:read", null]
+      ]
+    },
+    {
+      "name": "GET-/api/design-systems/{designSystemId}/components/{id}/properties",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/{designSystemId}/components/{id}/properties", null, null, 200, "components:variations:read", null]
+      ]
+    },
+    {
+      "name": "GET-/api/design-systems/{designSystemId}/events",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/{designSystemId}/events", null, null, 200, "design-systems:read", null]
+      ]
+    },
+    {
+      "name": "POST-/api/design-systems/{designSystemId}/changes/{changeId}/revert",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["POST", "/{designSystemId}/changes/{changeId}/revert", null, null, 200, "design-systems:write", null]
       ]
     }
   ]
