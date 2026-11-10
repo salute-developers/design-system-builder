@@ -1,11 +1,15 @@
 package com.dsbuilder.ds.core.data
 
 import org.jetbrains.exposed.v1.core.Expression
+import org.jetbrains.exposed.v1.core.Key
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.QueryBuilder
 import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.util.UUID
+
+/** Сбрасывается при установке контекста, хранится только в текущей транзакции. */
+internal val requestMutationScopeChecked = Key<Boolean>()
 
 /** Сопоставляет владельца строки с ожидаемой системой текущей транзакции. */
 fun requestDesignSystemScope(owner: Expression<out UUID?>): Op<Boolean> = object : Op<Boolean>() {
@@ -61,6 +65,14 @@ fun requireRequestDesignSystemMutable() {
         """.trimIndent(),
     ) { rows -> rows.next() && rows.getBoolean(1) } ?: false
     if (!mutable) throw InaccessibleDesignSystemException()
+    TransactionManager.current().putUserData(requestMutationScopeChecked, true)
+}
+
+/** Проверяет систему успешной пустой команды, если до записи проверка ещё не потребовалась. */
+internal fun verifyRequestMutationScope(expected: UUID?) {
+    if (expected != null && TransactionManager.current().getUserData(requestMutationScopeChecked) != true) {
+        requireRequestDesignSystemMutable()
+    }
 }
 
 /** Прерывает и откатывает транзакцию при нарушении ожидаемой границы. */

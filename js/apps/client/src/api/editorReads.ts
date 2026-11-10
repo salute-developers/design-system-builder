@@ -43,8 +43,10 @@ export const invalidateEditorReads = (context?: Pick<EditorContextKey, 'projectI
         const path = new URL(value.url).pathname;
         if (
             value.mutable &&
-            path.includes('/design-systems/') &&
-            (!context || path.startsWith(`/api/projects/${context.projectId}/design-systems/`))
+            /\/design-systems(?:\/|$)/.test(path) &&
+            (!context ||
+                path === `/api/projects/${context.projectId}/design-systems` ||
+                path.startsWith(`/api/projects/${context.projectId}/design-systems/`))
         )
             confirmed.delete(key);
     }

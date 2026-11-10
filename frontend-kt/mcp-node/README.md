@@ -47,7 +47,7 @@ An explicit `designSystem` link does not read the local project's `.env`.
 - `component_properties_get`, `component_dependencies_get`, `component_configurations_list`, `component_config_get`, `component_tokens_get`
 
 Documentation and code-binding tools read published documentation artifacts. Token and component tools read the
-authoritative DS Builder model API through `/api/projects/{projectId}/ds/...`.
+authoritative DS Builder model API through `/api/projects/{projectId}/design-systems/{designSystemId}/...`.
 
 ## Choosing a project and design system
 

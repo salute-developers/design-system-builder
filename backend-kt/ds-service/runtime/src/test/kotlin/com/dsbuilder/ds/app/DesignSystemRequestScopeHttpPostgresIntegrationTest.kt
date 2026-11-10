@@ -162,6 +162,7 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
                     )
                 }
                 assertEquals(HttpStatusCode.OK, api(client, "GET", "$ROOT/$a/tenants/$tenant?version=1.0.0").status)
+                verifyEmptyMutationScopes(database, a, b)
                 assertEquals(afterDelete, snapshot(database), "new commands after deletion changed data or events")
                 assertEquals(HttpStatusCode.Conflict, api(client, "DELETE", "$ROOT/$b", key = key).status)
 
@@ -184,6 +185,77 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
                         it.jsonObject["id"]?.jsonPrimitive?.content == token
                     },
                 )
+            }
+        }
+    }
+
+    @Test
+    fun `admin token value creation checks owners before policies and retains deleted system replay`() {
+        IsolatedPostgresDatabase.create().use { database ->
+            testApplication {
+                application { module(configuration(database)) }
+                val a = createdId(api(client, "POST", ROOT, """{"name":"admin-a","projectName":"scope"}"""))
+                val b = createdId(api(client, "POST", ROOT, """{"name":"admin-b","projectName":"scope"}"""))
+                val c =
+                    createdId(
+                        api(client, "POST", ROOT, """{"name":"admin-c","projectName":"scope"}""", project = "other"),
+                    )
+                val ta = createdId(api(client, "POST", "$ROOT/$a/tenants", """{"name":"a"}"""))
+                val tb = createdId(api(client, "POST", "$ROOT/$b/tenants", """{"name":"b"}"""))
+                val tc = createdId(api(client, "POST", "$ROOT/$c/tenants", """{"name":"c"}""", project = "other"))
+                val tokenA = createdId(api(client, "POST", "$ROOT/$a/tokens", """{"name":"admin-a","type":"shape"}"""))
+                val tokenB = createdId(api(client, "POST", "$ROOT/$b/tokens", """{"name":"admin-b","type":"shape"}"""))
+                val tokenC =
+                    createdId(
+                        api(
+                            client,
+                            "POST",
+                            "$ROOT/$c/tokens",
+                            """{"name":"admin-c","type":"shape"}""",
+                            project = "other",
+                        ),
+                    )
+                fun body(
+                    token: String,
+                    tenant: String,
+                ) = """{"tokenId":"$token","tenantId":"$tenant","platform":"web","mode":null,"value":[3]}"""
+                val before = snapshot(database)
+                for (key in listOf(null, UUID.randomUUID().toString())) {
+                    for (payload in listOf(
+                        body(tokenB, ta),
+                        body(tokenA, tb),
+                        body(tokenC, tc),
+                        body(UUID.randomUUID().toString(), ta),
+                    )) {
+                        val response = api(client, "POST", "$ROOT/$a/token-values", payload, key, admin = true)
+                        assertEquals(HttpStatusCode.NotFound, response.status, response.bodyAsText())
+                    }
+                }
+                assertEquals(before, snapshot(database))
+                // Администратор сохраняет обход проектной ACL при совпадающей системе пути.
+                assertEquals(
+                    HttpStatusCode.Created,
+                    api(client, "POST", "$ROOT/$c/token-values", body(tokenC, tc), key = null, admin = true).status,
+                )
+                val key = UUID.randomUUID().toString()
+                val payload = body(tokenA, ta)
+                val created = api(client, "POST", "$ROOT/$a/token-values", payload, key, admin = true)
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                assertEquals(HttpStatusCode.OK, api(client, "DELETE", "$ROOT/$a", key = null).status)
+                val afterDelete = snapshot(database)
+                val repeated = api(client, "POST", "$ROOT/$a/token-values", payload, key, admin = true)
+                assertEquals(created.status, repeated.status)
+                assertEquals(created.bodyAsText(), repeated.bodyAsText())
+                assertEquals(created.headers["X-DS-Mutation-Metadata"], repeated.headers["X-DS-Mutation-Metadata"])
+                assertEquals(
+                    HttpStatusCode.Conflict,
+                    api(client, "POST", "$ROOT/$a/token-values", body(tokenB, tb), key, admin = true).status,
+                )
+                assertEquals(
+                    HttpStatusCode.NotFound,
+                    api(client, "POST", "$ROOT/$a/token-values", payload, key = null, admin = true).status,
+                )
+                assertEquals(afterDelete, snapshot(database))
             }
         }
     }
@@ -455,6 +527,27 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
                     assertEquals(HttpStatusCode.NotFound, api(client, "GET", path).status, path)
                 }
             }
+        }
+    }
+
+    private suspend fun verifyEmptyMutationScopes(database: IsolatedPostgresDatabase, deleted: String, live: String) {
+        PostgresDatabasePool.create(database.jdbcUrl, database.username, database.password, 1, 5_000).use { pool ->
+            val runner = ExposedTransactionRunner(pool.database, PostgresTransactionFailureMapper())
+            val context = DsRequestContext(
+                ProjectPrincipal(ProjectActorType.USER, "owner", "scope-project", projectRole = "owner"),
+                "no-key",
+            )
+            // После успешной проверки того же соединения маркер не должен перейти в другую команду.
+            assertIs<DsResult.Success<List<UUID>>>(
+                runner.required(context.copy(designSystemId = UUID.fromString(live))) {
+                    DsResult.Success(emptyList<UUID>())
+                },
+            )
+            for (id in listOf(UUID.randomUUID(), UUID.fromString(deleted))) {
+                val result = runner.required(context.copy(designSystemId = id)) { DsResult.Success(emptyList<UUID>()) }
+                assertEquals(DsResult.Failure(com.dsbuilder.ds.core.application.DsFailure.NotFound), result)
+            }
+            assertIs<DsResult.Success<List<UUID>>>(runner.required(context) { DsResult.Success(emptyList<UUID>()) })
         }
     }
 

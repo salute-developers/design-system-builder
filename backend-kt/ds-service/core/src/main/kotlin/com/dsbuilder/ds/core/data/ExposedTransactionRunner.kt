@@ -68,6 +68,9 @@ class ExposedTransactionRunner(
         when (val result = block()) {
             is DsResult.Failure -> result
             is DsResult.Success -> {
+                // Пустая команда без ключа тоже проверяет систему. Удаление уже проверено до записи,
+                // а сохранённые идемпотентные ответы выходят через IdempotentReplayException раньше.
+                verifyRequestMutationScope(context.designSystemId)
                 if (request != null) saveMutationResponse(context, request, requireNotNull(result.value))
                 result.copy(mutationMetadata = mutationMetadata())
             }
@@ -175,6 +178,7 @@ class ExposedTransactionRunner(
     }
 
     private fun configure(context: DsRequestContext) {
+        TransactionManager.current().putUserData(requestMutationScopeChecked, false)
         TransactionManager.current().exec(
             "SELECT set_config('ds.design_system_id', ?, true)",
             listOf(TextColumnType() to context.designSystemId?.toString().orEmpty()),
