@@ -141,7 +141,7 @@ const createFigma = ({ modeLimit = 10, families = ['SB Sans Display'] } = {}) =>
 const color = (r: number, a = 1) => ({ r, g: 0, b: 0, a });
 
 const createPlan = (themeName = 'Text&Icons/Default/General/Primary'): ExportPlan => ({
-    source: { themeName: 'Malachite', tenantId: 'tenant', versionId: null },
+    source: { themeName: 'Malachite', tenantId: 'tenant', versionId: null, designSystemId: 'ds-a' },
     collections: [
         {
             key: 'collection:palette',
@@ -370,6 +370,20 @@ describe('запись плана экспорта', () => {
         expect(before.getSharedPluginData('dsbuilder', 'key')).toBe('theme:t1-new');
         expect(report.updated.variables).toBe(4);
         expect(report.stale.variables).toBe(0);
+    });
+
+    it('не передаёт новому ключу переменную другой дизайн-системы того же файла', async () => {
+        const { figma, variables } = createFigma();
+        await applyExportPlan(createPlan(), figma);
+        const other = createPlan();
+        other.source.designSystemId = 'ds-b';
+        other.collections[1].variables[0].key = 'theme:b1';
+
+        const report = await applyExportPlan(other, figma);
+
+        expect(report.failure).toBeUndefined();
+        expect(variables.map((item) => item.name)).toContain('Text&Icons/Default/General/Primary (устарело)');
+        expect(report.stale.variables).toBe(1);
     });
 
     it('освобождает имя от устаревшей переменной DS Builder другого типа', async () => {

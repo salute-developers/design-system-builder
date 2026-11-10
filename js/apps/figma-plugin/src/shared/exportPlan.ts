@@ -107,6 +107,8 @@ export interface ExportSource {
     themeName: string;
     tenantId: string;
     versionId: string | null;
+    /** Дизайн-система плана; в плане старой версии ядра его нет. */
+    designSystemId?: string;
 }
 
 export interface ExportPlan {

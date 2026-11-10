@@ -10,8 +10,16 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
-/** Тема и версия, из которых построен план: их показывает отчёт. */
-internal data class ExportThemeInfo(val themeName: String, val tenantId: String, val versionId: String?)
+/**
+ * Тема и версия, из которых построен план: их показывает отчёт. По [designSystemId] запись отличает переменные своей
+ * дизайн-системы от чужих в том же файле.
+ */
+internal data class ExportThemeInfo(
+    val themeName: String,
+    val tenantId: String,
+    val versionId: String?,
+    val designSystemId: String = "",
+)
 
 /** Цвет 0–1 по каналам, как в Figma. */
 internal data class PlanColor(val r: Double, val g: Double, val b: Double, val a: Double) {
@@ -225,6 +233,7 @@ internal data class FigmaExportPlan(
             put("themeName", source.themeName)
             put("tenantId", source.tenantId)
             put("versionId", source.versionId)
+            put("designSystemId", source.designSystemId)
         }
         putJsonArray("collections") { collections.forEach { add(it.toJson()) } }
         putJsonArray("textStyles") { textStyles.forEach { add(it.toJson()) } }

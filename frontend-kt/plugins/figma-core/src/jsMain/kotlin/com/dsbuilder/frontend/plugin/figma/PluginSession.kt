@@ -18,8 +18,11 @@ import kotlin.time.Duration.Companion.seconds
 private const val INVALID_GRANT = "invalid_grant"
 private const val HTTP_UNAUTHORIZED = 401
 
-/** Ответы Keycloak, после которых токен бесполезен; `not_allowed` приходит, если у пользователя сняли роль. */
-private val SESSION_ENDED = setOf(INVALID_GRANT, "not_allowed")
+/**
+ * Ответы Keycloak, после которых токен бесполезен: `not_allowed` приходит, если у пользователя сняли роль,
+ * `invalid_scope` — если клиент стал требовать согласия, которого у сессии нет.
+ */
+private val SESSION_ENDED = setOf(INVALID_GRANT, "not_allowed", "invalid_scope")
 
 /** Срок запроса выхода: зависший сервер не должен держать очистку сессии. */
 private val LOGOUT_TIMEOUT = 5.seconds

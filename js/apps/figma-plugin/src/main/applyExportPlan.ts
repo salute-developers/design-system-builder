@@ -14,6 +14,8 @@ import type {
 /** Общие данные плагина: их читают и обновляют все инструменты DS Builder. */
 const NAMESPACE = 'dsbuilder';
 const KEY = 'key';
+/** Дизайн-система переменной: ключ переходит только к переменной своей системы, а не чужой из того же файла. */
+const DESIGN_SYSTEM = 'designSystem';
 const MODES = 'modes';
 
 /** Часть Plugin API, которая нужна записи; тесты подставляют поддельную реализацию. */
@@ -142,7 +144,7 @@ export const applyExportPlan = async (plan: ExportPlan, figma: ExportFigmaApi): 
         return report;
     }
     try {
-        const variables = await writeVariables(plan.collections, figma, touch, skip, report);
+        const variables = await writeVariables(plan, figma, touch, skip, report);
         await writeEffectStyles(plan, variables, figma, touch, report);
         await writePaintStyles(plan, variables, figma, touch, report);
         await writeTextStyles(plan.textStyles, variables, figma, touch, skip, report);
@@ -166,12 +168,14 @@ const staleName = (name: string, taken: Map<string, Variable>) => {
 };
 
 const writeVariables = async (
-    collections: PlanCollection[],
+    plan: ExportPlan,
     figma: ExportFigmaApi,
     touch: Touch,
     skip: (entry: PlanSkip) => void,
     report: ExportReport,
 ) => {
+    const collections = plan.collections;
+    const designSystem = plan.source.designSystemId ?? '';
     const all = await figma.variables.getLocalVariablesAsync();
     const existingCollections = byKey(await figma.variables.getLocalVariableCollectionsAsync());
     const existingVariables = byKey(all);
@@ -230,7 +234,9 @@ const writeVariables = async (
                         });
                         continue;
                     }
-                    if (!target && owner.resolvedType === variable.type) {
+                    const sameSystem =
+                        designSystem !== '' && owner.getSharedPluginData(NAMESPACE, DESIGN_SYSTEM) === designSystem;
+                    if (!target && sameSystem && owner.resolvedType === variable.type) {
                         // Ключ сменился, а имя то же (токен создан заново, у подтемы сменился запасной токен):
                         // переменная переходит к новому ключу, и привязанные слои продолжают обновляться.
                         existingVariables.delete(ownerKey);
@@ -247,6 +253,7 @@ const writeVariables = async (
                     target = figma.variables.createVariable(variable.name, collection, variable.type);
                     target.setSharedPluginData(NAMESPACE, KEY, variable.key);
                 }
+                if (designSystem) target.setSharedPluginData(NAMESPACE, DESIGN_SYSTEM, designSystem);
                 target.name = variable.name;
                 originalNames.delete(target);
                 owners.set(variable.name, target);

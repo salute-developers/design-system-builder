@@ -130,6 +130,15 @@ class PluginSessionTest {
     }
 
     @Test
+    fun endsSessionWhenClientStartedToRequireConsent() = runTest {
+        server.refreshFailure = TokenExchangeException("refused", "invalid_scope")
+        val storage = MemoryStorage("saved")
+
+        assertFalse(backgroundSession(storage).restore())
+        assertNull(storage.value)
+    }
+
+    @Test
     fun keepsTokenWhenServerIsUnavailable() = runTest {
         server.refreshFailure = TokenExchangeException("offline")
         val storage = MemoryStorage("saved")

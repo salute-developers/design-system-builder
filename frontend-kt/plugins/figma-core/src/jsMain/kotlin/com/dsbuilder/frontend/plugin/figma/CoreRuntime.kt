@@ -174,7 +174,7 @@ internal class CoreRuntime(
         val source = read { probe, credential ->
             HttpThemeTokensClient(probe).exportSource(gatewayUrl, credential, context, versionId).valueOrNull()
         }
-        return buildPlan(source, ExportThemeInfo(themeName, context.tenantId, versionId))
+        return buildPlan(source, ExportThemeInfo(themeName, context.tenantId, versionId, context.designSystemId))
     }
 
     /** Сбой построения плана — не сеть: экран показывает, что план не построен. */

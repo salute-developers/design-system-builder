@@ -28,7 +28,8 @@ internal object FigmaExportPlanner {
         val omitted = mutableSetOf<String>()
         // Пропуски теней идут в отчёте после размеров, хотя тени строятся раньше: им нужна коллекция темы.
         val shadowSkips = mutableListOf<PlanSkip>()
-        val shadows = shadows(sizes, colors.palette, Filter(disabled, omitted, shadowSkips))
+        val shadowNotes = mutableListOf<PlanSkip>()
+        val shadows = shadows(sizes, colors.palette, Filter(disabled, omitted, shadowSkips), shadowNotes)
         val collections = listOf(
             colors.palette,
             colors.theme.copy(variables = colors.theme.variables + shadows.variables),
@@ -46,7 +47,7 @@ internal object FigmaExportPlanner {
             skipped = colors.skipped + typography.skipped + skipped + shadowSkips,
             omittedDisabled = colors.omittedDisabled + typography.omittedDisabled + omitted.size,
             fontFiles = fontFiles(source, typography.textStyles.map { it.fontFamily }.distinct()),
-            notes = colors.notes,
+            notes = colors.notes + shadowNotes,
         )
     }
 
@@ -136,7 +137,12 @@ internal object FigmaExportPlanner {
      * на палитру `colorRef` получает переменную `ShadowColors/<тень>/Layer N` в `01. Theme`: ссылку на ступень с
      * прозрачностью слоя, к которой привязан цвет эффекта, поэтому тень меняется вслед за палитрой.
      */
-    private fun shadows(sizes: JsonObject?, palette: PlanCollection, filter: Filter): ShadowExport {
+    private fun shadows(
+        sizes: JsonObject?,
+        palette: PlanCollection,
+        filter: Filter,
+        notes: MutableList<PlanSkip>,
+    ): ShadowExport {
         val variables = mutableListOf<PlanVariable>()
         val styles = sizes?.get("shadows").arr().mapNotNull { it.obj() }.mapNotNull { token ->
             val id = token.str("tokenId")?.takeIf(filter::enabled) ?: return@mapNotNull null
@@ -146,7 +152,14 @@ internal object FigmaExportPlanner {
             val layerVariables = mutableListOf<PlanVariable>()
             val layers = raw.mapIndexedNotNull { index, layer ->
                 val color = layer.str("color")?.let(::parseHex) ?: return@mapIndexedNotNull null
-                val alias = shadowAlias(palette, layer.str("colorRef"), color)
+                val reference = layer.str("colorRef")
+                val alias = reference?.let { shadowAlias(palette, it, color) }
+                if (reference != null && alias == null) {
+                    notes += PlanSkip(
+                        token.str("name").orEmpty(),
+                        "цвет слоя тени не привязан к палитре: в плане нет ступени $reference с цветом слоя",
+                    )
+                }
                 val colorKey = alias?.let {
                     val key = "shadow-color:$id:$index"
                     layerVariables += PlanVariable(
@@ -180,18 +193,17 @@ internal object FigmaExportPlanner {
 
     /**
      * Ссылка цвета слоя на ступень палитры. Группу палитры для тени выбирает бэкенд, поэтому берётся группа, где
-     * значение ступени совпадает с раскрытым цветом слоя, иначе первая со ступенью; без ступени в плане — `null`.
+     * значение ступени совпадает с раскрытым цветом слоя; без совпадения — `null`, и слой сохраняет HEX. Прозрачность —
+     * из ссылки, а если её там нет — из альфы раскрытого цвета.
      */
-    private fun shadowAlias(palette: PlanCollection, reference: String?, color: PlanColor): PlanValue.Alias? {
-        val match = reference?.trim()?.let(PALETTE_REF::matchEntire) ?: return null
+    private fun shadowAlias(palette: PlanCollection, reference: String, color: PlanColor): PlanValue.Alias? {
+        val match = PALETTE_REF.matchEntire(reference.trim()) ?: return null
         val (type, shade, step, opacity) = match.destructured
-        val candidates = palette.variables.filter { it.key.endsWith(":$type.$shade.$step") }
-        val sameColor = candidates.firstOrNull { variable ->
+        val target = palette.variables.filter { it.key.endsWith(":$type.$shade.$step") }.firstOrNull { variable ->
             val value = (variable.values[SINGLE_MODE.key] as? PlanValue.Color)?.color
             value != null && value.r == color.r && value.g == color.g && value.b == color.b
-        }
-        val target = sameColor ?: candidates.firstOrNull() ?: return null
-        val alpha = opacity.toDoubleOrNull()?.takeIf { it < 1.0 }
+        } ?: return null
+        val alpha = (opacity.toDoubleOrNull() ?: color.a).takeIf { it < 1.0 }
         return PlanValue.Alias(target.key, alpha?.let(::opacityPercent))
     }
 

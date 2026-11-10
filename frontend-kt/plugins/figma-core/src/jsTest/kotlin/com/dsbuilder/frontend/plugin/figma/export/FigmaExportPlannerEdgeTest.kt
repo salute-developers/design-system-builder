@@ -464,17 +464,33 @@ class FigmaExportPlannerEdgeTest {
              "sizes": {"shadows": [{"tokenId": "sh", "name": "down.soft.s", "layers": [
                {"offsetX": 0, "offsetY": 4, "blur": 14, "spread": -4, "color": "#08080814",
                 "colorRef": "[general.gray.950][0.08]"},
-               {"offsetX": 0, "offsetY": 1, "blur": 4, "spread": -1, "color": "#0000000A"}
+               {"offsetX": 0, "offsetY": 1, "blur": 4, "spread": -1, "color": "#0000000A"},
+               {"offsetX": 0, "offsetY": 2, "blur": 4, "spread": 0, "color": "#08080880",
+                "colorRef": "[general.gray.950]"},
+               {"offsetX": 0, "offsetY": 2, "blur": 4, "spread": 0, "color": "#FF000080",
+                "colorRef": "[general.gray.950][0.5]"}
              ]}]}}
             """.trimIndent(),
         )
 
-        val variable = theme(plan).single()
-        assertEquals("ShadowColors/Down/Soft/S/Layer 1", variable.name)
+        val variables = theme(plan)
+        assertEquals(
+            listOf("ShadowColors/Down/Soft/S/Layer 1", "ShadowColors/Down/Soft/S/Layer 3"),
+            variables.map { it.name },
+        )
+        val variable = variables.first()
         assertEquals(listOf("EFFECT_COLOR"), variable.scopes)
         val alias = PlanValue.Alias("palette:p-neutral:general.gray.950", 8.0)
         assertEquals(mapOf("light" to alias, "dark" to alias), variable.values)
         val layers = plan.effectStyles.single().shadows
-        assertEquals(listOf("shadow-color:sh:0", null), layers.map { it.colorKey })
+        assertEquals(listOf("shadow-color:sh:0", null, "shadow-color:sh:2", null), layers.map { it.colorKey })
+        // Без прозрачности в ссылке она берётся из альфы цвета слоя: #…80 — 50.2%.
+        assertEquals(
+            PlanValue.Alias("palette:p-neutral:general.gray.950", 50.2),
+            variables[1].values["light"],
+        )
+        // Красного цвета ступени нет ни в одной группе: слой остаётся HEX, отчёт говорит почему.
+        assertEquals(PlanValue.Color(parseHex("#FF000080")!!), PlanValue.Color(layers[3].color))
+        assertEquals(listOf("down.soft.s"), plan.notes.map { it.name })
     }
 }
