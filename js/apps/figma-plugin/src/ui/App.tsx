@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import type { PluginBridge } from './bridge';
 import { ApiError, type PluginCore } from './core/pluginCore';
+import { EditorContext } from './editor';
 import { Browser } from './screens/Browser';
 import { LoginScreen } from './screens/LoginScreen';
 
@@ -17,6 +18,12 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
     const [state, setState] = useState<AppState>('restoring');
     const [attempt, setAttempt] = useState(0);
     const [failure, setFailure] = useState('');
+    const [editorName, setEditorName] = useState('Figma');
+
+    // Имя нужно только текстам экспорта: окно не ждёт ответа, а до него остаётся Figma.
+    useEffect(() => {
+        bridge.editorName().then(setEditorName, () => undefined);
+    }, [bridge]);
 
     const fail = (error: unknown) => {
         setFailure(failureText(error));
@@ -66,12 +73,14 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
             />
         );
     return (
-        <Browser
-            api={core.api}
-            storage={bridge}
-            applyExport={bridge.applyExport}
-            packZip={bridge.packZip}
-            onSignOut={signOut}
-        />
+        <EditorContext.Provider value={editorName}>
+            <Browser
+                api={core.api}
+                storage={bridge}
+                applyExport={bridge.applyExport}
+                packZip={bridge.packZip}
+                onSignOut={signOut}
+            />
+        </EditorContext.Provider>
     );
 };

@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { ExportCounts, ExportPlatform, ExportReport } from '../../shared/exportPlan';
 import type { ApplyExport, PackZip } from '../bridge';
 import { copyText } from '../clipboard';
+import { useEditorName } from '../editor';
 import { ApiError, type DsBuilderApi, type TenantContext } from '../core/pluginCore';
 import { FontArchiveButton } from '../fonts/FontArchiveButton';
 import type { TypographyScreenId } from '../api/types';
@@ -238,66 +239,71 @@ const ExportResult = ({
     onClose: () => void;
     loadFont: (url: string) => Promise<Uint8Array>;
     packZip: PackZip;
-}) => (
-    <section className="export-report" data-testid="export-report" aria-label="Отчёт экспорта">
-        <header>
-            <span className="export-title">
-                Тема «{report.source.themeName}», {version}, {PLATFORMS[report.source.platform ?? 'web']}
-            </span>
-            <button type="button" className="link" onClick={onClose}>
-                Скрыть
-            </button>
-        </header>
-        {report.failure && (
-            <p className="error" role="alert">
-                Экспорт прерван: {report.failure}
-            </p>
-        )}
-        <table>
-            <thead>
-                <tr>
-                    <th scope="col" />
-                    <th scope="col">Создано</th>
-                    <th scope="col">Обновлено</th>
-                    <th scope="col">Устарело</th>
-                </tr>
-            </thead>
-            <tbody>
-                {KINDS.map(({ key, label }) => (
-                    <tr key={key}>
-                        <th scope="row">{label}</th>
-                        <td>{report.created[key]}</td>
-                        <td>{report.updated[key]}</td>
-                        <td>{report.stale[key]}</td>
+}) => {
+    const editorName = useEditorName();
+    return (
+        <section className="export-report" data-testid="export-report" aria-label="Отчёт экспорта">
+            <header>
+                <span className="export-title">
+                    Тема «{report.source.themeName}», {version}, {PLATFORMS[report.source.platform ?? 'web']}
+                </span>
+                <button type="button" className="link" onClick={onClose}>
+                    Скрыть
+                </button>
+            </header>
+            {report.failure && (
+                <p className="error" role="alert">
+                    Экспорт прерван: {report.failure}
+                </p>
+            )}
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col" />
+                        <th scope="col">Создано</th>
+                        <th scope="col">Обновлено</th>
+                        <th scope="col">Устарело</th>
                     </tr>
-                ))}
-            </tbody>
-        </table>
-        {report.missingFonts.length > 0 && (
-            <p className="export-fonts" data-testid="missing-fonts">
-                Не найдены шрифты: {report.missingFonts.join(', ')}. Установите их на компьютер и повторите экспорт:
-                Figma desktop видит шрифты, установленные в системе (в браузере нужен Figma Font Installer). Переменные
-                типографики уже созданы, текстовые стили появятся после повторного экспорта.
+                </thead>
+                <tbody>
+                    {KINDS.map(({ key, label }) => (
+                        <tr key={key}>
+                            <th scope="row">{label}</th>
+                            <td>{report.created[key]}</td>
+                            <td>{report.updated[key]}</td>
+                            <td>{report.stale[key]}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            {report.missingFonts.length > 0 && (
+                <p className="export-fonts" data-testid="missing-fonts">
+                    Не найдены шрифты: {report.missingFonts.join(', ')}. Установите их на компьютер и повторите экспорт
+                    {editorName === 'Figma'
+                        ? ': Figma desktop видит шрифты, установленные в системе (в браузере нужен Figma Font Installer).'
+                        : '.'}{' '}
+                    Переменные типографики уже созданы, текстовые стили появятся после повторного экспорта.
+                </p>
+            )}
+            {report.fontFiles.length > 0 && (
+                <FontArchiveButton families={report.fontFiles} load={loadFont} pack={packZip} />
+            )}
+            <p className="export-hint">
+                Выключенные в DS Builder токены не экспортируются: {report.omitted.disabled}. Устаревшие объекты
+                остаются в файле.
             </p>
-        )}
-        {report.fontFiles.length > 0 && (
-            <FontArchiveButton families={report.fontFiles} load={loadFont} pack={packZip} />
-        )}
-        <p className="export-hint">
-            Выключенные в DS Builder токены не экспортируются: {report.omitted.disabled}. Устаревшие объекты остаются в
-            файле.
-        </p>
-        <ReasonList title="Создано с оговоркой" entries={report.notes ?? []} testId="export-notes" />
-        <ReasonList title="Пропущено" entries={report.skipped} testId="export-skipped" />
-    </section>
-);
+            <ReasonList title="Создано с оговоркой" entries={report.notes ?? []} testId="export-notes" />
+            <ReasonList title="Пропущено" entries={report.skipped} testId="export-skipped" />
+        </section>
+    );
+};
 
 const errorText = (error: unknown) => {
     if (error instanceof ApiError && error.kind === 'not-found') return 'Этой темы нет в выбранной версии.';
     return error instanceof Error ? error.message : String(error);
 };
 
-/** Экспорт выбранной темы и версии в переменные и стили открытого файла Figma. */
+/** Экспорт выбранной темы и версии в переменные и стили открытого файла редактора. */
 const PLATFORMS: Record<ExportPlatform, string> = { web: 'Web', ios: 'iOS', android: 'Android' };
 
 const ExportPanel = ({
@@ -319,6 +325,7 @@ const ExportPanel = ({
     packZip: PackZip;
 }) => {
     const [result, setResult] = useState<ExportState>({ state: 'idle' });
+    const editorName = useEditorName();
     // В файле одна платформа: повторный экспорт с другой платформой перезаписывает значения тех же переменных.
     const [platform, setPlatform] = useState<ExportPlatform>('web');
     useEffect(() => {
@@ -354,7 +361,7 @@ const ExportPanel = ({
                 ))}
             </div>
             <button type="button" disabled={!run || result.state === 'running'} onClick={start}>
-                {result.state === 'running' ? 'Экспортируем…' : 'Экспортировать в Figma'}
+                {result.state === 'running' ? 'Экспортируем…' : `Экспортировать в ${editorName}`}
             </button>
             {result.state === 'done' && (
                 <ExportResult

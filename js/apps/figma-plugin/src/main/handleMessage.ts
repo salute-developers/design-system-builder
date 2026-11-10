@@ -8,6 +8,8 @@ export interface PluginHost {
     setValue(key: string, value: string): Promise<void>;
     deleteValue(key: string): Promise<void>;
     openExternal(url: string): void;
+    /** Имя редактора для текстов окна: Figma или Pixso. */
+    editorName: string;
     applyExport(plan: ExportPlan): Promise<ExportReport>;
     reply(message: MainToUi): void;
 }
@@ -28,6 +30,10 @@ let exporting: Promise<unknown> = Promise.resolve();
 export const handleMessage = async (message: UiToMain, host: PluginHost) => {
     if (message.type === 'open-external') {
         host.openExternal(message.url);
+        return;
+    }
+    if (message.type === 'editor:get') {
+        host.reply({ type: 'editor:result', requestId: message.requestId, name: host.editorName });
         return;
     }
     if (message.type === 'zip:pack') {

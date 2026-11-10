@@ -24,16 +24,18 @@ const createEditor = (openExternal?: (url: string) => void) => {
     return { editor, stored, send };
 };
 
+const host = () => ({ name: 'Pixso', applyExport: vi.fn() });
+
 describe('запуск основного потока', () => {
     it('открывает окно плагина', () => {
         const { editor } = createEditor();
-        startPlugin(editor, '<html>');
+        startPlugin(editor, '<html>', host());
         expect(editor.showUI).toHaveBeenCalledWith('<html>', { width: 400, height: 600, themeColors: true });
     });
 
     it('подключает команды окна к хранилищу редактора', async () => {
         const { editor, stored, send } = createEditor();
-        startPlugin(editor, '<html>');
+        startPlugin(editor, '<html>', host());
 
         send({ type: 'storage:set', requestId: '1', key: 'refresh-token', value: 'token' });
         send({ type: 'storage:get', requestId: '2', key: 'context' });
@@ -46,7 +48,7 @@ describe('запуск основного потока', () => {
     it('открывает браузер через `openExternal`, если он есть', () => {
         const openExternal = vi.fn();
         const { editor, send } = createEditor(openExternal);
-        startPlugin(editor, '<html>');
+        startPlugin(editor, '<html>', host());
 
         send({ type: 'open-external', url: 'https://example.test/device' });
 
@@ -56,7 +58,7 @@ describe('запуск основного потока', () => {
 
     it('передаёт адрес окну, если `openExternal` нет', () => {
         const { editor, send } = createEditor();
-        startPlugin(editor, '<html>');
+        startPlugin(editor, '<html>', host());
 
         send({ type: 'open-external', url: 'https://example.test/device' });
 
@@ -67,7 +69,7 @@ describe('запуск основного потока', () => {
         const report = { stale: {} } as unknown as ExportReport;
         const applyExport = vi.fn(async () => report);
         const { editor, send } = createEditor();
-        startPlugin(editor, '<html>', applyExport);
+        startPlugin(editor, '<html>', { name: 'Figma', applyExport });
 
         send({ type: 'export:apply', requestId: '1', plan: {} as ExportPlan });
 
@@ -76,18 +78,17 @@ describe('запуск основного потока', () => {
         );
     });
 
-    it('отвечает отказом, если редактор не умеет записывать план', async () => {
+    it('называет окну свой редактор', async () => {
         const { editor, send } = createEditor();
-        startPlugin(editor, '<html>');
+        startPlugin(editor, '<html>', host());
 
-        send({ type: 'export:apply', requestId: '1', plan: {} as ExportPlan });
+        send({ type: 'editor:get', requestId: '1' });
 
         await vi.waitFor(() =>
             expect(editor.ui.postMessage).toHaveBeenCalledWith({
-                type: 'export:result',
+                type: 'editor:result',
                 requestId: '1',
-                report: null,
-                error: 'Экспорт в этот редактор пока не поддерживается.',
+                name: 'Pixso',
             }),
         );
     });

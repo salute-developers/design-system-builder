@@ -17,11 +17,11 @@ Pixso повторяет эту модель. Прототип проверен 
 - одна кодовая база окна для Figma и Pixso;
 - одна интеграция с бэкендом: Pixso использует `:plugins:figma-core` без отдельного кода;
 - тонкая точка входа Pixso;
-- воспроизводимый локальный запуск в отладчике Pixso.
+- воспроизводимый локальный запуск в отладчике Pixso;
+- экспорт темы в Pixso тем же планом и той же записью, что в Figma.
 
 **Вне целей:**
 
-- запись токенов в файл редактора;
 - публикация плагина в Pixso;
 - веб-версия Pixso: адрес открывается после асинхронного запроса, и браузер может заблокировать окно;
 - ограничение доменов манифестом Pixso: поддержка `networkAccess` не описана, адрес gateway задаётся только сборкой;
@@ -109,6 +109,28 @@ sequenceDiagram
 `plugin-cli dev` не подходит: он загружает окно с `http://localhost:5201`, такой origin gateway не разрешает, и добавляет
 webpack ради одной команды. Готовый HTML даёт origin `null`, который разрешает gateway.
 
+### Экспорт: один план, возможности редактора при записи
+
+План строит `:plugins:figma-core` без знания редактора, его запись `applyExportPlan` общая. Отличия Pixso по типам
+`@pixso/plugin-typings` 2.0.4 сведены в `ExportEditor` и переходник `pixsoExportApi`:
+
+| Что | Figma | Pixso | Запись в Pixso |
+|---|---|---|---|
+| Чтение стилей | `getLocal*StylesAsync` | только `getLocal*Styles` | переходник оборачивает в `Promise` |
+| Ссылка с прозрачностью | составной цвет | нет | цвет по значениям плана, одна оговорка с числом значений |
+| Стопы градиента | `boundVariables` у стопа | нет | цвет стопа из плана, одна оговорка; сплошной слой привязывается |
+| Текстовый стиль | `setBoundVariable` | нет | значения стиля без привязки, одна оговорка |
+
+Цвет ссылки берётся из плана, а не из файла: план содержит значения палитры, и запись не зависит от того, что уже лежит
+в документе. Режим берётся тот же, у коллекции с одним режимом — единственный; прозрачность в процентах умножается на
+альфу. Привязка текстового стиля проверяется по наличию метода: если Pixso его добавит, привязка заработает без правок.
+
+Окно узнаёт имя редактора запросом `editor:get` и подставляет его в кнопку и тексты отчёта. Совет про Figma Font
+Installer показывается только в Figma.
+
+Альтернатива — строить в Kotlin отдельный план для Pixso — отклонена: план не должен знать редактор, а отличия касаются
+только записи.
+
 ## Программное проектирование
 
 ```ts
@@ -127,14 +149,38 @@ export interface EditorApi {
     openExternal?(url: string): void;
 }
 
-export const startPlugin: (editor: EditorApi, html: string) => void;
+export interface EditorHost {
+    name: string;
+    applyExport(plan: ExportPlan): Promise<ExportReport>;
+}
+
+export const startPlugin: (editor: EditorApi, html: string, host: EditorHost) => void;
+
+export interface ExportEditor {
+    name: string;
+    composedColors: boolean;
+    gradientStopBindings: boolean;
+}
+
+export const applyExportPlan: (plan: ExportPlan, api: ExportFigmaApi, editor?: ExportEditor) => Promise<ExportReport>;
+export const pixsoExportApi: (pixso: PixsoDocumentApi) => ExportFigmaApi;
 
 export type MainToUi =
     | { type: 'storage:result'; requestId: string; value: string | null; error?: string }
+    | { type: 'editor:result'; requestId: string; name: string }
     | { type: 'open-url'; url: string };
+
+// Окно → основной поток: имя редактора для текстов окна.
+export type EditorRequest = { type: 'editor:get'; requestId: string };
 ```
 
 ## Риски и компромиссы
+
+- [Возможности Pixso выведены из типов, а не из редактора] → проба API в живом Pixso не запускалась. Если Pixso принимает
+  составной цвет или привязку стопов, флаг в `PIXSO_EDITOR` включает их без других правок. Внешняя проверка экспорта
+  обязательна.
+- [Ссылки с прозрачностью в Pixso становятся цветом] → смена палитры не меняет такие значения до повторного экспорта.
+- [Скачивание архива шрифтов из окна `data:` в Pixso не проверено] → проверяется внешней задачей.
 
 - [`window.open` заблокирован в веб-версии Pixso] → адреса на экране нет, поэтому вход не завершится. Веб-версия вне целей;
   её поддержка потребует показывать адрес в окне и дополнить спецификацию.

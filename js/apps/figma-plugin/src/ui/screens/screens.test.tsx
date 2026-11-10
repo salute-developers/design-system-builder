@@ -101,6 +101,7 @@ const createBridge = (initial: Partial<Record<StorageKey, string>> = { 'refresh-
         openExternal: vi.fn(),
         applyExport: vi.fn(async () => exportReport()),
         packZip: vi.fn(async (files: ArchiveFile[]) => zip(files)),
+        editorName: vi.fn(async () => 'Figma'),
     };
     return { bridge, values };
 };
@@ -558,6 +559,21 @@ describe('экспорт в Figma', () => {
             'Не найдены шрифты: SB Sans Display. Установите их на компьютер и повторите экспорт',
         );
         expect(screen.queryByTestId('font-files')).toBeNull();
+    });
+
+    it('в Pixso называет свой редактор и не советует установщик шрифтов Figma', async () => {
+        const { bridge } = createBridge();
+        vi.mocked(bridge.editorName).mockResolvedValue('Pixso');
+        vi.mocked(bridge.applyExport).mockResolvedValueOnce(exportReport({ missingFonts: ['SB Sans Display'] }));
+        mount({ bridge });
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Экспортировать в Pixso' }));
+
+        const hint = await screen.findByTestId('missing-fonts');
+        expect(hint).toHaveTextContent('Установите их на компьютер и повторите экспорт. Переменные типографики');
+        expect(hint).not.toHaveTextContent('Figma');
     });
 
     it('показывает созданное с оговоркой отдельно от пропусков', async () => {

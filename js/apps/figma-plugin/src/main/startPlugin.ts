@@ -20,12 +20,14 @@ export interface EditorApi {
 /** Запись плана экспорта в документ редактора. */
 export type ApplyExport = (plan: ExportPlan) => Promise<ExportReport>;
 
-/** Окно получает отказ, а не зависший запрос, если редактор не умеет записывать план. */
-const exportUnsupported: ApplyExport = () =>
-    Promise.reject(new Error('Экспорт в этот редактор пока не поддерживается.'));
+/** Что основной поток знает о своём редакторе: имя для окна и запись плана. */
+export interface EditorHost {
+    name: string;
+    applyExport: ApplyExport;
+}
 
 /** Открывает окно плагина и подключает его команды к API редактора. */
-export const startPlugin = (editor: EditorApi, html: string, applyExport: ApplyExport = exportUnsupported) => {
+export const startPlugin = (editor: EditorApi, html: string, { name, applyExport }: EditorHost) => {
     editor.showUI(html, { width: 400, height: 600, themeColors: true });
 
     const host: PluginHost = {
@@ -36,6 +38,7 @@ export const startPlugin = (editor: EditorApi, html: string, applyExport: ApplyE
             if (editor.openExternal) editor.openExternal(url);
             else editor.ui.postMessage({ type: 'open-url', url });
         },
+        editorName: name,
         applyExport,
         reply: (message) => editor.ui.postMessage(message),
     };

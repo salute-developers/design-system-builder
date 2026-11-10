@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ExportPlan } from '../shared/exportPlan';
 import { applyExportPlan, gradientTransform, type ExportFigmaApi } from './applyExportPlan';
+import { PIXSO_EDITOR, pixsoExportApi } from './pixsoExport';
 
 class Keyed {
     private readonly data = new Map<string, string>();
@@ -654,5 +655,113 @@ describe('матрица градиента', () => {
             name: 'Shadows/Down/Soft/S',
             reason: 'цвет слоя тени не привязан к переменной: переменной нет',
         });
+    });
+});
+
+describe('запись плана в Pixso', () => {
+    /** Pixso: у текстового стиля нет привязки к переменным. */
+    const createPixso = () => {
+        const fake = createFigma();
+        const api = fake.figma as unknown as { createTextStyle: () => FakeStyle };
+        const create = api.createTextStyle;
+        api.createTextStyle = () => Object.assign(create(), { setBoundVariable: undefined });
+        return fake;
+    };
+
+    it('записывает ссылку с прозрачностью готовым цветом, а обычную ссылку оставляет', async () => {
+        const { figma, collections, variables } = createPixso();
+
+        const report = await applyExportPlan(createPlan(), figma, PIXSO_EDITOR);
+
+        const [palette, theme] = variables;
+        const [light, dark] = collections[1].modes.map((mode) => theme.valuesByMode[mode.modeId]);
+        expect(light).toEqual({ type: 'VARIABLE_ALIAS', id: palette.id });
+        expect(dark).toEqual({ r: 0.1, g: 0, b: 0, a: 0.16 });
+        expect(report.notes).toContainEqual({
+            name: 'Цвета с прозрачностью',
+            reason: '1 значений записаны цветом без ссылки на палитру: Pixso не поддерживает ссылку с прозрачностью',
+        });
+    });
+
+    it('пишет значения текстового стиля без привязки и сообщает об этом один раз', async () => {
+        const { figma, textStyles } = createPixso();
+
+        const report = await applyExportPlan(createPlan(), figma, PIXSO_EDITOR);
+
+        expect(report.created.textStyles).toBe(1);
+        expect(textStyles[0].fontSize).toBe(48);
+        expect(textStyles[0].bound).toEqual({});
+        expect(report.notes.filter((note) => note.name === 'Текстовые стили')).toEqual([
+            {
+                name: 'Текстовые стили',
+                reason: '1 стилей записаны значениями без привязки к 03. Typography: Pixso не привязывает текстовый стиль к переменным',
+            },
+        ]);
+    });
+
+    it('не привязывает стопы градиента, но привязывает сплошной слой', async () => {
+        const { figma, paintStyles } = createPixso();
+        const plan = createPlan();
+        plan.collections[1].variables.push({
+            key: 'gradient-stop:t9:0',
+            name: 'GradientStops/Accent/Fill 1',
+            type: 'COLOR',
+            scopes: [],
+            values: { light: { kind: 'color', ...color(1) }, dark: { kind: 'color', ...color(0.5) } },
+        });
+        plan.paintStyles[0].paints = [
+            { kind: 'solid', color: color(1, 0.5), key: 'gradient-stop:t9:0' },
+            {
+                kind: 'linear',
+                angle: 90,
+                stops: [
+                    { position: 0, color: color(0), key: 'gradient-stop:t9:0' },
+                    { position: 1, color: color(1) },
+                ],
+            },
+        ];
+
+        const report = await applyExportPlan(plan, figma, PIXSO_EDITOR);
+
+        const [linear, solid] = paintStyles[0].paints as Array<Record<string, unknown>>;
+        expect(solid.boundVariables).toBeDefined();
+        expect((linear.gradientStops as Array<Record<string, unknown>>)[0]).toEqual({ position: 0, color: color(0) });
+        expect(report.notes).toContainEqual({
+            name: 'Стили градиентов',
+            reason: 'цвета стопов в 1 стилях записаны значениями: Pixso не привязывает стопы к переменным',
+        });
+    });
+
+    it('называет Pixso в причине отказа', async () => {
+        const { figma } = createPixso();
+        (figma.variables as unknown as { createVariableCollection: () => never }).createVariableCollection = () => {
+            throw new Error('boom');
+        };
+
+        const report = await applyExportPlan(createPlan(), figma, PIXSO_EDITOR);
+
+        expect(report.failure).toBe('Pixso отказала: Error: boom');
+    });
+});
+
+describe('переходник Pixso', () => {
+    it('читает стили синхронными методами и передаёт начертание шрифта', async () => {
+        const loadFontAsync = vi.fn(async () => undefined);
+        const paint = { name: 'paint' } as unknown as PaintStyle;
+        const api = pixsoExportApi({
+            variables: {} as ExportFigmaApi['variables'],
+            getLocalTextStyles: () => [],
+            getLocalEffectStyles: () => [],
+            getLocalPaintStyles: () => [paint],
+            createTextStyle: vi.fn(),
+            createEffectStyle: vi.fn(),
+            createPaintStyle: vi.fn(),
+            listAvailableFontsAsync: async () => [],
+            loadFontAsync,
+        });
+
+        await expect(api.getLocalPaintStylesAsync()).resolves.toEqual([paint]);
+        await api.loadFontAsync({ family: 'SB Sans Text', style: 'Semibold' });
+        expect(loadFontAsync).toHaveBeenCalledWith({ family: 'SB Sans Text', style: 'Semibold' });
     });
 });

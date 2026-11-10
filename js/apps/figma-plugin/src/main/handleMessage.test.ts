@@ -13,6 +13,7 @@ const createHost = (stored: Record<string, string> = {}) => {
             delete stored[key];
         }),
         openExternal: vi.fn(),
+        editorName: 'Pixso',
         applyExport: vi.fn(),
         reply: vi.fn(),
     };
@@ -127,5 +128,11 @@ describe('команды основного потока', () => {
         expect(host.reply).toHaveBeenCalledWith(
             expect.objectContaining({ type: 'zip:result', requestId: '4', bytes: null }),
         );
+    });
+
+    it('называет редактор окну', async () => {
+        const { host } = createHost();
+        await handleMessage({ type: 'editor:get', requestId: '7' }, host);
+        expect(host.reply).toHaveBeenCalledWith({ type: 'editor:result', requestId: '7', name: 'Pixso' });
     });
 });
