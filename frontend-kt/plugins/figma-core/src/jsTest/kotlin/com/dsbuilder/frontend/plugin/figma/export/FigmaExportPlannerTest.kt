@@ -177,7 +177,7 @@ class FigmaExportPlannerTest {
     }
 
     @Test
-    fun solidGradientTokenIsVariableAndRealGradientIsPaintStyles() {
+    fun solidGradientTokenIsVariableAndGradientWithDifferentLayersIsStylePair() {
         assertNotNull(variable("01. Theme", "Surfaces/Default/General/Solid/Card"))
         assertNull(variable("01. Theme", "Surfaces/Default/Accent/Transparent/AccentGradient"))
         val dark = plan.paintStyles.single { it.name == "Dark/Surfaces/Default/Accent/Transparent/AccentGradient" }
@@ -187,6 +187,10 @@ class FigmaExportPlannerTest {
         assertEquals(listOf(0.0, 1.0), linear.stops.map { it.first })
         val light = plan.paintStyles.single { it.name == "Light/Surfaces/Default/Accent/Transparent/AccentGradient" }
         assertTrue(light.paints.single() is PlanPaint.Solid)
+        assertTrue(plan.skipped.none { it.name == "surface.default.accent-gradient" })
+        val reason = plan.notes.single { it.name == "surface.default.accent-gradient" }.reason
+        assertEquals("градиент описан парой стилей Light и Dark: в режимах разное число слоёв", reason)
+        assertTrue(collection("01. Theme").variables.none { it.name.startsWith("GradientStops/") })
     }
 
     @Test

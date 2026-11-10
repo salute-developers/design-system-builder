@@ -65,5 +65,13 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
                 onSaveFailed={saveFailed}
             />
         );
-    return <Browser api={core.api} storage={bridge} applyExport={bridge.applyExport} onSignOut={signOut} />;
+    return (
+        <Browser
+            api={core.api}
+            storage={bridge}
+            applyExport={bridge.applyExport}
+            openExternal={bridge.openExternal}
+            onSignOut={signOut}
+        />
+    );
 };

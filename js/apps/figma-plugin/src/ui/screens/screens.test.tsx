@@ -68,7 +68,9 @@ const exportReport = (overrides: Partial<ExportReport> = {}): ExportReport => ({
     stale: counts(1),
     skipped: [{ name: 'Header/H1 B', reason: 'шрифт не найден' }],
     omitted: { disabled: 2 },
+    notes: [],
     missingFonts: [],
+    fontFiles: [],
     ...overrides,
 });
 
@@ -552,6 +554,50 @@ describe('экспорт в Figma', () => {
         expect(await screen.findByTestId('missing-fonts')).toHaveTextContent(
             'Не найдены шрифты: SB Sans Display. Установите их на компьютер и повторите экспорт',
         );
+        expect(screen.queryByTestId('font-files')).toBeNull();
+    });
+
+    it('показывает созданное с оговоркой отдельно от пропусков', async () => {
+        const { bridge } = mount();
+        const reason = 'градиент описан парой стилей Light и Dark: в режимах разное число слоёв';
+        vi.mocked(bridge.applyExport).mockResolvedValueOnce(
+            exportReport({ notes: [{ name: 'surface.default.card', reason }] }),
+        );
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        const notes = await screen.findByTestId('export-notes');
+        expect(notes).toHaveTextContent('Создано с оговоркой: 1');
+        expect(notes).toHaveTextContent(reason);
+        expect(screen.getByTestId('export-skipped')).toHaveTextContent('Пропущено: 1');
+    });
+
+    it('даёт ссылки на файлы недостающего шрифта и открывает их во внешнем браузере', async () => {
+        const { bridge } = mount();
+        const url = 'https://cdn.example/SBSansDisplay-Semibold.otf';
+        vi.mocked(bridge.applyExport).mockResolvedValueOnce(
+            exportReport({
+                missingFonts: ['SB Sans Display'],
+                fontFiles: [
+                    {
+                        family: 'SB Sans Display',
+                        files: [{ name: 'SBSansDisplay-Semibold.otf', url, weight: 'semibold', style: 'normal' }],
+                    },
+                ],
+            }),
+        );
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Экспортировать в Figma' }));
+
+        const files = await screen.findByTestId('font-files');
+        expect(files).toHaveTextContent('Файлы SB Sans Display:');
+        expect(files).toHaveTextContent('semibold');
+        fireEvent.click(within(files).getByRole('button', { name: 'SBSansDisplay-Semibold.otf' }));
+        expect(bridge.openExternal).toHaveBeenCalledWith(url);
     });
 
     it('экспортирует черновик без `versionId`', async () => {

@@ -107,6 +107,10 @@ const createFigma = ({ modeLimit = 10, families = ['SB Sans Display'] } = {}) =>
                 return created;
             },
             createVariableAlias: (variable: FakeVariable) => ({ type: 'VARIABLE_ALIAS', id: variable.id }),
+            setBoundVariableForPaint: (paint: object, field: string, variable: FakeVariable) => ({
+                ...paint,
+                boundVariables: { [field]: { type: 'VARIABLE_ALIAS', id: variable.id } },
+            }),
         },
         getLocalTextStylesAsync: async () => [...textStyles],
         getLocalEffectStylesAsync: async () => [...effectStyles],
@@ -228,6 +232,12 @@ const createPlan = (themeName = 'Text&Icons/Default/General/Primary'): ExportPla
         },
     ],
     skipped: [],
+    notes: [
+        {
+            name: 'surface.default.card',
+            reason: 'градиент описан парой стилей Light и Dark: в режимах разное число слоёв',
+        },
+    ],
     omitted: { disabled: 1 },
 });
 
@@ -266,6 +276,9 @@ describe('запись плана экспорта', () => {
             'GRADIENT_LINEAR',
             'SOLID',
         ]);
+        // Непривязанный сплошной слой хранит прозрачность в самом слое.
+        expect((paintStyles[0].paints[1] as { opacity: number }).opacity).toBe(0.5);
+        expect(report.notes).toEqual(createPlan().notes);
     });
 
     it('при повторном экспорте обновляет найденное по ключу и не создаёт дубликатов', async () => {
@@ -501,5 +514,75 @@ describe('матрица градиента', () => {
         expect([point(90, 0, 0.5), point(90, 1, 0.5)]).toEqual([0, 1]);
         expect([point(180, 0.5, 0), point(180, 0.5, 1)]).toEqual([0, 1]);
         expect([point(45, 0, 1), point(45, 1, 0)]).toEqual([0, 1]);
+    });
+    it('привязывает сплошной слой и стопы градиента к переменным стопов', async () => {
+        const { figma, variables, paintStyles } = createFigma();
+        const plan = createPlan();
+        const stop = (key: string, name: string, r: number) => ({
+            key,
+            name,
+            type: 'COLOR' as const,
+            scopes: [],
+            values: {
+                light: { kind: 'color' as const, ...color(r) },
+                dark: { kind: 'color' as const, ...color(r / 2) },
+            },
+        });
+        plan.collections[1].variables.push(
+            stop('gradient-stop:t9:0', 'GradientStops/Accent/Fill 1', 1),
+            stop('gradient-stop:t9:1:0', 'GradientStops/Accent/Stop 1', 0.2),
+        );
+        plan.paintStyles = [
+            {
+                key: 'gradient:t9',
+                name: 'Surfaces/Default/Accent/Solid/AccentGradient',
+                paints: [
+                    { kind: 'solid', color: color(1, 0.5), key: 'gradient-stop:t9:0' },
+                    {
+                        kind: 'linear',
+                        angle: 90,
+                        stops: [
+                            { position: 0, color: color(0.2), key: 'gradient-stop:t9:1:0' },
+                            { position: 1, color: color(1), key: 'gradient-stop:t9:1:missing' },
+                        ],
+                    },
+                ],
+            },
+        ];
+
+        const report = await applyExportPlan(plan, figma);
+
+        const id = (name: string) => variables.find((variable) => variable.name === name)!.id;
+        const [linear, solid] = paintStyles[0].paints as Array<Record<string, unknown>>;
+        expect(solid.boundVariables).toEqual({
+            color: { type: 'VARIABLE_ALIAS', id: id('GradientStops/Accent/Fill 1') },
+        });
+        const stops = linear.gradientStops as Array<Record<string, unknown>>;
+        expect(stops[0].boundVariables).toEqual({
+            color: { type: 'VARIABLE_ALIAS', id: id('GradientStops/Accent/Stop 1') },
+        });
+        expect(stops[1].boundVariables).toBeUndefined();
+        expect(solid.opacity).toBe(1);
+        expect(report.notes).toEqual([
+            ...plan.notes!,
+            {
+                name: 'Surfaces/Default/Accent/Solid/AccentGradient',
+                reason: 'цвет слоя не привязан к переменной: переменной стопа нет',
+            },
+        ]);
+    });
+
+    it('отдаёт ссылки на файлы только недостающих семейств', async () => {
+        const { figma } = createFigma({ families: ['Inter'] });
+        const plan = createPlan();
+        const file = { name: 'Display-Bold.otf', url: 'https://cdn.example/Display-Bold.otf', weight: 'bold' };
+        plan.fontFiles = [
+            { family: 'SB Sans Display', files: [file] },
+            { family: 'Inter', files: [{ name: 'Inter.otf', url: 'https://cdn.example/Inter.otf' }] },
+        ];
+
+        const report = await applyExportPlan(plan, figma);
+
+        expect(report.fontFiles).toEqual([{ family: 'SB Sans Display', files: [file] }]);
     });
 });

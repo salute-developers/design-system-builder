@@ -66,14 +66,37 @@ export const gradientTransform = (angle: number): Transform => {
     ];
 };
 
-const figmaPaint = (paint: PlanPaint): Paint =>
-    paint.kind === 'solid'
-        ? { type: 'SOLID', color: rgb(paint.color), opacity: paint.color.a }
-        : {
-              type: 'GRADIENT_LINEAR',
-              gradientTransform: gradientTransform(paint.angle),
-              gradientStops: paint.stops.map(({ position, color }) => ({ position, color: rgba(color) })),
-          };
+type Lookup = (key: string) => Variable | undefined;
+
+/**
+ * Слой стиля; цвет сплошного слоя и стопов привязывается к переменной по ключу плана, поэтому один стиль меняется
+ * вместе с режимом `01. Theme`. Ключ без переменной оставляет цвет из плана и попадает в [unbound].
+ */
+const figmaPaint = (paint: PlanPaint, lookup: Lookup, figma: ExportFigmaApi, unbound: Set<string>): Paint => {
+    const variable = (key: string | undefined) => {
+        const found = key ? lookup(key) : undefined;
+        if (key && !found) unbound.add(key);
+        return found;
+    };
+    if (paint.kind === 'solid') {
+        const bound = variable(paint.key);
+        // Альфа привязанного цвета живёт в переменной: прозрачность слоя умножилась бы на неё ещё раз.
+        if (bound) {
+            const solid: SolidPaint = { type: 'SOLID', color: rgb(paint.color), opacity: 1 };
+            return figma.variables.setBoundVariableForPaint(solid, 'color', bound);
+        }
+        return { type: 'SOLID', color: rgb(paint.color), opacity: paint.color.a };
+    }
+    return {
+        type: 'GRADIENT_LINEAR',
+        gradientTransform: gradientTransform(paint.angle),
+        gradientStops: paint.stops.map(({ position, color, key }) => {
+            const bound = variable(key);
+            const stop: ColorStop = { position, color: rgba(color) };
+            return bound ? { ...stop, boundVariables: { color: figma.variables.createVariableAlias(bound) } } : stop;
+        }),
+    };
+};
 
 /** Начертания по насыщенности: имена стилей шрифтов в Figma не стандартизованы. */
 const WEIGHT_STYLES: Record<number, string[]> = {
@@ -104,8 +127,10 @@ export const applyExportPlan = async (plan: ExportPlan, figma: ExportFigmaApi): 
         updated: counts(),
         stale: counts(),
         skipped: [...plan.skipped],
+        notes: [...(plan.notes ?? [])],
         omitted: plan.omitted,
         missingFonts: [],
+        fontFiles: [],
     };
     const touch = (created: boolean, kind: keyof ExportCounts) => {
         (created ? report.created : report.updated)[kind] += 1;
@@ -119,11 +144,12 @@ export const applyExportPlan = async (plan: ExportPlan, figma: ExportFigmaApi): 
     try {
         const variables = await writeVariables(plan.collections, figma, touch, skip, report);
         await writeEffectStyles(plan, figma, touch, report);
-        await writePaintStyles(plan, figma, touch, report);
+        await writePaintStyles(plan, variables, figma, touch, report);
         await writeTextStyles(plan.textStyles, variables, figma, touch, skip, report);
     } catch (error) {
         report.failure = error instanceof ExportStopped ? error.message : `Figma отказала: ${String(error)}`;
     }
+    report.fontFiles = (plan.fontFiles ?? []).filter((family) => report.missingFonts.includes(family.family));
     return report;
 };
 
@@ -339,7 +365,13 @@ const writeEffectStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch:
     report.stale.effectStyles = staleCount(existing, plan.effectStyles);
 };
 
-const writePaintStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch: Touch, report: ExportReport) => {
+const writePaintStyles = async (
+    plan: ExportPlan,
+    lookup: Lookup,
+    figma: ExportFigmaApi,
+    touch: Touch,
+    report: ExportReport,
+) => {
     const existing = byKey(await figma.getLocalPaintStylesAsync());
     for (const planned of plan.paintStyles) {
         let style = existing.get(planned.key);
@@ -350,7 +382,14 @@ const writePaintStyles = async (plan: ExportPlan, figma: ExportFigmaApi, touch: 
         }
         style.name = planned.name;
         // В Figma верхний слой — последний, в CSS — первый.
-        style.paints = [...planned.paints].reverse().map(figmaPaint);
+        const unbound = new Set<string>();
+        style.paints = [...planned.paints].reverse().map((paint) => figmaPaint(paint, lookup, figma, unbound));
+        if (unbound.size) {
+            report.notes.push({
+                name: planned.name,
+                reason: 'цвет слоя не привязан к переменной: переменной стопа нет',
+            });
+        }
     }
     report.stale.paintStyles = staleCount(existing, plan.paintStyles);
 };
@@ -372,7 +411,8 @@ const writeTextStyles = async (
     for (const planned of styles) {
         const font = fontFor(fonts, planned.fontFamily, planned.fontWeight);
         const familyMissing = !fonts.some((item) => item.fontName.family === planned.fontFamily);
-        if (familyMissing && !report.missingFonts.includes(planned.fontFamily)) report.missingFonts.push(planned.fontFamily);
+        if (familyMissing && !report.missingFonts.includes(planned.fontFamily))
+            report.missingFonts.push(planned.fontFamily);
         if (!font) {
             skip({
                 name: planned.name,

@@ -15,11 +15,14 @@ export const Browser = ({
     api,
     storage,
     applyExport,
+    openExternal,
     onSignOut,
 }: {
     api: DsBuilderApi;
     storage: PluginStorage;
     applyExport: ApplyExport;
+    /** Открывает ссылку во внешнем браузере: окно плагина Figma ссылки не открывает. */
+    openExternal: (url: string) => void;
     onSignOut: () => void;
 }) => {
     const [saved, setSaved] = useState<SavedContext | null>(null);
@@ -210,6 +213,7 @@ export const Browser = ({
                     }}
                     themeName={tenant.name || 'Тема без названия'}
                     applyExport={applyExport}
+                    openExternal={openExternal}
                     onExportingChange={setExporting}
                     onForbidden={() => forbidden(backToTenants, 'Нет доступа к этой теме.')}
                 />

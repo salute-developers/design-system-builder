@@ -7,6 +7,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+private const val CDN = "https://cdn.example/fonts"
+
 /** Пограничные случаи плана: пустой источник, пропуски с причиной, контексты и порядок экранов. */
 class FigmaExportPlannerEdgeTest {
     private val groups = """
@@ -285,7 +287,7 @@ class FigmaExportPlannerEdgeTest {
                 "Surfaces/onDark/General/Solid/SolidActive",
                 "Surfaces/Default/General/Solid/SolidBrightness",
             ),
-            theme(plan).map { it.name },
+            theme(plan).map { it.name }.filterNot { it.startsWith("GradientStops/") },
         )
         // Состояние без контекста default: ключ и запасная ссылка — по первому контексту из Default, onDark, …
         val active = plan.collections.single { it.name == "02. SubTheme" }.variables
@@ -293,7 +295,7 @@ class FigmaExportPlannerEdgeTest {
         assertEquals("subtheme:c", active.key)
         assertEquals(PlanValue.Alias("theme:c"), active.values["default"])
         assertEquals(
-            listOf("Light/Surfaces/Default/General/Solid/CardHover", "Dark/Surfaces/Default/General/Solid/CardHover"),
+            listOf("Surfaces/Default/General/Solid/CardHover"),
             plan.paintStyles.map { it.name },
         )
     }
@@ -316,5 +318,136 @@ class FigmaExportPlannerEdgeTest {
             radiusNames(plan),
         )
         assertTrue(plan.skipped.isEmpty())
+    }
+
+    private val accentGroups = """
+        [
+          {"id": "g-surface", "parentId": null, "label": "Surfaces"},
+          {"id": "g-accent", "parentId": "g-surface", "label": "Accent / Solid"}
+        ]
+    """.trimIndent()
+
+    private fun gradient(light: String, dark: String) = plan(
+        """
+        {"groups": $accentGroups,
+         "tokens": [
+           {"id": "g", "name": "surface.default.accent-gradient", "type": "gradient", "enabled": true,
+            "groupId": "g-accent"}
+         ],
+         "values": [
+           {"tokenId": "g", "platform": "web", "mode": "light", "value": $light},
+           {"tokenId": "g", "platform": "web", "mode": "dark", "value": $dark}
+         ]}
+        """.trimIndent(),
+    )
+
+    @Test
+    fun gradientStopsBecomeThemeVariablesAndOneBoundStyle() {
+        val plan = gradient(
+            """["#FFFFFF80", "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"]""",
+            """["#00000080", "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 99.688%)"]""",
+        )
+
+        val base = "GradientStops/Surfaces/Default/Accent/Solid/AccentGradient"
+        val variables = theme(plan)
+        assertEquals(listOf("$base/Fill 1", "$base/Stop 1", "$base/Stop 2"), variables.map { it.name })
+        val stop = variables.single { it.name == "$base/Stop 2" }
+        assertEquals(PlanValue.Color(parseHex("#0DA8ABFF")!!), stop.values["light"])
+        assertEquals(PlanValue.Color(parseHex("#04C6C9FF")!!), stop.values["dark"])
+        assertEquals(emptyList(), stop.scopes)
+        val style = plan.paintStyles.single()
+        assertEquals("Surfaces/Default/Accent/Solid/AccentGradient", style.name)
+        assertEquals("gradient:g", style.key)
+        assertEquals("gradient-stop:g:0", (style.paints[0] as PlanPaint.Solid).key)
+        val linear = style.paints[1] as PlanPaint.Linear
+        assertEquals(listOf("gradient-stop:g:1:0", "gradient-stop:g:1:1"), linear.keys)
+        assertEquals(variables.drop(1).map { it.key }, linear.keys)
+        assertTrue(plan.skipped.isEmpty() && plan.notes.isEmpty())
+        // Сплошной слой и стопы уходят в JSON с ключами переменных.
+        val json = style.toJson().toString()
+        assertTrue("\"key\":\"gradient-stop:g:0\"" in json && "\"key\":\"gradient-stop:g:1:1\"" in json)
+    }
+
+    @Test
+    fun gradientWithDifferentStopsInModesIsStylePairWithReason() {
+        val cases = mapOf(
+            """["linear-gradient(90deg, #000000 0%, #FFFFFF 100%)"]""" to "в режимах разный угол градиента",
+            """["linear-gradient(45deg, #000000 0%, #888888 50%, #FFFFFF 100%)"]""" to "в режимах разное число стопов",
+            """["linear-gradient(45deg, #000000 0%, #FFFFFF 80%)"]""" to "в режимах разные позиции стопов",
+            """["#000000"]""" to "в режимах разные типы слоёв",
+        )
+        cases.forEach { (dark, reason) ->
+            val plan = gradient("""["linear-gradient(45deg, #000000 0%, #FFFFFF 100%)"]""", dark)
+            val name = "Surfaces/Default/Accent/Solid/AccentGradient"
+            assertEquals(listOf("Light/$name", "Dark/$name"), plan.paintStyles.map { it.name })
+            assertTrue(theme(plan).isEmpty())
+            assertTrue(plan.skipped.isEmpty())
+            assertEquals("градиент описан парой стилей Light и Dark: $reason", plan.notes.single().reason)
+        }
+    }
+
+    @Test
+    fun fontFilesComeFromFontFamilyValuesOfUsedFamilies() {
+        val font = { file: String, weight: String ->
+            """{"link": "https://cdn.example/fonts/$file", "weight": "$weight", "style": "normal"}"""
+        }
+        val plan = plan(
+            """
+            {"tokens": [
+               {"id": "f1", "name": "display", "type": "fontFamily", "enabled": true},
+               {"id": "f2", "name": "body", "type": "fontFamily", "enabled": true},
+               {"id": "f3", "name": "off", "type": "fontFamily", "enabled": false}
+             ],
+             "values": [
+               {"tokenId": "f1", "platform": "web", "mode": null, "value": [{"name": "SB Sans Display",
+                 "fonts": [{"src": ["url('https://cdn.example/fonts/Display-Bold.woff2') format('woff2')"]}]}]},
+               {"tokenId": "f1", "platform": "android", "mode": null, "value": [{"name": "SB Sans Display",
+                 "fonts": [{"link": "$CDN/Display-Light.otf"}, {"link": "http://cdn.example/Display-Thin.otf"},
+                   {"link": "file:///fonts/Display-Bold.otf"}]}]},
+               {"tokenId": "f1", "platform": "ios", "mode": null, "value": [{"name": "SB Sans Display",
+                 "fonts": [${font("Display-Semibold.otf?v=2", "semibold")}, ${font("Display-Light.otf", "light")}]}]},
+               {"tokenId": "f3", "platform": "ios", "mode": null, "value": [{"name": "SB Sans Display",
+                 "fonts": [${font("Display-Off.otf", "light")}]}]},
+               {"tokenId": "f2", "platform": "ios", "mode": null, "value": [{"name": "SB Sans Text",
+                 "fonts": [${font("Text-Regular.otf", "regular")}]}]}
+             ],
+             "typography": {
+               "families": [{"name": "header", "fontName": "SB Sans Display"}],
+               "screens": [{"screen": "screen-l", "styles": [{"group": "header", "size": "h1", "sizePx": 48,
+                 "fontFamily": "header", "variants": {"bold": {"tokenId": "ty", "weight": 600}}}]}]
+             }}
+            """.trimIndent(),
+        )
+
+        val family = plan.fontFiles.single()
+        assertEquals("SB Sans Display", family.family)
+        assertEquals(
+            listOf(
+                PlanFontFile("Display-Light.otf", "$CDN/Display-Light.otf", "light", "normal"),
+                PlanFontFile("Display-Semibold.otf", "$CDN/Display-Semibold.otf?v=2", "semibold", "normal"),
+            ),
+            family.files,
+        )
+    }
+
+    @Test
+    fun gradientWithoutModeHasSameStopsInBothModes() {
+        val plan = plan(
+            """
+            {"groups": $accentGroups,
+             "tokens": [
+               {"id": "g", "name": "surface.default.accent-gradient", "type": "gradient", "enabled": true,
+                "groupId": "g-accent"}
+             ],
+             "values": [
+               {"tokenId": "g", "platform": "web", "mode": null, "value": ["linear-gradient(#000000, #FFFFFF)"]}
+             ]}
+            """.trimIndent(),
+        )
+
+        val stops = theme(plan)
+        assertEquals(2, stops.size)
+        stops.forEach { assertEquals(it.values["light"], it.values["dark"]) }
+        assertEquals("Surfaces/Default/Accent/Solid/AccentGradient", plan.paintStyles.single().name)
     }
 }

@@ -43,6 +43,8 @@ internal object FigmaExportPlanner {
             paintStyles = colors.paintStyles,
             skipped = colors.skipped + typography.skipped + skipped,
             omittedDisabled = colors.omittedDisabled + typography.omittedDisabled + omitted.size,
+            fontFiles = fontFiles(source, typography.textStyles.map { it.fontFamily }.distinct()),
+            notes = colors.notes,
         )
     }
 

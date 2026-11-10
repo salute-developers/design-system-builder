@@ -16,6 +16,9 @@ import kotlinx.serialization.json.JsonObject
 
 private const val COLOR_TYPES = "color,gradient"
 
+/** Экспорту нужны ещё значения `fontFamily`: в них лежат ссылки на файлы шрифтов. */
+private const val EXPORT_VALUE_TYPES = "color,gradient,fontFamily"
+
 /** Ktor-реализация [ThemeTokensClient]. */
 public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientFactory) : ThemeTokensClient {
     override suspend fun versions(
@@ -42,7 +45,9 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
         versionId: String?,
     ): ModelReadResult {
         val version = versionId?.let { "versionId=${encodeModelSegment(it)}" }
+        val types = "types=${encodeModelSegment(EXPORT_VALUE_TYPES)}"
         val paths = sections(context, versionId) + mapOf(
+            "values" to "${tenant(context)}/token-values${query(version, types)}",
             "palette" to "${tenant(context)}/palette${query(version)}",
             "groups" to "${system(context)}/token-groups${query(version)}",
         )

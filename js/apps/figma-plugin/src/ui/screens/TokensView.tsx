@@ -205,7 +205,40 @@ const groupSkips = (skipped: ExportReport['skipped']) => {
     return [...groups.entries()].map(([reason, names]) => ({ reason, names }));
 };
 
-const ExportResult = ({ report, version, onClose }: { report: ExportReport; version: string; onClose: () => void }) => (
+/** Свёрнутый список с группировкой по причине. */
+const ReasonList = ({ title, entries, testId }: { title: string; entries: ExportReport['skipped']; testId: string }) =>
+    entries.length > 0 ? (
+        <details data-testid={testId}>
+            <summary>
+                {title}: {entries.length}
+            </summary>
+            <ul>
+                {groupSkips(entries).map(({ reason, names }) => (
+                    <li key={reason}>
+                        <span className="export-reason">
+                            {reason} · {names.length}
+                        </span>
+                        <span className="export-names">{names.join(', ')}</span>
+                    </li>
+                ))}
+            </ul>
+        </details>
+    ) : null;
+
+const fontLabel = ({ name, weight, style }: ExportReport['fontFiles'][number]['files'][number]) =>
+    [weight, style && style !== 'normal' ? style : null].filter(Boolean).join(' ') || name;
+
+const ExportResult = ({
+    report,
+    version,
+    onClose,
+    openExternal,
+}: {
+    report: ExportReport;
+    version: string;
+    onClose: () => void;
+    openExternal: (url: string) => void;
+}) => (
     <section className="export-report" data-testid="export-report" aria-label="Отчёт экспорта">
         <header>
             <span className="export-title">
@@ -247,25 +280,38 @@ const ExportResult = ({ report, version, onClose }: { report: ExportReport; vers
                 типографики уже созданы, текстовые стили появятся после повторного экспорта.
             </p>
         )}
+        {report.fontFiles.length > 0 && (
+            <div className="export-font-files" data-testid="font-files">
+                {report.fontFiles.map(({ family, files }) => (
+                    <div key={family}>
+                        <span className="export-reason">Файлы {family}:</span>
+                        <ul>
+                            {files.map((file) => (
+                                <li key={file.url}>
+                                    <button
+                                        type="button"
+                                        className="link"
+                                        title={file.url}
+                                        onClick={() => openExternal(file.url)}
+                                    >
+                                        {file.name}
+                                    </button>
+                                    {fontLabel(file) !== file.name && (
+                                        <span className="export-names"> · {fontLabel(file)}</span>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ))}
+            </div>
+        )}
         <p className="export-hint">
             Выключенные в DS Builder токены не экспортируются: {report.omitted.disabled}. Устаревшие объекты остаются в
             файле.
         </p>
-        {report.skipped.length > 0 && (
-            <details>
-                <summary>Пропущено: {report.skipped.length}</summary>
-                <ul>
-                    {groupSkips(report.skipped).map(({ reason, names }) => (
-                        <li key={reason}>
-                            <span className="export-reason">
-                                {reason} · {names.length}
-                            </span>
-                            <span className="export-names">{names.join(', ')}</span>
-                        </li>
-                    ))}
-                </ul>
-            </details>
-        )}
+        <ReasonList title="Создано с оговоркой" entries={report.notes ?? []} testId="export-notes" />
+        <ReasonList title="Пропущено" entries={report.skipped} testId="export-skipped" />
     </section>
 );
 
@@ -281,6 +327,7 @@ const ExportPanel = ({
     resetKey,
     onRunning,
     onForbidden,
+    openExternal,
 }: {
     run: (() => Promise<ExportReport>) | null;
     version: string;
@@ -288,6 +335,7 @@ const ExportPanel = ({
     resetKey: string;
     onRunning: (running: boolean) => void;
     onForbidden: () => void;
+    openExternal: (url: string) => void;
 }) => {
     const [result, setResult] = useState<ExportState>({ state: 'idle' });
     useEffect(() => {
@@ -317,6 +365,7 @@ const ExportPanel = ({
                     report={result.report}
                     version={result.version}
                     onClose={() => setResult({ state: 'idle' })}
+                    openExternal={openExternal}
                 />
             )}
             {result.state === 'failed' && (
@@ -337,6 +386,7 @@ export const TokensView = ({
     context,
     themeName,
     applyExport,
+    openExternal,
     onForbidden,
     onExportingChange = () => undefined,
 }: {
@@ -344,6 +394,7 @@ export const TokensView = ({
     context: TenantContext;
     themeName: string;
     applyExport: ApplyExport;
+    openExternal: (url: string) => void;
     onForbidden: () => void;
     /** Пока идёт экспорт, родитель блокирует переходы: иначе отчёт потеряется. */
     onExportingChange?: (exporting: boolean) => void;
@@ -458,6 +509,7 @@ export const TokensView = ({
                     onExportingChange(running);
                 }}
                 onForbidden={onForbidden}
+                openExternal={openExternal}
             />
             <div role="tablist" aria-label="Раздел" className="tabs">
                 {SECTIONS.map((item) => (
