@@ -101,6 +101,12 @@ class OAuthConfigurationTest {
             assertTrue(config.contains("location /realms/ {"))
             assertTrue(config.contains("protocol/openid-connect/token"))
             assertTrue(config.contains("protocol/openid-connect/logout"))
+            // gzip только в маршрутах дизайн-системы и только для JSON: SSE и аутентификация не сжимаются.
+            val ds = config.substringAfter(
+                "location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {",
+            ).substringBefore("\n        }")
+            assertTrue(ds.contains("gzip on;") && ds.contains("gzip_types application/json;"), name)
+            assertEquals(1, Regex("gzip on;").findAll(config).count(), name)
         }
         val bootstrap = File(identity, "keycloak/bootstrap-production-keycloak.sh").readText()
         assertTrue(bootstrap.contains("studio_plugin_client_id=\"dsbuilder-studio-plugin\""))

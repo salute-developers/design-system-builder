@@ -95,7 +95,14 @@ fun Route.tenantRoutes(
             if (typeNames != null && (typeNames.any(String::isBlank) || types.size != typeNames.distinct().size)) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_token_types"))
             }
-            when (val result = getTokenValues.execute(context, id, types)) {
+            val platformNames = call.request.queryParameters["platforms"]?.split(',')
+            val platforms = platformNames.orEmpty()
+                .mapNotNull(com.dsbuilder.ds.themes.domain.ThemeTokenPlatform::fromWire)
+                .toSet()
+            if (platformNames != null && platforms.size != platformNames.size) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_platforms"))
+            }
+            when (val result = getTokenValues.execute(context, id, types, platforms)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(TenantTokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

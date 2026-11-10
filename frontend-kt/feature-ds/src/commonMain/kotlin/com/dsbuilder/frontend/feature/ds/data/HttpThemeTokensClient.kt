@@ -17,7 +17,10 @@ import kotlinx.serialization.json.JsonObject
 private const val COLOR_TYPES = "color,gradient"
 
 /** Экспорту нужны ещё значения `fontFamily`: в них лежат ссылки на файлы шрифтов. */
-private const val EXPORT_VALUE_TYPES = "color,gradient,fontFamily"
+private const val EXPORT_VALUE_TYPES = "color,gradient"
+
+/** Шрифты читаются всех платформ: ссылки на файлы `.otf` есть только у iOS и Android. */
+private const val EXPORT_FONT_TYPES = "fontFamily"
 
 /** Ktor-реализация [ThemeTokensClient]. */
 public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientFactory) : ThemeTokensClient {
@@ -43,11 +46,18 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
         credential: BackendCredential,
         context: ThemeContext,
         versionId: String?,
+        platforms: List<String>,
     ): ModelReadResult {
         val version = versionId?.let { "versionId=${encodeModelSegment(it)}" }
-        val types = "types=${encodeModelSegment(EXPORT_VALUE_TYPES)}"
+        // Без платформ ответ несёт все три: цветам экспорта нужна выбранная и web как запасная.
+        val platformFilter = platforms.takeIf { it.isNotEmpty() }
+            ?.let { "&platforms=${encodeModelSegment(it.joinToString(","))}" }
+            .orEmpty()
+        val types = "types=${encodeModelSegment(EXPORT_VALUE_TYPES)}$platformFilter"
+        val fonts = "types=${encodeModelSegment(EXPORT_FONT_TYPES)}"
         val paths = sections(context, versionId) + mapOf(
             "values" to "${tenant(context)}/token-values${query(version, types)}",
+            "fonts" to "${tenant(context)}/token-values${query(version, fonts)}",
             "palette" to "${tenant(context)}/palette${query(version)}",
             "groups" to "${system(context)}/token-groups${query(version)}",
         )

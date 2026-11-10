@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ExportPlan } from '../shared/exportPlan';
-import { applyExportPlan, gradientTransform, type ExportFigmaApi } from './applyExportPlan';
+import { applyExportPlan, same, gradientTransform, type ExportFigmaApi } from './applyExportPlan';
 import { PIXSO_EDITOR, pixsoExportApi } from './pixsoExport';
 
 class Keyed {
@@ -655,6 +655,29 @@ describe('матрица градиента', () => {
             name: 'Shadows/Down/Soft/S',
             reason: 'цвет слоя тени не привязан к переменной: переменной нет',
         });
+    });
+    it('при повторном экспорте не перезаписывает совпадающие значения и загружает шрифт один раз', async () => {
+        const { figma, variables } = createFigma();
+        const plan = createPlan();
+        plan.textStyles.push({ ...plan.textStyles[0], key: 'text-style:header.h2.bold', name: 'Header/H2 B' });
+        await applyExportPlan(plan, figma);
+        const writes = variables.map((variable) => vi.spyOn(variable, 'setValueForMode'));
+        const load = vi.spyOn(figma, 'loadFontAsync');
+        const changed = createPlan();
+        changed.collections[0].variables[0].values.default = { kind: 'color', ...color(0.3) };
+        changed.textStyles = plan.textStyles;
+
+        await applyExportPlan(changed, figma);
+
+        expect(writes.map((write) => write.mock.calls.length)).toEqual([1, 0, 0, 0]);
+        expect(load).toHaveBeenCalledTimes(1);
+    });
+
+    it('сравнивает значения Figma с допуском для каналов цвета', () => {
+        expect(same({ r: 0.1, g: 0.2, b: 0.3, a: 1 }, { r: 0.10000001, g: 0.2, b: 0.3, a: 1 })).toBe(true);
+        expect(same({ r: 0.1, g: 0.2, b: 0.3, a: 1 }, { r: 0.11, g: 0.2, b: 0.3, a: 1 })).toBe(false);
+        expect(same({ type: 'VARIABLE_ALIAS', id: 'a' }, { type: 'VARIABLE_ALIAS', id: 'b' })).toBe(false);
+        expect(same(['GAP'], ['GAP'])).toBe(true);
     });
 });
 

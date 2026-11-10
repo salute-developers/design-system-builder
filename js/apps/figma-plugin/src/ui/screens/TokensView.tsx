@@ -233,70 +233,65 @@ const ExportResult = ({
     onClose,
     loadFont,
     packZip,
+    editorName,
 }: {
     report: ExportReport;
     version: string;
     onClose: () => void;
     loadFont: (url: string) => Promise<Uint8Array>;
     packZip: PackZip;
-}) => {
-    const editorName = useEditorName();
-    return (
-        <section className="export-report" data-testid="export-report" aria-label="Отчёт экспорта">
-            <header>
-                <span className="export-title">
-                    Тема «{report.source.themeName}», {version}, {PLATFORMS[report.source.platform ?? 'web']}
-                </span>
-                <button type="button" className="link" onClick={onClose}>
-                    Скрыть
-                </button>
-            </header>
-            {report.failure && (
-                <p className="error" role="alert">
-                    Экспорт прерван: {report.failure}
-                </p>
-            )}
-            <table>
-                <thead>
-                    <tr>
-                        <th scope="col" />
-                        <th scope="col">Создано</th>
-                        <th scope="col">Обновлено</th>
-                        <th scope="col">Устарело</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {KINDS.map(({ key, label }) => (
-                        <tr key={key}>
-                            <th scope="row">{label}</th>
-                            <td>{report.created[key]}</td>
-                            <td>{report.updated[key]}</td>
-                            <td>{report.stale[key]}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-            {report.missingFonts.length > 0 && (
-                <p className="export-fonts" data-testid="missing-fonts">
-                    Не найдены шрифты: {report.missingFonts.join(', ')}. Установите их на компьютер и повторите экспорт
-                    {editorName === 'Figma'
-                        ? ': Figma desktop видит шрифты, установленные в системе (в браузере нужен Figma Font Installer).'
-                        : '.'}{' '}
-                    Переменные типографики уже созданы, текстовые стили появятся после повторного экспорта.
-                </p>
-            )}
-            {report.fontFiles.length > 0 && (
-                <FontArchiveButton families={report.fontFiles} load={loadFont} pack={packZip} />
-            )}
-            <p className="export-hint">
-                Выключенные в DS Builder токены не экспортируются: {report.omitted.disabled}. Устаревшие объекты
-                остаются в файле.
+    editorName: string;
+}) => (
+    <section className="export-report" data-testid="export-report" aria-label="Отчёт экспорта">
+        <header>
+            <span className="export-title">
+                Тема «{report.source.themeName}», {version}, {PLATFORMS[report.source.platform ?? 'web']}
+            </span>
+            <button type="button" className="link" onClick={onClose}>
+                Скрыть
+            </button>
+        </header>
+        {report.failure && (
+            <p className="error" role="alert">
+                Экспорт прерван: {report.failure}
             </p>
-            <ReasonList title="Создано с оговоркой" entries={report.notes ?? []} testId="export-notes" />
-            <ReasonList title="Пропущено" entries={report.skipped} testId="export-skipped" />
-        </section>
-    );
-};
+        )}
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col" />
+                    <th scope="col">Создано</th>
+                    <th scope="col">Обновлено</th>
+                    <th scope="col">Устарело</th>
+                </tr>
+            </thead>
+            <tbody>
+                {KINDS.map(({ key, label }) => (
+                    <tr key={key}>
+                        <th scope="row">{label}</th>
+                        <td>{report.created[key]}</td>
+                        <td>{report.updated[key]}</td>
+                        <td>{report.stale[key]}</td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+        {report.missingFonts.length > 0 && (
+            <p className="export-fonts" data-testid="missing-fonts">
+                Не найдены шрифты: {report.missingFonts.join(', ')}. Установите их на компьютер и повторите экспорт
+                {editorName === 'Figma'
+                    ? ': Figma desktop видит шрифты, установленные в системе (в браузере нужен Figma Font Installer).'
+                    : '.'}{' '}
+                Переменные типографики уже созданы, текстовые стили появятся после повторного экспорта.
+            </p>
+        )}
+        {report.fontFiles.length > 0 && (
+            <FontArchiveButton families={report.fontFiles} load={loadFont} pack={packZip} />
+        )}
+        <ReasonList title="Создано с оговоркой" entries={report.notes ?? []} testId="export-notes" />
+        <ReasonList title="Пропущено" entries={report.skipped} testId="export-skipped" />
+    </section>
+);
 
 const errorText = (error: unknown) => {
     if (error instanceof ApiError && error.kind === 'not-found') return 'Этой темы нет в выбранной версии.';
@@ -370,6 +365,7 @@ const ExportPanel = ({
                     onClose={() => setResult({ state: 'idle' })}
                     loadFont={loadFont}
                     packZip={packZip}
+                    editorName={editorName}
                 />
             )}
             {result.state === 'failed' && (

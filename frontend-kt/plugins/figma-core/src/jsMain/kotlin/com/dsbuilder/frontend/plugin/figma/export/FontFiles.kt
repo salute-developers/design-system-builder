@@ -36,7 +36,8 @@ internal fun fontFiles(source: JsonObject, families: Collection<String>): List<P
         .mapNotNull { it.str("id") }
         .toSet()
     val byFamily = mutableMapOf<String, MutableMap<String, PlanFontFile>>()
-    source["values"].arr().mapNotNull { it.obj() }
+    // Шрифты приходят отдельным чтением `fonts` всех платформ; `values` план читал раньше и читает в тестах.
+    (source["fonts"].arr() + source["values"].arr()).mapNotNull { it.obj() }
         .filter { it.str("tokenId") in fontTokens }
         .flatMap { it["value"].arr() }
         .mapNotNull { it.obj() }
