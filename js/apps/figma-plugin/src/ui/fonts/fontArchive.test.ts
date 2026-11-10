@@ -90,12 +90,14 @@ describe('архив шрифтов', () => {
             { path: 'SB Sans/Bold.otf', data: bytes('a') },
             { path: 'SB Sans/Bold.otf', data: bytes('b') },
             { path: '../C:\\evil/..', data: bytes('c') },
+            { path: '/sb sans/bold.otf', data: bytes('d') },
         ]);
 
         expect(entries(archive).map(({ name }) => name)).toEqual([
             'SB Sans/Bold.otf',
             'SB Sans/Bold (2).otf',
             '_/C__evil/_',
+            'sb sans/bold (3).otf',
         ]);
     });
 });

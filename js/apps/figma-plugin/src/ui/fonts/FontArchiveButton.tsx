@@ -49,7 +49,9 @@ export const FontArchiveButton = ({
                     message:
                         error instanceof FontDownloadError
                             ? error.failures.map(({ name, reason }) => `${name} (${reason})`).join(', ')
-                            : (error as Error).message,
+                            : error instanceof Error
+                              ? error.message
+                              : String(error),
                 }),
         );
     };

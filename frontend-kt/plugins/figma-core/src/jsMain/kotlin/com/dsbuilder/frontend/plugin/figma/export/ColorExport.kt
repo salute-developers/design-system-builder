@@ -213,17 +213,19 @@ internal class ColorExport(source: JsonObject, private val platform: String = WE
 
     /** Как в просмотре: точный режим, затем значение без режима; иначе — значение другого режима. */
     private fun valueFor(tokenId: String, mode: String): JsonObject? {
-        // Без своих значений платформа наследует web, как в DS Builder.
-        val values = platformValues[tokenId] ?: webValues[tokenId].orEmpty()
-        return values.firstOrNull { it.str("mode") == mode }
-            ?: values.firstOrNull { it.str("mode") == null }
-            ?: values.firstOrNull()
+        // Без своего значения режима платформа наследует web того же режима, как в DS Builder.
+        val own = platformValues[tokenId].orEmpty()
+        val web = webValues[tokenId].orEmpty()
+        return own.inMode(mode) ?: web.inMode(mode) ?: own.firstOrNull() ?: web.firstOrNull()
     }
+
+    private fun List<JsonObject>.inMode(mode: String) =
+        firstOrNull { it.str("mode") == mode } ?: firstOrNull { it.str("mode") == null }
 
     private fun layers(value: JsonObject?): List<String> = when (val raw = value?.get("value")) {
         is JsonPrimitive -> listOfNotNull(raw.takeIf { it.isString }?.content)
         else -> raw.arr().mapNotNull { item ->
-            (item as? JsonPrimitive)?.takeIf { it.isString }?.content ?: item.obj()?.let(::nativeGradient)
+            (item as? JsonPrimitive)?.takeIf { it.isString }?.content ?: item.obj()?.let(::nativeLayer)
         }
     }
 
@@ -373,6 +375,10 @@ internal fun leafName(member: String, category: List<String>): String {
     val trimmed = if (repeats) words.drop(1) else words
     return trimmed.joinToString("") { word -> word.replaceFirstChar { it.uppercaseChar() } }
 }
+
+/** Слой iOS и Android: сплошной `{kind: "color", background}` — его цвет, градиент — запись CSS. */
+internal fun nativeLayer(layer: JsonObject): String =
+    layer.str("background")?.takeIf { layer.str("kind") == "color" } ?: nativeGradient(layer)
 
 /**
  * Градиент iOS и Android `{kind, angle, locations, colors}` в записи CSS, которую разбирает [parsePaint]: угол и

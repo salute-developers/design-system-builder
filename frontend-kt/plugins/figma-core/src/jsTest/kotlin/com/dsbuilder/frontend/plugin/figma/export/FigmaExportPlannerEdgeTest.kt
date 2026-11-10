@@ -505,9 +505,18 @@ class FigmaExportPlannerEdgeTest {
                {"id": "b", "name": "surface.default.accent-minor", "type": "color", "enabled": true,
                 "groupId": "g-accent"},
                {"id": "g", "name": "surface.default.accent-gradient", "type": "gradient", "enabled": true,
+                "groupId": "g-accent"},
+               {"id": "h", "name": "surface.default.accent-gradient-hover", "type": "gradient", "enabled": true,
+                "groupId": "g-accent"},
+               {"id": "m", "name": "surface.default.accent-mixed", "type": "color", "enabled": true,
                 "groupId": "g-accent"}
              ],
              "values": [
+               {"tokenId": "h", "platform": "web", "mode": null, "value": ["#CCCCCCFF"]},
+               {"tokenId": "h", "platform": "ios", "mode": null, "value": [{"kind": "color", "background": "#DDDDDDFF"}]},
+               {"tokenId": "m", "platform": "web", "mode": "light", "value": ["#010101"]},
+               {"tokenId": "m", "platform": "web", "mode": "dark", "value": ["#020202"]},
+               {"tokenId": "m", "platform": "ios", "mode": "dark", "value": ["#030303"]},
                {"tokenId": "a", "platform": "web", "mode": null, "value": ["#111111"]},
                {"tokenId": "a", "platform": "ios", "mode": null, "value": ["#222222"]},
                {"tokenId": "b", "platform": "web", "mode": null, "value": ["#333333"]},
@@ -534,6 +543,12 @@ class FigmaExportPlannerEdgeTest {
         assertEquals(PlanValue.Color(parseHex("#222222")!!), accent(ios, "/Accent"))
         assertEquals(PlanValue.Color(parseHex("#333333")!!), accent(ios, "/AccentMinor"))
         assertEquals(PlanValue.Color(parseHex("#111111")!!), accent(android, "/Accent"))
+        // Сплошное значение градиентного токена iOS приходит слоем `kind: color`.
+        assertEquals(PlanValue.Color(parseHex("#DDDDDDFF")!!), accent(ios, "/AccentGradientHover"))
+        // Режима без своего значения iOS берёт web того же режима, а не iOS другого.
+        val mixed = theme(ios).single { it.name.endsWith("/AccentMixed") }
+        assertEquals(PlanValue.Color(parseHex("#010101")!!), mixed.values["light"])
+        assertEquals(PlanValue.Color(parseHex("#030303")!!), mixed.values["dark"])
         val stops = theme(ios).filter { it.name.startsWith("GradientStops/") }
         assertEquals(PlanValue.Color(parseHex("#1A9E32FF")!!), stops.first().values["light"])
         assertEquals(45.0, (ios.paintStyles.single().paints.single() as PlanPaint.Linear).angle)

@@ -77,11 +77,12 @@ internal object FigmaExportPlanner {
             result += variable
             val size = INNER_RADII.firstOrNull { variable.name == "${prefix}cR$it" }
             val value = (variable.values[SINGLE_MODE.key] as? PlanValue.Number)?.value
-            if (size != null && value != null && value >= INNER_OFFSET) {
+            // Внутренний радиус есть всегда, а не только от 2 px: набор переменных не зависит от платформы.
+            if (size != null && value != null) {
                 result += variable.copy(
                     key = "radii-inner:${variable.key}",
                     name = "${prefix}calc:[cR$size-2]",
-                    values = mapOf(SINGLE_MODE.key to PlanValue.Number(value - INNER_OFFSET)),
+                    values = mapOf(SINGLE_MODE.key to PlanValue.Number(maxOf(0.0, value - INNER_OFFSET))),
                 )
             }
         }
@@ -122,7 +123,10 @@ internal object FigmaExportPlanner {
             value?.let {
                 PlanVariable(
                     key = "${dimension.section.removeSuffix("s")}:$id",
-                    name = "${dimension.prefix}/${segment(leafFor(dimension, name, it, token, used))}",
+                    // Имя по значению web: смена платформы не переименовывает `null` и `cR…`.
+                    name = "${dimension.prefix}/${segment(
+                        leafFor(dimension, name, token.num("valuePx") ?: it, token, used),
+                    )}",
                     type = "FLOAT",
                     scopes = listOf(dimension.scope),
                     values = mapOf(SINGLE_MODE.key to PlanValue.Number(it)),

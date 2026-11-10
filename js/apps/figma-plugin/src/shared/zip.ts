@@ -60,12 +60,16 @@ export const zip = (files: ArchiveFile[]): Uint8Array => {
         // Сегменты пути без `..` и разделителей внутри: архив не пишет за пределы папки распаковки.
         const path = file.path
             .split('/')
+            .filter(Boolean)
             .map((part) => part.replace(/[\\:]/g, '_').replace(/^\.+$/, '_'))
             .join('/');
         // Повтор пути распаковщик перезаписал бы молча: второй файл получает номер.
         let unique = path;
-        for (let index = 2; used.has(unique); index += 1) unique = path.replace(/(\.[^./]*)?$/, ` (${index})$1`);
-        used.add(unique);
+        // Регистр не различают файловые системы macOS и Windows: `Bold.otf` и `bold.otf` — один файл.
+        for (let index = 2; used.has(unique.toLowerCase()); index += 1) {
+            unique = path.replace(/(\.[^./]*)?$/, ` (${index})$1`);
+        }
+        used.add(unique.toLowerCase());
         const name = utf8(unique);
         const crc = crc32(file.data);
         const size = file.data.length;
