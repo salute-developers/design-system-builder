@@ -19,7 +19,7 @@
 - **WHEN** токен `background.default.primary` входит в группу «BG» / «Default»
 - **THEN** экспорт MUST создать переменную `BG/Primary`
 
-#### Scenario: Состояния
+#### Scenario: Состояние
 
 - **WHEN** у темы есть токены `text.default.primary`, `text.default.primary-hover`, `text.default.primary-active` и `text.default.primary-brightness` в группе «Text & Icons» / «General»
 - **THEN** экспорт MUST создать в `01. Theme` переменные `Text&Icons/Default/General/Primary`, `…/PrimaryHover`, `…/PrimaryActive`, `…/PrimaryBrightness`
