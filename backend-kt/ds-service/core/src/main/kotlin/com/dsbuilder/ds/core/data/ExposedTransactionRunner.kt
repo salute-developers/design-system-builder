@@ -64,7 +64,6 @@ class ExposedTransactionRunner(
                 IdempotentRequestLookup.New -> Unit
             }
         }
-        if (request != null) requireRequestDesignSystemMutable()
         when (val result = block()) {
             is DsResult.Failure -> result
             is DsResult.Success -> {
@@ -160,9 +159,13 @@ class ExposedTransactionRunner(
 
     private fun versionAccessible(context: DsRequestContext): Boolean {
         val versionId = requireNotNull(context.versionId)
-        val access = if (context.principal.globalAdmin) "TRUE" else "system.project_id = ?"
         val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to versionId)
-        if (!context.principal.globalAdmin) args += TextColumnType() to context.projectId.value
+        val access = if (context.principal.globalAdmin) {
+            "TRUE"
+        } else {
+            args += TextColumnType() to context.projectId.value
+            "system.project_id = ?"
+        }
         return TransactionManager.current().exec(
             "SELECT EXISTS(" +
                 "SELECT 1 FROM design_system_versions boundary " +
@@ -174,7 +177,8 @@ class ExposedTransactionRunner(
     }
 
     private fun clearDesignSystemScope() {
-        TransactionManager.current().exec("SELECT set_config('ds.design_system_id', '', true)")
+        // SET LOCAL не создаёт снимок до выбора уровня изоляции глобальной публикацией.
+        TransactionManager.current().exec("SET LOCAL ds.design_system_id = ''")
     }
 
     private fun configure(context: DsRequestContext) {
