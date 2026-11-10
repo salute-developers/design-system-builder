@@ -12,5 +12,5 @@
 
 - [x] 3.1 `tools/verify fast --change add-figma-export-platform`
 - [x] 3.2 Независимое review и исправления
-- [ ] 3.3 `tools/verify full --change add-figma-export-platform`
+- [x] 3.3 `tools/verify full --change add-figma-export-platform`
 - [x] 3.4 [внешняя проверка] Экспорт Malachite с платформой iOS и затем Web в Figma desktop: значения переменных меняются, дубликатов нет

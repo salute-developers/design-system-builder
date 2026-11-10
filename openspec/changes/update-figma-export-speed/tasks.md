@@ -12,7 +12,7 @@
 
 ## 3. Проверка
 
-- [ ] 3.1 `tools/verify fast --change update-figma-export-speed`
-- [ ] 3.2 Независимое review и исправления
-- [ ] 3.3 `tools/verify full --change update-figma-export-speed`
+- [x] 3.1 `tools/verify fast --change update-figma-export-speed`
+- [x] 3.2 Независимое review и исправления
+- [x] 3.3 `tools/verify full --change update-figma-export-speed`
 - [ ] 3.4 [внешняя проверка] Повторный экспорт в Figma desktop заметно быстрее первого, значения обновляются
