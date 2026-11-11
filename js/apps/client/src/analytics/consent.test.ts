@@ -263,7 +263,8 @@ it('does not publish an old grant failure after a new withdrawal succeeds', asyn
 });
 
 it('keeps a successful POST without its server receipt pending and disabled', async () => {
-    const request = vi.fn()
+    const request = vi
+        .fn()
         .mockResolvedValueOnce(ok(response(false, 0)))
         .mockResolvedValueOnce(ok({ policy, current: response().current }));
     const consent = createAnalyticsConsent(localStorage, 'test', request);
@@ -272,3 +273,52 @@ it('keeps a successful POST without its server receipt pending and disabled', as
     expect(consent.getSnapshot()).toMatchObject({ allowed: false, error: true, busy: false });
     expect(JSON.parse(localStorage.getItem('test')!).pending.decision).toBe('granted');
 });
+
+it('requires a new explicit grant after a conflict even across a page reload', async () => {
+    const request = vi
+        .fn()
+        .mockResolvedValueOnce(ok(response(false, 0)))
+        .mockResolvedValueOnce(new Response('', { status: 409 }))
+        .mockResolvedValueOnce(ok(response(true, 5)))
+        .mockResolvedValueOnce(ok(response(true, 5)))
+        .mockResolvedValueOnce(ok(response(true, 6)));
+    const consent = createAnalyticsConsent(localStorage, 'test', request);
+    await consent.start();
+    await consent.choose('granted');
+    expect(consent.getSnapshot()).toMatchObject({ allowed: false, choice: undefined });
+    const stored = JSON.parse(localStorage.getItem('test')!);
+    expect(stored.revision).toBe(5);
+    expect(stored.decision).toBeUndefined();
+    expect(stored.pending).toBeUndefined();
+    const reloaded = createAnalyticsConsent(localStorage, 'test', request);
+    await reloaded.start();
+    expect(reloaded.getSnapshot()).toMatchObject({ allowed: false, choice: undefined, policy });
+    expect(request).toHaveBeenCalledTimes(4);
+    await reloaded.choose('granted');
+    expect(JSON.parse(request.mock.calls[4][1].body).expected_revision).toBe(5);
+    expect(reloaded.getSnapshot().allowed).toBe(true);
+});
+
+it.each(['timeout', '503'])(
+    'keeps analytics off after notice failure (%s) and retries only on review or reload',
+    async (failure) => {
+        const request = vi.fn();
+        if (failure === '503') request.mockResolvedValueOnce(new Response('', { status: 503 }));
+        else request.mockRejectedValueOnce(new DOMException('Timed out', 'TimeoutError'));
+        request.mockImplementation(() => Promise.resolve(ok(response(false, 0))));
+        const consent = createAnalyticsConsent(localStorage, 'test', request);
+        await consent.start();
+        await consent.start();
+        expect(consent.getSnapshot()).toMatchObject({ allowed: false, choice: undefined, error: true });
+        expect(consent.getSnapshot().policy).toBeUndefined();
+        expect(request).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(localStorage.getItem('test')!).decision).toBeUndefined();
+        await consent.review();
+        expect(consent.getSnapshot()).toMatchObject({ allowed: false, policy, error: false });
+        expect(request).toHaveBeenCalledTimes(2);
+        const reloaded = createAnalyticsConsent(localStorage, 'test', request);
+        await reloaded.start();
+        expect(reloaded.getSnapshot()).toMatchObject({ allowed: false, policy });
+        expect(request).toHaveBeenCalledTimes(3);
+    },
+);

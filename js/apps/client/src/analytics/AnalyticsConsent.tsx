@@ -94,7 +94,7 @@ export const AnalyticsConsent = () => {
         state.choice === 'granted'
             ? ({ decision: 'withdrawn', label: 'Отозвать разрешение' } as const)
             : ({ decision: 'denied', label: 'Отказаться' } as const);
-    const visible = settings || !state.choice || state.busy || (state.error && state.choice === 'granted');
+    const visible = settings || Boolean(state.policy && (!state.choice || state.busy || state.error));
     if (!visible)
         return (
             <SettingsButton

@@ -136,6 +136,7 @@ export const createAnalyticsConsent = (
             const updated: Saved = { ...saved, revision: current.current.revision };
             if (pending.decision === 'granted') {
                 delete updated.pending;
+                delete updated.decision;
                 await commit(saved, ticket, () => {
                     write(updated);
                     publish({ policy: current.policy, choice: undefined });

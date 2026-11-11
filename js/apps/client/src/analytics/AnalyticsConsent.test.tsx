@@ -7,7 +7,9 @@ const fixture = vi.hoisted(() => ({
         choice: undefined as string | undefined,
         busy: false,
         error: false,
-        policy: { version: 'web-v1', sha256: 'a'.repeat(64), text: 'Короткое уведомление о Яндекс Метрике' },
+        policy: { version: 'web-v1', sha256: 'a'.repeat(64), text: 'Короткое уведомление о Яндекс Метрике' } as
+            | { version: string; sha256: string; text: string }
+            | undefined,
     },
     choose: vi.fn(),
     start: vi.fn(),
@@ -31,7 +33,13 @@ import { AnalyticsConsent } from './AnalyticsConsent';
 
 beforeEach(() => {
     vi.clearAllMocks();
-    fixture.state = { ...fixture.state, allowed: false, choice: undefined, busy: false, error: false };
+    fixture.state = {
+        allowed: false,
+        choice: undefined,
+        busy: false,
+        error: false,
+        policy: { version: 'web-v1', sha256: 'a'.repeat(64), text: 'Короткое уведомление о Яндекс Метрике' },
+    };
 });
 afterEach(cleanup);
 
@@ -60,4 +68,37 @@ it('lets a previously declined user open settings and load the short notice expl
     fireEvent.click(screen.getByRole('button', { name: 'Настройки аналитики' }));
     expect(fixture.review).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Разрешить', exact: true })).toBeVisible();
+});
+
+it('hides the automatic banner on notice failure and keeps settings available', () => {
+    fixture.state = { ...fixture.state, policy: undefined, error: true };
+    const { rerender } = render(<AnalyticsConsent />);
+    expect(screen.queryByRole('heading', { name: 'Аналитика DS Builder' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Разрешить', exact: true })).toBeNull();
+    expect(fixture.setConsent).toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Настройки аналитики' }));
+    expect(fixture.review).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Разрешить', exact: true })).toBeDisabled();
+    fixture.state = {
+        ...fixture.state,
+        error: false,
+        policy: {
+            version: 'web-v1',
+            sha256: 'a'.repeat(64),
+            text: 'Загруженное уведомление',
+        },
+    };
+    rerender(<AnalyticsConsent />);
+    expect(screen.getByText('Загруженное уведомление')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Разрешить', exact: true })).toBeEnabled();
+    expect(fixture.choose).not.toHaveBeenCalled();
+});
+
+it.each(['granted', 'denied', 'withdrawn'])('keeps the banner and error visible when saving %s fails', (choice) => {
+    fixture.state = { ...fixture.state, choice, error: true };
+    render(<AnalyticsConsent />);
+    expect(screen.getByRole('heading', { name: 'Аналитика DS Builder' })).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent('Не удалось подтвердить выбор');
+    expect(screen.getByRole('button', { name: 'Разрешить', exact: true })).toBeEnabled();
+    expect(fixture.setConsent).toHaveBeenCalledWith(false);
 });
