@@ -29,6 +29,7 @@ import com.dsbuilder.projects.core.DatabaseProvider
 import com.dsbuilder.projects.feature.projects.presentation.configureProjectsPublicEntry
 import com.dsbuilder.projects.feature.projects.presentation.projectsRoutes
 import com.dsbuilder.settings.di.UserSettingsModule
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -37,6 +38,10 @@ import io.ktor.server.application.install
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.compression.Compression
+import io.ktor.server.plugins.compression.gzip
+import io.ktor.server.plugins.compression.matchContentType
+import io.ktor.server.plugins.compression.minimumSize
 import io.ktor.server.request.path
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondRedirect
@@ -73,6 +78,12 @@ fun main() {
 // Закрываем все частично созданные ресурсы при любой ошибке инициализации.
 @Suppress("TooGenericExceptionCaught")
 fun Application.monolith(configuration: GatewayConfiguration = GatewayConfiguration.fromEnvironment()) {
+    install(Compression) {
+        gzip {
+            minimumSize(1024)
+            matchContentType(ContentType.Application.Json)
+        }
+    }
     val policyPaths = listOfNotNull(
         System.getenv("AUTHORIZATION_POLICY_PATH"),
         System.getenv("PROJECT_AUTHORIZATION_POLICY_PATH"),
