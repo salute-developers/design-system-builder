@@ -348,7 +348,7 @@ class DsBuilderMcpServerCoreTest {
 
         val tools = server.tools()
 
-        assertEquals(29, tools.size)
+        assertEquals(61, tools.size)
         assertEquals(
             setOf(
                 "design_system_get_context",
@@ -380,13 +380,47 @@ class DsBuilderMcpServerCoreTest {
                 "documentation_get_page",
                 "code_binding_search",
                 "code_binding_get",
-            ),
+            ) + expectedEditorNames,
             tools.map { it.name }.toSet(),
         )
-        assertFalse(
-            tools.any { it.name.contains("create") || it.name.contains("update") || it.name.contains("delete") },
-        )
+        assertEquals(30, tools.count { !it.readOnly })
+        assertFalse(tools.any { it.name.startsWith("catalog_") || it.name.startsWith("state_create") })
     }
+
+    private val expectedEditorNames = setOf(
+        "token_create",
+        "token_update",
+        "token_delete",
+        "token_value_create",
+        "token_value_update",
+        "token_value_delete",
+        "color_token_create",
+        "color_token_values_update",
+        "color_token_move",
+        "color_token_delete",
+        "token_group_create",
+        "token_group_update",
+        "token_group_delete",
+        "size_token_value_update",
+        "typography_style_update",
+        "component_configuration_create",
+        "component_configuration_duplicate",
+        "component_configuration_update",
+        "component_configuration_delete",
+        "component_axis_create",
+        "component_axis_update",
+        "component_axis_delete",
+        "component_axes_reorder",
+        "component_axis_value_create",
+        "component_axis_value_update",
+        "component_axis_value_delete",
+        "component_axis_values_reorder",
+        "component_property_set",
+        "component_property_reset",
+        "component_states_reorder",
+        "token_edit_data_get",
+        "component_editor_get",
+    )
 
     @Test
     fun readToolSchemasExposeRequiredInputsAndVersionFallback() {
@@ -592,7 +626,7 @@ class DsBuilderMcpServerCoreTest {
                 CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Authentication required")
         }
         val core = server(modelReadUseCase = modelReader(provider = provider) { _, _, _ -> error("No backend call") })
-        assertEquals(29, core.tools().size)
+        assertEquals(61, core.tools().size)
         assertErrorCode("AUTH_REQUIRED", core.callTool("design_system_get_context"))
     }
 

@@ -7,6 +7,7 @@ DESIGN_SYSTEM_NAME="sdds_serv_local"
 DESIGN_SYSTEM_NAME_EXPLICIT=0
 THEME_NAME="sdds_serv_local"
 THEME_PROFILE="malachite"
+PUBLISH_VERSION="0.1.0"
 PACKAGE_DIR=""
 THEME_PACKAGE="$ROOT_DIR/local-dev/design-system/theme"
 USERNAME="${DSBUILDER_LOCAL_USERNAME:-admin@example.com}"
@@ -32,6 +33,9 @@ Options:
   --theme-package DIR    Theme package of theme-converter (android/android_*.json). Its Android token values replace
                          the values of the new theme, which Compose preview reads. Default: local-dev/design-system/theme.
                          Pass an empty value to keep the values that the backend creates for the starting palette.
+  --publish-version VERSION
+                         Publish this version after import unless it already exists. Default: 0.1.0.
+                         An existing publication stays unchanged; the import still updates the draft.
   --name NAME            Name of the design system that the script owns. Default: sdds_serv_local.
   --theme NAME           Theme name. Default: sdds_serv_local.
   --profile PROFILE      Starting palette of the theme: sber, malachite or b2b. Default: malachite.
@@ -41,7 +45,7 @@ Options:
 
 The script works only in its own design system: other design systems of the project (for example `base`) are not
 touched. The design system and its theme are created when they are missing; a repeated run reloads their token
-values and component configurations.
+values and component configurations. After import it publishes 0.1.0 unless that version already exists.
 
 It signs in as the local dev user (DSBUILDER_LOCAL_USERNAME, DSBUILDER_LOCAL_PASSWORD; the Keycloak dev realm
 defaults). 
@@ -65,6 +69,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --theme-package)
       THEME_PACKAGE="${2:-}"
+      shift 2
+      ;;
+    --publish-version)
+      PUBLISH_VERSION="${2:-}"
       shift 2
       ;;
     --name)
@@ -99,6 +107,9 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+[[ "$PUBLISH_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
+  || fail "--publish-version must have the form MAJOR.MINOR.PATCH without leading zeroes"
 
 for command_name in curl python3; do
   command -v "$command_name" >/dev/null 2>&1 || fail "Required command '$command_name' not found"
@@ -212,29 +223,54 @@ resolve_cli() {
 }
 CLI="$(resolve_cli)"
 
-# `components push` uses a short-lived project key; no browser session is needed for local setup.
-KEY_ID=""
-revoke_setup_key() {
-  if [[ -n "$KEY_ID" ]]; then
-    api DELETE "/api/projects/$PROJECT_ID/access-keys/$KEY_ID" >/dev/null \
-      || log "Could not revoke temporary project key $KEY_ID"
+# `components push` uses a short-lived PAT; no browser session is needed for local setup.
+PAT_ID=""
+revoke_setup_pat() {
+  if [[ -n "$PAT_ID" ]]; then
+    api DELETE "/api/settings/personal-access-tokens/$PAT_ID" >/dev/null \
+      || log "Could not revoke temporary PAT $PAT_ID"
   fi
 }
-trap revoke_setup_key EXIT
-key_response="$(api POST "/api/projects/$PROJECT_ID/access-keys" \
+trap revoke_setup_pat EXIT
+pat_response="$(api POST /api/settings/personal-access-tokens \
   --data '{"name":"local setup components push","scopes":["components:write"],"ttlSeconds":3600}')" \
-  || fail "Could not create a temporary project key"
-KEY_ID="$(printf '%s' "$key_response" | json_get "d['key']['id']")"
-KEY_SECRET="$(printf '%s' "$key_response" | json_get "d['secret']")"
+  || fail "Could not create a temporary PAT"
+PAT_ID="$(printf '%s' "$pat_response" | json_get "d['token']['id']")"
+PAT_SECRET="$(printf '%s' "$pat_response" | json_get "d.get('secret') or ''")"
+[[ -n "$PAT_ID" && -n "$PAT_SECRET" ]] || fail "The temporary PAT response is incomplete"
 
-LINK="dsbuilder://projects/$PROJECT_ID/design-systems/$DESIGN_SYSTEM_ID?version=0.1.0&platform=compose"
+LINK="dsbuilder://projects/$PROJECT_ID/design-systems/$DESIGN_SYSTEM_ID?version=draft&platform=compose"
 log "Loading the component configurations from $PACKAGE_DIR"
-push_output="$(DSBUILDER_API_URL="$GATEWAY_URL" DSBUILDER_API_KEY="$KEY_SECRET" "$CLI" components push \
+push_output="$(DSBUILDER_API_URL="$GATEWAY_URL" DSBUILDER_API_KEY="$PAT_SECRET" "$CLI" components push \
   --from "$PACKAGE_DIR" --platform compose --design-system "$LINK" \
-  --project-key-env DSBUILDER_API_KEY --apply 2>&1)" || {
+  --apply 2>&1)" || {
     printf '%s\n' "$push_output" | grep -v SLF4J >&2 || true
     fail "The component configurations could not be loaded"
   }
 printf '%s\n' "$push_output" | grep -v SLF4J | grep -E "^(Created|Updated|Unchanged|Rejected|Status)|^  .*:" || true
+
+VERSIONS_URL="$DS_BASE/$DESIGN_SYSTEM_ID/versions"
+existing_version="$(api GET "$VERSIONS_URL?version=$PUBLISH_VERSION&limit=1" \
+  | json_get "next((v['id'] for v in d if v['version'] == '$PUBLISH_VERSION'), '')")" \
+  || fail "Could not check published versions"
+if [[ -n "$existing_version" ]]; then
+  log "Version $PUBLISH_VERSION is already published and unchanged; the draft has been updated"
+else
+  draft="$(api GET "$DS_BASE/$DESIGN_SYSTEM_ID?version=draft")" \
+    || fail "Could not read the active draft for publication"
+  publish_body="$(printf '%s' "$draft" | python3 -c '
+import json, sys
+value = json.load(sys.stdin)
+assert isinstance(value["draftId"], str) and value["draftId"]
+assert type(value["draftRevision"]) is int and value["draftRevision"] >= 0
+print(json.dumps({"draftId": value["draftId"], "draftRevision": value["draftRevision"],
+                  "version": sys.argv[1], "changelog": "Local setup seed"}))
+' "$PUBLISH_VERSION")" || fail "The active draft response is incomplete"
+  publish_key="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+  log "Publishing version $PUBLISH_VERSION"
+  api POST "$VERSIONS_URL" --header "Idempotency-Key: $publish_key" --data "$publish_body" \
+    >/dev/null || fail "Could not publish version $PUBLISH_VERSION; the imported data remains in the draft"
+  log "Published version $PUBLISH_VERSION"
+fi
 
 log "Done. Open the component editor: the Compose components are listed with their preview."

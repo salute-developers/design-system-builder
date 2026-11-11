@@ -114,6 +114,10 @@ public interface AuthenticatedHttpClient {
      */
     public suspend fun post(path: String, body: String): AuthenticatedHttpResult
 
+    /** Выполняет мутацию с сохранением HTTP-статуса и метаданных ответа. */
+    public suspend fun mutate(request: HttpMutationRequest): HttpMutationResult =
+        error("Mutations are not supported by this client.")
+
     /** Выполняет multipart POST с project API key. */
     public suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
         postMultipart(path, listOf(file))
@@ -172,6 +176,9 @@ public class KtorAuthenticatedHttpClient(
                 setBody(body)
             }
         }
+
+    override suspend fun mutate(request: HttpMutationRequest): HttpMutationResult =
+        executeMutation(httpClient, url(request.path), credential, request)
 
     override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
         postMultipart(path, listOf(file))
@@ -236,12 +243,8 @@ public class KtorAuthenticatedHttpClient(
     private suspend fun HttpResponse.toResult(): AuthenticatedHttpResult = when {
         status.isSuccess() -> AuthenticatedHttpResult.Success(
             bodyAsText(),
-            listOf("x-ds-read-context", "x-ds-page-limit", "x-ds-next-cursor").mapNotNull { name ->
-                headers.getAll(name)?.singleOrNull()?.let { name to it }
-            }.toMap(),
-            listOf("x-ds-read-context", "x-ds-page-limit", "x-ds-next-cursor").none { name ->
-                headers.getAll(name).orEmpty().size > 1
-            },
+            headers.safeEditorHeaders(readMetadataHeaders),
+            headers.unambiguousEditorHeaders(readMetadataHeaders),
         )
         status == HttpStatusCode.Unauthorized -> AuthenticatedHttpResult.Failure(
             "Status: unauthorized. Credential is missing or invalid.".withReason(denialReason()),
@@ -303,12 +306,7 @@ public class KtorAuthenticatedHttpClient(
     private fun url(path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
 
     private fun io.ktor.client.request.HttpRequestBuilder.authorizationHeader() {
-        val value = when (credential) {
-            is BackendCredential.Bearer -> "Bearer ${credential.accessToken}"
-            is BackendCredential.ServiceToken -> "Bearer ${credential.accessToken}"
-            is BackendCredential.PersonalAccessToken -> "Bearer ${credential.value}"
-        }
-        header(HttpHeaders.Authorization, value)
+        header(HttpHeaders.Authorization, credential.authorizationValue())
     }
 }
 
@@ -332,3 +330,5 @@ public class KtorAuthenticatedHttpClientFactory(
         credential = credential,
     )
 }
+
+private val readMetadataHeaders = setOf("x-ds-read-context", "x-ds-page-limit", "x-ds-next-cursor")

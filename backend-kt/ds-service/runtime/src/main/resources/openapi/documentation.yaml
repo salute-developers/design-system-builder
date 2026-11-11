@@ -2886,14 +2886,16 @@ paths:
       tags:
         - Typography styles
       summary: Change a typography style in the theme
-      description: Requires tenants:write. tokenId is any of the nine style tokens.
-        size, lineHeight and letterSpacing are written to the three style tokens on
-        the token screen, weights to the variant token on every screen, fontFamily
-        to every style token. Values of other themes are not changed. Every changed
-        value of the active draft gets its own subject revision of path /value; the
-        base revision of a value comes from baseRevisions, otherwise from X-DS-Base-Revision.
-        A concurrent write of the same path is applied (last write wins) and reported
-        in warnings of X-DS-Mutation-Metadata; the operation never answers 409.
+      description: >-
+        Requires tenants:write. tokenId is any of the nine style tokens. size, lineHeight and letterSpacing are
+        written to the three style tokens on the token screen, weights to the variant token on every screen,
+        fontFamily to every style token. Values of other themes are not changed. Every changed value of the
+        active draft gets its own subject revision of path /value; the base revision of a value comes from
+        baseRevisions, otherwise from X-DS-Base-Revision. A concurrent write of the same path is applied (last
+        write wins) and reported in warnings of X-DS-Mutation-Metadata; subject conflicts do not produce 409.
+        При Idempotency-Key сохраняются исходные статус, тело и технические метаданные.
+        Повтор той же команды возвращает сохранённый ответ до сравнения базовых редакций;
+        другая команда с тем же ключом получает 409 IDEMPOTENCY_KEY_REUSED.
       parameters:
         - name: designSystemId
           in: path
@@ -2901,6 +2903,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -3022,6 +3025,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency key belongs to a different command (IDEMPOTENCY_KEY_REUSED)
           content:
             application/json:
               schema:
@@ -3398,14 +3407,16 @@ paths:
       tags:
         - Size tokens
       summary: Replace the value of a radius, spacing or shadow token in the theme
-      description: 'Требует tenants:write. valuePx у радиуса и отступа, layers и fallbackElevation
-        у тени. Платформы из platforms пишутся с overridden true, остальные строятся
-        из веба с overridden false. Записываются предметные редакции только изменившихся
-        значений текущей темы с путями /value и /overridden; базовая редакция значения
-        — из baseRevisions по платформе, иначе из X-DS-Base-Revision. Конкурентная
-        правка одного значения: последняя запись побеждает, путь — в warnings метаданных
-        изменения, без 409. round.circle не правится. Мутация с versionId отклоняется
-        historical_version_read_only.'
+      description: >-
+        Требует tenants:write. valuePx у радиуса и отступа, layers и fallbackElevation у тени. Платформы из
+        platforms пишутся с overridden true, остальные строятся из веба с overridden false. Записываются предметные
+        редакции только изменившихся значений текущей темы с путями /value и /overridden; базовая редакция значения —
+        из baseRevisions по платформе, иначе из X-DS-Base-Revision. Конкурентная правка одного значения: последняя
+        запись побеждает, путь — в warnings метаданных изменения, без предметного 409. round.circle не правится. Мутация с
+        versionId отклоняется historical_version_read_only.
+        При Idempotency-Key сохраняются исходные статус, тело и технические метаданные.
+        Повтор той же команды возвращает сохранённый ответ до сравнения базовых редакций;
+        другая команда с тем же ключом получает 409 IDEMPOTENCY_KEY_REUSED.
       parameters:
         - name: designSystemId
           in: path
@@ -3413,6 +3424,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -3462,6 +3474,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency key belongs to a different command (IDEMPOTENCY_KEY_REUSED)
           content:
             application/json:
               schema:

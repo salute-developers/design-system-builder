@@ -49,6 +49,72 @@ An explicit `designSystem` link does not read the local project's `.env`.
 Documentation and code-binding tools read published documentation artifacts. Token and component tools read the
 authoritative DS Builder model API through `/api/projects/{projectId}/design-systems/{designSystemId}/...`.
 
+## Editor tools
+
+Editor calls use `/api/projects/{projectId}/design-systems/{designSystemId}/...` and require the backend
+contract from `scope-design-system-routes` (#149). The scoped backend implementation is included from #149; integration checks use that backend.
+Both launchers register the same schemas without resolving credentials during `tools/list`.
+
+- `token_edit_data_get`, `component_editor_get` read draft source data and subject revisions.
+- `token_create`, `token_update`, `token_delete` edit one definition.
+- `token_value_create`, `token_value_update`, `token_value_delete` edit one value.
+- `color_token_create`, `color_token_values_update`, `color_token_move`, `color_token_delete` edit families.
+- `size_token_value_update`, `typography_style_update` use specialized server editors.
+- `token_group_create`, `token_group_update`, `token_group_delete` manage supported color groups.
+- `component_configuration_create`, `component_configuration_duplicate`, `component_configuration_update`,
+  `component_configuration_delete` manage configurations.
+- `component_axis_create`, `component_axis_update`, `component_axis_delete`, `component_axes_reorder`
+  manage axis declarations and roles.
+- `component_axis_value_create`, `component_axis_value_update`, `component_axis_value_delete`,
+  `component_axis_values_reorder` manage declared values.
+- `component_property_set`, `component_property_reset`, `component_states_reorder` edit properties and state sets.
+
+Each editor call accepts `designSystem` and `version`. An omitted version inherits the selected context.
+An effective published version returns `READ_ONLY_VERSION`. Explicit `version: "draft"` selects the draft
+of the same system. Every mutation requires a non-empty `idempotencyKey` and accepts `baseRevision` where
+supported by the server. Reuse the original key, arguments and revisions when retrying after a lost response.
+A conflict remains a conflict. Bearer authorization can refresh once after HTTP 401 with the same command.
+
+For one value use `token_value_update` with `valueId` and `value`. Its token, tenant, platform and mode are
+immutable. At creation, use `mode: null` for values without a mode and `light`/`dark` for colors.
+To prepare a family update, read `token_edit_data_get(tokenId, tenantId)` and select members by
+`tokenId`. Preserve `sourceValue`, palette references, `paletteId` and `overridden` from the source data.
+Each selected member must supply all six web/ios/android and light/dark pairs with explicit `baseRevision`.
+The tool sends one family PUT and includes only the supplied members. Family and group operations also
+require the server compatibility field `editRevision` from the source reads. General and subject revisions
+serve different purposes.
+
+```json
+{
+  "name": "component_axis_update",
+  "arguments": {
+    "axisId": "<axis declaration ID>",
+    "displayName": null,
+    "isRoot": true,
+    "version": "draft",
+    "idempotencyKey": "<stable operation key>",
+    "baseRevision": 7
+  }
+}
+```
+
+An omitted patch field preserves its value. Explicit `null` resets nullable declaration fields according
+to the server contract. `component_editor_get` exposes declaration `axisId`/`valueId` and referenced
+`styleId`. Property scope uses `styleIds` and state names. An empty style scope selects base properties.
+Axis and value order tools require complete ordered ID lists. Axis/value deletion exposes `confirmCascade`.
+Configuration deletion retains server protections for default configurations and referenced resources.
+
+Deleting a color family removes its values and bindings across themes. Deleting a color group cascades to
+nested groups and tokens. Groups have two supported levels and `kind: "color"`. Shadow edits target existing
+variants through point tools or `size_token_value_update`. Component states come from existing component
+metadata, and property tools select, reset or reorder state sets.
+
+Mutation results contain `context`, `data` and `mutation`. The latter records the original key, HTTP status,
+available subject metadata and `metadataTruncated`. Truncated metadata triggers confirmation reads in the
+same runtime. `confirmation.incomplete` records failed reads while preserving the confirmed write.
+`OUTCOME_UNKNOWN` means the response was lost, with the original key available for an identical retry.
+Backend errors retain their category and safe structured details, including the backend code and HTTP status.
+
 ## Choosing a project and design system
 
 Without a workspace, call `projects_list`, ask the user to choose a project, then call
@@ -61,7 +127,7 @@ combining them with a URI is rejected. Existing URI/workspace calls continue to 
 
 ## Model and documentation reads
 
-Both launchers expose the same 29 read-only tools. Discovery (`initialize`, `tools/list`) works without credentials;
+Both launchers expose the same 61 tools, including 31 reads and 30 mutations. Discovery (`initialize`, `tools/list`) works without credentials;
 model reads, including `design_system_get_context`, require the selected credential.
 
 Versioned reads use an exact `major.minor.patch` or `draft`. An explicit `version` overrides the URI version;
@@ -119,3 +185,9 @@ Keep the adjacent `.json` session file.
 сообщения «Вы успешно авторизованы. Можете закрыть вкладку.» сессия уже сохранена.
 При отказе callback, обмена кода или сохранения показывается страница ошибки;
 повторите `auth login` в терминале.
+
+Mutation confirmations use only the affected resource or tenant and have a shared 16 KiB UTF-8
+budget for read paths and JSON bodies. Oversized bodies are omitted with an incomplete-confirmation
+flag; the original mutation receipt stays confirmed. Deletions without a remaining target do not
+scan DS-wide lists. `token_value_update` may omit `value` to update only `paletteId`; explicit
+`value: null` is rejected before writing.

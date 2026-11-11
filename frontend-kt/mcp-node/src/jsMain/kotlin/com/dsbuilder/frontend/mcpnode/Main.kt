@@ -66,6 +66,10 @@ private fun serve(args: List<String>) {
         listProjectsUseCase = koin.get(),
         listDesignSystemsUseCase = koin.get(),
         discoverVersionsUseCase = koin.get(),
+        editTokenUseCase = koin.get(),
+        editThemeUseCase = koin.get(),
+        readTokenEditDataUseCase = koin.get(),
+        editComponentUseCase = koin.get(),
         componentReadUseCases = koin.get<ComponentReadUseCases>(),
     )
     MainScope().launch {
