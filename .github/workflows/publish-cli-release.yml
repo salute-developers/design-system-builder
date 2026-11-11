@@ -42,6 +42,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Ensure wget for installer HTTPS contract tests
+        run: brew list wget >/dev/null 2>&1 || brew install wget
       - uses: gradle/actions/setup-gradle@v4
       - name: Download the pinned macOS arm64 iOS CLI
         shell: bash
@@ -157,13 +159,7 @@ jobs:
     permissions:
       contents: write
     env:
-      AWS_ENDPOINT: ${{ secrets.AWS_ENDPOINT }}
-      AWS_S3_BUCKET_2: ${{ secrets.AWS_S3_BUCKET_2 }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      CLI_S3_PREFIX: ${{ vars.CLI_S3_PREFIX }}
-      CLI_DOWNLOAD_BASE_URL: ${{ vars.CLI_DOWNLOAD_BASE_URL }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -173,26 +169,19 @@ jobs:
         with:
           name: cli-release-tools
           path: release-tools
-      - uses: actions/checkout@v4
-        with:
-          ref: master
-          path: stable-source
-          sparse-checkout: frontend-kt/cli/distribution/stable.json
-      - name: Check stable version selected in master
-        run: python3 release-tools/release.py stable-version --stable-file stable-source/frontend-kt/cli/distribution/stable.json
       - run: python3 -m pip install s3cmd==2.4.0
-      - name: Prepare and upload release
+      - name: Prepare and verify GitHub draft or existing release
         run: |
           python3 release-tools/release.py prepare --tag "$CLI_RELEASE_TAG" --directory distributions
           python3 release-tools/release.py upload --tag "$CLI_RELEASE_TAG" --directory distributions
-      - name: Preserve JVM asset for plasma-android
+      - name: Overwrite and verify the two S3 installers
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh release view "$CLI_RELEASE_TAG" || gh release create "$CLI_RELEASE_TAG" \
-            --verify-tag --title "DS Builder CLI ${CLI_RELEASE_TAG#cli-v}" \
-            --notes 'CLI distributions are available through the configured public download URL. JVM asset is retained for CI compatibility.'
-          gh release upload "$CLI_RELEASE_TAG" distributions/dsbuilder-cli-jvm.zip --clobber
-      - name: Promote only the complete verified release
-        run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions --stable-file stable-source/frontend-kt/cli/distribution/stable.json
+          AWS_ENDPOINT: ${{ secrets.AWS_ENDPOINT }}
+          AWS_S3_BUCKET_2: ${{ secrets.AWS_S3_BUCKET_2 }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          CLI_S3_PREFIX: ${{ vars.CLI_S3_PREFIX }}
+        run: python3 release-tools/release.py upload-installers --tag "$CLI_RELEASE_TAG" --directory distributions
+      - name: Publish the verified release and advance Latest when newer
+        run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions

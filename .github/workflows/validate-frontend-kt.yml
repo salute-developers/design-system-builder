@@ -6,7 +6,6 @@ on:
       - 'frontend-kt/**'
       - '.github/workflows/validate-frontend-kt.yml'
       - '.github/workflows/publish-cli-release.yml'
-      - '.github/workflows/sync-cli-stable.yml'
       - 'backend-kt/docker/minio/Dockerfile'
   push:
     branches:
@@ -16,7 +15,6 @@ on:
       - 'frontend-kt/**'
       - '.github/workflows/validate-frontend-kt.yml'
       - '.github/workflows/publish-cli-release.yml'
-      - '.github/workflows/sync-cli-stable.yml'
       - 'backend-kt/docker/minio/Dockerfile'
   workflow_dispatch:
 
@@ -33,6 +31,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Ensure wget for installer HTTPS contract tests
+        run: brew list wget >/dev/null 2>&1 || brew install wget
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew detektAll spotlessCheckAll
         working-directory: frontend-kt
@@ -46,6 +46,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Ensure wget for installer HTTPS contract tests
+        run: brew list wget >/dev/null 2>&1 || brew install wget
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test
         working-directory: frontend-kt
@@ -59,9 +61,23 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Ensure wget for installer HTTPS contract tests
+        run: brew list wget >/dev/null 2>&1 || brew install wget
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew build :cli:linkReleaseExecutableMingwX64
         working-directory: frontend-kt
+
+  cli-windows-installers:
+    name: CLI delivery / Windows installers
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test local and network installers
+        shell: powershell
+        run: ./frontend-kt/cli/distribution/tests/install-windows.Tests.ps1
 
   cli-s3-integration:
     name: CLI delivery / MinIO

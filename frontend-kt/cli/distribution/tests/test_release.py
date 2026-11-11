@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 DIST = Path(__file__).resolve().parents[1]
@@ -62,13 +63,8 @@ class ReleaseTest(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         for target in release.TARGETS:
             make_archive(self.directory, target)
-        release.prepare(self.directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
+        release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
         self.store = MemoryStore()
-        self.stable_file = self.directory / 'stable.json'
-        self.select_stable('1.2.3')
-
-    def select_stable(self, selected):
-        self.stable_file.write_bytes(release.json_bytes({'schemaVersion': 1, 'version': selected}))
 
     def test_tag_validation(self):
         self.assertEqual('1.2.3', release.tag_version('cli-v1.2.3'))
@@ -82,24 +78,13 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(set(release.TARGETS), set(manifest['artifacts']))
         for artifact in manifest['artifacts'].values():
             self.assertEqual(release.digest((self.directory / artifact['file']).read_bytes()), artifact['sha256'])
-        self.assertIn('https://example.invalid/cli', (self.directory / 'install.sh').read_text())
-        self.assertNotIn('@CLI_DOWNLOAD_BASE_URL@', (self.directory / 'install.ps1').read_text())
-
-    def test_stable_sync_rejects_ios_tag_that_differs_from_archived_tool(self):
-        release.upload(self.store, self.directory, '1.2.3')
-        key = 'releases/1.2.3/release.json'
-        manifest = json.loads(self.store.data[key])
-        manifest['iosCliReleaseTag'] = 'different-release'
-        self.store.data[key] = release.json_bytes(manifest)
-
-        with self.assertRaisesRegex(ValueError, 'iOS CLI tag does not match'):
-            release.sync_stable(self.store, self.stable_file)
-        self.assertNotIn('stable.json', self.store.data)
+        self.assertIn('https://github.com/' + release.github_repository(), (self.directory / 'install.sh').read_text())
+        self.assertNotIn('@CLI_RELEASE_BASE_URL@', (self.directory / 'install.ps1').read_text())
 
     def test_missing_archive_prevents_preparation(self):
         (self.directory / 'dsbuilder-cli-jvm.zip').unlink()
         with self.assertRaises(FileNotFoundError):
-            release.prepare(self.directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
+            release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
 
     def test_archive_traversal_and_symlink_are_rejected(self):
         path = self.directory / 'dsbuilder-cli-macos-arm64.zip'
@@ -129,83 +114,168 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.validate_archive(x64, 'macos-x64')
 
-    def test_upload_retry_reuploads_every_file(self):
-        release.upload(self.store, self.directory, '1.2.3')
-        previous = dict(self.store.data)
-        release.upload(self.store, self.directory, '1.2.3')
-        self.assertEqual(previous, self.store.data)
-        for name in release.release_files(self.directory):
-            self.assertEqual(2, self.store.writes.count(f'releases/1.2.3/{name}'))
-        self.assertNotIn('stable.json', self.store.data)
-        release.promote(self.store, self.directory, '1.2.3', self.stable_file)
-        self.assertEqual('1.2.3', json.loads(self.store.get('stable.json'))['version'])
+    def remote(self, selected='1.2.3'):
+        return FakeGitHub('cli-v' + selected)
 
-    def test_upload_replaces_existing_file(self):
-        self.store.data['releases/1.2.3/dsbuilder-cli-jvm.zip'] = b'old'
-        release.upload(self.store, self.directory, '1.2.3')
-        self.assertEqual((self.directory / 'dsbuilder-cli-jvm.zip').read_bytes(),
-                         self.store.get('releases/1.2.3/dsbuilder-cli-jvm.zip'))
-
-    def test_interruption_can_resume_without_moving_stable(self):
-        pointer = release.json_bytes({'schemaVersion': 1, 'version': '1.0.0'})
-        self.store.data['stable.json'] = pointer
-        self.store.fail = 'releases/1.2.3/dsbuilder-cli-windows-x64.zip'
+    def test_draft_upload_resume_and_published_retry(self):
+        remote = self.remote()
+        remote.fail = 'dsbuilder-cli-windows-x64.zip'
         with self.assertRaises(RuntimeError):
-            release.upload(self.store, self.directory, '1.2.3')
-        self.assertEqual(pointer, self.store.get('stable.json'))
-        make_archive(self.directory, 'jvm', binary=b'#!/bin/sh\necho rebuilt\n')
-        release.prepare(self.directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
-        self.store.fail = None
-        release.upload(self.store, self.directory, '1.2.3')
-        self.assertEqual((self.directory / 'dsbuilder-cli-jvm.zip').read_bytes(),
-                         self.store.get('releases/1.2.3/dsbuilder-cli-jvm.zip'))
-        release.promote(self.store, self.directory, '1.2.3', self.stable_file)
-
-    def test_release_does_not_override_selected_stable(self):
-        pointer = release.json_bytes({'schemaVersion': 1, 'version': '1.10.0'})
-        self.store.data['stable.json'] = pointer
-        self.select_stable('1.10.0')
-        release.upload(self.store, self.directory, '1.2.3')
-        release.promote(self.store, self.directory, '1.2.3', self.stable_file)
-        self.assertEqual(pointer, self.store.get('stable.json'))
-        self.assertNotIn('install.sh', self.store.data)
-
-    def test_stable_source_requires_published_version(self):
-        self.select_stable(None)
-        with self.assertRaisesRegex(ValueError, 'Set stable.json version'):
-            release.stable_version(self.stable_file)
-        self.select_stable(123)
+            release.prepare_github(remote, self.directory)
+        self.assertTrue(remote.view()['draft'])
+        remote.fail = None
+        release.prepare_github(remote, self.directory)
+        remote.publish(True)
+        previous = dict(remote.data)
+        make_archive(self.directory, 'jvm', binary=b'changed build')
+        self.assertTrue(release.prepare_github(remote, self.directory))
+        self.assertEqual(previous, remote.data)
+        remote.data['dsbuilder-cli-jvm.zip'] = b'broken'
         with self.assertRaises(ValueError):
-            release.stable_version(self.stable_file)
+            release.prepare_github(remote, self.directory)
 
-    def test_sync_stable_requires_complete_release_and_supports_rollback(self):
-        release.upload(self.store, self.directory, '1.2.3')
-        release.sync_stable(self.store, self.stable_file)
-        self.assertEqual('1.2.3', json.loads(self.store.get('stable.json'))['version'])
-        self.select_stable('1.0.0')
-        with self.assertRaisesRegex(RuntimeError, 'manifest is missing'):
-            release.sync_stable(self.store, self.stable_file)
-        self.assertEqual('1.2.3', json.loads(self.store.get('stable.json'))['version'])
-        with tempfile.TemporaryDirectory() as temporary:
-            older = Path(temporary)
-            for target in release.TARGETS:
-                make_archive(older, target)
-            release.prepare(older, '1.0.0', 'https://example.invalid/cli', DIST / 'bootstrap')
-            release.upload(self.store, older, '1.0.0')
-        release.sync_stable(self.store, self.stable_file)
-        self.assertEqual('1.0.0', json.loads(self.store.get('stable.json'))['version'])
-        self.assertEqual('stable.json', self.store.writes[-1])
-        self.store.data['releases/1.0.0/dsbuilder-cli-jvm.zip'] = b'broken'
-        with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
-            release.sync_stable(self.store, self.stable_file)
+    def test_manifest_and_remote_integrity(self):
+        for field in ('schemaVersion', 'version', 'iosCliReleaseTag', 'artifacts'):
+            remote = self.remote()
+            release.prepare_github(remote, self.directory)
+            manifest = json.loads(remote.data['release.json'])
+            manifest[field] = None
+            remote.data['release.json'] = release.json_bytes(manifest)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                release.verified_remote_release(remote, '1.2.3')
 
-    def test_remote_verification_is_required(self):
+    def test_first_latest_old_release_and_published_retry(self):
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        release.promote_github(remote)
+        self.assertEqual([True], remote.promotions)
+        # Повтор опубликованного тега не двигает указатель.
+        release.promote_github(remote)
+        self.assertEqual([True], remote.promotions)
+        older = self.remote()
+        release.prepare_github(older, self.directory)
+        newer = self.remote('1.10.0')
+        release.prepare(self.directory, '1.10.0', DIST / 'bootstrap')
+        release.prepare_github(newer, self.directory)
+        newer.publish(True)
+        older.current_latest = newer.view()
+        with patch.object(release, 'GitHubRelease', return_value=newer):
+            release.promote_github(older)
+            self.assertEqual([False], older.promotions)
+            release.promote_github(older)
+            self.assertEqual([False], older.promotions)
+
+    def test_prerelease_and_foreign_latest_are_rejected(self):
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        remote.metadata['prerelease'] = True
+        with self.assertRaises(ValueError):
+            release.promote_github(remote)
+        remote.metadata['prerelease'] = False
+        remote.current_latest = {'tag_name': 'other-v2.0.0'}
+        with self.assertRaises(ValueError):
+            release.promote_github(remote)
+        self.assertEqual([], remote.promotions)
+
+    def test_s3_only_two_keys_overwritten_and_failure_can_resume(self):
+        release.upload_installers(self.store, self.directory)
+        self.assertEqual({'install.sh', 'install.ps1'}, set(self.store.data))
+        self.store.fail = 'install.ps1'
+        (self.directory / 'install.sh').write_text('older installer')
+        with self.assertRaises(RuntimeError):
+            release.upload_installers(self.store, self.directory)
+        self.store.fail = None
+        release.upload_installers(self.store, self.directory)
+        self.assertEqual(b'older installer', self.store.get('install.sh'))
+        self.assertEqual(3, self.store.writes.count('install.sh'))
+        self.assertEqual({'install.sh', 'install.ps1'}, set(self.store.data))
+
+    def test_s3_verification_is_required(self):
         self.store.put = lambda key, data: None
         with self.assertRaises(RuntimeError):
-            release.upload(self.store, self.directory, '1.2.3')
+            release.upload_installers(self.store, self.directory)
 
-    def test_public_url_validation(self):
-        for url in ('http://example.invalid', 'https://user:password@example.invalid',
-                    "https://example.invalid/'$(echo bad)", 'https://example.invalid/#fragment'):
-            with self.subTest(url=url), self.assertRaises(ValueError):
-                release.prepare(self.directory, '1.2.3', url, DIST / 'bootstrap')
+    def test_preparation_and_adapter_use_the_same_repository_without_s3_url(self):
+        with patch.dict(release.os.environ, {'GITHUB_REPOSITORY': 'example/cli-fork'}):
+            with patch.dict(release.os.environ):
+                release.os.environ.pop('CLI_DOWNLOAD_BASE_URL', None)
+                release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
+            self.assertEqual('example/cli-fork', release.GitHubRelease('cli-v1.2.3').repo)
+            for script in ('install.sh', 'install.ps1'):
+                self.assertIn('https://github.com/example/cli-fork', (self.directory / script).read_text())
+        for repository in ('bad', 'owner/repo/extra', 'owner/repo?query', 'owner/repo\n'):
+            with self.subTest(repository=repository), patch.dict(release.os.environ, {'GITHUB_REPOSITORY': repository}):
+                with self.assertRaises(ValueError):
+                    release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
+                with self.assertRaises(ValueError):
+                    release.GitHubRelease('cli-v1.2.3')
+
+    def test_broken_previous_latest_does_not_block_a_new_complete_release(self):
+        for previous in ('1.1.0', '1.10.0'):
+            with self.subTest(previous=previous):
+                remote = self.remote()
+                release.prepare_github(remote, self.directory)
+                # Старый Latest намеренно не содержит ни одного ассета.
+                remote.current_latest = {'tag_name': 'cli-v' + previous}
+                with patch.object(release, 'GitHubRelease', side_effect=AssertionError('Must not read old assets')):
+                    release.promote_github(remote)
+                self.assertEqual([previous == '1.1.0'], remote.promotions)
+
+    def test_incomplete_target_release_still_cannot_be_published(self):
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        remote.data.pop('dsbuilder-cli-jvm.zip')
+        remote.current_latest = {'tag_name': 'cli-v1.1.0'}
+        with self.assertRaises(RuntimeError):
+            release.promote_github(remote)
+        self.assertEqual([], remote.promotions)
+
+
+class FakeGitHub(MemoryStore):
+    def __init__(self, tag):
+        super().__init__()
+        self.tag = tag
+        self.metadata = None
+        self.current_latest = None
+        self.promotions = []
+
+    def view(self):
+        return self.metadata
+
+    def create(self):
+        self.metadata = {'tag_name': self.tag, 'draft': True, 'prerelease': False}
+
+    def latest(self):
+        return self.current_latest
+
+    def upload(self, directory):
+        for key, data in release.release_files(directory).items():
+            self.put(key, data)
+
+    def publish(self, latest):
+        self.metadata['draft'] = False
+        self.promotions.append(latest)
+
+
+class GitHubAdapterTest(unittest.TestCase):
+    def test_only_404_is_missing_and_other_errors_fail(self):
+        import subprocess
+        remote = release.GitHubRelease('cli-v1.2.3')
+        for stderr in (b'gh: Not Found (HTTP 404)', b'gh: Forbidden (HTTP 403)', b'network failure'):
+            with patch.object(remote, 'run', side_effect=subprocess.CalledProcessError(1, ['gh'], stderr=stderr)):
+                if b'404' in stderr:
+                    self.assertIsNone(remote.view())
+                else:
+                    with self.assertRaises(RuntimeError):
+                        remote.view()
+
+    def test_draft_and_promotion_commands_are_explicit(self):
+        remote = release.GitHubRelease('cli-v1.2.3')
+        with patch.object(remote, 'run') as run:
+            remote.create()
+            self.assertIn('--verify-tag', run.call_args.args)
+            self.assertIn('--draft', run.call_args.args)
+            remote.publish(False)
+            self.assertIn('--latest=false', run.call_args.args)
+            remote.publish(True)
+            self.assertIn('--latest=true', run.call_args.args)
