@@ -14505,6 +14505,16 @@
         "part": "lineHeight"
       },
       {
+        "paramName": "paginationQuickJumpGap",
+        "type": "dimension",
+        "id": "paginationQuickJumpGap"
+      },
+      {
+        "paramName": "paginationQuickJumpInnerGap",
+        "type": "dimension",
+        "id": "paginationQuickJumpInnerGap"
+      },
+      {
         "paramName": "paginationWidth",
         "type": "dimension",
         "id": "paginationWidth"
@@ -24648,5 +24658,242 @@
   {
     "componentName": "ViewContainer",
     "params": []
+  },
+  {
+    "componentName": "Wheel",
+    "params": [
+      {
+        "paramName": "animationDuration",
+        "type": "value",
+        "id": "animationDuration"
+      },
+      {
+        "paramName": "animationEasing",
+        "type": "value",
+        "id": "animationEasing"
+      },
+      {
+        "paramName": "color",
+        "type": "color",
+        "id": "color"
+      },
+      {
+        "paramName": "columnGap",
+        "type": "dimension",
+        "id": "columnGap"
+      },
+      {
+        "paramName": "controlColor",
+        "type": "color",
+        "id": "controlColor"
+      },
+      {
+        "paramName": "controlGap",
+        "type": "dimension",
+        "id": "controlGap"
+      },
+      {
+        "paramName": "controlSize",
+        "type": "dimension",
+        "id": "controlSize"
+      },
+      {
+        "paramName": "descriptionFontFamily",
+        "type": "typography",
+        "id": "descriptionStyle",
+        "part": "fontFamily"
+      },
+      {
+        "paramName": "descriptionFontSize",
+        "type": "typography",
+        "id": "descriptionStyle",
+        "part": "fontSize"
+      },
+      {
+        "paramName": "descriptionFontStyle",
+        "type": "typography",
+        "id": "descriptionStyle",
+        "part": "fontStyle"
+      },
+      {
+        "paramName": "descriptionFontWeight",
+        "type": "typography",
+        "id": "descriptionStyle",
+        "part": "fontWeight"
+      },
+      {
+        "paramName": "descriptionGap",
+        "type": "dimension",
+        "id": "descriptionGap"
+      },
+      {
+        "paramName": "descriptionLetterSpacing",
+        "type": "typography",
+        "id": "descriptionStyle",
+        "part": "letterSpacing"
+      },
+      {
+        "paramName": "descriptionLineHeight",
+        "type": "typography",
+        "id": "descriptionStyle",
+        "part": "lineHeight"
+      },
+      {
+        "paramName": "disabledOpacity",
+        "type": "float",
+        "id": "disabledOpacity"
+      },
+      {
+        "paramName": "dividerColor",
+        "type": "color",
+        "id": "dividerColor"
+      },
+      {
+        "paramName": "dividerColumnGap",
+        "type": "dimension",
+        "id": "dividerColumnGap"
+      },
+      {
+        "paramName": "dotColumnGap",
+        "type": "dimension",
+        "id": "dotColumnGap"
+      },
+      {
+        "paramName": "dotGap",
+        "type": "dimension",
+        "id": "dotGap"
+      },
+      {
+        "paramName": "dotOffset",
+        "type": "dimension",
+        "id": "dotOffset"
+      },
+      {
+        "paramName": "dotSeparatorWidth",
+        "type": "dimension",
+        "id": "dotSeparatorWidth"
+      },
+      {
+        "paramName": "dotSize",
+        "type": "dimension",
+        "id": "dotSize"
+      },
+      {
+        "paramName": "focusColor",
+        "type": "color",
+        "id": "focusColor"
+      },
+      {
+        "paramName": "fontFamily",
+        "type": "typography",
+        "id": "labelStyle",
+        "part": "fontFamily"
+      },
+      {
+        "paramName": "fontSize",
+        "type": "typography",
+        "id": "labelStyle",
+        "part": "fontSize"
+      },
+      {
+        "paramName": "fontStyle",
+        "type": "typography",
+        "id": "labelStyle",
+        "part": "fontStyle"
+      },
+      {
+        "paramName": "fontWeight",
+        "type": "typography",
+        "id": "labelStyle",
+        "part": "fontWeight"
+      },
+      {
+        "paramName": "itemContentDisplay",
+        "type": "value",
+        "id": "itemContentDisplay"
+      },
+      {
+        "paramName": "itemGap",
+        "type": "dimension",
+        "id": "itemGap"
+      },
+      {
+        "paramName": "itemVerticalPadding",
+        "type": "dimension",
+        "id": "itemVerticalPadding"
+      },
+      {
+        "paramName": "letterSpacing",
+        "type": "typography",
+        "id": "labelStyle",
+        "part": "letterSpacing"
+      },
+      {
+        "paramName": "lineHeight",
+        "type": "typography",
+        "id": "labelStyle",
+        "part": "lineHeight"
+      },
+      {
+        "paramName": "secondaryItemVerticalPadding",
+        "type": "dimension",
+        "id": "secondaryItemVerticalPadding"
+      },
+      {
+        "paramName": "secondaryOpacity",
+        "type": "float",
+        "id": "secondaryOpacity"
+      },
+      {
+        "paramName": "secondaryScale",
+        "type": "float",
+        "id": "secondaryScale"
+      },
+      {
+        "paramName": "selectionBackgroundColor",
+        "type": "color",
+        "id": "selectionBackgroundColor"
+      },
+      {
+        "paramName": "selectionBorderRadius",
+        "type": "dimension",
+        "id": "selectionBorderRadius"
+      },
+      {
+        "paramName": "selectionHeight",
+        "type": "dimension",
+        "id": "selectionHeight"
+      },
+      {
+        "paramName": "separatorInlinePadding",
+        "type": "dimension",
+        "id": "separatorInlinePadding"
+      },
+      {
+        "paramName": "tertiaryItemVerticalPadding",
+        "type": "dimension",
+        "id": "tertiaryItemVerticalPadding"
+      },
+      {
+        "paramName": "tertiaryOpacity",
+        "type": "float",
+        "id": "tertiaryOpacity"
+      },
+      {
+        "paramName": "tertiaryScale",
+        "type": "float",
+        "id": "tertiaryScale"
+      },
+      {
+        "paramName": "textAfterColor",
+        "type": "color",
+        "id": "textAfterColor"
+      },
+      {
+        "paramName": "textAfterGap",
+        "type": "dimension",
+        "id": "textAfterGap"
+      }
+    ]
   }
 ]

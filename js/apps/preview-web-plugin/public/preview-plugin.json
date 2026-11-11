@@ -5,8 +5,8 @@
     "platform": "web",
     "protocolVersion": 1,
     "entrypoint": "index.html",
-    "plasmaNewHopeVersion": "0.389.0-dev.1",
-    "apiMetaSha256": "d0c142d0cdb3e15266c3d44c65aacf0710fb180246bc67f66db6a38862441870",
+    "plasmaNewHopeVersion": "0.391.0-dev.0",
+    "apiMetaSha256": "d7aa5a3278e91f25194eb54ada4ba42e61db062312d78cd1006ff35a5e6f5525",
     "payloadBridge": {
         "readyMessageType": "sdds.preview.ready",
         "payloadMessageType": "sdds.preview.payload",

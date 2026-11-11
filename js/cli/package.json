@@ -30,7 +30,7 @@
         "seeds:update": "tsx src/component-seeds.ts"
     },
     "dependencies": {
-        "@salutejs/plasma-new-hope": "file:../../../plasma/packages/plasma-new-hope/salutejs-plasma-new-hope-0.389.0-dev.1.tgz",
+        "@salutejs/plasma-new-hope": "0.391.0-dev.0",
         "@salutejs/plasma-tokens-utils": "0.61.0",
         "fs-extra": "^11.4.1",
         "react": "18.2.0",
