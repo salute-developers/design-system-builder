@@ -131,8 +131,8 @@ class DsServiceHttpPostgresIntegrationTest {
                     assertEquals(HttpStatusCode.Created, tenant.status, tenant.bodyAsText())
                     val tenantId = id(tenant.bodyAsText())
                     verifyEmptyTenantPatch(client, designSystemId, postgres, tenantId)
-                    assertEquals(63, rowCount(postgres, "design_system_components"))
-                    assertEquals(66, rowCount(postgres, "appearances"))
+                    assertEquals(90, rowCount(postgres, "design_system_components"))
+                    assertEquals(104, rowCount(postgres, "appearances"))
                     assertEquals(
                         "malachite",
                         json.parseToJsonElement(tenant.bodyAsText()).jsonObject
