@@ -44,7 +44,12 @@ public class HttpDesignSystemTenantsClient(
         try {
             DesignSystemTenantsResult.Success(
                 json.decodeFromString<List<TenantDto>>(body).map {
-                    DesignSystemTenant(id = it.id, name = it.name ?: it.id, description = it.description)
+                    DesignSystemTenant(
+                        id = it.id,
+                        name = it.name ?: it.id,
+                        description = it.description,
+                        named = !it.name.isNullOrEmpty(),
+                    )
                 },
             )
         } catch (exception: SerializationException) {

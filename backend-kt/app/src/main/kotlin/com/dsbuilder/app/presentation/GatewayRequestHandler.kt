@@ -18,6 +18,8 @@ internal class GatewayRequestHandler(
     private val configuration: GatewayConfiguration,
     private val authorizer: GatewayAuthorizer,
 ) {
+    private val pluginCors = PluginCorsPolicy(configuration.pluginOrigins, configuration.realm)
+
     suspend fun validate(call: ApplicationCall): Boolean {
         cors(call)
         val rawPath = call.request.path()
@@ -134,13 +136,10 @@ internal class GatewayRequestHandler(
 
     private fun cors(call: ApplicationCall) {
         val origin = call.request.headers[HttpHeaders.Origin]
-        val allowed = origin != null && if (configuration.webOrigin != null) {
-            origin == configuration.webOrigin
-        } else {
-            Regex("http://(localhost|127\\.0\\.0\\.1):[0-9]+").matches(origin)
-        }
-        if (allowed) {
-            call.response.header(HttpHeaders.AccessControlAllowOrigin, origin!!)
+        val webAllowed = origin != null && webOriginAllowed(origin)
+        val pluginAllowed = origin != null && !webAllowed && pluginOriginAllowed(call, origin)
+        if (webAllowed || pluginAllowed) {
+            call.response.header(HttpHeaders.AccessControlAllowOrigin, requireNotNull(origin))
             val path = call.request.path()
             val publicPath = publicGatewayPath(path) && !path.startsWith("/internal/") && !invalidPath(path)
             if (call.request.httpMethod == HttpMethod.Options && publicPath) {
@@ -148,7 +147,14 @@ internal class GatewayRequestHandler(
             }
         }
         call.response.header(HttpHeaders.Vary, "Origin")
-        call.response.header(HttpHeaders.AccessControlAllowMethods, "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+        call.response.header(
+            HttpHeaders.AccessControlAllowMethods,
+            if (pluginAllowed) {
+                pluginCors.allowedMethods(call.request.path())
+            } else {
+                "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            },
+        )
         call.response.header(
             HttpHeaders.AccessControlAllowHeaders,
             "Authorization, Content-Type, Accept, X-Requested-With, " +
@@ -160,6 +166,22 @@ internal class GatewayRequestHandler(
                 "X-DS-Read-Context, X-DS-Page-Limit, X-DS-Next-Cursor",
         )
         call.response.header("X-Request-Id", UUID.randomUUID().toString())
+    }
+
+    private fun webOriginAllowed(origin: String): Boolean = if (configuration.webOrigin != null) {
+        origin == configuration.webOrigin
+    } else {
+        Regex("http://(localhost|127\\.0\\.0\\.1):[0-9]+").matches(origin)
+    }
+
+    private fun pluginOriginAllowed(call: ApplicationCall, origin: String): Boolean {
+        val preflight = call.request.httpMethod == HttpMethod.Options
+        val method = if (preflight) {
+            call.request.headers[HttpHeaders.AccessControlRequestMethod]
+        } else {
+            call.request.httpMethod.value
+        }
+        return pluginCors.allows(origin, method, call.request.path())
     }
 
     private suspend fun reject(call: ApplicationCall, status: HttpStatusCode) {

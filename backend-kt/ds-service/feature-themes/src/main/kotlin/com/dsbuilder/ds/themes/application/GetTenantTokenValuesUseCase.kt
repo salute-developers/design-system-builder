@@ -9,6 +9,7 @@ import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import java.util.UUID
 
@@ -27,11 +28,13 @@ class GetTenantTokenValuesUseCase(
      * возвращается в `sourceValue`. Ссылки цветов слоёв тени заменяются `#RRGGBBAA` на своём месте. Значение со
      * ссылкой, которую палитра темы не раскрывает, остаётся как есть.
      * Ревью PR #101: раскрытие по общей палитре давало неверные цвета, поэтому другого режима нет.
+     * Непустой [platforms] оставляет значения только этих платформ до публикации: ответ и работа публикатора меньше.
      */
     suspend fun execute(
         context: DsRequestContext,
         id: UUID,
         types: Set<ThemeTokenType> = emptySet(),
+        platforms: Set<ThemeTokenPlatform> = emptySet(),
     ): DsResult<List<TenantTokenValue>> =
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
@@ -42,7 +45,11 @@ class GetTenantTokenValuesUseCase(
                 } else {
                     null
                 }
-                values(context, id, types) { values -> TokenValuePublisher(id, snapshot).publish(values) }
+                val wire = platforms.mapTo(hashSetOf(), ThemeTokenPlatform::wireValue)
+                values(context, id, types) { values ->
+                    val selected = if (wire.isEmpty()) values else values.filter { it.platform in wire }
+                    TokenValuePublisher(id, snapshot).publish(selected)
+                }
             }
         }
 

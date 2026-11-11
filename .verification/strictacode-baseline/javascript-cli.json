@@ -1,15 +1,15 @@
 {
   "project": {
     "lang": "javascript",
-    "loc": 5018,
-    "packages": 10,
-    "modules": 51,
+    "loc": 5132,
+    "packages": 11,
+    "modules": 53,
     "classes": 14,
     "methods": 93,
-    "functions": 208,
+    "functions": 211,
     "status": {
       "name": "normal",
-      "score": 38,
+      "score": 37,
       "reasons": [
         "Increased refactoring pressure"
       ],
@@ -29,10 +29,10 @@
       }
     },
     "complexity": {
-      "score": 908,
-      "density": 18.09,
+      "score": 918,
+      "density": 17.89,
       "stat(modules)": {
-        "avg": 18,
+        "avg": 17,
         "min": 1,
         "max": 379,
         "p50": 6,

@@ -16,9 +16,13 @@ public data class TokenExchangeResult(
 
 /**
  * Ошибка обмена/обновления токенов. Сообщение не содержит raw secret.
+ *
+ * @property oauthError код отказа OAuth, например `invalid_grant`; `null`, если отказа не было:
+ * сервер ответил `5xx` или вернул неполный ответ, и запрос можно повторить.
  */
 public class TokenExchangeException(
     message: String,
+    public val oauthError: String? = null,
 ) : RuntimeException(message)
 
 /**

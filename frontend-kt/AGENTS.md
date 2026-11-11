@@ -52,6 +52,7 @@ feature-init feature-auth feature-status feature-theme feature-docs feature-comp
 - `mcp-server-core` — shared MCP tool registry и protocol/domain DTO поверх `core-application`, `feature-status` и общего `ContextResolver`; JVM/macOS source sets содержат bridge к официальному MCP SDK, а common API не протаскивает SDK-типы в `core-*`/`feature-*`.
 - `:cli` — тонкая presentation-обёртка и composition root для команды `dsbuilder`, включая launcher `dsbuilder mcp serve`. Смотри [`cli/AGENTS.md`](cli/AGENTS.md).
 - `:mcp-node` — Kotlin/JS Node.js executable и npm package `dsbuilder-mcp`; это отдельный presentation/composition root для MCP и auth-команд, а не библиотека бизнес-логики.
+- `:plugins:figma-core` — Kotlin/JS для браузера и composition root окна плагина Figma: собирает общие клиенты, держит сессию плагина и отдаёт API через `@JsExport`. Сборка плагина забирает результат задачей `syncFigmaPluginCore`.
 
 ## Правило направления зависимостей
 

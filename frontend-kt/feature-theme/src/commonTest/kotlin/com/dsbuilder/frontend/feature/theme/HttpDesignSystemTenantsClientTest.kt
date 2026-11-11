@@ -44,6 +44,16 @@ class HttpDesignSystemTenantsClientTest {
     }
 
     @Test
+    fun marksTenantWithoutName() = runTest {
+        val result = client(HttpStatusCode.OK, """[{"id":"t1","name":null},{"id":"t2","name":""}]""")
+            .listTenants("https://gw", credential, "p1", "ds1")
+
+        assertIs<DesignSystemTenantsResult.Success>(result)
+        assertEquals(listOf("t1", ""), result.tenants.map { it.name })
+        assertEquals(listOf(false, false), result.tenants.map { it.named })
+    }
+
+    @Test
     fun mapsUnauthorizedAndMalformedBody() = runTest {
         val unauthorized = client(HttpStatusCode.Unauthorized, "").listTenants("https://gw", credential, "p", "d")
         assertIs<DesignSystemTenantsResult.Failed>(unauthorized)

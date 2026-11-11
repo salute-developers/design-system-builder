@@ -15,6 +15,7 @@ export const serviceSources = [
     ),
     sourcePrefix: '/auth',
     gatewayPrefix: '/auth',
+    exactPaths: ['/realms/dsbuilder/protocol/openid-connect/auth/device'],
     requiresProjectId: false,
     requiresAuthentication: false,
   },

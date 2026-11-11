@@ -10,11 +10,13 @@ import com.dsbuilder.frontend.core.network.ApiUrlResolver
  * @property id идентификатор tenant.
  * @property name имя tenant.
  * @property description описание, если задано.
+ * @property named `false`, если у tenant нет имени и вместо него стоит [id].
  */
 public data class DesignSystemTenant(
     public val id: String,
     public val name: String,
     public val description: String?,
+    public val named: Boolean = true,
 )
 
 /** Stable error category получения tenant. */

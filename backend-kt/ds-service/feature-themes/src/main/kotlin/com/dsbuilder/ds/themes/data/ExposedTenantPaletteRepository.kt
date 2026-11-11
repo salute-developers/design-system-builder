@@ -100,7 +100,8 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
                     tokenId to row[TenantPaletteTokenGroupsTable.groupId].toString()
                 },
         )
-        val values = colorValues(tenantId, tokens.map { UUID.fromString(it.id) })
+        val designSystemId = tenant[TenantsTable.designSystemId]
+        val values = colorValues(designSystemId, tenantId, tokens.map { UUID.fromString(it.id) })
         val owned = tenant[ThemeDesignSystemsTable.projectId] == projectId.value
         val shadows = shadowTokens(tenant[TenantsTable.designSystemId])
         return TenantPaletteSnapshot(
@@ -110,7 +111,7 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
             owned,
             if (includeSubjectRevisions) paletteSubjectRevisions(tenantId) else emptyMap(),
             layerTokens = shadows,
-            layerValues = layerValues(tenantId, shadows.map { UUID.fromString(it.id) }),
+            layerValues = layerValues(designSystemId, tenantId, shadows.map { UUID.fromString(it.id) }),
         )
     }
 
@@ -185,9 +186,10 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         }
 
     /** Ссылки цветов слоёв теней [tokenIds] темы: по одной на слой со ссылкой. */
-    private fun layerValues(tenantId: UUID, tokenIds: List<UUID>): List<PaletteTokenValue> {
+    // Дизайн-система темы ограничивает чтение: без неё проверка активных токенов и тем читает всю базу.
+    private fun layerValues(designSystemId: UUID, tenantId: UUID, tokenIds: List<UUID>): List<PaletteTokenValue> {
         if (tokenIds.isEmpty()) return emptyList()
-        return currentThemeTokenValueRows(tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
+        return currentThemeTokenValueRows(designSystemId, setOf(tenantId), tokenIds.toSet())
             .flatMap { row ->
                 val platform = row[ThemeTokenValuesTable.platform] ?: return@flatMap emptyList()
                 ShadowLayerColors.references(row[ThemeTokenValueRevisionsTable.value]).map { reference ->
@@ -209,10 +211,10 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
             PaletteTokenRef(id, row[ThemeTokenRevisionsTable.name], row[ThemeTokenRevisionsTable.displayName])
         }
 
-    private fun colorValues(tenantId: UUID, tokenIds: List<UUID>): List<PaletteTokenValue> {
+    private fun colorValues(designSystemId: UUID, tenantId: UUID, tokenIds: List<UUID>): List<PaletteTokenValue> {
         val paletteRows = paletteRows()
         if (tokenIds.isEmpty()) return emptyList()
-        return currentThemeTokenValueRows(tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
+        return currentThemeTokenValueRows(designSystemId, setOf(tenantId), tokenIds.toSet())
             .flatMap { row ->
                 val platform = row[ThemeTokenValuesTable.platform] ?: return@flatMap emptyList()
                 // У градиента ссылок может быть несколько: по записи на каждую различную ссылку значения.

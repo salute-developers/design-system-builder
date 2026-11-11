@@ -80,6 +80,13 @@ class EditorSectionReadsPostgresIntegrationTest {
                 assertTrue(sizes.all { it.field("tokenId") in sizeIds })
                 val full = read(client, "GET", path).jsonArray
                 assertTrue(full.size > colors.size)
+                val mobile = read(client, "GET", "$path?types=color&platforms=ios,web").jsonArray
+                assertEquals(setOf("ios", "web"), mobile.map { it.field("platform") }.toSet())
+                assertEquals(colors.count { it.field("platform") != "android" }, mobile.size)
+                for (filter in listOf("windows", "ios,", "ios,ios", "")) {
+                    val status = api(client, "GET", "$path?types=color&platforms=$filter").status
+                    assertEquals(HttpStatusCode.BadRequest, status, filter)
+                }
                 val cursor = read(client, "GET", "/api/design-systems/$systemId")
                 val version = read(
                     client,

@@ -99,7 +99,11 @@ internal fun currentThemeTokenValueRows(
             (ThemeTokenValueRevisionsTable.versionSequenceNumber lessEq ThemeVersionBoundariesTable.sequenceNumber) and
             latestRevision("token_value_revisions", "token_value_id") and
             (ThemeTokenValueRevisionsTable.deleted eq false)
-        designSystemId?.let { predicate = predicate and (ThemeTokenValuesTable.designSystemId eq it) }
+        // Ревизии тоже по дизайн-системе: обход начинается с её индекса, а не со всех ревизий базы.
+        designSystemId?.let {
+            predicate = predicate and (ThemeTokenValuesTable.designSystemId eq it) and
+                (ThemeTokenValueRevisionsTable.designSystemId eq it)
+        }
         tenantIds?.takeIf { it.isNotEmpty() }?.let {
             predicate = predicate and (ThemeTokenValuesTable.tenantId inList it)
         }
