@@ -18,7 +18,7 @@
 - [ ] 3.3 Реализовать `PublishIconCatalogUseCase`: роль до разбора, проверки тела и SVG, `loadId`, различия, пробная загрузка, `unchanged`/`activated`, защита `icons_in_use`, отчёт сверки, порядок «S3, затем транзакция», очистка старых загрузок
 - [ ] 3.4 Реализовать `GetIconCatalogUseCase` и `ETag` по `loadId`
 - [ ] 3.5 Реализовать `IconValueValidator` и подключить его в use case записи значений свойств типа `icon` (создание и изменение значений вариации и инвариантного значения, `SetAppearancePropertyValueUseCase`; ошибка `unknown_icon`, пустой каталог, прежнее значение, очистка)
-- [ ] 3.6 Тесты use case на фейках: права, пустой список, дубликаты, `unsafe_svg`, `legacy_key_collision`, `dryRun`, `unchanged`, `activated`, `icons_in_use` и `allowRemovingUsed`, отчёт сверки, сбой транзакции после загрузки в S3, сбой очистки, валидатор значений
+- [ ] 3.6 Тесты use case на фейках: права, пустой список, дубликаты, `unsafe_svg` (allowlist: `animate`/`set`, `style`, `a`, `data:`, DTD), `legacy_key_collision`, `dryRun`, `unchanged`, `activated`, `icons_in_use` и `allowRemovingUsed`, отчёт сверки, сбой транзакции после загрузки в S3, сбой очистки, валидатор значений
 
 ## 4. Бэкенд: presentation, контракты и gateway
 
