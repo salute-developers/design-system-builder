@@ -304,7 +304,7 @@ tasks.withType<org.gradle.api.tasks.bundling.AbstractArchiveTask>().configureEac
 
 val distributionS3Test by tasks.registering(Exec::class) {
     group = "verification"
-    description = "Runs CLI delivery against an isolated temporary MinIO (requires Docker)."
+    description = "Verifies the two fixed S3 installer keys against isolated MinIO (requires Docker)."
     workingDir(layout.projectDirectory.dir("distribution"))
     commandLine("python3", "tests/run_s3_integration.py")
 }

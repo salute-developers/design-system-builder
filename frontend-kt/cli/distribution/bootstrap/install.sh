@@ -18,18 +18,21 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 valid_version() { printf '%s\n' "$1" | LC_ALL=C grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; }
-BASE=${CLI_DOWNLOAD_BASE_URL:-'@CLI_DOWNLOAD_BASE_URL@'}
+BASE=${CLI_RELEASE_BASE_URL:-'@CLI_RELEASE_BASE_URL@'}
 BASE=${BASE%/}
 case "$BASE" in
     https://*) ;;
     http://localhost:*|http://127.0.0.1:*) ;; # Локальный тестовый сервер.
-    *) fail 'CLI_DOWNLOAD_BASE_URL must be an HTTPS URL' ;;
+    *) fail 'CLI_RELEASE_BASE_URL must be an HTTPS URL' ;;
 esac
 case "$BASE" in *'@'*|*'?'*|*'#'*|*' '*|*"'"*|*'"'*) fail 'Invalid download URL' ;; esac
 if [ -z "$TARGET" ]; then
     case "$(uname -s):$(uname -m)" in
         Darwin:arm64|Darwin:aarch64) TARGET=macos-arm64 ;;
-        Darwin:x86_64) TARGET=macos-x64 ;;
+        Darwin:x86_64)
+            if [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]; then TARGET=macos-arm64
+            else TARGET=macos-x64; fi ;;
+        Linux:*) TARGET=jvm ;;
         *) fail 'Unsupported native platform. Use --target jvm explicitly on macOS/Linux.' ;;
     esac
 fi
@@ -57,23 +60,67 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 download() {
     if [ "$DOWNLOADER" = curl ]; then
-        curl --fail --silent --show-error --location --max-redirs 0 --retry 2 --connect-timeout 15 --max-time 300 "$1" -o "$2"
+        case "$1" in https://*) PROTOCOLS='=https' ;; *) PROTOCOLS='=http,https' ;; esac
+        curl --proto "$PROTOCOLS" --proto-redir "$PROTOCOLS" --fail --silent --show-error --location --max-redirs 5 --retry 2 --connect-timeout 15 --max-time 300 "$1" -o "$2"
     else
-        wget --quiet --max-redirect=0 --timeout=30 --tries=3 -O "$2" "$1"
+        # --https-only у wget ограничивает рекурсивную загрузку, но не HTTP-редиректы.
+        # Поэтому каждый переход проверяется до следующего запроса.
+        URL=$1
+        HOPS=0
+        case "$URL" in https://*) SECURE=1 ;; *) SECURE=0 ;; esac
+        while :; do
+            if wget --quiet --server-response --max-redirect=0 --timeout=30 --tries=3 -O "$2" "$URL" 2>"$WORK/headers"; then
+                return
+            fi
+            STATUS=$(awk '$1 ~ /^HTTP\// {code=$2} END {print code}' "$WORK/headers")
+            case "$STATUS" in 301|302|303|307|308) ;; *) fail 'Release download failed' ;; esac
+            [ "$HOPS" -lt 5 ] || fail 'Too many redirects'
+            LOCATION=$(awk 'tolower($1) == "location:" {$1=""; sub(/^ */, ""); sub(/\r$/, ""); print; exit}' "$WORK/headers")
+            case "$LOCATION" in
+                https://*) URL=$LOCATION ;;
+                http://localhost:*|http://127.0.0.1:*)
+                    [ "$SECURE" = 0 ] || fail 'Unsafe release redirect'
+                    URL=$LOCATION ;;
+                //*) case "$URL" in https:*) URL="https:$LOCATION" ;; *) fail 'Unsafe release redirect' ;; esac ;;
+                /*) ORIGIN=$(printf '%s\n' "$URL" | sed 's#^\(https\{0,1\}://[^/]*\).*#\1#'); URL="$ORIGIN$LOCATION" ;;
+                *) fail 'Unsafe release redirect' ;;
+            esac
+            case "$URL" in https://*) SECURE=1 ;; esac
+            HOPS=$((HOPS + 1))
+        done
     fi
 }
 if [ -z "$VERSION" ]; then
-    download "$BASE/stable.json" "$WORK/stable.json"
-    # stable.json имеет фиксированный контракт из двух полей; произвольный JSON не исполняется.
-    STABLE=$(tr -d ' \t\r\n' < "$WORK/stable.json")
-    VERSION=$(printf '%s' "$STABLE" | sed -n 's/^{"schemaVersion":1,"version":"\([0-9.]*\)"}$/\1/p')
+    download "$BASE/releases/latest/download/release.json" "$WORK/release.json"
+else
+    valid_version "$VERSION" || fail 'Invalid release version'
+    download "$BASE/releases/download/cli-v$VERSION/release.json" "$WORK/release.json"
 fi
-valid_version "$VERSION" || fail 'Invalid release version or stable manifest'
+# Манифест выпуска имеет каноническую форму release.py. Проверяется весь документ,
+# включая уникальность полей; произвольный JSON не исполняется и парсер не нужен.
+MANIFEST=$(cat "$WORK/release.json")
+V='(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
+H='[0-9a-f]{64}'
+PATTERN='^\{"schemaVersion":1,"version":"'"$V"'","iosCliReleaseTag":"[A-Za-z0-9][A-Za-z0-9._-]*","artifacts":\{'
+SEP=
+for platform in macos-arm64 macos-x64 windows-x64 jvm; do
+    PATTERN="$PATTERN$SEP\"$platform\":\{\"file\":\"dsbuilder-cli-$platform\.zip\",\"sha256\":\"$H\"\}"
+    SEP=,
+done
+PATTERN="$PATTERN\}\}$"
+printf '%s\n' "$MANIFEST" | LC_ALL=C grep -Eq "$PATTERN" || fail 'Invalid release manifest'
+RESOLVED=$(printf '%s\n' "$MANIFEST" | sed -n 's/.*"version":"\([0-9.]*\)".*/\1/p')
+[ -z "$VERSION" ] || [ "$VERSION" = "$RESOLVED" ] || fail 'Release version mismatch'
+VERSION=$RESOLVED
+valid_version "$VERSION" || fail 'Invalid release version'
 ARCHIVE="dsbuilder-cli-$TARGET.zip"
-download "$BASE/releases/$VERSION/SHA256SUMS" "$WORK/SHA256SUMS"
+MANIFEST_SHA=$(printf '%s\n' "$MANIFEST" | sed -n 's/.*"'"$TARGET"'":{"file":"dsbuilder-cli-'"$TARGET"'\.zip","sha256":"\([0-9a-f]*\)"}.*/\1/p')
+DOWNLOAD="$BASE/releases/download/cli-v$VERSION"
+download "$DOWNLOAD/SHA256SUMS" "$WORK/SHA256SUMS"
 EXPECTED=$(awk -v name="$ARCHIVE" '$2 == name {print $1}' "$WORK/SHA256SUMS")
 printf '%s\n' "$EXPECTED" | LC_ALL=C grep -Eq '^[0-9a-f]{64}$' || fail 'Invalid or missing archive checksum'
-download "$BASE/releases/$VERSION/$ARCHIVE" "$WORK/archive.zip"
+[ "$EXPECTED" = "$MANIFEST_SHA" ] || fail 'Manifest SHA-256 mismatch'
+download "$DOWNLOAD/$ARCHIVE" "$WORK/archive.zip"
 if [ "$HASH" = shasum ]; then ACTUAL=$(shasum -a 256 "$WORK/archive.zip" | awk '{print $1}')
 else ACTUAL=$(sha256sum "$WORK/archive.zip" | awk '{print $1}'); fi
 [ "$EXPECTED" = "$ACTUAL" ] || fail 'Archive SHA-256 mismatch'

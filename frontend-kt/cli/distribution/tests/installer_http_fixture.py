@@ -1,4 +1,4 @@
-"""HTTP-сервер для Windows-проверок установщика, включая запрет редиректов."""
+"""HTTP-сервер для Windows-проверок установщика, включая перенаправления GitHub."""
 import http.server
 from pathlib import Path
 import sys

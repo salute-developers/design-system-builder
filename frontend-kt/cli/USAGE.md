@@ -27,6 +27,19 @@ npm. Без Node.js, без сети
 можно поставить позже той же командой. Пропустить этот шаг — флаг `--without-web`
 (`-WithoutWeb` в PowerShell).
 
+## Установка последнего стабильного CLI
+
+Адреса `install.sh` и `install.ps1` остаются прежними в S3. Скачайте установщик
+по существующей ссылке и запустите `sh install.sh` либо `./install.ps1`.
+Он выбирает GitHub Latest, закрепляет версию и скачивает архив с проверкой SHA-256.
+macOS автоматически получает arm64/x64, Windows — x64, Linux — JVM (нужна Java 17+).
+На macOS под Rosetta выбирается arm64. Windows arm64 и 32-bit не поддерживаются.
+
+Конкретная версия: `sh install.sh --version 1.2.3` или `./install.ps1 -Version 1.2.3`.
+Флаги `--without-ios`, `--without-web` и `-WithoutWeb` сохраняются; явная JVM-установка
+на macOS/Linux доступна через `--target jvm`. Архивы и контрольные суммы находятся
+в GitHub Releases, отдельного `stable.json` нет. gh, jq и Python установщику не нужны.
+
 ## Установка на macOS из release-архива
 
 Распакуйте архив и запустите установочный скрипт:

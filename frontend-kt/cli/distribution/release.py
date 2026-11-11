@@ -123,9 +123,9 @@ def prepare(directory, release_version, base_url, bootstrap):
     (directory / 'SHA256SUMS').write_text(''.join(checksums))
     for name in ('install.sh', 'install.ps1'):
         template = (bootstrap / name).read_text()
-        if template.count('@CLI_DOWNLOAD_BASE_URL@') != 1:
+        if template.count('@CLI_RELEASE_BASE_URL@') != 1:
             raise ValueError('Expected one download URL placeholder')
-        (directory / name).write_text(template.replace('@CLI_DOWNLOAD_BASE_URL@', base_url.rstrip('/')))
+        (directory / name).write_text(template.replace('@CLI_RELEASE_BASE_URL@', 'https://github.com/salute-developers/design-system-builder'))
 
 
 class S3Store:
@@ -201,101 +201,144 @@ def release_files(directory):
     ]}
 
 
-def stable_version(path):
-    stable = json.loads(path.read_bytes())
-    if (not isinstance(stable, dict) or set(stable) != {'schemaVersion', 'version'} or
-            type(stable['schemaVersion']) is not int or stable['schemaVersion'] != 1):
-        raise ValueError('Invalid stable.json source')
-    if stable['version'] is None:
-        raise ValueError('Set stable.json version before publishing')
-    return version(stable['version'])
-
-
 def verified_remote_release(store, release_version):
-    prefix = f'releases/{release_version}/'
+    prefix = ''
+    version(release_version)
     manifest_data = store.get(prefix + 'release.json')
     if manifest_data is None:
-        raise RuntimeError('Stable release manifest is missing in S3')
-    manifest = json.loads(manifest_data)
-    if (not isinstance(manifest, dict) or manifest.get('schemaVersion') != 1 or
+        raise RuntimeError('Release manifest is missing in GitHub')
+    manifest = json.loads(manifest_data, object_pairs_hook=unique_object)
+    if (not isinstance(manifest, dict) or type(manifest.get('schemaVersion')) is not int or manifest['schemaVersion'] != 1 or
             manifest.get('version') != release_version):
-        raise ValueError('Stable release manifest does not match version')
+        raise ValueError('Release manifest does not match version')
     if not isinstance(manifest.get('artifacts'), dict) or set(manifest['artifacts']) != set(TARGETS):
-        raise ValueError('Stable release manifest has wrong targets')
+        raise ValueError('Release manifest has wrong targets')
     ios_tag = manifest.get('iosCliReleaseTag')
-    if ios_tag is not None and (not isinstance(ios_tag, str) or not IOS_TAG.fullmatch(ios_tag)):
-        raise ValueError('Stable release manifest has an invalid iOS CLI tag')
+    if not isinstance(ios_tag, str) or not IOS_TAG.fullmatch(ios_tag) or ios_tag == 'current':
+        raise ValueError('Release manifest has an invalid iOS CLI tag')
     checksums = []
     for target in TARGETS:
         name = f'dsbuilder-cli-{target}.zip'
         data = store.get(prefix + name)
         if data is None:
-            raise RuntimeError(f'Stable release archive is missing: {name}')
+            raise RuntimeError(f'Release archive is missing: {name}')
         sha = digest(data)
         if manifest['artifacts'][target] != {'file': name, 'sha256': sha}:
-            raise ValueError(f'Stable release checksum mismatch: {name}')
-        if target == 'macos-arm64' and ios_tag is not None:
-            with zipfile.ZipFile(BytesIO(data)) as archive:
-                archived_tag = archive.read('dsbuilder-cli-macos-arm64/ios-release.txt').decode('ascii').strip()
+            raise ValueError(f'Release checksum mismatch: {name}')
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / name
+            path.write_bytes(data)
+            archived_tag = validate_archive(path, target)
+        if target == 'macos-arm64':
             if archived_tag != ios_tag:
-                raise ValueError('Stable release iOS CLI tag does not match the archive')
+                raise ValueError('Release iOS CLI tag does not match the archive')
         checksums.append(f'{sha}  {name}\n')
     if store.get(prefix + 'SHA256SUMS') != ''.join(checksums).encode():
-        raise ValueError('Stable release SHA256SUMS mismatch')
+        raise ValueError('Release SHA256SUMS mismatch')
 
 
-def upload(store, directory, release_version):
-    """При каждом запуске загружает и проверяет полный комплект версии."""
-    prefix = f'releases/{version(release_version)}/'
-    for name, data in release_files(directory).items():
-        store.put(prefix + name, data)
-        if store.get(prefix + name) != data:
-            raise RuntimeError(f'Remote verification failed: {name}')
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('Duplicate JSON key: ' + key)
+        result[key] = value
+    return result
 
 
-def promote(store, directory, release_version, stable_file):
-    release_version = version(release_version)
-    desired_version = stable_version(stable_file)
-    for name, data in release_files(directory).items():
-        if store.get(f'releases/{release_version}/{name}') != data:
-            raise RuntimeError('Cannot promote incomplete release')
-    if desired_version != release_version:
-        print(f'Release uploaded; stable.json in Git selects {desired_version}, pointer unchanged')
-        return
-    # Совместимые сетевые установщики обновляются до указателя, после проверки полного выпуска.
+class GitHubRelease:
+    """Работа с публичным выпуском через gh; токен нужен только окружению CI."""
+
+    def __init__(self, tag):
+        tag_version(tag)
+        self.tag = tag
+        self.repo = os.environ.get('GITHUB_REPOSITORY', 'salute-developers/design-system-builder')
+        if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', self.repo):
+            raise ValueError('Invalid GitHub repository')
+
+    def run(self, *args):
+        return subprocess.run(['gh', *args], capture_output=True, check=True)
+
+    def info(self, suffix):
+        try:
+            return json.loads(self.run('api', f'repos/{self.repo}/releases/{suffix}').stdout)
+        except subprocess.CalledProcessError as error:
+            if b'(HTTP 404)' in error.stderr:
+                return None
+            raise RuntimeError('GitHub release request failed') from error
+
+    def view(self):
+        return self.info('tags/' + self.tag)
+
+    def latest(self):
+        return self.info('latest')
+
+    def create(self):
+        self.run('release', 'create', self.tag, '--repo', self.repo, '--verify-tag', '--draft',
+                 '--title', 'DS Builder CLI ' + tag_version(self.tag), '--notes', 'DS Builder CLI distributions.')
+
+    def get(self, key):
+        info = self.view()
+        assets = [a for a in info['assets'] if a['name'] == key] if info else []
+        if len(assets) != 1:
+            raise RuntimeError('Missing or duplicate release asset: ' + key)
+        with tempfile.TemporaryDirectory() as temporary:
+            self.run('release', 'download', self.tag, '--repo', self.repo, '--pattern', key, '--dir', temporary)
+            return (Path(temporary) / key).read_bytes()
+
+    def upload(self, directory):
+        self.run('release', 'upload', self.tag, '--repo', self.repo, '--clobber',
+                 *(str(directory / name) for name in release_files(directory)))
+
+    def publish(self, latest):
+        self.run('release', 'edit', self.tag, '--repo', self.repo, '--draft=false',
+                 '--latest=' + str(latest).lower())
+
+
+def upload_installers(store, directory):
+    """Перезаписывает только два постоянных S3-ключа с проверкой байтов."""
     for name in ('install.sh', 'install.ps1'):
-        store.put(name, (directory / name).read_bytes())
-    stable_data = json_bytes({'schemaVersion': 1, 'version': desired_version})
-    store.put('stable.json', stable_data)
-    if store.get('stable.json') != stable_data:
-        raise RuntimeError('Stable pointer verification failed')
+        data = (directory / name).read_bytes()
+        store.put(name, data)
+        if store.get(name) != data:
+            raise RuntimeError('Installer verification failed: ' + name)
 
 
-def sync_stable(store, stable_file):
-    desired_version = stable_version(stable_file)
-    verified_remote_release(store, desired_version)
-    stable_data = json_bytes({'schemaVersion': 1, 'version': desired_version})
-    store.put('stable.json', stable_data)
-    if store.get('stable.json') != stable_data:
-        raise RuntimeError('Stable pointer verification failed')
+def prepare_github(remote, directory):
+    info = remote.view()
+    if info and info.get('prerelease'):
+        raise ValueError('CLI release must not be a prerelease')
+    published = info is not None and not info['draft']
+    if not published:
+        if info is None:
+            remote.create()
+        remote.upload(directory)
+    verified_remote_release(remote, tag_version(remote.tag))
+    return published
+
+
+def promote_github(remote):
+    info = remote.view()
+    if not info or info.get('prerelease'):
+        raise ValueError('Select a complete stable release')
+    verified_remote_release(remote, tag_version(remote.tag))
+    latest = remote.latest()
+    if latest:
+        latest_version = tag_version(latest['tag_name'])
+        verified_remote_release(GitHubRelease(latest['tag_name']), latest_version)
+    newer = latest is None or tuple(map(int, tag_version(remote.tag).split('.'))) > tuple(map(int, latest_version.split('.')))
+    if info['draft']:
+        remote.publish(newer)
+    # Повтор опубликованного тега не меняет Latest.
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=['version', 'prepare', 'upload', 'promote', 'validate',
-                                              'stable-version', 'sync-stable'])
-    parser.add_argument('--tag')
+                                             'upload-installers'])
+    parser.add_argument('--tag', required=True)
     parser.add_argument('--directory', type=Path, default=Path('build/distributions'))
-    parser.add_argument('--stable-file', type=Path, default=Path(__file__).parent / 'stable.json')
     args = parser.parse_args()
-    if args.operation == 'stable-version':
-        print(stable_version(args.stable_file))
-        return
-    if args.operation == 'sync-stable':
-        sync_stable(S3Store(), args.stable_file)
-        return
-    if not args.tag:
-        parser.error('--tag is required for this operation')
     release_version = tag_version(args.tag)
     if args.operation == 'version':
         print(release_version)
@@ -304,12 +347,12 @@ def main():
     elif args.operation == 'validate':
         for target in TARGETS:
             validate_archive(args.directory / f'dsbuilder-cli-{target}.zip', target)
+    elif args.operation == 'upload-installers':
+        upload_installers(S3Store(), args.directory)
+    elif args.operation == 'upload':
+        prepare_github(GitHubRelease(args.tag), args.directory)
     else:
-        store = S3Store()
-        if args.operation == 'promote':
-            promote(store, args.directory, release_version, args.stable_file)
-        else:
-            upload(store, args.directory, release_version)
+        promote_github(GitHubRelease(args.tag))
 
 
 if __name__ == '__main__':
