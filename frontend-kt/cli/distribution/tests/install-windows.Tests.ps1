@@ -67,7 +67,16 @@ try {
     Copy-Item -LiteralPath $source -Destination (Join-Path $package 'dsbuilder.exe')
     Copy-Item -LiteralPath $installer -Destination (Join-Path $package 'install.ps1')
     $archive = Join-Path $release 'dsbuilder-cli-windows-x64.zip'
-    Compress-Archive -LiteralPath $package -DestinationPath $archive
+    # Windows PowerShell 5.1 Compress-Archive записывает обратные разделители путей.
+    # Релизный Gradle ZIP использует прямые; тестовый комплект должен повторять его формат.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $testZip = [IO.Compression.ZipFile]::Open($archive, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($file in Get-ChildItem -LiteralPath $package -File) {
+            $entryName = 'dsbuilder-cli-windows-x64/' + $file.Name
+            [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($testZip, $file.FullName, $entryName)
+        }
+    } finally { $testZip.Dispose() }
     $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText((Join-Path $release 'SHA256SUMS'), "$hash  dsbuilder-cli-windows-x64.zip`n")
     $artifacts = [ordered]@{}

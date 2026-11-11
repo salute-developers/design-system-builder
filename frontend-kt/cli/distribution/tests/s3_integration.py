@@ -44,7 +44,7 @@ def main():
         directory = Path(temporary)
         for target in release.TARGETS:
             make_archive(directory, target)
-        release.prepare(directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
+        release.prepare(directory, '1.2.3', DIST / 'bootstrap')
         original_put = store.put
         writes = []
 

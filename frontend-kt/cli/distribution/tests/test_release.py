@@ -63,8 +63,9 @@ class ReleaseTest(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         for target in release.TARGETS:
             make_archive(self.directory, target)
-        release.prepare(self.directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
+        release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
         self.store = MemoryStore()
+
     def test_tag_validation(self):
         self.assertEqual('1.2.3', release.tag_version('cli-v1.2.3'))
         for tag in ('v1.2.3', 'cli-v01.2.3', 'cli-v1.2', 'cli-v1.2.3;echo bad', 'cli-v1.2.3\n'):
@@ -77,13 +78,13 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(set(release.TARGETS), set(manifest['artifacts']))
         for artifact in manifest['artifacts'].values():
             self.assertEqual(release.digest((self.directory / artifact['file']).read_bytes()), artifact['sha256'])
-        self.assertIn('https://github.com/salute-developers/design-system-builder', (self.directory / 'install.sh').read_text())
+        self.assertIn('https://github.com/' + release.github_repository(), (self.directory / 'install.sh').read_text())
         self.assertNotIn('@CLI_RELEASE_BASE_URL@', (self.directory / 'install.ps1').read_text())
 
     def test_missing_archive_prevents_preparation(self):
         (self.directory / 'dsbuilder-cli-jvm.zip').unlink()
         with self.assertRaises(FileNotFoundError):
-            release.prepare(self.directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
+            release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
 
     def test_archive_traversal_and_symlink_are_rejected(self):
         path = self.directory / 'dsbuilder-cli-macos-arm64.zip'
@@ -154,7 +155,7 @@ class ReleaseTest(unittest.TestCase):
         older = self.remote()
         release.prepare_github(older, self.directory)
         newer = self.remote('1.10.0')
-        release.prepare(self.directory, '1.10.0', 'https://example.invalid/cli', DIST / 'bootstrap')
+        release.prepare(self.directory, '1.10.0', DIST / 'bootstrap')
         release.prepare_github(newer, self.directory)
         newer.publish(True)
         older.current_latest = newer.view()
@@ -194,11 +195,40 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             release.upload_installers(self.store, self.directory)
 
-    def test_public_url_validation(self):
-        for url in ('http://example.invalid', 'https://user:password@example.invalid',
-                    "https://example.invalid/'$(echo bad)", 'https://example.invalid/#fragment'):
-            with self.subTest(url=url), self.assertRaises(ValueError):
-                release.prepare(self.directory, '1.2.3', url, DIST / 'bootstrap')
+    def test_preparation_and_adapter_use_the_same_repository_without_s3_url(self):
+        with patch.dict(release.os.environ, {'GITHUB_REPOSITORY': 'example/cli-fork'}):
+            with patch.dict(release.os.environ):
+                release.os.environ.pop('CLI_DOWNLOAD_BASE_URL', None)
+                release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
+            self.assertEqual('example/cli-fork', release.GitHubRelease('cli-v1.2.3').repo)
+            for script in ('install.sh', 'install.ps1'):
+                self.assertIn('https://github.com/example/cli-fork', (self.directory / script).read_text())
+        for repository in ('bad', 'owner/repo/extra', 'owner/repo?query', 'owner/repo\n'):
+            with self.subTest(repository=repository), patch.dict(release.os.environ, {'GITHUB_REPOSITORY': repository}):
+                with self.assertRaises(ValueError):
+                    release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
+                with self.assertRaises(ValueError):
+                    release.GitHubRelease('cli-v1.2.3')
+
+    def test_broken_previous_latest_does_not_block_a_new_complete_release(self):
+        for previous in ('1.1.0', '1.10.0'):
+            with self.subTest(previous=previous):
+                remote = self.remote()
+                release.prepare_github(remote, self.directory)
+                # Старый Latest намеренно не содержит ни одного ассета.
+                remote.current_latest = {'tag_name': 'cli-v' + previous}
+                with patch.object(release, 'GitHubRelease', side_effect=AssertionError('Must not read old assets')):
+                    release.promote_github(remote)
+                self.assertEqual([previous == '1.1.0'], remote.promotions)
+
+    def test_incomplete_target_release_still_cannot_be_published(self):
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        remote.data.pop('dsbuilder-cli-jvm.zip')
+        remote.current_latest = {'tag_name': 'cli-v1.1.0'}
+        with self.assertRaises(RuntimeError):
+            release.promote_github(remote)
+        self.assertEqual([], remote.promotions)
 
 
 class FakeGitHub(MemoryStore):

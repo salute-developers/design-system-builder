@@ -99,12 +99,16 @@ def validate_archive(path, target):
         return tag if target == 'macos-arm64' else None
 
 
-def prepare(directory, release_version, base_url, bootstrap):
+def github_repository():
+    repository = os.environ.get('GITHUB_REPOSITORY', 'salute-developers/design-system-builder')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
+        raise ValueError('Invalid GitHub repository')
+    return repository
+
+
+def prepare(directory, release_version, bootstrap):
     version(release_version)
-    url = urlsplit(base_url)
-    if (url.scheme != 'https' or not url.netloc or url.username or url.password or url.query or url.fragment or
-            not re.fullmatch(r'https://[A-Za-z0-9.:/~-]+', base_url)):
-        raise ValueError('Public download base must be an HTTPS URL without credentials/query/fragment')
+    release_base = 'https://github.com/' + github_repository()
     artifacts = {}
     checksums = []
     ios_tag = None
@@ -125,7 +129,7 @@ def prepare(directory, release_version, base_url, bootstrap):
         template = (bootstrap / name).read_text()
         if template.count('@CLI_RELEASE_BASE_URL@') != 1:
             raise ValueError('Expected one download URL placeholder')
-        (directory / name).write_text(template.replace('@CLI_RELEASE_BASE_URL@', 'https://github.com/salute-developers/design-system-builder'))
+        (directory / name).write_text(template.replace('@CLI_RELEASE_BASE_URL@', release_base))
 
 
 class S3Store:
@@ -252,9 +256,7 @@ class GitHubRelease:
     def __init__(self, tag):
         tag_version(tag)
         self.tag = tag
-        self.repo = os.environ.get('GITHUB_REPOSITORY', 'salute-developers/design-system-builder')
-        if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', self.repo):
-            raise ValueError('Invalid GitHub repository')
+        self.repo = github_repository()
 
     def run(self, *args):
         return subprocess.run(['gh', *args], capture_output=True, check=True)
@@ -325,7 +327,6 @@ def promote_github(remote):
     latest = remote.latest()
     if latest:
         latest_version = tag_version(latest['tag_name'])
-        verified_remote_release(GitHubRelease(latest['tag_name']), latest_version)
     newer = latest is None or tuple(map(int, tag_version(remote.tag).split('.'))) > tuple(map(int, latest_version.split('.')))
     if info['draft']:
         remote.publish(newer)
@@ -343,7 +344,7 @@ def main():
     if args.operation == 'version':
         print(release_version)
     elif args.operation == 'prepare':
-        prepare(args.directory, release_version, os.environ['CLI_DOWNLOAD_BASE_URL'], Path(__file__).parent / 'bootstrap')
+        prepare(args.directory, release_version, Path(__file__).parent / 'bootstrap')
     elif args.operation == 'validate':
         for target in TARGETS:
             validate_archive(args.directory / f'dsbuilder-cli-{target}.zip', target)
