@@ -9,6 +9,8 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -22,6 +24,7 @@ class HttpThemeTokensClientTest {
     private val credential = BackendCredential.Bearer("fixture-access")
     private val context = ThemeContext("p 1", "ds1", "t1")
     private val requests = mutableListOf<String>()
+    private val requestsMutex = Mutex()
 
     private fun client(
         status: (String) -> HttpStatusCode = { HttpStatusCode.OK },
@@ -33,7 +36,7 @@ class HttpThemeTokensClientTest {
                     MockEngine { request ->
                         assertEquals("Bearer fixture-access", request.headers[HttpHeaders.Authorization])
                         val path = request.url.encodedPathAndQuery
-                        requests += path
+                        requestsMutex.withLock { requests += path }
                         respond(body(path), status(path))
                     },
                 )
