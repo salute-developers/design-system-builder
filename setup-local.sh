@@ -32,6 +32,8 @@ Options:
   --theme-package DIR
            Theme package of theme-converter whose Android token values replace the values of the new theme.
            Requires --components-package. Default: local-dev/design-system/theme.
+  --publish-version VERSION
+           Version published after the component seed. Requires --components-package. Default: 0.1.0.
   --skip-design-system
            Do not create the design system and do not load the components.
   --help   Show this help.
@@ -74,6 +76,7 @@ WEB_PLUGIN_ZIP_EXPLICIT=0
 COMPONENTS_PACKAGE="${COMPOSE_COMPONENTS_PACKAGE:-}"
 COMPONENTS_PACKAGE_EXPLICIT=0
 THEME_PACKAGE_ARGS=()
+PUBLISH_VERSION_ARGS=()
 SKIP_DESIGN_SYSTEM=0
 [[ -n "$COMPONENTS_PACKAGE" ]] && COMPONENTS_PACKAGE_EXPLICIT=1
 BUNDLED_PLUGIN_ZIP="$ROOT_DIR/local-dev/compose-preview/preview-compose-plugin.zip"
@@ -116,6 +119,10 @@ while [[ $# -gt 0 ]]; do
       THEME_PACKAGE_ARGS=(--theme-package "${2:-}")
       shift 2
       ;;
+    --publish-version)
+      PUBLISH_VERSION_ARGS=(--publish-version "${2:-}")
+      shift 2
+      ;;
     --skip-design-system)
       SKIP_DESIGN_SYSTEM=1
       shift
@@ -132,8 +139,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && "$SKIP_DESIGN_SYSTEM" == "0" && "${#THEME_PACKAGE_ARGS[@]}" -gt 0 && "$COMPONENTS_PACKAGE_EXPLICIT" == "0" ]]; then
-  echo "[local-setup] --theme-package requires --components-package (or COMPOSE_COMPONENTS_PACKAGE)" >&2
+if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && "$SKIP_DESIGN_SYSTEM" == "0" && ( "${#THEME_PACKAGE_ARGS[@]}" -gt 0 || "${#PUBLISH_VERSION_ARGS[@]}" -gt 0 ) && "$COMPONENTS_PACKAGE_EXPLICIT" == "0" ]]; then
+  echo "[local-setup] --theme-package/--publish-version require --components-package (or COMPOSE_COMPONENTS_PACKAGE)" >&2
   exit 2
 fi
 
@@ -218,7 +225,7 @@ fi
 if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; then
   if [[ -n "$COMPONENTS_PACKAGE" ]]; then
     log "Creating the design system with a theme and loading the components"
-    if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}"; then
+    if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}" "${PUBLISH_VERSION_ARGS[@]+"${PUBLISH_VERSION_ARGS[@]}"}"; then
       echo "[local-setup] The requested component package could not be loaded" >&2
       exit 1
     fi
