@@ -42,7 +42,10 @@ describe('seeds:update', () => {
         pkg = join(dir, 'components');
         tokens = join(dir, 'token-definitions.json');
         writeFileSync(seeds, JSON.stringify(existing));
-        writeFileSync(tokens, JSON.stringify([{ name: 'text.default.primary' }, { name: 'text.default.secondary' }, { name: 'round.m' }]));
+        writeFileSync(
+            tokens,
+            JSON.stringify([{ name: 'text.default.primary' }, { name: 'text.default.secondary' }, { name: 'round.m' }]),
+        );
         writeComponentEntries(
             pkg,
             'Attach',
@@ -86,16 +89,27 @@ describe('seeds:update', () => {
                     styleName: 'clear',
                     config: {
                         props: {},
-                        bindings: [{ name: 'view', type: 'enum', values: ['default', 'negative'], defaultValue: 'default' }],
+                        bindings: [
+                            { name: 'view', type: 'enum', values: ['default', 'negative'], defaultValue: 'default' },
+                        ],
                         variations: [
-                            { id: 'negative', binding: [{ name: 'view', value: 'negative' }], props: { color: { type: 'color', default: 'text.default.secondary' } } },
+                            {
+                                id: 'negative',
+                                binding: [{ name: 'view', value: 'negative' }],
+                                props: { color: { type: 'color', default: 'text.default.secondary' } },
+                            },
                         ],
                     },
                 },
             ],
             false,
         );
-        writeComponentEntries(pkg, 'ViewContainer', [{ styleName: 'default', config: { props: {}, bindings: [], variations: [] } }], false);
+        writeComponentEntries(
+            pkg,
+            'ViewContainer',
+            [{ styleName: 'default', config: { props: {}, bindings: [], variations: [] } }],
+            false,
+        );
     });
     afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -104,7 +118,14 @@ describe('seeds:update', () => {
         const attach = read().components.find((item) => item.name === 'Attach')!;
 
         assert.deepEqual(attach.variations, [
-            { name: 'size', description: 'size', styles: [{ name: 'm', description: 'm' }, { name: 's', description: 's' }] },
+            {
+                name: 'size',
+                description: 'size',
+                styles: [
+                    { name: 'm', description: 'm' },
+                    { name: 's', description: 's' },
+                ],
+            },
             { name: 'stretch', description: 'stretch', styles: [{ name: 'true', description: 'true' }] },
         ]);
         const [appearance] = attach.appearances;
@@ -166,6 +187,102 @@ describe('seeds:update', () => {
 
         await run('--component=ViewContainer');
         assert.equal(readFileSync(seeds, 'utf8'), once);
+    });
+
+    it('обновлённый appearance остаётся на прежнем месте, прежние appearance сохраняют свои вариации', async () => {
+        const tabs = {
+            name: 'Tabs',
+            propertyVariations: [{ property: 'color', variation: 'view' }],
+            variations: [{ name: 'view', description: 'Вид', styles: [{ name: 'default', description: 'default' }] }],
+            appearances: [
+                { name: 'horizontal', defaults: { view: 'default' }, values: {}, invariants: [] },
+                { name: 'vertical', variations: ['view'], defaults: { view: 'default' }, values: {}, invariants: [] },
+            ],
+        };
+        writeFileSync(seeds, JSON.stringify({ components: [tabs], dependencies: [] }));
+        writeComponentEntries(
+            pkg,
+            'Tabs',
+            [
+                {
+                    styleName: 'horizontal',
+                    config: {
+                        props: {},
+                        bindings: [
+                            { name: 'view', type: 'enum', values: ['default'], defaultValue: 'default' },
+                            { name: 'stretch', type: 'boolean' },
+                        ],
+                        variations: [],
+                    },
+                },
+                {
+                    styleName: 'diagonal',
+                    config: {
+                        props: {},
+                        bindings: [{ name: 'view', type: 'enum', values: ['default'], defaultValue: 'default' }],
+                        variations: [],
+                    },
+                },
+            ],
+            false,
+        );
+
+        await run('--component=Tabs:horizontal');
+        const updated = read().components.find((item) => item.name === 'Tabs')!;
+        // Замена на месте: первый appearance — по-прежнему horizontal, он остаётся конфигурацией по умолчанию.
+        assert.deepEqual(
+            updated.appearances.map((item) => item.name),
+            ['horizontal', 'vertical'],
+        );
+        assert.deepEqual(
+            updated.variations.map((item) => item.name),
+            ['view', 'stretch'],
+        );
+        assert.equal(updated.appearances[0].variations, undefined);
+
+        await run('--component=Tabs:diagonal');
+        const extended = read().components.find((item) => item.name === 'Tabs')!;
+        assert.deepEqual(
+            extended.appearances.map((item) => [item.name, item.variations]),
+            [
+                ['horizontal', undefined],
+                ['vertical', ['view']],
+                ['diagonal', ['view']],
+            ],
+        );
+    });
+
+    it('новая вариация не подключается к прежнему appearance без своего списка вариаций', async () => {
+        writeComponentEntries(
+            pkg,
+            'TextField',
+            [
+                {
+                    styleName: 'vertical',
+                    config: {
+                        props: {},
+                        bindings: [
+                            { name: 'view', type: 'enum', values: ['default'], defaultValue: 'default' },
+                            { name: 'stretch', type: 'boolean' },
+                        ],
+                        variations: [],
+                    },
+                },
+            ],
+            false,
+        );
+
+        await run('--component=TextField:vertical');
+        const textField = read().components.find((item) => item.name === 'TextField')!;
+
+        assert.deepEqual(
+            textField.variations.map((item) => item.name),
+            ['view', 'stretch'],
+        );
+        // У default списка не было: он использовал все вариации компонента до слияния, то есть только view.
+        assert.deepEqual(textField.appearances[0].name, 'default');
+        assert.deepEqual(textField.appearances[0].variations, ['view']);
+        assert.equal(textField.appearances[1].variations, undefined);
     });
 
     it('останавливается, если в пакете нет названного appearance', async () => {

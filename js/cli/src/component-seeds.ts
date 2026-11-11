@@ -19,8 +19,22 @@ import { isEntrypoint } from './entrypoint.ts';
 import { cliDirectory } from './package-output.ts';
 
 const DS_SERVICE = path.join(cliDirectory, '..', '..', 'backend-kt', 'ds-service');
-export const DEFAULT_SEEDS = path.join(DS_SERVICE, 'feature-components', 'src', 'main', 'resources', 'component-seeds.json');
-export const DEFAULT_TOKEN_DEFINITIONS = path.join(DS_SERVICE, 'feature-tokens', 'src', 'main', 'resources', 'token-definitions.json');
+export const DEFAULT_SEEDS = path.join(
+    DS_SERVICE,
+    'feature-components',
+    'src',
+    'main',
+    'resources',
+    'component-seeds.json',
+);
+export const DEFAULT_TOKEN_DEFINITIONS = path.join(
+    DS_SERVICE,
+    'feature-tokens',
+    'src',
+    'main',
+    'resources',
+    'token-definitions.json',
+);
 
 export type ValueSeed = {
     prop: string;
@@ -38,7 +52,11 @@ export type AppearanceSeed = {
     invariants?: ValueSeed[];
     combinations?: ValueSeed[];
 };
-export type VariationSeed = { name: string; description?: string; styles: Array<{ name: string; description?: string }> };
+export type VariationSeed = {
+    name: string;
+    description?: string;
+    styles: Array<{ name: string; description?: string }>;
+};
 export type ComponentSeed = {
     name: string;
     propertyVariations: Array<{ property: string; variation: string }>;
@@ -54,7 +72,12 @@ export type SeedSelection = { component: string; appearance?: string };
 type NativeEntry = NonNullable<NativeConfig['props']>[string] & { states?: Array<{ state: string[]; value: unknown }> };
 
 /** Значение и его состояния в формате сидов. */
-const toValueSeeds = (prop: string, native: NativeEntry, tokens: Set<string>, extra: Partial<ValueSeed> = {}): ValueSeed[] => {
+const toValueSeeds = (
+    prop: string,
+    native: NativeEntry,
+    tokens: Set<string>,
+    extra: Partial<ValueSeed> = {},
+): ValueSeed[] => {
     const seed = (raw: unknown, state?: string[]): ValueSeed => {
         const text = raw === undefined || raw === null ? '' : String(raw);
         const target = typeof raw === 'string' && tokens.has(raw) ? { token: text } : { value: text };
@@ -111,10 +134,14 @@ export const toAppearanceSeed = (name: string, config: NativeConfig, tokens: Set
             continue;
         }
         const styles = Object.fromEntries(entry.binding.map(({ name: axis, value }) => [axis, String(value)]));
-        combinations.push(...Object.entries(props).flatMap(([prop, native]) => toValueSeeds(prop, native, tokens, { styles })));
+        combinations.push(
+            ...Object.entries(props).flatMap(([prop, native]) => toValueSeeds(prop, native, tokens, { styles })),
+        );
     }
     const defaults = Object.fromEntries(
-        config.bindings.filter((item) => item.defaultValue !== undefined).map((item) => [item.name, String(item.defaultValue)]),
+        config.bindings
+            .filter((item) => item.defaultValue !== undefined)
+            .map((item) => [item.name, String(item.defaultValue)]),
     );
     const invariants = Object.entries((config.props ?? {}) as Record<string, NativeEntry>).flatMap(([prop, native]) =>
         toValueSeeds(prop, native, tokens),
@@ -126,7 +153,10 @@ export const toAppearanceSeed = (name: string, config: NativeConfig, tokens: Set
         invariants,
         ...(combinations.length ? { combinations } : {}),
     };
-    const variations = config.bindings.map((binding) => ({ name: binding.name, styles: bindingStyles(config, binding.name) }));
+    const variations = config.bindings.map((binding) => ({
+        name: binding.name,
+        styles: bindingStyles(config, binding.name),
+    }));
     return { appearance, variations, propertyVariations };
 };
 
@@ -156,17 +186,26 @@ export const mergeSeeds = (
             (entry) => entry.componentName === kebab && (only === undefined || entry.styleName === only),
         );
         if (entries.length === 0) {
-            throw new Error(`В пакете ${packageDir} нет ${only ? `appearance «${only}» компонента` : 'компонента'} ${component}.`);
+            throw new Error(
+                `В пакете ${packageDir} нет ${only ? `appearance «${only}» компонента` : 'компонента'} ${component}.`,
+            );
         }
         const converted = entries.map((entry) =>
-            toAppearanceSeed(entry.styleName, JSON.parse(fs.readFileSync(path.join(packageDir, entry.config), 'utf8')), tokens),
+            toAppearanceSeed(
+                entry.styleName,
+                JSON.parse(fs.readFileSync(path.join(packageDir, entry.config), 'utf8')),
+                tokens,
+            ),
         );
         const index = components.findIndex((item) => item.name === component);
         const previous = only !== undefined && index >= 0 ? components[index] : undefined;
 
         // Вариации: прежние (при добавлении appearance) и пакета, стили объединяются в порядке появления.
         const variationOrder = unique(
-            [...(previous?.variations.map((item) => item.name) ?? []), ...converted.flatMap((item) => item.variations.map((v) => v.name))],
+            [
+                ...(previous?.variations.map((item) => item.name) ?? []),
+                ...converted.flatMap((item) => item.variations.map((v) => v.name)),
+            ],
             (name) => name,
         );
         const variations: VariationSeed[] = variationOrder.map((name) => {
@@ -174,10 +213,12 @@ export const mergeSeeds = (
             const styles = unique(
                 [
                     ...(before?.styles ?? []),
-                    ...converted.flatMap((item) => item.variations.find((v) => v.name === name)?.styles ?? []).map((style) => ({
-                        name: style,
-                        description: style,
-                    })),
+                    ...converted
+                        .flatMap((item) => item.variations.find((v) => v.name === name)?.styles ?? [])
+                        .map((style) => ({
+                            name: style,
+                            description: style,
+                        })),
                 ],
                 (style) => style.name,
             );
@@ -187,17 +228,31 @@ export const mergeSeeds = (
             [...(previous?.propertyVariations ?? []), ...converted.flatMap((item) => item.propertyVariations)],
             (item) => `${item.property}\u0000${item.variation}`,
         );
-        const appearances = [
-            ...(previous?.appearances.filter((item) => !converted.some((next) => next.appearance.name === item.name)) ?? []),
-            ...converted.map((item) => item.appearance),
-        ].map((item) => {
-            // Свой список вариаций appearance пишется, только когда он отличается от списка компонента (Tabs vertical).
-            const own = converted.find((next) => next.appearance.name === item.name);
-            if (!own) return item;
-            const names = own.variations.map((v) => v.name);
+        // Свой список вариаций appearance пишется, только когда он отличается от списка компонента (Tabs vertical).
+        const withVariations = (item: AppearanceSeed, names: string[]): AppearanceSeed => {
             const { variations: _drop, ...rest } = item;
             return names.join() === variationOrder.join() ? rest : { ...rest, variations: names };
-        });
+        };
+        // Прежний appearance без своего списка использует все вариации компонента до слияния: этот набор фиксируется
+        // явно, иначе вариация, добавленная новым appearance, подключилась бы и к нему.
+        const previousNames = previous?.variations.map((item) => item.name) ?? [];
+        const kept = (item: AppearanceSeed) => withVariations(item, item.variations ?? previousNames);
+        const fresh = (item: (typeof converted)[number]) =>
+            withVariations(
+                item.appearance,
+                item.variations.map((v) => v.name),
+            );
+        // Заменяемый appearance остаётся на прежнем месте: инициализатор ds-service берёт первый appearance
+        // конфигурацией по умолчанию. Новые добавляются в конец.
+        const appearances = [
+            ...(previous?.appearances ?? []).map((item) => {
+                const replacement = converted.find((next) => next.appearance.name === item.name);
+                return replacement ? fresh(replacement) : kept(item);
+            }),
+            ...converted
+                .filter((item) => !previous?.appearances.some((old) => old.name === item.appearance.name))
+                .map(fresh),
+        ];
 
         const next: ComponentSeed = { name: component, propertyVariations, variations, appearances };
         if (index >= 0) components[index] = next;
