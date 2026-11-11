@@ -607,26 +607,34 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     @Test
     fun `configuration names are kebab-case on every write path`() = withService {
         val fixture = fixture()
-        val newBody = """{"designSystemId":"${fixture.ds}","componentId":"${fixture.component}"}"""
-        val first = json.parseToJsonElement(post("/api/ds/appearances/new", newBody).bodyAsText()).jsonObject
-        val second = json.parseToJsonElement(post("/api/ds/appearances/new", newBody).bodyAsText()).jsonObject
+        val newBody = """{"componentId":"${fixture.component}"}"""
+        val first = json.parseToJsonElement(
+            post("/api/design-systems/${fixture.ds}/appearances/new", newBody).bodyAsText(),
+        ).jsonObject
+        val second = json.parseToJsonElement(
+            post("/api/design-systems/${fixture.ds}/appearances/new", newBody).bodyAsText(),
+        ).jsonObject
         assertEquals("new", first.string("name"))
         assertEquals("new-2", second.string("name"))
 
-        val copy = post("/api/ds/appearances/${first.string("id")}/duplicate", "{}")
+        val copy = post("/api/design-systems/${fixture.ds}/appearances/${first.string("id")}/duplicate", "{}")
         assertEquals(HttpStatusCode.Created, copy.status, copy.bodyAsText())
         assertEquals("new-copy", json.parseToJsonElement(copy.bodyAsText()).jsonObject.string("name"))
 
-        val spaced = patch("/api/ds/appearances/${first.string("id")}", """{"name":"Accordion new"}""")
+        val spaced =
+            patch("/api/design-systems/${fixture.ds}/appearances/${first.string("id")}", """{"name":"Accordion new"}""")
         assertEquals(HttpStatusCode.UnprocessableEntity, spaced.status)
         assertEquals("appearance_name_invalid", code(spaced))
-        val raw = """{"designSystemId":"${fixture.ds}","componentId":"${fixture.component}","name":"Main view"}"""
-        assertEquals("appearance_name_invalid", code(post("/api/ds/appearances", raw)))
-        val named = """{"designSystemId":"${fixture.ds}","componentId":"${fixture.component}","name":"Dense"}"""
-        assertEquals("appearance_name_invalid", code(post("/api/ds/appearances/new", named)))
+        val raw = """{"componentId":"${fixture.component}","name":"Main view"}"""
+        assertEquals("appearance_name_invalid", code(post("/api/design-systems/${fixture.ds}/appearances", raw)))
+        val named = """{"componentId":"${fixture.component}","name":"Dense"}"""
+        assertEquals("appearance_name_invalid", code(post("/api/design-systems/${fixture.ds}/appearances/new", named)))
         assertEquals(
             HttpStatusCode.OK,
-            patch("/api/ds/appearances/${first.string("id")}", """{"name":"dense-mode"}""").status,
+            patch(
+                "/api/design-systems/${fixture.ds}/appearances/${first.string("id")}",
+                """{"name":"dense-mode"}""",
+            ).status,
         )
 
         val imported = importConfig(fixture.ds, "Spaced name", config("view", "size"))
@@ -638,28 +646,37 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     @Test
     fun `configuration names may not give the same identifier in code`() = withService {
         val fixture = fixture()
-        val newBody = """{"designSystemId":"${fixture.ds}","componentId":"${fixture.component}"}"""
+        val newBody = """{"componentId":"${fixture.component}"}"""
         suspend fun created() = json.parseToJsonElement(
-            post("/api/ds/appearances/new", newBody).bodyAsText(),
+            post("/api/design-systems/${fixture.ds}/appearances/new", newBody).bodyAsText(),
         ).jsonObject
         val first = created()
         val second = created()
         assertEquals("new-2", second.string("name"))
 
         // `new-2` и `new2` дают один идентификатор `new2` и один файл конфига.
-        val renamed = patch("/api/ds/appearances/${first.string("id")}", """{"name":"new2"}""")
+        val renamed =
+            patch("/api/design-systems/${fixture.ds}/appearances/${first.string("id")}", """{"name":"new2"}""")
         assertEquals(HttpStatusCode.Conflict, renamed.status, renamed.bodyAsText())
         assertEquals("APPEARANCE_NAME_CONFLICT", code(renamed))
-        val duplicated = post("/api/ds/appearances/${first.string("id")}/duplicate", """{"name":"New-2"}""")
+        val duplicated =
+            post(
+                "/api/design-systems/${fixture.ds}/appearances/${first.string("id")}/duplicate",
+                """{"name":"New-2"}""",
+            )
         assertEquals("appearance_name_invalid", code(duplicated))
-        val sameKey = post("/api/ds/appearances/${first.string("id")}/duplicate", """{"name":"ne-w2"}""")
+        val sameKey =
+            post(
+                "/api/design-systems/${fixture.ds}/appearances/${first.string("id")}/duplicate",
+                """{"name":"ne-w2"}""",
+            )
         assertEquals(HttpStatusCode.UnprocessableEntity, sameKey.status, sameKey.bodyAsText())
         assertEquals("appearance_name_taken", code(sameKey))
 
         // Сгенерированное имя обходит занятый ключ: после `new3` следующая новая конфигурация — `new-4`.
         assertEquals(
             HttpStatusCode.OK,
-            patch("/api/ds/appearances/${first.string("id")}", """{"name":"new3"}""").status,
+            patch("/api/design-systems/${fixture.ds}/appearances/${first.string("id")}", """{"name":"new3"}""").status,
         )
         assertEquals("new", created().string("name"))
         assertEquals("new-4", created().string("name"))

@@ -114,7 +114,7 @@ it('оставляет раздел компонентов, когда все к
 
     expect(shell.hasComponents).toBe(true);
     expect(http.get.mock.calls.map(([url]) => url)).toContain(
-        '/api/projects/project/ds/design-systems/system/appearances',
+        '/api/projects/project/design-systems/system/appearances',
     );
 });
 

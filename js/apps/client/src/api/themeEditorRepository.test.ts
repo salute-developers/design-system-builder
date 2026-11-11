@@ -879,7 +879,7 @@ describe('Editor repositories', () => {
         expect(put).not.toHaveBeenCalled();
         // Справочник токенов кешируется с `freshFor`: после удаления определения он сбрасывается адресно.
         expect(invalidateEditorResources).toHaveBeenCalledWith([
-            '/api/projects/project-1/ds/design-systems/ds-1/tokens',
+            '/api/projects/project-1/design-systems/ds-1/tokens',
         ]);
     });
 
@@ -925,11 +925,11 @@ describe('Editor repositories', () => {
         await componentRepository.saveComponentMutation(context, meta, mutation, {});
 
         expect(get).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/variation-property-values/by-appearance/copy',
+            '/api/projects/project-1/design-systems/ds-1/variation-property-values/by-appearance/copy',
             expect.anything(),
         );
         expect(patch).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/appearance-variations/axis-copy',
+            '/api/projects/project-1/design-systems/ds-1/appearance-variations/axis-copy',
             { defaultStyleId: 'style-l' },
             expect.anything(),
         );
@@ -986,12 +986,12 @@ describe('Editor repositories', () => {
         await componentRepository.saveComponentMutation(context, meta, mutation, {});
 
         expect(patch).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/invariant-property-values/value-copy',
+            '/api/projects/project-1/design-systems/ds-1/invariant-property-values/value-copy',
             expect.objectContaining({ value: '#222222' }),
             expect.anything(),
         );
         expect(patch).not.toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/invariant-property-values/value-base',
+            '/api/projects/project-1/design-systems/ds-1/invariant-property-values/value-base',
             expect.anything(),
             expect.anything(),
         );

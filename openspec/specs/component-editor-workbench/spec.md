@@ -520,7 +520,7 @@ SHALL показывать свойства вариаций сочетания 
 #### Scenario: Первое значение пересечения
 
 - **WHEN** у сочетания `size: l` + `shape: pilled` нет значений и пользователь задаёт `padding`
-- **THEN** клиент MUST отправить `PUT /api/ds/appearances/{id}/property-values` со `styleIds` обоих стилей, а ветка
+- **THEN** клиент MUST отправить `PUT /api/projects/{projectId}/design-systems/{designSystemId}/appearances/{id}/property-values` со `styleIds` обоих стилей, а ветка
   дерева MUST стать настроенной
 
 #### Scenario: Выход из режима пересечения

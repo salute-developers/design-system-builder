@@ -177,69 +177,80 @@ class ComponentPlatformHttpPostgresIntegrationTest {
     @Test
     fun `property value fields accept explicit null`() = withService {
         val designSystem =
-            id(post("/api/ds/design-systems", """{"name":"nulls","projectName":"nulls"}""", owner = true).bodyAsText())
+            id(post("/api/design-systems", """{"name":"nulls","projectName":"nulls"}""", owner = true).bodyAsText())
         val component =
-            id(post("/api/ds/components", """{"name":"Chip","platform":"web"}""", admin = true).bodyAsText())
+            id(
+                post(
+                    "/api/design-systems/catalog/components",
+                    """{"name":"Chip","platform":"web"}""",
+                    admin = true,
+                ).bodyAsText(),
+            )
         val background = id(
             post(
-                "/api/ds/properties",
+                "/api/design-systems/catalog/properties",
                 """{"componentId":"$component","name":"background","type":"color"}""",
                 admin = true,
             ).bodyAsText(),
         )
         val focus = id(
             post(
-                "/api/ds/properties",
+                "/api/design-systems/catalog/properties",
                 """{"componentId":"$component","name":"focusColor","type":"color"}""",
                 admin = true,
             ).bodyAsText(),
         )
         post(
-            "/api/ds/design-system-components",
-            """{"designSystemId":"$designSystem","componentId":"$component"}""",
+            "/api/design-systems/$designSystem/design-system-components",
+            """{"componentId":"$component"}""",
             editor = true,
         )
         val appearance = id(
             post(
-                "/api/ds/appearances",
-                """{"designSystemId":"$designSystem","componentId":"$component","name":"default"}""",
+                "/api/design-systems/$designSystem/appearances",
+                """{"componentId":"$component","name":"default"}""",
                 owner = true,
             ).bodyAsText(),
         )
         val variation = id(
             post(
-                "/api/ds/variations",
-                """{"designSystemId":"$designSystem","componentId":"$component","name":"view"}""",
+                "/api/design-systems/$designSystem/variations",
+                """{"componentId":"$component","name":"view"}""",
                 admin = true,
             ).bodyAsText(),
         )
-        post("/api/ds/property-variations", """{"propertyId":"$background","variationId":"$variation"}""", admin = true)
+        post(
+            "/api/design-systems/$designSystem/property-variations",
+            """{"propertyId":"$background","variationId":"$variation"}""",
+            admin = true,
+        )
         val style = id(
             post(
-                "/api/ds/styles",
-                """{"designSystemId":"$designSystem","variationId":"$variation","name":"accent"}""",
+                "/api/design-systems/$designSystem/styles",
+                """{"variationId":"$variation","name":"accent"}""",
                 admin = true,
             ).bodyAsText(),
         )
         val tokenResponse = post(
-            "/api/ds/tokens",
-            """{"designSystemId":"$designSystem","name":"integration.null.accent","type":"color"}""",
+            "/api/design-systems/$designSystem/tokens",
+            """{"name":"integration.null.accent","type":"color"}""",
             owner = true,
         )
         assertEquals(HttpStatusCode.Created, tokenResponse.status, tokenResponse.bodyAsText())
         val token = id(tokenResponse.bodyAsText())
-        val stateSet = id(post("/api/ds/state-sets/resolve", """{"stateIds":[]}""", admin = true).bodyAsText())
+        val stateSet =
+            id(post("/api/design-systems/catalog/state-sets/resolve", """{"stateIds":[]}""", admin = true).bodyAsText())
 
         // Клиент передаёт неиспользуемые поля значения как null: при создании это «не задано».
         val created = post(
-            "/api/ds/variation-property-values",
+            "/api/design-systems/$designSystem/variation-property-values",
             """{"propertyId":"$background","styleId":"$style","appearanceId":"$appearance",""" +
                 """"tokenId":"$token","value":null,"adjustment":null,"stateSetId":"$stateSet"}""",
             editor = true,
         )
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
         assertEquals(token, field(created.bodyAsText(), "tokenId"))
-        val path = "/api/ds/variation-property-values/${id(created.bodyAsText())}"
+        val path = "/api/design-systems/$designSystem/variation-property-values/${id(created.bodyAsText())}"
 
         // В изменении null очищает поле: значение переходит с токена на сырое.
         val raw = patch(path, """{"tokenId":null,"value":"#ffffff","adjustment":null}""")
@@ -268,14 +279,14 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         assertEquals(token, field(get(path).bodyAsText(), "tokenId"))
 
         val invariant = post(
-            "/api/ds/invariant-property-values",
-            """{"propertyId":"$focus","designSystemId":"$designSystem","componentId":"$component",""" +
+            "/api/design-systems/$designSystem/invariant-property-values",
+            """{"propertyId":"$focus","componentId":"$component",""" +
                 """"appearanceId":"$appearance","tokenId":"$token","value":null,"alpha":null,""" +
                 """"adjustment":null,"stateSetId":"$stateSet"}""",
             editor = true,
         )
         assertEquals(HttpStatusCode.Created, invariant.status, invariant.bodyAsText())
-        val invariantPath = "/api/ds/invariant-property-values/${id(invariant.bodyAsText())}"
+        val invariantPath = "/api/design-systems/$designSystem/invariant-property-values/${id(invariant.bodyAsText())}"
         val invariantRaw = patch(invariantPath, """{"tokenId":null,"value":"#000000","adjustment":null}""")
         assertEquals(HttpStatusCode.OK, invariantRaw.status, invariantRaw.bodyAsText())
         assertEquals("null", field(invariantRaw.bodyAsText(), "tokenId"))
@@ -425,77 +436,119 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         val designSystem =
             id(
                 post(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     """{"name":"hidden","projectName":"hidden"}""",
                     owner = true,
                 ).bodyAsText(),
             )
         val compose =
-            id(post("/api/ds/components", """{"name":"Button","platform":"compose"}""", admin = true).bodyAsText())
-        post("/api/ds/properties", """{"componentId":"$compose","name":"shape","type":"value"}""", admin = true)
-        val linkBody = """{"designSystemId":"$designSystem","componentId":"$compose"}"""
-        val link = id(post("/api/ds/design-system-components", linkBody, editor = true).bodyAsText())
+            id(
+                post(
+                    "/api/design-systems/catalog/components",
+                    """{"name":"Button","platform":"compose"}""",
+                    admin = true,
+                ).bodyAsText(),
+            )
+        post(
+            "/api/design-systems/catalog/properties",
+            """{"componentId":"$compose","name":"shape","type":"value"}""",
+            admin = true,
+        )
+        val linkBody = """{"componentId":"$compose"}"""
+        val link =
+            id(post("/api/design-systems/$designSystem/design-system-components", linkBody, editor = true).bodyAsText())
         val imported =
-            post("/api/ds/component-config/import", importBody(designSystem, platform = "compose"), editor = true)
+            post(
+                "/api/design-systems/$designSystem/component-config/import",
+                importBody(designSystem, platform = "compose"),
+                editor = true,
+            )
         assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
 
-        val repeated = post("/api/ds/design-system-components", linkBody, editor = true)
+        val repeated = post("/api/design-systems/$designSystem/design-system-components", linkBody, editor = true)
         assertEquals(link, id(repeated.bodyAsText()))
         val draft = query(
             "SELECT id FROM design_system_versions WHERE design_system_id = '$designSystem' AND status = 'draft'",
         )
         val revision = query("SELECT resolved_draft_revision('$draft'::uuid)")
         val published = post(
-            "/api/ds/design-system-versions",
-            """{"designSystemId":"$designSystem","draftId":"$draft","draftRevision":$revision,"version":"1.0.0"}""",
+            "/api/design-systems/$designSystem/versions",
+            """{"draftId":"$draft","draftRevision":$revision,"version":"1.0.0"}""",
             owner = true,
             idempotencyKey = "publish-hidden",
         )
         assertEquals(HttpStatusCode.Created, published.status, published.bodyAsText())
 
-        val hidden = delete("/api/ds/design-system-components/$link")
+        val hidden = delete("/api/design-systems/$designSystem/design-system-components/$link")
         assertTrue(hidden.status.isSuccess(), hidden.bodyAsText())
-        val links = get("/api/ds/design-system-components").bodyAsText()
+        val links = get("/api/design-systems/$designSystem/design-system-components").bodyAsText()
         assertFalse(links.contains(link), links)
-        assertTrue(get("/api/ds/components").bodyAsText().contains(compose), "a hidden component must stay readable")
-        val appearances = get("/api/ds/design-systems/$designSystem/appearances").bodyAsText()
+        assertTrue(
+            get("/api/design-systems/catalog/components").bodyAsText().contains(compose),
+            "a hidden component must stay readable",
+        )
+        val appearances = get("/api/design-systems/$designSystem/appearances").bodyAsText()
         assertTrue(appearances.contains(compose), appearances)
-        val exportBody = """{"designSystemId":"$designSystem","platform":"compose"}"""
-        assertEquals(0, post("/api/ds/component-config/export", exportBody, viewer = true).entries())
+        val exportBody = """{"platform":"compose"}"""
+        assertEquals(
+            0,
+            post("/api/design-systems/$designSystem/component-config/export", exportBody, viewer = true).entries(),
+        )
 
-        val restored = post("/api/ds/design-system-components", linkBody, editor = true)
+        val restored = post("/api/design-systems/$designSystem/design-system-components", linkBody, editor = true)
         assertEquals(HttpStatusCode.Created, restored.status, restored.bodyAsText())
         assertEquals(link, id(restored.bodyAsText()))
-        assertEquals(1, post("/api/ds/component-config/export", exportBody, viewer = true).entries())
+        assertEquals(
+            1,
+            post("/api/design-systems/$designSystem/component-config/export", exportBody, viewer = true).entries(),
+        )
 
-        assertTrue(delete("/api/ds/design-system-components/$link").status.isSuccess())
+        assertTrue(delete("/api/design-systems/$designSystem/design-system-components/$link").status.isSuccess())
         val reimported =
-            post("/api/ds/component-config/import", importBody(designSystem, platform = "compose"), editor = true)
+            post(
+                "/api/design-systems/$designSystem/component-config/import",
+                importBody(designSystem, platform = "compose"),
+                editor = true,
+            )
         assertEquals(HttpStatusCode.OK, reimported.status, reimported.bodyAsText())
         assertEquals(1, count("design_system_components WHERE id = '$link'"))
-        assertTrue(get("/api/ds/design-system-components").bodyAsText().contains(link))
+        assertTrue(get("/api/design-systems/$designSystem/design-system-components").bodyAsText().contains(link))
     }
 
     @Test
     fun `a link without published history is removed and created again`() = withService {
         val designSystem =
-            id(post("/api/ds/design-systems", """{"name":"draft","projectName":"draft"}""", owner = true).bodyAsText())
+            id(post("/api/design-systems", """{"name":"draft","projectName":"draft"}""", owner = true).bodyAsText())
         val compose =
-            id(post("/api/ds/components", """{"name":"Button","platform":"compose"}""", admin = true).bodyAsText())
-        post("/api/ds/properties", """{"componentId":"$compose","name":"shape","type":"value"}""", admin = true)
-        val linkBody = """{"designSystemId":"$designSystem","componentId":"$compose"}"""
-        val link = id(post("/api/ds/design-system-components", linkBody, editor = true).bodyAsText())
+            id(
+                post(
+                    "/api/design-systems/catalog/components",
+                    """{"name":"Button","platform":"compose"}""",
+                    admin = true,
+                ).bodyAsText(),
+            )
         post(
-            "/api/ds/appearances",
-            """{"designSystemId":"$designSystem","componentId":"$compose","name":"default"}""",
+            "/api/design-systems/catalog/properties",
+            """{"componentId":"$compose","name":"shape","type":"value"}""",
+            admin = true,
+        )
+        val linkBody = """{"componentId":"$compose"}"""
+        val link =
+            id(post("/api/design-systems/$designSystem/design-system-components", linkBody, editor = true).bodyAsText())
+        post(
+            "/api/design-systems/$designSystem/appearances",
+            """{"componentId":"$compose","name":"default"}""",
             owner = true,
         )
 
-        assertTrue(delete("/api/ds/design-system-components/$link").status.isSuccess())
+        assertTrue(delete("/api/design-systems/$designSystem/design-system-components/$link").status.isSuccess())
         assertEquals(0, count("design_system_components WHERE id = '$link'"))
-        assertTrue(get("/api/ds/components").bodyAsText().contains(compose), "a hidden component must stay readable")
+        assertTrue(
+            get("/api/design-systems/catalog/components").bodyAsText().contains(compose),
+            "a hidden component must stay readable",
+        )
 
-        val restored = post("/api/ds/design-system-components", linkBody, editor = true)
+        val restored = post("/api/design-systems/$designSystem/design-system-components", linkBody, editor = true)
         assertEquals(HttpStatusCode.Created, restored.status, restored.bodyAsText())
     }
 
@@ -504,40 +557,56 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         val designSystem =
             id(
                 post(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     """{"name":"deps","projectName":"deps"}""",
                     owner = true,
                 ).bodyAsText(),
             )
         val group =
-            id(post("/api/ds/components", """{"name":"AvatarGroup","platform":"compose"}""", admin = true).bodyAsText())
+            id(
+                post(
+                    "/api/design-systems/catalog/components",
+                    """{"name":"AvatarGroup","platform":"compose"}""",
+                    admin = true,
+                ).bodyAsText(),
+            )
         val avatar =
-            id(post("/api/ds/components", """{"name":"Avatar","platform":"compose"}""", admin = true).bodyAsText())
+            id(
+                post(
+                    "/api/design-systems/catalog/components",
+                    """{"name":"Avatar","platform":"compose"}""",
+                    admin = true,
+                ).bodyAsText(),
+            )
         val links = listOf(group, avatar).map { component ->
             val link = id(
                 post(
-                    "/api/ds/design-system-components",
-                    """{"designSystemId":"$designSystem","componentId":"$component"}""",
+                    "/api/design-systems/$designSystem/design-system-components",
+                    """{"componentId":"$component"}""",
                     editor = true,
                 ).bodyAsText(),
             )
             post(
-                "/api/ds/appearances",
-                """{"designSystemId":"$designSystem","componentId":"$component","name":"default"}""",
+                "/api/design-systems/$designSystem/appearances",
+                """{"componentId":"$component","name":"default"}""",
                 owner = true,
             )
             link
         }
         val dependency = post(
-            "/api/ds/component-deps",
+            "/api/design-systems/catalog/component-deps",
             """{"parentId":"$group","childId":"$avatar","type":"compose"}""",
             admin = true,
         )
         assertTrue(dependency.status.isSuccess(), dependency.bodyAsText())
 
-        links.forEach { link -> assertTrue(delete("/api/ds/design-system-components/$link").status.isSuccess()) }
+        links.forEach { link ->
+            assertTrue(
+                delete("/api/design-systems/$designSystem/design-system-components/$link").status.isSuccess(),
+            )
+        }
 
-        val dependencies = get("/api/ds/component-deps").bodyAsText()
+        val dependencies = get("/api/design-systems/catalog/component-deps").bodyAsText()
         assertTrue(dependencies.contains(group) && dependencies.contains(avatar), dependencies)
     }
 
@@ -546,7 +615,7 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         val designSystem =
             id(
                 post(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     """{"name":"templates","projectName":"templates"}""",
                     owner = true,
                 ).bodyAsText(),
@@ -558,7 +627,9 @@ class ComponentPlatformHttpPostgresIntegrationTest {
             service.postgres.password,
         )
 
-        val templates = json.parseToJsonElement(get("/api/ds/component-templates").bodyAsText()).jsonArray
+        val templates = json.parseToJsonElement(
+            get("/api/design-systems/catalog/component-templates").bodyAsText(),
+        ).jsonArray
         assertEquals(ids.size, templates.size)
         val groupTemplate = templates.single { it.jsonObject.getValue("name").jsonPrimitive.content == "AvatarGroup" }
         assertTrue(
@@ -567,12 +638,16 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         )
 
         val add = { componentId: Any ->
-            """{"designSystemId":"$designSystem","componentId":"$componentId","fromTemplate":true}"""
+            """{"componentId":"$componentId","fromTemplate":true}"""
         }
         val added =
-            post("/api/ds/design-system-components", add(ids.getValue("AvatarGroup")), editor = true)
+            post(
+                "/api/design-systems/$designSystem/design-system-components",
+                add(ids.getValue("AvatarGroup")),
+                editor = true,
+            )
         assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
-        val links = get("/api/ds/design-system-components").bodyAsText()
+        val links = get("/api/design-systems/$designSystem/design-system-components").bodyAsText()
         assertTrue(
             links.contains(ids.getValue("AvatarGroup").toString()) && links.contains(ids.getValue("Avatar").toString()),
         )
@@ -581,28 +656,40 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         assertTrue(seeded > 0)
 
         val repeated =
-            post("/api/ds/design-system-components", add(ids.getValue("AvatarGroup")), editor = true)
+            post(
+                "/api/design-systems/$designSystem/design-system-components",
+                add(ids.getValue("AvatarGroup")),
+                editor = true,
+            )
         assertEquals(HttpStatusCode.Created, repeated.status, repeated.bodyAsText())
         assertEquals(id(added.bodyAsText()), id(repeated.bodyAsText()))
         assertEquals(seeded, count(appearances))
 
-        assertTrue(delete("/api/ds/design-system-components/${id(added.bodyAsText())}").status.isSuccess())
+        assertTrue(
+            delete(
+                "/api/design-systems/$designSystem/design-system-components/${id(added.bodyAsText())}",
+            ).status.isSuccess(),
+        )
         val restored =
-            post("/api/ds/design-system-components", add(ids.getValue("AvatarGroup")), editor = true)
+            post(
+                "/api/design-systems/$designSystem/design-system-components",
+                add(ids.getValue("AvatarGroup")),
+                editor = true,
+            )
         assertEquals(HttpStatusCode.Created, restored.status, restored.bodyAsText())
         assertEquals(seeded, count(appearances), "a hidden component keeps its configuration")
 
         val card = ids.getValue("Card").toString()
-        val cardAdded = post("/api/ds/design-system-components", add(card), editor = true)
+        val cardAdded = post("/api/design-systems/$designSystem/design-system-components", add(card), editor = true)
         assertEquals(HttpStatusCode.Created, cardAdded.status, cardAdded.bodyAsText())
-        val linkChange = json.parseToJsonElement(get("/api/ds/design-systems/$designSystem/changes").bodyAsText())
+        val linkChange = json.parseToJsonElement(get("/api/design-systems/$designSystem/changes").bodyAsText())
             .jsonArray.map { it.jsonObject }
             .single {
                 it.getValue("entityType").jsonPrimitive.content == "design-system-component" &&
                     it.getValue("entityId").jsonPrimitive.content == id(cardAdded.bodyAsText())
             }
         val reverted = service.builder.client.post(
-            "/api/ds/design-systems/$designSystem/changes/${linkChange.getValue(
+            "/api/design-systems/$designSystem/changes/${linkChange.getValue(
                 "changeId",
             ).jsonPrimitive.content}/revert",
         ) {
@@ -614,13 +701,20 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         }
         assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
         assertFalse(
-            get("/api/ds/design-system-components").bodyAsText().contains(card),
+            get("/api/design-systems/$designSystem/design-system-components").bodyAsText().contains(card),
             "the reverted addition is gone",
         )
 
         val compose =
-            id(post("/api/ds/components", """{"name":"Badge","platform":"compose"}""", admin = true).bodyAsText())
-        val withoutTemplate = post("/api/ds/design-system-components", add(compose), editor = true)
+            id(
+                post(
+                    "/api/design-systems/catalog/components",
+                    """{"name":"Badge","platform":"compose"}""",
+                    admin = true,
+                ).bodyAsText(),
+            )
+        val withoutTemplate =
+            post("/api/design-systems/$designSystem/design-system-components", add(compose), editor = true)
         assertEquals(HttpStatusCode.UnprocessableEntity, withoutTemplate.status, withoutTemplate.bodyAsText())
         assertTrue(withoutTemplate.bodyAsText().contains("template_not_found"), withoutTemplate.bodyAsText())
 
@@ -628,9 +722,13 @@ class ComponentPlatformHttpPostgresIntegrationTest {
             "SELECT token_id FROM token_revisions " +
                 "WHERE design_system_id = '$designSystem' AND name = 'round.circle' LIMIT 1",
         )
-        assertTrue(delete("/api/ds/tokens/$roundCircle").status.isSuccess())
+        assertTrue(delete("/api/design-systems/$designSystem/tokens/$roundCircle").status.isSuccess())
         val withoutToken =
-            post("/api/ds/design-system-components", add(ids.getValue("Badge")), editor = true)
+            post(
+                "/api/design-systems/$designSystem/design-system-components",
+                add(ids.getValue("Badge")),
+                editor = true,
+            )
         assertEquals(HttpStatusCode.UnprocessableEntity, withoutToken.status, withoutToken.bodyAsText())
         assertTrue(withoutToken.bodyAsText().contains("round.circle"), withoutToken.bodyAsText())
         assertEquals(
@@ -644,20 +742,26 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         val designSystem =
             id(
                 post(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     """{"name":"foreign","projectName":"foreign"}""",
                     owner = true,
                 ).bodyAsText(),
             )
         val component =
-            id(post("/api/ds/components", """{"name":"Toast","platform":"compose"}""", admin = true).bodyAsText())
+            id(
+                post(
+                    "/api/design-systems/catalog/components",
+                    """{"name":"Toast","platform":"compose"}""",
+                    admin = true,
+                ).bodyAsText(),
+            )
         execute("UPDATE design_systems SET project_id = 'project-b' WHERE id = '$designSystem'")
         execute(
             "INSERT INTO design_system_components (design_system_id, component_id) " +
                 "VALUES ('$designSystem', '$component')",
         )
 
-        assertFalse(get("/api/ds/components").bodyAsText().contains(component))
+        assertFalse(get("/api/design-systems/catalog/components").bodyAsText().contains(component))
     }
 
     @Test

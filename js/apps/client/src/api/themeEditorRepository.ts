@@ -31,7 +31,7 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
     // но есть шаблоны: добавить и вернуть компоненты можно только из раздела. Дополнительные чтения — лишь без связей.
     const hasComponents =
         links.data.some((link) => link.designSystemId === context.designSystemId) ||
-        (await readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request))
+        (await readEditor<AppearanceDto[]>(`${root}/appearances`, request))
             .data.length > 0 ||
         (await componentRepository.loadComponentTemplates(context, signal)).length > 0;
     if (version && version.data.designSystemId !== context.designSystemId)

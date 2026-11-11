@@ -6,7 +6,7 @@
 ## Requirements
 ### Requirement: Скрытый компонент остаётся доступным для чтения
 
-`GET /api/ds/components` и `GET /api/ds/component-deps` SHALL учитывать компоненты с оформлением в дизайн-системе проекта, даже если все их связи удалены. `GET /api/ds/design-systems/{id}/appearances` MUST продолжать возвращать оформления скрытых компонентов. Право записи MUST NOT расширяться.
+`GET /api/projects/{projectId}/design-systems/catalog/components` и `GET /api/projects/{projectId}/design-systems/catalog/component-deps` SHALL учитывать компоненты с оформлением в дизайн-системе проекта, даже если все их связи удалены. `GET /api/projects/{projectId}/design-systems/{designSystemId}/appearances` MUST продолжать возвращать оформления скрытых компонентов. Право записи MUST NOT расширяться.
 
 #### Scenario: Скрыт во всех дизайн-системах проекта
 
@@ -16,7 +16,7 @@
 #### Scenario: Зависимости скрытых компонентов
 
 - **WHEN** родитель и его зависимость связаны только с дизайн-системой проекта и оба скрыты
-- **THEN** `GET /api/ds/component-deps` MUST возвращать зависимость между ними.
+- **THEN** `GET /api/projects/{projectId}/design-systems/catalog/component-deps` MUST возвращать зависимость между ними.
 
 #### Scenario: Чужой проект
 
@@ -25,7 +25,7 @@
 
 ### Requirement: Восстановление скрытой связи
 
-`POST /api/ds/design-system-components` и импорт конфигурации SHALL восстанавливать удалённую связь с опубликованной историей новой ревизией прежней записи, а связь без истории создавать заново. Для активной связи запрос MUST возвращать её же.
+`POST /api/projects/{projectId}/design-systems/{designSystemId}/design-system-components` и импорт конфигурации SHALL восстанавливать удалённую связь с опубликованной историей новой ревизией прежней записи, а связь без истории создавать заново. Для активной связи запрос MUST возвращать её же.
 
 #### Scenario: Возврат связи с опубликованной историей
 
