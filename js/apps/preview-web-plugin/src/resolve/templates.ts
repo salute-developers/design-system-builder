@@ -1,7 +1,7 @@
 import bundledAdapter from '../data/web-adapter.json';
 
 /**
- * Шаблоны многозначных свойств `web-adapter.json` (перенесён из `js/cli/.sdds/web`): по компоненту и конфигурации
+ * Шаблоны многозначных свойств `web-adapter.json` (копия `js/cli/src/data/web-adapter.json`, файлы совпадают): по компоненту и конфигурации
  * `свойство → {ключ ядра: шаблон}`, например `Button.iconMargin → buttonLeftContentMargin: "0 $1 -0.125rem"`.
  */
 export interface WebAdapterEntry {
