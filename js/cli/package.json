@@ -1,6 +1,6 @@
 {
     "name": "@sddsjs/design-system-builder-generator",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "DS Builder web generator: React design-system package from local .sdds data",
     "license": "MIT",
     "type": "module",
