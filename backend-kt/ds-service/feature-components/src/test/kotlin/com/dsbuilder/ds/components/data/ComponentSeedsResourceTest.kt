@@ -19,10 +19,10 @@ class ComponentSeedsResourceTest {
         val root = Json.parseToJsonElement(bytes.decodeToString()).jsonObject
         val components = root.getValue("components").jsonArray
 
-        assertEquals("b9e3453e07266c205b7e015ffe128af33783e3d67c9b9e5b2e9e79323108572f", bytes.sha256())
-        assertEquals(63, components.size)
-        assertEquals(21, root.getValue("dependencies").jsonArray.size)
-        assertEquals(66, components.sumOf { it.jsonObject.getValue("appearances").jsonArray.size })
+        assertEquals("d7ed5d54cf6f1a676959cd892d3fe7beb227700095026d39da6347bb7ce9e1b2", bytes.sha256())
+        assertEquals(90, components.size)
+        assertEquals(38, root.getValue("dependencies").jsonArray.size)
+        assertEquals(104, components.sumOf { it.jsonObject.getValue("appearances").jsonArray.size })
         assertTrue(
             components.all { component ->
                 val value = component.jsonObject
