@@ -21,21 +21,7 @@ internal fun inputObjectSchema(properties: Map<String, McpToolInputDefinition>):
 }
 
 internal fun McpToolInputDefinition.toJsonSchema(): JsonObject = buildJsonObject {
-    if (type != "json") {
-        put(
-            "type",
-            if (nullable) {
-                JsonArray(
-                    listOf(
-                        JsonPrimitive(type),
-                        JsonPrimitive("null"),
-                    ),
-                )
-            } else {
-                JsonPrimitive(type)
-            },
-        )
-    }
+    typeConstraint().forEach { (key, value) -> put(key, value) }
     description?.let { put("description", it) }
     if (allowedValues.isNotEmpty()) {
         put(
@@ -51,6 +37,25 @@ internal fun McpToolInputDefinition.toJsonSchema(): JsonObject = buildJsonObject
     }
     val itemSchema = items ?: itemType?.let { McpToolInputDefinition(type = it) }
     itemSchema?.let { put("items", it.toJsonSchema()) }
+}
+
+private fun McpToolInputDefinition.typeConstraint(): JsonObject = buildJsonObject {
+    if (type != "json") {
+        put(
+            "type",
+            if (nullable) {
+                JsonArray(
+                    listOf(
+                        JsonPrimitive(type),
+                        JsonPrimitive("null"),
+                    ),
+                )
+            } else {
+                JsonPrimitive(type)
+            },
+        )
+    }
+    if (type == "json" && !nullable) put("not", buildJsonObject { put("type", "null") })
 }
 
 /** Проверяет вложенные аргументы до вызова предметного адаптера. */

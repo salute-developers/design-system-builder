@@ -41,6 +41,15 @@ MCP SHALL предоставлять `token_value_create`, `token_value_update`,
 - **THEN** серверная валидация и пересчёт типа семейства MUST выполняться существующим API
 - **THEN** MCP MUST вернуть серверный результат и метаданные без локального назначения типа семьи
 
+#### Scenario: Изменение только палитры
+- **WHEN** вызывается `token_value_update` с `valueId` и `paletteId` без `value`
+- **THEN** MCP MUST передать PATCH без поля `value`, сохранив прежнее значение
+- **THEN** повтор MUST сохранить исходные тело и ключ
+
+#### Scenario: Явный null вместо значения
+- **WHEN** в `token_value_update` передан `value: null`
+- **THEN** схема MUST отклонить аргументы до отправки мутации, поскольку backend не поддерживает такой PATCH
+
 ### Requirement: Операции цветового семейства
 
 MCP SHALL предоставлять `color_token_create`, `color_token_values_update`, `color_token_move`, `color_token_delete`. Они MUST использовать существующий семейный API, адресовать семейство через tokenId его члена и сохранять серверную атомарность одной операции.

@@ -80,6 +80,66 @@ class McpEditorToolsTest {
     }
 
     @Test
+    fun tokenValueUpdateAllowsPaletteOnlyAndRejectsExplicitNullBeforeWriting() = runTest {
+        val fixture = Fixture()
+        val args = Json.parseToJsonElement(
+            """{"valueId":"value","paletteId":"palette","idempotencyKey":"key"}""",
+        ).jsonObject
+        val valueSchema = editorTokenTools.single { it.name == "token_value_update" }.inputSchema.getValue("value")
+        assertFalse(valueSchema.required)
+        assertFalse(valueSchema.nullable)
+        assertFalse(fixture.core.callTool("token_value_update", args).isError)
+        assertEquals("""{"paletteId":"palette"}""", fixture.writes.single().body)
+        assertTrue(fixture.core.callTool("token_value_update", JsonObject(args + ("value" to JsonNull))).isError)
+        assertEquals(1, fixture.writes.size)
+    }
+
+    @Test
+    fun truncatedMutationsNeverReadWholeSystemListsAndCopiesReadTheirNewTarget() = runTest {
+        val fixture = Fixture()
+        fixture.result = HttpMutationResult.Response(
+            200, """{"id":"created"}""", mapOf("x-ds-mutation-metadata-truncated" to "true"), true,
+        )
+        val root = "/api/projects/project/design-systems/system"
+        val wholeSystemLists = setOf("$root/tokens", "$root/token-values", "$root/token-groups", "$root/appearances")
+        for (tool in editorMcpToolDefinitions().filterNot { it.readOnly }) {
+            val start = fixture.reads.size
+            val result = fixture.core.callTool(tool.name, validArguments(tool))
+            assertFalse(result.isError, result.body)
+            val reads = fixture.reads.drop(start)
+            assertTrue(reads.none(wholeSystemLists::contains))
+            when (tool.name) {
+                "component_configuration_create", "component_configuration_duplicate" ->
+                    assertEquals(listOf("$root/appearances/created/editor-model"), reads)
+                "token_create" -> assertEquals(listOf("$root/tokens/created"), reads)
+                "token_value_create" -> assertEquals(listOf("$root/token-values/created"), reads)
+                "token_value_update" -> assertEquals(listOf("$root/token-values/id"), reads)
+                "color_token_move", "color_token_delete", "token_group_delete" ->
+                    assertEquals(listOf("$root/tenants/id", "$root/tenants/id/token-values"), reads)
+                "token_delete", "token_value_delete", "component_configuration_delete" -> assertTrue(reads.isEmpty())
+            }
+        }
+    }
+
+    @Test
+    fun oversizedConfirmationStaysIncompleteWithoutGrowingTheToolResponse() = runTest {
+        val fixture = Fixture()
+        fixture.result = HttpMutationResult.Response(
+            200, "{}", mapOf("x-ds-mutation-metadata-truncated" to "true"), true,
+        )
+        fixture.readBodyOverride = "\"" + "x".repeat(20_000) + "\""
+        val tool = editorTokenTools.single { it.name == "color_token_delete" }
+        val result = fixture.core.callTool(tool.name, validArguments(tool))
+        assertFalse(result.isError)
+        assertTrue(result.body.length < 4_096)
+        val mutation = Json.parseToJsonElement(result.body).jsonObject.getValue("mutation").jsonObject
+        assertEquals(JsonPrimitive(true), mutation["confirmed"])
+        val confirmation = mutation.getValue("confirmation").jsonObject
+        assertEquals(JsonPrimitive(true), confirmation["incomplete"])
+        assertTrue(confirmation.getValue("data").jsonObject.isEmpty())
+    }
+
+    @Test
     fun familyUpdateRejectsMissingDuplicateAndStaleShapePairsBeforeWriting() = runTest {
         val tool = editorTokenTools.single { it.name == "color_token_values_update" }
         val valid = validArguments(tool)
@@ -369,6 +429,8 @@ class McpEditorToolsTest {
 
     private class Fixture(version: String? = null) {
         val writes = mutableListOf<HttpMutationRequest>()
+        val reads = mutableListOf<String>()
+        var readBodyOverride: String? = null
         var contextReads = 0
         var failReads = false
         var readHeaders = mapOf(
@@ -393,6 +455,8 @@ class McpEditorToolsTest {
                 apiKey: String,
             ): AuthenticatedHttpClient = object : AuthenticatedHttpClient {
                 override suspend fun get(path: String): AuthenticatedHttpResult {
+                    reads += path
+                    readBodyOverride?.let { return AuthenticatedHttpResult.Success(it, readHeaders) }
                     if (failReads) return AuthenticatedHttpResult.Failure("unavailable", 503)
                     val body = when {
                         path.endsWith("/tokens/id") ->

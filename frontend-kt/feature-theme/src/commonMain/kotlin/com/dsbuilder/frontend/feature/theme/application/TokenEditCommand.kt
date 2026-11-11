@@ -73,8 +73,8 @@ public sealed interface TokenEditCommand {
     public data class UpdateValue(
         /** Идентификатор значения. */
         public val valueId: String,
-        /** Исходное значение, включая явный JSON null. */
-        public val value: JsonElement,
+        /** Новое исходное значение; отсутствие сохраняет прежнее значение. JSON null не поддерживается backend. */
+        public val value: JsonElement? = null,
         /** Идентификатор палитры. */
         public val paletteId: String? = null,
     ) : TokenEditCommand

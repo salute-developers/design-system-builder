@@ -185,3 +185,9 @@ Keep the adjacent `.json` session file.
 сообщения «Вы успешно авторизованы. Можете закрыть вкладку.» сессия уже сохранена.
 При отказе callback, обмена кода или сохранения показывается страница ошибки;
 повторите `auth login` в терминале.
+
+Mutation confirmations use only the affected resource or tenant and have a shared 16 KiB UTF-8
+budget for read paths and JSON bodies. Oversized bodies are omitted with an incomplete-confirmation
+flag; the original mutation receipt stays confirmed. Deletions without a remaining target do not
+scan DS-wide lists. `token_value_update` may omit `value` to update only `paletteId`; explicit
+`value: null` is rejected before writing.

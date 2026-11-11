@@ -52,10 +52,10 @@ internal val editorTokenTools: List<McpToolDefinition> = listOf(
     ),
     editorTool(
         "token_value_update",
-        "Update one value without changing its token, tenant, platform or mode.",
+        "Update value or paletteId without changing its key. Omit value to keep it; explicit null is not supported.",
         mapOf(
             "valueId" to editorString(required = true),
-            "value" to McpToolInputDefinition(type = "json", required = true, nullable = true),
+            "value" to McpToolInputDefinition(type = "json"),
             "paletteId" to editorString(),
         ),
         readOnly = false,

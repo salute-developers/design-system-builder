@@ -7,6 +7,7 @@ import com.dsbuilder.frontend.core.network.EditorEndpoint
 import com.dsbuilder.frontend.core.network.HttpMutationResult
 import com.dsbuilder.frontend.core.network.MutationHttpMethod
 import com.dsbuilder.frontend.core.network.confirmTruncatedMutation
+import com.dsbuilder.frontend.core.network.createdResourceId
 import com.dsbuilder.frontend.core.network.editorCommandJson
 import com.dsbuilder.frontend.core.network.editorReadResponse
 import com.dsbuilder.frontend.core.network.encodeEditorId
@@ -32,7 +33,12 @@ internal class HttpComponentEditRemoteSource(
         val request = endpoint.request(root, encoded, options.idempotencyKey, options.baseRevision)
         val client = clients.create(runtime.apiUrl.value, runtime.credential)
         val response = client.mutate(request)
-        return client.confirmTruncatedMutation(response, listOfNotNull(endpoint.confirmation(root, encoded)))
+        val createdPath = when (command) {
+            is ComponentEditCommand.CreateConfiguration, is ComponentEditCommand.DuplicateConfiguration ->
+                response.createdResourceId()?.let { "$root/appearances/$it/editor-model" }
+            else -> endpoint.confirmation(root, encoded)
+        }
+        return client.confirmTruncatedMutation(response, listOfNotNull(createdPath))
     }
 
     override suspend fun read(runtime: RuntimeResolution.Resolved, appearanceId: String): HttpMutationResult {
@@ -48,12 +54,10 @@ private val endpoints = mapOf(
     "component_configuration_create" to EditorEndpoint(
         method = MutationHttpMethod.POST,
         path = "/appearances/new",
-        confirmationPath = "/appearances",
     ),
     "component_configuration_duplicate" to EditorEndpoint(
         method = MutationHttpMethod.POST,
         path = "/appearances/{appearanceId}/duplicate",
-        confirmationPath = "/appearances/{appearanceId}/editor-model",
     ),
     "component_configuration_update" to EditorEndpoint(
         method = MutationHttpMethod.PATCH,
@@ -64,7 +68,6 @@ private val endpoints = mapOf(
         method = MutationHttpMethod.DELETE,
         path = "/appearances/{appearanceId}",
         sendsBody = false,
-        confirmationPath = "/appearances",
     ),
     "component_axis_create" to EditorEndpoint(
         method = MutationHttpMethod.POST,

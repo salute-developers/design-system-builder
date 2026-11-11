@@ -31,7 +31,10 @@ internal class HttpThemeEditRemoteSource(private val clients: AuthenticatedHttpC
         val response = client.mutate(request)
         return client.confirmTruncatedMutation(
             response,
-            listOf("$root/tokens", "$root/token-values", "$root/token-groups"),
+            listOf(
+                "$root/tenants/${command.tenantId.encodeEditorId()}",
+                "$root/tenants/${command.tenantId.encodeEditorId()}/token-values",
+            ),
         )
     }
 }

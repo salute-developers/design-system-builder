@@ -67,6 +67,15 @@ class TokenEditTest {
     }
 
     @Test
+    fun paletteOnlyUpdateOmitsValueAndKeepsOriginalRequestOnRetry() = runTest {
+        val fixture = Fixture()
+        val command = TokenEditCommand.UpdateValue("value", paletteId = "palette")
+        repeat(2) { fixture.useCase.execute(command, DraftEditOptions("same-key", baseRevision = 7)) }
+        assertEquals(fixture.requests.first(), fixture.requests.last())
+        assertEquals("""{"paletteId":"palette"}""", fixture.requests.first().body)
+    }
+
+    @Test
     fun allPointOperationsHaveFixedTargetsAndDeleteHasNoBody() = runTest {
         val fixture = Fixture()
         val commands = listOf(

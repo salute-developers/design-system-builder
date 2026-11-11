@@ -7,6 +7,7 @@ import com.dsbuilder.frontend.core.network.EditorEndpoint
 import com.dsbuilder.frontend.core.network.HttpMutationResult
 import com.dsbuilder.frontend.core.network.MutationHttpMethod
 import com.dsbuilder.frontend.core.network.confirmTruncatedMutation
+import com.dsbuilder.frontend.core.network.createdResourceId
 import com.dsbuilder.frontend.core.network.editorCommandJson
 import com.dsbuilder.frontend.core.network.encodeEditorId
 import com.dsbuilder.frontend.feature.theme.application.TokenEditCommand
@@ -29,7 +30,15 @@ internal class HttpTokenEditRemoteSource(private val clients: AuthenticatedHttpC
         val request = endpoint.request(root, encoded, options.idempotencyKey, options.baseRevision)
         val client = clients.create(runtime.apiUrl.value, runtime.credential)
         val response = client.mutate(request)
-        return client.confirmTruncatedMutation(response, listOf("$root/tokens", "$root/token-values"))
+        val createdPath = when (command) {
+            is TokenEditCommand.CreateDefinition -> response.createdResourceId()?.let { "$root/tokens/$it" }
+            is TokenEditCommand.CreateValue -> response.createdResourceId()?.let { "$root/token-values/$it" }
+            else -> null
+        }
+        return client.confirmTruncatedMutation(
+            response,
+            listOfNotNull(createdPath ?: endpoint.confirmation(root, encoded)),
+        )
     }
 }
 
@@ -41,6 +50,7 @@ private val endpoints = mapOf(
     "token_update" to EditorEndpoint(
         method = MutationHttpMethod.PATCH,
         path = "/tokens/{tokenId}",
+        confirmationPath = "/tokens/{tokenId}",
     ),
     "token_delete" to EditorEndpoint(
         method = MutationHttpMethod.DELETE,
@@ -54,6 +64,7 @@ private val endpoints = mapOf(
     "token_value_update" to EditorEndpoint(
         method = MutationHttpMethod.PATCH,
         path = "/token-values/{valueId}",
+        confirmationPath = "/token-values/{valueId}",
     ),
     "token_value_delete" to EditorEndpoint(
         method = MutationHttpMethod.DELETE,
