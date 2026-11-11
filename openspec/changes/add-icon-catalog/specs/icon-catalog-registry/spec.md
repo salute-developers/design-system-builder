@@ -59,12 +59,27 @@
 
 ### Requirement: Проверка содержимого SVG
 
-Сервис SHALL принимать только SVG, у которого корневой элемент `svg`, и MUST отклонять кодом `400` с причиной `unsafe_svg` SVG, содержащий элементы `script`, `foreignObject`, `iframe`, `use` или `image` с внешней ссылкой, атрибуты `on*` или ссылки `javascript:` и внешние URL в `href`/`xlink:href`. Файлы MUST сохраняться в S3 без изменений.
+Сервис SHALL разбирать SVG с отключёнными DTD и внешними сущностями (защита от XXE и billion laughs; документ с `DOCTYPE` или объявлением сущностей MUST отклоняться) и проверять его по allowlist: корневой элемент `svg`; допустимые элементы только графические (`svg`, `g`, `defs`, `path`, `circle`, `ellipse`, `rect`, `line`, `polyline`, `polygon`, `clipPath`, `mask`, `linearGradient`, `radialGradient`, `stop`, `title`, `desc`, `metadata`) и допустимые атрибуты только представления и геометрии (без `on*`, `style`, `href` и `xlink:href`, кроме локальных ссылок вида `#id` в `use`/`fill`/`clip-path`/`mask`). Любой элемент или атрибут вне allowlist (в том числе `script`, `style`, `a`, `animate`, `set`, `foreignObject`, `iframe`, `image`, `use` с внешней ссылкой, `data:` и `javascript:` в значениях) MUST приводить к ответу `400` с причиной `unsafe_svg`. Допустимый перечень зафиксирован в коде и тестируется. Файлы MUST сохраняться в S3 без изменений.
 
 #### Scenario: SVG со скриптом
 
 - **WHEN** в SVG есть элемент `script`
 - **THEN** сервис MUST ответить `400` с причиной `unsafe_svg` и именем иконки, ничего не записав в S3 и БД.
+
+#### Scenario: Анимация, подменяющая ссылку
+
+- **WHEN** в SVG есть `<animate>` или `<set>` с `attributeName="href"` и `to="javascript:…"`
+- **THEN** сервис MUST ответить `400` с причиной `unsafe_svg`.
+
+#### Scenario: Стили и ссылки
+
+- **WHEN** в SVG есть `<style>` с `@import` или `url(http…)`, элемент `<a>` или `data:` URI в `href`
+- **THEN** сервис MUST ответить `400` с причиной `unsafe_svg`.
+
+#### Scenario: DTD и сущности
+
+- **WHEN** SVG содержит `DOCTYPE` с объявлением сущности
+- **THEN** сервис MUST ответить `400` с причиной `unsafe_svg`, не раскрывая сущности.
 
 #### Scenario: Корректный SVG
 
