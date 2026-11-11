@@ -140,7 +140,6 @@ internal object WindowsProcessRunner : ProcessRunner {
     }
 
     private fun mergedEnvironment(extra: Map<String, String>): Map<String, String>? {
-        if (extra.isEmpty()) return null
         val original = GetEnvironmentStringsW() ?: error("Cannot read Windows environment")
         try {
             val result = mutableMapOf<String, String>()
@@ -152,6 +151,7 @@ internal object WindowsProcessRunner : ProcessRunner {
                 cursor = requireNotNull(cursor + entry.length + 1)
             }
             result.putAll(extra)
+            result.keys.removeAll { it.startsWith("DSBUILDER_METRICA_", ignoreCase = true) }
             return result
         } finally {
             FreeEnvironmentStringsW(original)

@@ -40,6 +40,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ExposedProcessingJobStoreIntegrationTest {
     private val url = System.getenv(TEST_DATABASE_URL)?.also(::requireTestDatabase)
     private val user = System.getenv(TEST_DATABASE_USER) ?: "documentation"

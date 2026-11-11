@@ -44,6 +44,7 @@ import kotlin.test.assertTrue
  * Публикация Compose preview plugin (change host-compose-preview-plugin): доступ, проверки архива, запись файлов
  * и меты, идемпотентность, активный билд, очистка и выдача адреса.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class PluginBuildPublishHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = true }
 

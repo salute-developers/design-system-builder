@@ -83,6 +83,9 @@ internal object MacosProcessRunner : ProcessRunner {
     private fun mergedEnvironment(extra: Map<String, String>): Map<Any?, Any?> {
         val environment: MutableMap<Any?, Any?> = NSProcessInfo.processInfo.environment.toMutableMap()
         environment.putAll(extra)
+        environment.keys.filterIsInstance<String>()
+            .filter { it.startsWith("DSBUILDER_METRICA_", ignoreCase = true) }
+            .forEach { environment.remove(it) }
 
         return environment
     }

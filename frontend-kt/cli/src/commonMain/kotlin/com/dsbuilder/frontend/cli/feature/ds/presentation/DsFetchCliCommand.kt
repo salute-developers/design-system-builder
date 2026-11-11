@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.cli.feature.ds.presentation
 
 import com.dsbuilder.frontend.cli.feature.components.presentation.render
 import com.dsbuilder.frontend.cli.feature.theme.presentation.render
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ComponentDestination
@@ -11,7 +12,6 @@ import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseC
 import com.dsbuilder.frontend.feature.theme.application.FetchThemesCommand
 import com.dsbuilder.frontend.feature.theme.application.FetchThemesResult
 import com.dsbuilder.frontend.feature.theme.application.FetchThemesUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.help
@@ -28,7 +28,7 @@ import kotlinx.coroutines.runBlocking
 internal class DsFetchCliCommand(
     private val fetchThemesUseCase: FetchThemesUseCase,
     private val fetchComponentsUseCase: FetchComponentsUseCase,
-) : CliktCommand(name = "fetch") {
+) : AnalyticsCliCommand(name = "fetch", operation = "ds fetch") {
     private val apiKey: String? by option("--api-key")
     private val designSystem: String? by option("--design-system")
     private val platform: TargetPlatform? by option("--platform").targetPlatform()
@@ -41,7 +41,7 @@ internal class DsFetchCliCommand(
     private val to: String? by option("--to")
         .help("Directory of the component package; required with a design-system link without local config.")
 
-    override fun run() {
+    override fun runOperation() {
         val themes = runBlocking {
             fetchThemesUseCase.execute(
                 FetchThemesCommand(

@@ -16,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class CompactJournalPostgresIntegrationTest {
     @Test
     fun `compact projections work above full journal limit and isolate tenants and projects`() {

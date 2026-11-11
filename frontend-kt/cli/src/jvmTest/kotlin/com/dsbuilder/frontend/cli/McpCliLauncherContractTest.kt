@@ -13,6 +13,7 @@ import kotlin.test.assertTrue
 
 private const val PROCESS_TIMEOUT_SECONDS = 10L
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class McpCliLauncherContractTest {
     @Test
     fun mcpServeRespondsToInitializeAndToolsListOverSubprocessStdio() {

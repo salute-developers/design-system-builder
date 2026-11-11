@@ -42,6 +42,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /** Проверяет границу системы через настоящий HTTP-вход и PostgreSQL, без пропуска недоступного Docker. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class DesignSystemRequestScopeHttpPostgresIntegrationTest {
     @Test
     fun `resource ids cannot switch the selected system and deletion replay precedes existence`() {

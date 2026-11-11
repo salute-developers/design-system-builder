@@ -24,6 +24,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** Результат и метаданные повторяются без второй записи даже после удаления предметной сущности. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class KeyedThemeMutationsPostgresIntegrationTest {
     @Test
     fun `all keyed theme mutation methods replay exact results and preserve revisions`() {

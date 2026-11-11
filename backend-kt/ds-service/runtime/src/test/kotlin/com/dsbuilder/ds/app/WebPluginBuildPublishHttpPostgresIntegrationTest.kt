@@ -36,6 +36,7 @@ import kotlin.test.assertTrue
  * публикация, импорт web-меты, выдача адреса web и независимость от билдов Compose. Билды обеих платформ лежат
  * в одном бакете под разными префиксами, как на стендах.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class WebPluginBuildPublishHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = true }
 

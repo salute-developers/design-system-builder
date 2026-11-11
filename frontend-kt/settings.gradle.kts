@@ -53,3 +53,6 @@ include(":plugins:figma-core")
 include(":platform-web")
 include(":cli")
 include(":architecture-tests")
+
+include(":core-analytics")
+include(":analytics-metrica")

@@ -10,6 +10,7 @@ import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusComma
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusErrorCode
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.serialization.Serializable
@@ -152,7 +153,9 @@ public class DsBuilderMcpServerCore(
     private val listProjectsUseCase: ListProjectsUseCase? = null,
     private val listDesignSystemsUseCase: ListDesignSystemsUseCase? = null,
     private val discoverVersionsUseCase: DiscoverDesignSystemVersionsUseCase? = null,
+    private val toolObserver: (String, String) -> Unit = { _, _ -> },
 ) {
+    private val toolOutcomes = mapOf(false to "success", true to "failure")
     private val readContext = McpReadToolContext(config, json)
     private val documentationMcpTools = DocumentationMcpTools(docsReadUseCases, readContext)
     private val codeBindingMcpTools = CodeBindingMcpTools(docsReadUseCases, readContext)
@@ -192,12 +195,23 @@ public class DsBuilderMcpServerCore(
      * Dispatches one MCP tool call to the shared application layer.
      */
     public suspend fun callTool(name: String, arguments: JsonObject = JsonObject(emptyMap())): McpToolResult {
-        nonModelHandlers[name]?.let { return it(arguments) }
-        return if (name in modelToolOperations) {
-            modelMcpTools.read(name, arguments)
-        } else {
-            protocolError("Unknown tool: $name")
+        if (tools().none { it.name == name }) return protocolError("Unknown tool: $name")
+        var outcome = "failure"
+        try {
+            val result = nonModelHandlers[name]?.invoke(arguments) ?: modelMcpTools.read(name, arguments)
+            outcome = toolOutcomes.getValue(result.isError)
+            return result
+        } catch (cancelled: CancellationException) {
+            outcome = "cancelled"
+            throw cancelled
+        } finally {
+            notifyToolObserver(name, outcome)
         }
+    }
+
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    private fun notifyToolObserver(name: String, outcome: String) {
+        try { toolObserver(name, outcome) } catch (_: Exception) { /* Наблюдение не меняет MCP-ответ. */ }
     }
 
     private suspend fun projectGetStatus(arguments: JsonObject): McpToolResult =

@@ -33,6 +33,7 @@ import kotlin.test.assertTrue
  * Стили типографии через HTTP на реальном PostgreSQL: чтение на границе версии, области записи, предметные редакции
  * значений с метаданными, использование по редакциям компонентов, журнал, права.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class TypographyStyleHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

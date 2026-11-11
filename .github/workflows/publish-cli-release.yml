@@ -71,7 +71,20 @@ jobs:
           test "$(lipo -archs "$RUNNER_TEMP/dsbuilder-ios")" = arm64
       - name: Build and check distributions
         working-directory: frontend-kt
+        env:
+          DSBUILDER_ANALYTICS_ENABLED: ${{ vars.DSBUILDER_ANALYTICS_ENABLED_PROM || 'false' }}
+          DSBUILDER_METRICA_COUNTER_ID: ${{ vars.DSBUILDER_METRICA_COUNTER_ID_PROM }}
+          DSBUILDER_METRICA_BASE_URL: ${{ vars.DSBUILDER_METRICA_BASE_URL_PROM }}
+          DSBUILDER_METRICA_CLI_TOKEN: ${{ secrets.DSBUILDER_METRICA_CLI_TOKEN_PROM }}
+          DSBUILDER_METRICA_MCP_TOKEN: ${{ secrets.DSBUILDER_METRICA_MCP_TOKEN_PROM }}
+          DSBUILDER_ANALYTICS_DISABLED: '1'
+          WEB_COUNTER_DEV: ${{ vars.VITE_METRICA_COUNTER_ID_DEV }}
+          WEB_COUNTER_PROM: ${{ vars.VITE_METRICA_COUNTER_ID_PROM }}
         run: |
+          if [[ "$DSBUILDER_ANALYTICS_ENABLED" == true && ( ! "$DSBUILDER_METRICA_COUNTER_ID" =~ ^[1-9][0-9]*$ || "$DSBUILDER_METRICA_COUNTER_ID" == "$WEB_COUNTER_DEV" || "$DSBUILDER_METRICA_COUNTER_ID" == "$WEB_COUNTER_PROM" ) ]]; then
+            echo 'CLI/MCP analytics requires an isolated positive counter distinct from web' >&2
+            exit 1
+          fi
           ./gradlew :cli:distributionTests :cli:jvmTest :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli -PbundleIosCli=true
           python3 cli/distribution/release.py validate --tag "$CLI_RELEASE_TAG" --directory cli/build/distributions
       - uses: actions/upload-artifact@v4
@@ -86,6 +99,8 @@ jobs:
           if-no-files-found: error
 
   smoke:
+    env:
+      DSBUILDER_ANALYTICS_DISABLED: '1'
     needs: build
     strategy:
       fail-fast: false

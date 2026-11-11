@@ -22,6 +22,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /** Срезы разделов возвращают только запрошенные типы выбранной границы и сохраняют права. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class EditorSectionReadsPostgresIntegrationTest {
     @Test
     fun `tenant value reads filter by section types at draft and published boundaries`() {

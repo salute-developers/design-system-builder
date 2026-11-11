@@ -37,6 +37,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Реальные запросы проверяют общую транзакцию версий, фильтры и продолжения без обхода каталога MCP. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class VersionedReadHttpPostgresIntegrationTest {
     @Test
     fun `tenant component style group and journal filters preserve full bodies and server pages`() {

@@ -11,6 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /** V14 размножает общие оси по дизайн-системам, переносит ссылки и ревизии и защищает системы друг от друга. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class VariationAxesMigrationPostgresIntegrationTest {
     @Test
     fun `shared axes are split per design system with their references and revisions`() {

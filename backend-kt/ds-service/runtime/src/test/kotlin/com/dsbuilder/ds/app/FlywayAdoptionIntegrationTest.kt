@@ -11,6 +11,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class FlywayAdoptionIntegrationTest {
     @Test
     fun `transition works on PostgreSQL 16`() = verifyTransition("postgres:16-alpine")

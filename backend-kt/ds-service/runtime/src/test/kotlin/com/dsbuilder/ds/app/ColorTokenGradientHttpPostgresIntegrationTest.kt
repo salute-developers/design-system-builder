@@ -37,6 +37,7 @@ import kotlin.test.assertTrue
  * платформ строкой и слоем при чтении, признак своего значения, журнал без производного типа, откат с пересчётом
  * типа, ссылки на палитру в стопах градиента в текущей и опубликованной версии, связи и удаление растяжки.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ColorTokenGradientHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

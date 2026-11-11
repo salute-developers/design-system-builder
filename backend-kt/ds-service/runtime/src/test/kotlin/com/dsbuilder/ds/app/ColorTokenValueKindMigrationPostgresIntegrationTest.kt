@@ -32,6 +32,7 @@ import kotlin.test.assertTrue
  * V15 на данных сида: градиентные семейства сида в прежнем виде (12 заглушек и 5 настоящих градиентов) в исходной,
  * опубликованной и черновой границах приводятся к правилу вида значений без черновых редакций и записей журнала.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ColorTokenValueKindMigrationPostgresIntegrationTest {
     private val definitions = resource("/dsbuilder/ds/seeds/token-definitions.json").jsonArray.map { it.jsonObject }
         .filter { "gradient" in it.text("name") }.distinctBy { it.text("name") }

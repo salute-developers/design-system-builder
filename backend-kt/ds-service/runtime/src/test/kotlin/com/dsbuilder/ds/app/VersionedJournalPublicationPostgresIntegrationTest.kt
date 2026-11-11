@@ -42,6 +42,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class VersionedJournalPublicationPostgresIntegrationTest {
     @Test
     fun `partial token revert preserves neighbours bumps revision and uses new theme baseline`() {

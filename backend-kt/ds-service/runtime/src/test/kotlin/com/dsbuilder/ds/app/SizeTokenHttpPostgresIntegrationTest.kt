@@ -42,6 +42,7 @@ import kotlin.time.Duration.Companion.seconds
  * предупреждениями параллельной записи, журнал и откат, повтор создания, логическое удаление, ссылка цвета слоя тени
  * на палитру, права и коды ошибок.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class SizeTokenHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 

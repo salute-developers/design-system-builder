@@ -51,8 +51,8 @@ Usage:
   tools/verify <fast|full|audit|policy> [options]
 
 Modes:
-  fast    Run configured FAST commands for changed repository contours.
-  full    Run FULL commands and Strictacode compare gates.
+  fast    Run Strictacode preflight, then fast checks and unit tests.
+  full    Run Strictacode preflight, then complete tests and builds.
   audit   Write Strictacode reports without changing baselines.
   policy  Check protected paths only.
 
@@ -343,6 +343,16 @@ fi
 
 validate_openspec
 
+# Analyze every selected contour before starting any expensive verification command.
+if [[ "$mode" == "fast" || "$mode" == "full" ]]; then
+  for record in "${CONTOURS[@]}"; do
+    IFS=$'\t' read -r name changed_path cwd fast_command full_command audit_command compare_command <<< "$record"
+    [[ "$all_contours" == "true" ]] || path_changed "$changed_path" || continue
+    log "Strictacode preflight: $name"
+    run_command "$cwd" "$compare_command"
+  done
+fi
+
 for record in "${CONTOURS[@]}"; do
   IFS=$'\t' read -r name changed_path cwd fast_command full_command audit_command compare_command <<< "$record"
   [[ "$all_contours" == "true" ]] || path_changed "$changed_path" || continue
@@ -351,7 +361,6 @@ for record in "${CONTOURS[@]}"; do
     fast) run_command "$cwd" "$fast_command" ;;
     full)
       run_command "$cwd" "$full_command"
-      run_command "$cwd" "$compare_command"
       ;;
     audit) run_command "$cwd" "$audit_command" ;;
   esac

@@ -1,3 +1,5 @@
+import java.net.URI
+import java.security.MessageDigest
 import org.gradle.api.tasks.JavaExec
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.jvm.application.tasks.CreateStartScripts
@@ -45,6 +47,44 @@ val generateCliVersion by tasks.registering {
     }
 }
 
+val analyticsKeys = listOf("COUNTER_ID", "CLI_TOKEN", "MCP_TOKEN", "BASE_URL")
+val analyticsValues = analyticsKeys.associateWith { providers.environmentVariable("DSBUILDER_METRICA_$it").orElse("") }
+val analyticsEnabled = providers.environmentVariable("DSBUILDER_ANALYTICS_ENABLED").orElse("false")
+val analyticsDirectory = layout.buildDirectory.dir("generated/analytics")
+val generateAnalyticsConfig by tasks.registering {
+    analyticsValues.forEach { (key, value) ->
+        inputs.property(key, value.map { MessageDigest.getInstance("SHA-256")
+            .digest(it.toByteArray()).joinToString("") { byte -> "%02x".format(byte) } })
+    }
+    inputs.property("enabled", analyticsEnabled)
+    outputs.dir(analyticsDirectory)
+    // Секреты не попадают в удалённый build cache.
+    outputs.cacheIf { false }
+    doLast {
+        val enabled = analyticsEnabled.get() == "true"
+        val values = analyticsValues.mapValues { it.value.get() }
+        val baseUri = runCatching { URI(values.getValue("BASE_URL")) }.getOrNull()
+        require(!enabled || (values.values.all { it.isNotBlank() } &&
+            values.getValue("COUNTER_ID").toLongOrNull()?.let { it > 0 } == true &&
+            values.getValue("CLI_TOKEN") != values.getValue("MCP_TOKEN") &&
+            baseUri?.let { uri ->
+                uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.rawUserInfo == null &&
+                    uri.rawQuery == null && uri.rawFragment == null
+            } == true)) {
+            "Enabled analytics requires a positive counter, distinct channel tokens and HTTPS base URL"
+        }
+        fun literal(value: String): String = value.map { it.code }.joinToString(
+            prefix = "intArrayOf(", postfix = ").map { it.toChar() }.joinToString(\"\")",
+        )
+        val output = analyticsDirectory.get().file("com/dsbuilder/frontend/cli/BuiltAnalyticsConfig.kt").asFile
+        output.parentFile.mkdirs()
+        output.writeText("package com.dsbuilder.frontend.cli\n\ninternal object BuiltAnalyticsConfig {\n" +
+            "    val enabled = $enabled\n" + values.entries.joinToString("") { (key, value) ->
+                "    val $key = ${literal(if (enabled) value else "")}\n"
+            } + "}\n")
+    }
+}
+
 kotlin {
     jvm {
         binaries {
@@ -83,8 +123,11 @@ kotlin {
     sourceSets {
         commonMain {
             kotlin.srcDir(generateCliVersion.map { generatedVersionDirectory.get() })
+            kotlin.srcDir(generateAnalyticsConfig.map { analyticsDirectory.get() })
         }
         commonMain.dependencies {
+            api(projects.coreAnalytics)
+            implementation(projects.analyticsMetrica)
             implementation(projects.coreNetwork)
             implementation(projects.coreAuth)
             implementation(projects.coreWorkspace)

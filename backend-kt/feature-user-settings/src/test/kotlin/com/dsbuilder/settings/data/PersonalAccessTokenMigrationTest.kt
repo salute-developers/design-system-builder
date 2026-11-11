@@ -16,6 +16,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class PersonalAccessTokenMigrationTest {
     @Test fun `existing projects database migrates and old keys stay revoked after restart`(): Unit = runBlocking {
         val postgres = PostgreSQLContainer<Nothing>("postgres:16-alpine")

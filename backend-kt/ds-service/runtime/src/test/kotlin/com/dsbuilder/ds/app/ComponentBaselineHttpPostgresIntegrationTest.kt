@@ -22,6 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** Исходные компоненты создаются до черновика, а ручные изменения остаются видимыми и отменяемыми. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ComponentBaselineHttpPostgresIntegrationTest {
     @Test
     fun `initial component configurations are baseline and later edits can be reverted`() {

@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ComponentDestination
@@ -7,7 +8,6 @@ import com.dsbuilder.frontend.feature.components.application.FetchComponentsComm
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsResult
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.FetchSource
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.help
@@ -19,7 +19,7 @@ import kotlinx.coroutines.runBlocking
  */
 internal class ComponentsFetchCliCommand(
     private val fetchComponentsUseCase: FetchComponentsUseCase,
-) : CliktCommand(name = "fetch") {
+) : AnalyticsCliCommand(name = "fetch", operation = "components fetch") {
     private val to: String? by option("--to")
 
     private val apiKey: String? by option("--api-key")
@@ -29,7 +29,7 @@ internal class ComponentsFetchCliCommand(
 
     private val designSystem: String? by option("--design-system")
 
-    override fun run() {
+    override fun runOperation() {
         val result = runBlocking {
             fetchComponentsUseCase.execute(
                 FetchComponentsCommand(

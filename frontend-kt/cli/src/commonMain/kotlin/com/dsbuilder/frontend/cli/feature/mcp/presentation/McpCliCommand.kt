@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.mcp.presentation
 
+import com.dsbuilder.frontend.cli.CliAnalyticsSession
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
@@ -50,9 +51,11 @@ internal class McpServeCliCommand(
     private val workspace: String? by option("--workspace")
 
     override fun run() {
+        currentContext.findObject<CliAnalyticsSession>()?.prepare()
         runBlocking {
             try {
-                DsBuilderMcpServerCore(
+                var operations: Set<String> = emptySet()
+                val core = DsBuilderMcpServerCore(
                     config = McpServerConfig(apiUrlOverride = null, workspace = workspace),
                     projectStatusReader = CheckProjectStatusMcpReader(checkProjectStatusUseCase),
                     docsReadUseCases = docsReadUseCases,
@@ -61,7 +64,17 @@ internal class McpServeCliCommand(
                     listProjectsUseCase = listProjectsUseCase,
                     listDesignSystemsUseCase = listDesignSystemsUseCase,
                     discoverVersionsUseCase = discoverVersionsUseCase,
-                ).serveStandardIo()
+                    toolObserver = { operation, outcome ->
+                        currentContext.findObject<CliAnalyticsSession>()?.record(
+                            "mcp",
+                            operations,
+                            operation,
+                            outcome,
+                        )
+                    },
+                )
+                operations = core.tools().map { it.name }.toSet()
+                core.serveStandardIo()
             } finally {
                 runtime.close()
             }

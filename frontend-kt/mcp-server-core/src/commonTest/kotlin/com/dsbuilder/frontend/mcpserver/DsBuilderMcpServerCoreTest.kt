@@ -44,6 +44,10 @@ import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCas
 import com.dsbuilder.frontend.feature.ds.dsApplicationModule
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusErrorCode
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -60,6 +64,43 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DsBuilderMcpServerCoreTest {
+    @Test fun toolCancellationIsObservedAndPreserved() = runTest {
+        val entered = CompletableDeferred<Unit>()
+        val outcomes = mutableListOf<String>()
+        val core = server(
+            projectStatusReader = McpProjectStatusReader { _, _, _ ->
+                entered.complete(Unit)
+                awaitCancellation()
+            },
+            toolObserver = { _, outcome -> outcomes += outcome },
+        )
+        val call = async { core.callTool("project_get_status") }
+        entered.await()
+        call.cancelAndJoin()
+        assertTrue(call.isCancelled)
+        assertEquals(listOf("cancelled"), outcomes)
+    }
+
+    @Test fun observerCoversActualRegistryErrorsAndIgnoresUnknownNames() = runTest {
+        val events = mutableListOf<Pair<String, String>>()
+        val core = server(
+            toolObserver = { name, outcome ->
+                events += name to outcome
+            },
+        )
+        val names = core.tools().map { it.name }
+        assertTrue(events.isEmpty())
+        for (name in names) {
+            val result = core.callTool(name)
+            assertEquals(name to if (result.isError) "failure" else "success", events.last())
+        }
+        assertEquals(names, events.map { it.first })
+        core.callTool("unknown-sensitive-name")
+        assertEquals(names.size, events.size)
+        val broken = server(toolObserver = { _, _ -> error("observer down") })
+        assertEquals(core.callTool("project_get_status"), broken.callTool("project_get_status"))
+    }
+
     @Test
     fun appearanceReadUsesExplicitIdAndVersionArgumentOverridesTheUri() = runTest {
         val paths = mutableListOf<String>()
@@ -768,12 +809,14 @@ class DsBuilderMcpServerCoreTest {
         docsReadUseCases: DocsReadUseCases? = null,
         componentReadUseCases: ComponentReadUseCases? = null,
         modelReadUseCase: ReadDesignSystemModelUseCase = modelReader(contextResolver),
+        toolObserver: (String, String) -> Unit = { _, _ -> },
     ): DsBuilderMcpServerCore = DsBuilderMcpServerCore(
         config = config,
         projectStatusReader = projectStatusReader,
         docsReadUseCases = docsReadUseCases,
         componentReadUseCases = componentReadUseCases,
         modelReadUseCase = modelReadUseCase,
+        toolObserver = toolObserver,
     )
 
     private fun modelReader(
