@@ -17,6 +17,14 @@ data class ColorTokenFamily(
     /** Полное имя обязательного члена семейства `<group>.default.<name>`. */
     fun defaultMember(): String = "$group.$DEFAULT_SUBGROUP.$name"
 
+    /** Все возможные имена членов для ограниченного чтения; членство дополнительно проверяется через [memberOf]. */
+    fun candidateNames(): Set<String> {
+        val subgroups = if (group == BACKGROUND_GROUP) BACKGROUND_SUBGROUPS else CONTEXT_SUBGROUPS
+        return subgroups.flatMap { subgroup ->
+            (listOf(name) + STATES.map { "$name-$it" }).map { "$group.$subgroup.$it" }
+        }.toSet()
+    }
+
     /**
      * Входит ли определение типа [definitionType] с полным именем [fullName] в семейство. Членство определяется
      * правилом имени независимо от текущего типа: тип производный, и после отката одного определения члены

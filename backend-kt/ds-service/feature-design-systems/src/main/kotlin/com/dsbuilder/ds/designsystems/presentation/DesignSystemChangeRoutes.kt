@@ -12,6 +12,7 @@ import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.designsystems.application.DraftAddressTarget
 import com.dsbuilder.ds.designsystems.application.DraftChangeRevertTarget
 import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.RevertDraftChangeUseCase
@@ -45,7 +46,159 @@ fun Route.designSystemChangeRoutes(
     tokenIdsRoute(evaluator, list)
     revertChangeRoute(evaluator, revert, json)
     revertChangesRoute(evaluator, revertBatch, json)
+    addressedRevertRoutes(evaluator, revertBatch, json)
 }
+
+private fun Route.addressedRevertRoutes(evaluator: PolicyEvaluator, useCase: RevertDraftChangesUseCase, json: Json) {
+    val strict = Json(json) { ignoreUnknownKeys = false }
+    post(dsRoutePath("/api/design-systems/{designSystemId}/changes/revert-by-address")) {
+        val context = TrustedDsRequestContextMapper.map(
+            call.dsTrustedHeaders(), evaluator,
+            call.request.queryParameters["versionId"],
+        ) ?: return@post call.respondFailure(DsFailure.Forbidden)
+        val owner = call.dsPathDesignSystemId()?.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val key = call.dsTrustedHeaders()["Idempotency-Key"]?.takeIf { it.isNotBlank() }
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("idempotency_key_required"))
+        val body = call.receiveText()
+        val request = runCatching {
+            require(body.length <= MAX_REVERT_BATCH_BODY)
+            strict.decodeFromString<AddressedRevertRequest>(body)
+        }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("INVALID_REVERT_REQUEST"))
+        val draft = request.draftId.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_draft_id"))
+        val targets = request.targets.map { target ->
+            val id = target.entityId.uuid()
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_entity_id"))
+            DraftAddressTarget(target.entityType, id, target.expectedRevision)
+        }
+        when (
+            val result = useCase.executeAddressed(
+                context.withIdempotentResponse { _: Unit ->
+                    json.encodeToString(OkResponse())
+                },
+                DesignSystemId(owner),
+                draft,
+                targets,
+                key,
+            )
+        ) {
+            is DsResult.Success -> call.respondSuccess(result, OkResponse())
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+    post(dsRoutePath("/api/design-systems/{designSystemId}/changes/token-targets")) {
+        val context = TrustedDsRequestContextMapper.map(
+            call.dsTrustedHeaders(), evaluator,
+            call.request.queryParameters["versionId"],
+        ) ?: return@post call.respondFailure(DsFailure.Forbidden)
+        val owner = call.dsPathDesignSystemId()?.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val body = call.receiveText()
+        val request = runCatching {
+            require(body.length <= MAX_REVERT_BATCH_BODY)
+            strict.decodeFromString<TokenTargetsRequest>(body)
+        }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("INVALID_TARGET_REQUEST"))
+        val draft = request.draftId.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_draft_id"))
+        val tenant = request.tenantId.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_tenant_id"))
+        val ids = request.tokenIds.map {
+            it.uuid()
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_token_id"))
+        }
+        if (ids.distinct().size != ids.size) {
+            return@post call.respondFailure(DsFailure.InvalidRequest("duplicate_token_id"))
+        }
+        when (
+            val result = useCase.tokenTargets(
+                context,
+                DesignSystemId(owner),
+                draft,
+                tenant,
+                ids.toSet(),
+                request.cursor,
+            )
+        ) {
+            is DsResult.Success -> call.respondSuccess(
+                result,
+                TokenTargetsResponse(
+                    result.value.draftId.toString(),
+                    result.value.scopeRevision,
+                    result.value.targets.map {
+                        TokenTargetResponse(
+                            it.target.entityType,
+                            it.target.entityId.toString(),
+                            it.target.expectedRevision,
+                            it.operation,
+                        )
+                    },
+                    result.value.nextCursor,
+                ),
+            )
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}
+
+/** Адресная команда полного пакетного отката. */
+@Serializable
+data class AddressedRevertRequest(
+    /** Черновик, выбранный пользователем. */
+    val draftId: String,
+    /** Адреса в порядке отката. */
+    val targets: List<AddressedRevertTargetRequest>,
+)
+
+/** Устойчивая сущность и ожидаемая предметная редакция. */
+@Serializable
+data class AddressedRevertTargetRequest(
+    /** Зарегистрированный тип. */
+    val entityType: String,
+    /** Устойчивый предметный ID. */
+    val entityId: String,
+    /** Предметная редакция из выбранного снимка. */
+    val expectedRevision: Long,
+)
+
+/** Ограниченная область чтения целей сброса инспектора. */
+@Serializable
+data class TokenTargetsRequest(
+    /** Черновик чтения. */
+    val draftId: String,
+    /** Тема значений. */
+    val tenantId: String,
+    /** Определения выбранной области. */
+    val tokenIds: List<String>,
+    /** Продолжение согласованного снимка области. */
+    val cursor: String? = null,
+)
+
+/** Страница адресных целей выбранной области. */
+@Serializable
+data class TokenTargetsResponse(
+    /** Черновик целей. */
+    val draftId: String,
+    /** Отпечаток выбранной области. */
+    val scopeRevision: String,
+    /** Цели страницы. */
+    val targets: List<TokenTargetResponse>,
+    /** Следующая страница области. */
+    val nextCursor: String?,
+)
+
+/** Адресная цель с видом изменения для предметных ограничений инспектора. */
+@Serializable
+data class TokenTargetResponse(
+    /** Предметный тип. */
+    val entityType: String,
+    /** Устойчивый ID. */
+    val entityId: String,
+    /** Редакция цели. */
+    val expectedRevision: Long,
+    /** Создание, изменение или удаление. */
+    val operation: String,
+)
 
 private fun Route.tokenIdsRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
     get(dsRoutePath("/api/design-systems/{designSystemId}/changes/token-ids")) {

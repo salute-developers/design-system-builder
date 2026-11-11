@@ -2,7 +2,9 @@ import { http } from './http';
 import { readEditor, invalidateEditorReads } from './editorReads';
 import { PROJECTS_URL } from './constants';
 import type { ProjectDto, ProjectMemberDto, DesignSystemDto } from './contracts';
-import type { EditorContextKey, DesignSystemVersionDto, DraftChangeDto } from './editorContracts';
+import type { EditorContextKey, DesignSystemVersionDto, DraftChangeDto, DraftAddressTarget, DraftTokenTarget,
+    DraftTokenTargetsPage } from './editorContracts';
+import { isAxiosError } from 'axios';
 import { apiRoot, readRequest } from './editorHttp';
 
 /** Предметный клиент с ограниченным набором операций. */
@@ -70,6 +72,7 @@ export class VersionJournalRepository {
     }
 
     async revertChange(context: EditorContextKey, change: DraftChangeDto, paths?: string[]) {
+        if (!paths?.length) return this.revertChanges(context, [change]);
         if (paths?.length && change.parameterRevertSupported !== true) {
             throw new Error('Сервер не подтвердил поддержку отмены отдельных параметров');
         }
@@ -92,18 +95,61 @@ export class VersionJournalRepository {
      * либо все, либо ни одной. Редакции берутся из одного снимка журнала; не больше 200 записей за запрос.
      */
     async revertChanges(context: EditorContextKey, changes: readonly DraftChangeDto[]) {
+        const draftId = changes[0]?.versionId;
+        if (!draftId || changes.some((change) => change.versionId !== draftId)) throw new Error('Несогласованный черновик');
+        return this.revertAddressed(context, draftId, changes.map((change) => ({
+            entityType: change.entityType, entityId: change.entityId, expectedRevision: change.editRevision,
+        })));
+    }
+
+    async revertAddressed(context: EditorContextKey, draftId: string, targets: readonly DraftAddressTarget[]) {
+        if (!targets.length || targets.length > 200 || context.versionId) throw new Error('Некорректный пакет отката');
         const response = await http.post(
-            `${apiRoot(context.projectId, context.designSystemId)}/changes/revert`,
+            `${apiRoot(context.projectId, context.designSystemId)}/changes/revert-by-address`,
             {
-                changes: changes.map((change) => ({
-                    changeId: change.changeId,
-                    expectedRevision: change.editRevision,
+                draftId,
+                targets: targets.map(({ entityType, entityId, expectedRevision }) => ({
+                    entityType, entityId, expectedRevision,
                 })),
             },
             { headers: { 'Idempotency-Key': crypto.randomUUID() } },
         );
         invalidateEditorReads(context);
         return response;
+    }
+
+    /** Собирает цели только выбранных токенов; общий журнал не загружается. */
+    async listTokenTargets(context: EditorContextKey, tokenIds: ReadonlySet<string>, knownDraftId?: string) {
+        if (context.versionId) throw new Error('Опубликованная версия доступна только для чтения');
+        const draftId = knownDraftId ?? (await this.getDesignSystem(context)).draftId;
+        if (!draftId) throw new Error('Черновик недоступен');
+        const ids = [...tokenIds];
+        for (let attempt = 0; ; attempt++) {
+            const targets: DraftTokenTarget[] = [];
+            try {
+                for (let start = 0; start < ids.length; start += 200) {
+                    let cursor: string | null = null;
+                    let scopeRevision: string | undefined;
+                    const seen = new Set<string>();
+                    do {
+                        const page: DraftTokenTargetsPage = (await readEditor<DraftTokenTargetsPage>(
+                            `${apiRoot(context.projectId, context.designSystemId)}/changes/token-targets`, {},
+                            { draftId, tenantId: context.tenantId, tokenIds: ids.slice(start, start + 200), cursor },
+                        )).data;
+                        if (page.draftId !== draftId) throw new Error('Изменился черновик');
+                        if (scopeRevision !== undefined && scopeRevision !== page.scopeRevision) throw new Error('Изменилась область целей');
+                        scopeRevision = page.scopeRevision;
+                        targets.push(...page.targets);
+                        cursor = page.nextCursor;
+                        if (cursor && (seen.has(cursor) || seen.size >= 64)) throw new Error('Некорректные страницы целей');
+                        if (cursor) seen.add(cursor);
+                    } while (cursor);
+                }
+                return { draftId, targets };
+            } catch (cause) {
+                if (attempt >= 2 || !isAxiosError(cause) || cause.response?.data?.code !== 'TARGET_SNAPSHOT_CHANGED') throw cause;
+            }
+        }
     }
 
     async publish(

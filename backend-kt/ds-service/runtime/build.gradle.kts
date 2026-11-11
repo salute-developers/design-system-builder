@@ -45,3 +45,21 @@ tasks.processResources {
 }
 
 dependencies { implementation("com.dsbuilder.runtime:runtime-contracts") }
+
+// Длительные измерения запускаются явно, отдельно от функциональных проверок.
+tasks.test { exclude("**/ThemeQueryPerformanceTest.class") }
+tasks.register<Test>("queryPerformance") {
+    description = "Сравнивает HTTP-чтения на репрезентативной изолированной PostgreSQL 17."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    include("**/ThemeQueryPerformanceTest.class")
+    environment("DS_QUERY_PERFORMANCE_STATS", "true")
+    systemProperty("ds.performance.output", providers.gradleProperty("performanceOutput")
+        .getOrElse(layout.buildDirectory.file("query-performance/report.json").get().asFile.absolutePath))
+    systemProperty("ds.performance.fixtureImport", providers.gradleProperty("performanceFixtureImport").getOrElse(""))
+    systemProperty("ds.performance.fixtureExport", providers.gradleProperty("performanceFixtureExport").getOrElse(""))
+    systemProperty("ds.performance.legacy", providers.gradleProperty("performanceLegacy").getOrElse("false"))
+    systemProperty("ds.performance.scenario", providers.gradleProperty("performanceScenario").getOrElse(""))
+    outputs.upToDateWhen { false }
+}

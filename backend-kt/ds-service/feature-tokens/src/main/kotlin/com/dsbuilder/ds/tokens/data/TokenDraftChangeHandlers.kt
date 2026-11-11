@@ -143,6 +143,7 @@ private fun tokenValueDraftChangeHandler(listeners: List<TokenRevertListener>): 
         ),
     )
     return object : DraftChangeHandler by delegate {
+        override val supportsLiteralValueBatchRevert: Boolean = listeners.all { it.supportsLiteralValueBatchRevert }
         override fun revertFields(
             versionId: UUID,
             entityId: UUID,
@@ -183,9 +184,21 @@ private fun notifyingRevert(
     // Действие по токену, уже отложенное пакетом, подготовлено по состоянию до первого отката: второе не нужно.
     val after = listeners.map { listener -> Triple(listener, designSystemId, tokenId) }
         .filterNot(DraftRevertBatch::isDeferred)
-        .map { key -> key to key.first.beforeRevert(designSystemId, tokenId) }
+        .map { key ->
+            val action = key.first.beforeBatchRevert(designSystemId, tokenId)
+            key to action
+        }
     return revert().also { reverted ->
-        if (reverted) after.forEach { (key, action) -> if (!DraftRevertBatch.defer(key, action)) action() }
+        if (reverted) {
+            after.forEach { (key, action) ->
+                // Сохраняем маркер токена и отдельный предметный ключ: первое действие покрывает всю исходную группу.
+                if (DraftRevertBatch.defer(key) {}) {
+                    DraftRevertBatch.defer(Triple(key.first, designSystemId, action.key) to "group", action.run)
+                } else {
+                    action.run()
+                }
+            }
+        }
     }
 }
 

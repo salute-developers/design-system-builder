@@ -2,6 +2,8 @@ package com.dsbuilder.ds.app
 
 import org.flywaydb.core.Flyway
 import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.utility.MountableFile
+import java.io.File
 import java.sql.DriverManager
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -18,6 +20,47 @@ class IsolatedPostgresDatabase private constructor(private val databaseName: Str
     val password: String = server.password
 
     private val closed = AtomicBoolean()
+
+    /** Сохраняет только синтетическую БД измерения для одинаковых исходных данных двух версий приложения. */
+    fun exportFixture(path: String) {
+        File(path).parentFile.mkdirs()
+        val result = server.execInContainer(
+            "pg_dump",
+            "-U",
+            username,
+            "-Fc",
+            "-f",
+            "/tmp/query-fixture.dump",
+            databaseName,
+        )
+        check(result.exitCode == 0) { result.stderr }
+        server.copyFileFromContainer("/tmp/query-fixture.dump", path)
+    }
+
+    /** Восстанавливает снимок в собственной временной БД; исходная версия не получает индексы V18. */
+    fun importFixture(path: String, legacy: Boolean) {
+        server.copyFileToContainer(MountableFile.forHostPath(path), "/tmp/query-fixture.dump")
+        val result = server.execInContainer(
+            "pg_restore", "-U", username, "-d", databaseName, "--clean", "--if-exists",
+            "--no-owner", "--exit-on-error", "/tmp/query-fixture.dump",
+        )
+        check(result.exitCode == 0) { result.stderr }
+        if (legacy) {
+            DriverManager.getConnection(jdbcUrl, username, password).use { connection ->
+                connection.createStatement().use {
+                    it.execute(
+                        "DROP INDEX token_values_tenant_token_idx; " +
+                            "DROP INDEX token_value_revisions_owner_sequence_idx; " +
+                            "DROP INDEX token_revisions_owner_sequence_idx; " +
+                            "DELETE FROM flyway_schema_history WHERE version='18'",
+                    )
+                }
+            }
+        }
+        DriverManager.getConnection(jdbcUrl, username, password).use { connection ->
+            connection.createStatement().use { it.execute("ANALYZE") }
+        }
+    }
 
     /** Удаляет только БД этого сценария, в том числе при незакрытом диагностическом соединении. */
     override fun close() {
@@ -43,7 +86,9 @@ class IsolatedPostgresDatabase private constructor(private val databaseName: Str
         }
 
         private fun startServer(): PostgreSQLContainer<Nothing> {
-            val postgres = PostgreSQLContainer<Nothing>("postgres:16-alpine")
+            val postgres = PostgreSQLContainer<Nothing>("postgres:17-alpine")
+            val statistics = System.getenv("DS_QUERY_PERFORMANCE_STATS") == "true"
+            if (statistics) postgres.withCommand("postgres", "-c", "shared_preload_libraries=pg_stat_statements")
             var initialized = false
             try {
                 postgres.start()
@@ -54,6 +99,12 @@ class IsolatedPostgresDatabase private constructor(private val databaseName: Str
                     .locations("classpath:dsbuilder/ds/db/migration")
                     .dataSource(databaseUrl(postgres, TEMPLATE), postgres.username, postgres.password)
                     .load().migrate()
+                if (statistics) {
+                    DriverManager.getConnection(databaseUrl(postgres, TEMPLATE), postgres.username, postgres.password)
+                        .use { connection ->
+                            connection.createStatement().use { it.execute("CREATE EXTENSION pg_stat_statements") }
+                        }
+                }
                 DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
                     connection.createStatement().use { it.execute("ALTER DATABASE $TEMPLATE ALLOW_CONNECTIONS false") }
                 }

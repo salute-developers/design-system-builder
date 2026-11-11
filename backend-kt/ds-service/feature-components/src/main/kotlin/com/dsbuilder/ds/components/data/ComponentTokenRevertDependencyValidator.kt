@@ -8,6 +8,7 @@ import java.util.UUID
 
 /** Отмена отсоединения свойства сначала требует восстановить удалённый токен. */
 class ComponentTokenRevertDependencyValidator : DraftChangeDependencyValidator {
+    override val supportsLiteralValueBatchRevert: Boolean = true
     override suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean {
         val tokenId = when (entityType) {
             "variation-property-value" -> VariationPropertyValuesTable.selectAll().where {

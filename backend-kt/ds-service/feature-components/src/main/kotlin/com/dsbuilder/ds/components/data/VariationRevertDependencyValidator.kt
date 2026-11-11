@@ -8,6 +8,7 @@ import java.util.UUID
 
 /** Отклоняет отмену изменения оси, если восстановленное имя конфликтует в компоненте или оформлении. */
 class VariationRevertDependencyValidator : DraftChangeDependencyValidator {
+    override val supportsLiteralValueBatchRevert: Boolean = true
     override suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean =
         entityType != "variation" || validNames(designSystemId, entityId)
 

@@ -5,6 +5,12 @@ import java.util.UUID
 
 /** Предметный обработчик одного типа версионируемой сущности. */
 interface DraftChangeHandler {
+    /** Гарантирует адресный describeEntity; реализация по умолчанию с полным describe не подходит. */
+    val supportsAddressedRevert: Boolean get() = false
+
+    /** Поддерживает специализацию значений без восстанавливаемых ссылок и изменения типа семейства. */
+    val supportsLiteralValueBatchRevert: Boolean get() = false
+
     /** Устойчивое имя типа в журнале и технических редакциях. */
     val entityType: String
 

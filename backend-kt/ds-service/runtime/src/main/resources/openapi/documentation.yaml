@@ -9892,6 +9892,108 @@ paths:
           schema:
             type: string
             format: uuid
+  "/api/design-systems/{designSystemId}/changes/revert-by-address":
+    post:
+      tags: [Design Systems]
+      summary: Atomically revert selected stable entity addresses in the specified draft without scanning the journal
+      description: Atomically revert selected stable entity addresses in the specified draft without scanning the journal. Conflicts preserve input index; unrelated edits do not invalidate the request.
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressedRevertRequest'
+      responses:
+        '200':
+          description: Successful addressed operation
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Invalid body, duplicate address or token ID, unsupported entity type, or size limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Design system, tenant, subject, or visible change not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: DRAFT_CHANGED, DRAFT_CHANGE_STALE, REVERT_DEPENDENCY_CONFLICT, IDEMPOTENCY_KEY_REUSED, or TARGET_SNAPSHOT_CHANGED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: design-systems:write
+  "/api/design-systems/{designSystemId}/changes/token-targets":
+    post:
+      tags: [Design Systems]
+      summary: Read scoped reset targets including deleted values
+      description: Read scoped reset targets including deleted values. Cursor and scopeRevision depend only on selected tokens and their values in one tenant; no full journal lookup.
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenTargetsRequest'
+      responses:
+        '200':
+          description: Successful addressed operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenTargetsResponse'
+        '400':
+          description: Invalid body, duplicate address or token ID, unsupported entity type, or size limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Design system, tenant, subject, or visible change not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: DRAFT_CHANGED, DRAFT_CHANGE_STALE, REVERT_DEPENDENCY_CONFLICT, IDEMPOTENCY_KEY_REUSED, or TARGET_SNAPSHOT_CHANGED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: design-systems:read
   "/api/design-systems/{designSystemId}/changes/revert":
     post:
       tags:
@@ -14041,6 +14143,61 @@ components:
             pattern: ^/value(?:/|$)
           example:
             - /value/fontSize
+    AddressedRevertTarget:
+      type: object
+      additionalProperties: false
+      required: [entityType, entityId, expectedRevision]
+      properties:
+        entityType: {type: string, minLength: 1, maxLength: 64}
+        entityId: {type: string, format: uuid}
+        expectedRevision: {type: integer, format: int64, minimum: 0}
+    AddressedRevertRequest:
+      type: object
+      additionalProperties: false
+      required: [draftId, targets]
+      properties:
+        draftId: {type: string, format: uuid}
+        targets:
+          type: array
+          minItems: 1
+          maxItems: 200
+          description: Unique entityType/entityId pairs in execution order.
+          items:
+            $ref: '#/components/schemas/AddressedRevertTarget'
+    TokenTargetsRequest:
+      type: object
+      additionalProperties: false
+      required: [draftId, tenantId, tokenIds]
+      properties:
+        draftId: {type: string, format: uuid}
+        tenantId: {type: string, format: uuid}
+        tokenIds:
+          type: array
+          minItems: 1
+          maxItems: 200
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        cursor: {type: string, nullable: true, maxLength: 512}
+    TokenTargetResponse:
+      type: object
+      required: [entityType, entityId, expectedRevision, operation]
+      properties:
+        entityType: {type: string}
+        entityId: {type: string, format: uuid}
+        expectedRevision: {type: integer, format: int64, minimum: 0}
+        operation: {type: string, enum: [created, updated, deleted]}
+    TokenTargetsResponse:
+      type: object
+      required: [draftId, scopeRevision, targets, nextCursor]
+      properties:
+        draftId: {type: string, format: uuid}
+        scopeRevision: {type: string, minLength: 64, maxLength: 64}
+        targets:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/TokenTargetResponse'
+        nextCursor: {type: string, nullable: true, maxLength: 512}
     RevertDraftChanges:
       type: object
       additionalProperties: false

@@ -33,6 +33,7 @@ fun themeDraftChangeHandlers(
 
 /** Скрывает технические создания начальных значений новой темы за одной записью tenant. */
 fun themeDraftChangePolicy(): DraftChangePolicy = object : DraftChangePolicy {
+    override val supportsLiteralValueBatchRevert: Boolean = true
     override val preservesNonEmpty: Boolean = true
 
     override fun visible(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> =

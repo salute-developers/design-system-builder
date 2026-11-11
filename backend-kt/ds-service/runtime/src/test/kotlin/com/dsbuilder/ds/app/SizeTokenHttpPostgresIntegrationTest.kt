@@ -423,7 +423,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         val androidValue = api.valueId(scope.designSystemId, scope.tenantA, roundL, "android")
         val change = api.changes(scope.designSystemId)
             .single { it.text("entityType") == "token-value" && it.text("entityId") == androidValue }
-        api.revert(scope.designSystemId, change.text("changeId"), change.long("editRevision"))
+        api.revert(scope.designSystemId, change)
         assertEquals("true", db.overridden(scope.tenantA, roundL, "android"))
         assertEquals("""[{"kind": "round", "cornerRadius": 18}]""", db.value(scope.tenantA, roundL, "android"))
         assertEquals("""["1.875rem"]""", db.value(scope.tenantA, roundL, "web"))
@@ -618,8 +618,7 @@ class SizeTokenHttpPostgresIntegrationTest {
             .single { it.text("entityType") == "token-value" && it.text("entityId") == webValue }
         val conflict = api.revert(
             scope.designSystemId,
-            change.text("changeId"),
-            change.long("editRevision"),
+            change,
             HttpStatusCode.Conflict,
         )
         assertEquals("REVERT_DEPENDENCY_CONFLICT", conflict.text("code"))
@@ -754,14 +753,20 @@ class SizeTokenHttpPostgresIntegrationTest {
 
         suspend fun revert(
             designSystemId: String,
-            changeId: String,
-            revision: Long,
+            change: JsonElement,
             status: HttpStatusCode = HttpStatusCode.OK,
         ): JsonObject {
-            val response = client.request("/api/design-systems/$designSystemId/changes/$changeId/revert") {
+            val response = client.request("/api/design-systems/$designSystemId/changes/revert-by-address") {
                 method = HttpMethod.Post
                 trusted(OWNER)
-                header("X-DS-Base-Revision", revision.toString())
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"draftId":"${change.text(
+                        "versionId",
+                    )}","targets":[{"entityType":"${change.text(
+                        "entityType",
+                    )}","entityId":"${change.text("entityId")}","expectedRevision":${change.long("editRevision")}}]}""",
+                )
                 header("Idempotency-Key", UUID.randomUUID().toString())
             }
             assertEquals(status, response.status, response.bodyAsText())

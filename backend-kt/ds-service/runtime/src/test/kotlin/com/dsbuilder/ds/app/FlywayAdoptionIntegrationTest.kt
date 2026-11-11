@@ -60,7 +60,7 @@ class FlywayAdoptionIntegrationTest {
                 scalar(connection, "SELECT count(*) FROM tenants WHERE design_system_id = '$DESIGN_SYSTEM'"),
             )
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_values WHERE token_id = '$TOKEN'"))
-            assertEquals("18", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
+            assertEquals("19", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
             assertEquals(0, adoptAndMigrate(connection, flyway))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_values WHERE token_id = '$TOKEN'"))
             connection.createStatement().use {
@@ -113,7 +113,7 @@ class FlywayAdoptionIntegrationTest {
         }
         val url = createDatabase(postgres, "future_history")
         val flyway = flyway(url, postgres)
-        assertEquals(18, flyway.migrate().migrationsExecuted)
+        assertEquals(19, flyway.migrate().migrationsExecuted)
         connection(url, postgres).use { connection ->
             assertEquals(0, adoptAndMigrate(connection, flyway))
             connection.createStatement().use {
@@ -245,7 +245,7 @@ class FlywayAdoptionIntegrationTest {
             applySchema(connection)
             insertThemes(connection)
             assertEquals(17, adoptAndMigrate(connection, flyway(url, postgres)))
-            assertEquals("18", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
+            assertEquals("19", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM tenant_revisions"))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_value_revisions"))
             assertEquals(
@@ -372,7 +372,7 @@ class FlywayAdoptionIntegrationTest {
 
     private companion object {
         const val BASELINE_FINGERPRINT = "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
-        const val FINAL_FINGERPRINT = "f04c5a7c1ac43d93ed6f35596e32b478637189c2d1b478e0fbfc046bfd9004bb"
+        const val FINAL_FINGERPRINT = "5e187c03cb4636a2f5818ce20e480e84ae842be1dc5f78b5f9b10e1c9b59c1ed"
         const val DESIGN_SYSTEM = "11111111-1111-4111-8111-111111111111"
         const val FIRST_THEME = "22222222-2222-4222-8222-222222222222"
         const val SECOND_THEME = "33333333-3333-4333-8333-333333333333"

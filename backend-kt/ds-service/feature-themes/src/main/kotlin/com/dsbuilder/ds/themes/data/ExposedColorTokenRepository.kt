@@ -60,8 +60,13 @@ class ExposedColorTokenRepository(
         return familyOf(rows, tokenId)?.let(ColorTokenLookup::Found) ?: ColorTokenLookup.OutsideFamily
     }
 
-    override fun familyInDraft(designSystemId: UUID, tokenId: UUID): StoredColorTokenFamily? =
-        familyOf(currentThemeTokenRows(designSystemId), tokenId)
+    override fun familyInDraft(designSystemId: UUID, tokenId: UUID): StoredColorTokenFamily? {
+        val token = currentThemeTokenRows(designSystemId, setOf(tokenId)).singleOrNull() ?: return null
+        val family = token[ThemeTokenRevisionsTable.type]?.let {
+            ColorTokenFamily.of(it, token[ThemeTokenRevisionsTable.name])
+        } ?: return null
+        return familyOf(currentThemeTokenRows(designSystemId, names = family.candidateNames()), tokenId)
+    }
 
     override fun familiesInDraft(designSystemId: UUID, tokenIds: Collection<UUID>): Map<UUID, StoredColorTokenFamily> {
         if (tokenIds.isEmpty()) return emptyMap()

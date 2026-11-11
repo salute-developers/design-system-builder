@@ -182,6 +182,8 @@ class ExposedTransactionRunner(
     }
 
     private fun configure(context: DsRequestContext) {
+        clearResolvedSubjectReads()
+        TransactionManager.current().putUserData(DIAGNOSTIC_CORRELATION, context.correlationId)
         TransactionManager.current().putUserData(requestMutationScopeChecked, false)
         TransactionManager.current().exec(
             "SELECT set_config('ds.design_system_id', ?, true)",
@@ -219,10 +221,42 @@ class ExposedTransactionRunner(
         }
     }
 
-    private fun mutationMetadata(): String? = TransactionManager.current().exec(
-        "SELECT NULLIF(current_setting('ds.mutation_metadata', true), '')",
-    ) { rows ->
-        if (rows.next()) rows.getString(1) else null
+    private fun mutationMetadata(): String? {
+        return TransactionManager.current().exec(
+            "SELECT NULLIF(current_setting('ds.mutation_metadata', true), '')",
+        ) { rows ->
+            if (rows.next()) rows.getString(1) else null
+        }
+    }
+
+    private suspend fun <T> executeAttempt(
+        readOnly: Boolean,
+        attempt: Int,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = withContext(Dispatchers.IO) {
+        val diagnostics = TransactionDiagnostics.start(readOnly, attempt)
+        var succeeded = false
+        try {
+            transaction(db = database) {
+                val acquired = connection
+                diagnostics?.connected()
+                if (diagnostics != null) {
+                    registerInterceptor(diagnostics)
+                    putUserData(activeTransactionDiagnostics, diagnostics)
+                }
+                acquired.readOnly = readOnly
+                connection.transactionIsolation = if (readOnly) {
+                    Connection.TRANSACTION_REPEATABLE_READ
+                } else {
+                    Connection.TRANSACTION_SERIALIZABLE
+                }
+                val result = runBlocking { block() }
+                if (result is DsResult.Failure) rollback()
+                result
+            }.also { succeeded = it is DsResult.Success }
+        } finally {
+            diagnostics?.finished(succeeded)
+        }
     }
 
     @Suppress("ReturnCount")
@@ -233,19 +267,7 @@ class ExposedTransactionRunner(
         var lastFailure: SQLException? = null
         repeat(if (readOnly) 1 else SERIALIZABLE_ATTEMPTS) { attempt ->
             try {
-                return withContext(Dispatchers.IO) {
-                    transaction(db = database) {
-                        connection.readOnly = readOnly
-                        connection.transactionIsolation = if (readOnly) {
-                            Connection.TRANSACTION_REPEATABLE_READ
-                        } else {
-                            Connection.TRANSACTION_SERIALIZABLE
-                        }
-                        val result = runBlocking { block() }
-                        if (result is DsResult.Failure) rollback()
-                        result
-                    }
-                }
+                return executeAttempt(readOnly, attempt, block)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: InaccessibleDesignSystemException) {

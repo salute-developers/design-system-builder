@@ -263,6 +263,24 @@ export interface DraftChangeDto {
     parameterRevertSupported?: boolean;
 }
 
+/** Минимальный адрес данных, которые нужно обновить после отмены. */
+export type DraftRefreshChange = Pick<DraftChangeDto, 'entityType' | 'entityId'>;
+
+export interface DraftAddressTarget extends DraftRefreshChange {
+    expectedRevision: number;
+}
+
+export interface DraftTokenTarget extends DraftAddressTarget {
+    operation: 'created' | 'updated' | 'deleted';
+}
+
+export interface DraftTokenTargetsPage {
+    draftId: string;
+    scopeRevision: string;
+    targets: DraftTokenTarget[];
+    nextCursor: string | null;
+}
+
 export interface PendingTokenMutation {
     tokenName: string;
     previousTokenName?: string;

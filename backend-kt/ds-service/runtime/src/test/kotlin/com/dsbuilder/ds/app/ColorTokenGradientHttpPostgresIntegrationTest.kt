@@ -42,6 +42,468 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 
     @Test
+    fun `addressed revert serializes with writes creation rename delete and publication`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                for (operation in listOf("write", "create", "rename", "delete", "publish")) {
+                    val system = api.create(
+                        "/api/design-systems",
+                        OWNER,
+                        """{"name":"race-$operation","projectName":"race-$operation"}""",
+                    )
+                    val tenant = api.createTenant(system, "theme")
+                    val created = api.call(
+                        "POST",
+                        "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                        MAINTAINER,
+                        createBody("brand"),
+                    )
+                    val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                    api.publish(postgres, system, "1.0.0")
+                    assertEquals(
+                        HttpStatusCode.OK,
+                        api.call(
+                            "PUT",
+                            "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values",
+                            EDITOR,
+                            solidBody(token, "#123456"),
+                        ).status,
+                    )
+                    val draft = api.read("/api/design-systems/$system").text("draftId")
+                    val changes = api.journal(system)
+                    val targets = JsonArray(
+                        changes.map { change ->
+                            JsonObject(
+                                mapOf(
+                                    "entityType" to change.getValue("entityType"),
+                                    "entityId" to change.getValue("entityId"),
+                                    "expectedRevision" to change.getValue("editRevision"),
+                                ),
+                            )
+                        },
+                    )
+                    val addressBody = """{"draftId":"$draft","targets":$targets}"""
+                    val selected = api.values(system, tenant).single {
+                        it.text("tokenId") == token && it.text("platform") == "web" && it.text("mode") == "light"
+                    }
+                    val publicationRevision =
+                        text(postgres, "SELECT resolved_draft_revision('$draft')::text", raw = true)
+                    val (reverted, concurrent) = kotlinx.coroutines.withTimeout(30_000) {
+                        coroutineScope {
+                            val revert = async {
+                                api.call(
+                                    "POST",
+                                    "/api/design-systems/$system/changes/revert-by-address",
+                                    OWNER,
+                                    addressBody,
+                                    idempotencyKey = "race-revert-$operation",
+                                )
+                            }
+                            val other = async {
+                                when (operation) {
+                                    "write" -> api.call(
+                                        "PATCH",
+                                        "/api/design-systems/$system/token-values/${selected.text("id")}",
+                                        EDITOR,
+                                        """{"value":["#ABCDEF"]}""",
+                                        base = selected.number("editRevision").toLong(),
+                                    )
+                                    "create" -> api.call(
+                                        "POST",
+                                        "/api/design-systems/$system/tenants",
+                                        EDITOR,
+                                        """{"name":"parallel"}""",
+                                    )
+                                    "rename" -> api.call(
+                                        "PATCH",
+                                        "/api/design-systems/$system/tokens/$token",
+                                        MAINTAINER,
+                                        """{"name":"text.default.renamed"}""",
+                                    )
+                                    "delete" -> api.call("DELETE", "/api/design-systems/$system/tokens/$token", OWNER)
+                                    else -> api.call(
+                                        "POST",
+                                        "/api/design-systems/$system/versions",
+                                        OWNER,
+                                        """{"draftId":"$draft","draftRevision":$publicationRevision,"version":"1.0.1","changelog":"race"}""",
+                                        idempotencyKey = "race-publish",
+                                    )
+                                }
+                            }
+                            revert.await() to other.await()
+                        }
+                    }
+                    assertTrue(
+                        reverted.status in setOf(HttpStatusCode.OK, HttpStatusCode.Conflict),
+                        "$operation revert: ${reverted.status} ${reverted.bodyAsText()}",
+                    )
+                    assertTrue(
+                        concurrent.status in setOf(HttpStatusCode.OK, HttpStatusCode.Created, HttpStatusCode.Conflict),
+                        "$operation other: ${concurrent.status} ${concurrent.bodyAsText()}",
+                    )
+                    assertTrue(reverted.status == HttpStatusCode.OK || concurrent.status != HttpStatusCode.Conflict)
+                    if (operation == "publish") {
+                        assertTrue(
+                            reverted.status != HttpStatusCode.OK || concurrent.status == HttpStatusCode.Conflict,
+                            "$operation: ${reverted.status} / ${concurrent.status}",
+                        )
+                    }
+                    if (operation == "write" && concurrent.status == HttpStatusCode.OK) {
+                        assertEquals("""["#ABCDEF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
+                    }
+                    if (reverted.status == HttpStatusCode.OK && operation != "delete" &&
+                        !(operation == "write" && concurrent.status == HttpStatusCode.OK)
+                    ) {
+                        assertEquals("""["#FFFFFF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
+                    }
+                    assertEquals(
+                        "color",
+                        text(
+                            postgres,
+                            "SELECT type FROM token_revisions WHERE token_id='$token' ORDER BY version_sequence_number DESC LIMIT 1",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `literal batch preserves stale errors rollback and replay`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
+                val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                val valuePath = "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values"
+                assertEquals(HttpStatusCode.OK, api.call("PUT", valuePath, EDITOR, solidBody(token, "#123456")).status)
+                val changes = api.journal(system)
+                assertEquals(6, changes.size)
+                fun body(stale: Int = -1) = changes.mapIndexed { index, change ->
+                    val revision = change.getValue("editRevision").jsonPrimitive.long + if (index == stale) 1 else 0
+                    """{"changeId":"${change.text("changeId")}","expectedRevision":$revision}"""
+                }.joinToString(",", """{"changes":[""", "]}")
+                val path = "/api/design-systems/$system/changes/revert"
+                for (index in listOf(0, 2, 5)) {
+                    val stale = api.call("POST", path, OWNER, body(index), idempotencyKey = "stale-$index")
+                    assertEquals(HttpStatusCode.Conflict, stale.status, stale.bodyAsText())
+                    assertEquals("DRAFT_CHANGE_STALE", api.body(stale).text("code"))
+                    assertEquals(
+                        index.toString(),
+                        api.body(stale).obj("details").array("changeIndex").single().jsonPrimitive.content,
+                    )
+                    assertEquals(6, api.journal(system).size)
+                }
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(
+                            """
+                            CREATE FUNCTION fail_batch_constraint() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='fixture'; END ${'$'}${'$'};
+                            CREATE CONSTRAINT TRIGGER fail_batch AFTER DELETE ON token_value_revisions
+                            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_batch_constraint()
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val failed = api.call("POST", path, OWNER, body(), idempotencyKey = "batch-constraint")
+                assertEquals(HttpStatusCode.Conflict, failed.status, failed.bodyAsText())
+                assertEquals("REVERT_DEPENDENCY_CONFLICT", api.body(failed).text("code"))
+                assertEquals(6, api.journal(system).size)
+                assertEquals(
+                    "0",
+                    text(
+                        postgres,
+                        "SELECT count(*)::text FROM idempotent_requests WHERE idempotency_key='batch-constraint'",
+                    ),
+                )
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use {
+                        it.execute(
+                            "DROP TRIGGER fail_batch ON token_value_revisions; DROP FUNCTION fail_batch_constraint()",
+                        )
+                    }
+                }
+                val draft = api.read("/api/design-systems/$system").text("draftId")
+                val targetPath = "/api/design-systems/$system/changes/token-targets"
+                val selector = """{"draftId":"$draft","tenantId":"$tenant","tokenIds":["$token"]}"""
+                val scoped = api.call("POST", targetPath, VIEWER, selector)
+                assertEquals(HttpStatusCode.OK, scoped.status, scoped.bodyAsText())
+                val scopedBody = api.body(scoped).jsonObject
+                assertEquals(6, scopedBody.array("targets").size)
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.prepareStatement(
+                        """
+                        INSERT INTO entity_edit_states(design_system_version_id,design_system_id,entity_type,
+                          entity_id,revision,last_actor_id,updated_at)
+                        SELECT ?::uuid,?::uuid,'token-value',md5('unrelated-'||i)::uuid,1,'fixture',now()
+                        FROM generate_series(1,100001) i
+                        """.trimIndent(),
+                    ).use { statement ->
+                        statement.setString(1, draft)
+                        statement.setString(2, system)
+                        statement.executeUpdate()
+                    }
+                }
+                val scopedAfter = api.call("POST", targetPath, VIEWER, selector)
+                assertEquals(HttpStatusCode.OK, scopedAfter.status, scopedAfter.bodyAsText())
+                assertEquals(scopedBody, api.body(scopedAfter).jsonObject)
+                val addressPath = "/api/design-systems/$system/changes/revert-by-address"
+                val addressBody = """{"draftId":"$draft","targets":${scopedBody.getValue("targets").jsonArray.map {
+                    JsonObject(it.jsonObject.filterKeys { key -> key != "operation" })
+                }.let(::JsonArray)}}"""
+                val addressTargets = json.parseToJsonElement(addressBody).jsonObject.getValue("targets").jsonArray
+                val discoveryPayload = JsonArray(
+                    addressTargets.map {
+                        JsonObject(it.jsonObject + ("operation" to JsonPrimitive("updated")))
+                    },
+                )
+                val invalidBody = api.call(
+                    "POST",
+                    addressPath,
+                    OWNER,
+                    """{"draftId":"$draft","targets":$discoveryPayload}""",
+                    idempotencyKey = "discovery-is-not-command",
+                )
+                assertEquals(HttpStatusCode.BadRequest, invalidBody.status)
+                assertEquals("INVALID_REVERT_REQUEST", api.body(invalidBody).text("code"))
+                for (index in listOf(0, 2, 5)) {
+                    val staleTargets = JsonArray(
+                        addressTargets.mapIndexed { position, element ->
+                            if (position != index) {
+                                element
+                            } else {
+                                JsonObject(
+                                    element.jsonObject + (
+                                        "expectedRevision" to JsonPrimitive(
+                                            element.jsonObject.getValue("expectedRevision").jsonPrimitive.long + 1,
+                                        )
+                                        ),
+                                )
+                            }
+                        },
+                    )
+                    val stale = api.call(
+                        "POST",
+                        addressPath,
+                        OWNER,
+                        """{"draftId":"$draft","targets":$staleTargets}""",
+                        idempotencyKey = "address-stale-$index",
+                    )
+                    assertEquals(HttpStatusCode.Conflict, stale.status, stale.bodyAsText())
+                    assertEquals("DRAFT_CHANGE_STALE", api.body(stale).text("code"))
+                    assertEquals(
+                        index.toString(),
+                        api.body(stale).obj("details").array("changeIndex").single().jsonPrimitive.content,
+                    )
+                    assertEquals(scopedBody, api.body(api.call("POST", targetPath, VIEWER, selector)).jsonObject)
+                }
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(
+                            """
+                            CREATE FUNCTION fail_batch_constraint() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='fixture'; END ${'$'}${'$'};
+                            CREATE CONSTRAINT TRIGGER fail_batch AFTER DELETE ON token_value_revisions
+                            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_batch_constraint()
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val addressFailed = api.call(
+                    "POST",
+                    addressPath,
+                    OWNER,
+                    addressBody,
+                    idempotencyKey = "address-constraint",
+                )
+                assertEquals(HttpStatusCode.Conflict, addressFailed.status, addressFailed.bodyAsText())
+                assertEquals("REVERT_DEPENDENCY_CONFLICT", api.body(addressFailed).text("code"))
+                assertEquals(scopedBody, api.body(api.call("POST", targetPath, VIEWER, selector)).jsonObject)
+                assertEquals(
+                    "0",
+                    text(
+                        postgres,
+                        "SELECT count(*)::text FROM idempotent_requests WHERE idempotency_key='address-constraint'",
+                    ),
+                )
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use {
+                        it.execute(
+                            "DROP TRIGGER fail_batch ON token_value_revisions; DROP FUNCTION fail_batch_constraint()",
+                        )
+                    }
+                }
+                val wrongDraft = api.call(
+                    "POST",
+                    addressPath,
+                    OWNER,
+                    addressBody.replace(draft, java.util.UUID.randomUUID().toString()),
+                    idempotencyKey = "wrong-draft",
+                )
+                assertEquals(HttpStatusCode.Conflict, wrongDraft.status, wrongDraft.bodyAsText())
+                assertEquals("DRAFT_CHANGED", api.body(wrongDraft).text("code"))
+                val result = api.call("POST", addressPath, OWNER, addressBody, idempotencyKey = "literal-batch")
+                assertEquals(HttpStatusCode.OK, result.status, result.bodyAsText())
+                assertTrue(api.journal(system).isEmpty())
+                assertEquals("""["#FFFFFF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
+                val replay = api.call("POST", addressPath, OWNER, addressBody, idempotencyKey = "literal-batch")
+                assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
+                assertEquals(result.bodyAsText(), replay.bodyAsText())
+                val mismatched = api.call(
+                    "POST",
+                    addressPath,
+                    OWNER,
+                    addressBody.replace("\"expectedRevision\":", "\"expectedRevision\":1"),
+                    idempotencyKey = "literal-batch",
+                )
+                assertEquals(HttpStatusCode.Conflict, mismatched.status)
+                assertEquals("IDEMPOTENCY_KEY_REUSED", api.body(mismatched).text("code"))
+
+                val currentValues = api.read("/api/design-systems/$system/tenants/$tenant/token-values").array("items")
+                val removedValue = value(currentValues, token, "web", "light")
+                val deleted = api.call(
+                    "DELETE",
+                    "/api/design-systems/$system/token-values/${removedValue.text("id")}",
+                    OWNER,
+                    base = removedValue.number("editRevision").toLong(),
+                )
+                assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
+                val deletedTargets = api.body(
+                    api.call("POST", targetPath, VIEWER, selector),
+                ).jsonObject.array("targets")
+                assertEquals(1, deletedTargets.size)
+                assertEquals("deleted", deletedTargets.single().jsonObject.text("operation"))
+                val restoreBody = """{"draftId":"$draft","targets":${JsonArray(
+                    deletedTargets.map {
+                        JsonObject(it.jsonObject.filterKeys { key -> key != "operation" })
+                    },
+                )}}"""
+                assertEquals(
+                    HttpStatusCode.OK,
+                    api.call(
+                        "POST",
+                        addressPath,
+                        OWNER,
+                        restoreBody,
+                        idempotencyKey = "restore-deleted",
+                    ).status,
+                )
+                val newTenant = api.createTenant(system, "new-theme")
+                val newSelector = selector.replace(tenant, newTenant)
+                assertTrue(
+                    api.body(api.call("POST", targetPath, VIEWER, newSelector)).jsonObject.array("targets").isEmpty(),
+                )
+                assertEquals(
+                    HttpStatusCode.OK,
+                    api.call(
+                        "PUT",
+                        "/api/design-systems/$system/tenants/$newTenant/color-tokens/$token/values",
+                        EDITOR,
+                        solidBody(token, "#123456"),
+                    ).status,
+                )
+                val newTargets = api.body(api.call("POST", targetPath, VIEWER, newSelector)).jsonObject.array("targets")
+                assertEquals(6, newTargets.size)
+                val newBody = """{"draftId":"$draft","targets":${JsonArray(
+                    newTargets.map {
+                        JsonObject(it.jsonObject.filterKeys { key -> key != "operation" })
+                    },
+                )}}"""
+                assertEquals(
+                    HttpStatusCode.OK,
+                    api.call(
+                        "POST",
+                        addressPath,
+                        OWNER,
+                        newBody,
+                        idempotencyKey = "restore-new-theme",
+                    ).status,
+                )
+                assertTrue(
+                    api.body(api.call("POST", targetPath, VIEWER, newSelector)).jsonObject.array("targets").isEmpty(),
+                )
+
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(
+                            """
+                            BEGIN;
+                            INSERT INTO tokens(id,design_system_id)
+                              SELECT md5('page-token-'||i)::uuid,'$system' FROM generate_series(1,101) i;
+                            INSERT INTO token_revisions(token_id,design_system_id,design_system_version_id,
+                              version_sequence_number,name,type)
+                              SELECT md5('page-token-'||i)::uuid,'$system','$draft',b.sequence_number,
+                                'text.default.page-'||i,'color' FROM generate_series(1,101) i
+                                CROSS JOIN design_system_versions b WHERE b.id='$draft';
+                            INSERT INTO token_values(id,design_system_id,token_id,tenant_id,platform,mode)
+                              SELECT md5('page-value-'||i)::uuid,'$system',md5('page-token-'||i)::uuid,
+                                '$tenant','web','light' FROM generate_series(1,101) i;
+                            INSERT INTO token_value_revisions(token_value_id,design_system_id,design_system_version_id,
+                              version_sequence_number,value,deleted)
+                              SELECT md5('page-value-'||i)::uuid,'$system','$draft',b.sequence_number,
+                                '["#FFFFFF"]'::jsonb,false FROM generate_series(1,101) i
+                                CROSS JOIN design_system_versions b WHERE b.id='$draft';
+                            COMMIT;
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val pageIds = (1..101).map { index ->
+                    // SQL md5 UUID keeps the digest bits unchanged, unlike UUID.nameUUIDFromBytes.
+                    java.security.MessageDigest.getInstance("MD5").digest("page-token-$index".toByteArray())
+                        .joinToString("") { "%02x".format(it) }.let { hex ->
+                            "${hex.substring(
+                                0,
+                                8,
+                            )}-${hex.substring(
+                                8,
+                                12,
+                            )}-${hex.substring(12,16)}-${hex.substring(16,20)}-${hex.substring(20)}"
+                        }
+                }
+                val pageRequest =
+                    JsonObject(
+                        mapOf(
+                            "draftId" to JsonPrimitive(draft),
+                            "tenantId" to JsonPrimitive(tenant),
+                            "tokenIds" to JsonArray(pageIds.map(::JsonPrimitive)),
+                        ),
+                    )
+                val firstPage = api.body(api.call("POST", targetPath, VIEWER, pageRequest.toString())).jsonObject
+                assertEquals(200, firstPage.array("targets").size)
+                val next = JsonObject(pageRequest + ("cursor" to firstPage.getValue("nextCursor")))
+                val secondPage = api.body(api.call("POST", targetPath, VIEWER, next.toString())).jsonObject
+                assertEquals(2, secondPage.array("targets").size)
+                assertEquals(firstPage.text("scopeRevision"), secondPage.text("scopeRevision"))
+                assertEquals(
+                    HttpStatusCode.OK,
+                    api.call(
+                        "PATCH",
+                        "/api/design-systems/$system/tokens/${pageIds.first()}",
+                        EDITOR,
+                        """{"description":"changed"}""",
+                    ).status,
+                )
+                val stalePage = api.call("POST", targetPath, VIEWER, next.toString())
+                assertEquals(HttpStatusCode.Conflict, stalePage.status, stalePage.bodyAsText())
+                assertEquals("TARGET_SNAPSHOT_CHANGED", api.body(stalePage).text("code"))
+            }
+        }
+    }
+
+    @Test
     @Suppress("LongMethod")
     fun `gradient in one mode of one theme derives the family type`() {
         IsolatedPostgresDatabase.create().use { postgres ->
@@ -781,11 +1243,14 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
         suspend fun revert(designSystemId: String, change: JsonObject) = call(
             "POST",
-            "/api/design-systems/$designSystemId/changes/${change.text("changeId")}/revert",
+            "/api/design-systems/$designSystemId/changes/revert-by-address",
             OWNER,
-            "{}",
-            change.getValue("editRevision").jsonPrimitive.long,
-            "revert-${change.text("changeId")}-${change.getValue("editRevision").jsonPrimitive.long}",
+            """{"draftId":"${change.text(
+                "versionId",
+            )}","targets":[{"entityType":"${change.text(
+                "entityType",
+            )}","entityId":"${change.text("entityId")}","expectedRevision":${change.getValue("editRevision")}}]}""",
+            idempotencyKey = "address-${change.text("changeId")}-${change.getValue("editRevision")}",
         )
 
         suspend fun publish(postgres: IsolatedPostgresDatabase, designSystemId: String, version: String): String {
@@ -799,7 +1264,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 OWNER,
                 """{"draftId":"$draftId","draftRevision":$revision,""" +
                     """"version":"$version","changelog":"gradient"}""",
-                idempotencyKey = "publish-$version",
+                idempotencyKey = "publish-$designSystemId-$version",
             )
             assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
             return body(response).text("id")

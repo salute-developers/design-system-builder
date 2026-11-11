@@ -1,108 +1,82 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DraftChangeDto } from '../../api/editorContracts';
+import type { DraftTokenTarget } from '../../api/editorContracts';
 
-const repository = vi.hoisted(() => ({ listChanges: vi.fn(), revertChanges: vi.fn() }));
+const repository = vi.hoisted(() => ({ listTokenTargets: vi.fn(), revertAddressed: vi.fn() }));
 vi.mock('../../api/versionJournalRepository', () => ({ versionJournalRepository: repository }));
 vi.mock('../../api/draftAutosaveActivity', () => ({ waitForDraftAutosaveIdle: vi.fn().mockResolvedValue(undefined) }));
 
-import { changedTokenId, resetTokenChanges, TokenResetError, useTokenReset } from './tokenReset';
+import { resetTokenChanges, TokenResetError, useTokenReset } from './tokenReset';
 
 const context = { projectId: 'p', designSystemId: 'ds', tenantId: 'theme-a' };
-const change = (id: string, patch: Partial<DraftChangeDto>): DraftChangeDto => ({
-    changeId: id,
-    versionId: 'draft',
-    entityType: 'token-value',
-    entityId: `value-${id}`,
-    operation: 'updated',
-    changedPaths: ['/value'],
-    previousValue: null,
-    currentValue: null,
-    actorId: null,
-    changedAt: '2026-10-30T10:00:00Z',
-    editRevision: 1,
-    ...patch,
+const change = (id: string, patch: Partial<DraftTokenTarget> = {}): DraftTokenTarget => ({
+    entityType: 'token-value', entityId: `value-${id}`, operation: 'updated', expectedRevision: 1, ...patch,
 });
+const scoped = (targets: DraftTokenTarget[]) => ({ draftId: 'draft', targets });
 
 describe('tokenReset', () => {
     beforeEach(() => {
-        repository.listChanges.mockReset();
-        repository.revertChanges.mockReset().mockResolvedValue(undefined);
+        repository.listTokenTargets.mockReset();
+        repository.revertAddressed.mockReset().mockResolvedValue(undefined);
     });
 
-    it('относит к токену определение и значения только этой темы', () => {
-        expect(changedTokenId(change('1', { entityType: 'token', entityId: 't1' }), 'theme-a')).toBe('t1');
-        expect(changedTokenId(change('2', { currentValue: { token_id: 't1', tenant_id: 'theme-a' } }), 'theme-a')).toBe(
-            't1',
-        );
-        expect(
-            changedTokenId(change('3', { currentValue: { token_id: 't1', tenant_id: 'theme-b' } }), 'theme-a'),
-        ).toBeNull();
-        expect(changedTokenId(change('4', { entityType: 'component' }), 'theme-a')).toBeNull();
-    });
-
-    it('откатывает записи токена одним пакетом от новой к старой и не трогает чужие', async () => {
-        repository.listChanges.mockResolvedValue([
-            change('old', {
-                currentValue: { token_id: 't1', tenant_id: 'theme-a' },
-                changedAt: '2026-10-30T09:00:00Z',
-            }),
-            change('other', { currentValue: { token_id: 't2', tenant_id: 'theme-a' } }),
-            change('new', { entityType: 'token', entityId: 't1', changedAt: '2026-10-30T11:00:00Z' }),
-        ]);
-
+    it('reads scoped targets and sends addresses in server order', async () => {
+        const targets = [change('2'), change('1', {entityType: 'token', entityId: 't1'})];
+        repository.listTokenTargets.mockResolvedValue(scoped(targets));
         expect(await resetTokenChanges(context, new Set(['t1']))).toBe(2);
-        expect(repository.revertChanges).toHaveBeenCalledTimes(1);
-        const [[, batch]] = repository.revertChanges.mock.calls as [[unknown, DraftChangeDto[]]];
-        expect(batch.map((reverted) => reverted.changeId)).toEqual(['new', 'old']);
+        expect(repository.listTokenTargets).toHaveBeenCalledWith(context, new Set(['t1']), undefined);
+        expect(repository.revertAddressed).toHaveBeenCalledExactlyOnceWith(context, 'draft', targets);
     });
 
-    it('без записей токена не отправляет пакет, а больше 200 записей делит на пакеты по 200', async () => {
-        repository.listChanges.mockResolvedValue([]);
+    it('does not mutate empty selection and chunks large target sets', async () => {
+        repository.listTokenTargets.mockResolvedValue(scoped([]));
         expect(await resetTokenChanges(context, new Set(['t1']))).toBe(0);
-        expect(repository.revertChanges).not.toHaveBeenCalled();
-
-        repository.listChanges.mockResolvedValue(
-            Array.from({ length: 201 }, (_, index) =>
-                change(String(index), { currentValue: { token_id: 't1', tenant_id: 'theme-a' } }),
-            ),
-        );
+        expect(repository.revertAddressed).not.toHaveBeenCalled();
+        const targets = Array.from({length:201}, (_, i) => change(String(i)));
+        repository.listTokenTargets.mockResolvedValue(scoped(targets));
         expect(await resetTokenChanges(context, new Set(['t1']))).toBe(201);
-        expect(repository.revertChanges.mock.calls.map(([, batch]) => (batch as unknown[]).length)).toEqual([200, 1]);
+        expect(repository.revertAddressed.mock.calls.map(([, , batch]) => batch.length)).toEqual([200,1]);
     });
 
-    it('не откатывает токен, созданный в черновике: ни одной записи не отменяет', async () => {
-        repository.listChanges.mockResolvedValue([
-            change('value', {
-                currentValue: { token_id: 't1', tenant_id: 'theme-a' },
-                changedAt: '2026-10-30T11:00:00Z',
-            }),
-            change('created', { entityType: 'token', entityId: 't1', operation: 'created' }),
-        ]);
-
+    it('rejects created definitions before any mutation', async () => {
+        repository.listTokenTargets.mockResolvedValue(scoped([change('1'),
+            change('2', {entityType:'token', operation:'created'})]));
         await expect(resetTokenChanges(context, new Set(['t1']))).rejects.toBeInstanceOf(TokenResetError);
-        expect(repository.revertChanges).not.toHaveBeenCalled();
+        expect(repository.revertAddressed).not.toHaveBeenCalled();
     });
 
-    it('хук перечитывает данные после сброса и показывает причину отказа', async () => {
+    it('refreshes successful and unknown batches without sending remaining targets', async () => {
+        const targets = Array.from({length:401}, (_, i) => change(String(i)));
+        repository.listTokenTargets.mockResolvedValue(scoped(targets));
+        repository.revertAddressed.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('lost response'));
         const onDone = vi.fn();
-        const { result } = renderHook(() => useTokenReset(context, onDone));
-
-        repository.listChanges.mockResolvedValue([
-            change('created', { entityType: 'token', entityId: 't1', operation: 'created' }),
-        ]);
+        const {result} = renderHook(() => useTokenReset(context,onDone));
         await act(() => result.current.reset(new Set(['t1'])));
-        expect(result.current.error).toBe('Токен создан в этом черновике: отменить его можно только удалением токена.');
-        expect(onDone).toHaveBeenCalledTimes(1);
-
-        repository.listChanges.mockRejectedValue(new Error('network'));
-        await act(() => result.current.reset(new Set(['t1'])));
-        expect(result.current.error).toBe('Не удалось сбросить изменения токена. Данные обновлены.');
-
-        repository.listChanges.mockResolvedValue([]);
-        await act(() => result.current.reset(new Set(['t1'])));
-        expect(result.current.error).toBeNull();
+        expect(repository.revertAddressed).toHaveBeenCalledTimes(2);
+        expect(onDone).toHaveBeenCalledWith(targets.slice(0,400));
+        expect(result.current.error).toBeTruthy();
         expect(result.current.busy).toBe(false);
-        expect(onDone).toHaveBeenCalledTimes(3);
+    });
+
+    it('waits for refresh and releases busy on refresh failure without another mutation', async () => {
+        repository.listTokenTargets.mockResolvedValue(scoped([change('1')]));
+        let rejectRefresh!: (cause:Error) => void;
+        const refresh = new Promise<void>((_, reject) => {rejectRefresh=reject;});
+        const {result} = renderHook(() => useTokenReset(context,() => refresh));
+        let pending!:Promise<void>;
+        await act(async () => {pending=result.current.reset(new Set(['t1'])); await Promise.resolve();});
+        expect(result.current.busy).toBe(true);
+        await act(async () => {rejectRefresh(new Error('failed')); await pending;});
+        expect(result.current.busy).toBe(false);
+        expect(result.current.error).toBeTruthy();
+        expect(repository.revertAddressed).toHaveBeenCalledTimes(1);
+    });
+
+    it('prevents duplicate clicks before rerender and forwards known draft', async () => {
+        repository.listTokenTargets.mockResolvedValue(scoped([change('1')]));
+        const {result} = renderHook(() => useTokenReset(context,vi.fn(),'draft'));
+        await act(async () => {await Promise.all([result.current.reset(new Set(['t1'])),result.current.reset(new Set(['t1']))]);});
+        expect(repository.listTokenTargets).toHaveBeenCalledExactlyOnceWith(context,new Set(['t1']),'draft');
+        expect(repository.revertAddressed).toHaveBeenCalledTimes(1);
     });
 });

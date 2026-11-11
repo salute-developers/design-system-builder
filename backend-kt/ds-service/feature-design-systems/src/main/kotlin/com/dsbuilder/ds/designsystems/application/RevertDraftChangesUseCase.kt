@@ -35,6 +35,100 @@ class RevertDraftChangesUseCase(
     private val repository: DraftChangeRepository,
     private val repeatedRequests: IdempotentRequestRepository,
 ) {
+    /** Отменяет выбранные адреса без поиска идентификаторов изменений в журнале. */
+    suspend fun executeAddressed(
+        context: DsRequestContext,
+        designSystemId: DesignSystemId,
+        draftId: java.util.UUID,
+        targets: List<DraftAddressTarget>,
+        idempotencyKey: String,
+    ): DsResult<Unit> {
+        if (targets.isEmpty() || targets.size > MAX_REVERT_BATCH_SIZE ||
+            targets.distinctBy { it.entityType to it.entityId }.size != targets.size ||
+            targets.any { it.entityType.isBlank() || it.entityType.length > 64 || it.expectedRevision < 0 } ||
+            idempotencyKey.isBlank() || idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH
+        ) {
+            return DsResult.Failure(DsFailure.InvalidRequest("invalid_revert_request"))
+        }
+        when (val allowed = policy.require(context, "design-systems:write")) {
+            is DsResult.Failure -> return allowed
+            is DsResult.Success -> Unit
+        }
+        return transactions.required(context) {
+            val operation = "revert-draft-addresses"
+            val hash = RequestHash.canonical(
+                listOf(
+                    designSystemId.value,
+                    draftId,
+                    targets.map { listOf(it.entityType, it.entityId, it.expectedRevision) },
+                ),
+            )
+            when (val previous = repeatedRequests.lookup(context.projectId, idempotencyKey, operation, hash)) {
+                IdempotentRequestLookup.PayloadMismatch ->
+                    return@required DsResult.Failure(DsFailure.Conflict("IDEMPOTENCY_KEY_REUSED"))
+                is IdempotentRequestLookup.Replayed -> throw IdempotentReplayException(previous.response)
+                IdempotentRequestLookup.New -> Unit
+            }
+            when (
+                val result = repository.revertAddressed(
+                    context.projectId,
+                    context.principal.globalAdmin,
+                    designSystemId,
+                    draftId,
+                    targets,
+                )
+            ) {
+                is DsResult.Failure -> result
+                is DsResult.Success -> {
+                    repeatedRequests.save(
+                        context.projectId,
+                        idempotencyKey,
+                        context.principal.actorId,
+                        operation,
+                        hash,
+                        IdempotentResponse(
+                            200,
+                            context.idempotentResponseEncoder?.invoke(Unit)
+                                ?: error("Public idempotent response encoder is missing"),
+                        ),
+                    )
+                    DsResult.Success(Unit)
+                }
+            }
+        }
+    }
+
+    /** Читает страницы целей только выбранных токенов указанной темы. */
+    suspend fun tokenTargets(
+        context: DsRequestContext,
+        designSystemId: DesignSystemId,
+        draftId: java.util.UUID,
+        tenantId: java.util.UUID,
+        tokenIds: Set<java.util.UUID>,
+        cursor: String?,
+    ): DsResult<DraftTokenTargetPage> {
+        if (tokenIds.isEmpty() || tokenIds.size > 200 || (cursor?.length ?: 0) > 512 ||
+            context.versionId != null || context.version != null
+        ) {
+            return DsResult.Failure(DsFailure.InvalidRequest("invalid_target_request"))
+        }
+        when (val allowed = policy.require(context, "design-systems:read")) {
+            is DsResult.Failure -> return allowed
+            is DsResult.Success -> Unit
+        }
+        return transactions.readOnly(context) {
+            repository.tokenTargets(
+                context.projectId,
+                context.principal.globalAdmin,
+                designSystemId,
+                draftId,
+                tenantId,
+                tokenIds,
+                cursor,
+            )
+        }
+    }
+
     /** Проверяет пакет, право записи и повторяемость, затем откатывает все записи или ни одной. */
     suspend fun execute(
         context: DsRequestContext,

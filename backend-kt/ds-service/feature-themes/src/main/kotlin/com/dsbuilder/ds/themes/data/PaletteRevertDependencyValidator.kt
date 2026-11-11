@@ -5,6 +5,8 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.domain.colortokens.ValuePaletteReferences
+import com.dsbuilder.ds.themes.domain.palette.ShadowLayerColors
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -17,6 +19,7 @@ import java.util.UUID
  * слоя тени.
  */
 class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
+    override val supportsLiteralValueBatchRevert: Boolean = true
     override suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean =
         valid(designSystemId, entityType, entityId, hashMapOf())
 
@@ -52,7 +55,13 @@ class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
             designSystemId, setOf(stable[ThemeTokenValuesTable.tenantId]), setOf(tokenId),
         ).firstOrNull { it[ThemeTokenValuesTable.id] == entityId } ?: return true
         val type = tokenRow[ThemeTokenRevisionsTable.type]
+        // Наличие определения проверено выше. Литерал не требует разрешения всей палитры темы.
+        val storedValue = value[ThemeTokenValueRevisionsTable.value]
+        val hasReferences = value[ThemeTokenValueRevisionsTable.paletteId] != null ||
+            ValuePaletteReferences.find(storedValue).isNotEmpty() ||
+            (type == ThemeTokenType.SHADOW && ShadowLayerColors.references(storedValue).isNotEmpty())
         return type !in REFERENCING_TYPES ||
+            !hasReferences ||
             validReferences(
                 entityId,
                 value[ThemeTokenValuesTable.tenantId],

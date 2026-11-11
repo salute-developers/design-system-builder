@@ -47,11 +47,18 @@ export const useJournalRevert = (
         const attempted: DraftChangeDto[] = [];
         try {
             if (!context) throw new Error('Контекст журнала недоступен');
-            for (const change of action.changes) {
-                // Ошибка ответа не доказывает отсутствие COMMIT: сверяем и неизвестный результат команды.
-                attempted.push(change);
-                if (action.revertPaths) await repository.revertChange(context, change, action.revertPaths);
-                else await repository.revertChange(context, change);
+            if (action.revertPaths) {
+                for (const change of action.changes) {
+                    attempted.push(change);
+                    await repository.revertChange(context, change, action.revertPaths);
+                }
+            } else {
+                for (let start = 0; start < action.changes.length; start += 200) {
+                    const batch = action.changes.slice(start, start + 200);
+                    // Ошибка ответа не доказывает отсутствие COMMIT: сверяем и неизвестную попытку.
+                    attempted.push(...batch);
+                    await repository.revertChanges(context, batch);
+                }
             }
         } catch (cause) {
             pendingError.current = revertError(cause);

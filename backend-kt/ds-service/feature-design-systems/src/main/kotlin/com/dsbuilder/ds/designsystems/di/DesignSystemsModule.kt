@@ -47,7 +47,7 @@ val designSystemsModule = module {
     single<DesignSystemVersionRepository> { ExposedDesignSystemVersionRepository(get()) }
     single<DesignSystemAggregateRepository> { ExposedDesignSystemAggregateRepository() }
     single<VersionBoundaryRepository> { ExposedVersionBoundaryRepository() }
-    single<DraftChangeRepository> { ExposedDraftChangeRepository(getAll(), getAll(), getAll()) }
+    single<DraftChangeRepository> { ExposedDraftChangeRepository(getAll(), getAll(), getAll(), getAll()) }
     factory { ListDesignSystemsUseCase(get(), get(), get()) }
     factory { GetDesignSystemUseCase(get(), get(), get()) }
     factory<com.dsbuilder.ds.designsystems.application.DesignSystemAccess> {

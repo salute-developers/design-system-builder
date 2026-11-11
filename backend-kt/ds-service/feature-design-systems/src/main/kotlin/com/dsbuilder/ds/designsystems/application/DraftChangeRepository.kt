@@ -11,6 +11,26 @@ import java.util.UUID
 
 /** Читает вычисляемые изменения и откатывает редакции активного черновика. */
 interface DraftChangeRepository {
+    /** Отменяет переданные адреса без разрешения changeId через общий журнал. */
+    suspend fun revertAddressed(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        draftId: UUID,
+        targets: List<DraftAddressTarget>,
+    ): com.dsbuilder.ds.core.application.DsResult<Unit> = error("Addressed revert is not implemented")
+
+    /** Читает цели только выбранных токенов и их значений одной темы. */
+    suspend fun tokenTargets(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        draftId: UUID,
+        tenantId: UUID,
+        tokenIds: Set<UUID>,
+        cursor: String?,
+    ): com.dsbuilder.ds.core.application.DsResult<DraftTokenTargetPage> = error("Scoped targets are not implemented")
+
     /** Вычисляет журнал активного черновика или указанной публикации. */
     suspend fun list(
         projectId: ProjectId,

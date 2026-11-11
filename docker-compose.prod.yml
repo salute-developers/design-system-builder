@@ -32,7 +32,7 @@ services:
         localhost\r\n\r\n'' >&3; grep -q ''200'' <&3'
       interval: 15s
       timeout: 5s
-      start_period: 40s
+      start_period: 120s
       retries: 10
   keycloak-bootstrap:
     image: "${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/keycloak-bootstrap:${IMAGE_TAG:?Set

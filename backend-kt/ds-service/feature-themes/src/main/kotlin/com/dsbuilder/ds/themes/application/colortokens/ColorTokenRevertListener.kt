@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.application.colortokens
 
+import com.dsbuilder.ds.core.application.TokenRevertAction
 import com.dsbuilder.ds.core.application.TokenRevertListener
 import java.util.UUID
 
@@ -14,21 +15,25 @@ class ColorTokenRevertListener(
     private val repository: ColorTokenRepository,
     private val sync: ColorTokenFamilyTypeSync = ColorTokenFamilyTypeSync(repository),
 ) : TokenRevertListener {
+    override val supportsLiteralValueBatchRevert: Boolean = true
     override fun prepareRevert(designSystemId: UUID, tokenId: UUID): Boolean {
         val family = repository.familyInDraft(designSystemId, tokenId) ?: return true
         // `false` — дизайн-система недоступна или нет черновика (откат вернёт 404); ошибки SQL не скрываются.
         return repository.lockFamilyDefinitions(designSystemId, family.members.values)
     }
 
-    override fun beforeRevert(designSystemId: UUID, tokenId: UUID): () -> Unit {
-        val before = repository.familyInDraft(designSystemId, tokenId)?.members?.values.orEmpty()
-        return {
-            val synced = sync.sync(designSystemId, tokenId)
-                ?.let { repository.familyInDraft(designSystemId, tokenId)?.members?.values.orEmpty().toSet() }
-                .orEmpty()
-            // Прежние соседи по семейству: достаточно одного живого члена на каждое ещё не пересчитанное семейство.
-            val handled = synced.toMutableSet()
-            before.sorted().filter { it != tokenId && it !in handled }.forEach { member ->
+    override fun beforeRevert(designSystemId: UUID, tokenId: UUID): () -> Unit =
+        beforeBatchRevert(designSystemId, tokenId).run
+
+    override fun beforeBatchRevert(designSystemId: UUID, tokenId: UUID): TokenRevertAction {
+        val family = repository.familyInDraft(designSystemId, tokenId)
+        val before = family?.members?.values.orEmpty().toSet() + tokenId
+        val key = family?.family?.let { it.group to it.name } ?: tokenId
+        return TokenRevertAction(key) {
+            // Все исходные члены: откат переименования может разделить одно семейство на несколько.
+            val handled = mutableSetOf<UUID>()
+            before.sorted().forEach { member ->
+                if (member in handled) return@forEach
                 repository.familyInDraft(designSystemId, member)?.let { family ->
                     sync.sync(designSystemId, member)
                     handled += family.members.values

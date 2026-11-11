@@ -38,6 +38,8 @@ class ExposedDraftChangeHandler(
     private val stableValueColumns: List<Column<*>> = emptyList(),
     private val revisionValueColumns: List<Column<*>> = emptyList(),
 ) : DraftChangeHandler {
+    override val supportsAddressedRevert: Boolean = true
+
     override fun describe(
         designSystemId: UUID,
         sequenceNumber: Long,
@@ -115,6 +117,13 @@ class ExposedDraftChangeHandler(
                    current.${revisionDeleted.quotedName()} AS current_deleted,
                    $currentValue AS current_value
             FROM ${stableTable.quotedName()} entity
+            JOIN (
+                SELECT DISTINCT changed.${revisionEntityId.quotedName()} AS entity_id
+                FROM ${revisionTable.quotedName()} changed
+                WHERE changed.design_system_id = ?
+                  AND changed.${revisionSequenceNumber.quotedName()} > ?
+                  AND changed.${revisionSequenceNumber.quotedName()} <= ?
+            ) changed_entities ON changed_entities.entity_id = entity.${stableId.quotedName()}
             LEFT JOIN LATERAL (
                 SELECT candidate.*
                 FROM ${revisionTable.quotedName()} candidate
@@ -141,6 +150,9 @@ class ExposedDraftChangeHandler(
         return TransactionManager.current().exec(
             sql,
             listOf(
+                UUIDColumnType() to designSystemId,
+                LongColumnType() to previousSequenceNumber,
+                LongColumnType() to sequenceNumber,
                 LongColumnType() to previousSequenceNumber,
                 LongColumnType() to sequenceNumber,
                 UUIDColumnType() to designSystemId,
