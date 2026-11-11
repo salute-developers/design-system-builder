@@ -49,7 +49,11 @@ const sourceFor = (
 ): PreviewPropertySource | AssemblyDiagnostic => {
     if (raw === undefined) return diagnostic('incompatible_value', `Property ${property.id} has no value`, property.id);
     const numeric = typeof raw === 'number' ? raw : Number(raw);
-    if (!adjusted && (property.type === 'dimension' || property.type === 'float') && Number.isFinite(numeric)) {
+    if (
+        !adjusted &&
+        (property.type === 'dimension' || property.type === 'float' || property.type === 'integer') &&
+        Number.isFinite(numeric)
+    ) {
         return { type: 'literal', value: numeric };
     }
     // Свойство типа `value` хранит значение без темы (имя константы enum, флаг): это литерал, а не токен.
@@ -59,7 +63,7 @@ const sourceFor = (
     if (!adjusted && web && typeof raw === 'string' && !isTokenName(raw)) {
         return { type: 'literal', value: (property.type === 'color' && parseWebColor(raw)) || raw };
     }
-    if (!adjusted && typeof raw === 'string' && property.type !== 'float') {
+    if (!adjusted && typeof raw === 'string' && property.type !== 'float' && property.type !== 'integer') {
         return { type: 'tokenRef', tokenId: raw };
     }
     const adjustment = adjusted ? Number(property.adjustment) : 0;

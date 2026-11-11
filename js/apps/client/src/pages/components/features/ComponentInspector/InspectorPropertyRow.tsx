@@ -168,12 +168,12 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         if ((type === 'float' || type === 'dimension') && isOpacity(prop)) {
             return <OpacityControl label={label} value={text} onCommit={update} />;
         }
-        if (type === 'dimension' || type === 'float') {
+        if (type === 'dimension' || type === 'float' || type === 'integer') {
             return (
                 <NumberControl
                     label={label}
                     value={text}
-                    unit={type === 'float' ? '' : 'px'}
+                    unit={type === 'dimension' ? 'px' : ''}
                     icon={
                         /radius/i.test(prop.getName()) ? (
                             <span className="component-radius-icon" aria-hidden="true">
