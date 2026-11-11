@@ -11,12 +11,19 @@ installed components package, and SHALL NOT request the backend.
 
 #### Scenario: Модель генератора собирается из выгрузки и web-данных
 
-- **WHEN** developer runs `npm run generate:components`
+- **WHEN** developer runs `npm run generate:components` or `npm run generate:ds`
 - **THEN** CLI MUST read `meta.json` and configuration files from `<sdds>/components`
-- **THEN** CLI MUST read `web-adapter.json` from `<sdds>/web`
+- **THEN** CLI MUST read `web-adapter.json` from `js/cli/src/data` of the running generator, not from `<sdds>/web`
 - **THEN** CLI MUST build the Style API mappings on every run from `@salutejs/plasma-new-hope` installed together with the generator (in `js/cli` or in the global package), with the same code as `generate:api-meta`, and MUST NOT read `web-api-meta.json`
 - **THEN** CLI MUST NOT read `component-configs.json`
-- **THEN** `--components` and `--web` MUST override the directories
+- **THEN** `--components` MUST override the components directory
+- **THEN** `--web <directory>` MUST make CLI read `<directory>/web-adapter.json` instead of the bundled file
+
+#### Scenario: Выгрузка web-адаптера из базы не используется
+
+- **WHEN** `<sdds>/web/web-adapter.json` written by `dsbuilder components fetch` exists and `--web` is not passed
+- **THEN** CLI MUST NOT read it
+- **THEN** names, descriptions, templates and `compose` children MUST come from the bundled `web-adapter.json`
 
 #### Scenario: Web-параметры и шаблоны
 
@@ -25,6 +32,12 @@ installed components package, and SHALL NOT request the backend.
 - **THEN** its web parameters MUST be those mappings, including typography parts
 - **THEN** a parameter template MUST be taken from `web-adapter.json` by component, style, property and parameter
 - **THEN** the property type MUST be taken from the configuration value, with `gradient` treated as `color`
+
+#### Scenario: Стиль без значений
+
+- **WHEN** a configuration lists a style in `variations` without the `props` field
+- **THEN** CLI MUST treat the style as having no values and MUST NOT fail
+- **THEN** the style MUST still be passed to the generator
 
 #### Scenario: Имя, описание и compose-связи
 
@@ -393,4 +406,52 @@ Web-генератор SHALL строить из kebab-case имени конф�
 
 - **WHEN** у компонента `Button` есть конфигурации `dense-2` и `dense2`
 - **THEN** генерация MUST завершиться ошибкой с текстом, содержащим `Button`, `dense-2` и `dense2`, и MUST NOT записать файлы конфигов
+
+### Requirement: Статический web-адаптер CLI совпадает с копией web-плагина
+
+`js/cli/src/data/web-adapter.json` SHALL быть побайтно идентичен `js/apps/preview-web-plugin/src/data/web-adapter.json`. Файл SHALL входить в публикуемый пакет генератора. Шаблоны web-параметров нового компонента SHALL добавляться в обе копии одинаково и MUST NOT заноситься в базу `ds-service`.
+
+#### Scenario: Копии совпадают
+
+- **WHEN** запускаются тесты `js/cli`
+- **THEN** тест MUST сравнить обе копии `web-adapter.json` и упасть, если они различаются
+
+#### Scenario: Файл в опубликованном генераторе
+
+- **WHEN** генератор установлен из npm-пакета `@sddsjs/design-system-builder-generator`
+- **THEN** `generate:components` MUST найти `web-adapter.json` внутри установленного пакета
+
+#### Scenario: Запись нового компонента
+
+- **WHEN** в базовую ДС добавлен web-компонент, у свойств которого есть шаблоны многозначных значений
+- **THEN** обе копии MUST содержать запись компонента с `componentName`, `name` и шаблонами по стилю
+- **THEN** записи MUST быть упорядочены по `componentName`
+
+### Requirement: Корневой индекс реэкспортирует компоненты ядра без конфига темы
+
+Корневой `src/index.ts` пакета, в котором есть компоненты, SHALL реэкспортировать из `@salutejs/plasma-new-hope/styled-components` компоненты ядра из списка генератора. В список входят компоненты, которые sdds-serv реэкспортирует из ядра без конфига темы и которые не заводятся в ДС; первый элемент — `SSRProvider`.
+
+#### Scenario: SSRProvider в пакете компонентов
+
+- **WHEN** developer runs `generate:components` or `generate:ds`
+- **THEN** `src/index.ts` MUST содержать `export { SSRProvider } from '@salutejs/plasma-new-hope/styled-components';`
+
+#### Scenario: Пакет только с темой
+
+- **WHEN** developer runs `generate:theme`
+- **THEN** `src/index.ts` MUST NOT содержать реэкспорты компонентов ядра
+
+### Requirement: Компонент, которому нужна тема, генерируется только вместе с темой
+
+Генерация компонентов SHALL учитывать, будет ли в пакете тема: `generate:ds` — всегда, `generate:components` с `--package` — никогда, `generate:components` без `--package` — если в выходном каталоге есть `src/theme`.
+
+#### Scenario: ViewContainer в пакете с темой
+
+- **WHEN** developer runs `generate:ds` for a design system with `ViewContainer`
+- **THEN** пакет MUST содержать `ViewContainer`, чьи стили `onDark` и `onLight` берут наборы переменных из `viewContainer` темы пакета
+
+#### Scenario: ViewContainer в пакете без темы
+
+- **WHEN** developer runs `generate:components --package`
+- **THEN** `ViewContainer` MUST NOT попасть в пакет, а генератор MUST напечатать предупреждение и завершиться успешно
 
