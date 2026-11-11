@@ -69,6 +69,7 @@ try {
     $archive = Join-Path $release 'dsbuilder-cli-windows-x64.zip'
     # Windows PowerShell 5.1 Compress-Archive записывает обратные разделители путей.
     # Релизный Gradle ZIP использует прямые; тестовый комплект должен повторять его формат.
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $testZip = [IO.Compression.ZipFile]::Open($archive, [IO.Compression.ZipArchiveMode]::Create)
     try {
