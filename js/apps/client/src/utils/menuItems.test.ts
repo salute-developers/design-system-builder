@@ -35,7 +35,7 @@ describe('getComponentGroups', () => {
     });
 
     it('hides web components the editor does not support', () => {
-        expect(getComponentGroups([config('Flow', 'web')])).toEqual([]);
+        expect(getComponentGroups([config('Editable', 'web')])).toEqual([]);
     });
 
     it('keeps Compose components whose web namesakes are unsupported', () => {

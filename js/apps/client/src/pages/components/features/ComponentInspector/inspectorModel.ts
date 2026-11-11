@@ -44,7 +44,7 @@ export const sectionOf = (type: PropType | undefined, name: string): InspectorSe
     if (/(border|outline|stroke)/i.test(name)) return 'Border';
     if (type === 'color' || /(opacity|alpha)/i.test(name)) return 'Color';
     if (type === 'typography') return 'Text';
-    if (type !== 'dimension' && type !== 'float') return 'Additional';
+    if (type !== 'dimension' && type !== 'float' && type !== 'integer') return 'Additional';
     if (/(width|height)$/i.test(name)) return 'Size';
     return 'Layout';
 };

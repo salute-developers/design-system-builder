@@ -3,6 +3,7 @@ import type {
     DimensionProp,
     FloatProp,
     IconProp,
+    IntegerProp,
     ShadowProp,
     ShapeProp,
     StyleReferenceProp,
@@ -32,6 +33,8 @@ export type PropType =
     | 'color'
     | 'dimension'
     | 'float'
+    /** Целое число без единиц (число колонок сетки). */
+    | 'integer'
     /** Иконка: имя в формате данных (`disclosure.down.fill.16`). */
     | 'icon'
     | 'shadow'
@@ -49,6 +52,7 @@ export type PropUnion =
     | ColorProp
     | FloatProp
     | IconProp
+    | IntegerProp
     | ShadowProp
     | ShapeProp
     | DimensionProp

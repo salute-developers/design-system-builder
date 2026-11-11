@@ -2,6 +2,7 @@ import type { ComponentAPI, PropConfig, PropUnion } from '../type';
 import { ColorProp } from './color';
 import { DimensionProp } from './dimension';
 import { FloatProp } from './float';
+import { IntegerProp } from './integer';
 import { IconProp } from './icon';
 import { ShadowProp } from './shadow';
 import { ShapeProp } from './shape';
@@ -89,6 +90,10 @@ export class Props {
 
         if (type === 'float') {
             return new FloatProp(name, item, platformMappings);
+        }
+
+        if (type === 'integer') {
+            return new IntegerProp(name, item, platformMappings);
         }
 
         if (type === 'shadow') {

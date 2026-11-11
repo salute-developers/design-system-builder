@@ -92,8 +92,17 @@ export const numberFormatter = (newValue: string, prevValue: string) => {
     return value;
 };
 
-/** «clearContentMarginLeft» → «Clear content margin left»: подпись свойства или вариации в инспекторе и журнале. */
+/**
+ * «clearContentMarginLeft» → «Clear content margin left»: подпись свойства или вариации в инспекторе и журнале.
+ * Слова разбиваются, как в `camelToKebab`; слово из заглавных букв (размер `L`, `XXS`) остаётся заглавным:
+ * «largeLMinWidth» → «Large L min width».
+ */
 export const humanizeName = (name: string) => {
-    const words = name.replace(/([a-z0-9])([A-Z])/g, (_, a: string, b: string) => `${a} ${b.toLowerCase()}`);
-    return words.charAt(0).toUpperCase() + words.slice(1);
+    const words = name
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+        .split(' ')
+        .map((word, index) => (index > 0 && !/^[A-Z0-9]+$/.test(word) ? word.toLowerCase() : word));
+    const text = words.join(' ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
 };

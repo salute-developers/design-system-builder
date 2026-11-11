@@ -54,6 +54,22 @@ describe('assembleComposePreviewPayload', () => {
         expect(Object.keys(result.payload.theme).some((id) => id.endsWith('-hover'))).toBe(false);
     });
 
+    it('passes an integer property as a numeric literal, also when the value is stored as a string', () => {
+        const integer = draft();
+        integer.invariantProperties.push({
+            id: 'cols',
+            name: 'smallMColsCount',
+            type: 'integer',
+            composeParameters: ['smallMColsCount'],
+            value: '6',
+            states: [],
+        } as PreviewPropertyDraft);
+        const result = assembleComposePreviewPayload(integer);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.payload.component.properties.smallMColsCount.base).toEqual({ type: 'literal', value: 6 });
+    });
+
     it('rejects missing mappings, conflicts, cycles and unavailable platform values', () => {
         const missingMapping = draft();
         missingMapping.invariantProperties[0].composeParameters = [];
