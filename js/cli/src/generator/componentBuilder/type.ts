@@ -1,4 +1,13 @@
-import type { ColorProp, DimensionProp, FloatProp, ShadowProp, ShapeProp, TypographyProp, ValueProp } from './props/index.ts';
+import type {
+    ColorProp,
+    DimensionProp,
+    FloatProp,
+    IntegerProp,
+    ShadowProp,
+    ShapeProp,
+    TypographyProp,
+    ValueProp,
+} from './props/index.ts';
 
 export const DEFAULT_FONT_SIZE = 16;
 
@@ -20,13 +29,21 @@ export const DEFAULT_FONT_SIZE = 16;
 
 // ТИПЫ ПО ФАЙЛАМ
 
-export type PropType = 'color' | 'dimension' | 'float' | 'shadow' | 'shape' | 'typography' | 'value';
+export type PropType = 'color' | 'dimension' | 'float' | 'integer' | 'shadow' | 'shape' | 'typography' | 'value';
 
 export type PropState = 'hovered' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
 
 export type Intersections = Record<string, string[]>;
 
-export type PropUnion = ColorProp | FloatProp | ShadowProp | ShapeProp | DimensionProp | TypographyProp | ValueProp;
+export type PropUnion =
+    | ColorProp
+    | FloatProp
+    | IntegerProp
+    | ShadowProp
+    | ShapeProp
+    | DimensionProp
+    | TypographyProp
+    | ValueProp;
 
 export interface WebToken {
     name: string;

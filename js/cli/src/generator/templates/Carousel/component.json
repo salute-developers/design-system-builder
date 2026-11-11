@@ -1,0 +1,9 @@
+{
+    "coreTokensExport": "carouselNewTokens",
+    "coreConfigExport": "carouselNewConfig",
+    "reexports": {
+        "runtime": [
+            "CarouselItem"
+        ]
+    }
+}

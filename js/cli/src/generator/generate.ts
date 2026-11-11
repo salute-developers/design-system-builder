@@ -107,7 +107,7 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
         for await (const { id, name } of configs) {
             await fs.mkdir(`${pathToComponent}/${name}`, { recursive: true });
             const config = new Config(componentMeta, id);
-            const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport);
+            const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport, manifest.breakpointView);
             await fs.writeFile(`${pathToComponent}/${getAppearanceConfigFile(name, componentName)}.ts`, componentConfig);
         }
         const names = configs.map(({ name }) => name);
@@ -143,7 +143,13 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
     } else if (manifest.generic) {
         await fs.writeFile(
             `${pathToComponent}/${componentName}.tsx`,
-            createGenericComponent(componentName, componentDescription, manifest.coreConfigExport, manifest.generic),
+            createGenericComponent(
+                componentName,
+                componentDescription,
+                manifest.coreConfigExport,
+                manifest.generic,
+                configs.map(({ name }) => name),
+            ),
         );
     } else if (conditional) {
         await fs.writeFile(
@@ -161,7 +167,7 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
         const { id, name } = item;
         const config = new Config(componentMeta, id);
 
-        const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport);
+        const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport, manifest.breakpointView);
         await fs.writeFile(`${pathToComponent}/${appearanceConfigFile(componentName, name)}.ts`, componentConfig);
     }
 };
@@ -192,7 +198,17 @@ const copyComponentTemplates = async (pathToComponent: string, componentName: st
     return files.filter((file) => file !== wrapper).map((file) => file.replace(/\.tsx?$/, ''));
 };
 
-export const generateComponentsFiles = async ({ pathToDir, componentsMeta }: ComponentsFiles) => {
+export const generateComponentsFiles = async ({ pathToDir, componentsMeta: allMeta, hasTheme = true }: ComponentsFiles) => {
+    // Компонент, обёртка которого берёт данные из темы (ViewContainer), без темы в пакете не собрался бы.
+    const componentsMeta: Meta[] = [];
+    for await (const meta of allMeta) {
+        if (!hasTheme && (await readComponentManifest(meta.name)).requiresTheme) {
+            console.warn(`Skipped ${meta.name}: it needs the theme of the package, generate it together with the theme (generate:ds).`);
+            continue;
+        }
+        componentsMeta.push(meta);
+    }
+
     if (componentsMeta.length === 0) {
         await fs.writeFile(`${pathToDir}/src/index.ts`, createRootIndex([]));
         return;

@@ -1,6 +1,6 @@
 {
     "name": "@sddsjs/design-system-builder-generator",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "DS Builder web generator: React design-system package from local .sdds data",
     "license": "MIT",
     "type": "module",
@@ -26,10 +26,11 @@
         "test": "tsx --test src/*.test.ts",
         "typecheck": "tsc -p .",
         "import:plasma": "tsx src/import-plasma-component.ts",
-        "prepublishOnly": "npm run typecheck && npm test"
+        "prepublishOnly": "npm run typecheck && npm test",
+        "seeds:update": "tsx src/component-seeds.ts"
     },
     "dependencies": {
-        "@salutejs/plasma-new-hope": "^0.388.0",
+        "@salutejs/plasma-new-hope": "file:../../../plasma/packages/plasma-new-hope/salutejs-plasma-new-hope-0.389.0-dev.1.tgz",
         "@salutejs/plasma-tokens-utils": "0.61.0",
         "fs-extra": "^11.4.1",
         "react": "18.2.0",

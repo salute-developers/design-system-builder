@@ -133,7 +133,7 @@ describe('import:plasma', () => {
         assert.equal(existsSync(join(sdds, 'components', 'meta.json')), false);
     });
 
-    it('writes the package config by the model rules and templates into the generator manifest', () => {
+    it('writes the package config by the model rules and prints templates for web-adapter.json', () => {
         // Манифест генератора уходит во временную папку, настоящие шаблоны не трогаются.
         const templates = join(root, 'templates');
         const manifestDir = join(templates, 'Chip');
@@ -151,7 +151,7 @@ describe('import:plasma', () => {
             ]);
             const byId = Object.fromEntries(config.variations.map((v: { id: string; props: unknown }) => [v.id, v.props]));
             // Цвет по токену темы — в `default`; шрифтовая группа — одно свойство typography;
-            // радиус совпал с токенами формы — shape; многозначный отступ — число стиля, шаблон в манифесте.
+            // радиус совпал с токенами формы — shape; многозначный отступ — число стиля, шаблон в отчёте.
             assert.deepEqual(byId.default, {
                 background: { type: 'color', default: 'surface.default.transparent-secondary' },
                 color: { type: 'color', default: 'text.default.primary' },
@@ -163,9 +163,12 @@ describe('import:plasma', () => {
                 textStyle: { type: 'typography', value: 'body.m.normal' },
             });
             assert.deepEqual(byId.l.borderRadius, { type: 'shape', value: 'round.l' });
-            assert.equal(JSON.stringify(config).includes('webTemplates'), false);
-            const manifest = JSON.parse(readFileSync(join(manifestDir, 'component.json'), 'utf8'));
-            assert.deepEqual(manifest.webTemplates, { padding: { padding: '0.25rem $1' } });
+            assert.equal(JSON.stringify(config).includes('0.25rem $1'), false);
+            // Шаблон печатается фрагментом записи web-adapter.json и не попадает в манифест генератора.
+            const manifestFile = join(manifestDir, 'component.json');
+            assert.equal(existsSync(manifestFile) && readFileSync(manifestFile, 'utf8').includes('0.25rem $1'), false);
+            assert.match(result.stdout, /"componentName": "chip"/);
+            assert.match(result.stdout, /"padding": "0\.25rem \$1"/);
             // Повторный импорт без --remove перезаписывает записи компонента.
             const again = run(sdds, plasma, '--apply', `--templates=${templates}`);
             assert.equal(again.status, 0, again.stdout + again.stderr);

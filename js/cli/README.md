@@ -30,10 +30,12 @@ npm run generate:components
 
 - `.sdds/components/` — выгрузка `dsbuilder components fetch`: `meta.json` (состав пакета) и
   `<component>_<style>_config.json` (значения).
-- `.sdds/web/web-adapter.json` — временный файл из базы, массив записей по `componentName`: имена и описания компонентов, дочерние
+- `src/data/web-adapter.json` — встроенный в CLI массив записей по `componentName`: имена и описания компонентов, дочерние
   компоненты `compose` (по ним раскладываются папки пакета) и шаблоны web-параметров по стилям
-  (свойство → параметр → шаблон вроде `0 $1`). Пишет `dsbuilder components fetch` для платформы
-  React (`--platform react` или `"platforms": ["react"]` в `config.json`).
+  (свойство → параметр → шаблон вроде `0 $1`). Файл — побайтная копия
+  `js/apps/preview-web-plugin/src/data/web-adapter.json`, совпадение проверяет тест; меняются обе копии
+  сразу. Шаблоны в базу не заносятся. `--web <каталог>` подменяет источник на `<каталог>/web-adapter.json`,
+  например на выгрузку базы `.sdds/web`, которую пишет `dsbuilder components fetch` для React.
 - Web-параметры свойств — из аннотаций токенов `@salutejs/plasma-new-hope`, установленного в
   `js/cli`. `generate:components` собирает их на каждый запуск тем же кодом, что и
   `generate:api-meta` (см. ниже), поэтому они всегда соответствуют установленной версии; файл
@@ -138,14 +140,26 @@ React-компонентов. Метаданные связывают внутр
 
 ## Импорт компонента из plasma
 
+Корневой `src/index.ts` пакета с компонентами реэкспортирует из ядра компоненты без конфига темы, которые не заводятся в ДС
+(`CORE_REEXPORTS` в `src/package-output.ts`, сейчас `SSRProvider`). Компонент с `requiresTheme: true` в манифесте
+(`ViewContainer`: вид берёт наборы переменных `viewContainer` темы пакета) генерируется только в пакет с темой: `generate:ds`
+или `generate:components` без `--package` при существующей `src/theme`; иначе генератор пропускает его с предупреждением.
+
+`npm run seeds:update -- --from <пакет> --component=<X>[:<appearance>] [--dependency=<Родитель>:<Ребёнок>:reuse]` переносит
+названные компоненты и appearance из пакета компонентов в `component-seeds.json` ds-service, из которого заполняется каждая
+новая дизайн-система; остальные записи не меняются. Ссылка на токен из `token-definitions.json` пишется `token`, остальное —
+`value`, состояния — отдельными значениями с `state`, шаблоны web-параметров не пишутся. Пакет — результат импорта из ядра и
+sdds-serv, а не выгрузка стенда. После записи обновляется контрольная сумма в `ComponentSeedsResourceTest`.
+
 `npm run import:plasma -- --component=<X>` читает конфиг `packages/sdds-serv/src/components/<X>/<X>.config.ts`
 и токены `packages/plasma-new-hope/src/components/<X>/<X>.tokens.ts` из клона plasma (`--plasma=`, `PLASMA_DIR`,
 по умолчанию `~/Documents/work/plasma`) и пишет записи компонента в `.sdds/components` в том же native-формате,
 что отдаёт `dsbuilder components fetch`: файл `<component>_<style>_config.json` на каждый appearance и запись в
 `meta.json`. Имена токенов темы и web-значения формы берутся из выгрузки `dsbuilder theme fetch` в
 `.sdds/tenants/<тема>/` (`--theme=`, иначе единственная тема или `base_default`); без темы инструмент
-останавливается. Манифест генератора `src/generator/templates/<X>/component.json` он пишет сам, включая
-`webTemplates` — шаблоны многозначных CSS-значений (`0.25rem $1`), которые в ds-service не хранятся.
+останавливается. Манифест генератора `src/generator/templates/<X>/component.json` он пишет сам. Шаблоны
+многозначных CSS-значений (`0.25rem $1`) он печатает в отчёте фрагментом записи `web-adapter.json`: их
+переносят в обе копии файла (`src/data` и web-плагин), в пакет, манифест и ds-service они не попадают.
 Если рядом лежит `.sdds/web/web-api-meta.json` (вывод `generate:api-meta`), типы свойств сверяются с
 аннотациями глобального слоя, расхождения попадают в «ТРЕБУЕТ РЕШЕНИЯ»; радиус, не совпавший с `round.*`,
 закрывается токеном через `--shape=<prop>=<round.x>`. Без `--apply` — отчёт без записи; `--remove --apply`
