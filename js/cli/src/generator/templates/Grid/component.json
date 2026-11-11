@@ -1,0 +1,22 @@
+{
+    "reexports": {
+        "runtime": [
+            "Col",
+            "Row"
+        ],
+        "types": [
+            "GridProps",
+            "ColCount",
+            "ColProps",
+            "ColSizeProps",
+            "ColOffsetProps",
+            "ScreenMap",
+            "ScreenConfig",
+            "ScreenVariant"
+        ]
+    },
+    "breakpointView": {
+        "function": "getBaseGridView",
+        "paramSuffix": "MinWidth"
+    }
+}

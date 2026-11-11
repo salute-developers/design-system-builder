@@ -126,11 +126,19 @@ export const createGenericComponent = (
     componentDescription: string,
     coreConfigExport: string | null | undefined,
     generic: NonNullable<ComponentManifest['generic']>,
+    appearanceNames: string[] = ['default'],
 ) => {
     const configName = getPlasmaConfigName(componentName, coreConfigExport);
     const { propsType, itemType, refElement } = generic;
     const propsAlias = propsType === `${componentName}Props` ? `${propsType} as ${propsType}NewHope` : propsType;
     const coreProps = propsType === `${componentName}Props` ? `${propsType}NewHope` : propsType;
+
+    if (appearanceNames.length > 1) {
+        return createGenericConditionalComponent(componentName, componentDescription, configName, generic, appearanceNames, {
+            propsAlias,
+            coreProps,
+        });
+    }
 
     return `import React, { ComponentProps, ForwardedRef } from 'react';
 import { ${configName}, component, mergeConfig, fixedForwardRef } from '@salutejs/plasma-new-hope/styled-components';
@@ -145,6 +153,66 @@ type PropsFromConfig = keyof typeof config['variations'];
 
 export type ${componentName}Props<T extends ${itemType}> = DistributiveOmit<${coreProps}<T>, PropsFromConfig> &
     DistributivePick<ComponentProps<typeof ${componentName}Component>, PropsFromConfig>;
+
+const ${componentName}WithoutRef = <T extends ${itemType}>(props: ${componentName}Props<T>, ref: ForwardedRef<${refElement}>) => {
+    return <${componentName}Component ref={ref} {...(props as any)} />;
+};
+
+/**
+ * ${componentDescription}
+ */
+export const ${componentName} = fixedForwardRef(${componentName}WithoutRef);
+`;
+};
+
+/**
+ * Дженерик-обёртка над несколькими appearance (Select: default и clear), как `Select.tsx` в sdds-serv: компонент
+ * на каждый appearance, выбор через `createConditionalComponent` по пропу `appearance`, параметр типа элемента
+ * списка сохраняет `fixedForwardRef`.
+ */
+const createGenericConditionalComponent = (
+    componentName: string,
+    componentDescription: string,
+    configName: string,
+    { itemType, refElement }: NonNullable<ComponentManifest['generic']>,
+    appearanceNames: string[],
+    { propsAlias, coreProps }: { propsAlias: string; coreProps: string },
+) => {
+    const parts = appearanceNames.map((name) => {
+        const identifier = appearanceIdentifier(componentName, name);
+        return {
+            name,
+            key: appearanceKey(name),
+            Identifier: upperFirstLetter(identifier),
+            Local: `${componentName}${upperFirstLetter(identifier)}`,
+            alias: `${lowerFirstLetter(identifier)}Config`,
+            file: appearanceConfigFile(componentName, name),
+        };
+    });
+
+    return `import React, { ComponentProps, ForwardedRef } from 'react';
+import { ${configName}, component, mergeConfig, fixedForwardRef, createConditionalComponent } from '@salutejs/plasma-new-hope/styled-components';
+import type { ${propsAlias}, ${itemType}, DistributiveOmit, DistributivePick } from '@salutejs/plasma-new-hope';
+
+${parts.map((part) => `import { config as ${part.alias} } from './${part.file}';`).join('\n')}
+
+${parts
+    .map(
+        (part) => `const merged${part.Identifier}Config = mergeConfig(${configName}, ${part.alias});
+const ${part.Local} = component(merged${part.Identifier}Config);`,
+    )
+    .join('\n\n')}
+
+const ${componentName}Component = createConditionalComponent({
+${parts.map((part) => `    ${part.key}: ${part.Local},`).join('\n')}
+});
+
+type PropsFromConfig = ${parts.map((part) => `keyof typeof ${part.alias}['variations']`).join(' | ')};
+
+export type ${componentName}Props<T extends ${itemType}> = DistributiveOmit<${coreProps}<T>, PropsFromConfig> &
+    DistributivePick<ComponentProps<typeof ${parts[0].Local}>, PropsFromConfig> & {
+        appearance?: ${parts.map((part) => `'${part.name}'`).join(' | ')};
+    };
 
 const ${componentName}WithoutRef = <T extends ${itemType}>(props: ${componentName}Props<T>, ref: ForwardedRef<${refElement}>) => {
     return <${componentName}Component ref={ref} {...(props as any)} />;
