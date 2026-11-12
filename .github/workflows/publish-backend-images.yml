@@ -170,6 +170,6 @@ jobs:
           curl --fail-with-body \
             --silent \
             --show-error \
-            --request GET \
+            --request POST \
             --header "Authorization: Bearer $COOLIFY_TOKEN" \
             "$webhook"
