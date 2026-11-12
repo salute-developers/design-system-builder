@@ -116,6 +116,14 @@
     background: #383a40;
     color: #dfe2e7;
 }
+/* Поле со значком (прозрачность, скругление) выравнивается по полю цвета: значок на месте образца, текст за ним. */
+.component-number-control:has(> .component-opacity-icon, > .component-radius-icon) {
+    padding-left: 4px;
+    gap: 6px;
+}
+.component-number-control:focus-within {
+    border-color: #2b8ced;
+}
 .component-number-control.is-invalid {
     border-color: #f31b31;
 }
@@ -199,7 +207,6 @@
 .component-inspector-color-field.is-open,
 .component-inspector-color-field:focus-within {
     border-color: #2b8ced;
-    box-shadow: 0 0 0 1px #2b8ced inset;
 }
 .component-inspector-color-main {
     min-width: 0;
@@ -217,6 +224,10 @@
         system-ui,
         sans-serif;
     text-align: left;
+}
+/* Фокус показывает рамка поля (`:focus-within`), своя обводка кнопки была бы второй рамкой внутри. */
+.component-inspector-color-main:focus-visible {
+    outline: none;
 }
 .component-inspector-color-main > span {
     min-width: 0;
@@ -528,8 +539,10 @@
 .component-token-field > button:hover {
     border-color: #595c63;
 }
-.component-token-field > button[aria-expanded='true'] {
+.component-token-field > button[aria-expanded='true'],
+.component-token-field > button:focus-visible {
     border-color: #2b8ced;
+    outline: none;
 }
 .component-token-field > button > span {
     min-width: 0;

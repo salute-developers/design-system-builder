@@ -197,9 +197,12 @@
     justify-content: flex-end;
 }
 /* Поле имени занимает строку вместе с кнопками подтверждения и отмены. */
-.component-workbench .component-configuration-tree-row:has(> .component-value-name-input),
-.component-workbench .component-axis-value-main:has(> .component-value-name-input) {
+.component-workbench .component-configuration-tree-row:has(> .component-value-name-input) {
     grid-template-columns: minmax(0, 1fr) 48px;
+}
+/* У значения поле имени шириной со строку значения: кнопки подтверждения и отмены — в колонках её действий. */
+.component-workbench .component-axis-value-main:has(> .component-value-name-input) > :not(.component-value-name-input) {
+    grid-column: 2 / -1;
 }
 .component-workbench .component-configuration-add {
     position: relative;
@@ -261,7 +264,6 @@
 .component-workbench .component-axis-name-input:focus {
     border-color: #6c9cff;
     outline: none;
-    box-shadow: 0 0 0 2px #6c9cff26;
 }
 .component-workbench .component-axis-edit-actions {
     box-sizing: border-box;
@@ -362,12 +364,15 @@
     box-sizing: border-box;
     width: 14px;
     flex: 0 0 14px;
-    color: #788596;
-    font-size: 14px;
+    color: #aab3c0;
+    font-size: 15px;
     line-height: 1;
     cursor: grab;
     touch-action: none;
     user-select: none;
+}
+.component-workbench .component-axis-drag-handle:hover {
+    color: #e3e7ed;
 }
 .component-workbench .component-axis-drag-handle:active {
     cursor: grabbing;
@@ -484,14 +489,21 @@
 .component-workbench .component-intersection-disclosure {
     position: relative;
     z-index: 1;
+    box-sizing: border-box;
     width: 18px;
     height: 18px;
     margin: 0;
-    padding: 3px;
+    padding: 0;
+    display: grid;
+    place-items: center;
     border: 1px solid #3a424d;
     border-radius: 4px;
     background: #252b33;
     color: #8491a1;
+}
+.component-workbench .component-intersection-disclosure .ui-glyph {
+    width: 12px;
+    height: 12px;
 }
 .component-workbench .component-intersection-disclosure:hover {
     border-color: #536174;

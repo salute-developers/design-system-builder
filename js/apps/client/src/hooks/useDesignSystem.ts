@@ -165,6 +165,7 @@ export const useDesignSystem = (
                 const historicalMode = Boolean(designSystemProjectId.versionId);
                 setActiveDraftContext(historicalMode ? null : designSystemProjectId);
                 setDesignSystem(null);
+                setHasConfiguredComponents(false);
                 setTheme(null);
                 setComponents(null);
                 setComposeComponents([]);

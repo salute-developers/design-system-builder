@@ -179,49 +179,100 @@
     background-image:linear-gradient(to right,transparent,var(--cp-current)),repeating-conic-gradient(#d7dde5 0% 25%,#8a93a0 0% 50%);
     background-size:auto,12px 12px;
 }
+/* Строка формата: переключатель Hex / RGB / HSL, поля каналов (или Hex с копированием) и прозрачность с `%`. */
 .component-workbench .cp-format-row {
     height:40px;
     margin:8px 12px 0;
-    padding:0 6px;
-    display:grid;
-    grid-template-columns:auto repeat(3,1fr) 44px;
-    gap:0;
+    padding:0;
+    display:flex;
+    gap:4px;
     align-items:center;
 }
-.component-workbench .cp-format-row:has(.cp-hex-field) {
-    grid-template-columns:44px 1fr 50px;
+.component-workbench .cp-format-trigger {
+    position:relative;
+    flex:none;
+    display:inline-flex;
+    align-items:center;
+    color:#d6dae0;
 }
-.component-workbench .cp-format-row select {
+.component-workbench .cp-format-trigger select {
+    width:46px;
     height:24px;
-    min-width:38px;
-    padding:0 2px;
+    padding:0 16px 0 2px;
     border:0;
     background:transparent;
     color:#d6dae0;
     font-size:12px;
+    appearance:none;
+    cursor:pointer;
+}
+.component-workbench .cp-format-trigger svg {
+    position:absolute;
+    right:2px;
+    width:12px;
+    height:12px;
+    pointer-events:none;
 }
 .component-workbench .cp-field {
+    box-sizing:border-box;
+    width:100%;
     height:24px;
     min-width:0;
     padding:0 6px;
-    border:0;
-    border-left:1px solid rgba(242,244,246,.08);
-    border-radius:0;
+    border:1px solid transparent;
+    border-radius:6px;
     background:rgba(242,244,246,.1);
     color:#d6dae0;
     font-size:12px;
     text-align:center;
 }
-.component-workbench .cp-format-row select+.cp-field {
-    border-left:0;
-    border-radius:6px 2px 2px 6px;
+.component-workbench .cp-field:focus {
+    border-color:var(--accent);
+    outline:0;
 }
-.component-workbench .cp-alpha-field {
-    width:auto;
-    border-radius:2px 6px 6px 2px;
+.component-workbench .cp-format-row > .cp-field {
+    flex:1;
+    padding:0 2px;
 }
-.component-workbench .cp-hex-field {
+.component-workbench .cp-hex {
+    position:relative;
+    flex:1;
+    display:flex;
+    align-items:center;
+    min-width:0;
+}
+.component-workbench .cp-hex .cp-hex-field {
+    padding-right:22px;
     text-align:left;
+    text-transform:uppercase;
+}
+.component-workbench .cp-hex .cp-copy {
+    position:absolute;
+    right:4px;
+    width:16px;
+    height:16px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+}
+.component-workbench .cp-hex .cp-copy svg {
+    width:12px;
+    height:12px;
+}
+.component-workbench .cp-alpha-value {
+    flex:none;
+    display:inline-flex;
+    align-items:center;
+    gap:2px;
+}
+.component-workbench .cp-alpha-value .cp-alpha-field {
+    width:36px;
+    padding:0 2px;
+}
+.component-workbench .cp-alpha-value i {
+    color:#9aa1ab;
+    font-size:12px;
+    font-style:normal;
 }
 .component-workbench .cp-info {
     display:grid;
@@ -828,12 +879,6 @@
 }
 .component-workbench .cp-library-search .cp-library-search-field input::placeholder {
     color: #77808d;
-}
-.component-workbench .cp-format-row:has(.cp-hex-field) {
-    grid-template-columns: max-content 1fr 50px;
-}
-.component-workbench .cp-format-row select {
-    width: max-content;
 }
 .component-workbench .cp-platform-notes {
     margin: 8px 10px 0;
