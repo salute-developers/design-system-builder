@@ -416,6 +416,7 @@ describe('useDesignSystem server autosave', () => {
         const { result } = renderHook(() => useDesignSystem(context));
         await act(async () => Promise.resolve());
         const previousTheme = result.current.theme;
+        const previousRefresh = result.current.refreshRevision;
         const tokenData = await loadTokenData();
         loadTokenData.mockClear();
         let resolveOld!: (value: unknown) => void;
@@ -439,6 +440,7 @@ describe('useDesignSystem server autosave', () => {
         setDraftAutosaveActivity(context, 'components', null);
         expect(loadTokenData).toHaveBeenCalledTimes(2);
         expect(result.current.theme).not.toBe(previousTheme);
+        expect(result.current.refreshRevision).toBe(previousRefresh + 1);
     });
     it('сохраняет local-палитру при обновлении токенов после отмены', async () => {
         const source = paletteRepository.source;

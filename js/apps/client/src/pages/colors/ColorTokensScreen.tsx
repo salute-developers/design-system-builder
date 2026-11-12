@@ -8,6 +8,7 @@ import { PanelSkeleton, usePanelWidths, WorkspaceLoadError } from '../../compone
 import '../../styles/color-tokens.css';
 
 import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
+import type { DraftRefreshChange } from '../../api/editorContracts';
 import type { Config, DesignSystem, Theme } from '../../controllers';
 import {
     buildTree,
@@ -59,6 +60,7 @@ export interface ColorTokensScreenProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
+    refreshChanges?: (changes: DraftRefreshChange[]) => Promise<void>;
     /** Сброс изменений выбранного токена в черновике; без него кнопки сброса в инспекторе нет. */
     /** Токены с неопубликованными изменениями темы: сброс доступен только у изменённого токена. */
     changedTokenNames?: Set<string>;
@@ -369,10 +371,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
     };
 
-    const tokenReset = useTokenReset(props.context, async () => {
-        props.reload();
+    const tokenReset = useTokenReset(props.context, async (changes) => {
+        if (!changes.length) return;
+        if (props.refreshChanges) await props.refreshChanges(changes);
+        else props.reload();
         rerender();
-    });
+    }, props.designSystem.getParameters()?.draftId, props.reload);
 
     /** Описание общее для семейства токена; ошибка остаётся у поля описания. */
     const describeToken = async (view: ColorTokenView, description: string) => {

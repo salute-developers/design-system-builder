@@ -443,6 +443,24 @@ class ColorTokenUseCaseTest {
     }
 
     @Test
+    fun `одно действие пакета пересчитывает все семейства после разделения исходного`() {
+        val base = tokens.define("text.default.accent", ThemeTokenType.GRADIENT)
+        val hover = tokens.define("text.default.accent-hover", ThemeTokenType.GRADIENT)
+        tokens.values[current to base] = complete("#111111")
+        tokens.values[current to hover] = gradientIn(hover, ThemeTokenMode.DARK).members.getValue(hover)
+        val listener = ColorTokenRevertListener(tokens)
+        val first = listener.beforeBatchRevert(tokens.designSystemId, base)
+        val second = listener.beforeBatchRevert(tokens.designSystemId, hover)
+        assertEquals(first.key, second.key)
+        assertEquals(setOf(base, hover), first.coveredTokenIds)
+        assertEquals(first.coveredTokenIds, second.coveredTokenIds)
+        tokens.rename(base, "text.default.brand")
+        first.run()
+        assertEquals(ThemeTokenType.COLOR, tokens.definitions.single { it.id == base }.type)
+        assertEquals(ThemeTokenType.GRADIENT, tokens.definitions.single { it.id == hover }.type)
+    }
+
+    @Test
     fun `откат определения одного члена приводит все члены к типу по значениям`() {
         // Градиент только у `brand-hover`; откат записи определения `brand` вернул ему прежний тип `color`.
         val base = tokens.define("text.default.brand", ThemeTokenType.COLOR)

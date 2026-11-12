@@ -35,6 +35,79 @@ class RevertDraftChangesUseCase(
     private val repository: DraftChangeRepository,
     private val repeatedRequests: IdempotentRequestRepository,
 ) {
+    /** Отменяет выбранные адреса без поиска идентификаторов изменений в журнале. */
+    suspend fun executeAddressed(
+        context: DsRequestContext,
+        designSystemId: DesignSystemId,
+        draftId: java.util.UUID,
+        targets: List<DraftAddressTarget>,
+        idempotencyKey: String,
+    ): DsResult<Unit> {
+        if (targets.isEmpty() || targets.size > MAX_REVERT_BATCH_SIZE ||
+            targets.distinctBy { it.entityType to it.entityId }.size != targets.size
+        ) {
+            return DsResult.Failure(DsFailure.InvalidRequest("invalid_revert_request"))
+        }
+        if (targets.any { !it.valid() } || !validKey(idempotencyKey)
+        ) {
+            return DsResult.Failure(DsFailure.InvalidRequest("invalid_revert_request"))
+        }
+        return when (val allowed = policy.require(context, "design-systems:write")) {
+            is DsResult.Failure -> allowed
+            is DsResult.Success -> transactions.required(context) {
+                val hash = RequestHash.canonical(
+                    listOf(
+                        designSystemId.value,
+                        draftId,
+                        targets.map { listOf(it.entityType, it.entityId, it.expectedRevision) },
+                    ),
+                )
+                repeat(context, idempotencyKey, "revert-draft-addresses", hash) {
+                    repository.revertAddressed(
+                        context.projectId,
+                        context.principal.globalAdmin,
+                        designSystemId,
+                        draftId,
+                        targets,
+                    )
+                }
+            }
+        }
+    }
+
+    /** Читает страницы целей только выбранных токенов указанной темы. */
+    suspend fun tokenTargets(
+        context: DsRequestContext,
+        designSystemId: DesignSystemId,
+        draftId: java.util.UUID,
+        tenantId: java.util.UUID,
+        tokenIds: Set<java.util.UUID>,
+        cursor: String?,
+    ): DsResult<DraftTokenTargetPage> {
+        if (tokenIds.isEmpty() || tokenIds.size > 200 || (cursor?.length ?: 0) > 512
+        ) {
+            return DsResult.Failure(DsFailure.InvalidRequest("invalid_target_request"))
+        }
+        if (context.versionId != null || context.version != null
+        ) {
+            return DsResult.Failure(DsFailure.InvalidRequest("invalid_target_request"))
+        }
+        return when (val allowed = policy.require(context, "design-systems:read")) {
+            is DsResult.Failure -> allowed
+            is DsResult.Success -> transactions.readOnly(context) {
+                repository.tokenTargets(
+                    context.projectId,
+                    context.principal.globalAdmin,
+                    designSystemId,
+                    draftId,
+                    tenantId,
+                    tokenIds,
+                    cursor,
+                )
+            }
+        }
+    }
+
     /** Проверяет пакет, право записи и повторяемость, затем откатывает все записи или ни одной. */
     suspend fun execute(
         context: DsRequestContext,
@@ -70,29 +143,42 @@ class RevertDraftChangesUseCase(
         val hash = RequestHash.canonical(
             listOf(designSystemId.value, changes.map { listOf(it.changeId, it.expectedRevision) }),
         )
-        when (val previous = repeatedRequests.lookup(context.projectId, idempotencyKey, OPERATION, hash)) {
+        return repeat(context, idempotencyKey, OPERATION, hash) {
+            when (
+                val result = repository.revertAll(
+                    context.projectId,
+                    context.principal.globalAdmin,
+                    designSystemId,
+                    changes,
+                )
+            ) {
+                DraftChangeBatchRevertResult.Reverted -> DsResult.Success(Unit)
+                is DraftChangeBatchRevertResult.Failed -> DsResult.Failure(result.result.toFailure(result.index))
+            }
+        }
+    }
+
+    /** Поиск и сохранение результата общие для старой и адресной команды; вызывается внутри required. */
+    private suspend fun repeat(
+        context: DsRequestContext,
+        key: String,
+        operation: String,
+        hash: String,
+        apply: suspend () -> DsResult<Unit>,
+    ): DsResult<Unit> {
+        when (val previous = repeatedRequests.lookup(context.projectId, key, operation, hash)) {
             IdempotentRequestLookup.PayloadMismatch ->
                 return DsResult.Failure(DsFailure.Conflict("IDEMPOTENCY_KEY_REUSED"))
             is IdempotentRequestLookup.Replayed -> throw IdempotentReplayException(previous.response)
             IdempotentRequestLookup.New -> Unit
         }
-        val outcome = when (
-            val result = repository.revertAll(
-                context.projectId,
-                context.principal.globalAdmin,
-                designSystemId,
-                changes,
-            )
-        ) {
-            DraftChangeBatchRevertResult.Reverted -> null
-            is DraftChangeBatchRevertResult.Failed -> result.result.toFailure(result.index)
-        }
-        if (outcome != null) return DsResult.Failure(outcome)
+        val result = apply()
+        if (result is DsResult.Failure) return result
         repeatedRequests.save(
             context.projectId,
-            idempotencyKey,
+            key,
             context.principal.actorId,
-            OPERATION,
+            operation,
             hash,
             IdempotentResponse(
                 200,
@@ -100,8 +186,13 @@ class RevertDraftChangesUseCase(
                     ?: error("Public idempotent response encoder is missing"),
             ),
         )
-        return DsResult.Success(Unit)
+        return result
     }
+
+    private fun DraftAddressTarget.valid(): Boolean =
+        entityType.isNotBlank() && entityType.length <= 64 && expectedRevision >= 0
+
+    private fun validKey(key: String): Boolean = key.isNotBlank() && key.length <= MAX_IDEMPOTENCY_KEY_LENGTH
 
     private companion object {
         const val OPERATION = "revert-draft-changes"

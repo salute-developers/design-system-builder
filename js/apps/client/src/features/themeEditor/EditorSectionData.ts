@@ -3,7 +3,7 @@ import type { ConfirmedTokenValues, ConfirmedColorStructure } from '../../api/dr
 import { storedTokenValue } from '../../api/confirmedTokenValues';
 import { tokenValueKey } from '../../api/editorHttp';
 import { tokenValueBaseRevision } from '../../api/subjectRevisions';
-import type { EditorContextKey, ThemeEditorSnapshot, TokenDefinitionDto } from '../../api/editorContracts';
+import type { DraftRefreshChange, EditorContextKey, ThemeEditorSnapshot, TokenDefinitionDto } from '../../api/editorContracts';
 import { componentRepository } from '../../api/componentRepository';
 import { tokenRepository } from '../../api/tokenRepository';
 import { loadThemeShell } from '../../api/themeEditorRepository';
@@ -11,6 +11,7 @@ import type { DraftInvalidationScope } from '../../api/draftInvalidationStream';
 import { markComposeComponents, parseComponentRoute } from '../../composePreview/composeComponents';
 import { paletteRepository } from '../../palette/paletteSession';
 import { sectionTokenTypes, type EditorSection } from './editorSections';
+import { sectionInvalidation } from './sectionInvalidation';
 import { mergeSectionTokens } from './mergeSectionSnapshot';
 import { componentSectionReferences } from './componentSectionReferences';
 import { getEditorMetadataRevision } from '../../api/editorReads';
@@ -37,6 +38,7 @@ export class EditorSectionData {
     private readonly componentTypes = new Map<string, TokenDefinitionDto['type'][]>();
     private chain: Promise<unknown> = Promise.resolve();
     private shellStale = false;
+    private colorGroupsStale = true;
     private confirmedStructurePending = false;
     private readonly componentMetadataRevision = new Map<string, number>();
     private shellRead?: Promise<void>;
@@ -362,18 +364,12 @@ export class EditorSectionData {
         // Их зависимости обновятся при следующем открытии через устаревшие разделы токенов.
     }
 
-    invalidate(scopes: Set<DraftInvalidationScope>) {
+    invalidate(scopes: Set<DraftInvalidationScope>, changes?: DraftRefreshChange[]) {
         if (this.context.versionId) return;
-        const all = scopes.has('all') || scopes.has('design-system');
-        const zones: EditorSection[] = all
-            ? ['colors', 'palette', 'typography', 'shapes', 'components', 'settings', 'changes', 'versions']
-            : [];
-        if (scopes.has('theme-tokens')) zones.push('colors', 'palette', 'typography', 'shapes', 'components');
-        if (scopes.has('component-configurations')) zones.push('components');
-        if (scopes.has('theme-metadata'))
-            zones.push('settings', 'colors', 'palette', 'typography', 'shapes', 'components');
-        for (const section of zones) this.invalidated.set(section, ++this.generation);
-        if (all || scopes.has('theme-metadata') || scopes.has('component-configurations')) this.shellStale = true;
+        const plan = sectionInvalidation(scopes, changes);
+        for (const section of plan.sections) this.invalidated.set(section, ++this.generation);
+        this.colorGroupsStale ||= plan.colorGroups;
+        this.shellStale ||= plan.shell;
     }
 
     refresh(): Promise<SectionReadResult | undefined> {
@@ -460,7 +456,8 @@ export class EditorSectionData {
                 const paletteGeneration = this.invalidated.get('palette') ?? 0;
                 // Как в структурном редакторе: группы должны быть готовы до чтения размещений токенов.
                 const groups =
-                    section === 'colors' ? await tokenRepository.loadColorGroups(this.context, this.signal) : undefined;
+                    section === 'colors' && this.colorGroupsStale
+                        ? await tokenRepository.loadColorGroups(this.context, this.signal) : undefined;
                 const values = await tokenRepository.loadTokenData(
                     this.context,
                     this.signal,
@@ -470,7 +467,10 @@ export class EditorSectionData {
                 );
                 if (values.paletteError) throw values.paletteError;
                 this.snapshot = mergeSectionTokens(this.snapshot, values, types);
-                if (groups !== undefined) this.snapshot = { ...this.snapshot, colorTokenGroups: groups };
+                if (groups !== undefined) {
+                    this.snapshot = { ...this.snapshot, colorTokenGroups: groups };
+                    if (generation === (this.invalidated.get(section) ?? 0)) this.colorGroupsStale = false;
+                }
                 if (
                     values.palette &&
                     paletteRepository.source !== 'local' &&

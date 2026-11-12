@@ -63,13 +63,13 @@ class OAuthConfigurationTest {
         assertTrue(
             File(root, "backend-kt/docker-compose.local.yml").readText().contains("/opt/keycloak/themes/dsbuilder:ro"),
         )
-        val bootstrap = File(identity, "keycloak/bootstrap-production-keycloak.sh").readText()
-        val studioSettings = bootstrap.substringAfter("studio_plugin_client_id=")
-            .substringBefore("figma_plugin_client_id=")
-        val figmaSettings = bootstrap.substringAfter("figma_plugin_client_id=").substringBefore("projects_client_id=")
-        assertEquals(2, Regex("attributes.login_theme=dsbuilder").findAll(studioSettings).count())
-        assertEquals(2, Regex("attributes.login_theme=dsbuilder").findAll(figmaSettings).count())
-        assertTrue(!bootstrap.substringBefore("studio_plugin_client_id=").contains("attributes.login_theme"))
+        val studioSettings = Json.parseToJsonElement(
+            File(identity, "keycloak/studio-plugin-client.json").readText(),
+        ).jsonObject
+        assertEquals(
+            "dsbuilder",
+            studioSettings.getValue("attributes").jsonObject.getValue("login_theme").jsonPrimitive.content,
+        )
     }
 
     @Test
@@ -83,13 +83,11 @@ class OAuthConfigurationTest {
         assertEquals("7776000", attributes["client.offline.session.max.lifespan"]?.jsonPrimitive?.content)
         assertEquals("true", realm.getValue("offlineSessionMaxLifespanEnabled").jsonPrimitive.content)
         assertEquals("7776000", realm.getValue("offlineSessionMaxLifespan").jsonPrimitive.content)
-        val bootstrap = File(identity, "keycloak/bootstrap-production-keycloak.sh").readText()
-        // Блок плагина заканчивается перед поиском клиента сервиса проектов.
-        val figmaSettings = bootstrap.substringAfter("figma_plugin_client_id=").substringBefore("projects_client_uuid=")
-        assertTrue(figmaSettings.length < bootstrap.length / 2)
-        assertEquals(2, Regex("consentRequired=true").findAll(figmaSettings).count())
-        assertEquals(2, Regex("client\\.offline\\.session\\.max\\.lifespan").findAll(figmaSettings).count())
-        assertTrue(figmaSettings.contains("offlineSessionMaxLifespanEnabled=true"))
+        val production = Json.parseToJsonElement(
+            File(identity, "keycloak/figma-plugin-client.json").readText(),
+        ).jsonObject
+        assertEquals("true", production.getValue("consentRequired").jsonPrimitive.content)
+        assertEquals(attributes, production.getValue("attributes").jsonObject)
     }
 
     @Test
@@ -108,9 +106,12 @@ class OAuthConfigurationTest {
             assertTrue(ds.contains("gzip on;") && ds.contains("gzip_types application/json;"), name)
             assertEquals(1, Regex("gzip on;").findAll(config).count(), name)
         }
-        val bootstrap = File(identity, "keycloak/bootstrap-production-keycloak.sh").readText()
-        assertTrue(bootstrap.contains("studio_plugin_client_id=\"dsbuilder-studio-plugin\""))
-        assertTrue(bootstrap.contains("studio_plugin_redirect_uri=\"http://127.0.0.1:*\""))
-        assertTrue(bootstrap.contains("pkce.code.challenge.method"))
+        val studio = Json.parseToJsonElement(File(identity, "keycloak/studio-plugin-client.json").readText()).jsonObject
+        assertEquals("dsbuilder-studio-plugin", studio.getValue("clientId").jsonPrimitive.content)
+        assertEquals("http://127.0.0.1:*", studio.getValue("redirectUris").jsonArray.single().jsonPrimitive.content)
+        assertEquals(
+            "S256",
+            studio.getValue("attributes").jsonObject.getValue("pkce.code.challenge.method").jsonPrimitive.content,
+        )
     }
 }

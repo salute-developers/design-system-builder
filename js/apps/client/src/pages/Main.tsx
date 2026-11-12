@@ -111,6 +111,7 @@ export const Main = () => {
         lastSavedAt,
         retryAutosave,
         refreshChanges,
+        refreshRevision,
     } = useDesignSystem(editorContext, true, sectionSelection);
 
     // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
@@ -132,7 +133,7 @@ export const Main = () => {
         Boolean(designSystem) && journalOpen,
     );
     useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
-    const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}`;
+    const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}:${refreshRevision}`;
     const changedTokenNames = useChangedTokenNames(
         editorContext,
         tokenDefinitions,

@@ -11,6 +11,9 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.postgresql.jdbc)
     implementation(libs.hikari)
+    implementation(libs.ktor.server.call.id)
 
     testImplementation(libs.kotlin.test.junit)
 }
+
+dependencies { testImplementation(libs.logback.classic) }

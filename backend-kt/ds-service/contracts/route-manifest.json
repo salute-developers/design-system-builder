@@ -23,7 +23,9 @@
         ["GET", "/{designSystemId}/appearances", null, "Appearance[]", 200, "components:variations:read", null],
         ["GET", "/{designSystemId}/changes", null, "DesignSystemChange[]", 200, "design-systems:read", null],
         ["GET", "/{designSystemId}/changes/token-ids", "ChangedTokenIdsQuery", "ChangedTokenIdsResponse", 200, "design-systems:read", null],
-        ["POST", "/{designSystemId}/changes/revert", "RevertDraftChangesRequest", "OkResponse", 200, "design-systems:write", null]
+        ["POST", "/{designSystemId}/changes/revert", "RevertDraftChangesRequest", "OkResponse", 200, "design-systems:write", null],
+        ["POST", "/{designSystemId}/changes/revert-by-address", "AddressedRevertRequest", "OkResponse", 200, "design-systems:write", null],
+        ["POST", "/{designSystemId}/changes/token-targets", "TokenTargetsRequest", "TokenTargetsResponse", 200, "design-systems:read", null]
       ]
     },
     {

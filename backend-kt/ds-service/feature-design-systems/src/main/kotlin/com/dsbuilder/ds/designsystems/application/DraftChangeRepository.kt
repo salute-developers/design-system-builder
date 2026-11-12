@@ -11,6 +11,26 @@ import java.util.UUID
 
 /** Читает вычисляемые изменения и откатывает редакции активного черновика. */
 interface DraftChangeRepository {
+    /** Отменяет переданные адреса без разрешения changeId через общий журнал. */
+    suspend fun revertAddressed(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        draftId: UUID,
+        targets: List<DraftAddressTarget>,
+    ): com.dsbuilder.ds.core.application.DsResult<Unit>
+
+    /** Читает цели только выбранных токенов и их значений одной темы. */
+    suspend fun tokenTargets(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        draftId: UUID,
+        tenantId: UUID,
+        tokenIds: Set<UUID>,
+        cursor: String?,
+    ): com.dsbuilder.ds.core.application.DsResult<DraftTokenTargetPage>
+
     /** Вычисляет журнал активного черновика или указанной публикации. */
     suspend fun list(
         projectId: ProjectId,
@@ -25,7 +45,7 @@ interface DraftChangeRepository {
         systemAdmin: Boolean,
         designSystemId: DesignSystemId,
         versionId: DesignSystemVersionId?,
-    ): Int? = error("Compact journal projection is not implemented")
+    ): Int?
 
     /** Возвращает только уникальные ID видимо изменённых токенов выбранной темы. */
     suspend fun changedTokenIds(
@@ -34,7 +54,7 @@ interface DraftChangeRepository {
         designSystemId: DesignSystemId,
         versionId: DesignSystemVersionId?,
         tenantId: UUID,
-    ): Set<UUID>? = error("Compact token projection is not implemented")
+    ): Set<UUID>?
 
     /** Сохраняет предел вычисления журнала до применения страницы. */
     suspend fun page(

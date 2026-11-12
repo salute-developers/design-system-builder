@@ -9,7 +9,7 @@ import { EditorSectionData } from '../features/themeEditor/EditorSectionData';
 import { sectionTokenTypes, type EditorSection } from '../features/themeEditor/editorSections';
 import { notifyEditorDataInvalidated } from '../api/draftInvalidationStream';
 import { invalidateEditorReads } from '../api/editorReads';
-import type { EditorContextKey, ThemeEditorSnapshot, DraftChangeDto, TokenDefinitionDto } from '../api/editorContracts';
+import type { EditorContextKey, ThemeEditorSnapshot, DraftRefreshChange, TokenDefinitionDto } from '../api/editorContracts';
 import type { AutosaveStatus } from '../api/tokenAutosaveQueue';
 import { ThemeEditorSession, type ComponentsScope } from '../features/themeEditor/ThemeEditorSession';
 import { preservePendingComponents } from '../features/themeEditor/preservePendingComponents';
@@ -88,6 +88,7 @@ export const useDesignSystem = (
           )
         : '';
     const [lastSave, setLastSave] = useState<{ key: string; time: number }>();
+    const [refreshRevision, setRefreshRevision] = useState(0);
     const autosaveSession = useRef<ThemeEditorSession | null>(null);
     const sectionData = useRef<EditorSectionData>();
     const sectionLoader = useRef<() => Promise<void>>();
@@ -396,13 +397,19 @@ export const useDesignSystem = (
         (name?: string, force?: boolean) => autosaveSession.current?.loadComponent(name, force) ?? Promise.resolve(),
         [],
     );
-    const refreshChanges = useCallback((changes: DraftChangeDto[]) => {
+    const refreshChanges = useCallback(async (changes: DraftRefreshChange[]) => {
         const session = autosaveSession.current;
         if (!session) return Promise.reject(new Error('Редактор черновика недоступен'));
-        return session.refreshChanges(changes);
+        try {
+            await session.refreshChanges(changes);
+        } finally {
+            // Локальная отмена не проходит через автосохранение и может не получить SSE-эхо.
+            setRefreshRevision((revision) => revision + 1);
+        }
     }, []);
 
     return {
+        refreshRevision,
         designSystem,
         theme,
         components,

@@ -6,6 +6,7 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.application
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.NotFoundException
+import io.ktor.server.plugins.callid.callId
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingCall
 import io.ktor.server.routing.application
@@ -42,6 +43,10 @@ fun ApplicationCall.dsTrustedHeaders(): Headers {
     }
     return Headers.build {
         appendAll(application.attributes[contextSourceKey].headers(this@dsTrustedHeaders))
+        this@dsTrustedHeaders.callId?.let {
+            remove("X-Correlation-Id")
+            append("X-Correlation-Id", it)
+        }
         remove(DESIGN_SYSTEM_CONTEXT_HEADER)
         owner?.let { append(DESIGN_SYSTEM_CONTEXT_HEADER, it) }
     }

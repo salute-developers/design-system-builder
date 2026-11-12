@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.data.ResolvedSubjectRows
 import com.dsbuilder.ds.core.data.latestRevision
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
 import com.dsbuilder.ds.core.data.selectedVersionBoundary
@@ -13,6 +14,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.lessEq
+import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
@@ -21,7 +23,25 @@ internal fun currentTenantRows(
     projectId: ProjectId? = null,
     designSystemId: UUID? = null,
     tenantId: UUID? = null,
-): List<ResultRow> = currentTenantQuery(projectId, designSystemId, tenantId).toList()
+): List<ResultRow> = ResolvedSubjectRows(
+    TenantsTable,
+    TenantRevisionsTable,
+    ThemeVersionBoundariesTable,
+    TenantRevisionsTable.tenantId,
+    ThemeDesignSystemsTable,
+    designSystemId = designSystemId,
+).read(
+    run {
+        var predicate: Op<Boolean> = TenantRevisionsTable.deleted eq false
+        projectId?.let {
+            predicate = predicate and
+                ((ThemeDesignSystemsTable.projectId eq it.value) or ThemeDesignSystemsTable.projectId.isNull())
+        }
+        designSystemId?.let { predicate = predicate and (TenantsTable.designSystemId eq it) }
+        tenantId?.let { predicate = predicate and (TenantsTable.id eq it) }
+        predicate
+    },
+)
 
 internal fun currentTenantQuery(
     projectId: ProjectId? = null,
@@ -55,51 +75,49 @@ internal fun currentThemeTokenRows(
     designSystemId: UUID? = null,
     tokenIds: Set<UUID>? = null,
     types: Set<ThemeTokenType> = emptySet(),
-): List<ResultRow> = ThemeTokensTable
-    .join(ThemeTokenRevisionsTable, JoinType.INNER, ThemeTokensTable.id, ThemeTokenRevisionsTable.tokenId)
-    .join(
+    names: Set<String> = emptySet(),
+): List<ResultRow> {
+    val reader = ResolvedSubjectRows(
+        ThemeTokensTable,
+        ThemeTokenRevisionsTable,
         ThemeVersionBoundariesTable,
-        JoinType.INNER,
-        ThemeTokenRevisionsTable.designSystemId,
-        ThemeVersionBoundariesTable.designSystemId,
+        ThemeTokenRevisionsTable.tokenId,
+        designSystemId = designSystemId,
     )
-    .selectAll()
-    .where {
-        var predicate: Op<Boolean> = selectedVersionBoundary("design_system_versions") and
-            (ThemeTokenRevisionsTable.versionSequenceNumber lessEq ThemeVersionBoundariesTable.sequenceNumber) and
-            latestRevision("token_revisions", "token_id") and
-            (ThemeTokenRevisionsTable.deleted eq false)
-        designSystemId?.let { predicate = predicate and (ThemeTokensTable.designSystemId eq it) }
-        tokenIds?.takeIf { it.isNotEmpty() }?.let { predicate = predicate and (ThemeTokensTable.id inList it) }
-        if (types.isNotEmpty()) predicate = predicate and (ThemeTokenRevisionsTable.type inList types)
-        predicate
+    val scope = (ThemeTokenRevisionsTable.deleted eq false).let { predicate ->
+        designSystemId?.let { predicate and (ThemeTokensTable.designSystemId eq it) } ?: predicate
     }
-    .toList()
+    val selectedTokens = tokenIds?.takeIf { it.isNotEmpty() }?.toSortedSet()
+    if (names.isEmpty() && (selectedTokens != null || types.isNotEmpty())) {
+        reader.cached(scope)?.let { rows ->
+            return rows.filter { row ->
+                (selectedTokens == null || row[ThemeTokensTable.id] in selectedTokens) &&
+                    (types.isEmpty() || row[ThemeTokenRevisionsTable.type] in types)
+            }
+        }
+    }
+    var predicate = scope
+    selectedTokens?.let { predicate = predicate and (ThemeTokensTable.id inList it) }
+    if (types.isNotEmpty()) predicate = predicate and (ThemeTokenRevisionsTable.type inList types)
+    if (names.isNotEmpty()) predicate = predicate and (ThemeTokenRevisionsTable.name.lowerCase() inList names)
+    return reader.read(predicate)
+}
 
 internal fun currentThemeTokenValueRows(
     designSystemId: UUID? = null,
     tenantIds: Set<UUID>? = null,
     tokenIds: Set<UUID>? = null,
-): List<ResultRow> = ThemeTokenValuesTable
-    .join(
+    knownTokens: List<ResultRow>? = null,
+): List<ResultRow> {
+    val reader = ResolvedSubjectRows(
+        ThemeTokenValuesTable,
         ThemeTokenValueRevisionsTable,
-        JoinType.INNER,
-        ThemeTokenValuesTable.id,
-        ThemeTokenValueRevisionsTable.tokenValueId,
-    )
-    .join(
         ThemeVersionBoundariesTable,
-        JoinType.INNER,
-        ThemeTokenValueRevisionsTable.designSystemId,
-        ThemeVersionBoundariesTable.designSystemId,
+        ThemeTokenValueRevisionsTable.tokenValueId,
+        designSystemId = designSystemId,
     )
-    .selectAll()
-    .where {
-        var predicate: Op<Boolean> = selectedVersionBoundary("design_system_versions") and
-            (ThemeTokenValueRevisionsTable.versionSequenceNumber lessEq ThemeVersionBoundariesTable.sequenceNumber) and
-            latestRevision("token_value_revisions", "token_value_id") and
-            (ThemeTokenValueRevisionsTable.deleted eq false)
-        // Ревизии тоже по дизайн-системе: обход начинается с её индекса, а не со всех ревизий базы.
+    val scope = run {
+        var predicate: Op<Boolean> = ThemeTokenValueRevisionsTable.deleted eq false
         designSystemId?.let {
             predicate = predicate and (ThemeTokenValuesTable.designSystemId eq it) and
                 (ThemeTokenValueRevisionsTable.designSystemId eq it)
@@ -107,22 +125,21 @@ internal fun currentThemeTokenValueRows(
         tenantIds?.takeIf { it.isNotEmpty() }?.let {
             predicate = predicate and (ThemeTokenValuesTable.tenantId inList it)
         }
-        tokenIds?.takeIf { it.isNotEmpty() }?.let {
-            predicate = predicate and (ThemeTokenValuesTable.tokenId inList it)
-        }
         predicate
     }
-    .toList()
-    .let { rows ->
-        val activeTokenIds = currentThemeTokenRows(designSystemId, tokenIds)
-            .mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
-        val activeTenantIds = currentTenantRows(designSystemId = designSystemId)
-            .mapTo(hashSetOf()) { it[TenantsTable.id] }
-        rows.filter { row ->
-            row[ThemeTokenValuesTable.tokenId] in activeTokenIds &&
-                row[ThemeTokenValuesTable.tenantId] in activeTenantIds
-        }
+    val selectedTokens = tokenIds?.takeIf { it.isNotEmpty() }?.toSortedSet()
+    val cached = selectedTokens?.let { reader.cached(scope) }
+    val rows = cached?.filter { it[ThemeTokenValuesTable.tokenId] in requireNotNull(selectedTokens) }
+        ?: reader.read(selectedTokens?.let { scope and (ThemeTokenValuesTable.tokenId inList it) } ?: scope)
+    val activeTokenIds = (knownTokens ?: currentThemeTokenRows(designSystemId, tokenIds))
+        .mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
+    val activeTenantIds = currentTenantRows(designSystemId = designSystemId)
+        .mapTo(hashSetOf()) { it[TenantsTable.id] }
+    return rows.filter { row ->
+        row[ThemeTokenValuesTable.tokenId] in activeTokenIds &&
+            row[ThemeTokenValuesTable.tenantId] in activeTenantIds
     }
+}
 
 internal fun themeDraft(designSystemId: UUID): ResultRow? {
     lockDesignSystemMutation(designSystemId)

@@ -1171,9 +1171,18 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     private suspend fun revert(ds: String, change: JsonObject): HttpResponse =
-        service.builder.client.post("/api/design-systems/$ds/changes/${change.string("changeId")}/revert") {
+        service.builder.client.post("/api/design-systems/$ds/changes/revert-by-address") {
             actor()
-            header("X-DS-Base-Revision", change.getValue("editRevision").jsonPrimitive.content)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """{"draftId":"${change.string(
+                    "versionId",
+                )}","targets":[{"entityType":"${change.string(
+                    "entityType",
+                )}","entityId":"${change.string(
+                    "entityId",
+                )}","expectedRevision":${change.getValue("editRevision")}}]}""",
+            )
             header("Idempotency-Key", "revert-${change.string("changeId")}")
         }
 

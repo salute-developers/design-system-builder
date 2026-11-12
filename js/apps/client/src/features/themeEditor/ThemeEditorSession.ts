@@ -10,7 +10,7 @@ import type {
     EditorContextKey,
     ThemeEditorSnapshot,
     TokenDefinitionDto,
-    DraftChangeDto,
+    DraftRefreshChange,
 } from '../../api/editorContracts';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
@@ -481,7 +481,7 @@ export class ThemeEditorSession {
     }
 
     /** Перечитывает подтверждённые предметные данные после локальной отмены, даже без SSE-эха. */
-    refreshChanges(changes: DraftChangeDto[]) {
+    refreshChanges(changes: DraftRefreshChange[]) {
         const scopes = new Set<DraftInvalidationScope>();
         for (const change of changes) {
             if (
@@ -494,17 +494,17 @@ export class ThemeEditorSession {
             else if (change.entityType === 'tenant') scopes.add('theme-metadata');
             else scopes.add('all');
         }
-        return this.refreshSnapshot(scopes);
+        return this.refreshSnapshot(scopes, undefined, changes);
     }
 
-    private refreshSnapshot(scopes: Set<DraftInvalidationScope>, event?: DraftInvalidationEvent) {
+    private refreshSnapshot(scopes: Set<DraftInvalidationScope>, event?: DraftInvalidationEvent, changes?: DraftRefreshChange[]) {
         notifyEditorDataInvalidated(this.context, scopes);
         if (this.options.sections) {
             if (event) {
                 if (event.draftId !== this.snapshot.designSystem.draftId) scopes.add('all');
                 this.options.sections.acceptDraftCursor(event.draftId, event.draftRevision);
             }
-            this.options.sections.invalidate(scopes);
+            this.options.sections.invalidate(scopes, changes);
             invalidateEditorReads(this.context);
             return this.refreshActiveSection();
         }

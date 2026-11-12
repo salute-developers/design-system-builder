@@ -14,6 +14,7 @@ internal class FakeTenantPaletteRepository(
     var snapshot: TenantPaletteSnapshot?,
     private val initialized: TenantPaletteSnapshot? = null,
 ) : TenantPaletteRepository {
+    var snapshotReads: Int = 0
     var initializedTenant: UUID? = null
     var saved: TenantPaletteState? = null
     var rewrite: TokenReferenceRewrite? = null
@@ -33,7 +34,14 @@ internal class FakeTenantPaletteRepository(
         return TenantPaletteLock.Locked
     }
 
-    override suspend fun snapshot(projectId: ProjectId, tenantId: UUID, includeSubjectRevisions: Boolean) = snapshot
+    override suspend fun snapshot(
+        projectId: ProjectId,
+        tenantId: UUID,
+        includeSubjectRevisions: Boolean,
+    ): TenantPaletteSnapshot? {
+        snapshotReads++
+        return snapshot
+    }
 
     override suspend fun save(tenantId: UUID, before: TenantPaletteState, state: TenantPaletteState) {
         saved = state

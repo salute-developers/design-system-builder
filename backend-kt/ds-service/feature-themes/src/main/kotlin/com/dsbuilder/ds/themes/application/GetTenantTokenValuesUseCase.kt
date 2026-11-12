@@ -39,15 +39,15 @@ class GetTenantTokenValuesUseCase(
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
             is DsResult.Success -> transactions.readOnly(context) {
-                val needsPalette = types.isEmpty() || types.any { it in PALETTE_TYPES }
-                val snapshot = if (needsPalette) {
-                    paletteRepository.snapshot(context.projectId, id)?.takeIf { it.hasSystemGroups() }
-                } else {
-                    null
-                }
                 val wire = platforms.mapTo(hashSetOf(), ThemeTokenPlatform::wireValue)
-                values(context, id, types) { values ->
-                    val selected = if (wire.isEmpty()) values else values.filter { it.platform in wire }
+                values(context, id, types) { stored ->
+                    val needsPalette = types.isEmpty() || types.any { it in PALETTE_TYPES }
+                    val snapshot = if (needsPalette) {
+                        paletteRepository.snapshot(context.projectId, id)?.takeIf { it.hasSystemGroups() }
+                    } else {
+                        null
+                    }
+                    val selected = if (wire.isEmpty()) stored else stored.filter { it.platform in wire }
                     TokenValuePublisher(id, snapshot).publish(selected)
                 }
             }
@@ -57,7 +57,7 @@ class GetTenantTokenValuesUseCase(
         context: DsRequestContext,
         id: UUID,
         types: Set<ThemeTokenType>,
-        transform: (List<TenantTokenValue>) -> List<TenantTokenValue>,
+        transform: suspend (List<TenantTokenValue>) -> List<TenantTokenValue>,
     ): DsResult<List<TenantTokenValue>> =
         repository.tokenValues(context.projectId, id, types)?.let {
             DsResult.Success(transform(it))

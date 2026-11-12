@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ThemeEditorSnapshot } from '../../api/editorContracts';
+import type { DraftChangeDto, ThemeEditorSnapshot } from '../../api/editorContracts';
 import type { Meta } from '../../controllers/componentBuilder/type';
 
 const reads = vi.hoisted(() => ({
@@ -51,6 +51,25 @@ const component = (name: string): Meta => ({
     sources: { api: [], variations: [], configs: [] },
 });
 const create = () => new EditorSectionData(context, snapshot(), new AbortController().signal);
+
+it('после отката значения сохраняет группы, но не теряет независимую инвалидацию групп', async () => {
+    const data = create();
+    await data.activate('colors');
+    const changes = [{ entityType: 'token-value' } as DraftChangeDto];
+    data.invalidate(new Set(['theme-tokens']), changes);
+    await data.activate('colors');
+    expect(reads.tokens).toHaveBeenCalledTimes(2);
+    expect(reads.groups).toHaveBeenCalledOnce();
+    expect(reads.shell).not.toHaveBeenCalled();
+    expect(reads.index).not.toHaveBeenCalled();
+    data.invalidate(new Set(['theme-tokens']));
+    data.invalidate(new Set(['theme-tokens']), changes);
+    await data.activate('colors');
+    expect(reads.groups).toHaveBeenCalledTimes(2);
+    data.invalidate(new Set(['theme-tokens']), [{ entityType: 'token-group' } as DraftChangeDto]);
+    await data.activate('colors');
+    expect(reads.groups).toHaveBeenCalledTimes(3);
+});
 
 it('сначала получает группы, затем определения цветов, сохраняя результат в кэше раздела', async () => {
     let finishGroups!: (value: []) => void;

@@ -397,7 +397,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
             .single { db.platform(it) == "web" }
         val change = api.changes(designSystemId)
             .single { it.text("entityType") == "token-value" && it.text("entityId") == webValue }
-        api.revert(designSystemId, change.text("changeId"), change.long("editRevision"))
+        api.revert(designSystemId, change)
         assertEquals("1.125rem", db.field(tenantA, designSystemId, "screen-l.body.m.normal", "web", "fontSize"))
         assertEquals("1.25rem", db.field(tenantA, designSystemId, "screen-l.body.m.medium", "web", "fontSize"))
     }
@@ -497,11 +497,16 @@ class TypographyStyleHttpPostgresIntegrationTest {
             return body(response).jsonArray
         }
 
-        suspend fun revert(designSystemId: String, changeId: String, revision: Long) {
-            val response = client.request("/api/design-systems/$designSystemId/changes/$changeId/revert") {
+        suspend fun revert(designSystemId: String, change: JsonElement) {
+            val response = client.request("/api/design-systems/$designSystemId/changes/revert-by-address") {
                 method = HttpMethod.Post
                 trusted(OWNER)
-                header("X-DS-Base-Revision", revision.toString())
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"draftId":"${change.text("versionId")}","targets":[{""" +
+                        """"entityType":"${change.text("entityType")}","entityId":"${change.text("entityId")}",""" +
+                        """"expectedRevision":${change.long("editRevision")}}]}""",
+                )
                 header("Idempotency-Key", UUID.randomUUID().toString())
             }
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())

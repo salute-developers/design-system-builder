@@ -227,6 +227,32 @@ class OpenApiDocumentResourceTest {
         assertEquals(3, request.changes.single().expectedRevision)
     }
 
+    /** Адресная команда и ограниченное чтение целей имеют разные права и явную границу черновика. */
+    @Test
+    fun `addressed revert and token targets describe bounded draft scoped contracts`() {
+        val write = paths.getValue("/api/design-systems/{designSystemId}/changes/revert-by-address")
+            .jsonObject.getValue("post").jsonObject
+        val read = paths.getValue("/api/design-systems/{designSystemId}/changes/token-targets")
+            .jsonObject.getValue("post").jsonObject
+        assertEquals("design-systems:write", write.getValue("x-permission").jsonPrimitive.content)
+        assertEquals("design-systems:read", read.getValue("x-permission").jsonPrimitive.content)
+        for (operation in listOf(write, read)) {
+            assertTrue("409" in operation.getValue("responses").jsonObject)
+            assertEquals(
+                "true",
+                operation.getValue("requestBody").jsonObject.getValue("required").jsonPrimitive.content,
+            )
+        }
+        val schemas = document.getValue("components").jsonObject.getValue("schemas").jsonObject
+        for ((name, field) in listOf("AddressedRevertRequest" to "targets", "TokenTargetsRequest" to "tokenIds")) {
+            val schema = schemas.getValue(name).jsonObject
+            assertTrue(schema.getValue("required").jsonArray.any { it.jsonPrimitive.content == "draftId" })
+            val items = schema.getValue("properties").jsonObject.getValue(field).jsonObject
+            assertEquals("1", items.getValue("minItems").jsonPrimitive.content)
+            assertEquals("200", items.getValue("maxItems").jsonPrimitive.content)
+        }
+    }
+
     /** Примечания не обязательны ни в контракте, ни при чтении запроса публикации. */
     @Test
     fun `publication notes are optional`() {
@@ -247,9 +273,8 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        // Включая компактный список изменённых токенов, пакет редактора компонента, пакетный откат журнала, группы
-        // типографии и добавление компонентов из шаблонов.
-        assertEquals(197, operationCount)
+        // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора и группы типографии.
+        assertEquals(199, operationCount)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)
         assertTrue("/api/design-systems/catalog/web-preview/plugin" in paths)

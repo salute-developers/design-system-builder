@@ -1,11 +1,17 @@
 package com.dsbuilder.ds.themes.data
 
 import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
+import com.dsbuilder.ds.core.application.LiteralValueBatchContext
+import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
+import com.dsbuilder.ds.core.application.LiteralValueBatchValue
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.domain.colortokens.ValuePaletteReferences
+import com.dsbuilder.ds.themes.domain.palette.ShadowLayerColors
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
+import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -16,7 +22,10 @@ import java.util.UUID
  * Не позволяет отменой вернуть значение удалённого токена или ссылку на недоступную растяжку: цвет токена или цвет
  * слоя тени.
  */
-class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
+class PaletteRevertDependencyValidator : DraftChangeDependencyValidator, LiteralValueBatchParticipant {
+    override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
+        context.values.all { it.parentsVisible && !it.hasPaletteReferences() }
+
     override suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean =
         valid(designSystemId, entityType, entityId, hashMapOf())
 
@@ -46,13 +55,20 @@ class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
         stable: ResultRow,
         snapshots: MutableMap<UUID, TenantPaletteSnapshot?>,
     ): Boolean {
+        val tenantId = stable[ThemeTokenValuesTable.tenantId]
+        val tenant = currentTenantRows(designSystemId = designSystemId, tenantId = tenantId).singleOrNull()
         val tokenId = stable[ThemeTokenValuesTable.tokenId]
-        val tokenRow = currentThemeTokenRows(designSystemId, setOf(tokenId)).singleOrNull() ?: return false
+        val tokenRow = currentThemeTokenRows(designSystemId, setOf(tokenId)).singleOrNull()
+        if (tenant == null || tokenRow == null) return false
         val value = currentThemeTokenValueRows(
-            designSystemId, setOf(stable[ThemeTokenValuesTable.tenantId]), setOf(tokenId),
+            designSystemId, setOf(tenantId), setOf(tokenId),
         ).firstOrNull { it[ThemeTokenValuesTable.id] == entityId } ?: return true
         val type = tokenRow[ThemeTokenRevisionsTable.type]
+        // Наличие определения проверено выше. Литерал не требует разрешения всей палитры темы.
+        val storedValue = value[ThemeTokenValueRevisionsTable.value]
+        val hasReferences = hasPaletteReferences(type, value[ThemeTokenValueRevisionsTable.paletteId], storedValue)
         return type !in REFERENCING_TYPES ||
+            !hasReferences ||
             validReferences(
                 entityId,
                 value[ThemeTokenValuesTable.tenantId],
@@ -117,3 +133,11 @@ class PaletteRevertDependencyValidator : DraftChangeDependencyValidator {
         val REFERENCING_TYPES = ColorTokenFamily.TYPES + ThemeTokenType.SHADOW
     }
 }
+
+/** Одно правило ссылок для первоначального отбора и повторной проверки пакетного снимка. */
+internal fun LiteralValueBatchValue.hasPaletteReferences(): Boolean =
+    hasPaletteReferences(ThemeTokenType.fromWire(tokenType), previousPaletteId, previousValue)
+
+private fun hasPaletteReferences(type: ThemeTokenType?, paletteId: UUID?, value: JsonElement?): Boolean =
+    paletteId != null || ValuePaletteReferences.find(value).isNotEmpty() ||
+        (type == ThemeTokenType.SHADOW && ShadowLayerColors.references(value).isNotEmpty())

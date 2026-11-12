@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
 import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
+import type { DraftRefreshChange } from '../../api/editorContracts';
 import type { Config, DesignSystem, Theme } from '../../controllers';
 import type { ThemePalette } from '../../modules/palette';
 import { ColorTokensScreen, ColorTokensState } from './ColorTokensScreen';
@@ -18,6 +19,7 @@ interface ColorsOutletContextProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
+    refreshChanges?: (changes: DraftRefreshChange[]) => Promise<void>;
     /** Ошибка загрузки раздела: экран показывает «Не удалось загрузить цветовые токены» и «Повторить». */
     sectionError?: unknown;
     /** Раздел ещё загружается: тема в контексте — оболочка без токенов. */
@@ -54,6 +56,7 @@ export const Colors = () => {
             updated={outlet.updated}
             rerender={outlet.rerender}
             reload={outlet.reload}
+            refreshChanges={outlet.refreshChanges}
             changedTokenNames={outlet.changedTokenNames}
         />
     );

@@ -12,18 +12,16 @@ import java.util.UUID
  */
 fun selectedVersionBoundary(tableName: String): Op<Boolean> = object : Op<Boolean>() {
     override fun toQueryBuilder(queryBuilder: QueryBuilder) {
-        queryBuilder.append("(ds_request_matches_design_system($tableName.design_system_id) AND ((")
-        queryBuilder.append("NULLIF(current_setting('ds.version_id', true), '') IS NULL AND ")
-        queryBuilder.append(tableName)
-        queryBuilder.append(
-            ".status = 'draft') OR (NULLIF(current_setting('ds.version_id', true), '') IS NOT NULL AND ",
-        )
-        queryBuilder.append(tableName)
-        queryBuilder.append(".id = NULLIF(current_setting('ds.version_id', true), '')::uuid AND ")
-        queryBuilder.append(tableName)
-        queryBuilder.append(".status = 'published')))")
+        queryBuilder.append(selectedVersionBoundarySql(tableName))
     }
 }
+
+/** Единый SQL-предикат границы: доверенная область ДС, черновик либо явно выбранная публикация. */
+fun selectedVersionBoundarySql(tableName: String): String = """
+    (ds_request_matches_design_system($tableName.design_system_id) AND (
+      (NULLIF(current_setting('ds.version_id', true), '') IS NULL AND $tableName.status = 'draft') OR
+      ($tableName.id = NULLIF(current_setting('ds.version_id', true), '')::uuid AND $tableName.status = 'published')))
+""".trimIndent()
 
 /** Проверяет, что выбранная историческая версия относится к ожидаемой дизайн-системе. */
 fun selectedVersionBelongsTo(designSystemId: UUID): Boolean = TransactionManager.current().exec(

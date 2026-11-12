@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { DraftChangeDto } from '../../api/editorContracts';
 import type { JournalActionViewModel } from './journalPresenter';
 
-const operations = vi.hoisted(() => ({ revertChange: vi.fn(), waitForDraftAutosaveIdle: vi.fn() }));
+const operations = vi.hoisted(() => ({ revertChange: vi.fn(), revertChanges: vi.fn(), waitForDraftAutosaveIdle: vi.fn() }));
 vi.mock('../../api/versionJournalRepository', () => ({ versionJournalRepository: operations }));
 vi.mock('../../api/draftAutosaveActivity', () => operations);
 
@@ -18,44 +18,49 @@ const action = { key: 'combined', canRevert: true, changes } as JournalActionVie
 
 beforeEach(() => {
     operations.revertChange.mockReset().mockResolvedValue({});
+    operations.revertChanges.mockReset().mockResolvedValue({});
     operations.waitForDraftAutosaveIdle.mockReset().mockResolvedValue(undefined);
 });
 
 it('сверяет успешную и неизвестную части после ошибки, не отправляя оставшуюся отмену', async () => {
-    operations.revertChange.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('response lost'));
+    const many = Array.from({length:401}, (_, i) => ({...changes[0],entityId:String(i)}));
+    const batchAction = {...action,changes:many};
+    operations.revertChanges.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('response lost'));
     const reload = vi.fn().mockResolvedValue(undefined);
     const refresh = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useJournalRevert(context, reload, refresh));
-    await act(() => result.current.revert(action));
-    expect(operations.revertChange).toHaveBeenCalledTimes(2);
-    expect(refresh).toHaveBeenCalledWith(changes.slice(0, 2));
+    await act(() => result.current.revert(batchAction));
+    expect(operations.revertChanges).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenCalledWith(many.slice(0, 400));
     expect(reload).toHaveBeenCalledTimes(1);
     expect(result.current.operationError).toContain('Не удалось полностью отменить');
     expect(result.current.refreshFailed).toBe(false);
 });
 
 it('после сбоя сверки повторяет только чтения и сохраняет сообщение о частичной отмене', async () => {
-    operations.revertChange.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline'));
+    const many = Array.from({length:401}, (_, i) => ({...changes[0],entityId:String(i)}));
+    const batchAction = {...action,changes:many};
+    operations.revertChanges.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline'));
     const refresh = vi.fn().mockRejectedValueOnce(new Error('refresh failed')).mockResolvedValue(undefined);
     const { result } = renderHook(() => useJournalRevert(context, vi.fn().mockResolvedValue(undefined), refresh));
-    await act(() => result.current.revert(action));
+    await act(() => result.current.revert(batchAction));
     expect(result.current.refreshFailed).toBe(true);
-    await act(() => result.current.revert(action));
-    expect(operations.revertChange).toHaveBeenCalledTimes(2);
+    await act(() => result.current.revert(batchAction));
+    expect(operations.revertChanges).toHaveBeenCalledTimes(2);
     await act(() => result.current.retryRefresh());
-    expect(operations.revertChange).toHaveBeenCalledTimes(2);
+    expect(operations.revertChanges).toHaveBeenCalledTimes(2);
     expect(refresh).toHaveBeenCalledTimes(2);
     expect(result.current.refreshFailed).toBe(false);
     expect(result.current.operationError).toContain('Не удалось полностью отменить');
 });
 
 it('перечитывает неизвестный результат уже первой команды после потери ответа', async () => {
-    operations.revertChange.mockRejectedValueOnce(new Error('503 after commit'));
+    operations.revertChanges.mockRejectedValueOnce(new Error('503 after commit'));
     const refresh = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useJournalRevert(context, vi.fn().mockResolvedValue(undefined), refresh));
     await act(() => result.current.revert(action));
-    expect(refresh).toHaveBeenCalledWith([changes[0]]);
-    expect(operations.revertChange).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledWith(changes);
+    expect(operations.revertChanges).toHaveBeenCalledTimes(1);
 });
 
 it('не снимает блокировку при раннем отказе одного чтения, пока второе ещё выполняется', async () => {
@@ -75,7 +80,7 @@ it('не снимает блокировку при раннем отказе о
     });
     expect(result.current.reverting).toBe(action.key);
     await act(() => result.current.revert(action));
-    expect(operations.revertChange).toHaveBeenCalledTimes(3);
+    expect(operations.revertChanges).toHaveBeenCalledTimes(1);
     await act(async () => {
         complete();
         await pending;
@@ -83,7 +88,7 @@ it('не снимает блокировку при раннем отказе о
     expect(result.current.refreshFailed).toBe(true);
 });
 
-it('отменяет строку добавления стиля: сначала подключение, затем стиль', async () => {
+it('отменяет строку добавления стиля одним пакетом: сначала подключение, затем стиль', async () => {
     const record = (changeId: string, entityType: string, entityId: string, currentValue: Record<string, unknown>) =>
         ({
             changeId,
@@ -114,7 +119,10 @@ it('отменяет строку добавления стиля: сначал�
 
     await act(() => result.current.revert(row));
 
-    expect(operations.revertChange.mock.calls.map(([, change]) => change.changeId)).toEqual([
+    expect(operations.revertChanges).toHaveBeenCalledTimes(1);
+    expect(operations.revertChange).not.toHaveBeenCalled();
+    expect(operations.revertChanges.mock.calls[0][0]).toEqual(context);
+    expect(operations.revertChanges.mock.calls[0][1].map((change: DraftChangeDto) => change.changeId)).toEqual([
         'link-change',
         'style-change',
     ]);
