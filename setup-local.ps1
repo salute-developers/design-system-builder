@@ -5,6 +5,8 @@ param(
     [string]$PluginZip,
     [string]$WebPluginZip,
     [switch]$SkipPlugin,
+    [string]$Icons,
+    [switch]$SkipIcons,
     [string]$ComponentsPackage,
     [string]$ThemePackage,
     [switch]$SkipDesignSystem
@@ -19,6 +21,7 @@ $gateway = 'http://host.docker.internal:8080'
 $pluginWasExplicit = $PSBoundParameters.ContainsKey('PluginZip')
 $webPluginWasExplicit = $PSBoundParameters.ContainsKey('WebPluginZip')
 $componentsWereExplicit = $PSBoundParameters.ContainsKey('ComponentsPackage')
+$iconsWereExplicit = $PSBoundParameters.ContainsKey('Icons')
 $themeWasExplicit = $PSBoundParameters.ContainsKey('ThemePackage')
 $pluginFromEnvironment = [Environment]::GetEnvironmentVariable('COMPOSE_PREVIEW_PLUGIN_ZIP')
 $componentsFromEnvironment = [Environment]::GetEnvironmentVariable('COMPOSE_COMPONENTS_PACKAGE')
@@ -30,6 +33,11 @@ $webPluginFromEnvironment = [Environment]::GetEnvironmentVariable('WEB_PREVIEW_P
 if (-not $webPluginWasExplicit -and $webPluginFromEnvironment) {
     $WebPluginZip = $webPluginFromEnvironment
     $webPluginWasExplicit = $true
+}
+$iconsFromEnvironment = [Environment]::GetEnvironmentVariable('LOCAL_ICONS_SOURCE')
+if (-not $iconsWereExplicit -and $iconsFromEnvironment) {
+    $Icons = $iconsFromEnvironment
+    $iconsWereExplicit = $true
 }
 if (-not $componentsWereExplicit -and $componentsFromEnvironment) {
     $ComponentsPackage = $componentsFromEnvironment
@@ -246,6 +254,30 @@ if (-not $SkipPlugin) {
     Publish-PreviewPlugin 'compose' 'Compose preview plugin' $PluginZip $pluginWasExplicit 'local-dev/compose-preview/preview-compose-plugin.zip'
     Publish-PreviewPlugin 'react' 'web preview plugin' $WebPluginZip $webPluginWasExplicit 'local-dev/web-preview/preview-web-plugin.zip'
 }
+
+# The icon catalog is loaded as CI does it: the backend stores the SVG files in the MinIO bucket of the Compose
+# preview plugin and replaces the catalog in one transaction. Without -Icons the bundled starter set is used.
+function Publish-IconCatalog {
+    $source = if ($Icons) { $Icons } else { Join-Path $root 'local-dev/icons/icons-manifest.json' }
+    if (-not (Test-Path -LiteralPath $source)) {
+        if ($iconsWereExplicit) { throw "Icon set not found: $source" }
+        Write-SetupLog 'No icon set; continuing without the icon catalog'
+        return
+    }
+    $mounts = @()
+    $inputPath = Convert-InputPath $source '/input/icons' ([ref]$mounts)
+    try {
+        Write-SetupLog 'Loading the icon catalog'
+        $toolArgs = @('--from', $inputPath)
+        if (-not $iconsWereExplicit) { $toolArgs += '--if-empty' }
+        Invoke-SetupTool 'publish-local-icons.sh' $toolArgs $mounts
+    } catch {
+        if ($iconsWereExplicit) { throw }
+        Write-SetupLog "The bundled icon set could not be loaded: $_"
+    }
+}
+
+if (-not $SkipIcons) { Publish-IconCatalog }
 
 if (-not $SkipDesignSystem -and $componentsWereExplicit) {
     if ($themeWasExplicit -and $ThemePackage -and

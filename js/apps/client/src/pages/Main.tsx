@@ -2,6 +2,7 @@ import { useChangedTokenNames } from '../features/versionJournal/useChangedToken
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
+import { SymbolsOutline } from '@salutejs/sdds-icons/16';
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 import { isDebugMode, isComponentEditorEnabled } from '../utils';
 import { useDesignSystem, useForceRerender } from '../hooks';
@@ -37,6 +38,7 @@ const editorSectionLabels: Record<string, string> = {
     typography: 'Типографика',
     shapes: 'Отступы, радиусы и тени',
     components: 'Компоненты',
+    icons: 'Иконки',
     changes: 'Журнал изменений',
     versions: 'Версии',
     settings: 'Настройки темы',
@@ -72,7 +74,7 @@ export const Main = () => {
     const editorSectionLabel = editorSectionLabels[editorSection] ?? 'Редактор';
     /** Экраны токенов и палитра сами показывают загрузку скелетонами и ошибку загрузки с «Повторить». */
     const ownsSectionStates =
-        Boolean(editorContext) && ['palette', 'colors', 'typography', 'shapes'].includes(editorSection);
+        Boolean(editorContext) && ['palette', 'colors', 'typography', 'shapes', 'icons'].includes(editorSection);
     /** Раздел компонентов на время загрузки показывает свой скелетон вместо общего спиннера. */
     const componentsSkeleton = Boolean(editorContext) && editorSection === 'components';
     const sectionSelection = useMemo(
@@ -270,6 +272,16 @@ export const Main = () => {
                                             </StyledIconButton>
                                         </>
                                     ) : null}
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('icons') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-icons"
+                                        aria-label={editorSectionLabels.icons}
+                                        title={editorSectionLabels.icons}
+                                        selected={currentPath.includes('icons')}
+                                        onClick={() => onClickPanelButton('icons')}
+                                    >
+                                        <SymbolsOutline color="inherit" />
+                                    </StyledIconButton>
                                     <Separator />
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('changes') ? 'is-active' : ''}`}

@@ -130,7 +130,7 @@ const emptyProp = (item: ComponentAPI, api: ComponentAPI[]) => new Props([{ id: 
 
 /**
  * Строки инспектора: заданные свойства источников сочетания и пустые строки для остальных свойств API этих источников.
- * Ссылки на стили и иконки показываются только заданными.
+ * Ссылки на стили показываются только заданными.
  *
  * `showAll` добавляет стилю пустыми строками и свойства, не привязанные к его вариации (`linked: false`); у вариации
  * без привязанных свойств (новой) они видны всегда.
@@ -152,7 +152,8 @@ export const collectSourceProperties = (
         });
         const empty = candidates.flatMap((item): InspectorProperty[] => {
             const section = sectionOf(item.type, item.name);
-            if (!section || section === 'Additional' || props?.getProp(item.id)) return [];
+            // Ссылки на стили показываются только заданными; незаданную иконку можно выбрать из каталога.
+            if (!section || (section === 'Additional' && item.type !== 'icon') || props?.getProp(item.id)) return [];
             const prop = emptyProp(item, api);
             return prop ? [{ prop, source, section, isSet: false, linked: linkedIds.has(item.id) }] : [];
         });

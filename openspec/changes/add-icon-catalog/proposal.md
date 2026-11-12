@@ -6,16 +6,17 @@ DS Builder не знает, какие иконки существуют. Сво
 
 ## What Changes
 
-- **Бэкенд (`backend-kt/ds-service`, модуль `feature-components`)**: каталог иконок и журнал загрузок в Postgres (Flyway `V18`), файлы SVG в S3 под неизменяемым префиксом загрузки, маршрут загрузки `POST /api/admin/icons/catalog` (пробная загрузка по умолчанию, запись при `dryRun=false`), маршрут чтения каталога для клиента. Загрузка кладёт файлы в S3, затем одной транзакцией переключает активный каталог; ответ содержит различия и отчёт сверки существующих значений свойств с каталогом.
+- **Бэкенд (`backend-kt/ds-service`, модуль `feature-components`)**: каталог иконок и журнал загрузок в Postgres (Flyway `V20`), файлы SVG в S3 под неизменяемым префиксом загрузки, маршрут загрузки `POST /api/admin/icons/catalog` (пробная загрузка по умолчанию, запись при `dryRun=false`), маршрут чтения каталога для клиента. Загрузка кладёт файлы в S3, затем одной транзакцией переключает активный каталог; ответ содержит различия и отчёт сверки существующих значений свойств с каталогом.
 - **Соответствие старому формату значений**: значения `icon` в конфигурациях остаются в формате данных (`disclosure.down.fill.16`), чтобы не ломать выгрузку конфигураций, импорт и payload превью. Каталог хранит для каждой иконки каноническое имя (`DisclosureDownFill`) и производный ключ старого формата; значения не переписываются.
 - **Редактор компонентов**: бэкенд проверяет значение `icon` при записи по каталогу (если каталог загружен) и отклоняет неизвестное; клиент заменяет read-only значение пикером иконки из каталога.
 - **Защита каталога**: загрузка, удаляющая иконку, на которую ссылаются значения свойств, отклоняется (`409 icons_in_use`) и перечисляет имена и число ссылок; явное разрешение — параметр `allowRemovingUsed` (`--allow-removing-used` в CLI).
 - **CLI (`frontend-kt`, модуль `feature-components`)**: команда `dsbuilder icons publish --from-dir <packages/sdds-icons>` (или `--from <icons-manifest.json>`) собирает манифест с именами, размерами, категориями, синонимами (из `<metadata>` каждого SVG) и содержимым SVG и отправляет бэкенду; по умолчанию пробная отправка, `--apply` для записи, вход служебной учёткой как у `preview-plugin publish`.
 - **Клиент (`js/apps/client`)**: страница каталога `/projects/:projectId/icons` (поиск по имени и синонимам, в том числе русским, категория, начертание, размер, копирование имени), рисующая иконки из SVG билдера, и пикер иконки в панели свойств компонента.
 - **Хранилище и конфигурация**: иконки лежат в том же бакете S3, что и плагин превью, под отдельным префиксом `icons/`; используются существующие настройки `DS_PLUGIN_S3_*` и `DS_PLUGIN_PUBLIC_BASE_URL`, добавляются только `DS_ICON_KEEP_LOADS` и `DS_ICON_ORPHAN_GRACE_HOURS`.
+- **Превью Compose**: клиент добавляет в payload превью SVG-ресурсы выбранных иконок (`assets[]`, идентификатор `icon:<значение>`, адрес файла каталога); плагин рисует их штатным SVG-модулем Skia (изменение плагина — отдельный change `compose-preview-svg-icons` в `plasma-android`).
 - **Документация формата**: описание `icons-manifest.json` и пример шага CI для репозитория `plasma` (сам workflow пишется в том репозитории).
 
-Не входит: поиск иконки плагином превью по каноническому имени и любые изменения `plasma-android` (плагин продолжает получать значение в старом формате); переименование значений в хранимых конфигурациях; версии каталога с выбором активного набора (откат — повторная загрузка); workflow CI в репозиториях `plasma` и `plasma-android`; подпись SVG.
+Не входит: изменения `plasma-android` (они в change `compose-preview-svg-icons`; значение иконки в payload остаётся в старом формате); переименование значений в хранимых конфигурациях; версии каталога с выбором активного набора (откат — повторная загрузка); workflow CI в репозиториях `plasma` и `plasma-android`; подпись SVG.
 
 ## Capabilities
 
@@ -30,7 +31,7 @@ DS Builder не знает, какие иконки существуют. Сво
 
 ## Impact
 
-- `backend-kt/ds-service`: `feature-components` (пакет иконок: presentation, application, domain, data, di; проверка значений в use case записи значений свойств; чтение ссылок на иконки в `variation_property_values` и `invariant_property_values`), `runtime` (Flyway `V18__icon_catalog.sql`), `app` (конфигурация S3 иконок, DI), `contracts/route-manifest.json`, `runtime/src/main/resources/openapi/documentation.yaml`, `architecture-tests`.
+- `backend-kt/ds-service`: `feature-components` (пакет иконок: presentation, application, domain, data, di; проверка значений в use case записи значений свойств; чтение ссылок на иконки в `variation_property_values` и `invariant_property_values`), `runtime` (Flyway `V20__icon_catalog.sql`), `app` (конфигурация S3 иконок, DI), `contracts/route-manifest.json`, `runtime/src/main/resources/openapi/documentation.yaml`, `architecture-tests`.
 - `backend-kt/app` (встроенный шлюз монолита): маршрут `/api/admin/icons/catalog` добавляется в `PublicRouteBoundary` (`publicGatewayPath`, иначе `requirePublicRoutes` роняет старт), в `GatewayRequestHandler` (лимит тела 32 МиБ вместо 2 МиБ, `userRoute` — проверка токена пользователя, личный токен PAT отклоняется) без переписывания пути; чтение — через существующую проектную ветку `/api/projects/{projectId}/design-systems/catalog/icons`. nginx и исторический снимок `app/contracts/gateway-contract.json` не меняются.
 - `backend-kt/production-env.example`, `DEPLOY.md`: две новые переменные очистки; бакет и доступ к нему не меняются.
 - `frontend-kt`: `feature-components` (use case, порты, чтение каталога SVG, HTTP-источник), `cli` (команда), `USAGE.md`.

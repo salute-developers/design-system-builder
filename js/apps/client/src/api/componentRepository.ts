@@ -357,6 +357,10 @@ const readComponentCatalog = async (context: EditorContextKey, signal?: AbortSig
 };
 
 /** Предметный клиент с ограниченным набором операций. */
+/** Копия объекта без полей со значением `null`. */
+const withoutNulls = <T extends Record<string, unknown>>(value: T): Partial<T> =>
+    Object.fromEntries(Object.entries(value).filter(([, item]) => item !== null)) as Partial<T>;
+
 export const componentRepository = {
     /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей: только компоненты, связанные с дизайн-системой. */
     async loadComponentIndex(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
@@ -803,11 +807,12 @@ export const componentRepository = {
                 const rawValue = change.value == null ? null : String(change.value).replace(/^\[|\]$/g, '');
                 const tokenName = rawValue?.replace(/^(light|dark)\./, '') ?? '';
                 const tokenId = tokenIdByName.get(tokenName) ?? null;
-                const body = {
+                // Сервер отклоняет явный `null` в полях значения (`400 invalid_body`): пустые поля не отправляются.
+                const body = withoutNulls({
                     tokenId,
                     value: tokenId ? null : rawValue,
                     adjustment: change.adjustment == null ? null : String(change.adjustment),
-                };
+                });
                 const entityType = resolvedStyleId ? 'variation-property-value' : 'invariant-property-value';
                 if (existing) {
                     const response = await http.patch(

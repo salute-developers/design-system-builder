@@ -55,7 +55,11 @@ import { getDraftAutosaveStatus, waitForDraftAutosaveIdle } from '../../api/draf
 const editorContext = { projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' };
 const renderEditor = () => {
     const context = {
-        designSystem: { getParameters: () => editorContext, getComponentDataByName: () => ({}) },
+        designSystem: {
+            getParameters: () => editorContext,
+            getComponentDataByName: () => ({}),
+            getComponentData: () => ({}),
+        },
         theme: {},
         components: [mocks.config, mocks.inputConfig],
         updated: {},
@@ -192,6 +196,7 @@ describe('Components autosave', () => {
             designSystem: {
                 getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
                 getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
             },
             theme: {},
             components: [mocks.config],
@@ -221,6 +226,7 @@ describe('Components autosave', () => {
             designSystem: {
                 getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
                 getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
             },
             theme: {},
             components: [mocks.config],
@@ -281,6 +287,7 @@ describe('Components autosave', () => {
             designSystem: {
                 getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
                 getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
             },
             theme: {},
             components: [mocks.config],
@@ -323,6 +330,7 @@ describe('Components autosave', () => {
             designSystem: {
                 getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
                 getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
             },
             theme: {},
             components: [mocks.config],
@@ -353,6 +361,7 @@ describe('Components autosave', () => {
             designSystem: {
                 getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
                 getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
             },
             theme: {},
             components: [mocks.config],
@@ -391,6 +400,7 @@ describe('Components autosave', () => {
             designSystem: {
                 getParameters: () => editorContext,
                 getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
             },
             theme: {},
             components: [mocks.config],
@@ -435,6 +445,7 @@ describe('Components autosave', () => {
             designSystem: {
                 getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
                 getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
             },
             theme: {},
             components: [mocks.config],
@@ -500,6 +511,7 @@ describe('Components autosave', () => {
             designSystem: {
                 getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
                 getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
             },
             theme: {},
             components: [mocks.config, mocks.inputConfig],

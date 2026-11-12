@@ -47,7 +47,7 @@ import { ComponentHideDialog } from './ui/ComponentHideDialog';
 import { ComponentRestoreDialog, type HiddenComponent } from './ui/ComponentRestoreDialog';
 import { ComponentTree } from './ui/ComponentTree';
 
-import { isRetryableAutosaveError } from '../../api/autosaveHttp';
+import { isRetryableAutosaveError, isUnknownIconError } from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
 import type { StructureOperation } from './features/ComponentStructure/types';
 import { runStructureOperation as runStructureOperationOnServer } from './features/ComponentStructure/runStructureOperation';
@@ -144,6 +144,7 @@ export const Components = () => {
     const [query, setQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+    const [unknownIconNotice, setUnknownIconNotice] = useState(false);
     const [catalog, setCatalog] = useState<ComponentCatalogEntry[]>();
     const [templates, setTemplates] = useState<ComponentTemplateEntry[]>([]);
     const [catalogBusy, setCatalogBusy] = useState(false);
@@ -466,7 +467,9 @@ export const Components = () => {
                     ...styleAliases,
                     ...readStoredJson<Record<string, string>>(aliasesKey, {}),
                 };
-                const meta = designSystem.getComponentDataByName(componentName);
+                // Compose-компонент ищется среди Compose-компонентов: имя по умолчанию совпало бы с web и выбрало бы чужой.
+                const meta =
+                    designSystem.getComponentData(config) ?? designSystem.getComponentDataByName(componentName);
                 if (!operation.prepared) {
                     if (confirmedConfig.current?.componentName === operation.componentName)
                         operation.before = structuredClone(confirmedConfig.current.value);
@@ -476,12 +479,8 @@ export const Components = () => {
                 const currentOperation = operation;
                 const pending = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
                 if (pending?.generation === operation.generation) persistStoredJson(requestKey, operation);
-                return repository.saveComponentMutation(
-                    editorContext,
-                    meta,
-                    currentOperation,
-                    readRevisions(),
-                    (revisions) => {
+                return repository
+                    .saveComponentMutation(editorContext, meta, currentOperation, readRevisions(), (revisions) => {
                         persistStoredJson(revisionKey, revisions);
                         styleAliases = { ...styleAliases, ...currentOperation.styleAliases };
                         persistStoredJson(aliasesKey, styleAliases);
@@ -492,8 +491,16 @@ export const Components = () => {
                         } else if (stored.predecessor?.generation === operation.generation) {
                             persistStoredJson(requestKey, { ...stored, predecessor: currentOperation });
                         }
-                    },
-                );
+                    })
+                    .catch((error: unknown) => {
+                        if (!isUnknownIconError(error)) throw error;
+                        // Иконки нет в каталоге: возвращаем прежнее значение и сообщаем об этом.
+                        queue.discard(operation.tokenKey, operation.operationKey);
+                        removeStoredValue(requestKey);
+                        if (mounted) setUnknownIconNotice(true);
+                        reload();
+                        return readRevisions();
+                    });
             },
             confirmed: (operation, revisions) => {
                 persistStoredJson(revisionKey, revisions);
@@ -775,6 +782,14 @@ export const Components = () => {
                     }
                     content={
                         <>
+                            {unknownIconNotice && (
+                                <div role="alert">
+                                    Иконка не найдена в каталоге, прежнее значение восстановлено.{' '}
+                                    <button type="button" onClick={() => setUnknownIconNotice(false)}>
+                                        Закрыть
+                                    </button>
+                                </div>
+                            )}
                             {!platform ? (
                                 <div role="status">Нет компонента для предпросмотра.</div>
                             ) : componentLoading ? (

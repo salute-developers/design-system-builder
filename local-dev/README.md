@@ -9,6 +9,8 @@ Compose- и web-плагины с API-метаданными. Пакеты те�
 | `web-preview/preview-web-plugin.zip` | Собранный web preview plugin (`js/apps/preview-web-plugin`) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform react` |
 | `design-system/components/` | Пакет конфигураций компонентов: `meta.json` и `*_config.json` | `./seed-local-design-system.sh` |
 | `design-system/theme/android/` | Значения токенов темы для Android (`android_color.json` и др.) | `./seed-local-design-system.sh` |
+| `icons/icons-manifest.json` | Стартовый набор иконок `@salutejs/sdds-icons` (185 иконок трёх размеров с SVG, категориями и синонимами) | `./publish-local-icons.sh` |
+| `icons/starter-icons.txt` | Канонические имена иконок стартового набора, по одному в строке | `./refresh-local-dev-icons.sh` |
 | `apply_theme_values.py` | Помощник, который переносит значения токенов темы в тему контура | `./seed-local-design-system.sh` |
 
 Происхождение текущих файлов:
@@ -33,7 +35,14 @@ Compose- и web-плагины с API-метаданными. Пакеты те�
    локального MinIO своей платформы (`compose-preview`, `web-preview`), импортирует API-мету платформы из архива
    (компоненты и свойства глобального слоя) и делает билд активным. Клиент получает адреса активных билдов у бэкенда
    и загружает плагины прямо из MinIO.
-2. Только при явном `--components-package DIR` (PowerShell: `-ComponentsPackage DIR`) либо
+2. Затем `setup-local.sh` загружает каталог иконок командой CLI (`dsbuilder icons publish --apply`, как это делает CI):
+   бэкенд кладёт SVG в бакет `compose-preview` локального MinIO и заменяет каталог одной транзакцией. По умолчанию
+   используется стартовый набор `local-dev/icons/icons-manifest.json`, и только если каталог пуст: повторный запуск не
+   заменяет каталог, загруженный вручную. Весь набор грузится так: `./setup-local.sh --icons path/to/plasma/packages/sdds-icons`
+   (или `./publish-local-icons.sh --from …`); `--skip-icons` пропускает шаг. Стартовый набор пересобирается командой
+   `./refresh-local-dev-icons.sh --sdds-icons path/to/plasma/packages/sdds-icons` по списку `icons/starter-icons.txt`
+   (PowerShell: `-Icons`, `-SkipIcons`).
+3. Только при явном `--components-package DIR` (PowerShell: `-ComponentsPackage DIR`) либо
    `COMPOSE_COMPONENTS_PACKAGE` вызывается `seed-local-design-system.sh`: он создаёт дизайн-систему `sdds_serv_local` с одноимённой темой через API (другие дизайн-системы проекта, например `base`, не
    затрагиваются). Бэкенд создаёт
    стандартный набор токенов для стартовой палитры (`malachite`). Затем помощник `apply_theme_values.py` заменяет

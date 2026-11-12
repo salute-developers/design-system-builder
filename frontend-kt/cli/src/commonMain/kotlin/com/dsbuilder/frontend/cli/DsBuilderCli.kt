@@ -6,6 +6,7 @@ import com.dsbuilder.frontend.cli.feature.auth.di.authCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.components.di.componentsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.docs.di.docsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.ds.di.dsCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.icons.di.iconsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.init.di.initCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.init.presentation.InitSelectionMenu
 import com.dsbuilder.frontend.cli.feature.init.presentation.MordantInitSelectionMenu
@@ -134,6 +135,7 @@ public class DsBuilderCli(
                 componentsApplicationModule(),
                 componentsCliPresentationModule(),
                 previewPluginCliPresentationModule(),
+                iconsCliPresentationModule(),
                 dsApplicationModule(),
                 dsCliPresentationModule(),
                 toolchainApplicationModule(),

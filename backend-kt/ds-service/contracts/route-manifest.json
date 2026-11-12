@@ -487,6 +487,16 @@
       ]
     },
     {
+      "name": "icon-catalog",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "global-read-system-admin-write",
+      "operations": [
+        ["GET", "/catalog/icons", null, "IconCatalog", 200, "components:read", null]
+      ]
+    },
+    {
       "name": "web-preview",
       "origin": "ds-service",
       "router": "",

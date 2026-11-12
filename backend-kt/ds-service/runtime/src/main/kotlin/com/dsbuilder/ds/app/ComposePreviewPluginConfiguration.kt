@@ -1,11 +1,15 @@
 package com.dsbuilder.ds.app
 
+import com.dsbuilder.ds.components.application.IconAssetStorage
+import com.dsbuilder.ds.components.application.IconCatalogSettings
 import com.dsbuilder.ds.components.application.PluginArchiveLimits
 import com.dsbuilder.ds.components.application.PluginBuildSettings
 import com.dsbuilder.ds.components.application.PluginBuildStorage
 import com.dsbuilder.ds.components.application.PluginBuildStorageBinding
 import com.dsbuilder.ds.components.application.PluginBuildStorages
+import com.dsbuilder.ds.components.data.DisabledIconAssetStorage
 import com.dsbuilder.ds.components.data.DisabledPluginBuildStorage
+import com.dsbuilder.ds.components.data.S3IconAssetStorage
 import com.dsbuilder.ds.components.data.S3PluginBuildStorage
 import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
@@ -51,7 +55,26 @@ data class ComposePreviewPluginConfiguration(
     val limits: PluginArchiveLimits = PluginArchiveLimits(),
     /** Бакет, префикс и публичный адрес web-плагина. */
     val web: PreviewPluginStorageLocation = PreviewPluginStorageLocation(),
+    /** Сколько предыдущих загрузок каталога иконок хранить кроме активной. */
+    val iconKeepLoads: Int = IconCatalogSettings.DEFAULT_KEEP_LOADS,
+    /** Через сколько часов файлы каталога иконок без строки в БД считаются осиротевшими. */
+    val iconOrphanGraceHours: Long = IconCatalogSettings.DEFAULT_ORPHAN_GRACE.toHours(),
 ) {
+    /** Настройки каталога иконок: бакет, префикс и публичный адрес Compose-плагина, иконки под `icons/`. */
+    fun iconSettings() = IconCatalogSettings(
+        publicBaseUrl = publicBaseUrl.orEmpty(),
+        keepLoads = iconKeepLoads,
+        orphanGrace = Duration.ofHours(iconOrphanGraceHours),
+    )
+
+    /** Хранилище SVG иконок в бакете Compose-плагина либо заглушка, если оно не настроено. */
+    fun createIconStorage(): IconAssetStorage =
+        if (configured(PreviewPluginPlatform.COMPOSE)) {
+            S3IconAssetStorage(s3Client(), requireNotNull(bucket), prefix)
+        } else {
+            DisabledIconAssetStorage
+        }
+
     /**
      * Задано ли хранилище [platform] целиком: бакет, ключи и публичный адрес. Хранилище web, ключи которого
      * пересекаются с ключами Compose, считается ненастроенным: иначе очистка одной платформы удаляла бы билды другой.
@@ -79,6 +102,11 @@ data class ComposePreviewPluginConfiguration(
     fun createStorage(platform: PreviewPluginPlatform): PluginBuildStorage {
         if (!configured(platform)) return DisabledPluginBuildStorage
         val location = location(platform)
+        return S3PluginBuildStorage(s3Client(), requireNotNull(location.bucket), location.prefix)
+    }
+
+    /** Клиент S3 с общими для хранилищ адресом, регионом, ключами и адресацией. */
+    private fun s3Client(): S3Client {
         val builder = S3Client.builder()
             .region(Region.of(region))
             .credentialsProvider(
@@ -87,7 +115,7 @@ data class ComposePreviewPluginConfiguration(
             .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(pathStyle).build())
             .httpClientBuilder(UrlConnectionHttpClient.builder())
         endpoint?.takeIf(String::isNotBlank)?.let { builder.endpointOverride(URI.create(it)) }
-        return S3PluginBuildStorage(builder.build(), requireNotNull(location.bucket), location.prefix)
+        return builder.build()
     }
 
     /** Хранилища всех платформ; [overrides] подменяют хранилище платформы (тесты). */
@@ -136,6 +164,10 @@ data class ComposePreviewPluginConfiguration(
                     maxEntryBytes = text("DS_PLUGIN_MAX_ENTRY_BYTES")?.toLongOrNull() ?: defaults.maxEntryBytes,
                     maxPathBytes = defaults.maxPathBytes,
                 ),
+                iconKeepLoads = text("DS_ICON_KEEP_LOADS")?.toIntOrNull()?.takeIf { it >= 0 }
+                    ?: IconCatalogSettings.DEFAULT_KEEP_LOADS,
+                iconOrphanGraceHours = text("DS_ICON_ORPHAN_GRACE_HOURS")?.toLongOrNull()?.takeIf { it >= 1 }
+                    ?: IconCatalogSettings.DEFAULT_ORPHAN_GRACE.toHours(),
                 web = PreviewPluginStorageLocation(
                     bucket = text("DS_WEB_PLUGIN_S3_BUCKET"),
                     prefix = text("DS_WEB_PLUGIN_S3_PREFIX").orEmpty(),

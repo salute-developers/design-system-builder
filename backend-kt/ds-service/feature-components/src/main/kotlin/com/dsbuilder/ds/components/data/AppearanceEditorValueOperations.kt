@@ -52,6 +52,7 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         checkType(propertyType, tokenType ?: command.type ?: propertyType)
         val stateSetId = EditorSupport.resolveStateSet(states, scope.stateIds)
         val existing = find(appearanceId, scope, stateSetId)
+        IconValueGuard.check(scope.propertyId, command.tokenId, command.value, existing?.let(::storedValue))
         val reference = referenceOf(projectId, systemAdmin, appearance, propertyType, command, existing?.let(::source))
         val literal = (reference?.text ?: command.value).takeIf { command.tokenId == null }
         val row = existing ?: create(designSystemId, componentId, appearanceId, scope, stateSetId, command, literal)
@@ -646,6 +647,15 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
             }
             check(lockDraftSubjects(designSystemId, type, ids))
         }
+    }
+
+    /** Сохранённое литеральное значение строки; для комбинаций стилей значения иконок не хранятся. */
+    private fun storedValue(row: Row): String? = when (row.kind) {
+        EditorValueKind.INVARIANT -> InvariantPropertyValuesTable.selectAll()
+            .where { InvariantPropertyValuesTable.id eq row.id }.singleOrNull()?.get(InvariantPropertyValuesTable.value)
+        EditorValueKind.VARIATION -> VariationPropertyValuesTable.selectAll()
+            .where { VariationPropertyValuesTable.id eq row.id }.singleOrNull()?.get(VariationPropertyValuesTable.value)
+        EditorValueKind.COMBINATION -> null
     }
 
     private fun source(row: Row): StyleReferenceWriter.Source = when (row.kind) {

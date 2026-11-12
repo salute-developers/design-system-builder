@@ -1133,7 +1133,7 @@ describe('Editor repositories', () => {
         );
         expect(patch).toHaveBeenCalledWith(
             expect.stringMatching('/variation-property-values/property-value$'),
-            { tokenId: null, value: '48', adjustment: null },
+            { value: '48' },
             expect.anything(),
         );
         const cleared = structuredClone(edited);
@@ -1263,7 +1263,7 @@ describe('Editor repositories', () => {
         );
         expect(patch).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/variation-property-values/value-1',
-            { tokenId: null, value: '48', adjustment: null },
+            { value: '48' },
             { headers: { 'X-DS-Base-Revision': '4' } },
         );
         expect(revisions['variation-property-value:value-1']).toBe(5);

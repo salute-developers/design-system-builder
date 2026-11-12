@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useParams } from 'react-router-dom';
 
 import { stateKey, type ComponentAPI, type Config, type PropState, type PropUnion } from '../../../../controllers';
 import {
@@ -15,6 +16,7 @@ import {
     type TokenOption,
 } from '../../../../features/InspectorControls';
 import { TyGlyph } from '../../../../components/TyGlyph';
+import { IconPicker, useIconCatalog } from '../../../../modules/icons';
 
 import { humanizeName, sourceArgs, sourceLabel, type PropertySource } from './inspectorModel';
 
@@ -54,7 +56,25 @@ const stateLabel = (state: readonly string[]) =>
 const isOpacity = (prop: PropUnion) => /(opacity|alpha)/i.test(prop.getName());
 
 /** Иконки и ссылки на стили (только у Compose) пока не задать заново: редактора нет, поэтому и очистки нет. */
-const isReadOnlyType = (type: string | undefined) => type === 'icon' || type === 'component_style';
+const isReadOnlyType = (type: string | undefined) => type === 'component_style';
+
+/** Иконка: выбор из каталога билдера; значение сохраняется строкой старого формата (`disclosure.down.fill.16`). */
+const IconControl = ({
+    label,
+    value,
+    onChange,
+    onClear,
+}: {
+    label: string;
+    value: string;
+    onChange: (next: string) => void;
+    onClear?: () => void;
+}) => {
+    const { projectId } = useParams<{ projectId?: string }>();
+    const catalog = useIconCatalog(projectId);
+
+    return <IconPicker label={label} value={value} catalog={catalog.data} onChange={onChange} onClear={onClear} />;
+};
 
 /** «Очистить значение»: убирает свойство из источника, строка снова становится пустой. */
 const ClearButton = ({ label, onClear }: { label: string; onClear: () => void }) => (
@@ -106,17 +126,15 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         onConfigUpdate();
     };
 
+    const removeValue = () => {
+        if (isCombination) return props.onCombinationChange?.(id, null);
+        config.removeToken(id, variationID, styleID);
+        onConfigUpdate();
+    };
+
+    // У иконки своя кнопка «Очистить» в пикере.
     const clear =
-        isSet && !isReadOnlyType(type) ? (
-            <ClearButton
-                label={label}
-                onClear={() => {
-                    if (isCombination) return props.onCombinationChange?.(id, null);
-                    config.removeToken(id, variationID, styleID);
-                    onConfigUpdate();
-                }}
-            />
-        ) : null;
+        isSet && !isReadOnlyType(type) && type !== 'icon' ? <ClearButton label={label} onClear={removeValue} /> : null;
 
     const colorControl = (
         current: string,
@@ -202,7 +220,12 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         if (type === 'typography') {
             return <TypographyCombo label={label} value={text} options={tokens.typography} onChange={update} />;
         }
-        // Ссылки на стили и иконки только читаются.
+        if (type === 'icon') {
+            return (
+                <IconControl label={label} value={text} onChange={update} onClear={isSet ? removeValue : undefined} />
+            );
+        }
+        // Ссылки на стили только читаются.
         return (
             <div className="component-number-control is-raw">
                 <input aria-label={label} readOnly value={text} />

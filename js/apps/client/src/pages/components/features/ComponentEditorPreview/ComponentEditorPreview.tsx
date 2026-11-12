@@ -33,6 +33,7 @@ import {
     StyledPreviewUnavailable,
 } from './ComponentEditorPreview.styles';
 import { restorePaletteColor } from '../../../../palette/activePalette';
+import { iconPreviewAsset, useIconCatalog } from '../../../../modules/icons';
 import { fetchWebPreviewPluginDescriptor } from '../../../../api/webPreviewPluginRepository';
 import type { StoryArgs, StoryArgValue } from './storyArgs';
 
@@ -147,6 +148,15 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         designSystem?.getParameters()?.projectId,
         fetchWebPreviewPluginDescriptor,
     );
+    // Иконки рисуются из SVG каталога билдера: плагин получает их ресурсами payload и не держит свой набор.
+    const iconCatalog = useIconCatalog(designSystem?.getParameters()?.projectId).data;
+    const resolveIconAsset = useCallback(
+        (value: string) => {
+            const asset = iconPreviewAsset(iconCatalog, value);
+            return asset && { ...asset, url: new URL(asset.url, window.location.href).href };
+        },
+        [iconCatalog],
+    );
     const debugMode = isDebugMode();
     const rendererModes = useMemo(
         () => (supportsCompose ? [WEB_PLUGIN_RENDERER, COMPOSE_RENDERER] : [WEB_PLUGIN_RENDERER]),
@@ -189,6 +199,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             themeValuePlatform: 'android',
             view,
             surface: { width: 360, height: 160, background: surfaceColor },
+            resolveIconAsset,
         });
         return draft.ok ? assembleComposePreviewPayload(draft.draft) : draft;
     }, [
@@ -201,6 +212,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         config,
         config.getRevision(),
         resolveStyleReference,
+        resolveIconAsset,
         theme,
         theme.getRevision(),
         themeMode,

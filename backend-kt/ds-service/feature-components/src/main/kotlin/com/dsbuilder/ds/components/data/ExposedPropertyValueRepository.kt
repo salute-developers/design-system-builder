@@ -164,6 +164,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
     ): VariationPropertyValue? {
         if (!canWriteVariationReferences(projectId, systemAdmin, command)) return null
         val appearance = appearanceRow(command.appearanceId) ?: return null
+        IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
         val designSystemId = appearance[ComponentAppearancesTable.designSystemId]
         val id = StableVariationPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
@@ -221,6 +222,13 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
             current[VariationPropertyValuesTable.tokenId],
             current[VariationPropertyValuesTable.value],
         )
+        IconValueGuard.check(
+            current[VariationPropertyValuesTable.propertyId],
+            command.tokenId,
+            command.value,
+            current[VariationPropertyValuesTable.value],
+            command.valuePresent,
+        )
         writeVariationRevision(current, command, deleted = false)
         return VariationPropertyValuesTable.selectAll().where { VariationPropertyValuesTable.id eq id }
             .singleOrNull()?.let(::variationPropertyValue)
@@ -276,6 +284,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         command: PropertyValueRepository.InvariantCreate,
     ): InvariantPropertyValue? {
         if (!canWriteInvariantReferences(projectId, systemAdmin, command)) return null
+        IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
         val id = StableInvariantPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
             it[designSystemId] = command.designSystemId
@@ -331,6 +340,13 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
             command,
             current[InvariantPropertyValuesTable.tokenId],
             current[InvariantPropertyValuesTable.value],
+        )
+        IconValueGuard.check(
+            current[InvariantPropertyValuesTable.propertyId],
+            command.tokenId,
+            command.value,
+            current[InvariantPropertyValuesTable.value],
+            command.valuePresent,
         )
         writeInvariantRevision(current, command, deleted = false)
         return InvariantPropertyValuesTable.selectAll().where { InvariantPropertyValuesTable.id eq id }

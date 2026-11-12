@@ -48,7 +48,9 @@ internal suspend fun <T> guardEditorRules(block: suspend () -> DsResult<T>): DsR
     block()
 } catch (violation: EditorRuleViolationException) {
     DsResult.Failure(
-        if (violation.conflict) {
+        if (violation.invalid) {
+            DsFailure.InvalidRequest(violation.code, message = violation.message)
+        } else if (violation.conflict) {
             DsFailure.Conflict(violation.code, message = violation.message)
         } else {
             DsFailure.Unprocessable(violation.code, violation.message.orEmpty())

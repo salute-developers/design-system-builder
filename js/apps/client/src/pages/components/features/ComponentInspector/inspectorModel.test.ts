@@ -114,7 +114,7 @@ describe('collectSourceProperties', () => {
 });
 
 describe('collectSourceProperties with API', () => {
-    it('adds unset API properties of every source as empty rows, except style links and icons', () => {
+    it('adds unset API properties of every source as empty rows, except style links', () => {
         const config = new Config(meta);
 
         const empty = collectSourceProperties(config, selection, meta.sources.api)
@@ -124,7 +124,11 @@ describe('collectSourceProperties with API', () => {
                     `${prop.getName()}|${sourceLabel(source)}|${section}|${prop.getValue() ?? ''}`,
             );
 
-        expect(empty).toEqual(['focusColor|Инвариант|Color|', 'color|view: default|Color|']);
+        expect(empty).toEqual([
+            'focusColor|Инвариант|Color|',
+            'leftIcon|Инвариант|Additional|',
+            'color|view: default|Color|',
+        ]);
     });
 
     it('does not touch the model for empty rows', () => {

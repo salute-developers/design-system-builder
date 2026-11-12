@@ -127,6 +127,21 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
         assertEquals(2, attempts.size)
     }
 
+    @Test
+    fun jsonPostIsRetriedOnceWithARefreshedSession() = runTest {
+        val attempts = mutableListOf<BackendCredential>()
+        val factory = factory(attempts) { BackendCredential.Bearer("new") }
+
+        val response = factory.create("https://api.example.com", BackendCredential.Bearer("old"))
+            .postJson("/api/admin/icons/catalog", "{}")
+
+        assertEquals(200, response.statusCode)
+        assertEquals(
+            listOf<BackendCredential>(BackendCredential.Bearer("old"), BackendCredential.Bearer("new")),
+            attempts,
+        )
+    }
+
     private fun factory(
         attempts: MutableList<BackendCredential>,
         deleted: MutableList<String> = mutableListOf(),
@@ -168,6 +183,9 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
                     }
 
                     override suspend fun post(path: String, body: String): AuthenticatedHttpResult = get(path)
+
+                    override suspend fun postJson(path: String, body: String): AuthenticatedHttpResponse =
+                        postMultipart(path, MultipartFile("file", "f", "application/json", ByteArray(0)))
 
                     override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
                         attempts += credential
