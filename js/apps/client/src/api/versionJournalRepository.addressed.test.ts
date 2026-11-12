@@ -68,3 +68,36 @@ it('rejects repeated cursors and mixed scope snapshots without mutation', async 
     await expect(repository.listTokenTargets(context,new Set(['token']),'draft')).rejects.toThrow();
     expect(mocks.post).not.toHaveBeenCalled();
 });
+
+it('discards every collected scope when a later token batch changes snapshot', async () => {
+    const conflict = new AxiosError('changed', undefined, undefined, undefined,
+        { data: { code: 'TARGET_SNAPSHOT_CHANGED' }, status: 409, statusText: 'Conflict', headers: {}, config: {} as never });
+    mocks.read.mockResolvedValueOnce(page([{ ...target, entityId: 'obsolete' }], null))
+        .mockRejectedValueOnce(conflict)
+        .mockResolvedValueOnce(page([{ ...target, entityId: 'fresh' }], null))
+        .mockResolvedValueOnce(page([{ ...target, entityId: 'second-scope' }], null));
+    const ids = new Set(Array.from({ length: 201 }, (_, index) => `token-${index}`));
+    const result = await repository.listTokenTargets(context, ids, 'draft');
+    expect(result.targets.map((item) => item.entityId)).toEqual(['fresh', 'second-scope']);
+    expect(mocks.read).toHaveBeenCalledTimes(4);
+    expect(mocks.post).not.toHaveBeenCalled();
+});
+
+it('bounds unique cursors even when the server never terminates pagination', async () => {
+    let cursor = 0;
+    mocks.read.mockImplementation(async () => page([target], `cursor-${cursor++}`));
+    await expect(repository.listTokenTargets(context, new Set(['token']), 'draft')).rejects.toThrow('Некорректные страницы целей');
+    expect(mocks.read).toHaveBeenCalledTimes(65);
+    expect(mocks.post).not.toHaveBeenCalled();
+});
+
+it('uses the same actor label fallback for the owner and project members', async () => {
+    mocks.read.mockResolvedValueOnce({ data: { ownerUserId: 'owner', ownerDisplayName: '', ownerUsername: 'Owner' } })
+        .mockResolvedValueOnce({ data: [
+            { userId: 'member', displayName: '', username: '', email: 'member@example.test' },
+            { userId: 'anonymous' },
+        ] });
+    expect(await repository.listProjectActorLabels('project')).toEqual({
+        owner: 'Owner', member: 'member@example.test', anonymous: 'anonymous',
+    });
+});

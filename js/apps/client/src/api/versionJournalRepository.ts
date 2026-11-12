@@ -5,7 +5,11 @@ import type { ProjectDto, ProjectMemberDto, DesignSystemDto } from './contracts'
 import type { EditorContextKey, DesignSystemVersionDto, DraftChangeDto, DraftAddressTarget, DraftTokenTarget,
     DraftTokenTargetsPage } from './editorContracts';
 import { isAxiosError } from 'axios';
+import { readTokenTargetPages } from './tokenTargetPages';
 import { apiRoot, readRequest } from './editorHttp';
+
+const actorLabel = (actor: { userId: string; displayName?: string | null; username?: string | null; email?: string | null }) =>
+    actor.displayName || actor.username || actor.email || actor.userId;
 
 /** Предметный клиент с ограниченным набором операций. */
 export class VersionJournalRepository {
@@ -60,12 +64,16 @@ export class VersionJournalRepository {
         const labels: Record<string, string> = {};
         if (projectResult.status === 'fulfilled') {
             const project = projectResult.value.data;
-            labels[project.ownerUserId] =
-                project.ownerDisplayName || project.ownerUsername || project.ownerEmail || project.ownerUserId;
+            labels[project.ownerUserId] = actorLabel({
+                userId: project.ownerUserId,
+                displayName: project.ownerDisplayName,
+                username: project.ownerUsername,
+                email: project.ownerEmail,
+            });
         }
         if (membersResult.status === 'fulfilled') {
             membersResult.value.data.forEach((member) => {
-                labels[member.userId] = member.displayName || member.username || member.email || member.userId;
+                labels[member.userId] = actorLabel(member);
             });
         }
         return labels;
@@ -73,12 +81,12 @@ export class VersionJournalRepository {
 
     async revertChange(context: EditorContextKey, change: DraftChangeDto, paths?: string[]) {
         if (!paths?.length) return this.revertChanges(context, [change]);
-        if (paths?.length && change.parameterRevertSupported !== true) {
+        if (change.parameterRevertSupported !== true) {
             throw new Error('Сервер не подтвердил поддержку отмены отдельных параметров');
         }
         const response = await http.post(
             `${apiRoot(context.projectId, context.designSystemId)}/changes/${change.changeId}/revert`,
-            paths?.length ? { paths } : {},
+            { paths },
             {
                 headers: {
                     'X-DS-Base-Revision': String(change.editRevision),
@@ -128,22 +136,12 @@ export class VersionJournalRepository {
             const targets: DraftTokenTarget[] = [];
             try {
                 for (let start = 0; start < ids.length; start += 200) {
-                    let cursor: string | null = null;
-                    let scopeRevision: string | undefined;
-                    const seen = new Set<string>();
-                    do {
-                        const page: DraftTokenTargetsPage = (await readEditor<DraftTokenTargetsPage>(
-                            `${apiRoot(context.projectId, context.designSystemId)}/changes/token-targets`, {},
-                            { draftId, tenantId: context.tenantId, tokenIds: ids.slice(start, start + 200), cursor },
-                        )).data;
-                        if (page.draftId !== draftId) throw new Error('Изменился черновик');
-                        if (scopeRevision !== undefined && scopeRevision !== page.scopeRevision) throw new Error('Изменилась область целей');
-                        scopeRevision = page.scopeRevision;
-                        targets.push(...page.targets);
-                        cursor = page.nextCursor;
-                        if (cursor && (seen.has(cursor) || seen.size >= 64)) throw new Error('Некорректные страницы целей');
-                        if (cursor) seen.add(cursor);
-                    } while (cursor);
+                    const selectedIds = ids.slice(start, start + 200);
+                    const pages = await readTokenTargetPages(draftId, async (cursor) => (await readEditor<DraftTokenTargetsPage>(
+                        `${apiRoot(context.projectId, context.designSystemId)}/changes/token-targets`, {},
+                        { draftId, tenantId: context.tenantId, tokenIds: selectedIds, cursor },
+                    )).data);
+                    targets.push(...pages);
                 }
                 return { draftId, targets };
             } catch (cause) {

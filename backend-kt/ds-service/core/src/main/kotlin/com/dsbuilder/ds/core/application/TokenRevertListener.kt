@@ -29,11 +29,3 @@ fun interface TokenRevertListener {
      */
     fun prepareRevert(designSystemId: UUID, tokenId: UUID): Boolean = true
 }
-
-/** Отложенное действие и предметный ключ для однократного выполнения в пакете. */
-data class TokenRevertAction(
-    /** Ключ группы в пределах одного слушателя и дизайн-системы. */
-    val key: Any,
-    /** Пересчёт по актуальному состоянию после всех мутаций пакета. */
-    val run: () -> Unit,
-)

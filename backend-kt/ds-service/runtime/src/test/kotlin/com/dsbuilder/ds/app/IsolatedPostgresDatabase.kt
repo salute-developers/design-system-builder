@@ -37,7 +37,7 @@ class IsolatedPostgresDatabase private constructor(private val databaseName: Str
         server.copyFileFromContainer("/tmp/query-fixture.dump", path)
     }
 
-    /** Восстанавливает снимок в собственной временной БД; исходная версия не получает индексы V18. */
+    /** Восстанавливает снимок в собственной временной БД; исходная версия не получает индексы V18/V19. */
     fun importFixture(path: String, legacy: Boolean) {
         server.copyFileToContainer(MountableFile.forHostPath(path), "/tmp/query-fixture.dump")
         val result = server.execInContainer(
@@ -49,10 +49,11 @@ class IsolatedPostgresDatabase private constructor(private val databaseName: Str
             DriverManager.getConnection(jdbcUrl, username, password).use { connection ->
                 connection.createStatement().use {
                     it.execute(
-                        "DROP INDEX token_values_tenant_token_idx; " +
-                            "DROP INDEX token_value_revisions_owner_sequence_idx; " +
-                            "DROP INDEX token_revisions_owner_sequence_idx; " +
-                            "DELETE FROM flyway_schema_history WHERE version='18'",
+                        "DROP INDEX IF EXISTS token_values_tenant_token_idx; " +
+                            "DROP INDEX IF EXISTS token_value_revisions_design_system_idx; " +
+                            "DROP INDEX IF EXISTS token_value_revisions_owner_sequence_idx; " +
+                            "DROP INDEX IF EXISTS token_revisions_owner_sequence_idx; " +
+                            "DELETE FROM flyway_schema_history WHERE version IN ('18','19')",
                     )
                 }
             }

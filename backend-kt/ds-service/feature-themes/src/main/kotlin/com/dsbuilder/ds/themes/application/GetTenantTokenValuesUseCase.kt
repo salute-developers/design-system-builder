@@ -50,7 +50,6 @@ class GetTenantTokenValuesUseCase(
                     val selected = if (wire.isEmpty()) stored else stored.filter { it.platform in wire }
                     TokenValuePublisher(id, snapshot).publish(selected)
                 }
-
             }
         }
 

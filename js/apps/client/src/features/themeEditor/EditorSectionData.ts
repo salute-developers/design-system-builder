@@ -11,6 +11,7 @@ import type { DraftInvalidationScope } from '../../api/draftInvalidationStream';
 import { markComposeComponents, parseComponentRoute } from '../../composePreview/composeComponents';
 import { paletteRepository } from '../../palette/paletteSession';
 import { sectionTokenTypes, type EditorSection } from './editorSections';
+import { sectionInvalidation } from './sectionInvalidation';
 import { mergeSectionTokens } from './mergeSectionSnapshot';
 import { componentSectionReferences } from './componentSectionReferences';
 import { getEditorMetadataRevision } from '../../api/editorReads';
@@ -365,20 +366,10 @@ export class EditorSectionData {
 
     invalidate(scopes: Set<DraftInvalidationScope>, changes?: DraftRefreshChange[]) {
         if (this.context.versionId) return;
-        const all = scopes.has('all') || scopes.has('design-system');
-        if (all || scopes.has('theme-metadata') || (scopes.has('theme-tokens') &&
-            (!changes || changes.some((change) => !['token', 'token-value'].includes(change.entityType))))) {
-            this.colorGroupsStale = true;
-        }
-        const zones: EditorSection[] = all
-            ? ['colors', 'palette', 'typography', 'shapes', 'components', 'settings', 'changes', 'versions']
-            : [];
-        if (scopes.has('theme-tokens')) zones.push('colors', 'palette', 'typography', 'shapes', 'components');
-        if (scopes.has('component-configurations')) zones.push('components');
-        if (scopes.has('theme-metadata'))
-            zones.push('settings', 'colors', 'palette', 'typography', 'shapes', 'components');
-        for (const section of zones) this.invalidated.set(section, ++this.generation);
-        if (all || scopes.has('theme-metadata') || scopes.has('component-configurations')) this.shellStale = true;
+        const plan = sectionInvalidation(scopes, changes);
+        for (const section of plan.sections) this.invalidated.set(section, ++this.generation);
+        this.colorGroupsStale ||= plan.colorGroups;
+        this.shellStale ||= plan.shell;
     }
 
     refresh(): Promise<SectionReadResult | undefined> {

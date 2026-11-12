@@ -48,8 +48,7 @@ class ResolvedSubjectRows(
         val transaction = TransactionManager.current()
         if (!transaction.connection.readOnly) return null
         val cache = transaction.getUserData(READS) ?: return null
-        val selection = selection(predicate) ?: return null
-        return cache[selection.key]
+        return selection(predicate)?.let { cache[it.key] }
     }
 
     private fun selection(predicate: Op<Boolean>): RowSelection? {

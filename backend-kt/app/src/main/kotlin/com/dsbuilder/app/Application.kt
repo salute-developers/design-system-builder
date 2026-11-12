@@ -74,22 +74,30 @@ fun main() {
     ) { monolith(configuration) }.start(wait = true)
 }
 
-/** Соединяет библиотечные подсистемы с одним сервером и одним графом DI. */
-// Закрываем все частично созданные ресурсы при любой ошибке инициализации.
-@Suppress("TooGenericExceptionCaught")
-fun Application.monolith(configuration: GatewayConfiguration = GatewayConfiguration.fromEnvironment()) {
+/** Сжимает крупные JSON-ответы монолита. */
+private fun Application.configureJsonCompression() {
     install(Compression) {
         gzip {
             minimumSize(1024)
             matchContentType(ContentType.Application.Json)
         }
     }
+}
+
+private fun sharedPolicyEvaluator(): PolicyEvaluator {
     val policyPaths = listOfNotNull(
         System.getenv("AUTHORIZATION_POLICY_PATH"),
         System.getenv("PROJECT_AUTHORIZATION_POLICY_PATH"),
     ).filter(String::isNotBlank).distinct()
     require(policyPaths.size <= 1) { "Authorization policy paths must identify the same shared policy" }
-    val evaluator = PolicyEvaluator(AuthorizationPolicyLoader.load(policyPaths.singleOrNull()))
+    return PolicyEvaluator(AuthorizationPolicyLoader.load(policyPaths.singleOrNull()))
+}
+
+/** Соединяет подсистемы с одним сервером и закрывает ресурсы при ошибке инициализации. */
+@Suppress("TooGenericExceptionCaught")
+fun Application.monolith(configuration: GatewayConfiguration = GatewayConfiguration.fromEnvironment()) {
+    configureJsonCompression()
+    val evaluator = sharedPolicyEvaluator()
     val dsConfiguration = DsServiceConfiguration.fromEnvironment()
     val ds = createDsRuntime(dsConfiguration, evaluator)
     val owned = mutableListOf<AutoCloseable>(ds)

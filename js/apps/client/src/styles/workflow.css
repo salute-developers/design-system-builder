@@ -2387,7 +2387,7 @@ button:disabled {
 }
 .catalog-loading-grid {
     height: 284px;
-    margin-top: 82px;
+    margin-top: 0;
     padding: 12px 0;
     display: grid;
     grid-template-columns: repeat(auto-fill, 330px);

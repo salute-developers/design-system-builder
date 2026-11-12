@@ -50,6 +50,11 @@ fun Route.designSystemChangeRoutes(
 }
 
 private fun Route.addressedRevertRoutes(evaluator: PolicyEvaluator, useCase: RevertDraftChangesUseCase, json: Json) {
+    addressedRevertRoute(evaluator, useCase, json)
+    tokenTargetsRoute(evaluator, useCase, json)
+}
+
+private fun Route.addressedRevertRoute(evaluator: PolicyEvaluator, useCase: RevertDraftChangesUseCase, json: Json) {
     val strict = Json(json) { ignoreUnknownKeys = false }
     post(dsRoutePath("/api/design-systems/{designSystemId}/changes/revert-by-address")) {
         val context = TrustedDsRequestContextMapper.map(
@@ -87,6 +92,10 @@ private fun Route.addressedRevertRoutes(evaluator: PolicyEvaluator, useCase: Rev
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }
+}
+
+private fun Route.tokenTargetsRoute(evaluator: PolicyEvaluator, useCase: RevertDraftChangesUseCase, json: Json) {
+    val strict = Json(json) { ignoreUnknownKeys = false }
     post(dsRoutePath("/api/design-systems/{designSystemId}/changes/token-targets")) {
         val context = TrustedDsRequestContextMapper.map(
             call.dsTrustedHeaders(), evaluator,
@@ -140,65 +149,6 @@ private fun Route.addressedRevertRoutes(evaluator: PolicyEvaluator, useCase: Rev
         }
     }
 }
-
-/** Адресная команда полного пакетного отката. */
-@Serializable
-data class AddressedRevertRequest(
-    /** Черновик, выбранный пользователем. */
-    val draftId: String,
-    /** Адреса в порядке отката. */
-    val targets: List<AddressedRevertTargetRequest>,
-)
-
-/** Устойчивая сущность и ожидаемая предметная редакция. */
-@Serializable
-data class AddressedRevertTargetRequest(
-    /** Зарегистрированный тип. */
-    val entityType: String,
-    /** Устойчивый предметный ID. */
-    val entityId: String,
-    /** Предметная редакция из выбранного снимка. */
-    val expectedRevision: Long,
-)
-
-/** Ограниченная область чтения целей сброса инспектора. */
-@Serializable
-data class TokenTargetsRequest(
-    /** Черновик чтения. */
-    val draftId: String,
-    /** Тема значений. */
-    val tenantId: String,
-    /** Определения выбранной области. */
-    val tokenIds: List<String>,
-    /** Продолжение согласованного снимка области. */
-    val cursor: String? = null,
-)
-
-/** Страница адресных целей выбранной области. */
-@Serializable
-data class TokenTargetsResponse(
-    /** Черновик целей. */
-    val draftId: String,
-    /** Отпечаток выбранной области. */
-    val scopeRevision: String,
-    /** Цели страницы. */
-    val targets: List<TokenTargetResponse>,
-    /** Следующая страница области. */
-    val nextCursor: String?,
-)
-
-/** Адресная цель с видом изменения для предметных ограничений инспектора. */
-@Serializable
-data class TokenTargetResponse(
-    /** Предметный тип. */
-    val entityType: String,
-    /** Устойчивый ID. */
-    val entityId: String,
-    /** Редакция цели. */
-    val expectedRevision: Long,
-    /** Создание, изменение или удаление. */
-    val operation: String,
-)
 
 private fun Route.tokenIdsRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
     get(dsRoutePath("/api/design-systems/{designSystemId}/changes/token-ids")) {
