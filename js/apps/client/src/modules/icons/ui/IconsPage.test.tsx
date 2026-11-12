@@ -53,12 +53,14 @@ describe('IconsPage', () => {
         expect(screen.getByLabelText('AddOutline')).toBeInTheDocument();
     });
 
-    it('has its own heading as a page and none as a section of the theme editor', () => {
+    it('shows categories on the left, the grid in the middle and the source on the right, as a page and as a section', () => {
         renderPage();
-        expect(screen.getByRole('heading', { name: 'Иконки' })).toBeInTheDocument();
+        expect(screen.getByTestId('icons-screen')).toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: 'Категории' })).toBeInTheDocument();
+        expect(screen.getByText('Каталог иконок')).toBeInTheDocument();
         cleanup();
         renderPage(true);
-        expect(screen.queryByRole('heading', { name: 'Иконки' })).not.toBeInTheDocument();
+        expect(screen.getByTestId('icons-screen')).toBeInTheDocument();
         expect(screen.getByText('Найдено: 3')).toBeInTheDocument();
     });
 
@@ -67,6 +69,18 @@ describe('IconsPage', () => {
         renderPage();
         expect(screen.getByText('dsbuilder icons publish')).toBeInTheDocument();
         expect(screen.queryByTestId('icon-grid')).not.toBeInTheDocument();
+    });
+
+    it('keeps the three-panel frame while the section loads and when it fails', () => {
+        state.data = undefined;
+        renderPage(true);
+        expect(screen.getByTestId('icons-loading')).toBeInTheDocument();
+        expect(screen.getByText('Иконки')).toBeInTheDocument();
+        cleanup();
+        state.error = new Error('boom');
+        renderPage(true);
+        fireEvent.click(screen.getByText('Повторить'));
+        expect(state.reload).toHaveBeenCalled();
     });
 
     it('offers a retry on a load error', () => {
@@ -79,6 +93,7 @@ describe('IconsPage', () => {
 
     it('searches by a Russian synonym, filters by category and resets', () => {
         renderPage();
+        fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
         fireEvent.change(screen.getByLabelText('Поиск иконок'), { target: { value: 'добавить' } });
         expect(screen.getByText('Найдено: 1')).toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('Поиск иконок'), { target: { value: 'nothing' } });
@@ -94,13 +109,17 @@ describe('IconsPage', () => {
         expect(screen.getByText('Найдено: 1')).toBeInTheDocument();
     });
 
-    it('copies the canonical name and confirms', async () => {
+    it('shows the selected icon on the right and copies its name and value with a confirmation', async () => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
         renderPage();
         fireEvent.click(screen.getByLabelText('AddOutline'));
+        expect(screen.getByText('Сведения')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Скопировать имя' }));
         expect(writeText).toHaveBeenCalledWith('AddOutline');
-        await waitFor(() => expect(screen.getByText('Скопировано')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Скопировано' })).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('button', { name: 'Скопировать значение' }));
+        expect(writeText).toHaveBeenLastCalledWith(expect.stringMatching(/\.24$/));
     });
 
     it('shows the name for manual copying when the clipboard is rejected', async () => {
@@ -110,6 +129,7 @@ describe('IconsPage', () => {
         });
         renderPage();
         fireEvent.click(screen.getByLabelText('AddOutline'));
-        await waitFor(() => expect(screen.getByLabelText('Имя для копирования')).toHaveTextContent('AddOutline'));
+        fireEvent.click(screen.getByRole('button', { name: 'Скопировать имя' }));
+        await waitFor(() => expect(screen.getByLabelText('Текст для копирования')).toHaveTextContent('AddOutline'));
     });
 });

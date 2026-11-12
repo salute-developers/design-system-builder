@@ -1,62 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
 
 import { iconAssetUrl, type IconCatalog, type IconEntry, type IconSize } from '../domain/iconCatalog';
 import { IconMask } from './IconMask';
 
-const CARD_WIDTH = 132;
-const CARD_HEIGHT = 104;
 const OVERSCAN_ROWS = 3;
 const FALLBACK_COLUMNS = 6;
 const FALLBACK_HEIGHT = 480;
 
-const Viewport = styled.div`
-    overflow-y: auto;
-    position: relative;
-    min-height: 320px;
-    /* Страница может не ограничивать высоту родителей: без предела окно прокрутки растянулось бы на весь каталог. */
-    max-height: calc(100vh - 240px);
-`;
-
-const Row = styled.div`
-    position: absolute;
-    left: 0;
-    right: 0;
-    display: flex;
-    gap: 0;
-`;
-
-const Card = styled.button<{ $selected: boolean }>`
-    width: ${CARD_WIDTH}px;
-    height: ${CARD_HEIGHT}px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 8px;
-    border: 1px solid ${({ $selected }) => ($selected ? 'var(--p-accent, #21a038)' : 'transparent')};
-    border-radius: 12px;
-    background: transparent;
-    color: var(--p-text, inherit);
-    cursor: pointer;
-
-    &:hover,
-    &:focus-visible {
-        background: var(--p-surface, rgba(128, 128, 128, 0.12));
-    }
-`;
-
-const Name = styled.span`
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12px;
-    line-height: 16px;
-    color: var(--p-muted, inherit);
-`;
+/** Размеры карточки: плитка доски с подписью и компактная плитка пикера без подписи. */
+const CARDS = {
+    board: { width: 120, height: 88 },
+    compact: { width: 48, height: 40 },
+} as const;
 
 export interface IconGridProps {
     catalog: IconCatalog;
@@ -65,12 +20,27 @@ export interface IconGridProps {
     selectedName?: string;
     /** Имя иконки, для которой показывать подтверждение вместо имени. */
     confirmedName?: string;
+    /** `compact` — плитки пикера без подписи; `board` — плитки страницы каталога. */
+    variant?: keyof typeof CARDS;
     onSelect: (icon: IconEntry) => void;
+    /** Иконка под курсором или фокусом: пикер показывает её имя внизу. */
+    onHover?: (icon: IconEntry | undefined) => void;
     height?: number;
 }
 
-/** Сетка карточек с виртуализацией: в DOM только видимые строки с запасом, SVG запрашиваются у них же. */
-export const IconGrid = ({ catalog, icons, size, selectedName, confirmedName, onSelect, height }: IconGridProps) => {
+/** Сетка карточек с виртуализацией: в DOM только видимые строки с запасом, SVG запрашиваются по мере прокрутки. */
+export const IconGrid = ({
+    catalog,
+    icons,
+    size,
+    selectedName,
+    confirmedName,
+    variant = 'board',
+    onSelect,
+    onHover,
+    height,
+}: IconGridProps) => {
+    const card = CARDS[variant];
     const ref = useRef<HTMLDivElement>(null);
     const [scrollTop, setScrollTop] = useState(0);
     const [box, setBox] = useState({ width: 0, height: 0 });
@@ -91,42 +61,58 @@ export const IconGrid = ({ catalog, icons, size, selectedName, confirmedName, on
         setScrollTop(0);
     }, [icons]);
 
-    const columns = box.width > 0 ? Math.max(1, Math.floor(box.width / CARD_WIDTH)) : FALLBACK_COLUMNS;
+    const columns = box.width > 0 ? Math.max(1, Math.floor(box.width / card.width)) : FALLBACK_COLUMNS;
     const viewportHeight = box.height > 0 ? box.height : (height ?? FALLBACK_HEIGHT);
     const rowCount = Math.ceil(icons.length / columns);
-    const first = Math.max(0, Math.floor(scrollTop / CARD_HEIGHT) - OVERSCAN_ROWS);
-    const last = Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / CARD_HEIGHT) + OVERSCAN_ROWS);
+    const first = Math.max(0, Math.floor(scrollTop / card.height) - OVERSCAN_ROWS);
+    const last = Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / card.height) + OVERSCAN_ROWS);
 
     const rows = [];
     for (let row = first; row < last; row += 1) {
         const items = icons.slice(row * columns, (row + 1) * columns);
         rows.push(
-            <Row key={row} style={{ top: row * CARD_HEIGHT, height: CARD_HEIGHT }}>
+            <div key={row} className="icon-grid-row" style={{ top: row * card.height, height: card.height }}>
                 {items.map((icon) => (
-                    <Card
+                    <button
                         key={icon.name}
                         type="button"
-                        $selected={icon.name === selectedName}
+                        className={`icon-card is-${variant} ${icon.name === selectedName ? 'is-selected' : ''}`}
+                        style={{ width: card.width }}
                         title={icon.name}
                         aria-label={icon.name}
+                        aria-pressed={icon.name === selectedName}
                         onClick={() => onSelect(icon)}
+                        onMouseEnter={() => onHover?.(icon)}
+                        onMouseLeave={() => onHover?.(undefined)}
+                        onFocus={() => onHover?.(icon)}
+                        onBlur={() => onHover?.(undefined)}
                     >
-                        <IconMask url={iconAssetUrl(catalog, icon.name, size)} size={size} />
-                        <Name>{icon.name === confirmedName ? 'Скопировано' : icon.name}</Name>
-                    </Card>
+                        <IconMask
+                            url={iconAssetUrl(catalog, icon.name, size)}
+                            size={variant === 'compact' ? 16 : size}
+                        />
+                        {variant === 'board' && (
+                            <span className="icon-card-name">
+                                {icon.name === confirmedName ? 'Скопировано' : icon.name}
+                            </span>
+                        )}
+                    </button>
                 ))}
-            </Row>,
+            </div>,
         );
     }
 
     return (
-        <Viewport
+        <div
             ref={ref}
-            style={height ? { height } : { flex: 1 }}
+            className={`icon-grid is-${variant}`}
+            style={height ? { height } : undefined}
             onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
             data-testid="icon-grid"
         >
-            <div style={{ height: rowCount * CARD_HEIGHT, position: 'relative' }}>{rows}</div>
-        </Viewport>
+            <div className="icon-grid-body" style={{ height: rowCount * card.height }}>
+                {rows}
+            </div>
+        </div>
     );
 };
