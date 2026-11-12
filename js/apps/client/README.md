@@ -88,7 +88,7 @@ The component editor section ("Компоненты") is switched at build time 
 When the section is off, the navigation button is not shown, `.../components[/<name>]` redirects to `colors`, and the client
 does not request component configs. The other editors work as usual.
 
-DEV (`deploy-front-apps-dev.yml`) builds with `true`, PROM (`deploy-front-apps-prom.yml`) with `false`.
+DEV (`deploy-front-apps-dev.yml`) and PROM (`deploy-front-apps-prom.yml`) both build with `true`.
 `js/docker-compose.dev.yml` defaults to `true`; override it with `VITE_COMPONENT_EDITOR_ENABLED=false` in the
 environment. To turn the section off in the local dev server, set the variable in `.env.local`.
 
