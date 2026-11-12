@@ -1322,7 +1322,7 @@ describe('Editor repositories', () => {
         expect(snapshot.parameters.readOnly).toBe(true);
     });
 
-    it('loads the computed journal and reverts with revision and a fresh idempotency key', async () => {
+    it('uses addressed batches for full revert and the revision header for parameter revert', async () => {
         const change = {
             changeId: 'change-1',
             versionId: 'draft-1',
@@ -1343,14 +1343,12 @@ describe('Editor repositories', () => {
         await expect(versionJournalRepository.listChanges(context)).resolves.toEqual([change]);
         await versionJournalRepository.revertChange(context, change);
         expect(post).toHaveBeenCalledWith(
-            '/api/projects/project-1/design-systems/ds-1/changes/change-1/revert',
-            {},
+            '/api/projects/project-1/design-systems/ds-1/changes/revert-by-address',
             {
-                headers: {
-                    'X-DS-Base-Revision': '4',
-                    'Idempotency-Key': expect.any(String),
-                },
+                draftId: 'draft-1',
+                targets: [{ entityType: 'token', entityId: 'token-1', expectedRevision: 4 }],
             },
+            { headers: { 'Idempotency-Key': expect.any(String) } },
         );
         post.mockResolvedValueOnce({ data: { ok: true } });
         await versionJournalRepository.revertChange(context, change, ['/value/fontSize']);
@@ -1370,14 +1368,15 @@ describe('Editor repositories', () => {
         post.mockResolvedValueOnce({ data: { ok: true } });
         await versionJournalRepository.revertChanges(context, [
             change,
-            { ...change, changeId: 'change-2', editRevision: 7 },
+            { ...change, changeId: 'change-2', entityId: 'token-2', editRevision: 7 },
         ]);
         expect(post).toHaveBeenLastCalledWith(
-            '/api/projects/project-1/design-systems/ds-1/changes/revert',
+            '/api/projects/project-1/design-systems/ds-1/changes/revert-by-address',
             {
-                changes: [
-                    { changeId: 'change-1', expectedRevision: 4 },
-                    { changeId: 'change-2', expectedRevision: 7 },
+                draftId: 'draft-1',
+                targets: [
+                    { entityType: 'token', entityId: 'token-1', expectedRevision: 4 },
+                    { entityType: 'token', entityId: 'token-2', expectedRevision: 7 },
                 ],
             },
             { headers: { 'Idempotency-Key': expect.any(String) } },
