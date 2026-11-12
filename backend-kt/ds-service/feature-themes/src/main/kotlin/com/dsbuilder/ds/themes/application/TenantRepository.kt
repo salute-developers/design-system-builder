@@ -44,6 +44,14 @@ interface TenantRepository {
         types: Set<com.dsbuilder.ds.themes.domain.ThemeTokenType> = emptySet(),
     ): List<TenantTokenValue>?
 
+    /** Подтверждения выбранных токенов без загрузки остальных значений темы. */
+    suspend fun tokenValuesForTokens(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<com.dsbuilder.ds.themes.domain.ThemeTokenType>,
+        tokenIds: Set<UUID>,
+    ): List<TenantTokenValue>? = tokenValues(projectId, id, types)?.filter { it.tokenId in tokenIds }
+
     /** Атомарно заменяет platform-specific значения доступной темы. */
     suspend fun saveTokenValues(
         projectId: ProjectId,

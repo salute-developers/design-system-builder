@@ -20,6 +20,7 @@ vi.mock('../../api/themeEditorRepository', () => ({ loadThemeShell: reads.shell 
 vi.mock('../../palette/paletteSession', () => ({ paletteRepository: { source: 'api', load: reads.palette } }));
 
 import { EditorSectionData } from './EditorSectionData';
+import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 
 const context = { projectId: 'project', designSystemId: 'system', tenantId: 'theme' };
 const types = ['color', 'gradient', 'shape', 'spacing', 'shadow', 'typography', 'fontFamily'];
@@ -51,6 +52,101 @@ const component = (name: string): Meta => ({
     sources: { api: [], variations: [], configs: [] },
 });
 const create = () => new EditorSectionData(context, snapshot(), new AbortController().signal);
+
+it('после адресного отката читает только семейство и сохраняет соседние значения', async () => {
+    const initial = snapshot();
+    initial.palette = { tenantId: 'theme', groups: [], tokens: [] } as never;
+    initial.tokenDefinitionsByName = {
+        'text.primary': { id: 'primary', name: 'text.primary', type: 'color' },
+        'text.secondary': { id: 'secondary', name: 'text.secondary', type: 'color' },
+    } as never;
+    initial.tokenValueEntityIdsByKey = { 'primary:web:light': 'value-primary' };
+    initial.tokenValueOverriddenByKey = {};
+    initial.themeData.variations.color.web = { 'light.text.primary': '#111111', 'light.text.secondary': '#222222' };
+    reads.tokens.mockResolvedValueOnce(initial);
+    const data = new EditorSectionData(context, initial, new AbortController().signal);
+    await data.activate('colors');
+    const confirmed = snapshot();
+    confirmed.tokenDefinitionsByName = { 'text.primary': initial.tokenDefinitionsByName['text.primary'] };
+    confirmed.tokenIdsByName = { 'text.primary': 'primary' };
+    confirmed.tokenValueEntityIdsByKey = { 'primary:web:light': 'value-primary' };
+    confirmed.tokenValueOverriddenByKey = {};
+    confirmed.themeData.variations.color.web = { 'light.text.primary': '#333333' };
+    reads.tokens.mockResolvedValueOnce(confirmed);
+    const updated = await data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }]);
+    expect(updated).toBe(true);
+    expect(reads.tokens.mock.calls[1][5]).toEqual(['primary']);
+    expect(data.currentSnapshot.themeData.variations.color.web).toEqual({
+        'light.text.primary': '#333333', 'light.text.secondary': '#222222',
+    });
+    expect(reads.shell).not.toHaveBeenCalled();
+});
+
+it('pending переименование до GET блокирует адресную сверку и замену снимка', async () => {
+    const initial = snapshot();
+    initial.palette = { tenantId: 'theme', groups: [], tokens: [] } as never;
+    initial.tokenDefinitionsByName = { 'text.primary': { id: 'primary', name: 'text.primary', type: 'color' } } as never;
+    initial.tokenValueEntityIdsByKey = { 'primary:web:light': 'value-primary' };
+    reads.tokens.mockResolvedValueOnce(initial);
+    const data = new EditorSectionData(context, initial, new AbortController().signal);
+    await data.activate('colors');
+    const before = data.currentSnapshot;
+    const pending = (type: string) => type === 'color';
+    expect(await data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }], pending)).toBe(false);
+    expect(data.currentSnapshot).toBe(before);
+    expect(reads.tokens).toHaveBeenCalledTimes(1);
+});
+
+it('pending переименование во время GET не допускает применения адресного снимка', async () => {
+    const initial = snapshot();
+    initial.palette = { tenantId: 'theme', groups: [], tokens: [] } as never;
+    initial.tokenDefinitionsByName = { 'text.primary': { id: 'primary', name: 'text.primary', type: 'color' } } as never;
+    initial.tokenValueEntityIdsByKey = { 'primary:web:light': 'value-primary' };
+    reads.tokens.mockResolvedValueOnce(initial);
+    const data = new EditorSectionData(context, initial, new AbortController().signal);
+    await data.activate('colors');
+    const before = data.currentSnapshot;
+    let pending = false;
+    let finish!: (value: ThemeEditorSnapshot) => void;
+    reads.tokens.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const reading = data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }], () => pending);
+    await vi.waitFor(() => expect(reads.tokens).toHaveBeenCalledTimes(2));
+    pending = true;
+    finish(initial);
+    expect(await reading).toBe(false);
+    expect(data.currentSnapshot).toBe(before);
+});
+
+it('неизвестный адрес оставляет общую сверку вызывающей стороне', async () => {
+    const data = create();
+    expect(await data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'unknown' }])).toBe(false);
+    expect(reads.tokens).not.toHaveBeenCalled();
+});
+
+it('адресное подтверждение не применяется после нового ввода во время чтения', async () => {
+    const initial = snapshot();
+    initial.palette = { tenantId: 'theme', groups: [], tokens: [] } as never;
+    initial.tokenDefinitionsByName = {
+        'text.primary': { id: 'primary', name: 'text.primary', type: 'color' },
+    } as never;
+    initial.tokenValueEntityIdsByKey = { 'primary:web:light': 'value-primary' };
+    reads.tokens.mockResolvedValueOnce(initial);
+    const data = new EditorSectionData(context, initial, new AbortController().signal);
+    await data.activate('colors');
+    let finish!: (value: ThemeEditorSnapshot) => void;
+    reads.tokens.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const reading = data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }]);
+    await vi.waitFor(() => expect(reads.tokens).toHaveBeenCalledTimes(2));
+    setDraftAutosaveActivity(context, 'color-tokens', 'saving');
+    try {
+        const before = data.currentSnapshot;
+        finish(snapshot());
+        expect(await reading).toBe(false);
+        expect(data.currentSnapshot).toBe(before);
+    } finally {
+        setDraftAutosaveActivity(context, 'color-tokens', null);
+    }
+});
 
 it('после отката значения сохраняет группы, но не теряет независимую инвалидацию групп', async () => {
     const data = create();

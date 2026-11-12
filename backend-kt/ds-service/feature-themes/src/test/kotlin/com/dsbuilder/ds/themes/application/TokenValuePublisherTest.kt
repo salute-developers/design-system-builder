@@ -65,7 +65,7 @@ class TokenValuePublisherTest {
             paletteId = null,
             platform = platform,
             mode = "light",
-            valueJson = json,
+            value = Json.parseToJsonElement(json),
             editRevision = 0,
             createdAt = Instant.EPOCH,
             updatedAt = Instant.EPOCH,

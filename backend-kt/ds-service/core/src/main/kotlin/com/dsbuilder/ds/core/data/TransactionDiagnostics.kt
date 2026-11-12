@@ -10,7 +10,13 @@ import org.jetbrains.exposed.v1.core.statements.api.PreparedStatementApi
 import org.slf4j.LoggerFactory
 
 /** Измерения включаются только через DS_QUERY_DIAGNOSTICS=true и не содержат SQL и его параметров. */
-internal class TransactionDiagnostics(private val readOnly: Boolean, private val attempt: Int) : StatementInterceptor {
+internal class TransactionDiagnostics(
+    private val readOnly: Boolean,
+    private val attempt: Int,
+    private val poolState: (() -> Map<String, Int>)? = null,
+) : StatementInterceptor {
+    private val poolBefore = poolState?.invoke()
+    private var poolConnected: Map<String, Int>? = null
     private val started = System.nanoTime()
     private var connected = started
     private var statementStarted = started
@@ -26,6 +32,7 @@ internal class TransactionDiagnostics(private val readOnly: Boolean, private val
 
     fun connected() {
         connected = System.nanoTime()
+        poolConnected = poolState?.invoke()
     }
 
     override fun beforeExecution(transaction: Transaction, context: StatementContext) {
@@ -81,6 +88,12 @@ internal class TransactionDiagnostics(private val readOnly: Boolean, private val
                 put("connectionMs", JsonPrimitive((connected - started) / NANOS_PER_MS))
                 put("commitMs", JsonPrimitive(commitNanos / NANOS_PER_MS))
                 put("totalMs", JsonPrimitive((System.nanoTime() - started) / NANOS_PER_MS))
+                poolBefore?.let { state ->
+                    put("poolBefore", buildJsonObject { state.forEach { (key, value) -> put(key, JsonPrimitive(value)) } })
+                }
+                poolConnected?.let { state ->
+                    put("poolConnected", buildJsonObject { state.forEach { (key, value) -> put(key, JsonPrimitive(value)) } })
+                }
             }.toString(),
         )
     }
@@ -89,8 +102,8 @@ internal class TransactionDiagnostics(private val readOnly: Boolean, private val
         private const val NANOS_PER_MS = 1_000_000L
         private val logger = LoggerFactory.getLogger(TransactionDiagnostics::class.java)
 
-        fun start(readOnly: Boolean, attempt: Int): TransactionDiagnostics? =
-            if (System.getenv("DS_QUERY_DIAGNOSTICS") == "true") TransactionDiagnostics(readOnly, attempt) else null
+        fun start(readOnly: Boolean, attempt: Int, poolState: (() -> Map<String, Int>)? = null): TransactionDiagnostics? =
+            if (System.getenv("DS_QUERY_DIAGNOSTICS") == "true") TransactionDiagnostics(readOnly, attempt, poolState) else null
     }
 }
 

@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../api/editorContracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { observeTokenValueRevisions, observeSubjectAddresses } from '../api/subjectRevisions';
@@ -397,11 +398,11 @@ export const useDesignSystem = (
         (name?: string, force?: boolean) => autosaveSession.current?.loadComponent(name, force) ?? Promise.resolve(),
         [],
     );
-    const refreshChanges = useCallback(async (changes: DraftRefreshChange[]) => {
+    const refreshChanges = useCallback(async (changes: DraftRefreshChange[], options?: DraftRefreshOptions) => {
         const session = autosaveSession.current;
         if (!session) return Promise.reject(new Error('Редактор черновика недоступен'));
         try {
-            await session.refreshChanges(changes);
+            await session.refreshChanges(changes, options);
         } finally {
             // Локальная отмена не проходит через автосохранение и может не получить SSE-эхо.
             setRefreshRevision((revision) => revision + 1);

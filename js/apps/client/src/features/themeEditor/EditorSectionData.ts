@@ -13,6 +13,8 @@ import { paletteRepository } from '../../palette/paletteSession';
 import { sectionTokenTypes, type EditorSection } from './editorSections';
 import { sectionInvalidation } from './sectionInvalidation';
 import { mergeSectionTokens } from './mergeSectionSnapshot';
+import { mergeAddressedTokens } from './mergeAddressedTokens';
+import { parseMemberName } from '../../modules/colorTokens';
 import { componentSectionReferences } from './componentSectionReferences';
 import { getEditorMetadataRevision } from '../../api/editorReads';
 import { getDraftAutosaveRevision, getDraftAutosaveSourceStatus } from '../../api/draftAutosaveActivity';
@@ -57,6 +59,54 @@ export class EditorSectionData {
     }
     get currentSnapshot() {
         return this.snapshot;
+    }
+
+    /** Сверяет известные цветовые семейства после отката без полной загрузки значений раздела. */
+    refreshAddressedColors(changes: DraftRefreshChange[], tokenPending: (type: TokenDefinitionDto['type']) => boolean = () => false): Promise<boolean> {
+        const read = this.chain.catch(() => undefined).then(() => this.readAddressedColors(changes, tokenPending));
+        this.chain = read;
+        return read;
+    }
+
+    private async readAddressedColors(changes: DraftRefreshChange[], tokenPending: (type: TokenDefinitionDto['type']) => boolean): Promise<boolean> {
+        const generation = this.generation;
+        const activity = getDraftAutosaveRevision(this.context);
+        if (tokenPending('color') || tokenPending('gradient') || !changes.length || changes.some((change) => change.entityType !== 'token-value') ||
+            !this.snapshot.palette || !this.loaded.has('colors') ||
+            this.loaded.get('colors') !== (this.invalidated.get('colors') ?? 0) ||
+            getDraftAutosaveSourceStatus(this.context, 'color-tokens') !== 'saved') return false;
+        const byEntity = new Map(Object.entries(this.snapshot.tokenValueEntityIdsByKey ?? {})
+            .map(([key, id]) => [id, key.split(':')[0]]));
+        const ids = new Set(changes.map((change) => byEntity.get(change.entityId)));
+        if (ids.has(undefined)) return false;
+        const definitions = Object.values(this.snapshot.tokenDefinitionsByName ?? {});
+        const family = (name: string) => {
+            const parsed = parseMemberName(name);
+            return parsed ? `${parsed.group}.${parsed.name}` : undefined;
+        };
+        const selected = definitions.filter((token) => ids.has(token.id));
+        if (selected.length !== ids.size || selected.some((token) => !['color', 'gradient'].includes(token.type)))
+            return false;
+        const families = new Set(selected.map((token) => family(token.name)).filter(Boolean));
+        const tokenIds = definitions.filter((token) => ids.has(token.id) ||
+            (['color', 'gradient'].includes(token.type) && families.has(family(token.name))))
+            .map((token) => token.id);
+        if (tokenIds.length > 200) return false;
+        const [next, palette] = await Promise.all([
+            tokenRepository.loadTokenData(this.context, this.signal, this.snapshot.publicationVersion,
+                ['color', 'gradient'], this.snapshot.palette, tokenIds),
+            paletteRepository.load(this.context, this.signal),
+        ]);
+        if (tokenPending('color') || tokenPending('gradient') || this.signal.aborted || activity !== getDraftAutosaveRevision(this.context) ||
+            generation !== this.generation || getDraftAutosaveSourceStatus(this.context, 'color-tokens') !== 'saved')
+            return false;
+        // Исчезнувшее определение означает структурное изменение: нужен общий путь сверки.
+        const confirmed = Object.values(next.tokenDefinitionsByName ?? {});
+        if (confirmed.length !== tokenIds.length || next.incompleteTokenIds.length) return false;
+        this.snapshot = { ...mergeAddressedTokens(this.snapshot, next, new Set(tokenIds)), palette };
+        this.loaded.set('palette', this.invalidated.get('palette') ?? 0);
+        this.invalidated.set('components', ++this.generation);
+        return true;
     }
 
     acceptDraftCursor(draftId: string, draftRevision?: number) {

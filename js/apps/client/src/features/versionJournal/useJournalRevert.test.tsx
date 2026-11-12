@@ -31,7 +31,7 @@ it('сверяет успешную и неизвестную части пос�
     const { result } = renderHook(() => useJournalRevert(context, reload, refresh));
     await act(() => result.current.revert(batchAction));
     expect(operations.revertChanges).toHaveBeenCalledTimes(2);
-    expect(refresh).toHaveBeenCalledWith(many.slice(0, 400));
+    expect(refresh).toHaveBeenCalledWith(many.slice(0, 400), { outcome: 'unknown' });
     expect(reload).toHaveBeenCalledTimes(1);
     expect(result.current.operationError).toContain('Не удалось полностью отменить');
     expect(result.current.refreshFailed).toBe(false);
@@ -50,6 +50,7 @@ it('после сбоя сверки повторяет только чтени�
     await act(() => result.current.retryRefresh());
     expect(operations.revertChanges).toHaveBeenCalledTimes(2);
     expect(refresh).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenLastCalledWith(many.slice(0, 400), { outcome: 'unknown' });
     expect(result.current.refreshFailed).toBe(false);
     expect(result.current.operationError).toContain('Не удалось полностью отменить');
 });
@@ -59,7 +60,7 @@ it('перечитывает неизвестный результат уже п
     const refresh = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useJournalRevert(context, vi.fn().mockResolvedValue(undefined), refresh));
     await act(() => result.current.revert(action));
-    expect(refresh).toHaveBeenCalledWith(changes);
+    expect(refresh).toHaveBeenCalledWith(changes, { outcome: 'unknown' });
     expect(operations.revertChanges).toHaveBeenCalledTimes(1);
 });
 

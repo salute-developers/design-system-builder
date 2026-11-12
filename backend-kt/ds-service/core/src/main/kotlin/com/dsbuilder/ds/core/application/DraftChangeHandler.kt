@@ -11,6 +11,9 @@ interface DraftChangeHandler {
     /** Устойчивое имя типа в журнале и технических редакциях. */
     val entityType: String
 
+    /** Необязательный пакетный индекс кандидатов; отсутствие не позволяет пропускать обработчик. */
+    val candidateIndex: DraftChangeCandidateIndex? get() = null
+
     /** Блокирует предметного родителя до общей блокировки сущности при составной отмене. */
     fun prepareRevert(designSystemId: UUID, entityId: UUID): Boolean = true
 
@@ -36,6 +39,15 @@ interface DraftChangeHandler {
     ) {
         describe(designSystemId, sequenceNumber, previousSequenceNumber).chunked(500).forEach(consume)
     }
+
+    /** Ограничивает значения выбранной темой; определения и неизвестные реализации сохраняют общий обход. */
+    fun visitTenant(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        tenantId: UUID,
+        consume: (List<DraftSubjectChange>) -> Unit,
+    ) = visit(designSystemId, sequenceNumber, previousSequenceNumber, consume)
 
     /** Описывает одну сущность без вычисления остальных предметных отличий ДС. */
     fun describeEntity(

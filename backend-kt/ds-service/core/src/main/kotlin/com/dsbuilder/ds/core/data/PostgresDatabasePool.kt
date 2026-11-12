@@ -33,6 +33,14 @@ class PostgresDatabasePool private constructor(
     val totalConnections: Int
         get() = dataSource.hikariPoolMXBean.totalConnections
 
+    /** Ограниченный снимок счётчиков без адресов БД и учётных данных. */
+    fun diagnosticState(): Map<String, Int> = mapOf(
+        "active" to activeConnections,
+        "idle" to idleConnections,
+        "pending" to pendingConnections,
+        "total" to totalConnections,
+    )
+
     @Synchronized
     override fun close() {
         try {

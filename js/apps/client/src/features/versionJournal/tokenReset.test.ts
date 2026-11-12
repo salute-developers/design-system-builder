@@ -53,7 +53,7 @@ describe('tokenReset', () => {
         const {result} = renderHook(() => useTokenReset(context,onDone));
         await act(() => result.current.reset(new Set(['t1'])));
         expect(repository.revertAddressed).toHaveBeenCalledTimes(2);
-        expect(onDone).toHaveBeenCalledWith(targets.slice(0,400));
+        expect(onDone).toHaveBeenCalledWith(targets.slice(0,400), { outcome: 'unknown' });
         expect(result.current.error).toBeTruthy();
         expect(result.current.busy).toBe(false);
     });
@@ -70,6 +70,23 @@ describe('tokenReset', () => {
         expect(result.current.busy).toBe(false);
         expect(result.current.error).toBeTruthy();
         expect(repository.revertAddressed).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries only the general read after a response lost after commit', async () => {
+        repository.listTokenTargets.mockResolvedValue(scoped([change('1')]));
+        repository.revertAddressed.mockRejectedValueOnce(new Error('response lost after commit'));
+        const refresh = vi.fn().mockRejectedValueOnce(new Error('read failed')).mockResolvedValue(undefined);
+        const { result } = renderHook(() => useTokenReset(context, refresh));
+        await act(() => result.current.reset(new Set(['t1'])));
+        expect(result.current.refreshFailed).toBe(true);
+        await act(() => result.current.retryRefresh());
+        expect(result.current.refreshFailed).toBe(false);
+        expect(repository.revertAddressed).toHaveBeenCalledTimes(1);
+        expect(repository.listTokenTargets).toHaveBeenCalledTimes(1);
+        expect(refresh.mock.calls).toEqual([
+            [[change('1')], { outcome: 'unknown' }],
+            [[change('1')], { outcome: 'unknown' }],
+        ]);
     });
 
     it('prevents duplicate clicks before rerender and forwards known draft', async () => {

@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import { CloseOutline, ColorOutline } from '@salutejs/sdds-icons/16';
@@ -25,7 +26,7 @@ export interface PaletteOutletContext {
     setPalette: (palette: ThemePalette) => void;
     rerender: () => void;
     reload: () => void;
-    refreshChanges: (changes: DraftChangeDto[]) => Promise<void>;
+    refreshChanges: (changes: DraftChangeDto[], options?: DraftRefreshOptions) => Promise<void>;
     /** Ошибка загрузки темы для раздела: палитра показывает «Не удалось загрузить палитру» и «Повторить». */
     sectionError?: unknown;
     /** Тема ещё загружается: палитра показывает скелетоны. */

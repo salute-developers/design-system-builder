@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { useRef, useState } from 'react';
 import type { DraftTokenTarget, DraftRefreshChange, EditorContextKey } from '../../api/editorContracts';
 import { waitForDraftAutosaveIdle } from '../../api/draftAutosaveActivity';
@@ -42,30 +43,61 @@ export const resetTokenChanges = async (
 /** Сброс изменений токена из инспектора: после отката экран перечитывает данные через [onDone]. */
 export const useTokenReset = (
     context: EditorContextKey | undefined,
-    onDone: (changes: DraftRefreshChange[]) => Promise<void> | void,
+    onDone: (changes: DraftRefreshChange[], options?: DraftRefreshOptions) => Promise<void> | void,
     draftId?: string,
     onDiscoveryFailure?: () => Promise<void> | void,
 ) => {
     const [busy, setBusy] = useState(false);
     const running = useRef(false);
     const [error, setError] = useState<string | null>(null);
+    const [refreshFailed, setRefreshFailed] = useState(false);
+    const pendingRead = useRef<() => Promise<void>>();
+    const operationError = useRef<string | null>(null);
+    const retryRefresh = async () => {
+        if (running.current || !pendingRead.current) return;
+        running.current = true;
+        setBusy(true);
+        try {
+            await pendingRead.current();
+            pendingRead.current = undefined;
+            setRefreshFailed(false);
+            setError(operationError.current);
+        } catch {
+            setError('Не удалось обновить данные после сброса. Повторите загрузку данных.');
+        } finally {
+            running.current = false;
+            setBusy(false);
+        }
+    };
     const reset = async (tokenIds: ReadonlySet<string>) => {
         if (!context || context.versionId || running.current) return;
+        if (pendingRead.current) return retryRefresh();
         running.current = true;
         setBusy(true);
         setError(null);
+        operationError.current = null;
         const attempted: DraftTokenTarget[] = [];
         let discoveryFailed = false;
+        let unknownOutcome = false;
         try {
             await resetTokenChanges(context, tokenIds, (batch) => attempted.push(...batch), draftId);
         } catch (cause) {
+            unknownOutcome = attempted.length > 0;
             discoveryFailed = !attempted.length && !(cause instanceof TokenResetError);
-            setError(cause instanceof TokenResetError ? cause.message : RESET_FAILED);
+            operationError.current = cause instanceof TokenResetError ? cause.message : RESET_FAILED;
+            setError(operationError.current);
         } finally {
-            try {
+            pendingRead.current = async () => {
                 if (discoveryFailed && onDiscoveryFailure) await onDiscoveryFailure();
+                else if (unknownOutcome) await onDone(attempted, { outcome: 'unknown' });
                 else await onDone(attempted);
+            };
+            try {
+                await pendingRead.current();
+                pendingRead.current = undefined;
+                setRefreshFailed(false);
             } catch {
+                setRefreshFailed(true);
                 setError('Не удалось обновить данные после сброса. Повторите загрузку данных.');
             } finally {
                 running.current = false;
@@ -73,5 +105,5 @@ export const useTokenReset = (
             }
         }
     };
-    return { reset, busy, error };
+    return { reset, busy, error, refreshFailed, retryRefresh };
 };

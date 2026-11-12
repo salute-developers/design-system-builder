@@ -22,7 +22,8 @@ data class PaletteReference(
 
         /** Разбирает строковую ссылку или `null`. */
         fun parse(raw: String?): PaletteReference? {
-            val match = raw?.trim()?.let(pattern::matchEntire) ?: return null
+            val text = raw?.trim()?.takeIf { it.startsWith('[') } ?: return null
+            val match = pattern.matchEntire(text) ?: return null
             val opacity = match.groupValues[4].takeIf { it.isNotEmpty() }?.toDouble()
             val type = ThemePaletteType.fromWire(match.groupValues[1])
             // Слишком длинная ступень не помещается в Int: это некорректная ссылка, а не ошибка сервера.

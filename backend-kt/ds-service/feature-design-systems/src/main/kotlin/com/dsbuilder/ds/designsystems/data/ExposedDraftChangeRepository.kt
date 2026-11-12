@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.data.populatedDraftHandlers
+
 import com.dsbuilder.ds.core.application.DraftChangeCandidate
 import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
 import com.dsbuilder.ds.core.application.DraftChangeHandler
@@ -209,7 +211,6 @@ class ExposedDraftChangeRepository(
         versionId: DesignSystemVersionId?,
         read: ModelReadQuery,
     ): ModelReadItems<DraftChange>? = list(projectId, systemAdmin, designSystemId, versionId)
-        ?.sortedWith(compareBy<DraftChange> { it.entityType }.thenBy { it.entityId.toString() })
         ?.modelReadJournalPage(read, DraftChange::entityType, DraftChange::entityId)
 
     override suspend fun list(
@@ -219,13 +220,17 @@ class ExposedDraftChangeRepository(
         versionId: DesignSystemVersionId?,
     ): List<DraftChange>? {
         val target = boundary(projectId, systemAdmin, designSystemId, versionId) ?: return null
+        return changes(designSystemId, target)
+    }
+
+    private fun changes(designSystemId: DesignSystemId, target: BoundaryRow): List<DraftChange> {
         val previousSequence = previousSequence(designSystemId, target.sequenceNumber)
         val differences = boundedDifferences(target.id, designSystemId.value, target.sequenceNumber, previousSequence)
             ?: throw DraftChangeLimitExceededException()
         val edits = editStates(target.id, differences)
         val changes = differences.map { (subject, difference) ->
             change(subject, difference, designSystemId, target, edits[subject.entityType to difference.entityId])
-        }.sortedWith(compareBy(DraftChange::entityType, DraftChange::entityId))
+        }.sortedWith(compareBy<DraftChange> { it.entityType }.thenBy { it.entityId.toString() })
         return changes
     }
 
@@ -236,11 +241,10 @@ class ExposedDraftChangeRepository(
         versionId: DesignSystemVersionId?,
         read: ModelReadQuery,
     ): com.dsbuilder.ds.designsystems.application.DraftJournalRead? {
-        val changes = list(projectId, systemAdmin, designSystemId, versionId) ?: return null
         val target = boundary(projectId, systemAdmin, designSystemId, versionId) ?: return null
+        val changes = changes(designSystemId, target)
         return com.dsbuilder.ds.designsystems.application.DraftJournalRead(
-            changes.sortedWith(compareBy<DraftChange> { it.entityType }.thenBy { it.entityId.toString() })
-                .modelReadJournalPage(read, DraftChange::entityType, DraftChange::entityId),
+            changes.modelReadJournalPage(read, DraftChange::entityType, DraftChange::entityId),
             compactReader(designSystemId, target).count(changes),
         )
     }
@@ -718,7 +722,8 @@ class ExposedDraftChangeRepository(
         previousSequenceNumber: Long,
     ): List<TypedDifference> {
         val handlersByType = handlers.associateBy(DraftChangeHandler::entityType)
-        val candidates = handlers.flatMap { subject ->
+        val candidates = populatedDraftHandlers(handlers, designSystemId, sequenceNumber, previousSequenceNumber)
+            .flatMap { subject ->
             subject.describe(designSystemId, sequenceNumber, previousSequenceNumber)
                 .map { difference -> DraftChangeCandidate(subject.entityType, difference) }
         }
@@ -735,7 +740,8 @@ class ExposedDraftChangeRepository(
         previousSequenceNumber: Long,
     ): List<TypedDifference>? {
         val handlersByType = handlers.associateBy(DraftChangeHandler::entityType)
-        val candidates = handlers.flatMap { subject ->
+        val candidates = populatedDraftHandlers(handlers, designSystemId, sequenceNumber, previousSequenceNumber)
+            .flatMap { subject ->
             val described = subject.describe(
                 designSystemId,
                 sequenceNumber,

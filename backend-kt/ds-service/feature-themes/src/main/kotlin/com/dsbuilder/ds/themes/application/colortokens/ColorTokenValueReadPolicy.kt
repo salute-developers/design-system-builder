@@ -9,7 +9,6 @@ import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
-import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.util.UUID
 
@@ -45,7 +44,7 @@ class ColorTokenValueReadPolicy(
         paletteId = paletteId,
         platform = platform,
         mode = null,
-        valueJson = value?.toString(),
+        value = value,
         editRevision = 0,
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH,
@@ -54,9 +53,9 @@ class ColorTokenValueReadPolicy(
 
     private fun TokenValueRead.published(value: TenantTokenValue) = copy(
         paletteId = value.paletteId,
-        value = value.valueJson?.let(Json::parseToJsonElement),
+        value = value.valueElement(),
         paletteRef = value.paletteRef,
-        sourceValue = value.sourceValueJson?.let(Json::parseToJsonElement),
+        sourceValue = value.sourceValueElement(),
     )
 
     private companion object {

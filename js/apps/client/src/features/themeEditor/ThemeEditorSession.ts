@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import type { ConfirmedTokenValues } from '../../api/draftAutosaveActivity';
 import { loadThemeEditor, loadDesignSystemCursor } from '../../api/themeEditorRepository';
 import { tokenRepository } from '../../api/tokenRepository';
@@ -481,7 +482,21 @@ export class ThemeEditorSession {
     }
 
     /** Перечитывает подтверждённые предметные данные после локальной отмены, даже без SSE-эха. */
-    refreshChanges(changes: DraftRefreshChange[]) {
+    async refreshChanges(changes: DraftRefreshChange[], options?: DraftRefreshOptions) {
+        if (options?.outcome === 'unknown') return this.refreshSnapshot(new Set(['all']));
+        const sections = this.options.sections;
+        if (sections && changes.length && changes.every((change) => change.entityType === 'token-value')) {
+            invalidateEditorReads(this.context);
+            const pending = (type: TokenDefinitionDto['type']) =>
+                this.queue.hasPendingWhere((operation) => operation.change.type === type);
+            const activity = getDraftAutosaveRevision(this.context);
+            if (await sections.refreshAddressedColors(changes, pending) &&
+                activity === getDraftAutosaveRevision(this.context) && !pending('color') && !pending('gradient')) {
+                notifyEditorDataInvalidated(this.context, new Set(['theme-tokens']));
+                this.applyRemoteSnapshot(sections.currentSnapshot, true, false, ['color', 'gradient']);
+                return;
+            }
+        }
         const scopes = new Set<DraftInvalidationScope>();
         for (const change of changes) {
             if (

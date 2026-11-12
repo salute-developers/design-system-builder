@@ -16,6 +16,7 @@ import com.dsbuilder.documentation.app.createDocumentationRuntime
 import com.dsbuilder.documentation.ingestion.presentation.configureIngestionPublicEntry
 import com.dsbuilder.documentation.publication.presentation.configurePublicationPublicEntry
 import com.dsbuilder.documentation.search.presentation.configureSearchPublicEntry
+import com.dsbuilder.ds.app.DS_HTTP_INITIAL_LINE_LIMIT
 import com.dsbuilder.ds.app.DsRuntime
 import com.dsbuilder.ds.app.DsServiceConfiguration
 import com.dsbuilder.ds.app.createDsRuntime
@@ -66,6 +67,7 @@ fun main() {
         Netty,
         configure = {
             connector { port = configuration.port }
+            maxInitialLineLength = DS_HTTP_INITIAL_LINE_LIMIT
             requestReadTimeoutSeconds = configuration.timeoutSeconds.toInt()
             responseWriteTimeoutSeconds = configuration.timeoutSeconds.toInt()
             shutdownGracePeriod = 1000

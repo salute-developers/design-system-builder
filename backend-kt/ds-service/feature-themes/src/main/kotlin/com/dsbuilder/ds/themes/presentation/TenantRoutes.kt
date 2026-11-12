@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.themes.presentation
 
+import com.dsbuilder.ds.core.presentation.tokenIdFilter
+
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
@@ -98,7 +100,8 @@ fun Route.tenantRoutes(
             if (platformNames != null && platforms.size != platformNames.size) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_platforms"))
             }
-            when (val result = getTokenValues.execute(context, id, types, platforms)) {
+            val tokenIds = call.tokenIdFilter() ?: return@get
+            when (val result = getTokenValues.execute(context, id, types, platforms, tokenIds)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(TenantTokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

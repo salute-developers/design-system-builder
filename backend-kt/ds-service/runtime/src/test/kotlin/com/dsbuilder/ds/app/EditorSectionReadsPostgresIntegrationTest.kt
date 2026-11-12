@@ -16,6 +16,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
+import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -27,12 +28,34 @@ class EditorSectionReadsPostgresIntegrationTest {
     @Test
     fun `tenant value reads filter by section types at draft and published boundaries`() {
         IsolatedPostgresDatabase.create().use { database ->
+            val role = "reader_${UUID.randomUUID().toString().replace("-", "")}"
+            DriverManager.getConnection(database.jdbcUrl, database.username, database.password).use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute("CREATE ROLE $role LOGIN PASSWORD 'isolated-test' NOSUPERUSER NOBYPASSRLS")
+                    statement.execute("GRANT USAGE ON SCHEMA public TO $role")
+                    statement.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $role")
+                    statement.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO $role")
+                    statement.executeQuery("SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relrowsecurity").use {
+                        check(it.next())
+                        println("public tables with RLS enabled: ${it.getInt(1)}; application role has no superuser/BYPASSRLS")
+                    }
+                }
+            }
+            DriverManager.getConnection(database.jdbcUrl, role, "isolated-test").use { connection ->
+                connection.createStatement().use { statement ->
+                    statement.executeQuery("SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user").use {
+                        check(it.next())
+                        assertEquals(false, it.getBoolean(1))
+                        assertEquals(false, it.getBoolean(2))
+                    }
+                }
+            }
             testApplication {
                 application {
                     module(
                         DsServiceConfiguration(
-                            0, database.jdbcUrl, database.username, database.password,
-                            4, 5_000, null, true, false, null,
+                            0, database.jdbcUrl, role, "isolated-test",
+                            4, 5_000, null, false, false, null,
                         ),
                     )
                 }
@@ -73,11 +96,31 @@ class EditorSectionReadsPostgresIntegrationTest {
                 val sizeIds = definitions.filter { it.field("type") in setOf("shape", "spacing", "shadow") }
                     .map { it.field("id") }.toSet()
                 val path = "/api/design-systems/$systemId/tenants/$tenantId/token-values"
+                val firstColor = read(client, "GET", "$path?types=color").jsonArray.first()
+                read(client, "PATCH", "/api/design-systems/$systemId/token-values/${firstColor.field("id")}",
+                    """{"value":["#123456"]}""")
                 val colors = read(client, "GET", "$path?types=color").jsonArray
+                assertTrue(colors.any { it.field("editRevision").toLong() > 0 })
                 val sizes = read(client, "GET", "$path?types=shape,spacing,shadow").jsonArray
                 assertTrue(colors.isNotEmpty())
                 assertTrue(sizes.isNotEmpty())
                 assertTrue(colors.all { it.field("tokenId") in colorIds })
+                val selectedToken = colorIds.first()
+                assertEquals(
+                    colors.filter { it.field("tokenId") == selectedToken }.toSet(),
+                    read(client, "GET", "$path?types=color&tokenIds=$selectedToken").jsonArray.toSet(),
+                )
+                assertEquals(
+                    setOf(selectedToken),
+                    read(client, "GET", "/api/design-systems/$systemId/tokens?tokenIds=$selectedToken")
+                        .jsonArray.map { it.field("id") }.toSet(),
+                )
+                for (filter in listOf("", "bad", "$selectedToken,", "$selectedToken&tokenIds=$selectedToken")) {
+                    assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$path?tokenIds=$filter").status)
+                    assertEquals(HttpStatusCode.BadRequest,
+                        api(client, "GET", "/api/design-systems/$systemId/tokens?tokenIds=$filter").status)
+                }
+                assertEquals(0, read(client, "GET", "$path?tokenIds=${UUID.randomUUID()}").jsonArray.size)
                 assertTrue(sizes.all { it.field("tokenId") in sizeIds })
                 val full = read(client, "GET", path).jsonArray
                 assertTrue(full.size > colors.size)
@@ -108,9 +151,18 @@ class EditorSectionReadsPostgresIntegrationTest {
                         .jsonArray.map { it.field("id") }.toSet(),
                 )
                 assertEquals(
+                    colors.filter { it.field("tokenId") == selectedToken }.toSet(),
+                    read(client, "GET", "$path?tokenIds=$selectedToken&versionId=$version").jsonArray.toSet(),
+                )
+                assertEquals(
                     read(client, "GET", "$markersPath&versionId=$version"),
                     read(client, "GET", "$markersPath&version=1.0.0"),
                 )
+                val deletedId = firstColor.field("id")
+                val deletion = api(client, "DELETE", "/api/design-systems/$systemId/token-values/$deletedId")
+                assertEquals(HttpStatusCode.OK, deletion.status, deletion.bodyAsText())
+                assertTrue(read(client, "GET", path).jsonArray.none { it.field("id") == deletedId })
+                assertTrue(read(client, "GET", "$path?versionId=$version").jsonArray.any { it.field("id") == deletedId })
                 for (filter in listOf("unknown", "color,", "")) {
                     assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$path?types=$filter").status)
                 }

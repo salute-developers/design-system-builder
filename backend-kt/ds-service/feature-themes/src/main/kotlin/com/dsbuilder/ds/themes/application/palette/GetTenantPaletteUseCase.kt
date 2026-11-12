@@ -10,6 +10,8 @@ import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.domain.ThemePaletteType
 import com.dsbuilder.ds.themes.domain.palette.ThemePalette
+import com.dsbuilder.ds.themes.domain.palette.PaletteLink
+import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import java.util.UUID
 
 /** Палитра темы: группы, состав, значения, привязки токенов и копия шаблона. */
@@ -39,6 +41,30 @@ class GetTenantPaletteUseCase(
                     val palette = snapshot.palette(tenantId.toString(), writable && snapshot.owned)
                     DsResult.Success(filtered(palette, filter).copy(subjectRevisions = snapshot.subjectRevisions))
                 } ?: DsResult.Failure(DsFailure.NotFound)
+            }
+        }
+
+    /** Читает только связи, не строя растяжки, ступени и счётчики представления палитры. */
+    suspend fun links(context: DsRequestContext, tenantId: UUID): DsResult<List<PaletteLink>> =
+        when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
+            is DsResult.Failure -> allowed
+            is DsResult.Success -> transactions.readOnly(
+                context,
+                ModelReadTarget(ModelReadTarget.Kind.TENANT, tenantId),
+            ) { selected ->
+                val filter = selected.readQuery
+                if (!validFilter(filter)) return@readOnly DsResult.Failure(DsFailure.InvalidRequest("INVALID_QUERY"))
+                val snapshot = repository.snapshot(selected.projectId, tenantId)
+                    ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
+                if (!snapshot.hasSystemGroups()) return@readOnly DsResult.Failure(DsFailure.NotFound)
+                val links = ThemePaletteBuilder.links(
+                    snapshot.state,
+                    snapshot.tokens + snapshot.layerTokens,
+                    snapshot.values + snapshot.layerValues,
+                )
+                DsResult.Success(links.filter {
+                    matchesGroup(filter, it.groupId) && matches(filter, it.slot.type.wireValue, it.slot.shade)
+                })
             }
         }
 

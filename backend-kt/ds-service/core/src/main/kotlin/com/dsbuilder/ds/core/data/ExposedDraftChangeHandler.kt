@@ -39,6 +39,7 @@ class ExposedDraftChangeHandler(
     private val revisionValueColumns: List<Column<*>> = emptyList(),
 ) : DraftChangeHandler {
     override val supportsAddressedRevert: Boolean = true
+    override val candidateIndex = ExposedDraftCandidateIndex(entityType, revisionTable, revisionSequenceNumber)
 
     override fun describe(
         designSystemId: UUID,
@@ -67,6 +68,25 @@ class ExposedDraftChangeHandler(
 
     override fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =
         differences(designSystemId, sequenceNumber, previousSequenceNumber, limit = 1).isNotEmpty()
+
+    override fun visitTenant(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        tenantId: UUID,
+        consume: (List<DraftSubjectChange>) -> Unit,
+    ) {
+        if (entityType != "token-value") return visit(designSystemId, sequenceNumber, previousSequenceNumber, consume)
+        var afterId: UUID? = null
+        while (true) {
+            val batch = differences(designSystemId, sequenceNumber, previousSequenceNumber, 500,
+                afterId = afterId, tenantId = tenantId)
+            if (batch.isEmpty()) return
+            consume(batch)
+            afterId = batch.last().entityId
+            if (batch.size < 500) return
+        }
+    }
 
     override fun describeEntity(
         designSystemId: UUID,
@@ -117,6 +137,7 @@ class ExposedDraftChangeHandler(
         limit: Int?,
         entityIds: Set<UUID>? = null,
         afterId: UUID? = null,
+        tenantId: UUID? = null,
     ): List<DraftSubjectChange> {
         val previousValue = valueExpression("previous")
         val currentValue = valueExpression("current")
@@ -132,6 +153,7 @@ class ExposedDraftChangeHandler(
         }.orEmpty()
         val candidateJoin = if (entityIds == null) changedEntitiesJoin() else ""
         val afterClause = if (afterId == null) "" else "AND entity.${stableId.quotedName()} > ?"
+        val tenantClause = if (tenantId == null) "" else "AND entity.tenant_id = ?"
         val sql = """
             SELECT ${stableTable.qualified(stableId)} AS entity_id,
                    previous.${revisionEntityId.quotedName()} AS previous_exists,
@@ -161,6 +183,7 @@ class ExposedDraftChangeHandler(
             WHERE entity.${stableDesignSystemId.quotedName()} = ?
               $entityClause
               $afterClause
+              $tenantClause
               AND ($previousResolved) IS DISTINCT FROM ($currentResolved)
             ORDER BY ${stableTable.qualified(stableId)}
             $limitClause
@@ -172,7 +195,8 @@ class ExposedDraftChangeHandler(
                 LongColumnType() to sequenceNumber,
                 UUIDColumnType() to designSystemId,
             ) + entityIds.orEmpty().map { UUIDColumnType() to it } +
-                listOfNotNull(afterId?.let { UUIDColumnType() to it }),
+                listOfNotNull(afterId?.let { UUIDColumnType() to it }) +
+                listOfNotNull(tenantId?.let { UUIDColumnType() to it }),
         ) { rows -> readDifferences(rows) }.orEmpty()
     }
 

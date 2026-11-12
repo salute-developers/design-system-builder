@@ -89,6 +89,21 @@ class OpenApiDocumentResourceTest {
     }
 
     @Test
+    fun `addressed token reads share a bounded UUID filter without changing response arrays`() {
+        for (path in listOf("/api/design-systems/{designSystemId}/tokens",
+            "/api/design-systems/{designSystemId}/tenants/{id}/token-values")) {
+            val operation = paths.getValue(path).jsonObject.getValue("get").jsonObject
+            assertTrue(operation.getValue("parameters").jsonArray.any {
+                it.jsonObject["\$ref"]?.jsonPrimitive?.content == "#/components/parameters/TokenIdsFilter"
+            })
+        }
+        val filter = document.getValue("components").jsonObject.getValue("parameters").jsonObject
+            .getValue("TokenIdsFilter").jsonObject
+        assertEquals("200", filter.getValue("schema").jsonObject.getValue("maxItems").jsonPrimitive.content)
+        assertEquals("false", filter.getValue("explode").jsonPrimitive.content)
+    }
+
+    @Test
     fun `palette and color operations document version reads and optional revision metadata`() {
         listOf(
             "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette",

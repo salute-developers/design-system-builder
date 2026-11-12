@@ -73,10 +73,11 @@ class UpdateColorTokenValuesUseCase(
         tokens.replaceValues(tenantId, command.members.storedForm())
         val type = typeSync.sync(lock.designSystemId, tokenId) ?: stored.family.type
         val values = tokens.confirmedValues(lock.designSystemId, tenantId, stored.members.values)?.let { values ->
+            val typed = values.map { it.copy(tokenType = type) }
             com.dsbuilder.ds.themes.application.TokenValuePublisher(
                 tenantId,
-                palette.snapshot(context.projectId, tenantId),
-            ).publish(values.map { it.copy(tokenType = type) })
+                palette.valueSnapshot(context.projectId, tenantId, typed),
+            ).publish(typed)
         }
         return DsResult.Success(
             ColorTokenMutation(

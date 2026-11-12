@@ -4,6 +4,7 @@ import com.dsbuilder.ds.core.application.DraftChangeCandidate
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.data.populatedDraftHandlers
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DraftChange
 import com.dsbuilder.ds.designsystems.domain.draftChangeDisplayCount
@@ -58,7 +59,7 @@ internal class CompactJournalReader(
         ) { it.next() } ?: false
         if (!exists) return null
         val result = linkedSetOf<UUID>()
-        visitVisible(setOf("token", "token-value")) { subject, batch ->
+        visitVisible(setOf("token", "token-value"), tenantId) { subject, batch ->
             for (difference in batch) {
                 if (subject.entityType == "token") {
                     result.add(difference.entityId)
@@ -96,24 +97,37 @@ internal class CompactJournalReader(
 
     private fun visitVisible(
         selectedTypes: Set<String>? = null,
+        tenantId: UUID? = null,
         consume: (DraftChangeHandler, List<DraftSubjectChange>) -> Unit,
     ) {
         val tenantHandler = handlers.firstOrNull { it.entityType == "tenant" }
-        for (handler in handlers.filter { selectedTypes == null || it.entityType in selectedTypes }) {
-            handler.visit(owner.value, sequence, previous) { batch ->
+        val parentContext = mutableMapOf<UUID, DraftChangeCandidate?>()
+        val selected = handlers.filter { selectedTypes == null || it.entityType in selectedTypes }
+        for (handler in populatedDraftHandlers(selected, owner.value, sequence, previous)) {
+            val consumeBatch: (List<DraftSubjectChange>) -> Unit = { batch ->
                 // Новые темы — контекст политики, не дополнительные строки обрабатываемой порции.
-                val parents = batch.filter { it.previousValue == null }.mapNotNull {
+                val parentIds = batch.filter { it.previousValue == null }.mapNotNull {
                     it.currentValue?.get("tenant_id")?.jsonPrimitive?.contentOrNull
-                }.distinct().mapNotNull { id ->
-                    tenantHandler?.describeEntity(owner.value, sequence, previous, UUID.fromString(id))
-                        ?.let { DraftChangeCandidate("tenant", it) }
+                }.map(UUID::fromString).toSet()
+                val missing = parentIds - parentContext.keys
+                if (missing.isNotEmpty()) {
+                    val found = tenantHandler?.describeEntities(owner.value, sequence, previous, missing)
+                        .orEmpty().associateBy { it.entityId }
+                    missing.forEach { id ->
+                        parentContext[id] = found[id]?.let { DraftChangeCandidate("tenant", it) }
+                    }
                 }
+                val parents = parentIds.mapNotNull { parentContext[it] }
                 val keys = batch.mapTo(hashSetOf()) { it.entityId }
                 val candidates = batch.map { DraftChangeCandidate(handler.entityType, it) } + parents
                 val visible = policies.fold(candidates) { current, policy -> policy.visible(versionId, current) }
                 val matching = visible.filter { it.entityType == handler.entityType && it.change.entityId in keys }
                 consume(handler, matching.map { it.change })
             }
+            if (tenantId == null || handler.entityType != "token-value") {
+                handler.visit(owner.value, sequence, previous, consumeBatch)
+            }
+            else handler.visitTenant(owner.value, sequence, previous, tenantId, consumeBatch)
         }
     }
 }

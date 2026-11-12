@@ -29,6 +29,14 @@ interface TenantPaletteRepository {
         includeSubjectRevisions: Boolean = false,
     ): TenantPaletteSnapshot?
 
+    /** Снимок для раскрытия выбранных значений без чтения значений остальных семейств. */
+    suspend fun valueSnapshot(
+        projectId: ProjectId,
+        tenantId: UUID,
+        values: List<com.dsbuilder.ds.themes.domain.TenantTokenValue>,
+    ): TenantPaletteSnapshot? =
+        snapshot(projectId, tenantId)
+
     /** Записывает только различия [before] и [state], сохраняя соседние конкурентные изменения. */
     suspend fun save(tenantId: UUID, before: TenantPaletteState, state: TenantPaletteState)
 

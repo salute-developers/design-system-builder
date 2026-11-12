@@ -40,6 +40,111 @@ import kotlin.test.assertTrue
  */
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ColorTokenGradientHttpPostgresIntegrationTest {
+    @Test
+    fun `color batch preserves individual revision warnings and rejects invalid values atomically`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call("POST", "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER, createBody())
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val members = api.body(created).jsonObject.getValue("value").jsonObject.array("members")
+                    .associate { it.text("name") to it.text("tokenId") }
+                val base = members.getValue("text.default.highlight")
+                val hover = members.getValue("text.default.highlight-hover")
+                val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$base/values"
+                val original = api.values(system, tenant)
+                val baseBefore = value(original, base, "web", "light").getValue("editRevision").jsonPrimitive.long
+                val hoverBefore = value(original, hover, "web", "light").getValue("editRevision").jsonPrimitive.long
+                fun body(baseRevision: Long, hoverRevision: Long?, color: String): String {
+                    fun member(id: String, revision: Long) =
+                        """{"tokenId":"$id","values":[{"platform":"web","mode":"light","value":["$color"],"baseRevision":$revision}]}"""
+                    val entries = listOfNotNull(member(base, baseRevision), hoverRevision?.let { member(hover, it) })
+                    return """{"editRevision":0,"members":[${entries.joinToString(",")}]}"""
+                }
+                assertEquals(HttpStatusCode.OK, api.call("PUT", path, EDITOR, body(baseBefore, null, "#111111")).status)
+                val afterFirst = api.values(system, tenant)
+                val baseCurrent = value(afterFirst, base, "web", "light").getValue("editRevision").jsonPrimitive.long
+                assertTrue(baseCurrent > baseBefore)
+                val warned = api.call("PUT", path, EDITOR, body(baseBefore, hoverBefore, "#222222"))
+                assertEquals(HttpStatusCode.OK, warned.status, warned.bodyAsText())
+                val metadata = json.parseToJsonElement(requireNotNull(warned.headers["X-DS-Mutation-Metadata"]))
+                    .jsonArray.filter { it.text("entityType") == "token-value" }
+                val baseEntity = value(original, base, "web", "light").text("id")
+                val hoverEntity = value(original, hover, "web", "light").text("id")
+                assertTrue(metadata.single { it.text("entityId") == baseEntity }.jsonObject.getValue("warnings").jsonArray.isNotEmpty())
+                assertTrue(metadata.single { it.text("entityId") == hoverEntity }.jsonObject.getValue("warnings").jsonArray.isEmpty())
+                val beforeInvalid = api.values(system, tenant)
+                val invalid = body(baseCurrent, hoverBefore, "#444444").replaceFirst("#444444", "not-a-color")
+                val rejected = api.call("PUT", path, EDITOR, invalid)
+                assertEquals(HttpStatusCode.BadRequest, rejected.status, rejected.bodyAsText())
+                assertEquals(beforeInvalid.toSet(), api.values(system, tenant).toSet(), "ошибка отменяет весь пакет")
+                val saved = api.call("PUT", path, EDITOR, body(baseCurrent, hoverBefore, "#333333"))
+                assertEquals(HttpStatusCode.OK, saved.status, saved.bodyAsText())
+                val result = api.values(system, tenant)
+                for (token in listOf(base, hover)) {
+                    assertEquals(JsonArray(listOf(JsonPrimitive("#333333"))), value(result, token, "web", "light").getValue("value"))
+                    assertEquals(value(original, token, "web", "dark"), value(result, token, "web", "dark"))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `concurrent batches create one missing address and keep both edit revisions`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"missing","projectName":"missing"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call("POST", "/api/design-systems/$system/tenants/$tenant/color-tokens", MAINTAINER, createBody("race"))
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val token = api.body(created).obj("value").array("members").first().text("tokenId")
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute("DELETE FROM token_value_revisions WHERE token_value_id IN " +
+                            "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light')")
+                        statement.execute("DELETE FROM entity_edit_states WHERE entity_type='token-value' AND entity_id IN " +
+                            "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light')")
+                        statement.execute("DELETE FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light'")
+                        statement.execute("""
+                            CREATE FUNCTION delay_new_value() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN PERFORM pg_sleep(0.15); RETURN NEW; END; ${'$'}${'$'};
+                            CREATE TRIGGER delay_new_value BEFORE INSERT ON token_values FOR EACH ROW EXECUTE FUNCTION delay_new_value();
+                        """.trimIndent())
+                    }
+                }
+                val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values"
+                fun body(color: String) = """{"editRevision":0,"members":[{"tokenId":"$token","values":[{"platform":"web","mode":"light","paletteId":null,"value":["$color"],"baseRevision":0}]}]}"""
+                val responses = kotlinx.coroutines.withTimeout(30_000) {
+                    coroutineScope {
+                        val first = async { api.call("PUT", path, EDITOR, body("#123456")) }
+                        val second = async { api.call("PUT", path, EDITOR, body("#654321")) }
+                        listOf(first.await(), second.await())
+                    }
+                }
+                for (response in responses) assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+                val selected = api.values(system, tenant).filter {
+                    it.text("tokenId") == token && it.text("platform") == "web" && it.text("mode") == "light"
+                }
+                assertEquals(1, selected.size)
+                assertEquals(2, selected.single().number("editRevision"))
+                val warnings = responses.flatMap { response ->
+                    json.parseToJsonElement(requireNotNull(response.headers["X-DS-Mutation-Metadata"])).jsonArray
+                }.filter { it.text("entityType") == "token-value" && it.text("entityId") == selected.single().text("id") }
+                assertEquals(2, warnings.size)
+                assertTrue(warnings.any { it.jsonObject.getValue("warnings").jsonArray.isNotEmpty() })
+                val invalid = api.call("PUT", path, EDITOR, body("#abcdef").replace("\"mode\":\"light\"", "\"mode\":null"))
+                assertEquals(HttpStatusCode.BadRequest, invalid.status)
+                assertEquals(selected, api.values(system, tenant).filter { it.text("id") == selected.single().text("id") })
+            }
+        }
+    }
+
     private val json = Json { ignoreUnknownKeys = false }
 
     @Test

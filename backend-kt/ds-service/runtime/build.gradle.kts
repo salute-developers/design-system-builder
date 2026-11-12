@@ -36,6 +36,7 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.ktor.client.cio)
 }
 
 tasks.processResources {
@@ -61,5 +62,9 @@ tasks.register<Test>("queryPerformance") {
     systemProperty("ds.performance.fixtureExport", providers.gradleProperty("performanceFixtureExport").getOrElse(""))
     systemProperty("ds.performance.legacy", providers.gradleProperty("performanceLegacy").getOrElse("false"))
     systemProperty("ds.performance.scenario", providers.gradleProperty("performanceScenario").getOrElse(""))
+    systemProperty("ds.performance.jfr", providers.gradleProperty("performanceJfr").getOrElse(""))
+    systemProperty("ds.performance.editDensity", providers.gradleProperty("performanceEditDensity").getOrElse(""))
+    systemProperty("ds.performance.netty", providers.gradleProperty("performanceNetty").getOrElse("false"))
+    systemProperty("kotlinx.coroutines.debug", "off")
     outputs.upToDateWhen { false }
 }
