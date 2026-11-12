@@ -10,10 +10,13 @@ import com.dsbuilder.ds.core.application.DraftValueBatchRequest
 import com.dsbuilder.ds.core.application.DraftValueBatchReverter
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import com.dsbuilder.ds.core.application.ModelReadItems
 import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.data.DraftRevertBatch
+import com.dsbuilder.ds.core.data.checkDraftRevertConstraints
 import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
+import com.dsbuilder.ds.core.data.literalValueBatchParticipants
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.modelReadJournalPage
 import com.dsbuilder.ds.core.domain.ProjectId
@@ -67,7 +70,12 @@ class ExposedDraftChangeRepository(
             }
             TrackedSubject(handler, address.entityId)
         }
-        if (literalBatchSupported(targets, byType)) {
+        val batchParticipants = if (targets.all { it.entityType == "token-value" }) {
+            literalValueBatchParticipants(listOfNotNull(byType["token-value"]) + policies + dependencies)
+        } else {
+            null
+        }
+        if (batchParticipants != null) {
             val request = DraftValueBatchRequest(
                 designSystemId.value,
                 draftId,
@@ -75,7 +83,7 @@ class ExposedDraftChangeRepository(
                 systemAdmin,
                 targets.map { it.entityId to it.expectedRevision },
             )
-            revertValueBatch(request)?.let { return it }
+            revertValueBatch(request, batchParticipants)?.let { return it }
         }
         val previous = previousSequence(designSystemId, target.sequenceNumber)
         val checks = targets.map {
@@ -91,15 +99,17 @@ class ExposedDraftChangeRepository(
         }
     }
 
-    private fun literalBatchSupported(
-        targets: List<DraftAddressTarget>,
-        byType: Map<String, DraftChangeHandler>,
-    ): Boolean = targets.all { it.entityType == "token-value" } &&
-        byType["token-value"]?.supportsLiteralValueBatchRevert == true &&
-        policies.all { it.supportsLiteralValueBatchRevert } && dependencies.all { it.supportsLiteralValueBatchRevert }
-
-    private suspend fun revertValueBatch(request: DraftValueBatchRequest): DsResult<Unit>? {
-        for (batch in valueBatches) when (batch.revert(request)) {
+    private suspend fun revertValueBatch(
+        request: DraftValueBatchRequest,
+        participants: List<LiteralValueBatchParticipant>,
+    ): DsResult<Unit>? {
+        for (batch in valueBatches) when (
+            batch.revert(request) { context ->
+                participants.all {
+                    it.validLiteralBatch(context)
+                }
+            }
+        ) {
             DraftValueBatchOutcome.REVERTED -> return DsResult.Success(Unit)
             DraftValueBatchOutcome.DEPENDENCY_CONFLICT ->
                 return DsResult.Failure(DsFailure.Conflict("REVERT_DEPENDENCY_CONFLICT"))
@@ -122,10 +132,42 @@ class ExposedDraftChangeRepository(
         if (target.id != draftId) return DsResult.Failure(DsFailure.Conflict("DRAFT_CHANGED"))
         val previous = previousSequence(designSystemId, target.sequenceNumber)
         val byType = handlers.associateBy { it.entityType }
-        val scope = TokenTargetScope(designSystemId.value, draftId, target.sequenceNumber, tenantId, tokenIds)
-        return AddressedTokenTargetReader(scope, byType) { type, id ->
-            currentChange(target, designSystemId, previous, TrackedSubject(byType.getValue(type), id))
+        val scope = TokenTargetScope(designSystemId.value, draftId, target.sequenceNumber, previous, tenantId, tokenIds)
+        return AddressedTokenTargetReader(scope, byType) { addresses ->
+            addressedChanges(target, designSystemId, previous, addresses)
         }.read(cursor)
+    }
+
+    private fun addressedChanges(
+        target: BoundaryRow,
+        designSystemId: DesignSystemId,
+        previous: Long,
+        addresses: List<Pair<String, UUID>>,
+    ): List<DraftChange> {
+        val byType = handlers.associateBy(DraftChangeHandler::entityType)
+        val differences = addresses.groupBy({ it.first }, { it.second }).flatMap { (type, ids) ->
+            byType.getValue(type).describeEntities(designSystemId.value, target.sequenceNumber, previous, ids.toSet())
+                .map { (type to it.entityId) to it }
+        }.toMap()
+        val known = addresses.associateWith { differences[it] }.toMutableMap()
+        fun related(type: String, id: UUID): DraftSubjectChange? {
+            val address = type to id
+            if (address !in known) {
+                known[address] = byType[type]?.describeEntity(designSystemId.value, target.sequenceNumber, previous, id)
+            }
+            return known[address]
+        }
+        val visible = addresses.mapNotNull { (type, id) ->
+            val initial = related(type, id)?.let { DraftChangeCandidate(type, it) }
+            val candidate = policies.fold(initial) { current, policy ->
+                current?.let { policy.visibleEntity(target.id, it, ::related) }
+            }
+            candidate?.let { TypedDifference(byType.getValue(type), it.change) }
+        }
+        val edits = editStates(target.id, visible)
+        return visible.map { (subject, difference) ->
+            change(subject, difference, designSystemId, target, edits[subject.entityType to difference.entityId])
+        }
     }
 
     override suspend fun summary(
@@ -324,7 +366,7 @@ class ExposedDraftChangeRepository(
                 DraftChangeRevertResult.DependencyConflict,
             )
         }
-        checkConstraints()
+        checkDraftRevertConstraints()
         return DraftChangeBatchRevertResult.Reverted
     }
 
@@ -486,7 +528,7 @@ class ExposedDraftChangeRepository(
         return try {
             val result = operation()
             if (result == DraftChangeRevertResult.Reverted) {
-                checkConstraints()
+                checkDraftRevertConstraints()
             } else {
                 transaction.exec("ROLLBACK TO SAVEPOINT checked_revert")
             }
@@ -501,15 +543,6 @@ class ExposedDraftChangeRepository(
                 throw failure
             }
         }
-    }
-
-    /** Отмена обязана проверить итоговый граф до сохранения успешного ответа, а не при COMMIT. */
-    private fun checkConstraints() {
-        val transaction = TransactionManager.current()
-        transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
-        transaction.exec("SET CONSTRAINTS ALL IMMEDIATE")
-        transaction.exec("SET CONSTRAINTS ALL DEFERRED")
-        transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
     }
 
     private fun revertFields(

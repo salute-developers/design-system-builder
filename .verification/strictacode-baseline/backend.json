@@ -1,12 +1,12 @@
 {
   "project": {
     "lang": "kotlin",
-    "loc": 68314,
+    "loc": 68556,
     "packages": 113,
-    "modules": 1194,
-    "classes": 1539,
-    "methods": 2439,
-    "functions": 649,
+    "modules": 1199,
+    "classes": 1543,
+    "methods": 2450,
+    "functions": 654,
     "status": {
       "name": "warning",
       "score": 41,
@@ -29,8 +29,8 @@
       }
     },
     "complexity": {
-      "score": 5345,
-      "density": 7.82,
+      "score": 5371,
+      "density": 7.83,
       "stat(modules)": {
         "avg": 4,
         "min": 0,

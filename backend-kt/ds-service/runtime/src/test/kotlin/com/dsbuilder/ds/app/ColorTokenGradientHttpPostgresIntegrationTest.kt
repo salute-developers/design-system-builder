@@ -29,6 +29,7 @@ import kotlinx.serialization.json.long
 import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -166,6 +167,54 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                         ),
                     )
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `literal dependency validation rejects a hidden tenant before reference shortcut`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create(
+                    "/api/design-systems",
+                    OWNER,
+                    """{"name":"visibility","projectName":"visibility"}""",
+                )
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
+                val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values"
+                assertEquals(HttpStatusCode.OK, api.call("PUT", path, EDITOR, solidBody(token, "#123456")).status)
+                val change = api.journal(system).first { it.text("entityType") == "token-value" }
+                val database = org.jetbrains.exposed.v1.jdbc.Database.connect(
+                    postgres.jdbcUrl,
+                    user = postgres.username,
+                    password = postgres.password,
+                )
+                fun valid() = org.jetbrains.exposed.v1.jdbc.transactions.transaction(database) {
+                    exec("SELECT set_config('ds.design_system_id', '$system', true)")
+                    kotlinx.coroutines.runBlocking {
+                        com.dsbuilder.ds.themes.data.PaletteRevertDependencyValidator().valid(
+                            java.util.UUID.fromString(system),
+                            "token-value",
+                            java.util.UUID.fromString(change.text("entityId")),
+                        )
+                    }
+                }
+                assertTrue(valid())
+                val removed = api.call("DELETE", "/api/design-systems/$system/tenants/$tenant", OWNER)
+                assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
+                assertFalse(valid())
+                val reverted = api.revert(system, change)
+                assertEquals(HttpStatusCode.Conflict, reverted.status, reverted.bodyAsText())
             }
         }
     }

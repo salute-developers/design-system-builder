@@ -4,9 +4,6 @@ import java.util.UUID
 
 /** Предметная политика представления вычисленных изменений в журнале. */
 fun interface DraftChangePolicy {
-    /** Специализация сохраняет политику для существующих значений вне основы создания темы. */
-    val supportsLiteralValueBatchRevert: Boolean get() = false
-
     /** Гарантирует, что политика может скрыть дочерние записи, но не весь непустой журнал. */
     val preservesNonEmpty: Boolean
         get() = false

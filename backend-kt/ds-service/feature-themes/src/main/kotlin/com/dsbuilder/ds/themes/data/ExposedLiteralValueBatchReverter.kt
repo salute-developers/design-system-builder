@@ -3,7 +3,12 @@ package com.dsbuilder.ds.themes.data
 import com.dsbuilder.ds.core.application.DraftValueBatchOutcome
 import com.dsbuilder.ds.core.application.DraftValueBatchRequest
 import com.dsbuilder.ds.core.application.DraftValueBatchReverter
+import com.dsbuilder.ds.core.application.LiteralValueBatchContext
+import com.dsbuilder.ds.core.application.LiteralValueFamilyState
 import com.dsbuilder.ds.core.data.BatchJdbc
+import com.dsbuilder.ds.core.data.checkDraftRevertConstraints
+import com.dsbuilder.ds.core.data.lockDesignSystemMutation
+import com.dsbuilder.ds.core.data.lockResolvedDraftSubjects
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamilyType
 import com.dsbuilder.ds.themes.domain.colortokens.FamilyValue
@@ -13,10 +18,13 @@ import java.util.UUID
 
 /** Пакетный откат существующих значений без восстанавливаемых ссылок и изменения типа цветового семейства. */
 class ExposedLiteralValueBatchReverter : DraftValueBatchReverter {
-    override suspend fun revert(request: DraftValueBatchRequest): DraftValueBatchOutcome {
+    override suspend fun revert(
+        request: DraftValueBatchRequest,
+        validate: (LiteralValueBatchContext) -> Boolean,
+    ): DraftValueBatchOutcome {
         val jdbc = BatchJdbc()
         val plan = plan(jdbc, request) ?: return DraftValueBatchOutcome.NOT_APPLICABLE
-        return executePlan(jdbc, request, plan)
+        return executePlan(jdbc, request, plan, validate)
     }
 
     /** Предварительное чтение планирует блокировки, но не разрешает мутацию до повторной проверки. */
@@ -44,13 +52,14 @@ class ExposedLiteralValueBatchReverter : DraftValueBatchReverter {
         jdbc: BatchJdbc,
         request: DraftValueBatchRequest,
         plan: ValueBatchPlan,
+        validate: (LiteralValueBatchContext) -> Boolean,
     ): DraftValueBatchOutcome {
         jdbc.query("SAVEPOINT value_batch")
         return try {
             val outcome = when {
-                !lockSubjects(jdbc, request.designSystemId, plan.draft, plan.ids, plan.members) ->
+                !lockSubjects(request.designSystemId, plan.draft, plan.ids, plan.members) ->
                     DraftValueBatchOutcome.NOT_APPLICABLE
-                !matchesPlan(jdbc, request, plan) -> DraftValueBatchOutcome.NOT_APPLICABLE
+                !matchesPlan(jdbc, request, plan, validate) -> DraftValueBatchOutcome.NOT_APPLICABLE
                 else -> {
                     applyValues(jdbc, plan.draft, plan.ids)
                     DraftValueBatchOutcome.REVERTED
@@ -69,7 +78,12 @@ class ExposedLiteralValueBatchReverter : DraftValueBatchReverter {
         return outcome
     }
 
-    private fun matchesPlan(jdbc: BatchJdbc, request: DraftValueBatchRequest, plan: ValueBatchPlan): Boolean {
+    private fun matchesPlan(
+        jdbc: BatchJdbc,
+        request: DraftValueBatchRequest,
+        plan: ValueBatchPlan,
+        validate: (LiteralValueBatchContext) -> Boolean,
+    ): Boolean {
         val current = selected(request, LiteralValueBatchReader(jdbc).snapshot(request)) ?: return false
         // Полное равенство включает boundary_id, редакции, определения и прежнее/текущее содержимое.
         if (current != plan.rows) return false
@@ -81,8 +95,11 @@ class ExposedLiteralValueBatchReverter : DraftValueBatchReverter {
             plan.specs,
             plan.members,
         )
-        return lockedFamilies.map { it.member.id }.distinct().sorted() == plan.members &&
-            matchingFamilyTypes(lockedFamilies)
+        val families = restoredFamilyStates(lockedFamilies)
+        return families != null && lockedFamilies.map { it.member.id }.distinct().sorted() == plan.members &&
+            families.all { it.unchanged() } && validate(
+                LiteralValueBatchContext(request.designSystemId, plan.draft, current.map { it.batchValue() }, families),
+            )
     }
 
     private fun selected(
@@ -111,42 +128,10 @@ class ExposedLiteralValueBatchReverter : DraftValueBatchReverter {
         val rows: List<LiteralValueSnapshot>,
     )
 
-    private fun lockSubjects(
-        jdbc: BatchJdbc,
-        owner: UUID,
-        draft: UUID,
-        ids: List<UUID>,
-        members: List<UUID>,
-    ): Boolean {
-        jdbc.query(
-            "SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(? AS text),684313))",
-            owner,
-        )
-        if (members.isNotEmpty()) {
-            jdbc.query(
-                """
-                    INSERT INTO entity_edit_states(design_system_version_id,design_system_id,entity_type,
-                      entity_id,revision,last_actor_id,updated_at)
-                    SELECT ?,?,'token',id,0,coalesce(nullif(current_setting('ds.actor_id',true),''),'system'),now()
-                    FROM unnest(?::uuid[]) id ON CONFLICT DO NOTHING
-                """.trimIndent(),
-                draft,
-                owner,
-                jdbc.uuids(members),
-            )
-        }
-        for ((type, addresses) in listOf("token-value" to ids, "token" to members)) {
-            if (addresses.isEmpty()) continue
-            val locked = jdbc.query(
-                "SELECT entity_id FROM entity_edit_states WHERE design_system_version_id=? " +
-                    "AND entity_type=? AND entity_id=ANY(?) ORDER BY entity_id FOR UPDATE",
-                draft,
-                type,
-                jdbc.uuids(addresses),
-            )
-            if (locked.size != addresses.size) return false
-        }
-        return true
+    private fun lockSubjects(owner: UUID, draft: UUID, ids: List<UUID>, members: List<UUID>): Boolean {
+        lockDesignSystemMutation(owner)
+        return lockResolvedDraftSubjects(owner, draft, "token-value", ids, createMissing = false) &&
+            lockResolvedDraftSubjects(owner, draft, "token", members)
     }
 
     private fun applyValues(jdbc: BatchJdbc, draft: UUID, ids: List<UUID>) {
@@ -165,21 +150,16 @@ class ExposedLiteralValueBatchReverter : DraftValueBatchReverter {
             draft,
         ).single()
         check(mutated["removed_count"]?.toInt() == ids.size) { "Batch revision set changed under locks" }
-        listOf(
-            "SELECT set_config('ds.palette_checked_boundaries','',true)",
-            "SET CONSTRAINTS ALL IMMEDIATE",
-            "SET CONSTRAINTS ALL DEFERRED",
-            "SELECT set_config('ds.palette_checked_boundaries','',true)",
-        ).forEach { jdbc.query(it) }
+        checkDraftRevertConstraints()
     }
 
-    private fun matchingFamilyTypes(rows: List<RestoredFamilyValue>): Boolean {
+    private fun restoredFamilyStates(rows: List<RestoredFamilyValue>): List<LiteralValueFamilyState>? {
         val keys = rows.distinctBy { it.member.id }.associate { row ->
             val member = row.member
-            val family = ColorTokenFamily.of(member.type, member.name) ?: return false
+            val family = ColorTokenFamily.of(member.type, member.name) ?: return null
             member.id to (family.group to family.name)
         }
-        return rows.groupBy { keys[it.member.id] }.values.all { group ->
+        return rows.groupBy { keys[it.member.id] }.values.map { group ->
             val values = group.mapNotNull { row ->
                 if (row.tenantDeleted != false) return@mapNotNull null
                 val value = row.value ?: return@mapNotNull null
@@ -187,7 +167,11 @@ class ExposedLiteralValueBatchReverter : DraftValueBatchReverter {
                 FamilyValue(platform, Json.parseToJsonElement(value))
             }
             val type = ColorTokenFamilyType.of(values).wireValue
-            group.all { it.member.type.wireValue == type }
+            LiteralValueFamilyState(
+                group.mapTo(hashSetOf()) { it.member.id },
+                group.mapTo(hashSetOf()) { it.member.type.wireValue },
+                type,
+            )
         }
     }
 }

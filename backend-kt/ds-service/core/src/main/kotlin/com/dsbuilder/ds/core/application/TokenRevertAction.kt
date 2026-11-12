@@ -4,6 +4,8 @@ package com.dsbuilder.ds.core.application
 data class TokenRevertAction(
     /** Ключ группы в пределах одного слушателя и дизайн-системы. */
     val key: Any,
+    /** Токены, подготовку реакции которых уже покрывает действие. */
+    val coveredTokenIds: Set<java.util.UUID> = emptySet(),
     /** Пересчёт по актуальному состоянию после всех мутаций пакета. */
     val run: () -> Unit,
 )

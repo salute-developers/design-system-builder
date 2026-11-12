@@ -4,6 +4,8 @@ import com.dsbuilder.ds.core.application.DraftChangeCandidate
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.LiteralValueBatchContext
+import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
 import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenFamilyTypeSync
@@ -32,8 +34,10 @@ fun themeDraftChangeHandlers(
 ): List<DraftChangeHandler> = listOf(tenantDraftChangeHandler(familyTypes)) + paletteDraftChangeHandlers()
 
 /** Скрывает технические создания начальных значений новой темы за одной записью tenant. */
-fun themeDraftChangePolicy(): DraftChangePolicy = object : DraftChangePolicy {
-    override val supportsLiteralValueBatchRevert: Boolean = true
+fun themeDraftChangePolicy(): DraftChangePolicy = object : DraftChangePolicy, LiteralValueBatchParticipant {
+    override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
+        context.values.none { it.creationBaseline }
+
     override val preservesNonEmpty: Boolean = true
 
     override fun visible(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> =

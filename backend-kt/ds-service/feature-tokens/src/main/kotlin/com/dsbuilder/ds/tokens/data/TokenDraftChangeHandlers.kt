@@ -2,10 +2,13 @@ package com.dsbuilder.ds.tokens.data
 
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.LiteralValueBatchContext
+import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import com.dsbuilder.ds.core.application.TokenRevertListener
 import com.dsbuilder.ds.core.data.DraftRevertBatch
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
+import com.dsbuilder.ds.core.data.literalValueBatchParticipants
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.exposed.v1.core.and
@@ -88,6 +91,18 @@ private fun tokenDefinitionDraftChangeHandler(listeners: List<TokenRevertListene
         )
             ?.let(::withoutDerivedType)
 
+        override fun describeEntities(
+            designSystemId: UUID,
+            sequenceNumber: Long,
+            previousSequenceNumber: Long,
+            entityIds: Set<UUID>,
+        ): List<DraftSubjectChange> = delegate.describeEntities(
+            designSystemId,
+            sequenceNumber,
+            previousSequenceNumber,
+            entityIds,
+        ).mapNotNull(::withoutDerivedType)
+
         override fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =
             describe(designSystemId, sequenceNumber, previousSequenceNumber, limit = 1).isNotEmpty()
 
@@ -142,8 +157,10 @@ private fun tokenValueDraftChangeHandler(listeners: List<TokenRevertListener>): 
             TokenValueRevisionsTable.overridden,
         ),
     )
-    return object : DraftChangeHandler by delegate {
-        override val supportsLiteralValueBatchRevert: Boolean = listeners.all { it.supportsLiteralValueBatchRevert }
+    return object : DraftChangeHandler by delegate, LiteralValueBatchParticipant {
+        override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
+            literalValueBatchParticipants(listeners)?.all { it.validLiteralBatch(context) } == true
+
         override fun revertFields(
             versionId: UUID,
             entityId: UUID,
@@ -193,6 +210,9 @@ private fun notifyingRevert(
             after.forEach { (key, action) ->
                 // Сохраняем маркер токена и отдельный предметный ключ: первое действие покрывает всю исходную группу.
                 if (DraftRevertBatch.defer(key) {}) {
+                    action.coveredTokenIds.forEach { member ->
+                        DraftRevertBatch.defer(Triple(key.first, designSystemId, member)) {}
+                    }
                     DraftRevertBatch.defer(Triple(key.first, designSystemId, action.key) to "group", action.run)
                 } else {
                     action.run()

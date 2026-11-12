@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.data.selectedVersionBoundarySql
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUsageRepository
 import com.dsbuilder.ds.themes.domain.sizetokens.AdjustedUsage
 import com.dsbuilder.ds.themes.domain.sizetokens.ComponentUsage
@@ -225,15 +226,12 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
     }
 
     private companion object {
-        const val SELECTED_BOUNDARY = """
+        val SELECTED_BOUNDARY = """
             SELECT boundary.id, boundary.design_system_id, boundary.sequence_number
               FROM design_system_versions boundary
-             WHERE boundary.id = COALESCE(
-                 NULLIF(current_setting('ds.version_id', true), '')::uuid,
-                 (SELECT active.id FROM design_system_versions active
-                   WHERE active.design_system_id = ? AND active.status = 'draft')
-             ) AND boundary.status IN ('draft', 'published')
-        """
+             WHERE ${selectedVersionBoundarySql("boundary")}
+               AND boundary.design_system_id = ?
+        """.trimIndent()
 
         const val COMBINATION = "combination"
 

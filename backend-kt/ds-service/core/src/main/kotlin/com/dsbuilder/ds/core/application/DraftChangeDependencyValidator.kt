@@ -4,9 +4,6 @@ import java.util.UUID
 
 /** Проверяет предметные зависимости результата отмены в той же транзакции до её фиксации. */
 fun interface DraftChangeDependencyValidator {
-    /** Проверка эквивалентна пакетной проверке существующих литеральных цветовых значений. */
-    val supportsLiteralValueBatchRevert: Boolean get() = false
-
     /** Возвращает false, если восстановленное состояние требует отсутствующую предметную сущность. */
     suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean
 

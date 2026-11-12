@@ -79,8 +79,25 @@ class ExposedDraftChangeHandler(
             sequenceNumber,
             previousSequenceNumber,
             limit = 1,
-            entityId = entityId,
+            entityIds = setOf(entityId),
         ).singleOrNull()
+
+    override fun describeEntities(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        entityIds: Set<UUID>,
+    ): List<DraftSubjectChange> = if (entityIds.isEmpty()) {
+        emptyList()
+    } else {
+        differences(
+            designSystemId,
+            sequenceNumber,
+            previousSequenceNumber,
+            limit = null,
+            entityIds = entityIds,
+        )
+    }
 
     override fun revert(versionId: UUID, entityId: UUID, removeStableEntity: Boolean): Boolean {
         val hasHistoricalRevision = removeStableEntity && revisionTable.selectAll().where {
@@ -98,7 +115,7 @@ class ExposedDraftChangeHandler(
         sequenceNumber: Long,
         previousSequenceNumber: Long,
         limit: Int?,
-        entityId: UUID? = null,
+        entityIds: Set<UUID>? = null,
         afterId: UUID? = null,
     ): List<DraftSubjectChange> {
         val previousValue = valueExpression("previous")
@@ -106,7 +123,14 @@ class ExposedDraftChangeHandler(
         val previousResolved = resolvedValueExpression("previous", previousValue)
         val currentResolved = resolvedValueExpression("current", currentValue)
         val limitClause = limit?.let { "LIMIT $it" }.orEmpty()
-        val entityClause = if (entityId == null) "" else "AND entity.${stableId.quotedName()} = ?"
+        val entityClause = entityIds?.joinToString(
+            ",",
+            prefix = "AND entity.${stableId.quotedName()} IN (",
+            postfix = ")",
+        ) {
+            "?"
+        }.orEmpty()
+        val candidateJoin = if (entityIds == null) changedEntitiesJoin() else ""
         val afterClause = if (afterId == null) "" else "AND entity.${stableId.quotedName()} > ?"
         val sql = """
             SELECT ${stableTable.qualified(stableId)} AS entity_id,
@@ -117,13 +141,7 @@ class ExposedDraftChangeHandler(
                    current.${revisionDeleted.quotedName()} AS current_deleted,
                    $currentValue AS current_value
             FROM ${stableTable.quotedName()} entity
-            JOIN (
-                SELECT DISTINCT changed.${revisionEntityId.quotedName()} AS entity_id
-                FROM ${revisionTable.quotedName()} changed
-                WHERE changed.design_system_id = ?
-                  AND changed.${revisionSequenceNumber.quotedName()} > ?
-                  AND changed.${revisionSequenceNumber.quotedName()} <= ?
-            ) changed_entities ON changed_entities.entity_id = entity.${stableId.quotedName()}
+            $candidateJoin
             LEFT JOIN LATERAL (
                 SELECT candidate.*
                 FROM ${revisionTable.quotedName()} candidate
@@ -149,15 +167,38 @@ class ExposedDraftChangeHandler(
         """.trimIndent()
         return TransactionManager.current().exec(
             sql,
-            listOf(
-                UUIDColumnType() to designSystemId,
-                LongColumnType() to previousSequenceNumber,
-                LongColumnType() to sequenceNumber,
+            candidateArguments(designSystemId, sequenceNumber, previousSequenceNumber, entityIds) + listOf(
                 LongColumnType() to previousSequenceNumber,
                 LongColumnType() to sequenceNumber,
                 UUIDColumnType() to designSystemId,
-            ) + listOfNotNull(entityId?.let { UUIDColumnType() to it }, afterId?.let { UUIDColumnType() to it }),
+            ) + entityIds.orEmpty().map { UUIDColumnType() to it } +
+                listOfNotNull(afterId?.let { UUIDColumnType() to it }),
         ) { rows -> readDifferences(rows) }.orEmpty()
+    }
+
+    private fun changedEntitiesJoin(): String = """
+        JOIN (
+                SELECT DISTINCT changed.${revisionEntityId.quotedName()} AS entity_id
+                FROM ${revisionTable.quotedName()} changed
+                WHERE changed.design_system_id = ?
+                  AND changed.${revisionSequenceNumber.quotedName()} > ?
+                  AND changed.${revisionSequenceNumber.quotedName()} <= ?
+            ) changed_entities ON changed_entities.entity_id = entity.${stableId.quotedName()}
+    """.trimIndent()
+
+    private fun candidateArguments(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        entityIds: Set<UUID>?,
+    ): List<Pair<org.jetbrains.exposed.v1.core.IColumnType<*>, Any?>> = if (entityIds != null) {
+        emptyList()
+    } else {
+        listOf(
+            UUIDColumnType() to designSystemId,
+            LongColumnType() to previousSequenceNumber,
+            LongColumnType() to sequenceNumber,
+        )
     }
 
     private fun readDifferences(rows: java.sql.ResultSet): List<DraftSubjectChange> = buildList {

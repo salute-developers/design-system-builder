@@ -79,4 +79,32 @@ describe('tokenReset', () => {
         expect(repository.listTokenTargets).toHaveBeenCalledExactlyOnceWith(context,new Set(['t1']),'draft');
         expect(repository.revertAddressed).toHaveBeenCalledTimes(1);
     });
+    it('reloads context after failed discovery and retries with the fresh draft', async () => {
+        repository.listTokenTargets.mockRejectedValueOnce({ response: { status: 409, data: { code: 'DRAFT_CHANGED' } } })
+            .mockResolvedValueOnce({ draftId: 'fresh', targets: [change('1')] });
+        let draftId = 'stale';
+        const reload = vi.fn(() => { draftId = 'fresh'; });
+        const onDone = vi.fn();
+        const { result, rerender } = renderHook(() => useTokenReset(context, onDone, draftId, reload));
+        await act(() => result.current.reset(new Set(['t1'])));
+        expect(reload).toHaveBeenCalledTimes(1);
+        expect(onDone).not.toHaveBeenCalled();
+        expect(repository.revertAddressed).not.toHaveBeenCalled();
+        rerender();
+        await act(() => result.current.reset(new Set(['t1'])));
+        expect(repository.listTokenTargets).toHaveBeenLastCalledWith(context, new Set(['t1']), 'fresh');
+        expect(repository.revertAddressed).toHaveBeenCalledWith(context, 'fresh', [change('1')]);
+        expect(result.current.error).toBeNull();
+    });
+
+    it('keeps an empty successful discovery local without reloading the editor', async () => {
+        repository.listTokenTargets.mockResolvedValueOnce(scoped([]));
+        const reload = vi.fn();
+        const onDone = vi.fn();
+        const { result } = renderHook(() => useTokenReset(context, onDone, 'draft', reload));
+        await act(() => result.current.reset(new Set(['t1'])));
+        expect(reload).not.toHaveBeenCalled();
+        expect(onDone).toHaveBeenCalledWith([]);
+    });
+
 });

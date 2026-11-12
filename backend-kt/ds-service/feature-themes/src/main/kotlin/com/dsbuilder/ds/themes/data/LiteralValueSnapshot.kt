@@ -1,8 +1,8 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.LiteralValueBatchValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
-import com.dsbuilder.ds.themes.domain.colortokens.ValuePaletteReferences
 import kotlinx.serialization.json.Json
 import java.sql.ResultSet
 import java.util.UUID
@@ -28,7 +28,7 @@ internal data class LiteralValueSnapshot(
     val tenantDeleted: Boolean?,
     val previousId: UUID?,
     val previousDeleted: Boolean?,
-    val previousValue: String?,
+    val previousValue: kotlinx.serialization.json.JsonElement?,
     val previousPaletteId: UUID?,
     val currentPayload: String?,
     val previousPayload: String?,
@@ -40,9 +40,20 @@ internal data class LiteralValueSnapshot(
     fun hasPublishedParents(): Boolean = previousId != null && previousDeleted == false &&
         tokenDeleted == false && tenantDeleted == false
 
-    fun isRestorableLiteral(): Boolean = !creationBaseline && type != null && previousPaletteId == null &&
-        currentPayload != previousPayload &&
-        ValuePaletteReferences.find(previousValue?.let(Json::parseToJsonElement)).isEmpty()
+    fun isRestorableLiteral(): Boolean = !creationBaseline && type != null &&
+        currentPayload != previousPayload && !batchValue().hasPaletteReferences()
+
+    fun batchValue(): LiteralValueBatchValue = LiteralValueBatchValue(
+        entityType = requireNotNull(entityType),
+        entityId = requireNotNull(entityId),
+        tokenId = requireNotNull(tokenId),
+        tenantId = requireNotNull(tenantId),
+        tokenType = requireNotNull(type).wireValue,
+        parentsVisible = hasPublishedParents(),
+        creationBaseline = creationBaseline,
+        previousPaletteId = previousPaletteId,
+        previousValue = previousValue,
+    )
 
     fun family(): ColorTokenFamily? = ColorTokenFamily.of(requireNotNull(type), requireNotNull(name))
 }
@@ -67,7 +78,7 @@ internal fun literalValueSnapshot(row: ResultSet): LiteralValueSnapshot = Litera
     tenantDeleted = row.getObject("tenant_deleted", Boolean::class.javaObjectType),
     previousId = row.getObject("previous_exists", UUID::class.java),
     previousDeleted = row.getObject("previous_deleted", Boolean::class.javaObjectType),
-    previousValue = row.getString("previous_value"),
+    previousValue = row.getString("previous_value")?.let(Json::parseToJsonElement),
     previousPaletteId = row.getObject("previous_palette_id", UUID::class.java),
     currentPayload = row.getString("current_payload"),
     previousPayload = row.getString("previous_payload"),

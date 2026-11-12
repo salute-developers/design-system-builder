@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.data.selectedVersionBoundarySql
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.QueryBuilder
@@ -155,9 +156,8 @@ private fun aggregateRevisionSql(
     if (resolveOnce) {
         return """
             WITH boundaries AS MATERIALIZED (
-                SELECT * FROM design_system_versions
-                WHERE (NULLIF(current_setting('ds.version_id', true), '') IS NULL AND status = 'draft')
-                   OR (id = NULLIF(current_setting('ds.version_id', true), '')::uuid AND status = 'published')
+                SELECT * FROM design_system_versions boundary
+                WHERE ${selectedVersionBoundarySql("boundary")}
             )
             SELECT $selections
             FROM $stableTable entity
@@ -176,12 +176,7 @@ private fun aggregateRevisionSql(
         FROM $stableTable entity
         JOIN design_system_versions draft
           ON draft.design_system_id = entity.design_system_id
-         AND draft.id = COALESCE(
-              NULLIF(current_setting('ds.version_id', true), '')::uuid,
-              (SELECT active.id FROM design_system_versions active
-               WHERE active.design_system_id = entity.design_system_id AND active.status = 'draft')
-         )
-         AND draft.status IN ('draft', 'published')
+         AND ${selectedVersionBoundarySql("draft")}
         JOIN $revisionTable revision
           ON revision.$entityColumn = entity.id
          AND revision.version_sequence_number <= draft.sequence_number

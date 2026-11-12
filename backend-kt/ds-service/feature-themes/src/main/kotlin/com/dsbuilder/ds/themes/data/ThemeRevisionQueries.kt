@@ -29,6 +29,7 @@ internal fun currentTenantRows(
     ThemeVersionBoundariesTable,
     TenantRevisionsTable.tenantId,
     ThemeDesignSystemsTable,
+    designSystemId = designSystemId,
 ).read(
     run {
         var predicate: Op<Boolean> = TenantRevisionsTable.deleted eq false
@@ -81,6 +82,7 @@ internal fun currentThemeTokenRows(
         ThemeTokenRevisionsTable,
         ThemeVersionBoundariesTable,
         ThemeTokenRevisionsTable.tokenId,
+        designSystemId = designSystemId,
     )
     val scope = (ThemeTokenRevisionsTable.deleted eq false).let { predicate ->
         designSystemId?.let { predicate and (ThemeTokensTable.designSystemId eq it) } ?: predicate
@@ -112,6 +114,7 @@ internal fun currentThemeTokenValueRows(
         ThemeTokenValueRevisionsTable,
         ThemeVersionBoundariesTable,
         ThemeTokenValueRevisionsTable.tokenValueId,
+        designSystemId = designSystemId,
     )
     val scope = run {
         var predicate: Op<Boolean> = ThemeTokenValueRevisionsTable.deleted eq false

@@ -44,6 +44,7 @@ export const useTokenReset = (
     context: EditorContextKey | undefined,
     onDone: (changes: DraftRefreshChange[]) => Promise<void> | void,
     draftId?: string,
+    onDiscoveryFailure?: () => Promise<void> | void,
 ) => {
     const [busy, setBusy] = useState(false);
     const running = useRef(false);
@@ -54,13 +55,16 @@ export const useTokenReset = (
         setBusy(true);
         setError(null);
         const attempted: DraftTokenTarget[] = [];
+        let discoveryFailed = false;
         try {
             await resetTokenChanges(context, tokenIds, (batch) => attempted.push(...batch), draftId);
         } catch (cause) {
+            discoveryFailed = !attempted.length && !(cause instanceof TokenResetError);
             setError(cause instanceof TokenResetError ? cause.message : RESET_FAILED);
         } finally {
             try {
-                await onDone(attempted);
+                if (discoveryFailed && onDiscoveryFailure) await onDiscoveryFailure();
+                else await onDone(attempted);
             } catch {
                 setError('Не удалось обновить данные после сброса. Повторите загрузку данных.');
             } finally {

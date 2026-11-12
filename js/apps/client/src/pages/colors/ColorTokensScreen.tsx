@@ -376,7 +376,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         if (props.refreshChanges) await props.refreshChanges(changes);
         else props.reload();
         rerender();
-    }, props.designSystem.getParameters()?.draftId);
+    }, props.designSystem.getParameters()?.draftId, props.reload);
 
     /** Описание общее для семейства токена; ошибка остаётся у поля описания. */
     const describeToken = async (view: ColorTokenView, description: string) => {

@@ -1,14 +1,18 @@
 package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
+import com.dsbuilder.ds.core.application.LiteralValueBatchContext
+import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /** Отклоняет отмену изменения оси, если восстановленное имя конфликтует в компоненте или оформлении. */
-class VariationRevertDependencyValidator : DraftChangeDependencyValidator {
-    override val supportsLiteralValueBatchRevert: Boolean = true
+class VariationRevertDependencyValidator : DraftChangeDependencyValidator, LiteralValueBatchParticipant {
+    override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
+        context.values.none { it.entityType in setOf("variation") }
+
     override suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean =
         entityType != "variation" || validNames(designSystemId, entityId)
 

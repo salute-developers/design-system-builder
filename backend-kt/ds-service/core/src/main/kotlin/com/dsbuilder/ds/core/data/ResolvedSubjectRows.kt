@@ -7,6 +7,7 @@ import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.QueryBuilder
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.jdbc.statements.jdbc.JdbcResult
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
@@ -22,6 +23,7 @@ class ResolvedSubjectRows(
     private val boundary: Table,
     private val revisionEntity: Column<UUID>,
     private val owner: Table? = null,
+    private val designSystemId: UUID? = null,
 ) {
     /** Читает строки на разрешённых границах текущей транзакции без изменения предметных данных. */
     fun read(predicate: Op<Boolean>): List<ResultRow> {
@@ -56,9 +58,6 @@ class ResolvedSubjectRows(
         val tables = listOf(stable, revision, boundary) + listOfNotNull(owner)
         val fields = tables.flatMap(Table::columns)
         val builder = QueryBuilder(true)
-        val boundaryIds = selectedBoundaryIds()
-        if (boundaryIds.isEmpty()) return null
-        val boundaries = boundaryIds.joinToString(",") { "'$it'::uuid" }
         val stableName = transaction.identity(stable)
         val revisionName = transaction.identity(revision)
         val boundaryName = transaction.identity(boundary)
@@ -66,10 +65,9 @@ class ResolvedSubjectRows(
         val ownerJoin = owner?.let {
             "JOIN ${transaction.identity(it)} ON ${transaction.identity(it)}.id = $stableName.design_system_id"
         }.orEmpty()
-        builder.append(
-            "WITH selected_boundaries AS MATERIALIZED (SELECT * FROM design_system_versions " +
-                "WHERE id IN ($boundaries)) SELECT ",
-        )
+        builder.append("WITH selected_boundaries AS MATERIALIZED (SELECT * FROM design_system_versions boundary WHERE ")
+        if (!appendBoundaries(builder)) return null
+        builder.append(") SELECT ")
         fields.forEachIndexed { index, column ->
             if (index > 0) builder.append(", ")
             builder.append(transaction.identity(column.table))
@@ -88,6 +86,25 @@ class ResolvedSubjectRows(
         builder.append(predicate)
         return RowSelection(fields, builder)
     }
+    private fun appendBoundaries(builder: QueryBuilder): Boolean {
+        if (TransactionManager.current().connection.readOnly) {
+            val ids = selectedBoundaryIds(designSystemId)
+            if (ids.isEmpty()) return false
+            builder.append("boundary.id IN (")
+            ids.forEachIndexed { index, id ->
+                if (index > 0) builder.append(",")
+                builder.registerArgument(UUIDColumnType(), id)
+            }
+            builder.append(")")
+        } else {
+            builder.append(selectedVersionBoundary("boundary"))
+            designSystemId?.let {
+                builder.append(" AND boundary.design_system_id = ")
+                builder.registerArgument(UUIDColumnType(), it)
+            }
+        }
+        return true
+    }
 }
 
 private class RowSelection(val fields: List<Column<*>>, val builder: QueryBuilder) {
@@ -96,18 +113,23 @@ private class RowSelection(val fields: List<Column<*>>, val builder: QueryBuilde
 
 private data class ReadKey(val fields: List<Column<*>>, val sql: String, val arguments: List<Any?>)
 private val READS = Key<MutableMap<ReadKey, List<ResultRow>>>()
-private val BOUNDARIES = Key<List<UUID>>()
+private val BOUNDARIES = Key<MutableMap<UUID?, List<UUID>>>()
 
-private fun selectedBoundaryIds(): List<UUID> {
+private fun selectedBoundaryIds(designSystemId: UUID?): List<UUID> {
     val transaction = TransactionManager.current()
-    if (transaction.connection.readOnly) transaction.getUserData(BOUNDARIES)?.let { return it }
+    val cache = transaction.getOrCreate(BOUNDARIES) { mutableMapOf() }
+    cache[designSystemId]?.let { return it }
     val builder = QueryBuilder(true)
     builder.append("SELECT id FROM design_system_versions WHERE ")
     builder.append(selectedVersionBoundary("design_system_versions"))
+    designSystemId?.let {
+        builder.append(" AND design_system_id = ")
+        builder.registerArgument(UUIDColumnType(), it)
+    }
     val ids = transaction.exec(builder.toString(), builder.args) { rows ->
         buildList { while (rows.next()) add(rows.getObject(1, UUID::class.java)) }
     }.orEmpty()
-    if (transaction.connection.readOnly) transaction.putUserData(BOUNDARIES, ids)
+    cache[designSystemId] = ids
     return ids
 }
 

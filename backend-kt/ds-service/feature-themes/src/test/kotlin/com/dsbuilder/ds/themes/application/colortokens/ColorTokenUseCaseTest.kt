@@ -452,6 +452,8 @@ class ColorTokenUseCaseTest {
         val first = listener.beforeBatchRevert(tokens.designSystemId, base)
         val second = listener.beforeBatchRevert(tokens.designSystemId, hover)
         assertEquals(first.key, second.key)
+        assertEquals(setOf(base, hover), first.coveredTokenIds)
+        assertEquals(first.coveredTokenIds, second.coveredTokenIds)
         tokens.rename(base, "text.default.brand")
         first.run()
         assertEquals(ThemeTokenType.COLOR, tokens.definitions.single { it.id == base }.type)

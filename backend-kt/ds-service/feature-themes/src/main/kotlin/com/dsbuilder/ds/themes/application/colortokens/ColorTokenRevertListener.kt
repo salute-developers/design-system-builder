@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.themes.application.colortokens
 
+import com.dsbuilder.ds.core.application.LiteralValueBatchContext
+import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import com.dsbuilder.ds.core.application.TokenRevertAction
 import com.dsbuilder.ds.core.application.TokenRevertListener
 import java.util.UUID
@@ -14,8 +16,12 @@ import java.util.UUID
 class ColorTokenRevertListener(
     private val repository: ColorTokenRepository,
     private val sync: ColorTokenFamilyTypeSync = ColorTokenFamilyTypeSync(repository),
-) : TokenRevertListener {
-    override val supportsLiteralValueBatchRevert: Boolean = true
+) : TokenRevertListener, LiteralValueBatchParticipant {
+    override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
+        context.families.all { it.unchanged() } && context.values
+            .filter { it.tokenType in setOf("color", "gradient") }
+            .all { value -> context.families.any { value.tokenId in it.tokenIds } }
+
     override fun prepareRevert(designSystemId: UUID, tokenId: UUID): Boolean {
         val family = repository.familyInDraft(designSystemId, tokenId) ?: return true
         // `false` — дизайн-система недоступна или нет черновика (откат вернёт 404); ошибки SQL не скрываются.
@@ -29,7 +35,7 @@ class ColorTokenRevertListener(
         val family = repository.familyInDraft(designSystemId, tokenId)
         val before = family?.members?.values.orEmpty().toSet() + tokenId
         val key = family?.family?.let { it.group to it.name } ?: tokenId
-        return TokenRevertAction(key) {
+        return TokenRevertAction(key, coveredTokenIds = before) {
             // Все исходные члены: откат переименования может разделить одно семейство на несколько.
             val handled = mutableSetOf<UUID>()
             before.sorted().forEach { member ->

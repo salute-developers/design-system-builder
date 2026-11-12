@@ -182,6 +182,47 @@ private class FakeJournal(
 
     override suspend fun <T> readOnly(block: suspend () -> DsResult<T>): DsResult<T> = block()
 
+    override suspend fun revertAddressed(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        draftId: UUID,
+        targets: List<com.dsbuilder.ds.designsystems.application.DraftAddressTarget>,
+    ): DsResult<Unit> {
+        batches += targets.map { it.entityId }
+        return when (outcome) {
+            DraftChangeBatchRevertResult.Reverted -> DsResult.Success(Unit)
+            is DraftChangeBatchRevertResult.Failed -> DsResult.Failure(DsFailure.Conflict("fixture_conflict"))
+        }
+    }
+
+    override suspend fun tokenTargets(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        draftId: UUID,
+        tenantId: UUID,
+        tokenIds: Set<UUID>,
+        cursor: String?,
+    ): DsResult<com.dsbuilder.ds.designsystems.application.DraftTokenTargetPage> = DsResult.Success(
+        com.dsbuilder.ds.designsystems.application.DraftTokenTargetPage(draftId, "fixture", emptyList(), null),
+    )
+
+    override suspend fun summary(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+    ): Int = 0
+
+    override suspend fun changedTokenIds(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+        tenantId: UUID,
+    ): Set<UUID> = emptySet()
+
     override suspend fun revertAll(
         projectId: ProjectId,
         systemAdmin: Boolean,

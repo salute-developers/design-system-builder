@@ -212,6 +212,7 @@ class ExposedTokenRepository(
         TokenVersionBoundariesTable,
         TokenRevisionsTable.tokenId,
         TokenDesignSystemsTable,
+        designSystemId = designSystemId,
     ).read(
         run {
             var predicate: Op<Boolean> = TokenRevisionsTable.deleted eq false

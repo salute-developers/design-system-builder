@@ -8,9 +8,6 @@ interface DraftChangeHandler {
     /** Гарантирует адресный describeEntity; реализация по умолчанию с полным describe не подходит. */
     val supportsAddressedRevert: Boolean get() = false
 
-    /** Поддерживает специализацию значений без восстанавливаемых ссылок и изменения типа семейства. */
-    val supportsLiteralValueBatchRevert: Boolean get() = false
-
     /** Устойчивое имя типа в журнале и технических редакциях. */
     val entityType: String
 
@@ -48,6 +45,16 @@ interface DraftChangeHandler {
         entityId: UUID,
     ): DraftSubjectChange? = describe(designSystemId, sequenceNumber, previousSequenceNumber)
         .firstOrNull { it.entityId == entityId }
+
+    /** Описывает ограниченный набор адресов; SQL-обработчики читают его одним набором. */
+    fun describeEntities(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        entityIds: Set<UUID>,
+    ): List<DraftSubjectChange> = entityIds.mapNotNull {
+        describeEntity(designSystemId, sequenceNumber, previousSequenceNumber, it)
+    }
 
     /** Проверяет наличие хотя бы одного предметного отличия без построения публичного журнала. */
     fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =

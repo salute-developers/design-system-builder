@@ -8,9 +8,6 @@ import java.util.UUID
  * для пересчёта производного типа цветового токена.
  */
 fun interface TokenRevertListener {
-    /** Реакцию покрывает пакетный план при неизменном производном типе цветового семейства. */
-    val supportsLiteralValueBatchRevert: Boolean get() = false
-
     /**
      * Запоминает состояние токена [tokenId] дизайн-системы [designSystemId] до отката и возвращает действие, которое
      * выполняется после успешного отката записи `token` или `token-value`.
@@ -19,7 +16,7 @@ fun interface TokenRevertListener {
 
     /** Действие для пакета; общий ключ допустим, если первое действие покрывает всю группу до отката. */
     fun beforeBatchRevert(designSystemId: UUID, tokenId: UUID): TokenRevertAction =
-        TokenRevertAction(tokenId, beforeRevert(designSystemId, tokenId))
+        TokenRevertAction(key = tokenId, run = beforeRevert(designSystemId, tokenId))
 
     /**
      * Блокирует предметные зависимости определения [tokenId] (определения семейства в устойчивом порядке) до

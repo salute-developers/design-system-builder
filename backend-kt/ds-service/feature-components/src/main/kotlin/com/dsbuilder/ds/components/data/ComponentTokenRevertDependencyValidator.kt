@@ -1,14 +1,20 @@
 package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
+import com.dsbuilder.ds.core.application.LiteralValueBatchContext
+import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /** Отмена отсоединения свойства сначала требует восстановить удалённый токен. */
-class ComponentTokenRevertDependencyValidator : DraftChangeDependencyValidator {
-    override val supportsLiteralValueBatchRevert: Boolean = true
+class ComponentTokenRevertDependencyValidator : DraftChangeDependencyValidator, LiteralValueBatchParticipant {
+    override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
+        context.values.none {
+            it.entityType in setOf("variation-property-value", "invariant-property-value", "style-combination")
+        }
+
     override suspend fun valid(designSystemId: UUID, entityType: String, entityId: UUID): Boolean {
         val tokenId = when (entityType) {
             "variation-property-value" -> VariationPropertyValuesTable.selectAll().where {

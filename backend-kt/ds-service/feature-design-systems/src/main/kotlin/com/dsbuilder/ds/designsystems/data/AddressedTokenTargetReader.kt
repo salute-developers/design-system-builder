@@ -17,6 +17,7 @@ internal data class TokenTargetScope(
     val designSystemId: UUID,
     val draftId: UUID,
     val sequenceNumber: Long,
+    val previousSequenceNumber: Long,
     val tenantId: UUID,
     val tokenIds: Set<UUID>,
 )
@@ -25,7 +26,7 @@ internal data class TokenTargetScope(
 internal class AddressedTokenTargetReader(
     private val scope: TokenTargetScope,
     private val handlers: Map<String, DraftChangeHandler>,
-    private val describe: (String, UUID) -> DraftChange?,
+    private val describe: (List<Pair<String, UUID>>) -> List<DraftChange>,
 ) {
     private val jdbc = BatchJdbc()
 
@@ -41,7 +42,6 @@ internal class AddressedTokenTargetReader(
             listOf("token", "token-value").any { handlers[it]?.supportsAddressedRevert != true } ->
                 DsResult.Failure(DsFailure.InvalidRequest("invalid_entity_type"))
             else -> {
-                val changes = rows.mapNotNull { describe(it.getValue("entity_type")!!, UUID.fromString(it["id"])) }
                 val valueIds = rows.filter { it["entity_type"] == "token-value" }.map { UUID.fromString(it["id"]) }
                 val fingerprint = RequestHash.canonical(
                     listOf(
@@ -52,18 +52,9 @@ internal class AddressedTokenTargetReader(
                         scope.tokenIds.map(UUID::toString).sorted(),
                         rows,
                         revisions(valueIds),
-                        changes.map {
-                            listOf(
-                                it.entityType,
-                                it.entityId,
-                                it.editRevision,
-                                it.previousValue,
-                                it.currentValue,
-                            )
-                        },
                     ),
                 )
-                page(changes, fingerprint, cursor)
+                page(rows, fingerprint, cursor)
             }
         }
     }
@@ -72,15 +63,32 @@ internal class AddressedTokenTargetReader(
         if (cursor == null) DsFailure.NotFound else DsFailure.Conflict("TARGET_SNAPSHOT_CHANGED"),
     )
 
-    private fun page(changes: List<DraftChange>, fingerprint: String, cursor: String?): DsResult<DraftTokenTargetPage> {
-        val offset = when (val result = offset(cursor, fingerprint, changes.size)) {
+    private fun page(
+        rows: List<Map<String, String?>>,
+        fingerprint: String,
+        cursor: String?,
+    ): DsResult<DraftTokenTargetPage> {
+        var offset = when (val result = offset(cursor, fingerprint, rows.size)) {
             is DsResult.Failure -> return result
             is DsResult.Success -> result.value
         }
-        val targets = changes.drop(offset).take(200).map {
-            DraftTokenTarget(DraftAddressTarget(it.entityType, it.entityId, it.editRevision), it.operation.wireValue)
+        val targets = mutableListOf<DraftTokenTarget>()
+        while (offset < rows.size && targets.size < PAGE_SIZE) {
+            val batch = rows.subList(offset, minOf(offset + PAGE_SIZE, rows.size)).map {
+                it.getValue("entity_type")!! to UUID.fromString(it.getValue("id"))
+            }
+            val changes = describe(batch).associateBy { it.entityType to it.entityId }
+            for (address in batch) {
+                offset++
+                changes[address]?.let {
+                    targets += DraftTokenTarget(
+                        DraftAddressTarget(it.entityType, it.entityId, it.editRevision), it.operation.wireValue,
+                    )
+                }
+                if (targets.size == PAGE_SIZE) break
+            }
         }
-        val next = (offset + targets.size).takeIf { it < changes.size }?.let {
+        val next = offset.takeIf { it < rows.size }?.let {
             Base64.getUrlEncoder().withoutPadding().encodeToString("$fingerprint:$it".toByteArray(Charsets.UTF_8))
         }
         return DsResult.Success(DraftTokenTargetPage(scope.draftId, fingerprint, targets, next))
@@ -98,7 +106,7 @@ internal class AddressedTokenTargetReader(
             parts[0] != fingerprint -> DsResult.Failure(DsFailure.Conflict("TARGET_SNAPSHOT_CHANGED"))
             else -> {
                 val offset = parts[1].toInt()
-                if (offset < 0 || offset > size || offset % 200 != 0) invalidCursor() else DsResult.Success(offset)
+                if (offset < 0 || offset > size) invalidCursor() else DsResult.Success(offset)
             }
         }
     }
@@ -121,8 +129,10 @@ internal class AddressedTokenTargetReader(
         """
                 SELECT 'token' AS entity_type,id FROM tokens WHERE design_system_id=? AND id=ANY(?)
                 UNION ALL
-                SELECT 'token-value',id FROM token_values
-                WHERE design_system_id=? AND tenant_id=? AND token_id=ANY(?)
+                SELECT 'token-value',v.id FROM token_values v
+                WHERE v.design_system_id=? AND v.tenant_id=? AND v.token_id=ANY(?)
+                  AND EXISTS (SELECT 1 FROM token_value_revisions r WHERE r.token_value_id=v.id
+                    AND r.version_sequence_number>? AND r.version_sequence_number<=?)
                 ORDER BY entity_type,id
         """.trimIndent(),
         scope.designSystemId,
@@ -130,6 +140,8 @@ internal class AddressedTokenTargetReader(
         scope.designSystemId,
         scope.tenantId,
         jdbc.uuids(scope.tokenIds),
+        scope.previousSequenceNumber,
+        scope.sequenceNumber,
     )
 
     private fun revisions(valueIds: List<UUID>): List<Map<String, String?>> = jdbc.query(
@@ -146,4 +158,7 @@ internal class AddressedTokenTargetReader(
         scope.draftId,
         jdbc.uuids(valueIds),
     )
+    private companion object {
+        const val PAGE_SIZE = 200
+    }
 }
