@@ -17,6 +17,6 @@
   "dsbuilder/documentation/db/migration/V1__documentation_schema.sql": "5046df4e1b0dff31e6c37c5d809eaa3670f7b97c4a15d86032ceee22b6c462d1",
   "dsbuilder/ds/seeds/token-definitions.json": "f903bb82952b8458bc0ff4c37fed0b794c4fab6b1d17c59e29f39fd97d4a253c",
   "dsbuilder/ds/seeds/token-initial-values.json": "676ee3d49cb5ddafc0060bacd012a2498b8f756ed355494cd692387872e15f0b",
-  "dsbuilder/ds/seeds/component-seeds.json": "b9e3453e07266c205b7e015ffe128af33783e3d67c9b9e5b2e9e79323108572f",
+  "dsbuilder/ds/seeds/component-seeds.json": "d7ed5d54cf6f1a676959cd892d3fe7beb227700095026d39da6347bb7ce9e1b2",
   "dsbuilder/ds/db/migration/V15__color_token_value_kind.sql": "26f655db2b65b6ab01a3a4d79f449a359c059c93f1d743d1fda5828391c0346a"
 }

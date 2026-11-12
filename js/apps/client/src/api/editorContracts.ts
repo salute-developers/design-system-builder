@@ -73,6 +73,8 @@ export interface AppearanceDto {
     designSystemId: string;
     componentId: string;
     name: string | null;
+    /** Конфигурация по умолчанию компонента. */
+    isDefault?: boolean;
 }
 export interface ComponentPropertyDto {
     id: string;
@@ -127,14 +129,70 @@ export interface ComponentConfigPropertyDto {
     adjustment?: unknown;
     states?: Array<{ state: string[]; value: unknown }>;
 }
+/** Остальные стили пересечения: `id` — ось выгрузки, `value` — имя её значения. */
+export interface ComponentConfigTargetDto {
+    properties: Array<{ id: string; value: unknown }>;
+}
 export interface ComponentConfigDto {
     invariants: Record<string, ComponentConfigPropertyDto>;
     defaults: Array<{ id: string; value: unknown }>;
     variations: Array<{
         id: string;
         name: string;
-        values: Array<{ name: string; properties: Record<string, ComponentConfigPropertyDto> }>;
+        /** ID вариации оси: есть в выгрузке для редактора (`editorIds`). */
+        variationId?: string;
+        values: Array<{
+            name: string;
+            /** ID стиля значения: есть в выгрузке для редактора. */
+            styleId?: string;
+            /** Есть у значения-пересечения: те же свойства под сочетанием со стилями других вариаций. */
+            targets?: ComponentConfigTargetDto[];
+            properties: Record<string, ComponentConfigPropertyDto>;
+        }>;
     }>;
+}
+/** Значение оси в модели редактора конфигурации (`GET /appearances/{id}/editor-model`). */
+export interface EditorAxisValueDto {
+    id: string;
+    styleId: string;
+    /** Действующее имя: отображаемое, если задано, иначе имя стиля. */
+    name: string;
+    displayName: string | null;
+    position: number;
+    revision: number | null;
+}
+/** Ось конфигурации в модели редактора. */
+export interface EditorAxisDto {
+    id: string;
+    variationId: string;
+    /** Действующее имя: отображаемое, если задано, иначе имя вариации. */
+    name: string;
+    displayName: string | null;
+    position: number;
+    isColorScheme: boolean;
+    locked: boolean;
+    defaultStyleId: string | null;
+    revision: number | null;
+    values: EditorAxisValueDto[];
+}
+/** Значение свойства в модели редактора: `combination` — значение пересечения стилей `styleIds`. */
+export interface EditorPropertyValueDto {
+    id: string;
+    kind: 'invariant' | 'variation' | 'combination';
+    propertyId: string;
+    propertyName: string;
+    styleIds: string[];
+    states: string[];
+    tokenId: string | null;
+    tokenName: string | null;
+    value: string | null;
+    adjustment: string | null;
+}
+export interface AppearanceEditorModelDto {
+    appearance: AppearanceDto;
+    revision: number | null;
+    axes: EditorAxisDto[];
+    propertyValues: EditorPropertyValueDto[];
 }
 export interface ComponentConfigExportDto {
     components: Array<{ componentName: string; styleName: string; config: ComponentConfigDto }>;
@@ -215,6 +273,8 @@ export interface PendingTokenMutation {
 
 export interface PendingComponentMutation {
     componentName: string;
+    /** Конфигурация (`appearance`), в которую пишется правка: открытая в редакторе. */
+    appearanceId?: string;
     before: ComponentConfig;
     after: ComponentConfig;
     idempotencyKeys: Record<string, string>;

@@ -17,10 +17,14 @@ const deferred = <T,>() => {
     return { promise, resolve, reject };
 };
 
-const payloadFor = (componentId: string): PreviewPayloadInput => ({
+const payloadFor = (componentId: string, title = componentId): PreviewPayloadInput => ({
     ...BASIC_BUTTON_PREVIEW_FIXTURE,
     component: { ...BASIC_BUTTON_PREVIEW_FIXTURE.component, id: componentId },
-    example: { ...BASIC_BUTTON_PREVIEW_FIXTURE.example, id: componentId },
+    example: {
+        ...BASIC_BUTTON_PREVIEW_FIXTURE.example,
+        id: componentId,
+        props: { ...BASIC_BUTTON_PREVIEW_FIXTURE.example.props, title },
+    },
 });
 
 const descriptionOf = (componentId: string): PreviewComponentDescription => ({
@@ -81,6 +85,7 @@ const Section = ({
     preload = true,
     storyId,
     onDescription,
+    title,
 }: {
     shown: Shown;
     setup: ReturnType<typeof setupSessions>;
@@ -89,6 +94,8 @@ const Section = ({
     preload?: boolean;
     storyId?: string;
     onDescription?: (description: PreviewComponentDescription) => void;
+    /** Аргумент `title` примера: его смена даёт новый payload того же компонента. */
+    title?: string;
 }) => (
     <ComposePreviewHostProvider
         pluginUrl={pluginUrl}
@@ -103,7 +110,7 @@ const Section = ({
                 key={shown.name}
                 pluginUrl={pluginUrl}
                 owner={`compose:${shown.name}`}
-                payload={payloadFor(shown.name)}
+                payload={payloadFor(shown.name, title)}
                 storyId={storyId}
                 onDescription={onDescription}
             />
@@ -170,6 +177,20 @@ describe('ComposePreviewHostProvider', () => {
         await setup.succeed(1);
         await waitFor(() => expect(iframe()).toHaveAttribute('data-revealed', 'true'));
         expect(setup.sessions[0].dispose).not.toHaveBeenCalled();
+    });
+
+    it('updates a shown frame without the rendering status', async () => {
+        const setup = setupSessions();
+        const view = render(<Section shown={{ platform: 'compose', name: 'Avatar' }} setup={setup} />);
+        await waitFor(() => expect(setup.renders).toHaveLength(1));
+        await setup.succeed(0);
+        await waitFor(() => expect(iframe()).toHaveAttribute('data-revealed', 'true'));
+
+        view.rerender(<Section shown={{ platform: 'compose', name: 'Avatar' }} setup={setup} title="Avatar edited" />);
+        await waitFor(() => expect(setup.renders).toHaveLength(2));
+
+        expect(iframe()).toHaveAttribute('data-revealed', 'true');
+        expect(screen.queryByText('Rendering Compose preview…')).not.toBeInTheDocument();
     });
 
     it('passes the story of the preview area to describe and describes again when it changes', async () => {

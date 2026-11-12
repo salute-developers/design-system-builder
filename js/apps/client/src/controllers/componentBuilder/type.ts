@@ -3,6 +3,7 @@ import type {
     DimensionProp,
     FloatProp,
     IconProp,
+    IntegerProp,
     ShadowProp,
     ShapeProp,
     StyleReferenceProp,
@@ -32,6 +33,8 @@ export type PropType =
     | 'color'
     | 'dimension'
     | 'float'
+    /** Целое число без единиц (число колонок сетки). */
+    | 'integer'
     /** Иконка: имя в формате данных (`disclosure.down.fill.16`). */
     | 'icon'
     | 'shadow'
@@ -41,7 +44,7 @@ export type PropType =
     /** Ссылка на стиль другого компонента: `<конфигурация>.<стиль>.<стиль>`. */
     | 'component_style';
 
-export type PropState = 'hovered' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
+export type PropState = 'hovered' | 'pressed' | 'focused'; //| 'disabled' | 'loading';
 
 export type Intersections = Record<string, string[]>;
 
@@ -49,6 +52,7 @@ export type PropUnion =
     | ColorProp
     | FloatProp
     | IconProp
+    | IntegerProp
     | ShadowProp
     | ShapeProp
     | DimensionProp
@@ -111,6 +115,8 @@ export interface StyleConfig {
 
 export interface VariationConfig {
     id: string;
+    /** Имя вариации в этой конфигурации (отображаемое имя оси); без него — имя вариации из `sources.variations`. */
+    name?: string;
     styles?: StyleConfig[];
 }
 
@@ -137,6 +143,8 @@ export interface ComponentDep {
 export interface Config {
     name: string;
     id: string;
+    /** Конфигурация по умолчанию компонента: её нельзя удалить, она открывается первой. */
+    isDefault?: boolean;
     config: ComponentConfig;
 }
 

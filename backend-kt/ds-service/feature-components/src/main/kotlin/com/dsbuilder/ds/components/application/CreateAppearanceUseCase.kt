@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.ds.components.domain.Appearance
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -28,7 +29,7 @@ class CreateAppearanceUseCase(
         { repository.create(context.projectId, context.principal.globalAdmin, command) },
         Appearance::id,
         validateCreate = {
-            val normalizedName = command.name?.trim()?.lowercase()
+            val normalizedName = command.name?.let(ConfigurationName::key)
             uniqueKeys.lock(command.designSystemId, "appearance-default", command.componentId.toString())
             uniqueKeys.lock(
                 command.designSystemId,

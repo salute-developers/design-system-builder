@@ -14,6 +14,8 @@ export interface BaseFileStructure {
 export interface ComponentsFiles {
     pathToDir: string;
     componentsMeta: Meta[];
+    /** Будет ли в пакете тема: без неё компоненты с `requiresTheme` пропускаются. По умолчанию — будет. */
+    hasTheme?: boolean;
 }
 
 /**
@@ -26,6 +28,17 @@ export interface ComponentManifest {
     coreConfigExport?: string;
     /** Имя типа пропсов из ядра: результат `component(...)` приводится к `ForwardRefExoticComponent<Props & RefAttributes<HTMLDivElement>>`. */
     castToProps?: string;
+    /**
+     * Обёртка берёт данные из темы пакета (ViewContainer: наборы переменных `viewContainer`). Без темы в пакете
+     * компонент не генерируется, генератор печатает предупреждение.
+     */
+    requiresTheme?: boolean;
+    /**
+     * Вид по точкам перелома (Grid: `getBaseGridView`): в стиль с значениями web-параметров, оканчивающихся на
+     * `paramSuffix`, генератор вставляет вызов функции ядра `function` с этими значениями и именем стиля, как sdds-serv.
+     * Медиазапрос не берёт ширину из CSS-переменной, поэтому функции нужны готовые значения ДС.
+     */
+    breakpointView?: { function: string; paramSuffix: string };
     /**
      * Реэкспорты из `@salutejs/plasma-new-hope/styled-components` в `index.ts` компонента,
      * как в sdds-serv: подкомпоненты и утилиты ядра (`CardContent`, `modalClasses`,

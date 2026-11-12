@@ -1,4 +1,5 @@
 import { Config } from '../componentBuilder/index.ts';
+import type { ComponentManifest } from '../types/index.ts';
 import { getPlasmaTokensName, indentedLine } from '../utils/index.ts';
 
 // Ключ значения — ключ объекта токенов ядра, в конфиге он становится `${buttonTokens.buttonHeight}`.
@@ -64,16 +65,36 @@ const formatDefaults = (defaults: Record<string, any>) => {
         .join('\n');
 };
 
-const formatVariations = (variations: Record<string, any>, tokensName: string) => {
+/** Вызов функции вида по точкам перелома со значениями стиля: `${getBaseGridView({ [gridTokens.x]: '0rem' }, 'default')};`. */
+const breakpointViewLine = (
+    styleKey: string,
+    styleValue: Record<string, any>,
+    tokensName: string,
+    breakpointView?: ComponentManifest['breakpointView'],
+) => {
+    if (!breakpointView) return null;
+    const entries = Object.entries(styleValue).filter(([key]) => key.endsWith(breakpointView.paramSuffix));
+    if (entries.length === 0) return null;
+    const breakpoints = entries.map(([key, value]) => `[${tokensName}.${key}]: '${value}'`).join(', ');
+    return indentedLine(`$\{${breakpointView.function}({ ${breakpoints} }, '${styleKey}')};`, 4);
+};
+
+const formatVariations = (
+    variations: Record<string, any>,
+    tokensName: string,
+    breakpointView?: ComponentManifest['breakpointView'],
+) => {
     return Object.entries(variations)
         .map(([variationKey, variationValue]) => {
             const formattedContentInner = Object.entries(variationValue)
                 .map(([styleKey, styleValue]) => {
-                    const cssContent = Object.entries(styleValue as any)
-                        .map(([propKey, propValue]) =>
+                    const viewLine = breakpointViewLine(styleKey, styleValue as Record<string, any>, tokensName, breakpointView);
+                    const cssContent = [
+                        ...(viewLine ? [viewLine] : []),
+                        ...Object.entries(styleValue as any).map(([propKey, propValue]) =>
                             indentedLine(`${keyFormat(propKey, tokensName)}: ${propValue};`, 4),
-                        )
-                        .join('\n');
+                        ),
+                    ].join('\n');
 
                     const isEmpty = cssContent.trim() === '';
 
@@ -104,7 +125,12 @@ const formatInvariants = (invariants: Record<string, any>, tokensName: string) =
         .join('\n');
 };
 
-export const createComponentConfig = (componentName: string, config: Config, coreTokensExport?: string | null) => {
+export const createComponentConfig = (
+    componentName: string,
+    config: Config,
+    coreTokensExport?: string | null,
+    breakpointView?: ComponentManifest['breakpointView'],
+) => {
     const tokensName = getPlasmaTokensName(componentName, coreTokensExport);
     const defaults = getDefaults(config);
     const variations = getVariations(config);
@@ -115,14 +141,16 @@ export const createComponentConfig = (componentName: string, config: Config, cor
         formatDefaults(defaults),
         indentedLine('},', 1),
         indentedLine('variations: {', 1),
-        formatVariations(variations, tokensName),
+        formatVariations(variations, tokensName, breakpointView),
         indentedLine('},', 1),
         indentedLine('invariants: css`', 1),
         formatInvariants(invariants, tokensName),
         indentedLine('`', 1),
     ].join('\n');
 
-    return `import { css, ${tokensName} } from '@salutejs/plasma-new-hope/styled-components';
+    const coreImports = ['css', ...(breakpointView ? [breakpointView.function] : []), tokensName].join(', ');
+
+    return `import { ${coreImports} } from '@salutejs/plasma-new-hope/styled-components';
 
 export const config = {
 ${configContent},

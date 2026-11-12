@@ -17,8 +17,9 @@
  *
  * Импорт пишет записи компонента в `meta.json` пакета и файл native-конфига на каждый appearance,
  * как `dsbuilder components fetch`; записи других компонентов не трогает, повторный `--apply`
- * заменяет свои. `--remove` убирает записи и файлы компонента. Шаблоны web-параметров в пакет не
- * идут: они пишутся в манифест генератора (`webTemplates`). Связи `compose` составного компонента
+ * заменяет свои. `--remove` убирает записи и файлы компонента. Шаблоны web-параметров не пишутся ни в
+ * пакет, ни в манифест: отчёт печатает их фрагментом записи `web-adapter.json`, который переносится в
+ * обе копии файла (`js/cli/src/data` и web-плагин). Связи `compose` составного компонента
  * печатаются в отчёте и заводятся через API отдельно. Без `--apply` только печатает отчёт.
  *
  * Составной компонент (`--dir`): подпапки — appearance (horizontal/vertical), файл
@@ -46,7 +47,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { fileURLToPath } from 'node:url';
-import { type NativeConfig, removeComponentEntries, toNativeConfig, writeComponentEntries } from './component-package.ts';
+import { type NativeConfig, componentKebab, removeComponentEntries, toNativeConfig, writeComponentEntries } from './component-package.ts';
 
 const cliDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Манифесты генератора; `--templates=<dir>` уводит запись в другую папку (тесты). */
@@ -856,17 +857,25 @@ function emitPackage(
     const coreExports = extras?.coreExports ?? detectCoreExports(args, COMP, sddsDirName(args, COMP));
     const wrapperShape = readWrapperShape(args, COMP);
     const reexports = readIndexReexports(args, COMP);
-    // Шаблон многозначного значения — web-параметру свойства; в базу он не идёт, его читает генератор.
+    // Шаблон многозначного значения — web-параметру свойства; живёт только в `web-adapter.json`.
     const webTemplates = Object.fromEntries(
         [...props.values()].filter((p) => p.template).map((p) => [p.name, { [p.web[0]]: p.template! }]),
     );
+    if (Object.keys(webTemplates).length) {
+        const entry = {
+            componentName: componentKebab(COMP),
+            name: COMP,
+            styles: Object.fromEntries(appearances.map(({ name }) => [name, { templates: webTemplates }])),
+        };
+        console.log(`  шаблоны web-параметров — перенесите в обе копии web-adapter.json (js/cli/src/data и js/apps/preview-web-plugin/src/data):`);
+        console.log(JSON.stringify(entry, null, 4).replace(/^/gm, '    '));
+    }
     writeComponentManifest(patcher, COMP, {
         ...(coreExports.tokens ? { coreTokensExport: coreExports.tokens } : {}),
         ...(coreExports.config ? { coreConfigExport: coreExports.config } : {}),
         ...wrapperShape,
         ...(reexports ? { reexports } : {}),
         ...(extras?.appearanceProp ? { appearances: extras.appearanceProp } : {}),
-        ...(Object.keys(webTemplates).length ? { webTemplates } : {}),
     });
     // Вариации и стили общие: порядок — по первому появлению в appearance.
     // `data.order` — вариации после разбора: `disabled`/`readOnly` из него уже ушли в инварианты.
@@ -997,8 +1006,6 @@ type Manifest = {
      * `{ conditional: true }` (Range, один конфиг ядра и `createConditionalComponent` по пропу `appearance`).
      */
     appearances?: { prop: string; default: string } | { conditional: true };
-    /** Шаблоны web-параметров: свойство → параметр → шаблон вроде `0 $1`; в базу не хранятся. */
-    webTemplates?: Record<string, Record<string, string>>;
 };
 
 function writeComponentManifest(patcher: FilePatcher, component: string, manifest: Manifest) {

@@ -11,8 +11,9 @@ import { notifyEditorDataInvalidated } from '../api/draftInvalidationStream';
 import { invalidateEditorReads } from '../api/editorReads';
 import type { EditorContextKey, ThemeEditorSnapshot, DraftChangeDto, TokenDefinitionDto } from '../api/editorContracts';
 import type { AutosaveStatus } from '../api/tokenAutosaveQueue';
-import { ThemeEditorSession } from '../features/themeEditor/ThemeEditorSession';
+import { ThemeEditorSession, type ComponentsScope } from '../features/themeEditor/ThemeEditorSession';
 import { preservePendingComponents } from '../features/themeEditor/preservePendingComponents';
+import { keepLoadedComponents } from '../features/themeEditor/keepLoadedComponents';
 import type { ThemePalette } from '../modules/palette';
 import { getActivePalette, setActivePalette } from '../palette/activePalette';
 import { paletteRepository, setPaletteSession } from '../palette/paletteSession';
@@ -21,6 +22,7 @@ import {
     getDraftSaveTokenTypes,
     getDraftSaveTokenValues,
     recordDraftSave,
+    retryDraftAutosave,
     subscribeDraftAutosaveStatus,
     getDraftSaveColorStructure,
 } from '../api/draftAutosaveActivity';
@@ -163,6 +165,7 @@ export const useDesignSystem = (
                 const historicalMode = Boolean(designSystemProjectId.versionId);
                 setActiveDraftContext(historicalMode ? null : designSystemProjectId);
                 setDesignSystem(null);
+                setHasConfiguredComponents(false);
                 setTheme(null);
                 setComponents(null);
                 setComposeComponents([]);
@@ -171,6 +174,7 @@ export const useDesignSystem = (
                     snapshot: ThemeEditorSnapshot,
                     tokensChanged: boolean,
                     componentsChanged: boolean,
+                    componentsScope: ComponentsScope = 'full',
                 ) => {
                     const nextPalette =
                         paletteRepository.source === 'local' ? getActivePalette() : (snapshot.palette ?? null);
@@ -233,19 +237,17 @@ export const useDesignSystem = (
                         );
                     }
                     if (componentsChanged) {
-                        setComponents((current) =>
+                        // Чтение краткого списка меняет только состав: данные компонентов в его снимке — кеш без
+                        // подтверждённых правок, и замена загруженных экземпляров вернула бы на экран старые значения.
+                        const merge = (current: Config[] | null, next: Config[]) =>
                             preservePendingComponents(
                                 designSystemProjectId,
                                 current,
-                                nextDesignSystem.createAllComponentInstances(),
-                            ),
-                        );
+                                componentsScope === 'index' ? keepLoadedComponents(current, next) : next,
+                            );
+                        setComponents((current) => merge(current, nextDesignSystem.createAllComponentInstances()));
                         setComposeComponents((current) =>
-                            preservePendingComponents(
-                                designSystemProjectId,
-                                current,
-                                nextDesignSystem.createAllComposeComponentInstances(),
-                            ),
+                            merge(current, nextDesignSystem.createAllComposeComponentInstances()),
                         );
                     }
                 };
@@ -276,8 +278,8 @@ export const useDesignSystem = (
                             sections,
                             onSaved: (types, values) => recordDraftSave(designSystemProjectId, types, values),
                             onStatus: () => setAutosaveStatus(getDraftAutosaveStatus(designSystemProjectId)),
-                            onSnapshot: (next, tokensChanged, componentsChanged) => {
-                                applySnapshot(next, tokensChanged, componentsChanged);
+                            onSnapshot: (next, tokensChanged, componentsChanged, componentsScope) => {
+                                applySnapshot(next, tokensChanged, componentsChanged, componentsScope);
                                 if (
                                     selectionRef.current?.section === sections.activeSection &&
                                     selectionRef.current?.component === sections.activeComponent
@@ -373,7 +375,10 @@ export const useDesignSystem = (
             void sectionLoader.current?.();
         } else setReloadTrigger({});
     }, [designSystemProjectId]);
-    const retryAutosave = useCallback(() => autosaveSession.current?.retryFailed(), []);
+    const retryAutosave = useCallback(() => {
+        autosaveSession.current?.retryFailed();
+        if (typeof designSystemProjectId === 'object') retryDraftAutosave(designSystemProjectId);
+    }, [designSystemProjectId]);
     const setPalette = useCallback(
         (next: ThemePalette) => {
             if (next.tenantId !== tenantRef.current) return;
@@ -388,7 +393,7 @@ export const useDesignSystem = (
     );
     /** Загружает компонент (без имени — индекс компонентов) вне раздела компонентов: канвас «Цвета». */
     const loadComponent = useCallback(
-        (name?: string) => autosaveSession.current?.loadComponent(name) ?? Promise.resolve(),
+        (name?: string, force?: boolean) => autosaveSession.current?.loadComponent(name, force) ?? Promise.resolve(),
         [],
     );
     const refreshChanges = useCallback((changes: DraftChangeDto[]) => {

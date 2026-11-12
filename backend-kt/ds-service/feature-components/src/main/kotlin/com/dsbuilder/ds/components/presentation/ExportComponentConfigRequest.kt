@@ -11,4 +11,6 @@ data class ExportComponentConfigRequest(
     val components: List<String>? = null,
     /** Styles carried by this contract. */
     val styles: List<String>? = null,
+    /** Отдать ID вариаций и стилей для редактора. */
+    val editorIds: Boolean = false,
 )

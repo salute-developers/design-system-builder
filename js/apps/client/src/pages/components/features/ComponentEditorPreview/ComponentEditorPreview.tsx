@@ -1,16 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
-import { Config, DesignSystem, Theme, Variation } from '../../../../controllers';
+import { Config, DesignSystem, Theme } from '../../../../controllers';
 import { isDebugMode } from '../../../../utils/debugMode';
-import {
-    SegmentButton,
-    SegmentButtonItem,
-    SelectButton,
-    SelectButtonItem,
-    Switch,
-    TextField,
-} from '../../../../components';
+import { SegmentButtonItem, SelectButton, SelectButtonItem } from '../../../../components';
 import {
     COMPOSE_HOST_DEFAULTS,
     ComposePreviewSlot,
@@ -26,22 +18,23 @@ import {
     PreviewExamplePropertyDescription,
     PreviewPayloadInput,
     StyleReferenceResolver,
+    viewTokenId,
+    PREVIEW_VIEWS,
+    type PreviewView,
 } from '../../../../composePreview';
 
 import { ComposePayloadDebug } from './ComposePayloadDebug';
+import { PreviewEnvironmentBar, type PreviewPlatform, type PreviewPlatformOption } from './PreviewEnvironmentBar';
 import {
     Root,
     StyledPreviewShadow,
-    StyledPreviewBackgroundEditor,
     StyledComponentWrapper,
-    StyledComponentControls,
-    StyledDivider,
     StyledStorySelector,
     StyledPreviewUnavailable,
 } from './ComponentEditorPreview.styles';
-import { backgroundList, getBackgroundTokenName } from './ComponentEditorPreview.utils';
 import { restorePaletteColor } from '../../../../palette/activePalette';
 import { fetchWebPreviewPluginDescriptor } from '../../../../api/webPreviewPluginRepository';
+import type { StoryArgs, StoryArgValue } from './storyArgs';
 
 interface ComponentEditorPreviewProps {
     config: Config;
@@ -50,13 +43,19 @@ interface ComponentEditorPreviewProps {
     themeModeList: SegmentButtonItem[];
     themeMode: SegmentButtonItem;
     onUpdateThemeMode: (value: SegmentButtonItem) => void;
-    onChange: (name: string, value: unknown) => void;
+    /** Заголовок сочетания в панели окружения: «Chip M Default». */
+    title: string;
+    /** Платформы компонента для меню панели окружения. */
+    platforms: PreviewPlatformOption[];
+    onPlatformSelect: (platform: PreviewPlatform) => void;
     /** Разворачивает ссылки на стили других Compose-компонентов; без него вложенные стили не передаются. */
     resolveStyleReference?: StyleReferenceResolver;
     /** Дизайн-система компонента: из неё в payload web-плагина попадают стили связанных компонентов. */
     designSystem?: DesignSystem;
     /** Экземпляры `Config` связанных компонентов между пересборками payload. */
     relatedConfigs?: Map<string, Config>;
+    /** Аргументы story активного рендерера для инспектора; `undefined`, пока плагин их не описал. */
+    onStoryArgsChange?: (storyArgs: StoryArgs | undefined) => void;
 }
 
 type ExampleValues = Record<string, string | number | boolean>;
@@ -73,10 +72,13 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         themeMode,
         themeModeList,
         onUpdateThemeMode,
-        onChange,
+        title,
+        platforms,
+        onPlatformSelect,
         resolveStyleReference,
         designSystem,
         relatedConfigs,
+        onStoryArgsChange,
     } = props;
 
     const variations = config.getVariations();
@@ -98,11 +100,13 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         return typeof value === 'string' && styleNameByID.has(value);
     });
 
-    const [background, setBackground] = useState<SelectButtonItem>(backgroundList[0]);
-    // Фон области — токен темы выбранного режима: Compose получает его цвет, web-плагин — сам токен в `theme`.
-    const surfaceToken = getBackgroundTokenName(String(themeMode.value), String(background.label));
+    // Вид контейнера, как `ViewContainer` plasma: в `onDark`/`onLight` цвета темы берутся из `on-dark`/`on-light`.
+    const [view, setView] = useState<PreviewView>('default');
+    // Фон области — `background.default.primary` выбранного режима с учётом вида: Compose получает его цвет,
+    // web-плагин — сам токен в `theme`, где значение уже подменено видом.
+    const surfaceToken = `${themeMode.value}.background.default.primary`;
     const surfaceColor = restorePaletteColor(
-        theme.getTokenValue(surfaceToken, 'color', 'web') || '#FFFFFFFF',
+        theme.getTokenValue(viewTokenId(surfaceToken, view), 'color', 'web') || '#FFFFFFFF',
         -1,
         surfaceToken,
     );
@@ -127,8 +131,6 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     // Story web-плагина, выбранная пользователем; принадлежит компоненту `owner`. Без выбора плагин описывает story
     // по умолчанию.
     const [selectedWebStory, setSelectedWebStory] = useState<{ owner: string; id: string }>();
-    // Введённый текст числовых свойств: `0.` разбирается как `0`, и поле, которое показывало бы только значение, стирало бы точку.
-    const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
     const composePreviewMetadata = loadedComposeMetadata?.owner === componentName ? loadedComposeMetadata : undefined;
     const webStoryId = selectedWebStory?.owner === componentName ? selectedWebStory.id : undefined;
     const composePluginUrl = getComposePreviewPluginUrl();
@@ -154,7 +156,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     // остаётся web-плагин.
     const activeRendererItem = isComposeComponent
         ? rendererMode
-        : rendererModes.find((item) => item.value === rendererMode.value) ?? rendererModes[0];
+        : (rendererModes.find((item) => item.value === rendererMode.value) ?? rendererModes[0]);
     const activeRenderer = activeRendererItem.value;
     const composeAssembly = useMemo(() => {
         // После переключения компонента `args` ещё держат стили предыдущего: payload с ними не собираем,
@@ -185,6 +187,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             exampleProps: payloadExampleProps,
             themeMode: String(themeMode.value),
             themeValuePlatform: 'android',
+            view,
             surface: { width: 360, height: 160, background: surfaceColor },
         });
         return draft.ok ? assembleComposePreviewPayload(draft.draft) : draft;
@@ -201,6 +204,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         theme,
         theme.getRevision(),
         themeMode,
+        view,
     ]);
     // Объект payload меняется только вместе с содержимым: иначе каждое промежуточное состояние редактора
     // (сброс примеров, загрузка метаданных, ответ describe) уходило бы в плагин как отдельный payload.
@@ -221,15 +225,19 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         lastComposePayload.current?.owner === composeOwner ? lastComposePayload.current.payload : undefined;
     const composeDiagnostic = missingFromPlugin
         ? `Компонент ${componentName} не зарегистрирован в Compose-плагине`
-        : composeDescriptionError ?? (composeAssembly.ok ? undefined : composeAssembly.diagnostics[0]?.message);
+        : (composeDescriptionError ?? (composeAssembly.ok ? undefined : composeAssembly.diagnostics[0]?.message));
 
+    // Описание story и выбор рендерера принадлежат компоненту, а не конфигурации: при переключении конфигурации или
+    // перечитывании компонента экземпляр `config` новый, но плагин заново его не описывает, поэтому сброс — только при
+    // смене компонента. Метаданные превью тоже общие для конфигураций и читаются из последнего экземпляра.
+    const latestConfig = useRef(config);
+    latestConfig.current = config;
     useEffect(() => {
         let cancelled = false;
         setComposePreviewMetadata(undefined);
         setMissingFromPlugin(false);
         setComposeDescription(undefined);
         setComposeExampleProps({});
-        setNumericDrafts({});
         setComposeDescriptionError(undefined);
         setWebDescription(undefined);
         setWebExampleProps({});
@@ -241,7 +249,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         void loadComposePreviewManifest(composePluginUrl)
             .then((plugin) => {
                 if (cancelled) return;
-                const storedMetadata = config.getPreviewMetadata();
+                const storedMetadata = latestConfig.current.getPreviewMetadata();
                 const componentId =
                     storedMetadata.componentId &&
                     storedMetadata.storyId &&
@@ -249,9 +257,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                         ? storedMetadata.componentId
                         : undefined;
                 setComposePreviewMetadata(
-                    componentId
-                        ? { componentId, storyId: storedMetadata.storyId!, owner: componentName }
-                        : undefined,
+                    componentId ? { componentId, storyId: storedMetadata.storyId!, owner: componentName } : undefined,
                 );
                 setMissingFromPlugin(isComposeComponent && !componentId);
             })
@@ -262,7 +268,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         return () => {
             cancelled = true;
         };
-    }, [componentName, composePluginUrl, composeEnvironmentSupported, config, isComposeComponent]);
+    }, [componentName, composePluginUrl, composeEnvironmentSupported, isComposeComponent]);
     const webPayloadCache = useRef<{ key: string; payload: PreviewPayloadInput }>();
     const webAssembly = useMemo(() => {
         if (!isWebComponent || activeRenderer !== 'web-plugin' || webPlugin.status !== 'available' || !isResolved) {
@@ -286,6 +292,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             storyId: webStoryId ?? description?.storyId ?? DEFAULT_WEB_STORY_ID,
             storyProps,
             backgroundToken: surfaceToken,
+            view,
             designSystem,
             relatedConfigs,
         });
@@ -301,6 +308,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         args,
         isResolved,
         surfaceToken,
+        view,
         componentName,
         config,
         config.getRevision(),
@@ -313,16 +321,6 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         designSystem,
         relatedConfigs,
     ]);
-
-    const switchBackground = useMemo(
-        () =>
-            restorePaletteColor(
-                theme.getTokenValue(`${themeMode.value}.surface.default.accent`, 'color', 'web') || '',
-                0,
-                `${themeMode.value}.surface.default.accent`,
-            ),
-        [theme, themeMode],
-    );
 
     const onComposeDescription = useCallback((description: PreviewComponentDescription) => {
         setComposeDescriptionError(undefined);
@@ -358,164 +356,82 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         if (id === (webStoryId ?? webDescription?.storyId)) return;
         setSelectedWebStory({ owner: componentName, id });
         setWebExampleProps({});
-        setNumericDrafts((current) =>
-            Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith('web:'))),
-        );
     };
-    const webStories = webDescription?.componentId === componentName ? webDescription.stories ?? [] : [];
+    const webStories = webDescription?.componentId === componentName ? (webDescription.stories ?? []) : [];
     const webStoryItems = webStories.map((story) => ({ label: story.name, value: story.id }));
     const selectedWebStoryItem = webStoryItems.find((item) => item.value === (webStoryId ?? webDescription?.storyId));
 
-    const onBackgroundSelect = (item: SelectButtonItem) => {
-        setBackground(item);
-    };
-
-    const renderDynamicProps = (item: Variation) => {
-        const name = item.getName();
-
-        if (item.isFlag()) {
-            const flagStyleID = item.getStyles()?.[0]?.getID();
-
-            return (
-                <Switch
-                    key={`dynamic:${name}`}
-                    label={upperFirstLetter(name)}
-                    checked={args[name] === flagStyleID}
-                    backgroundColor={switchBackground}
-                    onToggle={(value) => onChange(name, value ? flagStyleID : undefined)}
-                />
-            );
-        }
-
-        const list = item
-            .getStyles()
-            ?.map((style) => ({
-                label: style.getName(),
-                value: style.getID(),
-            }))
-            .sort((a, b) => a.label.localeCompare(b.label));
-
-        const value = args[name];
-        const label = item
-            .getStyles()
-            ?.find((style) => style.getID() === value)
-            ?.getName();
-
-        return (
-            typeof value === 'string' &&
-            list && (
-                <SelectButton
-                    key={`dynamic:${item.getName()}`}
-                    label={upperFirstLetter(name)}
-                    items={list}
-                    selected={{ label, value }}
-                    onItemSelect={(item) => onChange(name, item.value)}
-                />
-            )
-        );
-    };
-
-    /** Элемент панели аргументов story по описанию плагина: `scope` разделяет состояние Compose и web-плагина. */
-    const renderDescribedProp = (
-        scope: 'compose' | 'web',
-        values: ExampleValues,
-        setValues: (update: (current: ExampleValues) => ExampleValues) => void,
-    ) => {
-        const updateExampleProp = (name: string, nextValue: string | number | boolean) => {
-            setValues((current) => ({ ...current, [name]: nextValue }));
+    // Аргументы story показывает инспектор: превью отдаёт ему описание активного рендерера, значения и их изменение.
+    // Аргумент с именем вариации не показывается — его значение задаёт выбор в «Variants».
+    const onComposeArg = useCallback(
+        (name: string, value: StoryArgValue) => setComposeExampleProps((current) => ({ ...current, [name]: value })),
+        [],
+    );
+    const onWebArg = useCallback(
+        (name: string, value: StoryArgValue) => setWebExampleProps((current) => ({ ...current, [name]: value })),
+        [],
+    );
+    const variationKey = [...variationNames].map((name) => name.toLowerCase()).join(',');
+    const storyArgs = useMemo<StoryArgs | undefined>(() => {
+        const scope = activeRenderer === 'compose' ? 'compose' : activeRenderer === 'web-plugin' ? 'web' : undefined;
+        const description =
+            scope === 'compose'
+                ? composeDescription
+                : scope === 'web' && webDescription?.componentId === componentName
+                  ? webDescription
+                  : undefined;
+        if (!scope || !description) return undefined;
+        const hidden = new Set(variationKey.split(','));
+        return {
+            key: `${scope}:${componentName}:${description.storyId}`,
+            properties: description.properties.filter((property) => !hidden.has(property.name.toLowerCase())),
+            values: scope === 'compose' ? composeExampleProps : webExampleProps,
+            onChange: scope === 'compose' ? onComposeArg : onWebArg,
         };
-        return (property: PreviewExamplePropertyDescription) =>
-            renderExampleProp(scope, property, values[property.name] ?? property.defaultValue, updateExampleProp);
-    };
-
-    const renderExampleProp = (
-        scope: 'compose' | 'web',
-        property: PreviewExamplePropertyDescription,
-        value: string | number | boolean,
-        updateExampleProp: (name: string, value: string | number | boolean) => void,
-    ) => {
-        const label = upperFirstLetter(property.name);
-        const draftKey = `${scope}:${property.name}`;
-        if (property.type === 'boolean') {
-            return (
-                <Switch
-                    key={`${scope}:${property.name}`}
-                    label={label}
-                    checked={value as boolean}
-                    backgroundColor={switchBackground}
-                    onToggle={(nextValue) => updateExampleProp(property.name, nextValue)}
-                />
-            );
-        }
-        if (property.type === 'singleChoice') {
-            const items = property.variants.map((variant) => ({ label: variant, value: variant }));
-            return (
-                <SelectButton
-                    key={`${scope}:${property.name}`}
-                    label={label}
-                    items={items}
-                    selected={{ label: String(value), value: String(value) }}
-                    onItemSelect={(item) => updateExampleProp(property.name, String(item.value))}
-                />
-            );
-        }
-        return (
-            <TextField
-                key={`${scope}:${property.name}`}
-                label={label}
-                type={property.type === 'string' ? 'text' : 'number'}
-                value={property.type === 'string' ? String(value) : numericDrafts[draftKey] ?? String(value)}
-                onChange={(nextValue) => {
-                    if (property.type === 'string') {
-                        updateExampleProp(property.name, nextValue);
-                        return;
-                    }
-                    setNumericDrafts((current) => ({ ...current, [draftKey]: nextValue }));
-                    if (!nextValue.trim()) return;
-                    const parsed = property.type === 'int' ? Number.parseInt(nextValue, 10) : Number(nextValue);
-                    if (Number.isFinite(parsed)) updateExampleProp(property.name, parsed);
-                }}
-            />
-        );
-    };
+    }, [
+        activeRenderer,
+        componentName,
+        composeDescription,
+        composeExampleProps,
+        onComposeArg,
+        onWebArg,
+        variationKey,
+        webDescription,
+        webExampleProps,
+    ]);
+    useEffect(() => onStoryArgsChange?.(storyArgs), [onStoryArgsChange, storyArgs]);
+    useEffect(() => () => onStoryArgsChange?.(undefined), [onStoryArgsChange]);
 
     const webPayload = webAssembly?.payload;
     // Отладочный блок с payload: только в debug-режиме и только для рендереров-плагинов.
     const debugPayload =
         activeRenderer === 'compose' ? currentComposePayload : activeRenderer === 'web-plugin' ? webPayload : undefined;
-    const webUnavailableReason =
-        webPlugin.status === 'unavailable' ? webPlugin.reason : webAssembly?.error;
+    const webUnavailableReason = webPlugin.status === 'unavailable' ? webPlugin.reason : webAssembly?.error;
     const showPayloadDebug = debugMode && Boolean(debugPayload);
 
     return (
         <Root>
             <StyledPreviewShadow $scrollable={showPayloadDebug}>
-                <StyledPreviewBackgroundEditor>
-                    {!isComposeComponent && rendererModes.length > 1 && (
-                        <SegmentButton
-                            label="Renderer"
-                            items={rendererModes}
-                            selected={activeRendererItem}
-                            onSelect={setRendererMode}
-                        />
-                    )}
-                    {composePluginUrl && hasComposeMetadata && !composeEnvironmentSupported && (
-                        <div role="status">Compose-preview недоступен в этом браузере.</div>
-                    )}
-                    <SegmentButton
-                        label="Режим"
-                        items={themeModeList}
-                        selected={themeMode}
-                        onSelect={onUpdateThemeMode}
-                    />
-                    <SelectButton
-                        label="На фоне"
-                        items={backgroundList}
-                        selected={background}
-                        autoAlign={false}
-                        onItemSelect={onBackgroundSelect}
-                    />
-                </StyledPreviewBackgroundEditor>
+                <PreviewEnvironmentBar
+                    title={title}
+                    platform={isComposeComponent ? 'compose' : 'web'}
+                    platforms={platforms}
+                    onPlatformSelect={onPlatformSelect}
+                    views={PREVIEW_VIEWS}
+                    view={view}
+                    onViewSelect={setView}
+                    themeMode={themeMode}
+                    themeModes={themeModeList}
+                    onThemeModeSelect={onUpdateThemeMode}
+                    renderers={
+                        isComposeComponent
+                            ? undefined
+                            : { items: rendererModes, selected: activeRendererItem, onSelect: setRendererMode }
+                    }
+                />
+                {composePluginUrl && hasComposeMetadata && !composeEnvironmentSupported && (
+                    <div role="status">Compose-preview недоступен в этом браузере.</div>
+                )}
                 <StyledComponentWrapper background={surfaceColor}>
                     {activeRenderer === 'compose' && composePluginUrl && composeEnvironmentSupported ? (
                         <>
@@ -565,17 +481,6 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                     ) : null}
                 </StyledComponentWrapper>
                 {showPayloadDebug && debugPayload && <ComposePayloadDebug payload={debugPayload} />}
-                <StyledComponentControls $reserveHeight={showPayloadDebug}>
-                    {variations.map(renderDynamicProps)}
-                    <StyledDivider />
-                    {activeRenderer === 'compose'
-                        ? composeDescription?.properties.map(
-                              renderDescribedProp('compose', composeExampleProps, setComposeExampleProps),
-                          )
-                        : activeRenderer === 'web-plugin' &&
-                          webDescription?.componentId === componentName &&
-                          webDescription.properties.map(renderDescribedProp('web', webExampleProps, setWebExampleProps))}
-                </StyledComponentControls>
             </StyledPreviewShadow>
         </Root>
     );

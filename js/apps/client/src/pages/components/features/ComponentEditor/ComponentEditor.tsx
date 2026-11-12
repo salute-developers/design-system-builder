@@ -3,12 +3,13 @@ import { useLocation } from 'react-router-dom';
 
 import { useComponentData } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
-import { SegmentButtonItem, TextField } from '../../../../components';
-import { ComponentEditorPreview } from '../ComponentEditorPreview';
-import { ComponentEditorProperties } from '../ComponentEditorProperties';
-import { ComponentEditorSetup } from '../ComponentEditorSetup';
+import { SegmentButtonItem } from '../../../../components';
+import { ComponentEditorPreview, type StoryArgs } from '../ComponentEditorPreview';
+import type { PreviewPlatform, PreviewPlatformOption } from '../ComponentEditorPreview/PreviewEnvironmentBar';
+import { ComponentInspector, combinationTitle } from '../ComponentInspector';
+import type { StructureAccess } from '../ComponentStructure';
 
-import { Root, StyledSetup, StyledHeader, StyledWrapper } from './ComponentEditor.styles';
+import { Root } from './ComponentEditor.styles';
 import { componentPreviewRequest, modeList, resolveComponentPreview } from './ComponentEditor.utils';
 
 interface ComponentEditorProps {
@@ -16,22 +17,26 @@ interface ComponentEditorProps {
     theme: Theme;
     configs?: Config[];
     updated: object;
+    /** Платформы компонента для меню панели окружения превью. */
+    platforms: PreviewPlatformOption[];
+    onPlatformSelect: (platform: PreviewPlatform) => void;
     onConfigUpdate: () => void;
+    /** Выбор открытой конфигурации компонента. */
+    onConfigurationSelect?: (configurationId: string | undefined) => void;
+    /** Структурные операции вкладки «Структура»; без них вкладки нет. */
+    structure?: StructureAccess;
 }
 
 export const ComponentEditor = (props: ComponentEditorProps) => {
-    const { designSystem, theme, configs, updated, onConfigUpdate } = props;
+    const { designSystem, theme, configs, updated, platforms, onPlatformSelect, onConfigUpdate } = props;
+    const { onConfigurationSelect, structure } = props;
 
     const config = configs?.[0];
 
-    const [
-        selectedVariation,
-        setSelectedVariation,
-        selectedStyle,
-        setSelectedStyle,
-        componentProps,
-        setComponentProps,
-    ] = useComponentData(config);
+    // Сочетание вариаций: имя вариации → id стиля. Его рисует превью и редактирует инспектор.
+    const [selection, setSelection] = useComponentData(config);
+    // Аргументы story: значения живут в превью, инспектор показывает их в «Variants».
+    const [storyArgs, setStoryArgs] = useState<StoryArgs>();
 
     const location = useLocation();
     const preview = useMemo(() => componentPreviewRequest(location.state), [location.state]);
@@ -42,13 +47,11 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     // INFO: Переход из «Доступности» цветовых токенов открывает вариацию и стиль пары. Эффект объявлен после
     // `useComponentData` и применяется поверх значений по умолчанию, которые хук выставляет при загрузке.
     useEffect(() => {
-        const selection = config && preview ? resolveComponentPreview(config, preview) : undefined;
-        if (!selection) {
+        const target = config && preview ? resolveComponentPreview(config, preview) : undefined;
+        if (!target) {
             return;
         }
-        setSelectedVariation(selection.variationID);
-        setSelectedStyle(selection.styleID);
-        setComponentProps((current) => ({ ...current, [selection.variationName]: selection.styleID }));
+        setSelection((current) => ({ ...current, [target.variationName]: target.styleID }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, preview]);
     // Стабильная ссылка: от неё зависит пересборка payload Compose-превью.
@@ -59,94 +62,51 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const relatedConfigs = useMemo(() => new Map<string, Config>(), [designSystem, updated]);
 
-    const onVariationChange = (value: string) => {
-        if (!config) {
-            return;
-        }
-
-        if (value === 'invariants') {
-            setSelectedVariation(undefined);
-            return;
-        }
-
-        const variation = config.getVariation(value)?.getName();
-        const style = config.getStyleByVariation(value)?.getID();
-
-        setSelectedVariation(value);
-        setSelectedStyle(style);
-
-        onChangeComponentControlValue(variation, style);
-    };
-
-    const onStyleChange = (value: string) => {
-        setSelectedStyle(value);
-
-        if (!config) {
-            return;
-        }
-
-        const variation = config.getVariation(selectedVariation)?.getName();
-        onChangeComponentControlValue(variation, value);
-    };
-
-    const onChangeComponentControlValue = (name?: string, value?: unknown) => {
-        if (!name) {
-            return;
-        }
-
-        // INFO: Выключенный флаг (`pilled`) — отсутствие аргумента, а не значение.
-        if (value === undefined) {
-            const { [name]: _removed, ...rest } = componentProps;
-            setComponentProps(rest);
-            return;
-        }
-
-        setComponentProps({ ...componentProps, [name]: value as string });
-    };
+    // INFO: Выключенный флаг (`pilled`) и вариация без стиля — отсутствие аргумента, а не значение.
+    const onSelectionChange = useCallback(
+        (name: string, styleID: string | undefined) =>
+            setSelection((current) => {
+                const next = { ...current };
+                if (styleID === undefined) delete next[name];
+                else next[name] = styleID;
+                return next;
+            }),
+        [setSelection],
+    );
 
     if (!config) {
         return null;
     }
 
     return (
-        <Root>
-            <StyledSetup>
-                <StyledHeader>
-                    <TextField readOnly value={config?.getName()} />
-                    <TextField readOnly stretched value={config?.getDescription()} />
-                </StyledHeader>
-                <StyledWrapper>
-                    <ComponentEditorSetup
-                        config={config}
-                        designSystem={designSystem}
-                        variationID={selectedVariation}
-                        styleID={selectedStyle}
-                        onVariationChange={onVariationChange}
-                        onStyleChange={onStyleChange}
-                        onConfigUpdate={onConfigUpdate}
-                    />
-                    <ComponentEditorProperties
-                        config={config}
-                        updated={updated}
-                        designSystem={designSystem}
-                        theme={theme}
-                        variationID={selectedVariation}
-                        styleID={selectedStyle}
-                        onConfigUpdate={onConfigUpdate}
-                    />
-                </StyledWrapper>
-            </StyledSetup>
+        <Root className="component-workbench">
             <ComponentEditorPreview
                 theme={theme}
                 config={config}
-                args={componentProps}
+                args={selection}
                 designSystem={designSystem}
                 relatedConfigs={relatedConfigs}
                 themeModeList={modeList}
                 themeMode={themeMode}
-                onChange={onChangeComponentControlValue}
                 onUpdateThemeMode={setThemeMode}
+                title={combinationTitle(config, selection)}
+                platforms={platforms}
+                onPlatformSelect={onPlatformSelect}
                 resolveStyleReference={resolveStyleReference}
+                onStoryArgsChange={setStoryArgs}
+            />
+            <ComponentInspector
+                config={config}
+                designSystem={designSystem}
+                theme={theme}
+                updated={updated}
+                selection={selection}
+                themeMode={themeMode.value === 'light' ? 'light' : 'dark'}
+                onSelectionChange={onSelectionChange}
+                onConfigUpdate={onConfigUpdate}
+                storyArgs={storyArgs}
+                onConfigurationSelect={onConfigurationSelect}
+                structure={structure}
             />
         </Root>
     );

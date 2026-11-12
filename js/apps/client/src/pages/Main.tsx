@@ -11,6 +11,7 @@ import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell
 import { Visible } from '../components/rendering';
 import { IconColorSwatchOutline } from '../icons';
 import { StyledSpinner as EditorLoadingSpinner } from '../components/EditorLoading/EditorLoading.styles';
+import { ComponentsSectionSkeleton } from './components/ComponentsSectionSkeleton';
 
 import { AutosaveIndicator } from '../components/AutosaveIndicator';
 import { McpLinkButton } from '../components/McpLinkButton';
@@ -72,6 +73,8 @@ export const Main = () => {
     /** Экраны токенов и палитра сами показывают загрузку скелетонами и ошибку загрузки с «Повторить». */
     const ownsSectionStates =
         Boolean(editorContext) && ['palette', 'colors', 'typography', 'shapes'].includes(editorSection);
+    /** Раздел компонентов на время загрузки показывает свой скелетон вместо общего спиннера. */
+    const componentsSkeleton = Boolean(editorContext) && editorSection === 'components';
     const sectionSelection = useMemo(
         () => ({
             section: toEditorSection(editorSection),
@@ -100,6 +103,7 @@ export const Main = () => {
         componentError,
         hasConfiguredComponents,
         reload,
+        loadComponent,
         palette,
         paletteError,
         setPalette,
@@ -112,8 +116,9 @@ export const Main = () => {
     // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
     const isEditingDesignSystem = Boolean(editorContext);
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
-    // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
-    const hasComponents = isComponentEditorEnabled() && hasConfiguredComponents;
+    // Раздел «Компоненты» показываем, если к ДС привязан хотя бы один компонент. Пока тема грузится, кнопка видна
+    // вместе с остальными: иначе она появляется с задержкой и сдвигает нижние кнопки.
+    const hasComponents = isComponentEditorEnabled() && (hasConfiguredComponents || !designSystem);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = !isEditingDesignSystem;
     const isEditorLoading = Boolean(editorContext && !designSystem && !loadError);
@@ -380,7 +385,9 @@ export const Main = () => {
                     </>
                 ) : null}
                 <EditorCanvas>
-                    {!ownsSectionStates && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
+                    {componentsSkeleton && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
+                        <ComponentsSectionSkeleton />
+                    ) : !ownsSectionStates && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
                         <div
                             className="editor-section-loading"
                             role="status"
@@ -407,6 +414,7 @@ export const Main = () => {
                                 updated,
                                 rerender,
                                 reload,
+                                loadComponent,
                                 componentLoading,
                                 componentError,
                                 palette,

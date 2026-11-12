@@ -177,8 +177,8 @@ class SizeTokenHttpPostgresIntegrationTest {
         val roundMUsage = roundM.array("components").associate { it.text("name") to it.number("count") }
         assertEquals(3, roundMUsage["EmptyState"])
         assertEquals(2, roundMUsage["Slider"])
-        assertEquals(11, roundMUsage.size)
-        assertEquals(16, roundMUsage.values.sum())
+        assertEquals(12, roundMUsage.size)
+        assertEquals(17, roundMUsage.values.sum())
         val derived = section.token("radii", "round.l").array("derived").single { it.number("offsetPx") == -2 }
         assertEquals(14, derived.number("valuePx"))
         val usages = derived.array("usages").map {
@@ -199,7 +199,10 @@ class SizeTokenHttpPostgresIntegrationTest {
         )
         assertEquals(2, softS.number("fallbackElevation"))
         assertEquals(
-            setOf("Popover", "Combobox", "Range", "Select", "TextArea", "TextField"),
+            setOf(
+                "Autocomplete", "Combobox", "DatePicker", "DateTimePicker", "InformationWrapper", "Popover",
+                "Range", "Select", "TextArea", "TextField", "TextFieldSlider", "TimePicker",
+            ),
             section.token("shadows", "down.hard.m").array("components").map { it.text("name") }.toSet(),
         )
         assertEquals(0, section.token("spacing", "spacing.4x").array("components").size)
@@ -220,7 +223,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         assertFalse("editRevision" in edited.body)
         assertEquals("radius", edited.body.text("kind"))
         assertEquals(14, edited.body.obj("token").number("valuePx"))
-        assertEquals(11, edited.body.obj("token").array("components").size)
+        assertEquals(12, edited.body.obj("token").array("components").size)
         assertEquals(3, edited.body.array("values").size)
         assertEquals(3, edited.metadata.size)
         assertTrue(edited.metadata.all { it.text("entityType") == "token-value" && it.array("warnings").isEmpty() })
@@ -390,7 +393,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         val versionId = api.publish(scope.designSystemId)
 
         // Новый черновик: удаление round.m — Editor не может, Maintainer удаляет; ссылки компонентов пустые.
-        assertEquals(16, db.count(activeRevisionTestSql(referenceCount(roundM))))
+        assertEquals(17, db.count(activeRevisionTestSql(referenceCount(roundM))))
         api.reject("DELETE", "${scope.base}/$roundM", EDITOR, null, 403)
         val deleted = api.mutate("DELETE", "${scope.base}/$roundM", MAINTAINER, null)
         assertEquals(listOf(roundM), deleted.body.array("deletedTokenIds").map { it.jsonPrimitive.content })
@@ -408,7 +411,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         val publishedM = historical.token("radii", "round.m")
         assertEquals(15, publishedM.number("valuePx"))
         // EmptyState и Button убраны из ДС до публикации.
-        assertEquals(9, publishedM.array("components").size)
+        assertEquals(10, publishedM.array("components").size)
         assertEquals(18, historical.token("radii", "round.l").obj("platforms").number("android"))
         assertEquals(20, historical.token("radii", "round.l").number("valuePx"))
         api.reject("GET", "${scope.base}?versionId=${UUID.randomUUID()}", VIEWER, null, 404)

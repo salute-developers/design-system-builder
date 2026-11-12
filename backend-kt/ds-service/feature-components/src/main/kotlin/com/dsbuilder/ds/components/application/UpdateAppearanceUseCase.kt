@@ -2,6 +2,7 @@ package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.authorization.ProjectScope
 import com.dsbuilder.ds.components.domain.Appearance
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -27,7 +28,7 @@ class UpdateAppearanceUseCase(
             val current = repository.find(context.projectId, context.principal.globalAdmin, id)
                 ?: return@required DsResult.Failure(DsFailure.NotFound)
             if (command.name != null) {
-                val normalizedName = command.name.trim().lowercase()
+                val normalizedName = ConfigurationName.key(command.name)
                 uniqueKeys.lock(current.designSystemId, "appearance", "${current.componentId}:$normalizedName")
                 if (
                     repository.nameExists(

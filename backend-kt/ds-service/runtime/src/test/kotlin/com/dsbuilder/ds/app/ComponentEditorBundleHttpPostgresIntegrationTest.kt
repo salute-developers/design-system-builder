@@ -53,13 +53,13 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `a compose bundle exports compose and has no property variations and web adapter`() = withService {
+    fun `a compose bundle exports compose with property variations and no web adapter`() = withService {
         val fixture = fixture()
         val bundle = bundle(fixture.alpha, fixture.composeButton, "compose")
 
         assertBundleMatchesRoutes(bundle, fixture.alpha, fixture.composeButton, "compose")
         assertEquals(JsonNull, bundle.getValue("webAdapter"))
-        assertTrue(bundle.list("propertyVariations").isEmpty())
+        assertEquals(1, bundle.list("propertyVariations").size)
         assertEquals(1, bundle.list("platformParams").size)
         val exported = bundle.getValue("export").jsonObject.getValue("components").jsonArray
         assertEquals(listOf("button"), exported.map { it.jsonObject.string("componentName") })
@@ -137,9 +137,18 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         val names = """["${componentRow.string("name").lowercase()}"]"""
         val export = readPost(
             withVersion("/api/design-systems/$ds/component-config/export"),
-            """{"platform":"$platform","components":$names}""",
+            """{"platform":"$platform","components":$names,"editorIds":true}""",
         )
         assertEquals(export, bundle.getValue("export"))
+        // Выгрузка в бандле несёт ID вариаций и стилей: редактор сопоставляет оси и значения по ним.
+        val axes = bundle.getValue("export").jsonObject.getValue("components").jsonArray
+            .flatMap { it.jsonObject.getValue("config").jsonObject.getValue("variations").jsonArray }
+        assertTrue(axes.isNotEmpty())
+        assertTrue(axes.all { it.jsonObject.string("variationId").isNotEmpty() })
+        assertTrue(
+            axes.flatMap { it.jsonObject.getValue("values").jsonArray }
+                .all { it.jsonObject.string("styleId").isNotEmpty() },
+        )
 
         val properties = read(withVersion("/api/design-systems/catalog/components/$component/properties")).objects()
         assertEquals(properties.byId(), bundle.list("properties").byId())
@@ -149,13 +158,8 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
             .filter { it.string("propertyId") in propertyIds }
         assertEquals(params.byId(), bundle.list("platformParams").byId())
 
-        val propertyVariations = if (platform == "web") {
-            read(withVersion("/api/design-systems/$ds/property-variations")).objects().filter {
-                it.string("propertyId") in propertyIds
-            }
-        } else {
-            emptyList()
-        }
+        val propertyVariations = read(withVersion("/api/design-systems/$ds/property-variations")).objects()
+            .filter { it.string("propertyId") in propertyIds }
         assertEquals(propertyVariations.byId(), bundle.list("propertyVariations").byId())
 
         val variations = read(withVersion("/api/design-systems/$ds/components/$component/variations")).objects()
@@ -236,6 +240,12 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         val size = read("/api/design-systems/$alpha/components/$webButton/variations").objects()
             .single { it.string("name") == "size" }.string("id")
         created("/api/design-systems/$alpha/property-variations", """{"propertyId":"$padding","variationId":"$size"}""")
+        val composeSize = read("/api/design-systems/$alpha/components/$composeButton/variations").objects()
+            .single { it.string("name") == "size" }.string("id")
+        created(
+            "/api/design-systems/$alpha/property-variations",
+            """{"propertyId":"$composePadding","variationId":"$composeSize"}""",
+        )
 
         created(
             "/api/design-systems/catalog/component-deps",

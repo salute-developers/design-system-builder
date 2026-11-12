@@ -24,14 +24,18 @@ For a public-facing overview see [README.md](README.md). **This file is for thin
 - **No npm workspaces.** `apps/client` and `cli` have their own `node_modules` and `package.json`. Root `package.json` scripts are thin wrappers that `cd` into a package and call its own `npm run`. Don't "simplify" them into workspace commands.
 - Root `npm run dev` / `npm run build` are only used for manual local dev. CI builds the client directly from `js/apps/client` (`working-directory`) and runs `cli` tests from `js/cli`.
 
+### Package versions
+- Any change to `cli` (the generator package `@sddsjs/design-system-builder-generator`) or to `apps/preview-web-plugin` bumps `version` in its `package.json` (and `package-lock.json`, e.g. `npm version patch --no-git-tag-version`) in the same branch. One bump per branch is enough; bump the minor version when the change is not backward compatible.
+
 ### Tests
 - `cli`: `npm run typecheck && npm test` in [cli](cli/) (`node:test`).
 - `apps/client`: `npm test` (vitest). Tests that need a real component as an example use fixtures under `__fixtures__` (for example `modules/colorTokens/domain/__fixtures__/buttonSeed.ts`), never data from a service.
 
 ### Components and the global layer
 - The global component layer (components, properties, platform names) comes from the web API meta: `npm run generate:api-meta -- --package @salutejs/plasma-new-hope` in [cli](cli/) writes `.sdds/web/web-api-meta.json`, `dsbuilder components import-api --platform react` loads it (system administrator only, served by `ds-service` under `POST /api/admin/component-config/import-api-meta`).
-- A plasma component is added with `npm run import:plasma -- --component=<X>` in [cli](cli/) (writes the `.sdds/components` package and the generator manifest) and `dsbuilder components push --platform react --from .sdds/components --apply`. The rules and checks are in `.claude/skills/add-component/SKILL.md`.
-- Web parameter templates of multi-value CSS properties live in the generator manifests `cli/src/generator/templates/<X>/component.json` (`webTemplates`), not in `ds-service`.
+- A plasma component is added with `npm run import:plasma -- --component=<X>` in [cli](cli/) (writes the `.sdds/components` package and the generator manifest) and `dsbuilder components push --platform react --from .sdds/components --apply`; its preview story lives in `apps/preview-web-plugin/src/stories`, and new design systems get it only from the ds-service seeds, updated with `npm run seeds:update` in [cli](cli/) from the imported package (never from a stand export: stands carry manual edits). The rules and checks are in `.claude/skills/add-component/SKILL.md`.
+- `cli` and `apps/preview-web-plugin` pin the same exact `@salutejs/plasma-new-hope` version (now `0.391.0-dev.0`, the release with the Style API annotations). Unannotated token dictionaries are annotated in the plasma clone; a local core tarball (`npm pack`) is only a temporary stand-in until that core is published and must not be merged.
+- Web parameter templates of multi-value CSS properties live in `cli/src/data/web-adapter.json`, a byte-for-byte copy of `apps/preview-web-plugin/src/data/web-adapter.json` (a test checks it); not in `ds-service` and not in the generator manifests. `import:plasma` prints the entry to paste into both copies.
 
 ### Icons and images in the client
 - A new icon comes from `@salutejs/sdds-icons` (`@salutejs/sdds-icons/16|24|36`), never as a new SVG or other file. Check that the package icon matches the design (shape, size, `Outline`/`Fill`/`OutlineBold` variant); if it differs or is missing, ask the user to go to the designer instead of picking a look-alike.

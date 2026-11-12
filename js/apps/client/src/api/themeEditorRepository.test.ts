@@ -1,6 +1,7 @@
 import { DesignSystem } from '../controllers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const invalidateEditorResources = vi.hoisted(() => vi.fn());
 const { pluginUrl, platformParams, get, put, post, patch, remove } = vi.hoisted(() => ({
     pluginUrl: { value: undefined as string | undefined },
     platformParams: { value: false },
@@ -31,6 +32,7 @@ vi.mock('./editorReads', () => ({
               ? get(url, request)
               : post(url, body, request),
     invalidateEditorReads: vi.fn(),
+    invalidateEditorResources,
 }));
 
 import { loadThemeEditor } from './themeEditorRepository';
@@ -40,7 +42,6 @@ import { versionJournalRepository } from './versionJournalRepository';
 import type { PendingComponentMutation } from './editorContracts';
 
 import { AndroidGradient, GradientToken, IOSGradient, Theme, WebGradient } from '../controllers';
-import { getMenuItems } from '../utils';
 import { parseCssLayer } from '../modules/sizeTokens';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
@@ -565,7 +566,7 @@ describe('Editor repositories', () => {
         expect(snapshot.themeData.variations.gradient.web['surface.default.gradient']).toEqual([
             'linear-gradient(90deg, #000 0%, #fff 100%)',
         ]);
-        expect(() => getMenuItems(theme, 'color')).not.toThrow();
+        expect(theme.getTokens('gradient')).toHaveLength(1);
     });
 
     it('keeps single-layer and multi-layer shadows array-shaped for the shadow editor', async () => {
@@ -876,6 +877,124 @@ describe('Editor repositories', () => {
         });
         expect(result).toEqual({ tokenId: 'token-1', editRevision: 4, baseRevision: 7, valueBaseRevisions: {} });
         expect(put).not.toHaveBeenCalled();
+        // Справочник токенов кешируется с `freshFor`: после удаления определения он сбрасывается адресно.
+        expect(invalidateEditorResources).toHaveBeenCalledWith([
+            '/api/projects/project-1/design-systems/ds-1/tokens',
+        ]);
+    });
+
+    it('writes component edits to the configuration open in the editor', async () => {
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/appearance-variations'))
+                return Promise.resolve({
+                    data: [
+                        { id: 'axis-base', appearanceId: 'appearance', variationId: 'variation' },
+                        { id: 'axis-copy', appearanceId: 'copy', variationId: 'variation' },
+                    ],
+                });
+            return Promise.resolve({ data: [] });
+        });
+        patch.mockResolvedValue({ data: {}, headers: {} });
+        const before: PendingComponentMutation['before'] = {
+            defaultVariations: [{ variationID: 'variation', styleID: 'style-m' }],
+            invariantProps: [],
+            variations: [
+                {
+                    id: 'variation',
+                    styles: [
+                        { id: 'style-m', name: 'm', intersections: null, props: [] },
+                        { id: 'style-l', name: 'l', intersections: null, props: [] },
+                    ],
+                },
+            ],
+        };
+        const mutation: PendingComponentMutation = {
+            componentName: 'Button#copy',
+            appearanceId: 'copy',
+            before,
+            idempotencyKeys: {},
+            after: { ...before, defaultVariations: [{ variationID: 'variation', styleID: 'style-l' }] },
+        };
+        const meta = {
+            name: 'Button',
+            description: '',
+            serverBinding: { componentId: 'component', appearanceId: 'appearance' },
+            sources: { api: [], variations: [], configs: [] },
+        };
+
+        await componentRepository.saveComponentMutation(context, meta, mutation, {});
+
+        expect(get).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/variation-property-values/by-appearance/copy',
+            expect.anything(),
+        );
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/appearance-variations/axis-copy',
+            { defaultStyleId: 'style-l' },
+            expect.anything(),
+        );
+    });
+
+    it('edits the invariant of the open configuration, not the same invariant of another one', async () => {
+        get.mockImplementation((url: string) => {
+            if (url.includes('/invariant-property-values/by-component/'))
+                return Promise.resolve({
+                    data: [
+                        {
+                            id: 'value-copy',
+                            propertyId: 'focus',
+                            appearanceId: 'copy',
+                            tokenId: null,
+                            value: '#111111',
+                            adjustment: null,
+                            stateSetId: 'empty',
+                        },
+                        {
+                            id: 'value-base',
+                            propertyId: 'focus',
+                            appearanceId: 'appearance',
+                            tokenId: null,
+                            value: '#000000',
+                            adjustment: null,
+                            stateSetId: 'empty',
+                        },
+                    ],
+                });
+            if (url.endsWith('/state-sets')) return Promise.resolve({ data: [{ id: 'empty', stateIds: [] }] });
+            return Promise.resolve({ data: [] });
+        });
+        patch.mockResolvedValue({ data: {}, headers: {} });
+        const before: PendingComponentMutation['before'] = {
+            defaultVariations: [],
+            invariantProps: [{ id: 'focus', value: '#111111' }],
+            variations: [],
+        };
+        const mutation: PendingComponentMutation = {
+            componentName: 'Button#copy',
+            appearanceId: 'copy',
+            before,
+            idempotencyKeys: {},
+            after: { ...before, invariantProps: [{ id: 'focus', value: '#222222' }] },
+        };
+        const meta = {
+            name: 'Button',
+            description: '',
+            serverBinding: { componentId: 'component', appearanceId: 'appearance' },
+            sources: { api: [], variations: [], configs: [] },
+        };
+
+        await componentRepository.saveComponentMutation(context, meta, mutation, {});
+
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/invariant-property-values/value-copy',
+            expect.objectContaining({ value: '#222222' }),
+            expect.anything(),
+        );
+        expect(patch).not.toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/invariant-property-values/value-base',
+            expect.anything(),
+            expect.anything(),
+        );
     });
 
     it('replays the original axis-link body after partial success and recovery', async () => {

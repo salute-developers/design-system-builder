@@ -6,6 +6,7 @@ import type {
     ThemeEditorSnapshot,
     DesignSystemComponentDto,
     DesignSystemVersionDto,
+    AppearanceDto,
 } from './editorContracts';
 import { apiRoot, readRequest } from './editorHttp';
 import { tokenRepository } from './tokenRepository';
@@ -26,6 +27,13 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
             : Promise.resolve(undefined),
     ]);
     if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
+    // Раздел компонентов доступен, когда все компоненты скрыты (у скрытых остаются оформления) и когда их нет совсем,
+    // но есть шаблоны: добавить и вернуть компоненты можно только из раздела. Дополнительные чтения — лишь без связей.
+    const hasComponents =
+        links.data.some((link) => link.designSystemId === context.designSystemId) ||
+        (await readEditor<AppearanceDto[]>(`${root}/appearances`, request))
+            .data.length > 0 ||
+        (await componentRepository.loadComponentTemplates(context, signal)).length > 0;
     if (version && version.data.designSystemId !== context.designSystemId)
         throw new Error('VERSION_DESIGN_SYSTEM_MISMATCH');
     const types = ['color', 'gradient', 'typography', 'fontFamily', 'shape', 'spacing', 'shadow'];
@@ -61,7 +69,7 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
         publicationVersion: version?.data.version ?? '0.1.0',
         componentsData: [],
         composeComponentsData: [],
-        hasComponents: links.data.some((link) => link.designSystemId === context.designSystemId),
+        hasComponents,
         parameters: {
             projectId: context.projectId,
             projectName: project.data.name,

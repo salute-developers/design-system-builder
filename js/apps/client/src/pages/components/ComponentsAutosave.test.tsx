@@ -9,49 +9,44 @@ const mocks = vi.hoisted(() => ({
         getName: () => 'Button',
         getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.currentMeta),
+        getConfigurationId: () => undefined,
+        getConfigurations: () => [],
+        getComponentId: () => undefined,
     },
     inputMeta: { enabled: true, kind: 'input' } as Record<string, unknown>,
     inputConfig: {
         getName: () => 'Input',
         getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.inputMeta),
+        getConfigurationId: () => undefined,
+        getConfigurations: () => [],
+        getComponentId: () => undefined,
     },
     saveComponentMutation: vi.fn(async () => ({ style: 1 })),
 }));
 
-vi.mock('../../utils', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('../../utils')>()),
-    getOldMenuItems: () => ({
-        groups: [
-            {
-                data: [
-                    {
-                        items: [
-                            { name: 'Button', disabled: false, data: [mocks.config] },
-                            { name: 'Input', disabled: false, data: [mocks.inputConfig] },
-                        ],
-                    },
-                ],
-            },
-        ],
-    }),
-}));
-
 vi.mock('../../layouts', () => ({
-    MenuOld: () => null,
     Workspace: ({ content }: { content: ReactNode }) => <>{content}</>,
 }));
 
 vi.mock('./features/ComponentEditor', () => ({
-    ComponentEditor: ({ onConfigUpdate }: { onConfigUpdate: () => void }) => (
-        <button type="button" onClick={onConfigUpdate}>
-            изменить
-        </button>
+    // Индикатор автосохранения редактор показывает в панели окружения превью.
+    ComponentEditor: ({ onConfigUpdate, status }: { onConfigUpdate: () => void; status?: ReactNode }) => (
+        <>
+            {status}
+            <button type="button" onClick={onConfigUpdate}>
+                изменить
+            </button>
+        </>
     ),
 }));
 
 vi.mock('../../api/componentRepository', () => ({
-    componentRepository: { saveComponentMutation: mocks.saveComponentMutation },
+    componentRepository: {
+        saveComponentMutation: mocks.saveComponentMutation,
+        loadComponentCatalog: vi.fn(async () => []),
+        loadComponentTemplates: vi.fn(async () => []),
+    },
 }));
 
 import { Components } from './Components';
@@ -248,7 +243,12 @@ describe('Components autosave', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
 
         await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
-        await waitFor(() => expect(screen.getByRole('status', { name: /Последнее сохранение/ })).toBeInTheDocument());
+        // Статус сохранения компонента показывает индикатор редактора в тулбаре: он читает общий статус очередей.
+        await waitFor(() =>
+            expect(getDraftAutosaveStatus({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' })).toBe(
+                'saved',
+            ),
+        );
     });
 
     it('восстанавливает создание до следующей правки удаления с новой базой', async () => {

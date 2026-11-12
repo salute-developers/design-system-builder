@@ -1,5 +1,12 @@
 import * as plasmaCore from '@salutejs/plasma-new-hope/styled-components';
-import { segmentTokens, stepsTokens, tabsTokens, typographyTokens } from '@salutejs/plasma-new-hope/styled-components';
+import {
+    calendarBaseTokens,
+    carouselNewTokens,
+    segmentTokens,
+    stepsTokens,
+    tabsTokens,
+    typographyTokens,
+} from '@salutejs/plasma-new-hope/styled-components';
 
 /**
  * Перенос `js/apps/client/src/controllers/componentPreview/coreTokens.ts`: `getCSSVariableName`/`toCSSVariables`,
@@ -23,6 +30,8 @@ export const coreTokensByComponent: Record<string, Record<string, string>> = {
     Dspl: typographyTokens,
     Heading: typographyTokens,
     Text: typographyTokens,
+    Calendar: calendarBaseTokens,
+    Carousel: carouselNewTokens,
 };
 
 /**
@@ -31,6 +40,8 @@ export const coreTokensByComponent: Record<string, Record<string, string>> = {
  */
 export const coreConfigNameByComponent: Record<string, string> = {
     Skeleton: 'lineSkeletonConfig',
+    Calendar: 'calendarBaseConfig',
+    Carousel: 'carouselNewConfig',
 };
 
 const lowerFirstLetter = (value: string) => `${value.charAt(0).toLowerCase()}${value.slice(1)}`;

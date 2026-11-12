@@ -173,6 +173,7 @@
       "included": true,
       "ownership": "via-design-system-component-link",
       "operations": [
+        ["GET", "/catalog/component-templates", null, "ComponentTemplate[]", 200, "components:variations:read", null],
         ["GET", "/catalog/components", null, "Component[]", 200, "components:read", null],
         ["GET", "/catalog/components/{id}", null, "Component", 200, "components:read", null],
         ["POST", "/catalog/components", "CreateComponentRequest", "Component", 201, "components:write", "system-admin-or-project-component-create"],

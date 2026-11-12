@@ -4,45 +4,65 @@ import { getCoreConfig, getCoreTokens } from './cssVariables';
 import { createThemeConfig } from './themeConfig';
 import type { ResolvedRelatedComponent } from './protocol';
 import { AccordionStories } from './stories/Accordion.story';
+import { AttachStories } from './stories/Attach.story';
+import { AutocompleteStories } from './stories/Autocomplete.story';
 import { AvatarStories } from './stories/Avatar.story';
 import { AvatarGroupStories } from './stories/AvatarGroup.story';
 import { BadgeStories } from './stories/Badge.story';
 import { BreadcrumbsStories } from './stories/Breadcrumbs.story';
 import { ButtonStories } from './stories/Button.story';
+import { ButtonBaseStories } from './stories/ButtonBase.story';
 import { ButtonGroupStories } from './stories/ButtonGroup.story';
+import { CalendarDoubleStories, CalendarStories } from './stories/Calendar.story';
 import { CardStories } from './stories/Card.story';
+import { CarouselStories } from './stories/Carousel.story';
 import { CellStories } from './stories/Cell.story';
 import { CheckboxStories } from './stories/Checkbox.story';
 import { ChipStories } from './stories/Chip.story';
 import { ChipGroupStories } from './stories/ChipGroup.story';
+import { CodeAreaStories } from './stories/CodeArea.story';
+import { CodeFieldStories } from './stories/CodeField.story';
+import { CodeInputStories } from './stories/CodeInput.story';
 import { ComboboxStories } from './stories/Combobox.story';
 import { CounterStories } from './stories/Counter.story';
+import { DatePickerStories } from './stories/DatePicker.story';
+import { DateTimePickerStories } from './stories/DateTimePicker.story';
 import { DividerStories } from './stories/Divider.story';
 import { DrawerStories } from './stories/Drawer.story';
 import { DropdownStories } from './stories/Dropdown.story';
 import { DropzoneStories } from './stories/Dropzone.story';
 import { EmbedIconButtonDefaultStories } from './stories/EmbedIconButton.story';
 import { EmptyStateStories } from './stories/EmptyState.story';
+import { FileStories } from './stories/File.story';
+import { FlowStories } from './stories/Flow.story';
+import { GridStories } from './stories/Grid.story';
+import { GroupStories } from './stories/Group.story';
 import { IconButtonStories } from './stories/IconButton.story';
 import { ImageStories } from './stories/Image.story';
 import { IndicatorStories } from './stories/Indicator.story';
+import { InformationWrapperStories } from './stories/InformationWrapper.story';
 import { LinkStories } from './stories/Link.story';
 import { LinkButtonStories } from './stories/LinkButton.story';
 import { ListStories } from './stories/List.story';
 import { LoaderStories } from './stories/Loader.story';
+import { MaskStories } from './stories/Mask.story';
 import { ModalStories } from './stories/Modal.story';
 import { NoteStories } from './stories/Note.story';
 import { NotificationStories } from './stories/Notification.story';
+import { NumberFormatStories } from './stories/NumberFormat.story';
 import { NumberInputStories } from './stories/NumberInput.story';
+import { OverlayStories } from './stories/Overlay.story';
 import { PaginationStories } from './stories/Pagination.story';
 import { PopoverStories } from './stories/Popover.story';
 import { PopupStories } from './stories/Popup.story';
+import { PortalStories } from './stories/Portal.story';
 import { PriceStories } from './stories/Price.story';
 import { ProgressStories } from './stories/Progress.story';
 import { ProgressBarCircularStories } from './stories/ProgressBarCircular.story';
 import { RadioboxStories } from './stories/Radiobox.story';
 import { RangeStories } from './stories/Range.story';
 import { RatingStories } from './stories/Rating.story';
+import { RatingInputStories } from './stories/RatingInput.story';
 import { SegmentGroupStories, SegmentItemStories } from './stories/Segment.story';
 import { SelectStories } from './stories/Select.story';
 import { SheetStories } from './stories/Sheet.story';
@@ -52,15 +72,21 @@ import { SpinnerStories } from './stories/Spinner.story';
 import { StepItemStories, StepsStories } from './stories/Steps.story';
 import { SwitchStories } from './stories/Switch.story';
 import { IconTabItemStories, TabItemStories } from './stories/TabItem.story';
+import { TableStories } from './stories/Table.story';
 import { TabsStories } from './stories/Tabs.story';
 import { TextAreaStories } from './stories/TextArea.story';
 import { TextFieldStories } from './stories/TextField.story';
 import { TextFieldGroupStories } from './stories/TextFieldGroup.story';
+import { TextFieldSliderStories } from './stories/TextFieldSlider.story';
+import { TimePickerStories } from './stories/TimePicker.story';
 import { ToastStories } from './stories/Toast.story';
 import { ToolbarStories } from './stories/Toolbar.story';
 import { TooltipStories } from './stories/Tooltip.story';
-import { BodyStories, DsplStories, HeadingStories, TextStories } from './stories/Typography.story';
+import { TourStories } from './stories/Tour.story';
+import { TreeStories } from './stories/Tree.story';
+import { ViewContainerStories } from './stories/ViewContainer.story';
 import type { WebStory } from './stories/types';
+import { BodyStories, DsplStories, HeadingStories, TextStories } from './stories/Typography.story';
 
 export interface PreviewComponentEntry {
     /** Story компонента в порядке `componentMapper` клиента; первая — по умолчанию. */
@@ -148,6 +174,33 @@ export const registry: Record<string, PreviewComponentEntry> = {
     Text: entry('Text', TextStories),
     SegmentGroup: entry('SegmentGroup', SegmentGroupStories),
     SegmentItem: entry('SegmentItem', SegmentItemStories),
+    RatingInput: entry('RatingInput', RatingInputStories),
+    Group: entry('Group', GroupStories),
+    Attach: entry('Attach', AttachStories),
+    Autocomplete: entry('Autocomplete', AutocompleteStories),
+    Calendar: entry('Calendar', CalendarStories),
+    CalendarDouble: entry('CalendarDouble', CalendarDoubleStories),
+    CodeArea: entry('CodeArea', CodeAreaStories),
+    CodeField: entry('CodeField', CodeFieldStories),
+    CodeInput: entry('CodeInput', CodeInputStories),
+    DatePicker: entry('DatePicker', DatePickerStories),
+    DateTimePicker: entry('DateTimePicker', DateTimePickerStories),
+    File: entry('File', FileStories),
+    Grid: entry('Grid', GridStories),
+    InformationWrapper: entry('InformationWrapper', InformationWrapperStories),
+    Table: entry('Table', TableStories),
+    TextFieldSlider: entry('TextFieldSlider', TextFieldSliderStories),
+    TimePicker: entry('TimePicker', TimePickerStories),
+    Tour: entry('Tour', TourStories),
+    Tree: entry('Tree', TreeStories),
+    Carousel: entry('Carousel', CarouselStories),
+    Flow: entry('Flow', FlowStories),
+    Mask: entry('Mask', MaskStories),
+    NumberFormat: entry('NumberFormat', NumberFormatStories),
+    ButtonBase: entry('ButtonBase', ButtonBaseStories),
+    Overlay: entry('Overlay', OverlayStories),
+    Portal: entry('Portal', PortalStories),
+    ViewContainer: entry('ViewContainer', ViewContainerStories),
 };
 
 /** Story компонента по id (`id` равен имени story); без id — story по умолчанию, первая. */

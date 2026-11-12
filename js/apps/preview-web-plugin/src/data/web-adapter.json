@@ -5,6 +5,97 @@
         "description": "Imported from api-meta"
     },
     {
+        "componentName": "attach",
+        "name": "Attach",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "buttonLeftContentMargin": {
+                        "buttonLeftContentMargin": "0 $1 0 -0.125rem"
+                    },
+                    "buttonRightContentMargin": {
+                        "buttonRightContentMargin": "0 -0.125rem 0 $1"
+                    },
+                    "buttonValueMargin": {
+                        "buttonValueMargin": "0 0 0 $1"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "componentName": "autocomplete",
+        "name": "Autocomplete",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "textFieldPadding": {
+                        "textFieldPadding": "$1 1.125rem $1 1.125rem"
+                    },
+                    "textFieldLeftContentMargin": {
+                        "textFieldLeftContentMargin": "-0.0625rem $1 -0.0625rem -0.125rem"
+                    },
+                    "textFieldRightContentMargin": {
+                        "textFieldRightContentMargin": "$1 -0.125rem $1 0.75rem"
+                    },
+                    "textFieldRightContentWithHintMargin": {
+                        "textFieldRightContentWithHintMargin": "-0.0625rem $1 -0.0625rem 0.75rem"
+                    },
+                    "textFieldContentRightWrapperMargin": {
+                        "textFieldContentRightWrapperMargin": "$1 $1 $1 0"
+                    },
+                    "textFieldTextBeforeMargin": {
+                        "textFieldTextBeforeMargin": "0 $1 0 0"
+                    },
+                    "textFieldTextAfterMargin": {
+                        "textFieldTextAfterMargin": "0 0 0 $1"
+                    },
+                    "textFieldHintInnerLabelPlacementOffset": {
+                        "textFieldHintInnerLabelPlacementOffset": "$1 -2.938rem auto auto"
+                    },
+                    "textFieldClearHintInnerLabelPlacementOffset": {
+                        "textFieldClearHintInnerLabelPlacementOffset": "$1 -2.188rem auto auto"
+                    },
+                    "textFieldLeftHelperOffset": {
+                        "textFieldLeftHelperOffset": "$1 0 0 0"
+                    },
+                    "textFieldLabelInnerPadding": {
+                        "textFieldLabelInnerPadding": "$1 0 0.125rem 0"
+                    },
+                    "textFieldContentLabelInnerPadding": {
+                        "textFieldContentLabelInnerPadding": "$1 0 0.5625rem 0"
+                    },
+                    "textFieldIndicatorLabelPlacementInner": {
+                        "textFieldIndicatorLabelPlacementInner": "$1 0 0 0"
+                    },
+                    "textFieldIndicatorLabelPlacementOuter": {
+                        "textFieldIndicatorLabelPlacementOuter": "$1 auto auto -0.75rem"
+                    },
+                    "textFieldIndicatorLabelPlacementInnerRight": {
+                        "textFieldIndicatorLabelPlacementInnerRight": "$1 0 auto auto"
+                    },
+                    "textFieldIndicatorLabelPlacementOuterRight": {
+                        "textFieldIndicatorLabelPlacementOuterRight": "$1 -0.625rem auto auto"
+                    },
+                    "textFieldClearIndicatorLabelPlacementInner": {
+                        "textFieldClearIndicatorLabelPlacementInner": "$1 auto auto -0.875rem"
+                    },
+                    "textFieldClearIndicatorLabelPlacementInnerRight": {
+                        "textFieldClearIndicatorLabelPlacementInnerRight": "$1 -0.875rem auto auto"
+                    },
+                    "textFieldClearIndicatorHintInnerRight": {
+                        "textFieldClearIndicatorHintInnerRight": "$1 -2.488rem auto auto"
+                    },
+                    "emptyStatePadding": {
+                        "emptyStatePadding": "$1 1rem 1rem 1rem"
+                    }
+                }
+            }
+        }
+    },
+    {
         "componentName": "avatar",
         "name": "Avatar",
         "description": "Imported from api-meta",
@@ -63,13 +154,75 @@
         }
     },
     {
+        "componentName": "button-base",
+        "name": "ButtonBase",
+        "description": "Imported from api-meta"
+    },
+    {
         "componentName": "button-group",
         "name": "ButtonGroup",
         "description": "Imported from api-meta"
     },
     {
+        "componentName": "calendar",
+        "name": "Calendar",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "calendarYearsPadding": {
+                        "calendarYearsPadding": "$1 0.25rem 0 0.25rem"
+                    },
+                    "calendarQuartersPadding": {
+                        "calendarQuartersPadding": "$1 0.25rem 0 0.25rem"
+                    },
+                    "calendarMonthsPadding": {
+                        "calendarMonthsPadding": "$1 0.25rem 0 0.25rem"
+                    },
+                    "calendarDaysPadding": {
+                        "calendarDaysPadding": "$1 0 0 0"
+                    },
+                    "calendarHeaderPadding": {
+                        "calendarHeaderPadding": "0 0 0 $1"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "componentName": "calendar-double",
+        "name": "CalendarDouble",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "calendarYearsPadding": {
+                        "calendarYearsPadding": "$1 0.25rem 0 0.25rem"
+                    },
+                    "calendarQuartersPadding": {
+                        "calendarQuartersPadding": "$1 0.25rem 0 0.25rem"
+                    },
+                    "calendarMonthsPadding": {
+                        "calendarMonthsPadding": "$1 0.25rem 0 0.25rem"
+                    },
+                    "calendarDaysPadding": {
+                        "calendarDaysPadding": "$1 0 0 0"
+                    },
+                    "calendarHeaderPadding": {
+                        "calendarHeaderPadding": "0 0 0 $1"
+                    }
+                }
+            }
+        }
+    },
+    {
         "componentName": "card",
         "name": "Card",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "carousel",
+        "name": "Carousel",
         "description": "Imported from api-meta"
     },
     {
@@ -100,6 +253,21 @@
                 }
             }
         }
+    },
+    {
+        "componentName": "code-area",
+        "name": "CodeArea",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "code-field",
+        "name": "CodeField",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "code-input",
+        "name": "CodeInput",
+        "description": "Imported from api-meta"
     },
     {
         "componentName": "combobox",
@@ -187,6 +355,169 @@
         "description": "Imported from api-meta"
     },
     {
+        "componentName": "date-picker",
+        "name": "DatePicker",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "dividerPadding": {
+                        "dividerPadding": "0 $1"
+                    },
+                    "leftContentMargin": {
+                        "leftContentMargin": "0 0 0 $1"
+                    },
+                    "labelInnerPadding": {
+                        "labelInnerPadding": "$1 0 0.125rem 0"
+                    },
+                    "contentLabelInnerPadding": {
+                        "contentLabelInnerPadding": "$1 0 0.375rem 0"
+                    },
+                    "indicatorPlacement": {
+                        "indicatorPlacement": "$1 0 0 0"
+                    },
+                    "indicatorOuterPlacement": {
+                        "indicatorOuterPlacement": "$1 auto auto -0.75rem"
+                    },
+                    "indicatorPlacementRight": {
+                        "indicatorPlacementRight": "$1 0 auto auto"
+                    },
+                    "indicatorOuterPlacementRight": {
+                        "indicatorOuterPlacementRight": "$1 -0.6875rem auto auto"
+                    },
+                    "indicatorWithoutLabelInner": {
+                        "indicatorWithoutLabelInner": "auto 0 $1 auto"
+                    },
+                    "indicatorWithoutLabelInnerLeft": {
+                        "indicatorWithoutLabelInnerLeft": "auto auto $1 0"
+                    },
+                    "hintWithoutLabelPlacementOffset": {
+                        "hintWithoutLabelPlacementOffset": "$1 -2.813rem auto auto"
+                    },
+                    "hintPlacementInnerMargin": {
+                        "hintPlacementInnerMargin": "0 $1 0 -0.438rem"
+                    },
+                    "hintInnerLabelPlacementOffset": {
+                        "hintInnerLabelPlacementOffset": "$1 -2.813rem auto auto"
+                    },
+                    "leftHelperOffset": {
+                        "leftHelperOffset": "$1 0 0 0"
+                    },
+                    "textFieldLeftContentMargin": {
+                        "textFieldLeftContentMargin": "-0.125rem $1 -0.125rem -0.125rem"
+                    },
+                    "textFieldRightContentMargin": {
+                        "textFieldRightContentMargin": "$1 -0.125rem $1 0.75rem"
+                    },
+                    "textFieldTextBeforeMargin": {
+                        "textFieldTextBeforeMargin": "0 $1 0 0"
+                    },
+                    "textFieldTextAfterMargin": {
+                        "textFieldTextAfterMargin": "0 0 0 $1"
+                    },
+                    "popoverPadding": {
+                        "popoverPadding": "$1 $1 1.125rem $1"
+                    },
+                    "calendarYearsPadding": {
+                        "calendarYearsPadding": "$1 0 0 0"
+                    },
+                    "calendarMonthsPadding": {
+                        "calendarMonthsPadding": "$1 0 0 0"
+                    },
+                    "calendarQuartersPadding": {
+                        "calendarQuartersPadding": "$1 0 0 0"
+                    },
+                    "calendarDaysPadding": {
+                        "calendarDaysPadding": "$1 0 0 0"
+                    },
+                    "calendarHeaderPadding": {
+                        "calendarHeaderPadding": "0 0 0 $1"
+                    },
+                    "shortcutPadding": {
+                        "shortcutPadding": "$1 0.625rem"
+                    },
+                    "clearHintInnerLabelPlacementOffset": {
+                        "clearHintInnerLabelPlacementOffset": "$1 -2.188rem auto auto"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "componentName": "date-time-picker",
+        "name": "DateTimePicker",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "textFieldLeftContentMargin": {
+                        "textFieldLeftContentMargin": "-0.125rem $1 -0.125rem -0.125rem"
+                    },
+                    "textFieldRightContentMargin": {
+                        "textFieldRightContentMargin": "$1 -0.125rem $1 0.75rem"
+                    },
+                    "textFieldRightContentWithHintMargin": {
+                        "textFieldRightContentWithHintMargin": "-0.125rem $1 -0.125rem 0.75rem"
+                    },
+                    "textFieldContentRightWrapperMargin": {
+                        "textFieldContentRightWrapperMargin": "$1 $1 $1 0"
+                    },
+                    "textFieldTextBeforeMargin": {
+                        "textFieldTextBeforeMargin": "0 $1 0 0"
+                    },
+                    "textFieldTextAfterMargin": {
+                        "textFieldTextAfterMargin": "0 0 0 $1"
+                    },
+                    "labelInnerPadding": {
+                        "labelInnerPadding": "$1 0 0.125rem 0"
+                    },
+                    "contentLabelInnerPadding": {
+                        "contentLabelInnerPadding": "$1 0 0.375rem 0"
+                    },
+                    "indicatorPlacement": {
+                        "indicatorPlacement": "$1 0 0 0"
+                    },
+                    "indicatorOuterPlacement": {
+                        "indicatorOuterPlacement": "$1 auto auto -0.75rem"
+                    },
+                    "indicatorPlacementRight": {
+                        "indicatorPlacementRight": "$1 0 auto auto"
+                    },
+                    "indicatorOuterPlacementRight": {
+                        "indicatorOuterPlacementRight": "$1 -0.6875rem auto auto"
+                    },
+                    "leftHelperOffset": {
+                        "leftHelperOffset": "$1 0 0 0"
+                    },
+                    "hintInnerLabelPlacementOffset": {
+                        "hintInnerLabelPlacementOffset": "$1 -2.938rem auto auto"
+                    },
+                    "popoverPadding": {
+                        "popoverPadding": "$1 $1 1.125rem $1"
+                    },
+                    "calendarYearsPadding": {
+                        "calendarYearsPadding": "$1 0 0 0"
+                    },
+                    "calendarMonthsPadding": {
+                        "calendarMonthsPadding": "$1 0 0 0"
+                    },
+                    "calendarQuartersPadding": {
+                        "calendarQuartersPadding": "$1 0 0 0"
+                    },
+                    "calendarDaysPadding": {
+                        "calendarDaysPadding": "$1 0 0 0"
+                    },
+                    "calendarHeaderPadding": {
+                        "calendarHeaderPadding": "0 0 0 $1"
+                    },
+                    "shortcutPadding": {
+                        "shortcutPadding": "$1 0.625rem"
+                    }
+                }
+            }
+        }
+    },
+    {
         "componentName": "divider",
         "name": "Divider",
         "description": "Imported from api-meta"
@@ -231,6 +562,26 @@
         "description": "Imported from api-meta"
     },
     {
+        "componentName": "file",
+        "name": "File",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "flow",
+        "name": "Flow",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "grid",
+        "name": "Grid",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "group",
+        "name": "Group",
+        "description": "Imported from api-meta"
+    },
+    {
         "componentName": "heading",
         "name": "Heading",
         "description": "Imported from api-meta"
@@ -265,6 +616,29 @@
         "description": "Imported from api-meta"
     },
     {
+        "componentName": "information-wrapper",
+        "name": "InformationWrapper",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "hintWithoutLabelPlacementOffset": {
+                        "hintWithoutLabelPlacementOffset": "0.438rem $1 auto auto"
+                    },
+                    "helpersPadding": {
+                        "helpersPadding": "$1 0 0 0"
+                    },
+                    "indicatorWithoutLabelInner": {
+                        "indicatorWithoutLabelInner": "auto 0 $1 auto"
+                    },
+                    "indicatorWithoutLabelInnerLeft": {
+                        "indicatorWithoutLabelInnerLeft": "auto auto $1 0"
+                    }
+                }
+            }
+        }
+    },
+    {
         "componentName": "link",
         "name": "Link",
         "description": "Imported from api-meta"
@@ -282,6 +656,11 @@
     {
         "componentName": "loader",
         "name": "Loader",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "mask",
+        "name": "Mask",
         "description": "Imported from api-meta"
     },
     {
@@ -321,6 +700,11 @@
         }
     },
     {
+        "componentName": "number-format",
+        "name": "NumberFormat",
+        "description": "Imported from api-meta"
+    },
+    {
         "componentName": "number-input",
         "name": "NumberInput",
         "description": "Imported from api-meta",
@@ -336,6 +720,11 @@
                 }
             }
         }
+    },
+    {
+        "componentName": "overlay",
+        "name": "Overlay",
+        "description": "Imported from api-meta"
     },
     {
         "componentName": "pagination",
@@ -371,6 +760,11 @@
     {
         "componentName": "popup",
         "name": "Popup",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "portal",
+        "name": "Portal",
         "description": "Imported from api-meta"
     },
     {
@@ -440,6 +834,11 @@
     {
         "componentName": "rating",
         "name": "Rating",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "rating-input",
+        "name": "RatingInput",
         "description": "Imported from api-meta"
     },
     {
@@ -628,6 +1027,41 @@
         }
     },
     {
+        "componentName": "table",
+        "name": "Table",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "cellPadding": {
+                        "cellPadding": "0.25rem $1"
+                    },
+                    "checkboxCellPadding": {
+                        "checkboxCellPadding": "0.25rem $1"
+                    },
+                    "editableCellInputPadding": {
+                        "editableCellInputPadding": "0 $1"
+                    },
+                    "filterCheckboxPadding": {
+                        "filterCheckboxPadding": "$1 0"
+                    },
+                    "filterDividerMargin": {
+                        "filterDividerMargin": "0.375rem $1"
+                    },
+                    "selectItemPadding": {
+                        "selectItemPadding": "0.5rem 0.75rem 0.5rem $1"
+                    },
+                    "selectItemIconMargin": {
+                        "selectItemIconMargin": "0 $1 0 0"
+                    },
+                    "selectControlPanelPadding": {
+                        "selectControlPanelPadding": "0.25rem $1"
+                    }
+                }
+            }
+        }
+    },
+    {
         "componentName": "tabs",
         "name": "Tabs",
         "description": "Imported from api-meta",
@@ -771,6 +1205,109 @@
         }
     },
     {
+        "componentName": "text-field-slider",
+        "name": "TextFieldSlider",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "textFieldLeftContentMargin": {
+                        "textFieldLeftContentMargin": "-0.125rem $1 -0.125rem -0.125rem"
+                    },
+                    "textFieldRightContentMargin": {
+                        "textFieldRightContentMargin": "$1 -0.125rem $1 0.75rem"
+                    },
+                    "textFieldTextBeforeMargin": {
+                        "textFieldTextBeforeMargin": "0 $1 0 0"
+                    },
+                    "textFieldTextAfterMargin": {
+                        "textFieldTextAfterMargin": "0 0 0 $1"
+                    },
+                    "labelInnerPadding": {
+                        "labelInnerPadding": "$1 0 0.125rem 0"
+                    },
+                    "contentLabelInnerPadding": {
+                        "contentLabelInnerPadding": "$1 0 0.375rem 0"
+                    },
+                    "indicatorPlacement": {
+                        "indicatorPlacement": "$1 0 0 0"
+                    },
+                    "indicatorOuterPlacement": {
+                        "indicatorOuterPlacement": "$1 auto auto -0.75rem"
+                    },
+                    "indicatorPlacementRight": {
+                        "indicatorPlacementRight": "$1 0 auto auto"
+                    },
+                    "indicatorOuterPlacementRight": {
+                        "indicatorOuterPlacementRight": "$1 -0.6875rem auto auto"
+                    },
+                    "hintInnerLabelPlacementOffset": {
+                        "hintInnerLabelPlacementOffset": "$1 -2.813rem auto auto"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "componentName": "time-picker",
+        "name": "TimePicker",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "leftContentMargin": {
+                        "leftContentMargin": "0 0 0 $1"
+                    },
+                    "labelInnerPadding": {
+                        "labelInnerPadding": "$1 0 0.125rem 0"
+                    },
+                    "contentLabelInnerPadding": {
+                        "contentLabelInnerPadding": "$1 0 0.375rem 0"
+                    },
+                    "indicatorPlacement": {
+                        "indicatorPlacement": "$1 0 0 0"
+                    },
+                    "indicatorOuterPlacement": {
+                        "indicatorOuterPlacement": "$1 auto auto -0.75rem"
+                    },
+                    "indicatorPlacementRight": {
+                        "indicatorPlacementRight": "$1 0 auto auto"
+                    },
+                    "indicatorOuterPlacementRight": {
+                        "indicatorOuterPlacementRight": "$1 -0.6875rem auto auto"
+                    },
+                    "textFieldPadding": {
+                        "textFieldPadding": "$1 1rem $1 1rem"
+                    },
+                    "textFieldLeftContentMargin": {
+                        "textFieldLeftContentMargin": "-0.125rem $1 -0.125rem -0.125rem"
+                    },
+                    "textFieldRightContentMargin": {
+                        "textFieldRightContentMargin": "$1 -0.125rem $1 0.75rem"
+                    },
+                    "textFieldRightContentWithHintMargin": {
+                        "textFieldRightContentWithHintMargin": "-0.125rem $1 -0.125rem 0.75rem"
+                    },
+                    "textFieldContentRightWrapperMargin": {
+                        "textFieldContentRightWrapperMargin": "$1 $1 $1 0"
+                    },
+                    "textFieldTextBeforeMargin": {
+                        "textFieldTextBeforeMargin": "0 $1 0 0"
+                    },
+                    "textFieldTextAfterMargin": {
+                        "textFieldTextAfterMargin": "0 0 0 $1"
+                    },
+                    "hintInnerLabelPlacementOffset": {
+                        "hintInnerLabelPlacementOffset": "$1 -2.938rem auto auto"
+                    },
+                    "leftHelperOffset": {
+                        "leftHelperOffset": "$1 0 0 0"
+                    }
+                }
+            }
+        }
+    },
+    {
         "componentName": "toast",
         "name": "Toast",
         "description": "Imported from api-meta",
@@ -798,6 +1335,39 @@
     {
         "componentName": "tooltip",
         "name": "Tooltip",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "tour",
+        "name": "Tour",
+        "description": "Imported from api-meta"
+    },
+    {
+        "componentName": "tree",
+        "name": "Tree",
+        "description": "Imported from api-meta",
+        "styles": {
+            "default": {
+                "templates": {
+                    "iconFolderMargin": {
+                        "iconFolderMargin": "0 $1 0 0"
+                    },
+                    "switcherMargin": {
+                        "switcherMargin": "0 $1 0 0"
+                    },
+                    "switcherMarginInverted": {
+                        "switcherMarginInverted": "0 0 0 $1"
+                    },
+                    "checkboxMargin": {
+                        "checkboxMargin": "0 $1 0 0"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "componentName": "view-container",
+        "name": "ViewContainer",
         "description": "Imported from api-meta"
     }
 ]

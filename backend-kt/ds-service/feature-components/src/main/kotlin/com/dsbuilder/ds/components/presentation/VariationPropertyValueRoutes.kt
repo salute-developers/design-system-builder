@@ -116,9 +116,7 @@ fun Route.variationPropertyValueRoutes(
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val payload = call.receive<JsonObject>()
-            if (payload.hasInvalidNull("tokenId", "value", "alpha", "adjustment")) {
-                return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            }
+            // null в полях значения означает «не задано», как и отсутствие поля.
             val request = runCatching {
                 json.decodeFromJsonElement(CreateVariationPropertyValueRequest.serializer(), payload)
             }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
@@ -149,7 +147,8 @@ fun Route.variationPropertyValueRoutes(
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val payload = call.receive<JsonObject>()
-            if (payload.hasInvalidNull("tokenId", "value", "alpha", "adjustment", "stateSetId")) {
+            // null в полях значения очищает поле; набор состояний у значения обязателен.
+            if (payload.hasInvalidNull("stateSetId")) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             val request = runCatching {
