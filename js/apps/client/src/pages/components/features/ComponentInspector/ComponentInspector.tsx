@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { Config, DesignSystem, Theme } from '../../../../controllers';
 import { usePanelWidth } from '../../../../hooks';
+import { INSPECTOR_PANEL } from '../../panelWidths';
 
 import type { InspectorTokenLists } from './InspectorPropertyRow';
 import { InspectorSections } from './InspectorSections';
@@ -55,7 +56,6 @@ const readTab = (): InspectorTab => {
 };
 
 /** Ширина инспектора: хранится рядом с шириной панели компонентов, полем `right`. */
-const INSPECTOR_LIMITS = { min: 280, max: 560, initial: 440 };
 
 /** Правая колонка редактора: вкладки и вкладка «Стилизация» — сочетание вариаций и его свойства. */
 export const ComponentInspector = (props: ComponentInspectorProps) => {
@@ -114,11 +114,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
             )
             .catch(() => setCombinationError('Не удалось сохранить значение пересечения'));
     };
-    const panel = usePanelWidth({
-        storageKey: 'ds_components_panel',
-        side: 'right',
-        limits: INSPECTOR_LIMITS,
-    });
+    const panel = usePanelWidth(INSPECTOR_PANEL);
     const api = useMemo(() => designSystem.getComponentData(config)?.sources.api ?? [], [config, designSystem]);
     const tokens = useMemo<InspectorTokenLists>(
         () => ({

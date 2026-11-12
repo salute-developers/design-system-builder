@@ -7,6 +7,7 @@ import { useDismiss } from '../../../../hooks';
 import { TyGlyph } from '../../../../components/TyGlyph';
 
 import { StructureConfirmDialog } from './StructureConfirmDialog';
+import { structureErrorText } from './structureErrorText';
 import type { StructureAccess, StructureOperation } from './types';
 import {
     branchPathLabel,
@@ -78,14 +79,7 @@ const ERRORS: Record<string, string> = {
     axis_locked: 'Вариацию цветовой схемы удалить нельзя',
 };
 
-const errorText = (error: unknown) => {
-    const data = (error as { response?: { data?: { code?: string; error?: string; message?: string } } }).response
-        ?.data;
-    const code = data?.code ?? data?.error;
-    return (
-        (code && ERRORS[code]) || data?.message || (error instanceof Error ? error.message : 'Операция не выполнена')
-    );
-};
+const errorText = (error: unknown) => structureErrorText(error, ERRORS);
 
 /** Порядок показа: вариация цветовой схемы первой, остальные — в порядке конфигурации. */
 const orderedAxes = (axes: EditorAxisDto[]) =>
@@ -187,6 +181,8 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
     const [menuOpen, setMenuOpen] = useState(false);
     const [drag, setDrag] = useState<{ axisId: string; overId?: string; after?: boolean }>();
+    // Ревизия модели панели: растёт после каждой операции, чтобы панель показала её итог, даже если `config` прежний.
+    const [modelRevision, setModelRevision] = useState(0);
     // Дерево вариаций: раскрытые ветки и фильтр «Только настроенные» живут, пока открыта страница.
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [configuredOnly, setConfiguredOnly] = useState(false);
@@ -194,7 +190,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
     const menuTrigger = useRef<HTMLButtonElement>(null);
     useDismiss(menu, menuOpen, () => setMenuOpen(false), { returnFocus: menuTrigger });
 
-    // Модель открытой конфигурации: после каждой операции компонент перечитывается, и `config` — новый экземпляр.
+    // Модель открытой конфигурации: перечитывается при новом `config` и после каждой операции панели.
     useEffect(() => {
         if (!appearanceId) return;
         const controller = new AbortController();
@@ -205,7 +201,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                 if (!controller.signal.aborted) setError(errorText(reason));
             });
         return () => controller.abort();
-    }, [appearanceId, config, structure.context]);
+    }, [appearanceId, config, structure.context, modelRevision]);
     // Правка имени и подтверждение удаления относятся к прошлой конфигурации.
     useEffect(() => {
         setEdit(undefined);
@@ -224,6 +220,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
             setPendingDelete(undefined);
         } finally {
             setBusy(false);
+            setModelRevision((revision) => revision + 1);
         }
     };
 
@@ -428,17 +425,6 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                 key={axis.id}
                 className={`component-axis-group ${axis.isColorScheme ? 'is-base-view' : ''} ${isCollapsed ? 'is-collapsed' : ''} ${drag?.axisId === axis.id ? 'is-dragging' : ''} ${dropClass}`}
                 aria-label={`Вариация ${axis.name}`}
-                onDragOver={(event) => {
-                    if (!drag || axis.isColorScheme) return;
-                    event.preventDefault();
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    setDrag({ ...drag, overId: axis.id, after: event.clientY > rect.top + rect.height / 2 });
-                }}
-                onDrop={(event) => {
-                    event.preventDefault();
-                    if (drag?.overId) reorder(drag.axisId, drag.overId, Boolean(drag.after));
-                    setDrag(undefined);
-                }}
             >
                 <div className="component-axis-head">
                     {editing(key) ? (
@@ -467,6 +453,8 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                                         title="Перетащите, чтобы изменить порядок"
                                         onDragStart={(event) => {
                                             event.dataTransfer.effectAllowed = 'move';
+                                            // Без данных Firefox не начинает перетаскивание.
+                                            event.dataTransfer.setData('text/plain', axis.id);
                                             setDrag({ axisId: axis.id });
                                         }}
                                         onDragEnd={() => setDrag(undefined)}
@@ -738,7 +726,24 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                 </SectionHead>
                 <div className="component-configuration-tree-list">{configurationRows}</div>
             </section>
-            <section className="component-variation-axes" aria-label="Вариации">
+            {/* Бросок принимает весь список вариаций, в том числе промежутки между ними; место вставки задаёт слот под курсором. */}
+            <section
+                className="component-variation-axes"
+                aria-label="Вариации"
+                onDragOver={(event) => {
+                    if (drag) event.preventDefault();
+                }}
+                onDragLeave={(event) => {
+                    if (drag && !event.currentTarget.contains(event.relatedTarget as Node | null))
+                        setDrag({ axisId: drag.axisId });
+                }}
+                onDrop={(event) => {
+                    if (!drag) return;
+                    event.preventDefault();
+                    if (drag.overId) reorder(drag.axisId, drag.overId, Boolean(drag.after));
+                    setDrag(undefined);
+                }}
+            >
                 <SectionHead title="Вариации">
                     <IconButton
                         glyph="add"
@@ -753,7 +758,17 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                     </p>
                 )}
                 {visibleAxes.map((axis, index) => (
-                    <div key={axis.id} className="component-axis-slot">
+                    <div
+                        key={axis.id}
+                        className="component-axis-slot"
+                        onDragOver={(event) => {
+                            if (!drag || axis.isColorScheme) return;
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            const after = event.clientY > rect.top + rect.height / 2;
+                            if (drag.overId !== axis.id || drag.after !== after)
+                                setDrag({ ...drag, overId: axis.id, after });
+                        }}
+                    >
                         {index === firstCustom && (
                             <div className="component-variation-subsection-head">Настраиваемые вариации</div>
                         )}

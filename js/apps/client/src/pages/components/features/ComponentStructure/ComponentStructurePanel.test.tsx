@@ -197,6 +197,48 @@ describe('ComponentStructurePanel', () => {
         );
     });
 
+    it('moves a variation by drag and drop, dropping into the gap of the list', async () => {
+        renderPanel();
+        await screen.findByRole('region', { name: 'Вариация pilled' });
+        const dataTransfer = { setData: vi.fn(), effectAllowed: '' };
+
+        fireEvent.dragStart(screen.getByRole('button', { name: /Порядок вариации pilled/ }), { dataTransfer });
+        const sizeSlot = screen.getByRole('region', { name: 'Вариация size' }).parentElement!;
+        fireEvent.dragOver(sizeSlot, { clientY: -1 });
+        expect(screen.getByRole('region', { name: 'Вариация size' })).toHaveClass('is-drop-before');
+        fireEvent.drop(screen.getByRole('region', { name: 'Вариации' }));
+
+        expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'axis-pilled');
+        await waitFor(() =>
+            expect(repository.reorderAxes).toHaveBeenCalledWith(context, 'base', [
+                'axis-pilled',
+                'axis-view',
+                'axis-size',
+            ]),
+        );
+    });
+
+    it('reloads its model after an operation even when the component config stays the same', async () => {
+        renderPanel();
+        await screen.findByRole('region', { name: 'Вариация pilled' });
+        const reordered = [
+            { ...axes[2], position: 0 },
+            axes[1],
+            { ...axes[0], position: 2 },
+        ];
+        repository.loadModel.mockResolvedValue({ appearance: {}, revision: 2, axes: reordered });
+
+        fireEvent.keyDown(screen.getByRole('button', { name: /Порядок вариации pilled/ }), { key: 'ArrowUp' });
+
+        await waitFor(() => expect(repository.loadModel).toHaveBeenCalledTimes(2));
+        await waitFor(() => {
+            const names = screen
+                .getAllByRole('region', { name: /^Вариация / })
+                .map((region) => region.getAttribute('aria-label'));
+            expect(names.indexOf('Вариация pilled')).toBeLessThan(names.indexOf('Вариация size'));
+        });
+    });
+
     it('keeps configuration names kebab-case while typing and does not send an invalid one', async () => {
         renderPanel();
         const row = screen.getByRole('button', { name: 'Chip copy' }).closest('.component-configuration-tree-row')!;

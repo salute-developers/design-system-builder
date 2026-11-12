@@ -32,6 +32,9 @@ import '../../styles/inspector-controls.css';
 import '../../styles/component-structure.css';
 
 import { ComponentEditor } from './features/ComponentEditor';
+import { ComponentEditorSkeleton } from './features/ComponentEditor/ComponentEditorSkeleton';
+import { ComponentsSectionSkeleton } from './ComponentsSectionSkeleton';
+import { COMPONENTS_PANEL } from './panelWidths';
 import {
     PLATFORM_FILTERS,
     buildComponentTree,
@@ -44,7 +47,6 @@ import { ComponentHideDialog } from './ui/ComponentHideDialog';
 import { ComponentRestoreDialog, type HiddenComponent } from './ui/ComponentRestoreDialog';
 import { ComponentTree } from './ui/ComponentTree';
 
-import { EditorLoading } from '../../components/EditorLoading';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
 import type { StructureOperation } from './features/ComponentStructure/types';
@@ -70,7 +72,6 @@ type Platform = ComponentRoute['platform'];
 const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 /** Ширина панели компонентов: те же границы, что у сайдбаров «Цветов» и «Типографики». */
-const PANEL_LIMITS = { min: 220, max: 320, initial: 280 };
 
 type PendingComponentSave = PendingComponentMutation &
     AutosaveOperation & {
@@ -153,8 +154,7 @@ export const Components = () => {
     const [hiding, setHiding] = useState<ReadonlyMap<string, { componentId: string; platform: Platform }[]>>(new Map());
     const removing = useMemo<ReadonlySet<string>>(() => new Set(hiding.keys()), [hiding]);
     const panel = usePanelWidth({
-        storageKey: 'ds_components_panel',
-        limits: PANEL_LIMITS,
+        ...COMPONENTS_PANEL,
         scope: (resizer) => resizer.closest<HTMLElement>('.component-editor-screen'),
     });
     // Возвращённый компонент появляется в меню после перечитывания: до этого переход на первый доступный не нужен.
@@ -695,7 +695,9 @@ export const Components = () => {
     };
 
     const section =
-        !designSystem || !theme || !components ? null : (
+        !designSystem || !theme || !components ? (
+            <ComponentsSectionSkeleton />
+        ) : (
             <div className="component-editor-screen" style={panel.style as CSSProperties}>
                 <Workspace
                     section="components"
@@ -776,7 +778,7 @@ export const Components = () => {
                             {!platform ? (
                                 <div role="status">Нет компонента для предпросмотра.</div>
                             ) : componentLoading ? (
-                                <EditorLoading text="Загружаем компонент…" />
+                                <ComponentEditorSkeleton />
                             ) : componentError ? (
                                 <div role="alert">
                                     Не удалось загрузить компонент{' '}

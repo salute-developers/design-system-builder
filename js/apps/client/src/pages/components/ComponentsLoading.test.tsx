@@ -87,7 +87,8 @@ describe('Components: загрузка выбранного компонента
         renderPage({ componentLoading: true });
 
         expect(screen.getByRole('complementary', { name: 'Компоненты дизайн-системы' })).toBeInTheDocument();
-        expect(screen.getByText('Загружаем компонент…').closest('[role="status"]')).not.toBeNull();
+        expect(screen.getByRole('status', { name: 'Загружаем компонент…' })).toBeInTheDocument();
+        expect(document.querySelector('.component-editor-skeleton .tw-skeleton')).not.toBeNull();
         expect(screen.queryByText('настройка и превью')).not.toBeInTheDocument();
     });
 

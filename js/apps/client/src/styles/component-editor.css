@@ -198,6 +198,28 @@
     color: #83b3ff;
 }
 
+/* Фокус с клавиатуры в разделе компонентов — одна линия вместо двойного кольца браузера (синее с белым). Правило
+ * без специфичности: элементы со своим фокусом (поля с рамкой, ручки, переключатели) задают его сами. */
+:where(.component-editor-screen) :where(button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 1px solid #6c9cff;
+    outline-offset: 0;
+}
+
+/* Скелетон загрузки компонента: та же раскладка, что у рабочего места. */
+.component-editor-skeleton-preview {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.component-editor-skeleton-title {
+    width: 180px;
+}
+.component-editor-skeleton .component-inspector .tw-skeleton {
+    padding: 12px;
+    gap: 8px;
+}
+
 /* Инспектор. */
 .component-inspector {
     position: relative;
@@ -412,7 +434,6 @@
 .component-variation-picker .component-story-arg-input:focus {
     border-color: #6c9cff;
     outline: none;
-    box-shadow: 0 0 0 2px #6c9cff26;
 }
 .component-variation-picker .component-inline-create,
 .component-variation-picker .component-story-arg-input {
