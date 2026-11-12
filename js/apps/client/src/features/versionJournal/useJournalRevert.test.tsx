@@ -88,7 +88,7 @@ it('не снимает блокировку при раннем отказе о
     expect(result.current.refreshFailed).toBe(true);
 });
 
-it('отменяет строку добавления стиля: сначала подключение, затем стиль', async () => {
+it('отменяет строку добавления стиля одним пакетом: сначала подключение, затем стиль', async () => {
     const record = (changeId: string, entityType: string, entityId: string, currentValue: Record<string, unknown>) =>
         ({
             changeId,
@@ -119,7 +119,10 @@ it('отменяет строку добавления стиля: сначал�
 
     await act(() => result.current.revert(row));
 
-    expect(operations.revertChange.mock.calls.map(([, change]) => change.changeId)).toEqual([
+    expect(operations.revertChanges).toHaveBeenCalledTimes(1);
+    expect(operations.revertChange).not.toHaveBeenCalled();
+    expect(operations.revertChanges.mock.calls[0][0]).toEqual(context);
+    expect(operations.revertChanges.mock.calls[0][1].map((change: DraftChangeDto) => change.changeId)).toEqual([
         'link-change',
         'style-change',
     ]);
