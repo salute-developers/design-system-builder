@@ -138,6 +138,7 @@ private fun tokenValueDraftChangeHandler(listeners: List<TokenRevertListener>): 
     val delegate = ExposedDraftChangeHandler(
         entityType = TOKEN_VALUE_DRAFT_ENTITY_TYPE,
         stableTable = TokenValuesTable,
+        stableTenantId = TokenValuesTable.tenantId,
         stableId = TokenValuesTable.id,
         stableDesignSystemId = TokenValuesTable.designSystemId,
         revisionTable = TokenValueRevisionsTable,

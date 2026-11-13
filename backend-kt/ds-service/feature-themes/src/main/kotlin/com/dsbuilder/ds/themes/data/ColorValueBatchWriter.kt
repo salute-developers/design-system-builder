@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.data.InaccessibleDesignSystemException
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.lockDraftSubjects
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
@@ -17,7 +18,8 @@ import java.util.UUID
 /** Пакетная замена значений с отдельными основаниями и путями предметных изменений. */
 internal fun replaceColorValues(tenant: UUID, values: Map<UUID, List<ColorTokenValue>>) {
     if (values.isEmpty()) return
-    val owner = requireNotNull(currentTenantRows(tenantId = tenant).singleOrNull())[TenantsTable.designSystemId]
+    val owner = currentTenantRows(tenantId = tenant).singleOrNull()?.get(TenantsTable.designSystemId)
+        ?: throw InaccessibleDesignSystemException()
     val stable = ThemeTokenValuesTable.selectAll().where {
         (ThemeTokenValuesTable.tenantId eq tenant) and (ThemeTokenValuesTable.tokenId inList values.keys)
     }.associate { row ->
@@ -46,7 +48,9 @@ internal fun replaceColorValues(tenant: UUID, values: Map<UUID, List<ColorTokenV
             id to item
         }
     }
-    check(lockDraftSubjects(owner, "token-value", addressed.map { it.first }))
+    val draft = themeDraft(owner)?.takeIf {
+        lockDraftSubjects(owner, "token-value", addressed.map { it.first })
+    } ?: throw InaccessibleDesignSystemException()
     val before = currentThemeTokenValueRows(owner, setOf(tenant), values.keys)
         .associateBy { it[ThemeTokenValuesTable.id] }
     val changes = addressed.mapNotNull { (id, item) ->
@@ -54,7 +58,6 @@ internal fun replaceColorValues(tenant: UUID, values: Map<UUID, List<ColorTokenV
         if (paths.isEmpty()) null else ColorValueChange(id, item, paths)
     }.sortedBy { it.id }
     if (changes.isEmpty()) return
-    val draft = requireNotNull(themeDraft(owner))
     writeColorChanges(owner, draft, changes)
 }
 

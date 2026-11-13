@@ -102,6 +102,24 @@ describe('tokenReset', () => {
         ]);
     });
 
+    it('blocks another token reset until the failed refresh is explicitly retried', async () => {
+        repository.listTokenTargets.mockResolvedValue(scoped([change('1')]));
+        const refresh = vi.fn().mockRejectedValueOnce(new Error('read failed')).mockResolvedValue(undefined);
+        const { result } = renderHook(() => useTokenReset(context, refresh));
+        await act(() => result.current.reset(new Set(['t1'])));
+        await act(() => result.current.reset(new Set(['t2'])));
+        expect(result.current.refreshFailed).toBe(true);
+        expect(result.current.error).toContain('Сначала повторите загрузку');
+        expect(refresh).toHaveBeenCalledTimes(1);
+        expect(repository.revertAddressed).toHaveBeenCalledTimes(1);
+        await act(() => result.current.retryRefresh());
+        expect(result.current.refreshFailed).toBe(false);
+        repository.listTokenTargets.mockResolvedValue(scoped([change('2')]));
+        await act(() => result.current.reset(new Set(['t2'])));
+        expect(repository.listTokenTargets).toHaveBeenLastCalledWith(context, new Set(['t2']), undefined);
+        expect(repository.revertAddressed).toHaveBeenLastCalledWith(context, 'draft', [change('2')]);
+    });
+
     it('prevents duplicate clicks before rerender and forwards known draft', async () => {
         repository.listTokenTargets.mockResolvedValue(scoped([change('1')]));
         const { result } = renderHook(() => useTokenReset(context, vi.fn(), 'draft'));

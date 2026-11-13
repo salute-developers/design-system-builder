@@ -37,6 +37,7 @@ class ExposedDraftChangeHandler(
     private val revisionDeleted: Column<Boolean>,
     private val stableValueColumns: List<Column<*>> = emptyList(),
     private val revisionValueColumns: List<Column<*>> = emptyList(),
+    private val stableTenantId: Column<UUID>? = null,
 ) : DraftChangeHandler {
     override val supportsAddressedRevert: Boolean = true
     override val candidateIndex = ExposedDraftCandidateIndex(entityType, revisionTable, revisionSequenceNumber)
@@ -76,7 +77,7 @@ class ExposedDraftChangeHandler(
         tenantId: UUID,
         consume: (List<DraftSubjectChange>) -> Unit,
     ) {
-        if (entityType != "token-value") return visit(designSystemId, sequenceNumber, previousSequenceNumber, consume)
+        if (stableTenantId == null) return visit(designSystemId, sequenceNumber, previousSequenceNumber, consume)
         var afterId: UUID? = null
         while (true) {
             val batch = differences(
@@ -154,7 +155,7 @@ class ExposedDraftChangeHandler(
         val entityClause = entityPlaceholders?.let { "AND entity.${stableId.quotedName()} IN ($it)" }.orEmpty()
         val candidateJoin = if (entityIds == null) changedEntitiesJoin() else ""
         val afterClause = if (afterId == null) "" else "AND entity.${stableId.quotedName()} > ?"
-        val tenantClause = if (tenantId == null) "" else "AND entity.tenant_id = ?"
+        val tenantClause = if (tenantId == null) "" else "AND entity.${requireNotNull(stableTenantId).quotedName()} = ?"
         val sql = """
             SELECT ${stableTable.qualified(stableId)} AS entity_id,
                    previous.${revisionEntityId.quotedName()} AS previous_exists,

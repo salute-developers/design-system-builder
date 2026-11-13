@@ -83,6 +83,30 @@ it('после адресного отката читает только сем�
     expect(reads.shell).not.toHaveBeenCalled();
 });
 
+it('ошибка адресного чтения оставляет цвета устаревшими при возврате в раздел', async () => {
+    const initial = snapshot();
+    initial.palette = { tenantId: 'theme', groups: [], tokens: [] } as never;
+    initial.tokenDefinitionsByName = {
+        'text.primary': { id: 'primary', name: 'text.primary', type: 'color' },
+    } as never;
+    initial.tokenValueEntityIdsByKey = { 'primary:web:light': 'value-primary' };
+    reads.tokens.mockResolvedValue(initial);
+    const data = new EditorSectionData(context, initial, new AbortController().signal);
+    await data.activate('colors');
+    reads.tokens.mockRejectedValueOnce(new Error('network failed'));
+    await expect(
+        data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }]),
+    ).rejects.toThrow('network failed');
+    await data.activate('shapes');
+    reads.tokens.mockClear();
+    const restored = snapshot();
+    restored.themeData.variations.color.web = { 'light.text.primary': '#123456' };
+    reads.tokens.mockResolvedValue(restored);
+    await data.activate('colors');
+    expect(reads.tokens).toHaveBeenCalledOnce();
+    expect(data.currentSnapshot.themeData.variations.color.web).toEqual({ 'light.text.primary': '#123456' });
+});
+
 it('pending переименование до GET блокирует адресную сверку и замену снимка', async () => {
     const initial = snapshot();
     initial.palette = { tenantId: 'theme', groups: [], tokens: [] } as never;

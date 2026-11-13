@@ -71,7 +71,10 @@ export const useTokenReset = (
     };
     const reset = async (tokenIds: ReadonlySet<string>) => {
         if (!context || context.versionId || running.current) return;
-        if (pendingRead.current) return retryRefresh();
+        if (pendingRead.current) {
+            setError('Сначала повторите загрузку данных после предыдущего сброса.');
+            return;
+        }
         running.current = true;
         setBusy(true);
         setError(null);

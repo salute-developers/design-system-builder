@@ -734,6 +734,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             }
                             resetDisabled={
                                 tokenReset.busy ||
+                                tokenReset.refreshFailed ||
                                 !editor.family(selected).some(([name]) => props.changedTokenNames?.has(name))
                             }
                             addressLabel={addressLabel}

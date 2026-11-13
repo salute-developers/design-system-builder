@@ -2,6 +2,14 @@
 
 package com.dsbuilder.ds.app
 
+import com.dsbuilder.ds.core.application.DsFailure
+import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.data.ExposedTransactionRunner
+import com.dsbuilder.ds.core.data.PostgresTransactionFailureMapper
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
+import com.dsbuilder.ds.themes.data.ExposedColorTokenRepository
+import com.dsbuilder.ds.themes.domain.ThemeTokenMode
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
@@ -26,7 +34,10 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.sql.DriverManager
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -194,6 +205,54 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                         tenant,
                     ).filter { it.text("id") == selected.single().text("id") },
                 )
+            }
+        }
+    }
+
+    @Test
+    fun `color batch with an inaccessible draft returns not found and rolls back the transaction`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create(
+                    "/api/design-systems",
+                    OWNER,
+                    """{"name":"missing-draft","projectName":"batch"}""",
+                )
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
+                val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute("CREATE TABLE rollback_probe(value integer NOT NULL)")
+                    }
+                }
+                val database = Database.connect(
+                    postgres.jdbcUrl,
+                    user = postgres.username,
+                    password = postgres.password,
+                )
+                val result = ExposedTransactionRunner(database, PostgresTransactionFailureMapper()).required {
+                    TransactionManager.current().exec("INSERT INTO rollback_probe VALUES (1)")
+                    TransactionManager.current().exec("SET LOCAL ds.project_id = 'other-project'")
+                    ExposedColorTokenRepository().replaceValues(
+                        UUID.fromString(tenant),
+                        mapOf(
+                            UUID.fromString(token) to listOf(ColorTokenValue(ThemeTokenPlatform.WEB, ThemeTokenMode.LIGHT, null, JsonArray(listOf(JsonPrimitive("#123456"))))),
+                        ),
+                    )
+                    DsResult.Success(Unit)
+                }
+                assertEquals(DsResult.Failure(DsFailure.NotFound), result)
+                assertEquals("0", text(postgres, "SELECT count(*)::text FROM rollback_probe", raw = true))
+                assertEquals("""["#FFFFFF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
             }
         }
     }

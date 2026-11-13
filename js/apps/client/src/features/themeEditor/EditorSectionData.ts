@@ -81,7 +81,13 @@ export class EditorSectionData {
         changes: DraftRefreshChange[],
         tokenPending: (type: TokenDefinitionDto['type']) => boolean = () => false,
     ): Promise<boolean> {
-        const read = this.chain.catch(() => undefined).then(() => this.readAddressedColors(changes, tokenPending));
+        const read = this.chain
+            .catch(() => undefined)
+            .then(() => this.readAddressedColors(changes, tokenPending))
+            .catch((error) => {
+                this.invalidate(new Set(['theme-tokens']), changes);
+                throw error;
+            });
         this.chain = read;
         return read;
     }
