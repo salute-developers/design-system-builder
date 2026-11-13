@@ -16,15 +16,19 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.model.S3Object
 
 /**
- * S3-совместимое хранилище SVG иконок; ключи лежат под `<prefix>/icons/<loadId>/<size>/<Name>.svg` в том же бакете,
- * что и плагин превью. Ключи плагина под `builds/` не затрагиваются.
+ * S3-совместимое хранилище SVG иконок; ключи лежат под `<iconsPrefix>/<loadId>/<size>/<Name>.svg`.
+ *
+ * Префикс задаётся явно: по умолчанию это `<префикс плагина>/icons`, но иконки можно положить и рядом с плагинами
+ * (например `static/icons`). Он обязателен: пустой префикс означал бы корень бакета. Список и очистка затрагивают
+ * только каталоги, имя которых похоже на идентификатор загрузки (12 шестнадцатеричных символов), поэтому соседние
+ * каталоги плагинов (`builds/` и другие) не удаляются, даже если префикс иконок их содержит.
  */
 class S3IconAssetStorage(
     private val client: S3Client,
     private val bucket: String,
-    prefix: String,
+    iconsPrefix: String,
 ) : IconAssetStorage {
-    private val root = prefix.trim('/').let { if (it.isEmpty()) "icons/" else "$it/icons/" }
+    private val root = iconsPrefix.trim('/').also { require(it.isNotEmpty()) { "Префикс иконок не задан" } } + "/"
 
     override val configured: Boolean = true
 
@@ -44,10 +48,12 @@ class S3IconAssetStorage(
 
     override suspend fun listLoads(): List<StoredIconLoad> = withContext(Dispatchers.IO) {
         objects(root).groupBy { it.key().removePrefix(root).substringBefore('/') }
+            .filterKeys { LOAD_DIRECTORY.matches(it) }
             .map { (id, files) -> StoredIconLoad(id, files.maxOf { it.lastModified() }) }
     }
 
     override suspend fun deleteLoad(loadId: String) {
+        require(LOAD_DIRECTORY.matches(loadId)) { "Не идентификатор загрузки: $loadId" }
         withContext(Dispatchers.IO) {
             objects("$root$loadId/").map { it.key() }.chunked(DELETE_BATCH).forEach { keys ->
                 val identifiers = keys.map { ObjectIdentifier.builder().key(it).build() }
@@ -66,6 +72,7 @@ class S3IconAssetStorage(
 
     private companion object {
         const val DELETE_BATCH = 1_000
+        private val LOAD_DIRECTORY = Regex("[0-9a-f]{12}")
         const val CONTENT_TYPE = "image/svg+xml"
         const val IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
     }

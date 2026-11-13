@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.app
 
+import com.dsbuilder.ds.components.domain.IconCatalogLoadId
 import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,6 +51,48 @@ class ComposePreviewPluginConfigurationTest {
         assertFalse(noKeys.configured(PreviewPluginPlatform.WEB))
         // Compose does not depend on the web storage
         assertFalse(ComposePreviewPluginConfiguration.fromEnvironment(shared).configured(PreviewPluginPlatform.WEB))
+    }
+
+    @Test
+    fun `icons sit under the Compose plugin prefix unless their own location is given`() {
+        val configuration = ComposePreviewPluginConfiguration.fromEnvironment(shared)
+
+        assertTrue(configuration.iconsConfigured())
+        assertEquals(
+            "https://cdn.example.test/design-system-builder/compose-preview/icons/0123456789ab",
+            configuration.iconSettings().assetsBaseUrl(IconCatalogLoadId("0123456789ab")),
+        )
+    }
+
+    @Test
+    fun `icons can be placed next to the plugins with their own prefix and public address`() {
+        val configuration = ComposePreviewPluginConfiguration.fromEnvironment(
+            shared + mapOf(
+                "DS_ICON_S3_PREFIX" to "design-system-builder/static/icons/",
+                "DS_ICON_PUBLIC_BASE_URL" to "https://cdn.example.test/design-system-builder/static/icons/",
+            ),
+        )
+
+        assertTrue(configuration.iconsConfigured())
+        assertEquals(
+            "https://cdn.example.test/design-system-builder/static/icons/0123456789ab",
+            configuration.iconSettings().assetsBaseUrl(IconCatalogLoadId("0123456789ab")),
+        )
+    }
+
+    @Test
+    fun `icons are configured only with the prefix and the public address together`() {
+        val prefixOnly = ComposePreviewPluginConfiguration.fromEnvironment(
+            shared + ("DS_ICON_S3_PREFIX" to "static/icons"),
+        )
+        val addressOnly = ComposePreviewPluginConfiguration.fromEnvironment(
+            shared + ("DS_ICON_PUBLIC_BASE_URL" to "https://cdn.example.test/static/icons"),
+        )
+
+        assertFalse(prefixOnly.iconsConfigured())
+        assertFalse(addressOnly.iconsConfigured())
+        // the plugin itself stays configured
+        assertTrue(prefixOnly.configured(PreviewPluginPlatform.COMPOSE))
     }
 
     @Test

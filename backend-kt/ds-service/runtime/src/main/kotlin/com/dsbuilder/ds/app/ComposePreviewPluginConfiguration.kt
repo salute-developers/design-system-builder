@@ -59,18 +59,39 @@ data class ComposePreviewPluginConfiguration(
     val iconKeepLoads: Int = IconCatalogSettings.DEFAULT_KEEP_LOADS,
     /** Через сколько часов файлы каталога иконок без строки в БД считаются осиротевшими. */
     val iconOrphanGraceHours: Long = IconCatalogSettings.DEFAULT_ORPHAN_GRACE.toHours(),
+    /** Префикс каталога иконок в бакете (`DS_ICON_S3_PREFIX`, например `static/icons`); без него — `<префикс плагина>/icons`. */
+    val iconPrefix: String? = null,
+    /** Публичный адрес каталога иконок (`DS_ICON_PUBLIC_BASE_URL`); задаётся вместе с [iconPrefix]. */
+    val iconPublicBaseUrl: String? = null,
 ) {
-    /** Настройки каталога иконок: бакет, префикс и публичный адрес Compose-плагина, иконки под `icons/`. */
+    /** Префикс иконок: заданный явно либо `icons` внутри префикса Compose-плагина. */
+    private val iconsPrefix: String
+        get() = iconPrefix?.trim('/')?.takeIf(String::isNotEmpty)
+            ?: prefix.trim('/').let { if (it.isEmpty()) "icons" else "$it/icons" }
+
+    /** Публичный адрес иконок: заданный явно либо `icons` под публичным адресом Compose-плагина. */
+    private val iconsPublicBaseUrl: String
+        get() = iconPublicBaseUrl?.takeIf(String::isNotBlank)
+            ?: publicBaseUrl?.let { "${it.trimEnd('/')}/icons" }.orEmpty()
+
+    /**
+     * Иконки настроены, если настроен Compose-плагин (бакет, ключи, публичный адрес) и префикс с публичным адресом
+     * заданы вместе или оба не заданы: префикс без адреса дал бы клиенту неверные ссылки на SVG.
+     */
+    fun iconsConfigured() =
+        configured(PreviewPluginPlatform.COMPOSE) && iconPrefix.isNullOrBlank() == iconPublicBaseUrl.isNullOrBlank()
+
+    /** Настройки каталога иконок: публичный адрес каталога иконок, хранение и очистка загрузок. */
     fun iconSettings() = IconCatalogSettings(
-        publicBaseUrl = publicBaseUrl.orEmpty(),
+        publicBaseUrl = iconsPublicBaseUrl,
         keepLoads = iconKeepLoads,
         orphanGrace = Duration.ofHours(iconOrphanGraceHours),
     )
 
     /** Хранилище SVG иконок в бакете Compose-плагина либо заглушка, если оно не настроено. */
     fun createIconStorage(): IconAssetStorage =
-        if (configured(PreviewPluginPlatform.COMPOSE)) {
-            S3IconAssetStorage(s3Client(), requireNotNull(bucket), prefix)
+        if (iconsConfigured()) {
+            S3IconAssetStorage(s3Client(), requireNotNull(bucket), iconsPrefix)
         } else {
             DisabledIconAssetStorage
         }
@@ -168,6 +189,8 @@ data class ComposePreviewPluginConfiguration(
                     ?: IconCatalogSettings.DEFAULT_KEEP_LOADS,
                 iconOrphanGraceHours = text("DS_ICON_ORPHAN_GRACE_HOURS")?.toLongOrNull()?.takeIf { it >= 1 }
                     ?: IconCatalogSettings.DEFAULT_ORPHAN_GRACE.toHours(),
+                iconPrefix = text("DS_ICON_S3_PREFIX"),
+                iconPublicBaseUrl = text("DS_ICON_PUBLIC_BASE_URL"),
                 web = PreviewPluginStorageLocation(
                     bucket = text("DS_WEB_PLUGIN_S3_BUCKET"),
                     prefix = text("DS_WEB_PLUGIN_S3_PREFIX").orEmpty(),

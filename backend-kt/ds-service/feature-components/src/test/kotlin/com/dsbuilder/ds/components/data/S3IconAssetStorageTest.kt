@@ -20,6 +20,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -115,7 +116,9 @@ class S3IconAssetStorageTest {
 
     @Test
     fun filesLandUnderTheIconsPrefixWithExplicitHeaders() = runBlocking {
-        storage("design-system-builder/compose-preview").put(IconCatalogLoadId("0123456789ab"), asset("AddOutline"))
+        storage(
+            "design-system-builder/compose-preview/icons",
+        ).put(IconCatalogLoadId("0123456789ab"), asset("AddOutline"))
 
         val key = "design-system-builder/compose-preview/icons/0123456789ab/24/AddOutline.svg"
         val stored = objects.getValue(key)
@@ -124,16 +127,34 @@ class S3IconAssetStorageTest {
     }
 
     @Test
-    fun anEmptyPrefixPutsIconsAtTheRootOfTheBucket() = runBlocking {
-        storage("").put(IconCatalogLoadId("0123456789ab"), asset("AddFill", IconSize.S16))
+    fun theIconsPrefixCanSitNextToThePlugins() = runBlocking {
+        storage("static/icons").put(IconCatalogLoadId("0123456789ab"), asset("AddFill", IconSize.S16))
 
-        assertEquals(listOf("icons/0123456789ab/16/AddFill.svg"), objects.keys.toList())
+        assertEquals(listOf("static/icons/0123456789ab/16/AddFill.svg"), objects.keys.toList())
+    }
+
+    @Test
+    fun aBlankPrefixIsRefusedBecauseCleanupWouldTouchTheWholeBucket() {
+        assertFailsWith<IllegalArgumentException> { storage("") }
+        assertFailsWith<IllegalArgumentException> { storage("/") }
+    }
+
+    @Test
+    fun onlyDirectoriesNamedLikeLoadsAreListedAndDeleted() = runBlocking {
+        val storage = storage("static")
+        storage.put(IconCatalogLoadId("aaaaaaaaaaaa"), asset("AddOutline"))
+        objects["static/compose-preview/builds/x/index.html"] = Stored(null, null, Instant.now())
+        objects["static/web-preview/index.html"] = Stored(null, null, Instant.now())
+
+        assertEquals(listOf("aaaaaaaaaaaa"), storage.listLoads().map { it.loadId })
+        assertFailsWith<IllegalArgumentException> { storage.deleteLoad("compose-preview") }
+        assertTrue(objects.containsKey("static/compose-preview/builds/x/index.html"))
     }
 
     @Test
     fun loadsAreListedAndCheckedWithoutTouchingPluginBuilds() = runBlocking {
         pageSize = 2
-        val storage = storage("p")
+        val storage = storage("p/icons")
         val a = IconCatalogLoadId("aaaaaaaaaaaa")
         val b = IconCatalogLoadId("bbbbbbbbbbbb")
         listOf(a to "AddOutline", a to "AddFill", b to "AddOutline").forEach { (load, name) ->
@@ -146,7 +167,7 @@ class S3IconAssetStorageTest {
 
     @Test
     fun deletingALoadRemovesOnlyItsDirectory() = runBlocking {
-        val storage = storage("p")
+        val storage = storage("p/icons")
         storage.put(IconCatalogLoadId("aaaaaaaaaaaa"), asset("AddOutline"))
         storage.put(IconCatalogLoadId("aaaaaaaaaaaa"), asset("AddOutline", IconSize.S16))
         storage.put(IconCatalogLoadId("bbbbbbbbbbbb"), asset("AddOutline"))

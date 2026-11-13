@@ -8,7 +8,7 @@ interface IconAssetStorage {
     /** Настроено ли хранилище; без настройки загрузка каталога недоступна. */
     val configured: Boolean
 
-    /** Записывает SVG; ключ `<prefix>/icons/<loadId>/<size>/<Name>.svg`. */
+    /** Записывает SVG; ключ `<iconsPrefix>/<loadId>/<size>/<Name>.svg`. */
     suspend fun put(loadId: IconCatalogLoadId, asset: IconAsset)
 
     /** Загрузки, файлы которых есть в хранилище. */
