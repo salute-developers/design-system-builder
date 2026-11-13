@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.components.data
 
+import com.dsbuilder.ds.components.domain.RootCandidate
+import com.dsbuilder.ds.components.domain.fallbackRoot
 import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -354,13 +356,19 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
             it[StableAppearancesTable.designSystemId] = designSystemId
             it[StableAppearancesTable.componentId] = componentId
         }
+        val declared = appearance.variations ?: seed.variations.map(VariationSeed::name)
+        // Корень по тому же правилу фолбэка, что импорт и ручки осей: без него выгрузка отдаёт `rootVariationId: null`,
+        // а повторная загрузка назначает корень и меняет конфигурацию.
+        val root = fallbackRoot(
+            declared.mapIndexed { position, axis -> RootCandidate(variations.getValue(axis), axis, position) },
+            colorScheme = null,
+        )
         writer.revision(AppearanceRevisionsTable, AppearanceRevisionsTable.entityId, appearanceId) { statement ->
             statement[name] = appearance.name
-            statement[rootVariationId] = null
+            statement[rootVariationId] = root
             statement[colorSchemeVariationId] = null
             statement[AppearanceRevisionsTable.isDefault] = isDefault
         }
-        val declared = appearance.variations ?: seed.variations.map(VariationSeed::name)
         declared.forEachIndexed { position, axis ->
             val rowId = writer.stable(
                 StableAppearanceVariationsTable,
@@ -403,7 +411,8 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
 
         appearance.values.forEach { (axis, byStyle) ->
             byStyle.forEach { (style, values) ->
-                values.forEach { value ->
+                val positions = valuePositions(values)
+                values.forEachIndexed { index, value ->
                     val valueId = writer.stable(
                         StableVariationPropertyValuesTable,
                         StableVariationPropertyValuesTable.id,
@@ -423,15 +432,16 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
                         statement[tokenId] = token
                         statement[VariationPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
                         statement[alpha] = null
-                        statement[adjustment] = null
-                        statement[position] = 0
+                        statement[adjustment] = seedOffset(value)
+                        statement[position] = positions[index]
                         statement[stateSetId] = context.stateSet(value.stateNames())
                     }
                     insertVariationAdjustments(valueId, designSystemId, seed.name, value, context, writer)
                 }
             }
         }
-        appearance.invariants.forEach { value ->
+        val invariantPositions = valuePositions(appearance.invariants)
+        appearance.invariants.forEachIndexed { index, value ->
             val valueId = writer.stable(
                 StableInvariantPropertyValuesTable,
                 StableInvariantPropertyValuesTable.id,
@@ -451,8 +461,8 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
                 statement[tokenId] = token
                 statement[InvariantPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
                 statement[alpha] = null
-                statement[adjustment] = null
-                statement[position] = 0
+                statement[adjustment] = seedOffset(value)
+                statement[position] = invariantPositions[index]
                 statement[stateSetId] = context.stateSet(value.stateNames())
             }
             insertInvariantAdjustments(valueId, designSystemId, seed.name, value, context, writer)
@@ -678,6 +688,31 @@ private data class ValueSeed(
         is JsonArray -> state.map { it.jsonPrimitive.content }
         else -> listOf(state.jsonPrimitive.content)
     }
+}
+
+/**
+ * Позиции значений, как их пишет импорт конфигурации: базовое значение свойства — `0`, значения состояний того же
+ * свойства — `1`, `2`, … в порядке сидов. Иначе выгрузка, загруженная обратно, переставляет состояния.
+ */
+private fun valuePositions(values: List<ValueSeed>): List<Int> {
+    val next = mutableMapOf<String, Int>()
+    return values.map { value ->
+        if (value.stateNames().isEmpty()) 0 else next.merge(value.prop, 1, Int::plus) ?: 1
+    }
+}
+
+/**
+ * Числовое смещение значения из его поправок платформенных параметров по правилу [PlatformParamOffsets.pick]. Оно
+ * пишется в колонку `adjustment`, как это делает импорт конфигурации; иначе выгрузка поднимает смещение из поправок,
+ * а повторная загрузка переносит его в колонку и меняет значение.
+ */
+private fun seedOffset(value: ValueSeed): String? {
+    val row = UUID(0, 0)
+    return PlatformParamOffsets.pick(
+        value.adjust.mapNotNull { adjust ->
+            adjust.value?.let { PlatformParamOffsets.Candidate(row, value.value ?: value.token, adjust.platform, it) }
+        },
+    )[row]
 }
 
 @Serializable
