@@ -10,6 +10,8 @@ import com.dsbuilder.ds.components.data.S3PluginBuildStorage
 import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
@@ -85,6 +87,10 @@ data class ComposePreviewPluginConfiguration(
                 StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)),
             )
             .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(pathStyle).build())
+            // AWS SDK с 2.30 по умолчанию шлёт CRC32-сумму каждой записи (aws-chunked с trailer). S3-совместимые
+            // хранилища (SberCloud OBS) такую запись отклоняют, поэтому суммы — только где их требует операция.
+            .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+            .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
             .httpClientBuilder(UrlConnectionHttpClient.builder())
         endpoint?.takeIf(String::isNotBlank)?.let { builder.endpointOverride(URI.create(it)) }
         return S3PluginBuildStorage(builder.build(), requireNotNull(location.bucket), location.prefix)
