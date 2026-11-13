@@ -8,7 +8,7 @@
 
 ## What Changes
 
-- В панели свойств редактора компонента для свойства `component_style` вместо текстового поля
+- В инспекторе редактора компонента (`ComponentInspector`) для свойства `component_style` вместо текстового поля
   показывается выбор: оформление целевого компонента, затем стиль по каждой оси этого оформления.
 - Выбранное значение собирается в строку `оформление.стиль1.стиль2` в порядке осей и сразу
   отражается в превью (разворачивание ссылки в превью уже реализовано).
@@ -27,8 +27,8 @@
 
 ### New Capabilities
 
-- `component-editor-nested-style-selection`: выбор и запись стиля вложенного компонента в панели
-  свойств редактора компонента.
+- `component-editor-nested-style-selection`: выбор и запись стиля вложенного компонента в инспекторе
+  редактора компонента.
 
 ### Modified Capabilities
 
@@ -36,9 +36,8 @@
 
 ## Impact
 
-- `js/apps/client`: `ComponentEditorProperties` (элемент выбора), `controllers/componentBuilder`
+- `js/apps/client`: `pages/components/features/ComponentInspector` (строка свойства и выбор), `controllers/componentBuilder`
   (`StyleReferenceProp`, `styleReference.ts` — обратное разворачивание в выбор и сборка строки),
-  `api/componentAutosave.ts` и `api/componentRepository.ts` (изменение значения со ссылкой и вызов
-  `PUT .../property-values`).
+  `api/componentRepository.ts` (вызов `PUT .../property-values` для значения `component_style`).
 - `backend-kt` и `frontend-kt`: без изменений; используется существующая операция `ds-service`,
   `documentation.yaml` не меняется.
