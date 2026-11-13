@@ -166,6 +166,7 @@ public class FetchComponentsUseCase internal constructor(
             val built = planBuilder.build(
                 name = exported.name,
                 version = exported.version,
+                coreReleases = exported.coreReleases,
                 configurations = rendered,
                 existing = existing.value,
             )

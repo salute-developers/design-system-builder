@@ -229,13 +229,13 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         ) {
             return null
         }
-        return PropertiesTable.insertReturning {
+        return StablePropertiesTable.insertReturning {
             it[componentId] = command.componentId
             it[name] = command.name
             it[type] = requireNotNull(PropertyTypeDb.fromWire(command.type))
             it[defaultValue] = command.defaultValue
             it[description] = command.description
-        }.single().let(::propertyModel)
+        }.single().let { propertyModel(it, StablePropertiesTable) }
     }
 
     override suspend fun updateProperty(
@@ -244,22 +244,22 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         id: UUID,
         command: ComponentModelRepository.PropertyUpdate,
     ): ComponentPropertySummary? {
-        return PropertiesTable.updateReturning(where = {
-            (PropertiesTable.id eq id) and
-                ComponentOwnership.writableProperty(PropertiesTable.id, projectId, systemAdmin)
+        return StablePropertiesTable.updateReturning(where = {
+            (StablePropertiesTable.id eq id) and
+                ComponentOwnership.writableProperty(StablePropertiesTable.id, projectId, systemAdmin)
         }) {
             command.name?.let { value -> it[name] = value }
             command.type?.let { value -> it[type] = requireNotNull(PropertyTypeDb.fromWire(value)) }
             if (command.defaultValuePresent) it[defaultValue] = command.defaultValue
             if (command.descriptionPresent) it[description] = command.description
             it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::propertyModel)
+        }.singleOrNull()?.let { propertyModel(it, StablePropertiesTable) }
     }
 
     override suspend fun deleteProperty(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean =
-        PropertiesTable.deleteWhere {
-            (PropertiesTable.id eq id) and
-                ComponentOwnership.writableProperty(PropertiesTable.id, projectId, systemAdmin)
+        StablePropertiesTable.deleteWhere {
+            (StablePropertiesTable.id eq id) and
+                ComponentOwnership.writableProperty(StablePropertiesTable.id, projectId, systemAdmin)
         } > 0
 
     override suspend fun listPlatformParams(projectId: ProjectId, systemAdmin: Boolean): List<PropertyPlatformParam> =
@@ -296,13 +296,13 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         command: ComponentModelRepository.PlatformParamCreate,
     ): PropertyPlatformParam? {
         if (!ComponentOwnership.canWriteProperty(projectId, systemAdmin, command.propertyId)) return null
-        return PropertyPlatformParamsTable.insertReturning {
+        return StablePropertyPlatformParamsTable.insertReturning {
             it[propertyId] = command.propertyId
             it[platform] = requireNotNull(ComponentPlatformDb.fromWire(command.platform))
             it[name] = command.name
             command.deprecated?.let { value -> it[deprecated] = value }
             it[deprecatedMessage] = command.deprecatedMessage
-        }.single().let(::platformParam)
+        }.single().let { platformParam(it, StablePropertyPlatformParamsTable) }
     }
 
     override suspend fun updatePlatformParam(
@@ -311,22 +311,26 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         id: UUID,
         command: ComponentModelRepository.PlatformParamUpdate,
     ): PropertyPlatformParam? {
-        return PropertyPlatformParamsTable.updateReturning(where = {
-            (PropertyPlatformParamsTable.id eq id) and
-                ComponentOwnership.writableProperty(PropertyPlatformParamsTable.propertyId, projectId, systemAdmin)
+        return StablePropertyPlatformParamsTable.updateReturning(where = {
+            (StablePropertyPlatformParamsTable.id eq id) and
+                ComponentOwnership.writableProperty(
+                    StablePropertyPlatformParamsTable.propertyId, projectId, systemAdmin,
+                )
         }) {
             command.platform?.let { value -> it[platform] = requireNotNull(ComponentPlatformDb.fromWire(value)) }
             command.name?.let { value -> it[name] = value }
             command.deprecated?.let { value -> it[deprecated] = value }
             if (command.deprecatedMessagePresent) it[deprecatedMessage] = command.deprecatedMessage
             it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::platformParam)
+        }.singleOrNull()?.let { platformParam(it, StablePropertyPlatformParamsTable) }
     }
 
     override suspend fun deletePlatformParam(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
-        return PropertyPlatformParamsTable.deleteWhere {
-            (PropertyPlatformParamsTable.id eq id) and
-                ComponentOwnership.writableProperty(PropertyPlatformParamsTable.propertyId, projectId, systemAdmin)
+        return StablePropertyPlatformParamsTable.deleteWhere {
+            (StablePropertyPlatformParamsTable.id eq id) and
+                ComponentOwnership.writableProperty(
+                    StablePropertyPlatformParamsTable.propertyId, projectId, systemAdmin,
+                )
         } > 0
     }
 
@@ -713,15 +717,17 @@ private fun variationModel(row: ResultRow) = ComponentVariationSummary(
     row[VariationsTable.updatedAt],
 )
 
-private fun propertyModel(row: ResultRow) = ComponentPropertySummary(
-    row[PropertiesTable.id],
-    row[PropertiesTable.componentId],
-    row[PropertiesTable.name],
-    row[PropertiesTable.type].wireValue,
-    row[PropertiesTable.defaultValue],
-    row[PropertiesTable.description],
-    row[PropertiesTable.createdAt],
-    row[PropertiesTable.updatedAt],
+private fun propertyModel(row: ResultRow) = propertyModel(row, PropertiesTable)
+
+private fun propertyModel(row: ResultRow, table: PropertyCatalogTable) = ComponentPropertySummary(
+    row[table.id],
+    row[table.componentId],
+    row[table.name],
+    row[table.type].wireValue,
+    row[table.defaultValue],
+    row[table.description],
+    row[table.createdAt],
+    row[table.updatedAt],
 )
 
 private fun componentStyle(row: ResultRow) = ComponentStyleSummary(
@@ -734,15 +740,17 @@ private fun componentStyle(row: ResultRow) = ComponentStyleSummary(
     row[ComponentStylesTable.updatedAt],
 )
 
-private fun platformParam(row: ResultRow) = PropertyPlatformParam(
-    row[PropertyPlatformParamsTable.id],
-    row[PropertyPlatformParamsTable.propertyId],
-    row[PropertyPlatformParamsTable.platform].wireValue,
-    row[PropertyPlatformParamsTable.name],
-    row[PropertyPlatformParamsTable.deprecated],
-    row[PropertyPlatformParamsTable.deprecatedMessage],
-    row[PropertyPlatformParamsTable.createdAt],
-    row[PropertyPlatformParamsTable.updatedAt],
+private fun platformParam(row: ResultRow) = platformParam(row, PropertyPlatformParamsTable)
+
+private fun platformParam(row: ResultRow, table: PlatformParamCatalogTable) = PropertyPlatformParam(
+    row[table.id],
+    row[table.propertyId],
+    row[table.platform].wireValue,
+    row[table.name],
+    row[table.deprecated],
+    row[table.deprecatedMessage],
+    row[table.createdAt],
+    row[table.updatedAt],
 )
 
 private fun propertyVariation(row: ResultRow) = PropertyVariation(

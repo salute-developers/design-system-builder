@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.data.coreCatalogSql
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.QueryBuilder
@@ -8,7 +9,20 @@ import org.jetbrains.exposed.v1.core.Transaction
 import org.jetbrains.exposed.v1.javatime.timestamp
 import org.jetbrains.exposed.v1.json.jsonb
 
-internal object AggregateComponentsTable : Table("components") {
+internal object AggregateComponentsTable : AggregateResolvedRevisionTable(
+    "components",
+    coreCatalogSql(
+        "components",
+        "core_release_components",
+        "component_id",
+        listOf(
+            "platform",
+            "name",
+            "description",
+        ),
+    ),
+
+) {
     val platform = text("platform")
     val id = uuid("id")
     val name = text("name")

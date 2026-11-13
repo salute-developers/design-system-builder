@@ -48,6 +48,12 @@ interface ComponentConfigRepository {
 
     /** Public model for export attempt. */
     sealed interface ExportAttempt {
+        /** Блокирующий отчёт: частичный экспорт не возвращается. */
+        data class Conflict(
+            /** Полный отчёт, объясняющий отказ операции. */
+            val report: com.dsbuilder.ds.core.application.CoreCompatibilityReport,
+        ) : ExportAttempt
+
         /** Public model for success. */
         data class Success(/** Value carried by this contract. */ val value: ComponentConfigPackage) : ExportAttempt
 

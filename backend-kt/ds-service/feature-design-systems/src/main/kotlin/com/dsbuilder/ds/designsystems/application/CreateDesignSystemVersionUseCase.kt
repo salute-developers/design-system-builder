@@ -11,6 +11,7 @@ import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
 import com.dsbuilder.ds.core.application.PublicationTransactionRunner
 import com.dsbuilder.ds.core.application.RequestHash
+import com.dsbuilder.ds.core.application.conflict
 import com.dsbuilder.ds.core.application.scopedOperation
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
 import kotlinx.serialization.json.buildJsonObject
@@ -92,6 +93,7 @@ class CreateDesignSystemVersionUseCase(
                     draftRevision = result.draftRevision,
                 ),
             )
+            is PublishDesignSystemResult.CoreConflict -> DsResult.Failure(result.report.conflict(context.projectId))
             PublishDesignSystemResult.EmptyDraft ->
                 DsResult.Failure(DsFailure.Conflict("DRAFT_EMPTY"))
             PublishDesignSystemResult.VersionAlreadyExists ->

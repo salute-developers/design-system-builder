@@ -20,6 +20,8 @@ data class ExportComponentConfigResponse(
         val name: String,
         /** Version carried by this contract. */
         val version: String,
+        /** Согласованный набор снимков Core выбранной границы. */
+        val coreReleases: List<CoreCompatibilityResponse.Release> = emptyList(),
     )
 
     /** One exported component configuration. */
@@ -36,7 +38,20 @@ data class ExportComponentConfigResponse(
     companion object {
         /** Performs the from operation. */
         fun from(value: ComponentConfigPackage) = ExportComponentConfigResponse(
-            Meta(value.meta.name, value.meta.version),
+            Meta(
+                value.meta.name,
+                value.meta.version,
+                value.meta.coreReleases.map { r ->
+                    CoreCompatibilityResponse.Release(
+                        r.releaseId.toString(),
+                        r.ref.libraryId,
+                        r.ref.platform,
+                        r.ref.version,
+                        r.metaSha256,
+                        r.provenance,
+                    )
+                },
+            ),
             value.components.map {
                 Entry(it.componentName, it.styleName, ComponentConfigResponse.exported(it.config))
             },

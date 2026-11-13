@@ -146,7 +146,9 @@ export interface ComponentConfigExportDto {
 export interface ComponentEditorBundleDto {
     component: ComponentDto;
     appearances: AppearanceDto[];
-    export: ComponentConfigExportDto;
+    export: ComponentConfigExportDto | null;
+    exportConflict?: boolean;
+    editorConfigurations?: ComponentConfigExportDto["components"];
     properties: ComponentPropertyDto[];
     platformParams: PropertyPlatformParamDto[];
     propertyVariations: PropertyVariationDto[];

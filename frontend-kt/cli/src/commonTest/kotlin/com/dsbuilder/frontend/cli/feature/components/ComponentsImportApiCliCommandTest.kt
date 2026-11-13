@@ -207,12 +207,11 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun anEmptyMetaIsRefusedAndNothingIsSent() {
+    fun anEmptyArrayPublishesAnEmptyCoreRelease() {
         val result = run(base(), files = mapOf(META_PATH to "[]"))
 
-        assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains(META_PATH), result.output)
-        assertTrue(requests.isEmpty(), "пустой манифест отправлен")
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(requests.single().second.contains("\"components\":[]"))
     }
 
     @Test
@@ -331,7 +330,10 @@ class ComponentsImportApiCliCommandTest {
         // `hovered` — состояние взаимодействия, а не компонента.
         assertTrue(body.contains("\"states\":[]"), body)
         // `AvatarGroup` без токенов уходит компонентом без свойств.
-        assertTrue(body.contains("{\"name\":\"AvatarGroup\",\"properties\":[],\"states\":[]}"), body)
+        assertTrue(
+            body.contains("{\"name\":\"AvatarGroup\",\"properties\":[],\"states\":[],\"dependencies\":[]}"),
+            body,
+        )
         listOf("Platform: react", "Source: $WEB_META_PATH", "Components: 2", "Properties: 2", "States: 0")
             .forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
     }
@@ -418,7 +420,7 @@ class ComponentsImportApiCliCommandTest {
             credentialStore = sessionStore(session),
             tokenClient = tokenClient(),
         ),
-    ).execute(args)
+    ).execute(args + listOf("--library-id", "test-library", "--core-version", "1.0.0"))
 
     private fun sessionStore(present: Boolean): CredentialStore = object : CredentialStore {
         override suspend fun read(apiUrl: String): UserSession? = UserSession(

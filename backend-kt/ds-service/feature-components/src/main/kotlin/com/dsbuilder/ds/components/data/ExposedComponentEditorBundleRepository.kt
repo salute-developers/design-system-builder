@@ -9,7 +9,9 @@ import com.dsbuilder.ds.components.application.ComponentRepository
 import com.dsbuilder.ds.components.application.ComponentWebAdapterRepository
 import com.dsbuilder.ds.components.application.ExportComponentConfig
 import com.dsbuilder.ds.components.application.StyleRepository
+import com.dsbuilder.ds.components.domain.Appearance
 import com.dsbuilder.ds.components.domain.Component
+import com.dsbuilder.ds.components.domain.ComponentConfigPackage
 import com.dsbuilder.ds.components.domain.ComponentEditorBundle
 import com.dsbuilder.ds.components.domain.ComponentEditorPlatform
 import com.dsbuilder.ds.core.data.selectedVersionBelongsTo
@@ -53,6 +55,7 @@ class ExposedComponentEditorBundleRepository(
         val names = listOf(camelToKebab(component.name))
         val query = ExportComponentConfig(designSystemId, platform.wireValue, names, null)
         val export = when (val attempt = configs.export(projectId, systemAdmin, query)) {
+            is ComponentConfigRepository.ExportAttempt.Conflict -> null
             is ComponentConfigRepository.ExportAttempt.Success -> attempt.value
             ComponentConfigRepository.ExportAttempt.NotFound -> return LoadAttempt.NotFound
             is ComponentConfigRepository.ExportAttempt.Failed -> return LoadAttempt.Failed(attempt.reason)
@@ -65,16 +68,20 @@ class ExposedComponentEditorBundleRepository(
         val asChild = graph?.asChild.orEmpty()
         val dependencies = (asParent.map { it.dependency } + asChild.map { it.dependency }).distinctBy { it.id }
         val others = (asParent.map { it.child } + asChild.map { it.parent }).distinctBy { it.id }
+        val selectedAppearances = appearances.listByComponent(
+            projectId,
+            systemAdmin,
+            designSystemId,
+            componentId,
+        ).orEmpty()
+        val diagnostic = if (export != null) emptyList() else diagnosticConfigurations(component, selectedAppearances)
         return LoadAttempt.Success(
             ComponentEditorBundle(
                 component = component,
-                appearances = appearances.listByComponent(
-                    projectId,
-                    systemAdmin,
-                    designSystemId,
-                    componentId,
-                ).orEmpty(),
+                appearances = selectedAppearances,
+                editorConfigurations = diagnostic,
                 export = export,
+                exportConflict = export == null,
                 properties = properties,
                 platformParams = model.listPlatformParamsByProperties(projectId, systemAdmin, propertyIds),
                 propertyVariations = if (web) {
@@ -94,6 +101,25 @@ class ExposedComponentEditorBundleRepository(
             ),
         )
     }
+
+    private fun diagnosticConfigurations(component: Component, appearances: List<Appearance>) =
+        appearances.map { appearance ->
+            ComponentConfigPackage.Entry(
+                camelToKebab(component.name),
+                appearance.name ?: "default",
+                ComponentConfigBuilder().build(
+                    ConfigAppearance(
+                        appearance.id,
+                        appearance.designSystemId,
+                        component.id,
+                        component.name,
+                        appearance.name,
+                    ),
+                    exported = false,
+                    underived = linkedSetOf(),
+                ),
+            )
+        }
 
     /** Компоненты по другую сторону связей, привязанные к дизайн-системе и имеющие ту же платформу. */
     private fun sameDesignSystemAndPlatform(

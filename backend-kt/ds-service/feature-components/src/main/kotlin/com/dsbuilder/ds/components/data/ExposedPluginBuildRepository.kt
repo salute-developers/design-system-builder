@@ -6,6 +6,8 @@ import com.dsbuilder.ds.components.domain.PluginBuild
 import org.jetbrains.exposed.v1.core.LongColumnType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.TextColumnType
+import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.neq
@@ -15,6 +17,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
+import java.util.UUID
 
 /** Реестр билдов плагина поверх Exposed; работает в транзакции вызывающего кода. */
 internal class ExposedPluginBuildRepository : PluginBuildRepository {
@@ -36,6 +39,23 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
         return PluginBuildsTable.selectAll()
             .where { (PluginBuildsTable.platform eq db) and (PluginBuildsTable.active eq true) }
             .singleOrNull()?.toBuild()
+    }
+
+    override suspend fun selected(platform: String, versionId: UUID?): PluginBuild? {
+        val id = if (versionId == null) {
+            TransactionManager.current().exec(
+                "SELECT b.build_id FROM core_release_preview_builds b JOIN core_current_releases c " +
+                    "ON c.release_id = b.release_id WHERE c.platform::text = ? " +
+                    "ORDER BY b.registered_at DESC, b.build_id DESC LIMIT 1",
+                listOf(TextColumnType() to platform),
+            ) { rows -> if (rows.next()) rows.getString(1) else null }
+        } else {
+            TransactionManager.current().exec(
+                "SELECT build_id FROM design_system_version_preview_builds WHERE version_id = ? AND platform::text = ?",
+                listOf(UUIDColumnType() to versionId, TextColumnType() to platform),
+            ) { rows -> if (rows.next()) rows.getString(1) else null }
+        }
+        return id?.let { find(it) }
     }
 
     override suspend fun listByRecency(platform: String): List<PluginBuild> {
@@ -62,6 +82,7 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
             it[publishedAt] = Instant.now()
             it[active] = true
         }
+        bindCorePreviewBuild(build)
         return requireNotNull(find(build.buildId))
     }
 
@@ -72,6 +93,8 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
         PluginBuildsTable.update({ PluginBuildsTable.buildId eq buildId }) { it[active] = true }
         return requireNotNull(find(buildId))
     }
+
+    override suspend fun pinnedBuildIds(): Set<String> = pinnedCorePreviewBuildIds()
 
     override suspend fun delete(buildId: String) {
         PluginBuildsTable.deleteWhere { PluginBuildsTable.buildId eq buildId }

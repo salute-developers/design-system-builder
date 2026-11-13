@@ -122,6 +122,28 @@ export const useWebPreviewPlugin = (
 ): WebPreviewPluginState => {
     const location = useWebPreviewPluginLocation(componentName ? projectId : undefined, fetchDescriptor);
     const pluginUrl = location.status === 'resolved' ? location.pluginUrl : undefined;
+    const selected = useWebPreviewPluginAt(componentName, pluginUrl);
+    if (!componentName) return { status: 'loading' };
+    if (location.status === 'pending') {
+        // Без проекта адрес у бэкенда спросить нельзя, а прямого адреса нет.
+        return projectId
+            ? { status: 'loading' }
+            : { status: 'unavailable', reason: 'адрес web-плагина превью неизвестен: проект не выбран' };
+    }
+    if (location.status === 'failed') {
+        return { status: 'unavailable', reason: `адрес web-плагина превью не получен: ${location.error}` };
+    }
+    if (!location.pluginUrl) {
+        return { status: 'unavailable', reason: 'web-плагин превью не опубликован' };
+    }
+    return selected;
+};
+
+/** Проверяет manifest именно выбранной сборки, без обращения к глобальному latest. */
+export const useWebPreviewPluginAt = (
+    componentName: string | undefined,
+    pluginUrl: string | undefined,
+): WebPreviewPluginState => {
     const [manifest, setManifest] = useState<{ url: string; components?: string[]; error?: string }>();
 
     useEffect(() => {
@@ -143,24 +165,13 @@ export const useWebPreviewPlugin = (
     }, [pluginUrl, componentName]);
 
     if (!componentName) return { status: 'loading' };
-    if (location.status === 'pending') {
-        // Без проекта адрес у бэкенда спросить нельзя, а прямого адреса нет.
-        return projectId
-            ? { status: 'loading' }
-            : { status: 'unavailable', reason: 'адрес web-плагина превью неизвестен: проект не выбран' };
-    }
-    if (location.status === 'failed') {
-        return { status: 'unavailable', reason: `адрес web-плагина превью не получен: ${location.error}` };
-    }
-    if (!location.pluginUrl) {
-        return { status: 'unavailable', reason: 'web-плагин превью не опубликован' };
-    }
-    if (manifest?.url !== location.pluginUrl) return { status: 'loading' };
+    if (!pluginUrl) return { status: 'unavailable', reason: 'Для выбранного Core пока нет preview' };
+    if (manifest?.url !== pluginUrl) return { status: 'loading' };
     if (manifest.error !== undefined) {
         return { status: 'unavailable', reason: `манифест web-плагина не загрузился: ${manifest.error}` };
     }
     if (!manifest.components?.includes(componentName)) {
         return { status: 'unavailable', reason: `компонент ${componentName} не зарегистрирован в web-плагине` };
     }
-    return { status: 'available', pluginUrl: location.pluginUrl };
+    return { status: 'available', pluginUrl: pluginUrl };
 };

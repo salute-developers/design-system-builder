@@ -573,6 +573,87 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals("reference_cycle", code(back))
     }
 
+    @Test
+    fun `Core nesting stays immutable while DS style selection changes and hidden targets block active references`() = withService {
+        val fixture = fixture()
+        val child = importChild(fixture.ds)
+        val nested = property("buttonStyle", "component_style")
+        val styleA = styleOf(model(fixture.appearance), "size", "a")
+        val childX = styleOf(model(child), "size", "x")
+        val childY = styleOf(model(child), "size", "y")
+        suspend fun importCore(version: String, target: String) {
+            val components = """[{"name":"Button","properties":[{"name":"buttonStyle","type":"component_style","platformNames":["buttonStyle"],"componentTargets":["$target"]}],"dependencies":[{"component":"Child"}]},{"name":"Child","properties":[]}]"""
+            val response = post("/api/admin/component-config/import-api-meta", coreReleasePayload(version, components))
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        }
+        suspend fun compatibility(version: String = ""): JsonObject {
+            val response = get("/api/design-systems/${fixture.ds}/compatibility$version")
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            return json.parseToJsonElement(response.bodyAsText()).jsonObject
+        }
+        importCore("A", "Child")
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, nested, listOf(styleA), reference = reference(child, childX)).status,
+        )
+        publish(fixture.ds)
+        val published =
+            query(
+                "SELECT id FROM design_system_versions WHERE design_system_id = '${fixture.ds}' AND status = 'published'",
+            )
+        val before = query("SELECT normalized_meta FROM core_releases WHERE version = 'A'")
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, nested, listOf(styleA), reference = reference(child, childY)).status,
+        )
+        assertEquals(before, query("SELECT normalized_meta FROM core_releases WHERE version = 'A'"))
+        assertEquals("Child.y", valuesOf(fixture.appearance, nested, styleA).single().string("value"))
+        val historical =
+            get("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/editor-model?versionId=$published")
+        assertTrue(historical.bodyAsText().contains("Child.x"), historical.bodyAsText())
+        assertEquals("0", compatibility().string("blockingCount"))
+        val childComponent = query("SELECT id FROM components WHERE name = 'Child'")
+        val childLink =
+            query(
+                "SELECT id FROM design_system_components WHERE design_system_id = '${fixture.ds}' AND component_id = '$childComponent'",
+            )
+        assertEquals(
+            HttpStatusCode.OK,
+            delete("/api/design-systems/${fixture.ds}/design-system-components/$childLink").status,
+        )
+        assertEquals(
+            "CORE_COMPONENT_REFERENCE_UNAVAILABLE",
+            compatibility().getValue("items").jsonArray.single().jsonObject.string("code"),
+        )
+        val restored =
+            post("/api/design-systems/${fixture.ds}/design-system-components", """{"componentId":"$childComponent"}""")
+        assertEquals(HttpStatusCode.Created, restored.status, restored.bodyAsText())
+        assertEquals("0", compatibility().string("blockingCount"))
+        importCore("B", "Button")
+        assertEquals(
+            "CORE_COMPONENT_TARGET_CONFLICT",
+            compatibility().getValue("items").jsonArray.single().jsonObject.string("code"),
+        )
+        assertEquals("0", compatibility("?versionId=$published").string("blockingCount"))
+        val rejected = setValue(fixture.appearance, nested, listOf(styleA), reference = reference(child, childX))
+        assertEquals(HttpStatusCode.UnprocessableEntity, rejected.status, rejected.bodyAsText())
+        assertEquals("Child.y", valuesOf(fixture.appearance, nested, styleA).single().string("value"))
+        assertEquals(before, query("SELECT normalized_meta FROM core_releases WHERE version = 'A'"))
+        assertEquals(
+            HttpStatusCode.OK,
+            post("/api/admin/component-config/import-api-meta", coreReleasePayload("C", "[]")).status,
+        )
+        assertEquals(
+            HttpStatusCode.OK,
+            delete("/api/design-systems/${fixture.ds}/design-system-components/$childLink").status,
+        )
+        val restoredRemoved =
+            post("/api/design-systems/${fixture.ds}/design-system-components", """{"componentId":"$childComponent"}""")
+        assertEquals(HttpStatusCode.Created, restoredRemoved.status, restoredRemoved.bodyAsText())
+        assertEquals(childLink, id(restoredRemoved.bodyAsText()))
+        assertEquals("0", compatibility("?versionId=$published").string("blockingCount"))
+    }
+
     // ── конфигурации ───────────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -1154,6 +1235,10 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         key?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
+    }.also { response ->
+        if (path.startsWith("/api/design-systems/catalog/") && response.status.value < 300) {
+            importFixtureCore(service.postgres)
+        }
     }
 
     private suspend fun put(path: String, body: String) = service.builder.client.put(path) {

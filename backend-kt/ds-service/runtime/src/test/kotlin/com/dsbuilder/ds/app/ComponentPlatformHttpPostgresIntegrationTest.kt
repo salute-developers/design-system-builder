@@ -626,6 +626,10 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         idempotencyKey?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
+    }.also { response ->
+        if (path.startsWith("/api/design-systems/catalog/") && response.status.value < 300) {
+            importFixtureCore(service.postgres)
+        }
     }
 
     private suspend fun patch(path: String, body: String) = service.builder.client.patch(path) {

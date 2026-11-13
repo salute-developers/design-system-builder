@@ -24,6 +24,7 @@ internal class ComponentConfigImportContext(
 }
 
 internal data class PendingComponentStyleReference(
+    val propertyId: UUID,
     val reference: String,
     val source: ComponentStyleSource,
 )

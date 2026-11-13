@@ -113,9 +113,8 @@ internal object AppearanceEditorModelReader {
             combinations.map { it[StyleCombinationsTable.stateSetId] }
         fun revisions(type: String, ids: List<UUID>) = EditorSupport.revisions(designSystemId, versionId, type, ids)
         val lookups = ValueLookups(
-            properties = PropertiesTable.selectAll()
-                .where { PropertiesTable.componentId eq appearance[ComponentAppearancesTable.componentId] }
-                .associate { it[PropertiesTable.id] to it[PropertiesTable.name] },
+            properties = DiagnosticPropertiesTable.selectAll()
+                .associate { it[DiagnosticPropertiesTable.id] to it[DiagnosticPropertiesTable.name] },
             stateNames = EditorSupport.stateNames(setIds.toSet()),
             references = references(designSystemId),
             revisions = mapOf(

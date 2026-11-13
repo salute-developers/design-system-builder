@@ -249,7 +249,7 @@ class OpenApiDocumentResourceTest {
 
         // Включая компактный список изменённых токенов, пакет редактора компонента, пакетный откат журнала и группы
         // типографии.
-        assertEquals(196, operationCount)
+        assertEquals(204, operationCount)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)
         assertTrue("/api/design-systems/catalog/web-preview/plugin" in paths)

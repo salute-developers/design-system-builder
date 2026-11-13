@@ -255,6 +255,7 @@ private fun component(row: ResultRow) = DesignSystemComponentSummary(
     row[AggregateComponentsTable.description],
     row[AggregateComponentsTable.createdAt],
     row[AggregateComponentsTable.updatedAt],
+    row[AggregateComponentsTable.platform],
 )
 
 private fun token(row: ResultRow, publishedIn: String?) = DesignSystemTokenSummary(

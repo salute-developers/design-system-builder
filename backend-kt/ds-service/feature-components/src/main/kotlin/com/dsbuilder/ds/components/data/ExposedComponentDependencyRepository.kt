@@ -19,10 +19,10 @@ class ExposedComponentDependencyRepository : ComponentDependencyRepository {
     override suspend fun listAccessible(projectId: ProjectId, systemAdmin: Boolean): List<ComponentDependency> {
         val readable = ComponentOwnership.readableComponentIds(projectId, systemAdmin)
         if (readable.isEmpty()) return emptyList()
-        return ComponentDependenciesTable.selectAll().where {
-            (ComponentDependenciesTable.parentId inList readable) and
-                (ComponentDependenciesTable.childId inList readable)
-        }.map(::componentDependency)
+        return SelectedComponentDependenciesTable.selectAll().where {
+            (SelectedComponentDependenciesTable.parentId inList readable) and
+                (SelectedComponentDependenciesTable.childId inList readable)
+        }.map(::selectedComponentDependency)
     }
 
     override suspend fun findAccessible(
@@ -31,10 +31,10 @@ class ExposedComponentDependencyRepository : ComponentDependencyRepository {
         id: UUID,
     ): ComponentDependency? {
         if (!ComponentOwnership.canReadDependency(projectId, systemAdmin, id)) return null
-        return ComponentDependenciesTable.selectAll()
-            .where { ComponentDependenciesTable.id eq id }
+        return SelectedComponentDependenciesTable.selectAll()
+            .where { SelectedComponentDependenciesTable.id eq id }
             .singleOrNull()
-            ?.let(::componentDependency)
+            ?.let(::selectedComponentDependency)
     }
 
     override suspend fun createAccessible(
@@ -80,4 +80,14 @@ internal fun componentDependency(row: ResultRow) = ComponentDependency(
     row[ComponentDependenciesTable.order],
     row[ComponentDependenciesTable.createdAt],
     row[ComponentDependenciesTable.updatedAt],
+)
+
+internal fun selectedComponentDependency(row: ResultRow) = ComponentDependency(
+    row[SelectedComponentDependenciesTable.id],
+    row[SelectedComponentDependenciesTable.parentId],
+    row[SelectedComponentDependenciesTable.childId],
+    requireNotNull(ComponentDependency.RelationType.fromWire(row[SelectedComponentDependenciesTable.type].wireValue)),
+    row[SelectedComponentDependenciesTable.order],
+    row[SelectedComponentDependenciesTable.createdAt],
+    row[SelectedComponentDependenciesTable.updatedAt],
 )

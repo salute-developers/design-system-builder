@@ -3,12 +3,10 @@ import { Navigate, useLocation, useNavigate, useOutletContext, useParams } from 
 
 import {
     ComposePreviewHostProvider,
-    getComposePreviewPluginUrl,
     isComposePreviewEnvironmentSupported,
     loadComposePreviewManifest,
     parseComponentRoute,
     toComponentRoute,
-    useWebPreviewPluginLocation,
 } from '../../composePreview';
 import type { ComponentRoute, ComposePreviewComponentGroup } from '../../composePreview';
 import { SegmentButton, SegmentButtonItem } from '../../components';
@@ -18,7 +16,10 @@ import { DesignSystem, Theme, Config } from '../../controllers';
 import { MenuOld, Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
 import { componentRepository as repository } from '../../api/componentRepository';
-import { fetchWebPreviewPluginDescriptor } from '../../api/webPreviewPluginRepository';
+import { useModelPreviewUrl } from '../../composePreview/useModelPreviewUrl';
+import { useCoreCompatibility } from '../../hooks/useCoreCompatibility';
+import { useCorePreview } from '../../composePreview/useCorePreview';
+import { CoreProblems } from '../../components/CoreProblems';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
 import { ComponentEditor } from './features/ComponentEditor';
@@ -75,12 +76,18 @@ export const Components = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
+    const parameters = designSystem?.getParameters();
+    const problemMode = new URLSearchParams(location.search).get('section') === 'problems';
+    const selectedVersionId = new URLSearchParams(location.search).get('versionId') ?? undefined;
+    const composeLocation = useCorePreview('compose', parameters, Boolean(composeComponents?.length));
+    const webLocation = useCorePreview('web', parameters, Boolean(components?.length));
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
     // Группы компонентов из манифеста плагина: до загрузки и без них меню строится по таблице клиента.
     const [pluginGroups, setPluginGroups] = useState<ComposePreviewComponentGroup[]>();
 
     useEffect(() => {
-        const pluginUrl = getComposePreviewPluginUrl();
+        const pluginUrl = composeLocation.pluginUrl;
+        setPluginGroups(undefined);
         if (!pluginUrl || !composeComponents?.length) return;
 
         let cancelled = false;
@@ -93,7 +100,7 @@ export const Components = () => {
         return () => {
             cancelled = true;
         };
-    }, [composeComponents]);
+    }, [composeComponents, composeLocation.pluginUrl]);
 
     // В меню попадают только платформы, для которых у дизайн-системы есть компоненты; остальные вкладки отключены.
     const menus = useMemo<Partial<Record<Platform, Data | undefined>>>(
@@ -189,28 +196,34 @@ export const Components = () => {
     }, [theme, data, selectedItemIndexes]);
 
     const config = configs?.[0];
-    const parameters = designSystem?.getParameters();
     const editorContext = useMemo<EditorContextKey | null>(() => {
         if (!parameters?.projectId || !parameters.designSystemId || !parameters.tenantId) return null;
         return {
             projectId: parameters.projectId,
             designSystemId: parameters.designSystemId,
             tenantId: parameters.tenantId,
+            versionId: selectedVersionId,
         };
-    }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId]);
-    // Compose-плагин живёт на уровне раздела: запускается при входе, переживает смену компонента и уничтожается
-    // при уходе из раздела, смене адреса плагина или контекста дизайн-системы.
+    }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId, selectedVersionId]);
+    useCoreCompatibility(editorContext, undefined, reload);
+    const modelCore = config?.getCoreReleaseId?.();
+    const modelPlatform = config?.getPlatform();
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
-    const composePluginUrl = composeEnvironmentSupported ? getComposePreviewPluginUrl() : undefined;
-    // Web-плагин превью — свой хост рядом с Compose: отдельные iframe и сессия, без проверки WebAssembly. Адрес
-    // (прямой из сборки или от бэкенда) запрашивается при входе в раздел, только если в нём есть web-компоненты;
-    // без адреса хост не создаётся, а область превью web-компонента показывает причину.
-    const webPluginLocation = useWebPreviewPluginLocation(
-        components?.length ? parameters?.projectId : undefined,
-        fetchWebPreviewPluginDescriptor,
+    const matchingComposeUrl = useModelPreviewUrl(
+        editorContext,
+        modelPlatform === 'compose' ? modelCore : undefined,
+        composeLocation,
+        reload,
     );
-    const webPluginUrl = webPluginLocation.status === 'resolved' ? webPluginLocation.pluginUrl : undefined;
-    const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId].join(':');
+    const composePluginUrl = composeEnvironmentSupported ? matchingComposeUrl : undefined;
+    const webPluginUrl = useModelPreviewUrl(
+        editorContext,
+        modelPlatform === 'web' ? modelCore : undefined,
+        webLocation,
+        reload,
+    );
+    const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId, selectedVersionId,
+        composeLocation.coreRelease?.releaseId, composeLocation.buildId, webLocation.coreRelease?.releaseId, webLocation.buildId].join(':');
     const storagePrefix = editorContext
         ? `ds_pending_component:${editorContext.projectId}:${editorContext.designSystemId}:${editorContext.tenantId}`
         : null;
@@ -376,6 +389,8 @@ export const Components = () => {
         }
     };
 
+    const problemComponentId = config?.getComponentId?.();
+
     const section =
         !data || !designSystem || !theme || !components ? null : !platform ? (
             <Navigate to={componentNavigationTarget('../colors', location.search)} replace />
@@ -415,7 +430,22 @@ export const Components = () => {
                             retry={() => autosaveQueue.current?.retryFailed()}
                             lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
                         />
-                        {componentLoading ? (
+                        <SegmentButton label="Раздел компонента"
+                            items={[{ label: 'Настройки', value: 'settings' }, { label: 'Проблемы', value: 'problems' }]}
+                            selected={{ label: problemMode ? 'Проблемы' : 'Настройки', value: problemMode ? 'problems' : 'settings' }}
+                            onSelect={(item) => {
+                                const query = new URLSearchParams(location.search);
+                                query.set('section', String(item.value));
+                                if (item.value !== 'problems') query.delete('issueId');
+                                navigate({ search: query.toString() });
+                            }} />
+                        {problemMode && editorContext ? (
+                            problemComponentId ? <CoreProblems context={editorContext}
+                                componentId={problemComponentId}
+                                readOnly={parameters?.readOnly} onRepaired={reload} />
+                                : <p role="alert">Не удалось определить компонент для диагностики</p>
+                        ) :
+                        componentLoading ? (
                             <EditorLoading text="Загружаем компонент…" />
                         ) : componentError ? (
                             <div role="alert">
@@ -450,6 +480,10 @@ export const Components = () => {
                 scope={composeHostScope}
                 preload={Boolean(components?.length)}
             >
+                {(composeLocation.developmentOverride || webLocation.developmentOverride) &&
+                    <p role="status">Preview по прямому URL · режим разработки</p>}
+                {composeLocation.error && <p role="alert">Compose: {composeLocation.error}</p>}
+                {webLocation.error && <p role="alert">Web: {webLocation.error}</p>}
                 {section}
             </ComposePreviewHostProvider>
         </ComposePreviewHostProvider>

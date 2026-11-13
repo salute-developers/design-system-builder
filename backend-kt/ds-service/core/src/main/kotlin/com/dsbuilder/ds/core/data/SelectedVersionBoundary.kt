@@ -42,3 +42,8 @@ fun selectedVersionBelongsTo(designSystemId: UUID): Boolean = TransactionManager
     """.trimIndent(),
     listOf(UUIDColumnType() to designSystemId),
 ) { rows -> rows.next() && rows.getBoolean(1) } ?: false
+
+/** Идентификатор разрешённой опубликованной границы текущего запроса. */
+fun selectedVersionId(): UUID? = TransactionManager.current().exec(
+    "SELECT NULLIF(current_setting('ds.version_id', true), '')::uuid",
+) { rows -> if (rows.next()) rows.getObject(1, UUID::class.java) else null }

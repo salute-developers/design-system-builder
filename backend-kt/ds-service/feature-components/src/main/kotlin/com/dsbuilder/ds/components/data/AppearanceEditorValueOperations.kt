@@ -2,9 +2,14 @@ package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.components.application.AppearanceEditorRepository
 import com.dsbuilder.ds.components.application.EditorRuleViolationException
+import com.dsbuilder.ds.components.application.RepairCoreProblem
 import com.dsbuilder.ds.components.application.StateRepository
+import com.dsbuilder.ds.components.domain.AppearanceEditorModel
+import com.dsbuilder.ds.components.domain.CoreValueCompatibility
 import com.dsbuilder.ds.components.domain.EditorPropertyValue
 import com.dsbuilder.ds.components.domain.EditorValueKind
+import com.dsbuilder.ds.core.application.DsFailure
+import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.data.lockDraftSubjects
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -50,6 +55,14 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         val propertyType = scope.property[PropertiesTable.type].wireValue
         val tokenType = tokenType(projectId, systemAdmin, designSystemId, command.tokenId)
         checkType(propertyType, tokenType ?: command.type ?: propertyType)
+        if (command.tokenId == null &&
+            !CoreValueCompatibility.literalFits(propertyType, command.value, coreComponentPlatform(componentId))
+        ) {
+            throw EditorRuleViolationException(
+                "incompatible_value_type",
+                "The literal does not fit the current Core property",
+            )
+        }
         val stateSetId = EditorSupport.resolveStateSet(states, scope.stateIds)
         val existing = find(appearanceId, scope, stateSetId)
         val reference = referenceOf(projectId, systemAdmin, appearance, propertyType, command, existing?.let(::source))
@@ -76,6 +89,63 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         val existing = find(appearanceId, scope, stateSetId) ?: return false
         remove(designSystemId, existing)
         return true
+    }
+
+    /** Исправляет назначение по устойчивому ID, не требуя наличия исходного свойства в новом Core. */
+    @Suppress("ReturnCount") // Independent not-found and optimistic-lock exits precede all writes.
+    suspend fun repairValue(projectId: ProjectId, admin: Boolean, command: RepairCoreProblem): DsResult<Unit> {
+        val appearance = EditorSupport.writableAppearance(projectId, admin, command.appearanceId)
+            ?: return DsResult.Failure(DsFailure.NotFound)
+        val ds = appearance[ComponentAppearancesTable.designSystemId]
+        val source = Row(command.valueKind, command.valueId)
+        lockRows(ds, listOf(source))
+        val model = AppearanceEditorModelReader.read(projectId, admin, command.appearanceId, null)
+            ?: return DsResult.Failure(DsFailure.NotFound)
+        val current = model.propertyValues.find { it.id == command.valueId && it.kind == command.valueKind }
+            ?: return DsResult.Failure(DsFailure.NotFound)
+        if ((current.revision ?: 0L) != command.expectedRevision) {
+            return DsResult.Failure(DsFailure.Conflict("CORE_PROBLEM_STALE"))
+        }
+        if (command.targetPropertyId != null) {
+            val result = transferValue(projectId, admin, command, model, current)
+            if (result is DsResult.Failure) return result
+        }
+        remove(ds, source)
+        return DsResult.Success(Unit)
+    }
+
+    @Suppress("ReturnCount") // Guard clauses guarantee no write before transfer preconditions pass.
+    private suspend fun transferValue(
+        projectId: ProjectId,
+        admin: Boolean,
+        command: RepairCoreProblem,
+        model: AppearanceEditorModel,
+        current: EditorPropertyValue,
+    ): DsResult<Unit> {
+        val target = requireNotNull(command.targetPropertyId)
+        val ds = model.appearance.designSystemId
+        val catalog = CoreCompatibilityCatalog(ds, null)
+        if (catalog.adjustments[current.id].orEmpty().isNotEmpty()) {
+            return DsResult.Failure(DsFailure.Conflict("CORE_TRANSFER_PLATFORM_ADJUSTMENTS"))
+        }
+        val occupied = model.propertyValues.any {
+            it.propertyId == target && it.styleIds.sorted() == current.styleIds.sorted() &&
+                it.stateSetId == current.stateSetId
+        }
+        if (occupied) return DsResult.Failure(DsFailure.Conflict("CORE_TRANSFER_TARGET_OCCUPIED"))
+        val names = catalog.sets[current.stateSetId].orEmpty().map { catalog.stateNames.getValue(it) }
+        val transferred = setPropertyValue(
+            projectId, admin, command.appearanceId,
+            AppearanceEditorRepository.PropertyValueSet(
+                AppearanceEditorRepository.PropertyValueScope(target, current.styleIds, names), null,
+                current.tokenId, current.value, current.alpha, current.adjustment,
+                current.reference?.let {
+                    AppearanceEditorRepository.StyleReferenceInput(it.targetAppearanceId, it.styleIds)
+                },
+            ),
+        ) ?: return DsResult.Failure(DsFailure.NotFound)
+        move(ds, Row(transferred.kind, transferred.id), current.position)
+        return DsResult.Success(Unit)
     }
 
     suspend fun reorderStates(
@@ -150,13 +220,8 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
 
     // ---- проверки значения -------------------------------------------------------------------------------------
 
-    private val numericTypes = setOf("integer", "float", "dimension", "value")
-    private val paintTypes = setOf("color", "gradient")
-
     private fun checkType(slot: String, valueType: String) {
-        val compatible = slot == valueType || (slot in numericTypes && valueType in numericTypes) ||
-            (slot in paintTypes && valueType in paintTypes)
-        if (!compatible) {
+        if (!CoreValueCompatibility.tokenFits(slot, valueType)) {
             throw EditorRuleViolationException(
                 "incompatible_value_type",
                 "A '$valueType' value does not fit a '$slot' property",
@@ -169,7 +234,8 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         val token = ComponentTokensTable.selectAll().where { ComponentTokensTable.id eq tokenId }.singleOrNull()
         val tokenSystem = token?.get(ComponentTokensTable.designSystemId)
         val foreign = tokenSystem != null && tokenSystem != designSystemId
-        if (token == null || foreign || !ComponentOwnership.canReadToken(projectId, systemAdmin, tokenId)) {
+        val unavailable = token == null || token[ComponentTokensTable.enabled] == false || foreign
+        if (unavailable || !ComponentOwnership.canReadToken(projectId, systemAdmin, tokenId)) {
             throw EditorRuleViolationException("token_not_found", "The token is not available in this design system")
         }
         return token[ComponentTokensTable.type]
@@ -197,7 +263,9 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         if (command.tokenId != null) {
             throw EditorRuleViolationException("reference_not_allowed", "A reference cannot be combined with a token")
         }
-        return StyleReferenceWriter.resolve(projectId, systemAdmin, appearance, input, replacing)
+        val resolved = StyleReferenceWriter.resolve(projectId, systemAdmin, appearance, input, replacing)
+        validateCoreReference(command.scope.propertyId, resolved.target)
+        return resolved
     }
 
     // ---- поиск, создание, обновление -------------------------------------------------------------------------

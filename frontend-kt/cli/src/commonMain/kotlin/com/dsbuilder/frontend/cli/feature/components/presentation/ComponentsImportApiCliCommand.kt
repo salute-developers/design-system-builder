@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.cli.feature.components.presentation
 
 import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaCommand
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaResult
@@ -32,6 +33,9 @@ internal class ComponentsImportApiCliCommand(
         .help(platformImportApiHelp(importApiMetaUseCase.supportedPlatforms))
         .help("Backend API URL; the user session saved by `dsbuilder auth login` for this URL is used.")
 
+    private val libraryId: String by option("--library-id").required().help("Core library identifier.")
+    private val coreVersion: String by option("--core-version").required().help("Published Core library version.")
+
     private val mapType: List<String> by option("--map-type")
         .multiple()
         .help("Replace a property type before sending, as from:to; may be repeated.")
@@ -58,6 +62,7 @@ internal class ComponentsImportApiCliCommand(
                     dryRun = !apply,
                     typeMap = typeMap,
                     apiUrlOverride = null,
+                    coreRelease = CoreReleaseRef(libraryId, platform.cliValue, coreVersion),
                 ),
                 onTarget = { target -> echo(target.render()) },
             )

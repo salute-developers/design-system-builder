@@ -15,4 +15,6 @@ data class ModelReadContext(
     val versionId: UUID? = null,
     val draftId: UUID? = null,
     val draftRevision: Long? = null,
+    /** API платформ, фактически использованные этим чтением. */
+    val coreReleases: List<ResolvedCoreRelease> = emptyList(),
 )

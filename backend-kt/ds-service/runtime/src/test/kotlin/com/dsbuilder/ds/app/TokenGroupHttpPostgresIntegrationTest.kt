@@ -49,6 +49,10 @@ class TokenGroupHttpPostgresIntegrationTest {
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
+                val compatibility = api.body(
+                    api.call("GET", "/api/design-systems/$designSystemId/compatibility?limit=100", VIEWER),
+                ).jsonObject
+                assertEquals(0, compatibility.number("blockingCount"), compatibility.toString())
                 val tenantA = api.create(
                     "/api/design-systems/$designSystemId/tenants",
                     EDITOR,

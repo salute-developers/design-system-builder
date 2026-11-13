@@ -1,7 +1,11 @@
 package com.dsbuilder.frontend.feature.components.domain
 
+import com.dsbuilder.frontend.core.domain.CoreReleaseSnapshot
 import com.dsbuilder.frontend.feature.components.domain.codec.NativeConfig
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private const val CONFIG_SUFFIX = "_config.json"
 private const val META_FILE_NAME = "meta.json"
@@ -24,6 +28,7 @@ internal class ComponentPackageWritePlanBuilder(
         version: String,
         configurations: List<RenderedComponentConfig>,
         existing: ExistingComponentPackage = ExistingComponentPackage(),
+        coreReleases: List<CoreReleaseSnapshot> = emptyList(),
     ): ComponentPackageWritePlanResult {
         // Порядок детерминирован: повторная выгрузка не должна давать дифф на пустом месте.
         val ordered = configurations.sortedWith(
@@ -64,7 +69,7 @@ internal class ComponentPackageWritePlanBuilder(
         // разработчику. Он предъявляется, чтобы удаление было его решением.
         val written = fileNames.toSet()
         val unrelated = existing.fileNames
-            .filter { it != META_FILE_NAME && it !in written }
+            .filter { it != META_FILE_NAME && it != "core-context.json" && it !in written }
             .sorted()
 
         return ComponentPackageWritePlanResult.Built(
@@ -78,9 +83,31 @@ internal class ComponentPackageWritePlanBuilder(
                     ),
                 ),
                 unrelatedFiles = unrelated,
+                coreContext = coreContext(coreReleases),
             ),
         )
     }
+
+    private fun coreContext(coreReleases: List<CoreReleaseSnapshot>) = ComponentPackageFile(
+        "core-context.json",
+        buildJsonObject {
+            put(
+                "coreReleases",
+                JsonArray(
+                    coreReleases.map { r ->
+                        buildJsonObject {
+                            put("releaseId", r.releaseId)
+                            put("libraryId", r.ref.libraryId)
+                            put("platform", r.ref.platform)
+                            put("version", r.ref.version)
+                            r.metaSha256?.let { put("metaSha256", it) }
+                            put("provenance", r.provenance)
+                        }
+                    },
+                ),
+            )
+        }.toString(),
+    )
 
     /**
      * Правило имени файла для пары, которой не было в существующем пакете.

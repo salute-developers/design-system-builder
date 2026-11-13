@@ -571,7 +571,11 @@ class VersionedJournalPublicationPostgresIntegrationTest {
                 password = postgres.password,
             )
             val journal = testDraftChangeRepository()
-            val versions = ExposedDesignSystemVersionRepository(journal)
+            val versions =
+                ExposedDesignSystemVersionRepository(
+                    journal,
+                    com.dsbuilder.ds.components.data.ExposedCompatibilityChecker(),
+                )
             val tokens = ExposedTokenRepository()
             val runner = ExposedTransactionRunner(database, PostgresTransactionFailureMapper())
 

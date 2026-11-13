@@ -12,6 +12,12 @@ interface ApiMetaRepository {
         /** The manifest was written; [value] is the report. */
         data class Success(/** Report of the run. */ val value: ApiMetaImportReport) : ImportAttempt
 
+        /** Координаты уже заняты другим содержимым или библиотекой. */
+        data class Conflict(
+            /** Машиночитаемая причина проблемы. */
+            val code: String,
+        ) : ImportAttempt
+
         /** The manifest could not be written; the whole run must be rolled back. */
         data class Failed(/** Reason carried by this contract. */ val reason: String) : ImportAttempt
     }

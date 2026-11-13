@@ -15,6 +15,8 @@ data class ComponentConfigPackage(
         val name: String,
         /** Version carried by this contract. */
         val version: String,
+        /** Происхождение данных; не ограничивает автономную генерацию. */
+        val coreReleases: List<com.dsbuilder.ds.core.domain.CoreReleaseSnapshot> = emptyList(),
     )
 
     /** One component/style configuration in the package. */

@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
@@ -20,7 +22,7 @@ class PluginManifestParserTest {
         entrypoint: String = "\"index.html\"",
     ) = """{"schemaVersion":$schemaVersion,"platform":$platform,"protocolVersion":$protocolVersion,""" +
         """"commit":$commitValue,"version":$version,"uikitComposeVersion":$uikit,"apiMetaSha256":$metaSha,""" +
-        """"entrypoint":$entrypoint}"""
+        """"coreRelease":{"libraryId":"uikit-compose","platform":$platform,"version":$uikit},"entrypoint":$entrypoint}"""
 
     private fun archive(
         manifest: String = manifest(),
@@ -36,7 +38,7 @@ class PluginManifestParserTest {
         library: String? = "\"0.386.0\"",
     ) = """{"schemaVersion":1,"platform":$platform,"protocolVersion":1,"commit":"$commit",""" +
         """"version":"${commit.take(12)}",""" + (library?.let { """"plasmaNewHopeVersion":$it,""" } ?: "") +
-        """"apiMetaSha256":"${sha256Hex(meta.toByteArray())}","entrypoint":"index.html"}"""
+        """"coreRelease":{"libraryId":"plasma-new-hope","platform":$platform,"version":${library ?: "null"}},"apiMetaSha256":"${sha256Hex(meta.toByteArray())}","entrypoint":"index.html"}"""
 
     private fun code(archive: PluginArchive, platform: PreviewPluginPlatform = PreviewPluginPlatform.COMPOSE) =
         assertIs<PluginManifestResult.Invalid>(PluginManifestParser.parse(archive, platform)).code

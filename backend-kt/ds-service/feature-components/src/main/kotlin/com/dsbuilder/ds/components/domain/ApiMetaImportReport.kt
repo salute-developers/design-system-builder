@@ -27,6 +27,8 @@ data class ApiMetaImportReport(
     val typeMismatches: List<String> = emptyList(),
     /** Informational: stored for the platform but absent from the meta; nothing is removed. */
     val absent: List<String> = emptyList(),
+    /** Идентификатор релиза; при dryRun не сохраняется. */
+    val releaseId: String? = null,
 ) {
     /** One property that was not written. */
     @Serializable

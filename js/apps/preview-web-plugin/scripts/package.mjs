@@ -51,6 +51,7 @@ export const enrichManifest = (distDir, commit) => {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
     const enriched = {
         ...manifest,
+        coreRelease: { libraryId: 'plasma-new-hope', platform: 'web', version: manifest.plasmaNewHopeVersion },
         commit,
         version: commit.slice(0, BUILD_ID_LENGTH),
         apiMetaSha256: sha256Hex(readFileSync(join(distDir, META_FILE))),
@@ -97,6 +98,11 @@ export const validateWebManifest = (manifest, files) => {
     }
     if (typeof manifest.plasmaNewHopeVersion !== 'string' || !SEMVER.test(manifest.plasmaNewHopeVersion)) {
         problems.push('plasmaNewHopeVersion должна быть семантической версией');
+    }
+    if (manifest.coreRelease?.libraryId !== 'plasma-new-hope' ||
+        manifest.coreRelease?.platform !== 'web' ||
+        manifest.coreRelease?.version !== manifest.plasmaNewHopeVersion) {
+        problems.push('coreRelease должен указывать plasma-new-hope/web с версией plasmaNewHopeVersion');
     }
     if (typeof manifest.apiMetaSha256 !== 'string' || !SHA256.test(manifest.apiMetaSha256)) {
         problems.push('apiMetaSha256 должна быть sha256 в нижнем регистре');

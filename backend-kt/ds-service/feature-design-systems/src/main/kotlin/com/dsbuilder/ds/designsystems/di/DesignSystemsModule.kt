@@ -44,7 +44,7 @@ val designSystemsModule = module {
     }
     single<DraftChangeHandler>(named("design-system")) { designSystemDraftChangeHandler() }
     single<DesignSystemRepository> { ExposedDesignSystemRepository() }
-    single<DesignSystemVersionRepository> { ExposedDesignSystemVersionRepository(get()) }
+    single<DesignSystemVersionRepository> { ExposedDesignSystemVersionRepository(get(), get()) }
     single<DesignSystemAggregateRepository> { ExposedDesignSystemAggregateRepository() }
     single<VersionBoundaryRepository> { ExposedVersionBoundaryRepository() }
     single<DraftChangeRepository> { ExposedDraftChangeRepository(getAll(), getAll(), getAll()) }

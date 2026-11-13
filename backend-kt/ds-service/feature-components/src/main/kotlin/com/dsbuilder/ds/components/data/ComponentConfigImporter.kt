@@ -495,8 +495,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             val row = PropertiesTable.selectAll().where { PropertiesTable.componentId eq component }
                 .firstOrNull { it[PropertiesTable.name].canonical() == name.canonical() }
             if (row == null) {
-                context.report.unknownProperties += name
-                null
+                error("Property '$name' is absent from the selected Core")
             } else {
                 val global = row[PropertiesTable.type].wireValue
                 val declared = propertyTypes(entry.config)[name].orEmpty()
@@ -506,7 +505,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }
                 if (declared.isNotEmpty() && declared.none { compatible(global, it) }) {
                     val configTypes = declared.sorted().joinToString("/")
-                    context.report.typeMismatches += "$name: global '$global', config '$configTypes'"
+                    error("Property '$name' has Core type '$global', config types '$configTypes'")
                 }
                 name to row[PropertiesTable.id]
             }
@@ -523,6 +522,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         val propertyId = properties[name] ?: return@forEach
         expand(property).forEach { value ->
             val states = stateSet(value.states, context) ?: return@forEach
+            validateCoreAssignment(propertyId, appearance, token(value.token, context), value.value, states)
             val id = context.sync.id(
                 InvariantPropertyValuesTable, InvariantPropertyValuesTable.id,
                 InvariantPropertyValuesTable.appearanceId to appearance,
@@ -549,7 +549,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 statement[position] = value.position
                 statement[stateSetId] = states
             }
-            reference(property, value, ComponentStyleSource.Invariant(id), context)
+            reference(propertyId, property, value, ComponentStyleSource.Invariant(id), context)
         }
     }
 
@@ -665,6 +665,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         states: UUID,
         c: ComponentConfigImportContext,
     ) {
+        validateCoreAssignment(p, a, token(value.token, c), value.value, states)
         val ds = StableAppearancesTable.selectAll().where { StableAppearancesTable.id eq a }
             .single()[StableAppearancesTable.designSystemId]
         val id = c.sync.id(
@@ -694,7 +695,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             statement[position] = value.position
             statement[stateSetId] = states
         }
-        reference(property, value, ComponentStyleSource.Variation(id), c)
+        reference(p, property, value, ComponentStyleSource.Variation(id), c)
     }
 
     private fun combination(
@@ -706,6 +707,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         states: UUID,
         c: ComponentConfigImportContext,
     ) {
+        validateCoreAssignment(p, a, token(value.token, c), value.value, states)
         val ds = StableAppearancesTable.selectAll().where { StableAppearancesTable.id eq a }
             .single()[StableAppearancesTable.designSystemId]
         val key = members.joinToString(",")
@@ -752,7 +754,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 ds,
             ) { statement -> statement[styleId] = style }
         }
-        reference(property, value, ComponentStyleSource.Combination(id), c)
+        reference(p, property, value, ComponentStyleSource.Combination(id), c)
     }
 
     private fun linkProperty(property: UUID, variation: UUID) = VariationWrites.linkProperty(property, variation)
@@ -760,8 +762,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     private fun stateSet(names: List<String>, context: ComponentConfigImportContext): UUID? {
         val ids = names.map { name ->
             context.interactionStates[name.canonical()] ?: context.componentStates[name.canonical()] ?: run {
-                context.report.unknownStates += name
-                return null
+                error("State '$name' is absent from the selected Core")
             }
         }.distinct().sorted()
         return context.stateSets[ids] ?: ComponentStateSetsTable.insertReturning {
@@ -779,13 +780,14 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     }
 
     private fun reference(
+        propertyId: UUID,
         property: ComponentConfig.Property,
         value: Expanded,
         source: ComponentStyleSource,
         context: ComponentConfigImportContext,
     ) {
         if (property.type == componentStyle && value.value != null) {
-            context.pendingReferences += PendingComponentStyleReference(value.value, source)
+            context.pendingReferences += PendingComponentStyleReference(propertyId, value.value, source)
         }
     }
 
@@ -802,6 +804,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             if (target == null || targetStyles.size != parts.size - 1) {
                 context.report.unresolvedComponentStyles += pending.reference
             } else {
+                validateCoreReference(pending.propertyId, target)
                 val id = context.sync.id(
                     ComponentStyleReferencesTable, ComponentStyleReferencesTable.id,
                     ComponentStyleReferencesTable.invariantPropertyValueId to

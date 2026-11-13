@@ -10,7 +10,7 @@ const confirmed = new Map<string, { response: AxiosResponse; expiresAt: number; 
 const metadataRevisions = new Map<string, number>();
 const metadataSeenAt = new Map<string, number>();
 export const getEditorMetadataRevision = (context: EditorContextKey) =>
-    metadataRevisions.get(`${context.projectId}:${context.versionId ?? 'draft'}`) ?? 0;
+    metadataRevisions.get(`${context.projectId}:${context.designSystemId}:${context.versionId ?? 'draft'}`) ?? 0;
 
 const normalizedUrl = (url: string) => new URL(url, API_GATEWAY_URL || window.location.origin).href;
 
@@ -42,7 +42,6 @@ export const invalidateEditorReads = (context?: Pick<EditorContextKey, 'projectI
     for (const [key, value] of confirmed) {
         const path = new URL(value.url).pathname;
         if (
-            value.mutable &&
             /\/design-systems(?:\/|$)/.test(path) &&
             (!context ||
                 path === `/api/projects/${context.projectId}/design-systems` ||
@@ -146,7 +145,8 @@ export function readEditor<T>(
                         if (ttl >= 300_000) {
                             const projectId = path.match(/^\/api\/projects\/([^/]+)\/design-systems\//)?.[1];
                             if (projectId && metadataSeenAt.has(resourceKey)) {
-                                const group = `${projectId}:${request.params?.versionId ?? 'draft'}`;
+                                const designSystemId = path.match(/\/design-systems\/([^/]+)/)?.[1];
+                                const group = `${projectId}:${designSystemId}:${request.params?.versionId ?? 'draft'}`;
                                 metadataRevisions.set(group, (metadataRevisions.get(group) ?? 0) + 1);
                             }
                             metadataSeenAt.set(resourceKey, Date.now());

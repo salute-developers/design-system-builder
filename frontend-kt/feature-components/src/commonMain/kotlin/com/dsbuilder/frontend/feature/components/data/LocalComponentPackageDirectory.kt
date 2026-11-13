@@ -88,6 +88,9 @@ internal class LocalComponentPackageFileWriter(
             plan.configFiles.forEach { file ->
                 fileSystem.writeText(fileSystem.resolve(directory, file.fileName), file.content)
             }
+            plan.coreContext?.let { file ->
+                fileSystem.writeText(fileSystem.resolve(directory, file.fileName), file.content)
+            }
             fileSystem.writeText(fileSystem.resolve(directory, plan.meta.fileName), plan.meta.content)
 
             ComponentPackageWriteResult.Written(directory)

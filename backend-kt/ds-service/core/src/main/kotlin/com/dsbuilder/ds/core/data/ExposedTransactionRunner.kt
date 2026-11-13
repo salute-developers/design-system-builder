@@ -45,6 +45,7 @@ class ExposedTransactionRunner(
             return@execute DsResult.Failure(DsFailure.InvalidRequest("historical_version_read_only"))
         }
         configure(context)
+        if (context.designSystemId != null) lockCurrentCoreReleases()
         val request = context.mutationRequest
         if (request != null) {
             if (request.key.isBlank() || request.key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
@@ -128,13 +129,19 @@ class ExposedTransactionRunner(
     override suspend fun <T> readOnly(
         context: DsRequestContext,
         block: suspend () -> DsResult<T>,
-    ): DsResult<T> = execute(readOnly = true) {
-        configure(context)
-        requireRequestDesignSystemAccessible()
-        if (context.versionId != null && !versionAccessible(context)) {
-            DsResult.Failure(DsFailure.NotFound)
-        } else {
-            block()
+    ): DsResult<T> {
+        val designSystemId = context.designSystemId
+        if (designSystemId != null) {
+            return readOnly(context, ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, designSystemId)) { block() }
+        }
+        return execute(readOnly = true) {
+            configure(context)
+            requireRequestDesignSystemAccessible()
+            if (context.versionId != null && !versionAccessible(context)) {
+                DsResult.Failure(DsFailure.NotFound)
+            } else {
+                block()
+            }
         }
     }
 

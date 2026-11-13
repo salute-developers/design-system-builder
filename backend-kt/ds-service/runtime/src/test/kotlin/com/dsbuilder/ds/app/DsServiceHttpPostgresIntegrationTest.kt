@@ -53,7 +53,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     val operations = openApi.getValue("paths").jsonObject.flatMap { (template, pathItem) ->
                         pathItem.jsonObject.keys.map { method -> template to method }
                     }
-                    assertEquals(196, operations.size)
+                    assertEquals(204, operations.size)
                     operations.forEach { (template, method) ->
                         val path = template.replace(Regex("\\{[^}]+}"), MISSING_ID)
                         val response = client.request(path) { this.method = HttpMethod.parse(method.uppercase()) }
@@ -302,6 +302,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     }
                     assertEquals(HttpStatusCode.Created, privateComponent.status)
                     val privateComponentId = id(privateComponent.bodyAsText())
+                    importFixtureCore(postgres)
                     val privateLink = client.post("/api/design-systems/$designSystemId/design-system-components") {
                         trusted("project-a", "editor")
                         jsonBody("""{"componentId":"$privateComponentId"}""")
@@ -790,59 +791,9 @@ class DsServiceHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.NotFound, mismatchedVersion.status, mismatchedVersion.bodyAsText())
     }
 
-    private fun seedComponentPrerequisites(postgres: IsolatedPostgresDatabase): Map<String, UUID> {
-        val root = requireNotNull(javaClass.getResourceAsStream("/dsbuilder/ds/seeds/component-seeds.json"))
-            .bufferedReader().use { json.parseToJsonElement(it.readText()).jsonObject }
-        val componentIds = linkedMapOf<String, UUID>()
-        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
-            root.getValue("components").jsonArray.forEach { element ->
-                val component = element.jsonObject
-                val componentName = component.getValue("name").jsonPrimitive.content
-                val componentId = connection.prepareStatement(
-                    "INSERT INTO components (name, description, platform) VALUES (?, '', 'web') RETURNING id",
-                ).use { statement ->
-                    statement.setString(1, componentName)
-                    statement.executeQuery().use { rows ->
-                        rows.next()
-                        rows.getObject(1, UUID::class.java)
-                    }
-                }
-                componentIds[componentName] = componentId
-                val propertyNames = linkedSetOf<String>()
-                component.getValue("propertyVariations").jsonArray.forEach {
-                    propertyNames += it.jsonObject.getValue("property").jsonPrimitive.content
-                }
-                collectPropertyNames(component.getValue("appearances"), propertyNames)
-                propertyNames.forEach { propertyName ->
-                    val propertyId = connection.prepareStatement(
-                        "INSERT INTO properties (component_id, name, type) " +
-                            "VALUES (?, ?, 'value'::property_type) RETURNING id",
-                    ).use { statement ->
-                        statement.setObject(1, componentId)
-                        statement.setString(2, propertyName)
-                        statement.executeQuery().use { rows ->
-                            rows.next()
-                            rows.getObject(1, UUID::class.java)
-                        }
-                    }
-                    val params = linkedSetOf<Pair<String, String>>()
-                    collectAdjustments(component.getValue("appearances"), propertyName, params)
-                    params.forEach { (platform, name) ->
-                        connection.prepareStatement(
-                            "INSERT INTO property_platform_params (property_id, platform, name) " +
-                                "VALUES (?, ?::component_platform, ?)",
-                        ).use { statement ->
-                            statement.setObject(1, propertyId)
-                            statement.setString(2, platform)
-                            statement.setString(3, name)
-                            statement.executeUpdate()
-                        }
-                    }
-                }
-            }
-        }
-        return componentIds
-    }
+    private fun seedComponentPrerequisites(postgres: IsolatedPostgresDatabase): Map<String, UUID> =
+        ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
+
     private suspend fun verifyThemeCreationWithoutComponentMetadata(
         client: HttpClient,
         postgres: IsolatedPostgresDatabase,
@@ -984,16 +935,17 @@ class DsServiceHttpPostgresIntegrationTest {
             jsonBody("""{"name":"ForeignOnly","platform":"web"}""")
         }
         val componentId = id(component.bodyAsText())
-        val link = client.post("/api/design-systems/$designSystemId/design-system-components") {
-            trusted("project-b", "editor")
-            jsonBody("""{"componentId":"$componentId"}""")
-        }
-        assertEquals(HttpStatusCode.Created, link.status, link.bodyAsText())
         val property = client.post("/api/design-systems/catalog/properties") {
             trustedSystemAdmin()
             jsonBody("""{"componentId":"$componentId","name":"foreign","type":"value"}""")
         }
         val propertyId = id(property.bodyAsText())
+        importFixtureCore(postgres)
+        val link = client.post("/api/design-systems/$designSystemId/design-system-components") {
+            trusted("project-b", "editor")
+            jsonBody("""{"componentId":"$componentId"}""")
+        }
+        assertEquals(HttpStatusCode.Created, link.status, link.bodyAsText())
         val appearance = client.post("/api/design-systems/$designSystemId/appearances") {
             trusted("project-b", "editor")
             jsonBody("""{"componentId":"$componentId"}""")
@@ -1066,6 +1018,7 @@ class DsServiceHttpPostgresIntegrationTest {
         }
         assertEquals(HttpStatusCode.Created, draftProperty.status, draftProperty.bodyAsText())
         val draftPropertyId = id(draftProperty.bodyAsText())
+        importFixtureCore(postgres)
         val draftOnlyValue = client.post("/api/design-systems/$designSystemId/invariant-property-values") {
             trusted("project-b", "editor")
             jsonBody(
@@ -1142,9 +1095,9 @@ class DsServiceHttpPostgresIntegrationTest {
             "config":{
               "invariants":{
                 "shape":{
-                  "type":"value",
+                  "type":"shape",
                   "value":{"radius":8},
-                  "states":[{"state":["pressed"],"type":"value","value":{"radius":10}}]
+                  "states":[{"state":["pressed"],"type":"shape","value":{"radius":10}}]
                 }
               }
             }

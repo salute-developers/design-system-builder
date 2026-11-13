@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.components.application.ApiMetaRepository
+import com.dsbuilder.ds.components.application.CoreMetaValidation
 import com.dsbuilder.ds.components.application.ImportApiMeta
 import com.dsbuilder.ds.components.domain.AliasDeprecation
 import com.dsbuilder.ds.components.domain.ApiMetaAlias
@@ -14,18 +15,30 @@ import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 /**
- * Additive API-meta import over the global component layer.
- *
- * A component is identified by `(name, platform)`: components of other platforms are neither read
- * nor changed. Existing rows are never changed or removed; the only thing the import updates is the
- * deprecation status of a platform name (set, message changed, cleared). The type of an existing
- * property is reported when it differs but is never rewritten, and an unknown type rejects the
- * property, not the request.
+ * Атомарный релизный импорт: стабильный каталог пополняется, выбранный состав хранится в проекции.
+ * Тип существующего ключа не переписывается. Неизвестный нормализованный тип отклоняет весь запрос.
  */
 internal class ExposedApiMetaRepository : ApiMetaRepository {
-    override suspend fun import(command: ImportApiMeta): ApiMetaRepository.ImportAttempt =
-        runCatching { ApiMetaRepository.ImportAttempt.Success(importMeta(command)) }
-            .getOrElse { ApiMetaRepository.ImportAttempt.Failed(it.message ?: it.toString()) }
+    override suspend fun import(command: ImportApiMeta): ApiMetaRepository.ImportAttempt {
+        val error = CoreMetaValidation.error(command, PropertyTypeDb.entries.mapTo(hashSetOf()) { it.wireValue })
+        if (error != null) return ApiMetaRepository.ImportAttempt.Failed(error)
+        val releases = ExposedCoreReleaseImport()
+        releases.lock(command.platform)
+        if (!releases.libraryMatches(command)) return ApiMetaRepository.ImportAttempt.Conflict("CORE_LIBRARY_CONFLICT")
+        val projection = coreMetaProjection(command)
+        val existing = releases.existing(command, projection)
+        return if (existing != null) {
+            if (existing.matches) {
+                ApiMetaRepository.ImportAttempt.Success(ApiMetaImportReport(releaseId = existing.id.toString()))
+            } else {
+                ApiMetaRepository.ImportAttempt.Conflict("CORE_RELEASE_IMMUTABLE")
+            }
+        } else {
+            val report = importMeta(command)
+            val releaseId = releases.insert(command, projection)
+            ApiMetaRepository.ImportAttempt.Success(report.copy(releaseId = releaseId.toString()))
+        }
+    }
 
     private fun importMeta(command: ImportApiMeta): ApiMetaImportReport {
         val platform = requireNotNull(ComponentPlatformDb.fromWire(command.platform))
@@ -209,8 +222,8 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
     }
 
     private fun setDeprecation(id: UUID, deprecated: Boolean, message: String?) {
-        PropertyPlatformParamsTable.update({ PropertyPlatformParamsTable.id eq id }) {
-            it[PropertyPlatformParamsTable.deprecated] = deprecated
+        StablePropertyPlatformParamsTable.update({ StablePropertyPlatformParamsTable.id eq id }) {
+            it[StablePropertyPlatformParamsTable.deprecated] = deprecated
             it[deprecatedMessage] = message
         }
     }

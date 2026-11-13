@@ -99,7 +99,12 @@ private fun failureResponse(response: HttpMutationResult.Response): McpToolResul
         backendCode?.let { put("backendCode", it.take(200)) }
         backend?.get("details")?.let { put("backendDetails", sanitizeEditorDetails(it)) }
         (backend?.get("error") as? JsonObject)?.let { put("validation", sanitizeEditorDetails(it)) }
-        for (name in listOf("editRevision", "draftId", "draftRevision")) backend?.get(name)?.let { put(name, it) }
+        for (name in listOf("editRevision", "draftId", "draftRevision", "blockingCount", "compatibilityPath")) {
+            backend?.get(name)?.let { put(name, it) }
+        }
+        (backend?.get("coreContext") as? JsonObject)?.let { core ->
+            put("coreContext", sanitizeEditorDetails(core))
+        }
     }
     return editorError(category, message, details)
 }

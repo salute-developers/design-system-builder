@@ -10,6 +10,7 @@ import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -213,7 +214,8 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     fun `a storage failure leaves the active build and the meta untouched`() = withService {
         publish(archive(commit = COMMIT_A), Actor.PUBLISHER, dryRun = false).ok()
         storage.failOnPut = true
-        val response = publish(archive(commit = COMMIT_B, avatar = "Badge"), Actor.PUBLISHER, dryRun = false)
+        val response =
+            publish(archive(commit = COMMIT_B, uikit = "0.56.0", avatar = "Badge"), Actor.PUBLISHER, dryRun = false)
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
         assertEquals(COMMIT_A.take(12), query("SELECT build_id FROM compose_preview_plugin_builds WHERE active"))
         assertEquals(1, count("compose_preview_plugin_builds"))
@@ -286,6 +288,64 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.OK, withProjectRole.status)
     }
 
+    @Test
+    fun `versions pin preview and a late build fills only the empty slot of its Core`() = withService(keepBuilds = 1) {
+        suspend fun postJson(path: String, body: String) = service.builder.client.post(path) {
+            actor(Actor.ADMIN)
+            header("Idempotency-Key", java.util.UUID.randomUUID().toString())
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        suspend fun createPublished(name: String): Pair<String, String> {
+            val created = postJson("/api/design-systems", """{"name":"$name","projectName":"$name"}""")
+            assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+            val system = json.parseToJsonElement(created.bodyAsText()).jsonObject.string("id")
+            val changed = service.builder.client.patch("/api/design-systems/$system") {
+                actor(Actor.ADMIN)
+                header("Idempotency-Key", java.util.UUID.randomUUID().toString())
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"$name updated"}""")
+            }
+            assertEquals(HttpStatusCode.OK, changed.status, changed.bodyAsText())
+            val response = service.builder.client.get("/api/design-systems/$system") { actor(Actor.ADMIN) }
+            val draft = response.ok()
+            val published = postJson(
+                "/api/design-systems/$system/versions",
+                """{"draftId":${draft.getValue(
+                    "draftId",
+                )},"draftRevision":${draft.getValue("draftRevision")},"version":"1.0.0"}""",
+            )
+            assertEquals(HttpStatusCode.Created, published.status, published.bodyAsText())
+            return system to json.parseToJsonElement(published.bodyAsText()).jsonObject.string("id")
+        }
+        suspend fun selected(system: String, version: String? = null) = service.builder.client.get(
+            "/api/design-systems/$system/preview/compose" + (version?.let { "?versionId=$it" } ?: ""),
+        ) { actor(Actor.ADMIN) }
+
+        publish(archive(), Actor.PUBLISHER, dryRun = false).ok()
+        val (systemA, versionA) = createPublished("preview-a")
+        assertEquals(COMMIT_A.take(12), selected(systemA, versionA).ok().string("buildId"))
+        val b = archive(COMMIT_B, uikit = "0.56.0")
+        val meta = json.parseToJsonElement(releaseMetaBody(metaBody(), b)).jsonObject
+        val imported = postJson(
+            "/api/admin/component-config/import-api-meta",
+            JsonObject(meta + ("dryRun" to kotlinx.serialization.json.JsonPrimitive(false))).toString(),
+        )
+        assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+        val (systemB, versionB) = createPublished("preview-b")
+        assertEquals(HttpStatusCode.NotFound, selected(systemB, versionB).status)
+        assertEquals(HttpStatusCode.NotFound, selected(systemA).status)
+        assertEquals(COMMIT_A.take(12), selected(systemA, versionA).ok().string("buildId"))
+        publish(b, Actor.PUBLISHER, dryRun = false).ok()
+        assertEquals(COMMIT_B.take(12), selected(systemB, versionB).ok().string("buildId"))
+        publish(archive(COMMIT_C, uikit = "0.56.0"), Actor.PUBLISHER, dryRun = false).ok()
+        assertEquals(COMMIT_B.take(12), selected(systemB, versionB).ok().string("buildId"))
+        assertEquals(COMMIT_C.take(12), selected(systemB).ok().string("buildId"))
+        assertEquals(COMMIT_A.take(12), selected(systemA, versionA).ok().string("buildId"))
+        assertTrue(COMMIT_A.take(12) in buildIds(), "cleanup must retain the pinned old Core build")
+        assertTrue(storage.files.keys.any { it.startsWith(COMMIT_A.take(12) + "/") })
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────────────────
 
     private enum class Actor { PUBLISHER, ADMIN, USER }
@@ -304,7 +364,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
                                 append(HttpHeaders.ContentDisposition, "filename=\"plugin.zip\"")
                             },
                         )
-                        append("meta", metaBody())
+                        append("meta", releaseMetaBody(metaBody(), bytes))
                     },
                 ),
             )
@@ -352,6 +412,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         val meta = """[{"componentName":"$avatar"}]"""
         val manifest = """{"schemaVersion":1,"id":"sdds.compose.preview","platform":"compose","protocolVersion":1,""" +
             """"entrypoint":"$entrypoint","version":"$version","commit":"$commit","uikitComposeVersion":"$uikit",""" +
+            """"coreRelease":{"libraryId":"fixture-compose","platform":"compose","version":"$uikit"},""" +
             """"apiMetaSha256":"${metaSha ?: sha256Hex(meta.toByteArray())}","components":["$avatar"]}"""
         return zip(
             mapOf(

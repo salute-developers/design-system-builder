@@ -113,6 +113,9 @@ private fun DsFailure.toErrorResponse() = when (this) {
         editRevision = editRevision,
         draftId = draftId,
         draftRevision = draftRevision,
+        coreContext = coreContext?.let(::coreReadContextJson),
+        blockingCount = blockingCount,
+        compatibilityPath = compatibilityPath,
         details = details.takeIf { it.isNotEmpty() }?.let { values ->
             buildJsonObject {
                 values.forEach { (name, numbers) ->

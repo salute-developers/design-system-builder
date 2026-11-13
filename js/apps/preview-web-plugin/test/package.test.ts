@@ -64,6 +64,12 @@ describe('упаковка web-плагина', () => {
         expect(manifest.commit).toBe(COMMIT);
         expect(manifest.version).toBe(COMMIT.slice(0, 12));
         expect(manifest.plasmaNewHopeVersion).toMatch(/^\d+\.\d+\.\d+([-+][0-9A-Za-z.-]+)?$/);
+        expect(manifest.coreRelease).toEqual({
+            libraryId: 'plasma-new-hope', platform: 'web', version: manifest.plasmaNewHopeVersion,
+        });
+        const originalMeta = readFileSync(resolve(process.cwd(), 'public/api-meta.json'));
+        expect(Array.isArray(JSON.parse(new TextDecoder().decode(files.get('api-meta.json'))))).toBe(true);
+        expect(Buffer.from(files.get('api-meta.json')!)).toEqual(originalMeta);
         expect(manifest.apiMetaSha256).toMatch(/^[0-9a-f]{64}$/);
         expect(manifest.apiMetaSha256).toBe(sha256(files.get('api-meta.json')!));
         expect(files.has(manifest.entrypoint)).toBe(true);
@@ -134,6 +140,7 @@ describe('упаковка web-плагина', () => {
             'platform должна быть web',
             'version должна равняться первым 12 символам commit',
             'plasmaNewHopeVersion должна быть семантической версией',
+            'coreRelease должен указывать plasma-new-hope/web с версией plasmaNewHopeVersion',
             'sha256 файла api-meta.json не совпадает с apiMetaSha256',
             'файл entrypoint missing.html отсутствует в архиве',
         ]);

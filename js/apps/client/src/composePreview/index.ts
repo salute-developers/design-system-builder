@@ -22,6 +22,7 @@ export {
     DEFAULT_WEB_STORY_ID,
     assembleWebPreviewPayload,
     useWebPreviewPlugin,
+    useWebPreviewPluginAt,
     useWebPreviewPluginLocation,
 } from './webPreview';
 export type { WebPreviewPayloadOptions, WebPreviewPluginLocation, WebPreviewPluginState } from './webPreview';

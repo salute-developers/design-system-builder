@@ -1,3 +1,6 @@
+import { CoreIssueList } from '../../components/CoreIssueList';
+import { useCoreCompatibility } from '../../hooks/useCoreCompatibility';
+import { toComponentRoute } from '../../composePreview';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 
@@ -605,7 +608,8 @@ export const DesignSystemVersionsPage = () => {
     const selectedVersion = versions.find(({ id }) => id === selectedVersionId);
     const latestVersion = [...versions].sort((left, right) => right.sequenceNumber - left.sequenceNumber)[0];
     const validVersion = /^\d+\.\d+\.\d+$/.test(version);
-    const canPublish = !readOnly && !versionsLoading && validVersion && journal.actions.length > 0 && !publishing;
+    const compatibility = useCoreCompatibility(historicalContext);
+    const canPublish = Boolean(compatibility.report && compatibility.report.blockingCount === 0) && !readOnly && !versionsLoading && validVersion && journal.actions.length > 0 && !publishing;
     const publish = async (event: FormEvent) => {
         event.preventDefault();
         if (!canPublish || !editorContext) return;
@@ -737,6 +741,23 @@ export const DesignSystemVersionsPage = () => {
                     )}
                     {(!selectedVersionId || selectedVersion) && (
                         <Form id="version-publication-form" onSubmit={publish}>
+                            <ReleaseSection>
+                                <h2>Совместимость с Core</h2>
+                                {compatibility.error ? <p role="alert">Проверка недоступна. <button type="button" onClick={compatibility.reload}>Повторить</button></p>
+                                    : !compatibility.report ? <p>Проверяем совместимость…</p>
+                                    : <>
+                                        <p>{compatibility.report.blockingCount} блокирующих проблем · {compatibility.report.warningCount} предупреждений</p>
+                                        <CoreIssueList items={compatibility.report.items} renderItem={(issue) => <p key={issue.issueId}>
+                                            <button type="button" onClick={() => {
+                                                const platform = issue.location.platform === 'compose' ? 'compose' : 'web';
+                                                const query = new URLSearchParams(searchParams);
+                                                query.set('section', 'problems'); query.set('issueId', issue.issueId);
+                                                if (selectedVersionId) query.set('versionId', selectedVersionId);
+                                                navigate(`../components/${toComponentRoute(platform, issue.location.componentName)}?${query}`);
+                                            }}>{issue.location.componentName} · {issue.location.propertyName ?? 'Компонент'}: открыть проблему</button>
+                                        </p>} />
+                                    </>}
+                            </ReleaseSection>
                             <ReleaseSection>
                                 <h2>Версия</h2>
                                 {selectedVersion ? (

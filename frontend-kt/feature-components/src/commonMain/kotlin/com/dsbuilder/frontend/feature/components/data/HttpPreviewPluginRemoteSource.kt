@@ -40,7 +40,13 @@ internal class HttpPreviewPluginRemoteSource(
             )
         val meta = json.encodeToString(
             ApiMetaImportRequest.serializer(),
-            command.manifest.toImportRequest(command.platform.toApiMetaPlatform(), command.source, command.dryRun),
+            command.manifest.toImportRequest(
+                command.platform.toApiMetaPlatform(),
+                command.source,
+                command.dryRun,
+                command.coreRelease,
+                command.archive.metaBytes,
+            ),
         )
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         val response = try {

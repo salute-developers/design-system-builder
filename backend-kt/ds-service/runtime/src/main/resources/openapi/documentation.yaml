@@ -10043,8 +10043,1094 @@ paths:
         '429':
           description: Too many concurrent event streams for this project participant
       x-permission: design-systems:read
+  "/api/design-systems/{designSystemId}/compatibility":
+    {
+      "get": {
+        "summary": "Совместимость настроек с выбранным Core",
+        "description": "Проверяет сохранённые значения до фильтрации экспорта. Собственные настройки скрытых компонентов не учитываются; ссылки на скрытую цель блокируют. Counts всегда относятся ко всей ДС. Курсор связан с draftRevision и Core; устаревший курсор возвращает CORE_CONTEXT_STALE.",
+        "x-permission": "components:variations:read",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          },
+          {
+            "name": "componentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "blocking",
+                "warning"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreCompatibilityReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Нет права",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Граница или сущность недоступна",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Конфликт Core или конкурентной правки",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Невалидный состав Core",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  "/api/design-systems/{designSystemId}/compatibility/repair":
+    {
+      "post": {
+        "summary": "Удалить или перенести сохранённое назначение",
+        "description": "Удаление работает и после исчезновения свойства. Перенос дополнительно требует components:variations:write, совместимой свободной цели и отсутствия platform adjustments. Сохраняет журнал и проверяет expectedRevision. CORE_PROBLEM_STALE, CORE_TRANSFER_TARGET_OCCUPIED, CORE_TRANSFER_PLATFORM_ADJUSTMENTS и IDEMPOTENCY_KEY_REUSED дают 409. Опубликованная граница доступна только для чтения.",
+        "x-permission": "components:variations:delete",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          },
+          {
+            "$ref": "#/components/parameters/OptionalIdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OptionalBaseRevision"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Нет права",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Граница или сущность недоступна",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Конфликт Core или конкурентной правки",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Невалидный состав Core",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreProblemRepairRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  "/api/design-systems/{designSystemId}/preview/{platform}":
+    {
+      "get": {
+        "summary": "Preview выбранного Core",
+        "description": "Для черновика выбирает сборку текущего Core, для опубликованной границы — закреплённую. Пустой слот можно заполнить один раз поздней сборкой того же Core. Отсутствие сборки даёт 404 и не запрещает редактирование или публикацию.",
+        "x-permission": "components:read",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          },
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "compose",
+                "web"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorePreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Нет права",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Граница или сущность недоступна",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Конфликт Core или конкурентной правки",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Невалидный состав Core",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  /api/design-systems/{designSystemId}/components/{id}:
+    get:
+      tags:
+        - Components
+      summary: 'Core выбранной ДС: Get component by ID'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: Item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
+  /api/design-systems/{designSystemId}/properties:
+    get:
+      tags:
+        - Properties
+      summary: 'Core выбранной ДС: List all properties'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Property'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
+  /api/design-systems/{designSystemId}/property-platform-params:
+    get:
+      tags:
+        - Property Platform Params
+      summary: 'Core выбранной ДС: List all property platform params'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PropertyPlatformParam'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
+  /api/design-systems/{designSystemId}/component-deps:
+    get:
+      tags:
+        - Component Deps
+      summary: 'Core выбранной ДС: List all component deps'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComponentDep'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
+  /api/design-systems/{designSystemId}/states:
+    get:
+      tags:
+        - States
+      summary: 'Core выбранной ДС: List states, optionally filtered by component'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - schema:
+            anyOf:
+              - type: string
+                format: uuid
+              - type: string
+                enum:
+                  - 'null'
+            example: 'null'
+          required: false
+          name: componentId
+          in: query
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: States
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/State'
+        '400':
+          description: Invalid filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
 components:
   schemas:
+    "CoreReleaseRef":
+      {
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "libraryId",
+          "platform",
+          "version"
+        ]
+      }
+    "CoreReleaseSnapshot":
+      {
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "releaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metaSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "provenance": {
+            "type": "string",
+            "enum": [
+              "imported",
+              "migration-snapshot"
+            ]
+          }
+        },
+        "required": [
+          "libraryId",
+          "platform",
+          "version",
+          "releaseId",
+          "metaSha256",
+          "provenance"
+        ]
+      }
+    "CoreReadContext":
+      {
+        "type": "object",
+        "properties": {
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "draftId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "coreReleases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreReleaseSnapshot"
+            }
+          }
+        },
+        "required": [
+          "designSystemId",
+          "versionId",
+          "draftId",
+          "draftRevision",
+          "coreReleases"
+        ]
+      }
+    "CoreProblemLocation":
+      {
+        "type": "object",
+        "properties": {
+          "appearanceId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "appearanceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "propertyId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "propertyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "valueKind": {
+            "type": "string",
+            "nullable": true
+          },
+          "valueId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "componentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "componentName": {
+            "type": "string"
+          },
+          "platform": { "type": "string", "enum": ["web", "compose", "xml", "ios"] },
+          "styleIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "styleLabels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        },
+        "required": [
+          "appearanceId",
+          "appearanceName",
+          "propertyId",
+          "propertyName",
+          "valueKind",
+          "valueId",
+          "componentId",
+          "componentName",
+          "platform",
+          "styleIds",
+          "styleLabels",
+          "states",
+          "revision"
+        ]
+      }
+    "CoreProblemAdjustment":
+      {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "platformParamId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "template": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "platformParamId",
+          "revision",
+          "value",
+          "template"
+        ]
+      }
+    "CoreProblemValue":
+      {
+        "type": "object",
+        "properties": {
+          "literal": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenId": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenName": {
+            "type": "string",
+            "nullable": true
+          },
+          "alpha": {
+            "type": "string",
+            "nullable": true
+          },
+          "adjustment": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetAppearanceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetStyleIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "platformAdjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreProblemAdjustment"
+            }
+          }
+        },
+        "required": [
+          "literal",
+          "tokenId",
+          "tokenName",
+          "alpha",
+          "adjustment",
+          "targetAppearanceId",
+          "targetStyleIds",
+          "platformAdjustments"
+        ]
+      }
+    "CoreCompatibilityIssue":
+      {
+        "type": "object",
+        "properties": {
+          "issueId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "warning"
+            ]
+          },
+          "location": {
+            "$ref": "#/components/schemas/CoreProblemLocation"
+          },
+          "storedValue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CoreProblemValue"
+              }
+            ],
+            "nullable": true
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "remove",
+                "transfer"
+              ]
+            }
+          }
+        },
+        "required": [
+          "issueId",
+          "code",
+          "severity",
+          "location",
+          "storedValue",
+          "allowedActions"
+        ]
+      }
+    "CoreCompatibilityReport":
+      {
+        "type": "object",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/CoreReadContext"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreCompatibilityIssue"
+            }
+          },
+          "blockingCount": {
+            "type": "integer"
+          },
+          "warningCount": {
+            "type": "integer"
+          },
+          "validatorVersion": {
+            "type": "integer"
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "context",
+          "items",
+          "blockingCount",
+          "warningCount",
+          "validatorVersion",
+          "nextCursor"
+        ]
+      }
+    "CoreProblemRepairRequest":
+      {
+        "type": "object",
+        "properties": {
+          "appearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "valueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "valueKind": {
+            "type": "string",
+            "enum": [
+              "invariant",
+              "variation",
+              "combination"
+            ]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "targetPropertyId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "appearanceId",
+          "valueId",
+          "valueKind",
+          "expectedRevision"
+        ]
+      }
+    "CorePreviewResponse":
+      {
+        "type": "object",
+        "properties": {
+          "buildId": {
+            "type": "string"
+          },
+          "pluginUrl": {
+            "type": "string"
+          },
+          "coreRelease": {
+            "$ref": "#/components/schemas/CoreReleaseSnapshot"
+          },
+          "metaSha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "buildId",
+          "pluginUrl",
+          "coreRelease",
+          "metaSha256"
+        ]
+      }
+    "CoreMetaProperty":
+      {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "platformNames": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "deprecated": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              ]
+            }
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultValue": {
+            "type": "string",
+            "nullable": true
+          },
+          "componentTargets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "platformNames"
+        ]
+      }
+    "CoreMetaComponent":
+      {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreMetaProperty"
+            }
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "compose"
+                  ]
+                },
+                "order": {
+                  "type": "integer",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "component"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    ImportCoreMetaRequest:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum:
+            - web
+            - compose
+            - xml
+            - ios
+        dryRun:
+          type: boolean
+          default: true
+        coreRelease:
+          $ref: '#/components/schemas/CoreReleaseRef'
+        sourceMetaBase64:
+          type: string
+          format: byte
+          description: >-
+            Исходные байты меты без повторной сериализации: массив Compose/React/SwiftUI, объект Android View с
+            components.
+        metaSha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/CoreMetaComponent'
+      required:
+        - platform
+        - coreRelease
+        - sourceMetaBase64
+        - metaSha256
+        - components
+    "ImportApiMetaResponse":
+      {
+        "type": "object",
+        "properties": {
+          "releaseId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        }
+      }
     OkResponse:
       type: object
       properties:
@@ -10085,6 +11171,13 @@ components:
           type: integer
           format: int64
           minimum: 0
+        coreContext:
+          $ref: '#/components/schemas/CoreReadContext'
+        blockingCount:
+          type: integer
+          minimum: 0
+        compatibilityPath:
+          type: string
       required:
         - error
     ThemePreview:
@@ -10865,7 +11958,12 @@ components:
           items:
             $ref: '#/components/schemas/Appearance'
         export:
-          $ref: '#/components/schemas/ComponentExportPackage'
+          allOf:
+            - $ref: '#/components/schemas/ComponentExportPackage'
+          nullable: true
+        exportConflict:
+          type: boolean
+          description: Сохранённые настройки доступны для диагностики; новый экспорт заблокирован
         properties:
           type: array
           items:
@@ -10898,6 +11996,23 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Component'
+        editorConfigurations:
+          type: array
+          items:
+            type: object
+            properties:
+              componentName:
+                type: string
+                description: Имя компонента в написании meta.json
+              styleName:
+                type: string
+                description: Имя стиля, оно же имя appearance
+              config:
+                nullable: true
+                description: Конфигурация в общем формате
+            required:
+              - componentName
+              - styleName
       required:
         - component
         - appearances
@@ -12865,6 +13980,10 @@ components:
             version:
               type: string
               description: Версия последней опубликованной записи
+            coreReleases:
+              type: array
+              items:
+                $ref: '#/components/schemas/CoreReleaseSnapshot'
           required:
             - name
             - version

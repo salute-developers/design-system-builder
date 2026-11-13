@@ -1,8 +1,11 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.application.CompatibilityChecker
 import com.dsbuilder.ds.core.application.ModelReadItems
 import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.application.mapItems
+import com.dsbuilder.ds.core.data.bindVersionCoreReleases
+import com.dsbuilder.ds.core.data.lockCurrentCoreReleases
 import com.dsbuilder.ds.core.data.lockDesignSystemPublication
 import com.dsbuilder.ds.core.data.modelReadVersionPage
 import com.dsbuilder.ds.core.data.requestDesignSystemScope
@@ -33,6 +36,7 @@ import java.time.Instant
 /** Хранилище новых опубликованных границ; прежние строки со снимками намеренно скрыты. */
 class ExposedDesignSystemVersionRepository(
     private val changes: DraftChangeRepository,
+    private val compatibility: CompatibilityChecker,
 ) : DesignSystemVersionRepository {
     override suspend fun list(projectId: ProjectId): List<DesignSystemVersion> = publishedRows(projectId)
         .map(::toDomain)
@@ -89,6 +93,10 @@ class ExposedDesignSystemVersionRepository(
         if (changes.hasChanges(projectId, command.designSystemId) != true) {
             return PublishDesignSystemResult.EmptyDraft
         }
+        lockCurrentCoreReleases()
+        val report = compatibility.check(projectId, command.designSystemId.value, null)
+        if (report.blockingCount > 0) return PublishDesignSystemResult.CoreConflict(report)
+        bindVersionCoreReleases(actualId.value)
         val published = VersionBoundariesTable.updateReturning(
             where = { VersionBoundariesTable.id eq actualId.value },
         ) {

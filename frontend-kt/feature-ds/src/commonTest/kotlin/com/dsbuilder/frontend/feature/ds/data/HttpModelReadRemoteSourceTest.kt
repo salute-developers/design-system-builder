@@ -24,6 +24,37 @@ import kotlin.test.assertTrue
 
 class HttpModelReadRemoteSourceTest {
     @Test
+    fun `shared model context keeps Core identity when the draft revision is unchanged`() = runTest {
+        var version = "A"
+        val source = source {
+            val release = """{"releaseId":"$ID","libraryId":"uikit-compose","platform":"compose",
+                "version":"$version","metaSha256":null,"provenance":"imported","secret":"excluded"}"""
+            success("[]").copy(
+                headers = mapOf(
+                    "x-ds-read-context" to DRAFT_CONTEXT.dropLast(1) + ",\"coreReleases\":[$release]}",
+                    "x-ds-page-limit" to "50",
+                ),
+            )
+        }
+        suspend fun read() = assertIs<ModelReadResult.Success>(
+            source.read(runtime(), ModelReadCommand(ModelReadOperation.COMPONENTS, version = "draft")),
+        ).value.jsonObject.getValue("context").jsonObject
+        val a = read()
+        version = "B"
+        val b = read()
+        assertEquals(a["draftRevision"], b["draftRevision"])
+        assertEquals(
+            "A",
+            a.getValue("coreReleases").jsonArray.single().jsonObject.getValue("version").jsonPrimitive.content,
+        )
+        assertEquals(
+            "B",
+            b.getValue("coreReleases").jsonArray.single().jsonObject.getValue("version").jsonPrimitive.content,
+        )
+        assertFalse("secret" in b.getValue("coreReleases").jsonArray.single().jsonObject)
+    }
+
+    @Test
     fun `filters and page size are sent to server without local truncation or name matching`() = runTest {
         var requested = ""
         val source = source { path ->

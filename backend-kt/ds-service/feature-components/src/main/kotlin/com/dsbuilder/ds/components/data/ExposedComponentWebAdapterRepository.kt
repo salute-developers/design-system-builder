@@ -178,17 +178,17 @@ class ExposedComponentWebAdapterRepository internal constructor() : ComponentWeb
         val names = appearances.associate { it.componentId to camelToKebab(it.componentName) }
         val componentIds = names.keys.toList()
         val parentIds = parentKey?.let { key -> names.filterValues { it == key }.keys.toList() } ?: componentIds
-        return ComponentDependenciesTable.selectAll()
+        return SelectedComponentDependenciesTable.selectAll()
             .where {
-                (ComponentDependenciesTable.type eq RelationTypeDb.COMPOSE) and
-                    (ComponentDependenciesTable.parentId inList parentIds) and
-                    (ComponentDependenciesTable.childId inList componentIds)
+                (SelectedComponentDependenciesTable.type eq RelationTypeDb.COMPOSE) and
+                    (SelectedComponentDependenciesTable.parentId inList parentIds) and
+                    (SelectedComponentDependenciesTable.childId inList componentIds)
             }
             .map {
                 ComposeChild(
-                    names.getValue(it[ComponentDependenciesTable.parentId]),
-                    names.getValue(it[ComponentDependenciesTable.childId]),
-                    it[ComponentDependenciesTable.order] ?: 0,
+                    names.getValue(it[SelectedComponentDependenciesTable.parentId]),
+                    names.getValue(it[SelectedComponentDependenciesTable.childId]),
+                    it[SelectedComponentDependenciesTable.order] ?: 0,
                 )
             }
             .groupBy(ComposeChild::parent)

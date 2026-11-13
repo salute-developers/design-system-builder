@@ -19,7 +19,9 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.security.MessageDigest
 import java.sql.DriverManager
+import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -89,7 +91,7 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         assertEquals(2, count("states WHERE component_id IS NOT NULL"))
 
         val second = importMeta(request).report()
-        assertEquals(listOf(0, 0, 0, 0, 2), second.ints(*CREATED))
+        assertEquals(listOf(0, 0, 0, 0, 0), second.ints(*CREATED))
         assertEquals(3, count("property_platform_params"))
     }
 
@@ -116,29 +118,31 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         assertEquals(0, count("components"))
         assertEquals(null, queryNullable("SELECT to_regclass('public.design_system_changes')"))
         val real = importMeta(applied).report()
-        assertEquals(dry, real)
+        assertEquals(dry - "releaseId", real - "releaseId")
     }
 
     @Test
-    fun `an existing property keeps its type and an unknown type rejects only that property`() = withService {
-        importMeta(component("compose", """{"name":"fill","type":"color","platformNames":["fill"]}""", dryRun = false))
-        val report = importMeta(
+    fun `unknown type rejects the whole release and a corrected retry can change a projected type`() = withService {
+        importMeta(component("compose", prop("fill", "color", """["fill"]"""), dryRun = false)).report()
+        val rejected = importMeta(
             component(
                 "compose",
-                """{"name":"fill","type":"shape","platformNames":["fill","fillAlt"]},
-                   {"name":"odd","type":"gizmo","platformNames":["odd"]},
-                   {"name":"ok","type":"float","platformNames":["ok"]}""",
+                prop("fill", "shape", """["fill","fillAlt"]""") + "," + prop("odd", "gizmo", """["odd"]"""),
                 dryRun = false,
             ),
-        ).report()
-        assertEquals(listOf("A.fill: db=color, meta=shape"), report.strings("typeMismatches"))
-        val rejected = report.getValue("rejected").jsonArray.single().jsonObject
-        assertEquals("odd", rejected.getValue("property").jsonPrimitive.content)
-        assertTrue(rejected.getValue("reason").jsonPrimitive.content.startsWith("unknown property type"))
-        assertEquals("color", query("SELECT type::text FROM properties WHERE name = 'fill'"))
-        assertEquals(1, count("properties WHERE name = 'ok'"))
-        assertEquals(1, count("property_platform_params WHERE name = 'fillAlt'"))
+        )
+        assertEquals(HttpStatusCode.UnprocessableEntity, rejected.status, rejected.bodyAsText())
+        assertEquals(0, count("property_platform_params WHERE name = 'fillAlt'"))
         assertEquals(0, count("properties WHERE name = 'odd'"))
+        importMeta(component("compose", prop("fill", "shape", """["fill","fillAlt"]"""), dryRun = false)).report()
+        assertEquals("color", query("SELECT type::text FROM properties WHERE name = 'fill'"))
+        assertEquals(
+            "shape",
+            query(
+                "SELECT p.type::text FROM core_release_properties p " +
+                    "JOIN core_current_releases c ON c.release_id = p.release_id WHERE p.name = 'fill'",
+            ),
+        )
     }
 
     @Test
@@ -154,17 +158,24 @@ class ApiMetaImportHttpPostgresIntegrationTest {
 
     @Test
     fun `repeats of one property are merged and a contradicting type is rejected`() = withService {
+        val rejected = importMeta(
+            component(
+                "compose",
+                prop("w", "dimension", """["a"]""") + "," + prop("w", "color", """["c"]"""),
+                dryRun = false,
+            ),
+        )
+        assertEquals(HttpStatusCode.UnprocessableEntity, rejected.status, rejected.bodyAsText())
+        assertEquals(0, count("properties"))
         val report = importMeta(
             component(
                 "compose",
-                """{"name":"w","type":"dimension","platformNames":["a"]},
-                   {"name":"w","type":"dimension","platformNames":["b"]},
-                   {"name":"w","type":"color","platformNames":["c"]}""",
+                prop("w", "dimension", """["a"]""") + "," + prop("w", "dimension", """["b"]"""),
                 dryRun = false,
             ),
         ).report()
         assertEquals(listOf(1, 2), report.ints("createdProperties", "createdAliases"))
-        assertEquals(1, report.getValue("rejected").jsonArray.size)
+        assertTrue(report.getValue("rejected").jsonArray.isEmpty())
     }
 
     @Test
@@ -270,8 +281,14 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         dryRun: Boolean = true,
         components: String = """[{"name":"A","properties":[{"name":"p","type":"color","platformNames":["p"]}]}]""",
         source: String = "meta.json",
-    ) = """{"platform":"$platform","meta":{"source":${JsonPrimitive(source)}},""" +
-        """"dryRun":$dryRun,"components":$components}"""
+    ): String {
+        val bytes = components.toByteArray()
+        val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val encoded = Base64.getEncoder().encodeToString(bytes)
+        return """{"platform":"$platform","meta":{"source":${JsonPrimitive(source)}},""" +
+            """"dryRun":$dryRun,"components":$components,"sourceMetaBase64":"$encoded","metaSha256":"$hash",""" +
+            """"coreRelease":{"libraryId":"fixture-$platform","platform":"$platform","version":"$hash"}}"""
+    }
 
     private fun prop(name: String, type: String, names: String) =
         """{"name":"$name","type":"$type","platformNames":$names}"""

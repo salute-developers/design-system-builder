@@ -143,7 +143,7 @@ describe('ThemeEditorRepository with the component editor disabled', () => {
 
         await loadThemeEditor(context);
 
-        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'))).toHaveLength(1);
+        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'))).toHaveLength(2);
     });
 });
 
@@ -202,13 +202,13 @@ describe('ThemeEditorRepository Compose components', () => {
         sources: { api: [], variations: [], configs },
     });
 
-    it('does not request Compose components without a plugin URL', async () => {
+    it('loads configured Compose components even without a preview plugin', async () => {
         get.mockImplementation(configsOf([meta('BasicButton')]));
 
         const snapshot = await loadThemeEditor(context);
 
-        expect(snapshot.composeComponentsData).toEqual([]);
-        expect(get.mock.calls.filter(([, options]) => options?.params?.platform === 'compose')).toHaveLength(0);
+        expect(snapshot.composeComponentsData.map((item) => item.name)).toEqual(['BasicButton']);
+        expect(post.mock.calls.some(([, body]) => body?.platform === 'compose')).toBe(true);
     });
 
     it('loads Compose components separately and binds them to the plugin by name', async () => {

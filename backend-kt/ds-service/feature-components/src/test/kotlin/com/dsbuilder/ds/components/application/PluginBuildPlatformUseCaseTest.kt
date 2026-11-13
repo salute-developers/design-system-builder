@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.authorization.AuthorizationPolicyLoader
@@ -13,10 +15,12 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
+import com.dsbuilder.ds.core.domain.CoreReleaseRef
 import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
 import java.time.Duration
 import java.time.Instant
+import java.util.Base64
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.Test
@@ -171,6 +175,13 @@ class PluginBuildPlatformUseCaseTest {
         source = "api-meta.json",
         dryRun = true,
         components = emptyList(),
+        coreRelease = CoreReleaseRef(
+            if (platform == "web") "plasma-new-hope" else "uikit-compose",
+            platform,
+            if (platform == "web") "0.386.0" else "0.55.0",
+        ),
+        sourceMetaBase64 = Base64.getEncoder().encodeToString("""[{"componentName":"Button"}]""".toByteArray()),
+        metaSha256 = sha256Hex("""[{"componentName":"Button"}]""".toByteArray()),
     )
 
     private fun archive(platform: PreviewPluginPlatform, commit: String): ByteArray {
@@ -178,7 +189,7 @@ class PluginBuildPlatformUseCaseTest {
         val library = if (platform == PreviewPluginPlatform.WEB) "0.386.0" else "0.55.0"
         val manifest = """{"schemaVersion":1,"platform":"${platform.wire}","protocolVersion":1,""" +
             """"entrypoint":"index.html","version":"${commit.take(12)}","commit":"$commit",""" +
-            """"${platform.libraryVersionField}":"$library","apiMetaSha256":"${sha256Hex(meta.toByteArray())}"}"""
+            """"coreRelease":{"libraryId":"${if (platform == PreviewPluginPlatform.WEB) "plasma-new-hope" else "uikit-compose"}","platform":"${platform.wire}","version":"$library"},"${platform.libraryVersionField}":"$library","apiMetaSha256":"${sha256Hex(meta.toByteArray())}"}"""
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
             mapOf("index.html" to "<html/>", "preview-plugin.json" to manifest, "api-meta.json" to meta)

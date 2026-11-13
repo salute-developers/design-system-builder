@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
-import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const operations = vi.hoisted(() => ({
+    compatibility: vi.fn(),
     listChanges: vi.fn(),
     listJournalTokens: vi.fn(),
     listPalette: vi.fn(),
@@ -26,6 +27,10 @@ vi.mock('../../api/draftAutosaveActivity', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../api/draftAutosaveActivity')>();
     return { ...actual, waitForDraftAutosaveIdle: operations.waitForDraftAutosaveIdle };
 });
+
+vi.mock('../../hooks/useCoreCompatibility', () => ({
+    useCoreCompatibility: () => operations.compatibility(),
+}));
 
 import { deriveNative } from '../../modules/colorTokens/domain';
 import { DesignSystemChangesPage, DesignSystemVersionsPage } from './VersionJournalPages';
@@ -59,6 +64,8 @@ const token = {
     enabled: true,
 };
 
+const ComponentDestination = () => <p data-testid="problem-destination">{useLocation().pathname}{useLocation().search}</p>;
+
 const renderPage = (page: 'changes' | 'versions', initial = page) =>
     render(
         <MemoryRouter initialEntries={[`/projects/project-1/design-systems/ds-1/themes/tenant-1/${initial}`]}>
@@ -79,6 +86,7 @@ const renderPage = (page: 'changes' | 'versions', initial = page) =>
                 >
                     <Route path="changes" element={<DesignSystemChangesPage />} />
                     <Route path="versions" element={<DesignSystemVersionsPage />} />
+                    <Route path="components/:componentName" element={<ComponentDestination />} />
                     <Route path="typography" element={<div>Редактор типографики</div>} />
                 </Route>
             </Routes>
@@ -88,6 +96,7 @@ const renderPage = (page: 'changes' | 'versions', initial = page) =>
 beforeEach(() => {
     localStorage.clear();
     Object.values(operations).forEach((operation) => operation.mockReset());
+    operations.compatibility.mockReturnValue({ report: { blockingCount: 0, warningCount: 0, items: [] }, reload: vi.fn() });
     operations.listChanges.mockResolvedValue([change]);
     operations.listJournalTokens.mockResolvedValue([token]);
     operations.listProjectActorLabels.mockResolvedValue({ 'user-1': 'Анна' });
@@ -421,6 +430,32 @@ describe('DesignSystemVersionsPage', () => {
         expect(row).toHaveAttribute('type', 'button');
         expect(operations.publish).not.toHaveBeenCalled();
         expect(operations.waitForDraftAutosaveIdle).not.toHaveBeenCalled();
+    });
+
+    it('открывает Compose-проблему из сводки, даже если есть одноимённый web-компонент', async () => {
+        operations.compatibility.mockReturnValue({ report: {
+            blockingCount: 1, warningCount: 0,
+            items: [{ issueId: 'compose-issue', location: { platform: 'compose', componentId: 'compose-button', componentName: 'Button', propertyName: 'fill' } }],
+        } });
+        renderPage('versions');
+        fireEvent.click(await screen.findByRole('button', { name: 'Button · fill: открыть проблему' }));
+        const target = await screen.findByTestId('problem-destination');
+        expect(target.textContent).toContain('/components/compose-Button?');
+        expect(target.textContent).toContain('issueId=compose-issue');
+        expect(target.textContent).toContain('section=problems');
+        expect(operations.publish).not.toHaveBeenCalled();
+    });
+
+    it('блокирует публикацию при конфликте Core и разрешает её при одних предупреждениях', async () => {
+        operations.compatibility.mockReturnValue({ report: { blockingCount: 1, warningCount: 0, items: [] } });
+        const view = renderPage('versions');
+        await waitFor(() => expect(screen.getByLabelText('Номер версии')).toHaveValue('0.1.0'));
+        expect(screen.getByRole('button', { name: 'Опубликовать версию' })).toBeDisabled();
+        view.unmount();
+        operations.compatibility.mockReturnValue({ report: { blockingCount: 0, warningCount: 1, items: [] } });
+        renderPage('versions');
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Опубликовать версию' })).toBeEnabled());
+        expect(operations.publish).not.toHaveBeenCalled();
     });
 
     it('публикует серверную версию после ожидания автосохранения', async () => {

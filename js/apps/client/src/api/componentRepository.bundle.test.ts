@@ -24,10 +24,11 @@ vi.mock('./editorReads', () => ({
 vi.mock('../utils/featureFlags', () => ({ isComponentEditorEnabled: () => true }));
 
 import { componentRepository } from './componentRepository';
+import { Config } from '../controllers/componentBuilder/config';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 const root = '/api/projects/project-1/design-systems/ds-1';
-const rootCatalog = '/api/projects/project-1/design-systems/catalog';
+const rootCatalog = root;
 
 /**
  * Одна ДС-фикстура для обоих путей: Web и Compose Button с оформлениями, осями, стилями, параметрами
@@ -209,6 +210,15 @@ const bundle = (componentId: string, platform: 'web' | 'compose'): ComponentEdit
 };
 
 const bundleUrl = (componentId: string) => `${root}/components/${componentId}/editor-bundle`;
+
+it('keeps the actual Core release on the constructed editor config', async () => {
+    get.mockResolvedValueOnce({ data: bundle('c-button', 'web'), headers: {
+        'x-ds-read-context': JSON.stringify({ coreReleases: [{ platform: 'web', releaseId: 'core-A' }] }),
+    } });
+    const [meta] = await componentRepository.loadComponentData(context, undefined, 'web', 'Button', 'c-button');
+    expect(new Config(meta).getCoreReleaseId()).toBe('core-A');
+    expect(new Config(meta).getComponentId()).toBe('c-button');
+});
 
 beforeEach(() => {
     get.mockReset();

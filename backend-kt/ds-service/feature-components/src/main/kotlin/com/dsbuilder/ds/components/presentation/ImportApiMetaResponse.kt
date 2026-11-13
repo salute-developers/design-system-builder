@@ -28,6 +28,8 @@ data class ImportApiMetaResponse(
     val typeMismatches: List<String>,
     /** Stored for the platform but absent from the meta; informational. */
     val absent: List<String>,
+    /** Идентификатор релиза; при dryRun не сохраняется. */
+    val releaseId: String? = null,
 ) {
     /** One property that was not written. */
     @Serializable
@@ -54,6 +56,7 @@ data class ImportApiMetaResponse(
             value.rejected.map { Rejection(it.component, it.property, it.reason) },
             value.typeMismatches,
             value.absent,
+            value.releaseId,
         )
     }
 }

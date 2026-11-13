@@ -540,6 +540,10 @@ class VariationAxesHttpPostgresIntegrationTest {
         idempotencyKey?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
+    }.also { response ->
+        if (path.startsWith("/api/design-systems/catalog/") && response.status.value < 300) {
+            importFixtureCore(service.postgres)
+        }
     }
 
     private suspend fun patch(

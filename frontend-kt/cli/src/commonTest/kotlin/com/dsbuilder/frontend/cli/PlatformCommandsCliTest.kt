@@ -23,6 +23,39 @@ import kotlin.test.assertTrue
  */
 class PlatformCommandsCliTest {
     @Test
+    fun localGenerationUsesSavedCoreAWithUnreleasedCoreBAndNeverCallsTheServer() {
+        val snapshot = """{"coreReleases":[{"libraryId":"uikit-compose","version":"A"}]}"""
+        val files = RecordingFileSystem(
+            mapOf(
+                "/repo/.sdds/config.json" to CONFIG_JSON.replace("swiftui", "compose"),
+                "/repo/.sdds/components/core-context.json" to snapshot,
+                "/repo/.sdds/components/button_config.json" to "{}",
+                "/repo/gradlew" to "",
+                "/repo/gradle/libs.versions.toml" to "core = \"B-SNAPSHOT\"",
+            ),
+        )
+        val started = mutableListOf<ProcessRequest>()
+        var requests = 0
+        val result = cli(
+            files,
+            ProcessRunner {
+                started += it
+                if ("generateComposeComponents" in it.args) {
+                    assertEquals(snapshot, files.readText("/repo/.sdds/components/core-context.json"))
+                }
+                ProcessResult(0, "")
+            },
+            environment = mapOf("DSBUILDER_API_URL" to "https://unavailable.invalid"),
+            onHttpRequest = { requests++ },
+        ).execute(listOf("components", "generate"))
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(1, started.count { "generateComposeComponents" in it.args })
+        assertEquals(0, requests)
+        assertTrue(files.writes.isEmpty(), "generation must not refresh the saved snapshot")
+        assertEquals("core = \"B-SNAPSHOT\"", files.readText("/repo/gradle/libs.versions.toml"))
+    }
+
+    @Test
     fun rootHelpListsToolchain() {
         val result = cli().execute(listOf("--help"))
 
@@ -294,6 +327,7 @@ class PlatformCommandsCliTest {
         fileSystem: WorkspaceFileSystem = RecordingFileSystem(),
         processRunner: ProcessRunner = ProcessRunner { ProcessResult(exitCode = 0, output = "") },
         environment: Map<String, String> = emptyMap(),
+        onHttpRequest: () -> Unit = {},
     ) = DsBuilderCli(
         ClientRuntime(
             fileSystem = fileSystem,
@@ -304,10 +338,10 @@ class PlatformCommandsCliTest {
                 override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
                     object : AuthenticatedHttpClient {
                         override suspend fun get(path: String): AuthenticatedHttpResult =
-                            AuthenticatedHttpResult.Failure("unexpected")
+                            AuthenticatedHttpResult.Failure("unexpected").also { onHttpRequest() }
 
                         override suspend fun post(path: String, body: String): AuthenticatedHttpResult =
-                            AuthenticatedHttpResult.Failure("unexpected")
+                            AuthenticatedHttpResult.Failure("unexpected").also { onHttpRequest() }
                     }
             },
             processRunner = processRunner,
@@ -331,6 +365,7 @@ private class RecordingFileSystem(
     private val files: Map<String, String> = emptyMap(),
 ) : WorkspaceFileSystem {
     val reads: MutableList<String> = mutableListOf()
+    val writes: MutableList<String> = mutableListOf()
 
     override fun currentWorkingDirectory(): String = "/repo"
 
@@ -359,9 +394,9 @@ private class RecordingFileSystem(
 
     override fun readBytes(path: String): ByteArray = byteArrayOf()
 
-    override fun writeText(path: String, text: String) = Unit
+    override fun writeText(path: String, text: String) { writes += path }
 
-    override fun writeBytes(path: String, bytes: ByteArray) = Unit
+    override fun writeBytes(path: String, bytes: ByteArray) { writes += path }
 
     override fun sink(path: String): BufferedSink = okio.Buffer()
 

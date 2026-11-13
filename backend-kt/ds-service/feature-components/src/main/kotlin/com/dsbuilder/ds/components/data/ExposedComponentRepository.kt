@@ -32,11 +32,11 @@ class ExposedComponentRepository : ComponentRepository {
     }
 
     override suspend fun createGlobal(command: ComponentRepository.Create): Component =
-        ComponentsTable.insertReturning {
+        StableComponentsTable.insertReturning {
             it[name] = command.name
             it[platform] = requireNotNull(ComponentPlatformDb.fromWire(command.platform))
             it[description] = command.description
-        }.single().let(::component)
+        }.single().let { component(it, StableComponentsTable) }
 
     override suspend fun updateAccessible(
         projectId: ProjectId,
@@ -45,16 +45,16 @@ class ExposedComponentRepository : ComponentRepository {
         command: ComponentRepository.Update,
     ): Component? {
         if (id !in ComponentOwnership.writableComponentIds(projectId, systemAdmin)) return null
-        return ComponentsTable.updateReturning(where = { ComponentsTable.id eq id }) {
+        return StableComponentsTable.updateReturning(where = { StableComponentsTable.id eq id }) {
             command.name?.let { value -> it[name] = value }
             if (command.descriptionPresent) it[description] = command.description
             it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::component)
+        }.singleOrNull()?.let { component(it, StableComponentsTable) }
     }
 
     override suspend fun deleteAccessible(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
         if (id !in ComponentOwnership.writableComponentIds(projectId, systemAdmin)) return false
-        return ComponentsTable.deleteWhere { ComponentsTable.id eq id } > 0
+        return StableComponentsTable.deleteWhere { StableComponentsTable.id eq id } > 0
     }
 
     override suspend fun variations(
@@ -87,31 +87,35 @@ class ExposedComponentRepository : ComponentRepository {
     ): ComponentDependencyGraph? {
         val readable = ComponentOwnership.readableComponentIds(projectId, systemAdmin)
         if (id !in readable) return null
-        val asParent = ComponentDependenciesTable.selectAll().where {
-            (ComponentDependenciesTable.parentId eq id) and (ComponentDependenciesTable.childId inList readable)
+        val asParent = SelectedComponentDependenciesTable.selectAll().where {
+            (SelectedComponentDependenciesTable.parentId eq id) and
+                (SelectedComponentDependenciesTable.childId inList readable)
         }.mapNotNull { row ->
-            findComponent(row[ComponentDependenciesTable.childId])?.let { child ->
-                ComponentDependencyGraph.WithChild(componentDependency(row), child)
+            findComponent(row[SelectedComponentDependenciesTable.childId])?.let { child ->
+                ComponentDependencyGraph.WithChild(selectedComponentDependency(row), child)
             }
         }
-        val asChild = ComponentDependenciesTable.selectAll().where {
-            (ComponentDependenciesTable.childId eq id) and (ComponentDependenciesTable.parentId inList readable)
+        val asChild = SelectedComponentDependenciesTable.selectAll().where {
+            (SelectedComponentDependenciesTable.childId eq id) and
+                (SelectedComponentDependenciesTable.parentId inList readable)
         }.mapNotNull { row ->
-            findComponent(row[ComponentDependenciesTable.parentId])?.let { parent ->
-                ComponentDependencyGraph.WithParent(componentDependency(row), parent)
+            findComponent(row[SelectedComponentDependenciesTable.parentId])?.let { parent ->
+                ComponentDependencyGraph.WithParent(selectedComponentDependency(row), parent)
             }
         }
         return ComponentDependencyGraph(asParent, asChild)
     }
 }
 
-internal fun component(row: ResultRow) = Component(
-    row[ComponentsTable.id],
-    row[ComponentsTable.name],
-    row[ComponentsTable.platform].wireValue,
-    row[ComponentsTable.description],
-    row[ComponentsTable.createdAt],
-    row[ComponentsTable.updatedAt],
+internal fun component(row: ResultRow) = component(row, ComponentsTable)
+
+internal fun component(row: ResultRow, table: ComponentCatalogTable) = Component(
+    row[table.id],
+    row[table.name],
+    row[table.platform].wireValue,
+    row[table.description],
+    row[table.createdAt],
+    row[table.updatedAt],
 )
 
 private fun findComponent(id: UUID): Component? = ComponentsTable.selectAll()

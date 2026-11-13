@@ -24,6 +24,8 @@ export class Config {
     private revision = 0;
     private readonly previewMetadata?: Meta['preview'];
     private readonly platform: ComponentPlatform;
+    private readonly coreReleaseId?: string;
+    private readonly componentId?: string;
 
     constructor(meta: Meta, configID?: string) {
         const { name, description, sources } = meta;
@@ -33,6 +35,8 @@ export class Config {
         const { api, configs, variations } = sources;
         this.previewMetadata = meta.preview;
         this.platform = meta.platform ?? 'web';
+        this.coreReleaseId = meta.serverBinding?.coreReleaseId;
+        this.componentId = meta.serverBinding?.componentId;
 
         const appearance = configID ? configs.find((item) => item.id === configID) : configs[0];
         const config = appearance?.config;
@@ -94,6 +98,16 @@ export class Config {
 
     public getInvariants() {
         return this.invariants;
+    }
+
+    /** Core той модели, из которой построено оформление; не входит в конфигурацию генератора. */
+    public getCoreReleaseId() {
+        return this.coreReleaseId;
+    }
+
+    /** Устойчивый ID именно этой платформенной модели. */
+    public getComponentId() {
+        return this.componentId;
     }
 
     public getPlatform() {

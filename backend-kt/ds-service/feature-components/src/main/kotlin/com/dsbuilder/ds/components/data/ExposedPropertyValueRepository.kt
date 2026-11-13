@@ -162,6 +162,13 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         command: PropertyValueRepository.VariationCreate,
     ): VariationPropertyValue? {
         if (!canWriteVariationReferences(projectId, systemAdmin, command)) return null
+        validateCoreAssignment(
+            command.propertyId,
+            command.appearanceId,
+            command.tokenId,
+            command.value,
+            command.stateSetId,
+        )
         val appearance = appearanceRow(command.appearanceId) ?: return null
         val designSystemId = appearance[ComponentAppearancesTable.designSystemId]
         val id = StableVariationPropertyValuesTable.insertReturning {
@@ -270,6 +277,13 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         command: PropertyValueRepository.InvariantCreate,
     ): InvariantPropertyValue? {
         if (!canWriteInvariantReferences(projectId, systemAdmin, command)) return null
+        validateCoreAssignment(
+            command.propertyId,
+            command.appearanceId,
+            command.tokenId,
+            command.value,
+            command.stateSetId,
+        )
         val id = StableInvariantPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
             it[designSystemId] = command.designSystemId
@@ -344,21 +358,30 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         return true
     }
 
+    private fun PropertyValueRepository.ValueUpdate.changedPaths(): Set<String> = buildSet {
+        if (tokenIdPresent) add("/token_id")
+        if (valuePresent) add("/value")
+        if (alphaPresent) add("/alpha")
+        if (adjustmentPresent) add("/adjustment")
+        if (stateSetId != null) add("/state_set_id")
+    }
+
     private fun writeVariationRevision(
         current: ResultRow,
         command: PropertyValueRepository.ValueUpdate?,
         deleted: Boolean,
     ) {
-        val designSystemId = current[VariationPropertyValuesTable.designSystemId]
-        val changedPaths = command?.let {
-            buildSet {
-                if (it.tokenIdPresent) add("/token_id")
-                if (it.valuePresent) add("/value")
-                if (it.alphaPresent) add("/alpha")
-                if (it.adjustmentPresent) add("/adjustment")
-                if (it.stateSetId != null) add("/state_set_id")
-            }
+        if (!deleted && command != null) {
+            validateCoreAssignment(
+                current[VariationPropertyValuesTable.propertyId],
+                current[VariationPropertyValuesTable.appearanceId],
+                if (command.tokenIdPresent) command.tokenId else current[VariationPropertyValuesTable.tokenId],
+                if (command.valuePresent) command.value else current[VariationPropertyValuesTable.value],
+                command.stateSetId ?: current[VariationPropertyValuesTable.stateSetId],
+            )
         }
+        val designSystemId = current[VariationPropertyValuesTable.designSystemId]
+        val changedPaths = command?.changedPaths()
         if (!deleted && changedPaths?.isEmpty() == true) return
         VariationPropertyValueRevisionsTable.replaceRevision(
             VariationPropertyValueRevisionsTable.entityId,
@@ -399,16 +422,17 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         command: PropertyValueRepository.ValueUpdate?,
         deleted: Boolean,
     ) {
-        val designSystemId = current[InvariantPropertyValuesTable.designSystemId]
-        val changedPaths = command?.let {
-            buildSet {
-                if (it.tokenIdPresent) add("/token_id")
-                if (it.valuePresent) add("/value")
-                if (it.alphaPresent) add("/alpha")
-                if (it.adjustmentPresent) add("/adjustment")
-                if (it.stateSetId != null) add("/state_set_id")
-            }
+        if (!deleted && command != null) {
+            validateCoreAssignment(
+                current[InvariantPropertyValuesTable.propertyId],
+                current[InvariantPropertyValuesTable.appearanceId],
+                if (command.tokenIdPresent) command.tokenId else current[InvariantPropertyValuesTable.tokenId],
+                if (command.valuePresent) command.value else current[InvariantPropertyValuesTable.value],
+                command.stateSetId ?: current[InvariantPropertyValuesTable.stateSetId],
+            )
         }
+        val designSystemId = current[InvariantPropertyValuesTable.designSystemId]
+        val changedPaths = command?.changedPaths()
         if (!deleted && changedPaths?.isEmpty() == true) return
         InvariantPropertyValueRevisionsTable.replaceRevision(
             InvariantPropertyValueRevisionsTable.entityId,
@@ -465,8 +489,7 @@ private fun invariantPropertyValue(row: ResultRow) = InvariantPropertyValue(
 )
 
 private fun readableVariationValue(projectId: ProjectId, systemAdmin: Boolean) =
-    ComponentOwnership.readableProperty(VariationPropertyValuesTable.propertyId, projectId, systemAdmin) and
-        ComponentOwnership.readableStyle(VariationPropertyValuesTable.styleId, projectId, systemAdmin) and
+    ComponentOwnership.readableStyle(VariationPropertyValuesTable.styleId, projectId, systemAdmin) and
         ComponentOwnership.readableAppearance(VariationPropertyValuesTable.appearanceId, projectId, systemAdmin)
 
 private fun writableVariationValue(projectId: ProjectId, systemAdmin: Boolean) =
@@ -485,20 +508,19 @@ private fun canWriteVariationReferences(
     (command.tokenId == null || ComponentOwnership.canReadToken(projectId, systemAdmin, command.tokenId))
 
 private fun readableInvariantValue(projectId: ProjectId, systemAdmin: Boolean) =
-    ComponentOwnership.readableProperty(InvariantPropertyValuesTable.propertyId, projectId, systemAdmin) and
-        ComponentOwnership.readableDesignSystem(
-            InvariantPropertyValuesTable.designSystemId,
-            projectId,
-            systemAdmin,
-        ) and ComponentOwnership.readableComponent(
-            InvariantPropertyValuesTable.componentId,
-            projectId,
-            systemAdmin,
-        ) and ComponentOwnership.readableAppearance(
-            InvariantPropertyValuesTable.appearanceId,
-            projectId,
-            systemAdmin,
-        )
+    ComponentOwnership.readableDesignSystem(
+        InvariantPropertyValuesTable.designSystemId,
+        projectId,
+        systemAdmin,
+    ) and ComponentOwnership.readableComponent(
+        InvariantPropertyValuesTable.componentId,
+        projectId,
+        systemAdmin,
+    ) and ComponentOwnership.readableAppearance(
+        InvariantPropertyValuesTable.appearanceId,
+        projectId,
+        systemAdmin,
+    )
 
 private fun writableInvariantValue(projectId: ProjectId, systemAdmin: Boolean) =
     ComponentOwnership.writableProperty(InvariantPropertyValuesTable.propertyId, projectId, systemAdmin) and

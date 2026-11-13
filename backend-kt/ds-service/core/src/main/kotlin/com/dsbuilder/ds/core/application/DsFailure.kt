@@ -33,6 +33,14 @@ sealed interface DsFailure {
         val message: String? = null,
         /** Числовые подробности конфликта, например `steps` у `PALETTE_STEP_MISSING`. */
         val details: Map<String, List<Int>> = emptyMap(),
+        /** Выбранный контекст при несовместимости настроек и Core. */
+        val coreContext: ModelReadContext? = null,
+        /** Число блокирующих проблем выбранного контекста. */
+        /** Число блокирующих проблем выбранного контекста. */
+        val blockingCount: Int? = null,
+        /** Относительный API-путь полного отчёта. */
+        /** Относительный API-путь полного отчёта. */
+        val compatibilityPath: String? = null,
     ) : DsFailure
 
     /** Valid request whose processing failed with stable [code] and safe public [message]. */

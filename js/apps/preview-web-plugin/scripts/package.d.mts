@@ -7,6 +7,7 @@ export interface WebPluginManifest {
     entrypoint?: unknown;
     plasmaNewHopeVersion?: unknown;
     apiMetaSha256?: unknown;
+    coreRelease?: { libraryId: string; platform: string; version: string };
     commit?: unknown;
     version?: unknown;
     [field: string]: unknown;

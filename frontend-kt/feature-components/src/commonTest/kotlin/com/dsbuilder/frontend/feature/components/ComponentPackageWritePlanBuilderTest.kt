@@ -1,5 +1,7 @@
 package com.dsbuilder.frontend.feature.components
 
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
+import com.dsbuilder.frontend.core.domain.CoreReleaseSnapshot
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageMetaEntry
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlan
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
@@ -7,6 +9,10 @@ import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePla
 import com.dsbuilder.frontend.feature.components.domain.ExistingComponentPackage
 import com.dsbuilder.frontend.feature.components.domain.RenderedComponentConfig
 import com.dsbuilder.frontend.feature.components.domain.codec.NativeConfig
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -34,6 +40,28 @@ class ComponentPackageWritePlanBuilderTest {
             is ComponentPackageWritePlanResult.Built -> result.value
             is ComponentPackageWritePlanResult.Failed -> fail("построитель отказал — ${result.message}")
         }
+
+    @Test
+    fun provenanceIsStoredSeparatelyWithoutChangingGeneratorInputs() {
+        val configs = listOf(config("avatar", "avatar"))
+        val original = planOf(configs)
+        val core = CoreReleaseSnapshot("release-a", CoreReleaseRef("sdds", "compose", "A"), "sha-a", "imported")
+        val result = builder.build(
+            "sdds_serv",
+            "0.6.0-rc",
+            configs,
+            ExistingComponentPackage(fileNames = listOf("core-context.json")),
+            listOf(core),
+        )
+        val saved = (result as ComponentPackageWritePlanResult.Built).value
+        assertEquals(original.configFiles, saved.configFiles)
+        assertEquals(original.meta, saved.meta)
+        assertTrue(saved.unrelatedFiles.isEmpty())
+        val provenance = Json.parseToJsonElement(requireNotNull(saved.coreContext).content).jsonObject
+            .getValue("coreReleases").jsonArray.single().jsonObject
+        assertEquals("A", provenance.getValue("version").jsonPrimitive.content)
+        assertEquals("sha-a", provenance.getValue("metaSha256").jsonPrimitive.content)
+    }
 
     @Test
     fun buildsFileNameFromStyleName() {

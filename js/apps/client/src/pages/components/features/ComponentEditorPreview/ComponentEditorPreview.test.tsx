@@ -36,7 +36,7 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../../../composePreview')>();
     return {
         ...actual,
-        getComposePreviewPluginUrl: () => 'https://plugin.example/',
+        useComposePreviewHost: (platform = 'compose') => platform === 'compose' ? { pluginUrl: 'https://plugin.example/' } : undefined,
         loadComposePreviewManifest: async () => ({
             manifest: { components: ['BasicButton'] },
         }),

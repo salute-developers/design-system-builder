@@ -487,7 +487,12 @@ class TypographyStyleHttpPostgresIntegrationTest {
                         """"version":"1.0.0","changelog":"Typography"}""",
                 )
             }
-            assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
+            val diagnostic = if (response.status == HttpStatusCode.Conflict) {
+                read("/api/design-systems/$designSystemId/compatibility", VIEWER).toString()
+            } else {
+                response.bodyAsText()
+            }
+            assertEquals(HttpStatusCode.Created, response.status, diagnostic)
             return body(response).text("id")
         }
 
