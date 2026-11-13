@@ -15,7 +15,7 @@ data class ComponentEditorBundleResponse(
     /** Оформления компонента в дизайн-системе, как `GET /api/design-systems/{designSystemId}/appearances`. */
     val appearances: List<AppearanceResponse>,
     /** Выгрузка конфигураций компонента, как `POST /api/design-systems/{designSystemId}/component-config/export` с одним компонентом. */
-    val export: ExportComponentConfigResponse,
+    val export: ExportComponentConfigResponse?,
     /** Свойства компонента, как `GET /api/design-systems/catalog/components/{id}/properties`. */
     val properties: List<ComponentPropertySummaryResponse>,
     /** Платформенные параметры свойств компонента, как `GET /api/design-systems/catalog/property-platform-params`. */
@@ -34,13 +34,25 @@ data class ComponentEditorBundleResponse(
     val dependencyComponents: List<ComponentResponse>,
     /** Состояния, которые видит компонент: общие и собственные без «теней» общих, в порядке создания. */
     val states: List<ComponentStateResponse>,
+    /** Причина отказа экспорта; диагностика при этом остаётся доступной. */
+    val exportConflict: Boolean = false,
+    /** Текущие настройки для редактора, не заменяющие допустимый экспорт. */
+    val editorConfigurations: List<ExportComponentConfigResponse.Entry> = emptyList(),
 ) {
     companion object {
         /** Отображает пакет компонента в ответ. */
         fun from(value: ComponentEditorBundle) = ComponentEditorBundleResponse(
             component = ComponentResponse.from(value.component),
             appearances = value.appearances.map(AppearanceResponse::from),
-            export = ExportComponentConfigResponse.from(value.export),
+            export = value.export?.let(ExportComponentConfigResponse::from),
+            exportConflict = value.exportConflict,
+            editorConfigurations = value.editorConfigurations.map {
+                ExportComponentConfigResponse.Entry(
+                    it.componentName,
+                    it.styleName,
+                    ComponentConfigResponse.single(it.config),
+                )
+            },
             properties = value.properties.map(ComponentPropertySummaryResponse::from),
             platformParams = value.platformParams.map(PropertyPlatformParamResponse::from),
             propertyVariations = value.propertyVariations.map(PropertyVariationResponse::from),

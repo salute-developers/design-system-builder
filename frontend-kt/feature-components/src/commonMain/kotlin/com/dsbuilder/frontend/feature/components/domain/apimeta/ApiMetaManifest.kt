@@ -35,6 +35,7 @@ internal data class ApiMetaComponent(
     val name: String,
     val properties: List<ApiMetaProperty>,
     val states: List<String>,
+    val dependencies: List<String> = emptyList(),
 )
 
 /**
@@ -57,6 +58,7 @@ internal data class ApiMetaProperty(
     val description: String?,
     val deprecations: Map<String, ApiMetaDeprecation> = emptyMap(),
     val stateSupport: ApiMetaStateSupport? = null,
+    val componentTargets: List<String> = emptyList(),
 )
 
 /**

@@ -32,6 +32,8 @@ data class ImportApiMetaResponse(
     val absent: List<String>,
     /** Имена состояний признака, которые не разрешились. */
     val unresolvedStates: List<String>,
+    /** Идентификатор релиза; при dryRun не сохраняется. */
+    val releaseId: String? = null,
 ) {
     /** One property that was not written. */
     @Serializable
@@ -60,6 +62,7 @@ data class ImportApiMetaResponse(
             value.typeMismatches,
             value.absent,
             value.unresolvedStates,
+            value.releaseId,
         )
     }
 }

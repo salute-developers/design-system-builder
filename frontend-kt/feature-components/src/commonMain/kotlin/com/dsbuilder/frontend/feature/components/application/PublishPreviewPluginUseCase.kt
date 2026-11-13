@@ -7,6 +7,7 @@ import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.DEFAULT_API_KEY_ENV
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_ID_ENV
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_SECRET_ENV
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
@@ -15,8 +16,11 @@ import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.ResolvedApiUrl
 import com.dsbuilder.frontend.core.network.WriteApiUrlResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaNormalizationResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaNormalizer
+import com.dsbuilder.frontend.feature.components.domain.apimeta.isExplicitlyEmptyApiMeta
+import com.dsbuilder.frontend.feature.components.domain.apimeta.toApiMetaPlatform
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -66,6 +70,7 @@ public class PublishPreviewPluginUseCase internal constructor(
                 manifest = prepared.normalized.manifest,
                 source = META_FILE,
                 dryRun = !command.apply,
+                coreRelease = prepared.identity.coreRelease,
             ),
         )
         return when (remote) {
@@ -134,16 +139,31 @@ public class PublishPreviewPluginUseCase internal constructor(
             is ApiMetaNormalizationResult.Invalid -> return Preparation.Rejected(
                 "Error: cannot read $META_FILE of ${archive.path}: ${result.message}",
             )
-            ApiMetaNormalizationResult.Empty -> return Preparation.Rejected(
-                "Error: $META_FILE of ${archive.path} contains no components with parameters.",
-            )
+            ApiMetaNormalizationResult.Empty -> if (
+                isExplicitlyEmptyApiMeta(archive.metaBytes.decodeToString(), command.platform.toApiMetaPlatform())
+            ) {
+                ApiMetaNormalizationResult.Normalized(ApiMetaManifest(emptyList()), emptyList())
+            } else {
+                return Preparation.Rejected(
+                    "Error: $META_FILE of ${archive.path} contains no supported component definitions.",
+                )
+            }
             is ApiMetaNormalizationResult.Normalized -> result
+        }
+        if (normalized.conflicts.isNotEmpty()) {
+            return Preparation.Rejected(
+                "Error: conflicting metadata definitions: ${normalized.conflicts.joinToString()}",
+            )
         }
         return Preparation.Ready(command.platform, apiUrl, archive, identity, normalized)
     }
 
     private sealed interface ManifestCheck {
-        data class Valid(val version: String, val libraryVersion: String) : ManifestCheck
+        data class Valid(
+            val version: String,
+            val libraryVersion: String,
+            val coreRelease: CoreReleaseRef,
+        ) : ManifestCheck
 
         data class Invalid(val message: String) : ManifestCheck
     }
@@ -175,7 +195,23 @@ public class PublishPreviewPluginUseCase internal constructor(
                     "the file has $actual.",
             )
         }
-        return ManifestCheck.Valid(version, library)
+        return checkCoreCoordinates(root, rules, version, library)
+    }
+
+    private fun checkCoreCoordinates(
+        root: JsonObject,
+        rules: PlatformRules,
+        version: String,
+        library: String,
+    ): ManifestCheck {
+        val core = root["coreRelease"] as? JsonObject
+            ?: return ManifestCheck.Invalid("Error: preview manifest requires coreRelease coordinates.")
+        fun coordinate(key: String) = (core[key] as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
+        val release = CoreReleaseRef(coordinate("libraryId"), coordinate("platform"), coordinate("version"))
+        if (release.libraryId.isBlank() || release.version != library || release.platform != rules.manifestPlatform) {
+            return ManifestCheck.Invalid("Error: coreRelease does not match preview platform/library version.")
+        }
+        return ManifestCheck.Valid(version, library, release)
     }
 
     /** Служебная учётка из окружения либо сессия администратора; ключ проекта не используется. */

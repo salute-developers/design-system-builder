@@ -3,6 +3,7 @@ package com.dsbuilder.ds.components.presentation
 import com.dsbuilder.ds.components.application.ImportApiMeta
 import com.dsbuilder.ds.components.domain.AliasDeprecation
 import com.dsbuilder.ds.components.domain.ApiMetaAlias
+import com.dsbuilder.ds.core.domain.CoreReleaseRef
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -14,11 +15,12 @@ import kotlinx.serialization.json.JsonPrimitive
  * The platform meta format (`stateEnum`, `group`, `paramSimpleType`, `attrName`) is parsed by the CLI:
  * the backend receives ready components, properties and states, so a new platform needs no parser here.
  * The property type is a string: its allowed values belong to the stored type vocabulary and an unknown
- * one rejects the property instead of failing the whole request.
+ * one rejects the entire release atomically.
  */
 @Serializable
 data class ImportApiMetaRequest(
     /** Platform of the manifest. */
+    /** Платформа каталога: web, compose, xml или ios. */
     val platform: String,
     /** Reference information about the meta file. */
     val meta: Meta = Meta(),
@@ -28,7 +30,27 @@ data class ImportApiMetaRequest(
     val components: List<Component>,
     /** Общие состояния, которые выражает генератор платформы. */
     val interactionStates: List<String>? = null,
+    /** Координаты передаются отдельно от мета-файла-массива. */
+    val coreRelease: Release? = null,
+    /** Исходный файл в Base64 без повторной сериализации JSON. */
+    val sourceMetaBase64: String? = null,
+    /** SHA-256 исходного файла. */
+    val metaSha256: String? = null,
 ) {
+    /** Координаты Core на HTTP-границе. */
+    @Serializable
+    data class Release(
+        /** Стабильное имя библиотеки Core. */
+        val libraryId: String,
+        /** Каноническая платформа Core. */
+        val platform: String,
+        /** Версия Core, явно переданная производителем. */
+        val version: String,
+    ) {
+        /** Преобразует DTO в координаты приложения. */
+        fun toDomain() = CoreReleaseRef(libraryId, platform, version)
+    }
+
     /** Reference information about the meta file. */
     @Serializable
     data class Meta(/** File name of the meta (not a path). */ val source: String = "")
@@ -42,6 +64,21 @@ data class ImportApiMetaRequest(
         val properties: List<Property> = emptyList(),
         /** States declared by the component. */
         val states: List<String> = emptyList(),
+        /** Описание компонента от производителя меты. */
+        val description: String? = null,
+        /** Вложенность, определённая Core; не назначения оформлений ДС. */
+        val dependencies: List<Dependency> = emptyList(),
+    )
+
+    /** Объявленная Core вложенность. */
+    @Serializable
+    data class Dependency(
+        /** Имя вложенного компонента из того же релиза Core. */
+        val component: String,
+        /** Тип зависимости, объявленной Core: compose. */
+        val type: String = "compose",
+        /** Порядок вложенного компонента. */
+        val order: Int? = null,
     )
 
     /** One property of the manifest. */
@@ -56,7 +93,12 @@ data class ImportApiMetaRequest(
         /** The earlier single-name field, still accepted from already released CLI versions. */
         val platformName: String? = null,
         /** Optional description. */
+        /** Описание компонента от производителя меты. */
         val description: String? = null,
+        /** Значение по умолчанию, объявленное Core. */
+        val defaultValue: String? = null,
+        /** Разрешённые целевые компоненты слота; пусто, если мета их не определяет. */
+        val componentTargets: List<String> = emptyList(),
         /** Признак поддержки состояний. */
         val stateSupport: StateSupport? = null,
     )
@@ -71,7 +113,8 @@ data class ImportApiMetaRequest(
     )
 
     /** True when the body satisfies the contract that the generated serializer cannot express. */
-    fun valid(): Boolean = platform in componentPlatforms && components.isNotEmpty() &&
+    fun valid(): Boolean = platform in componentPlatforms && coreRelease?.toDomain()?.valid() == true &&
+        sourceMetaBase64 != null && metaSha256 != null &&
         interactionStates.orEmpty().none(String::isBlank) &&
         components.all { component ->
             component.name.isNotEmpty() && component.states.none(String::isEmpty) &&
@@ -98,12 +141,19 @@ data class ImportApiMetaRequest(
                         it.stateSupport?.let { support ->
                             ImportApiMeta.StateSupport(support.states, support.combinations)
                         },
+                        it.defaultValue,
+                        it.componentTargets,
                     )
                 },
                 component.states,
+                component.description,
+                component.dependencies.map { ImportApiMeta.Dependency(it.component, it.type, it.order) },
             )
         },
         interactionStates,
+        coreRelease?.toDomain(),
+        sourceMetaBase64,
+        metaSha256,
     )
 
     /**
@@ -117,7 +167,7 @@ data class ImportApiMetaRequest(
                 listOf(ApiMetaAlias(platformName, AliasDeprecation.Unknown))
             else -> null
         }
-        return source?.let(ApiMetaAlias::merge)
+        return source
     }
 
     private fun JsonElement.alias(): ApiMetaAlias? = when (this) {

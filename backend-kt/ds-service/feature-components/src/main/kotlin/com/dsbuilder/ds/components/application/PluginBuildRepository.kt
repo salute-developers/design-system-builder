@@ -18,6 +18,9 @@ interface PluginBuildRepository {
     /** Активный билд платформы. */
     suspend fun active(platform: String): PluginBuild?
 
+    /** Совместимая сборка черновика либо точный buildId опубликованной версии. */
+    suspend fun selected(platform: String, versionId: java.util.UUID?): PluginBuild? = null
+
     /** Все билды платформы от самого нового к самому старому. */
     suspend fun listByRecency(platform: String): List<PluginBuild>
 
@@ -29,4 +32,7 @@ interface PluginBuildRepository {
 
     /** Удаляет строку билда. */
     suspend fun delete(buildId: String)
+
+    /** Сборки, закреплённые опубликованными версиями ДС и защищённые от очистки. */
+    suspend fun pinnedBuildIds(): Set<String> = emptySet()
 }

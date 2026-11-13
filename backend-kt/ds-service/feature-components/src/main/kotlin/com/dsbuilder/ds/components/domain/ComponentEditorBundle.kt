@@ -12,7 +12,7 @@ data class ComponentEditorBundle(
     /** Оформления компонента в дизайн-системе. */
     val appearances: List<Appearance>,
     /** Выгрузка конфигураций компонента для запрошенной платформы. */
-    val export: ComponentConfigPackage,
+    val export: ComponentConfigPackage?,
     /** Свойства компонента. */
     val properties: List<ComponentPropertySummary>,
     /** Платформенные параметры свойств компонента. */
@@ -31,4 +31,8 @@ data class ComponentEditorBundle(
     val dependencyComponents: List<Component>,
     /** Состояния, которые видит компонент: общие и собственные без «теней» общих, в порядке создания. */
     val states: List<ComponentState> = emptyList(),
+    /** Экспорт заблокирован, сохранённые оформления остаются доступны. */
+    val exportConflict: Boolean = false,
+    /** Данные для редактора при заблокированном экспорте; проблемные назначения доступны в отчёте. */
+    val editorConfigurations: List<ComponentConfigPackage.Entry> = emptyList(),
 )

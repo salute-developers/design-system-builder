@@ -7,6 +7,7 @@ import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
@@ -222,15 +223,13 @@ class ImportApiMetaUseCaseTest {
     }
 
     @Test
-    fun anEmptyComposeMetaNamesTheFileAndSendsNothing() = runTest {
+    fun anEmptyArrayPublishesAnEmptyRelease() = runTest {
         val touched = Touched()
 
         val result = execute(meta = readMeta("[]"), touched = touched)
 
-        val failed = assertIs<ImportApiMetaResult.Failed>(result)
-        assertTrue(failed.message.contains(META_PATH), failed.message)
-        assertTrue(failed.message.contains("no components"), failed.message)
-        assertTrue(!touched.credentialResolved && !touched.requested)
+        assertIs<ImportApiMetaResult.Imported>(result)
+        assertTrue(touched.credentialResolved && touched.requested)
     }
 
     @Test
@@ -310,10 +309,7 @@ class ImportApiMetaUseCaseTest {
 
         val result = execute(meta = meta)
 
-        assertEquals(
-            listOf("Box.size: kept dimension, ignored float"),
-            assertIs<ImportApiMetaResult.Imported>(result).conflicts,
-        )
+        assertTrue(assertIs<ImportApiMetaResult.Failed>(result).message.contains("Box.size"))
     }
 
     private fun readMeta(text: String) = ApiMetaSourceResult.Read(META_PATH, text)
@@ -386,6 +382,7 @@ class ImportApiMetaUseCaseTest {
         return useCase.execute(
             ImportApiMetaCommand(
                 platform = platform,
+                coreRelease = CoreReleaseRef("test-library", platform.cliValue, "1.0.0"),
                 from = "meta.json",
                 dryRun = dryRun,
                 typeMap = typeMap,

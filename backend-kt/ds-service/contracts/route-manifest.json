@@ -6,6 +6,96 @@
   "defaultErrorStatuses": [400, 403, 404, 409, 422, 500],
   "groups": [
     {
+      "name": "core-catalog-reads",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        [
+          "GET",
+          "/{designSystemId}/components/{id}",
+          null,
+          "Component",
+          200,
+          "components:read",
+          null
+        ],
+        [
+          "GET",
+          "/{designSystemId}/properties",
+          null,
+          "Property[]",
+          200,
+          "components:variations:read",
+          null
+        ],
+        [
+          "GET",
+          "/{designSystemId}/property-platform-params",
+          null,
+          "PropertyPlatformParam[]",
+          200,
+          "components:variations:read",
+          null
+        ],
+        [
+          "GET",
+          "/{designSystemId}/component-deps",
+          null,
+          "ComponentDep[]",
+          200,
+          "components:read",
+          null
+        ],
+        [
+          "GET",
+          "/{designSystemId}/states",
+          "StatesQuery",
+          "State[]",
+          200,
+          "components:variations:read",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "core-compatibility",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        [
+          "GET",
+          "/{designSystemId}/compatibility",
+          null,
+          "CoreCompatibilityReport",
+          200,
+          "components:variations:read",
+          null
+        ],
+        [
+          "POST",
+          "/{designSystemId}/compatibility/repair",
+          "CoreProblemRepairRequest",
+          "OkResponse",
+          200,
+          "components:variations:delete",
+          null
+        ],
+        [
+          "GET",
+          "/{designSystemId}/preview/{platform}",
+          null,
+          "CorePreviewResponse",
+          200,
+          "components:read",
+          null
+        ]
+      ]
+    },
+    {
       "name": "design-systems",
       "router": "src/routes/api/design-systems.ts",
       "included": true,

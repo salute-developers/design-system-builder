@@ -9,8 +9,7 @@ import com.dsbuilder.ds.components.domain.ComponentConfigPackage
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inSubQuery
-import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
 
 /** Component-config repository backed by the existing normalized db-service schema. */
@@ -50,6 +49,12 @@ class ExposedComponentConfigRepository internal constructor(
         val version = componentExportVersion(query.designSystemId)
             ?: return ComponentConfigRepository.ExportAttempt.NotFound
 
+        val compatibility = ExposedCompatibilityChecker().check(
+            projectId,
+            query.designSystemId,
+            com.dsbuilder.ds.core.data.selectedVersionId(),
+        )
+        if (compatibility.blockingCount > 0) return ComponentConfigRepository.ExportAttempt.Conflict(compatibility)
         val componentFilter = normalized(query.components)
         val styleFilter = normalized(query.styles)
         val underived = linkedSetOf<String>()
@@ -80,7 +85,13 @@ class ExposedComponentConfigRepository internal constructor(
         }
         return ComponentConfigRepository.ExportAttempt.Success(
             ComponentConfigPackage(
-                ComponentConfigPackage.Meta(designSystem[ComponentDesignSystemsTable.name], version),
+                ComponentConfigPackage.Meta(
+                    designSystem[ComponentDesignSystemsTable.name],
+                    version,
+                    compatibility.context.coreReleases.filter {
+                        it.ref.platform == ComponentPlatformDb.fromWire(query.platform)?.wireValue
+                    },
+                ),
                 entries.sortedWith(compareBy({ it.componentName }, { it.styleName })),
                 underived.sorted(),
             ),
@@ -105,15 +116,14 @@ class ExposedComponentConfigRepository internal constructor(
         designSystemId: java.util.UUID,
         platform: ComponentPlatformDb,
     ): List<ConfigAppearance> {
+        val active = DesignSystemComponentsTable.selectAll()
+            .where { DesignSystemComponentsTable.designSystemId eq designSystemId }
+            .map { it[DesignSystemComponentsTable.componentId] }
         val query = ComponentAppearancesTable.innerJoin(ComponentsTable).selectAll()
             .where {
                 (ComponentAppearancesTable.designSystemId eq designSystemId) and
                     (ComponentsTable.platform eq platform) and
-                    (
-                        ComponentAppearancesTable.componentId inSubQuery
-                            DesignSystemComponentsTable.select(DesignSystemComponentsTable.componentId)
-                                .where { DesignSystemComponentsTable.designSystemId eq designSystemId }
-                        )
+                    (ComponentsTable.id inList active)
             }
         return query.map {
             ConfigAppearance(

@@ -1,5 +1,7 @@
 package com.dsbuilder.frontend.feature.components.data
 
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
+import com.dsbuilder.frontend.core.domain.CoreReleaseSnapshot
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigRemoteSource
@@ -226,6 +228,14 @@ private data class ExportPackageResponse(
             )
         },
         underivedTypes = underivedTypes,
+        coreReleases = meta.coreReleases.map {
+            CoreReleaseSnapshot(
+                it.releaseId,
+                CoreReleaseRef(it.libraryId, it.platform, it.version),
+                it.metaSha256,
+                it.provenance,
+            )
+        },
     )
 }
 
@@ -239,6 +249,7 @@ private data class ExportPackageResponse(
 private data class ExportMetaResponse(
     val name: String,
     val version: String,
+    val coreReleases: List<ExportCoreRelease> = emptyList(),
 )
 
 /**
@@ -253,4 +264,15 @@ private data class ExportComponentResponse(
     val componentName: String,
     val styleName: String,
     val config: CommonConfig,
+)
+
+/** Отдельные координаты источника конфигурации. */
+@Serializable
+private data class ExportCoreRelease(
+    val releaseId: String,
+    val libraryId: String,
+    val platform: String,
+    val version: String,
+    val metaSha256: String? = null,
+    val provenance: String,
 )

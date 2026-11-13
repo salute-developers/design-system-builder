@@ -6,14 +6,14 @@ import { SegmentButtonItem, SelectButton, SelectButtonItem } from '../../../../c
 import {
     COMPOSE_HOST_DEFAULTS,
     ComposePreviewSlot,
+    useComposePreviewHost,
+    useWebPreviewPluginAt,
     DEFAULT_WEB_STORY_ID,
     assembleComposePreviewPayload,
     assembleWebPreviewPayload,
     createComponentPreviewDraft,
-    getComposePreviewPluginUrl,
     isComposePreviewEnvironmentSupported,
     loadComposePreviewManifest,
-    useWebPreviewPlugin,
     PreviewComponentDescription,
     PreviewExamplePropertyDescription,
     PreviewPayloadInput,
@@ -33,9 +33,6 @@ import {
     StyledPreviewUnavailable,
 } from './ComponentEditorPreview.styles';
 import { restorePaletteColor } from '../../../../palette/activePalette';
-import { iconPreviewAsset, useIconCatalog } from '../../../../modules/icons';
-import { fetchWebPreviewPluginDescriptor } from '../../../../api/webPreviewPluginRepository';
-import type { StoryArgs, StoryArgValue } from './storyArgs';
 
 interface ComponentEditorPreviewProps {
     config: Config;
@@ -134,7 +131,8 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     const [selectedWebStory, setSelectedWebStory] = useState<{ owner: string; id: string }>();
     const composePreviewMetadata = loadedComposeMetadata?.owner === componentName ? loadedComposeMetadata : undefined;
     const webStoryId = selectedWebStory?.owner === componentName ? selectedWebStory.id : undefined;
-    const composePluginUrl = getComposePreviewPluginUrl();
+    const coreCompose = useComposePreviewHost('compose');
+    const composePluginUrl = coreCompose?.pluginUrl;
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
     // Compose-компонент существует только в Compose-плагине.
     const isComposeComponent = config.getPlatform() === 'compose';
@@ -143,20 +141,8 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     const isWebComponent = config.getPlatform() === 'web';
     // Web-компонент рисует только web-плагин: адрес известен (из сборки или от бэкенда), манифест совместим и
     // перечисляет компонент.
-    const webPlugin = useWebPreviewPlugin(
-        isWebComponent ? componentName : undefined,
-        designSystem?.getParameters()?.projectId,
-        fetchWebPreviewPluginDescriptor,
-    );
-    // Иконки рисуются из SVG каталога билдера: плагин получает их ресурсами payload и не держит свой набор.
-    const iconCatalog = useIconCatalog(designSystem?.getParameters()?.projectId).data;
-    const resolveIconAsset = useCallback(
-        (value: string) => {
-            const asset = iconPreviewAsset(iconCatalog, value);
-            return asset && { ...asset, url: new URL(asset.url, window.location.href).href };
-        },
-        [iconCatalog],
-    );
+    const coreWeb = useComposePreviewHost('web');
+    const webPlugin = useWebPreviewPluginAt(isWebComponent ? componentName : undefined, coreWeb?.pluginUrl);
     const debugMode = isDebugMode();
     const rendererModes = useMemo(
         () => (supportsCompose ? [WEB_PLUGIN_RENDERER, COMPOSE_RENDERER] : [WEB_PLUGIN_RENDERER]),

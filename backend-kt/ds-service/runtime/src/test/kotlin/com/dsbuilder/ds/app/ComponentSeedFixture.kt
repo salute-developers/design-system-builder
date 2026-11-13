@@ -41,13 +41,16 @@ internal object ComponentSeedFixture {
                     propertyNames += it.jsonObject.getValue("property").jsonPrimitive.content
                 }
                 collectPropertyNames(component.getValue("appearances"), propertyNames)
+                val tokenPropertyTypes = mutableMapOf<String, String>()
+                collectTokenPropertyTypes(component.getValue("appearances"), tokenPropertyTypes)
                 propertyNames.forEach { propertyName ->
                     val propertyId = connection.prepareStatement(
                         "INSERT INTO properties (component_id, name, type) " +
-                            "VALUES (?, ?, 'value'::property_type) RETURNING id",
+                            "VALUES (?, ?, ?::property_type) RETURNING id",
                     ).use { statement ->
                         statement.setObject(1, componentId)
                         statement.setString(2, propertyName)
+                        statement.setString(3, tokenPropertyTypes[propertyName] ?: "value")
                         statement.executeQuery().use { rows ->
                             rows.next()
                             rows.getObject(1, UUID::class.java)
@@ -69,6 +72,7 @@ internal object ComponentSeedFixture {
                 }
             }
         }
+        importFixtureCore(jdbcUrl, username, password)
         return componentIds
     }
 
@@ -78,6 +82,32 @@ internal object ComponentSeedFixture {
             is JsonObject -> {
                 value["prop"]?.jsonPrimitive?.content?.let(target::add)
                 value.values.forEach { collectPropertyNames(it, target) }
+            }
+            else -> Unit
+        }
+    }
+
+    // The fixture has no API meta. Token prefixes in the bundled seed establish these property types;
+    // literal-only CSS properties retain the generic value type.
+    private fun collectTokenPropertyTypes(value: JsonElement, target: MutableMap<String, String>) {
+        when (value) {
+            is JsonArray -> value.forEach { collectTokenPropertyTypes(it, target) }
+            is JsonObject -> {
+                val property = value["prop"]?.jsonPrimitive?.content
+                val literal = value["value"]?.jsonPrimitive?.content
+                val token = value["token"]?.jsonPrimitive?.content ?: literal?.takeIf {
+                    it.startsWith("body.") || it.startsWith("header.") || it.startsWith("down.")
+                }
+                if (property != null && token != null) {
+                    target[property] = when (token.substringBefore('.')) {
+                        "text", "surface", "overlay", "outline" -> "color"
+                        "round" -> "shape"
+                        "body", "header" -> "typography"
+                        "down" -> "shadow"
+                        else -> error("Unknown seed token type: $token")
+                    }
+                }
+                value.values.forEach { collectTokenPropertyTypes(it, target) }
             }
             else -> Unit
         }

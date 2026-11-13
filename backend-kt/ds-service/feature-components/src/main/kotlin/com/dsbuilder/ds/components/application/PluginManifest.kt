@@ -18,4 +18,6 @@ data class PluginManifest(
     val protocolVersion: Int,
     /** Точка входа плагина. */
     val entrypoint: String,
+    /** Координаты релиза, отдельно от массива меты. */
+    val coreRelease: com.dsbuilder.ds.core.domain.CoreReleaseRef? = null,
 )

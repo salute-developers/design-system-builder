@@ -49,8 +49,18 @@ object PluginManifestParser {
         if (entrypoint !in archive.files) {
             return invalid("PLUGIN_ENTRYPOINT_MISSING", "Файл entrypoint $entrypoint отсутствует в архиве")
         }
+        val core = root["coreRelease"] as? JsonObject
+            ?: return invalid("PLUGIN_MANIFEST_INVALID", "Требуются координаты coreRelease")
+        val release = com.dsbuilder.ds.core.domain.CoreReleaseRef(
+            core.string("libraryId").orEmpty(),
+            core.string("platform").orEmpty(),
+            core.string("version").orEmpty(),
+        )
+        if (!release.valid() || release.platform != platform.wire || release.version != libraryVersion) {
+            return invalid("CORE_PREVIEW_META_MISMATCH", "Core не соответствует платформе и версии preview")
+        }
         return PluginManifestResult.Valid(
-            PluginManifest(platform, version, commit, libraryVersion, metaSha, protocol, entrypoint),
+            PluginManifest(platform, version, commit, libraryVersion, metaSha, protocol, entrypoint, release),
         )
     }
 

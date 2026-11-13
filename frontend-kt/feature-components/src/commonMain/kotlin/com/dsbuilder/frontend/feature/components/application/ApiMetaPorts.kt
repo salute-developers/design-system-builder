@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.feature.components.application
 
 import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
@@ -28,7 +29,11 @@ internal sealed interface ApiMetaSourceResult {
      * @property path абсолютный путь прочитанного файла.
      * @property text содержимое файла.
      */
-    data class Read(val path: String, val text: String) : ApiMetaSourceResult
+    data class Read(
+        val path: String,
+        val text: String,
+        val bytes: ByteArray = text.encodeToByteArray(),
+    ) : ApiMetaSourceResult
 
     /**
      * Файл прочитать не удалось.
@@ -66,6 +71,8 @@ internal data class ImportApiMetaRemoteCommand(
     val source: String,
     val dryRun: Boolean,
     val manifest: ApiMetaManifest,
+    val coreRelease: CoreReleaseRef? = null,
+    val sourceBytes: ByteArray = byteArrayOf(),
 )
 
 /** Результат загрузки манифеста. */

@@ -299,7 +299,7 @@ class OpenApiDocumentResourceTest {
 
         // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора, группы типографии,
         // каталог иконок, дублирование темы и состояния цветового токена.
-        assertEquals(203, operationCount)
+        assertEquals(204, operationCount)
         assertTrue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates" in paths)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)

@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.components.data
 
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.feature.components.application.ApiMetaRemoteSource
@@ -10,6 +11,7 @@ import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaRejection
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okio.ByteString.Companion.toByteString
 
 /**
  * HTTP adapter загрузки манифеста API-меты через project-scoped backend API.
@@ -26,7 +28,13 @@ internal class HttpApiMetaRemoteSource(
     override suspend fun import(command: ImportApiMetaRemoteCommand): ImportApiMetaRemoteResult {
         val body = json.encodeToString(
             ApiMetaImportRequest.serializer(),
-            command.manifest.toImportRequest(command.platform, command.source, command.dryRun),
+            command.manifest.toImportRequest(
+                command.platform,
+                command.source,
+                command.dryRun,
+                command.coreRelease,
+                command.sourceBytes,
+            ),
         )
 
         val path = "/api/admin/component-config/import-api-meta"
@@ -70,7 +78,13 @@ internal data class ApiMetaImportRequest(
     val dryRun: Boolean,
     val components: List<ApiMetaImportComponent>,
     val interactionStates: List<String>? = null,
+    val coreRelease: CoreReleaseRequest? = null,
+    val sourceMetaBase64: String? = null,
+    val metaSha256: String? = null,
 )
+
+@Serializable
+internal data class CoreReleaseRequest(val libraryId: String, val platform: String, val version: String)
 
 @Serializable
 internal data class ApiMetaImportMeta(
@@ -82,7 +96,11 @@ internal data class ApiMetaImportComponent(
     val name: String,
     val properties: List<ApiMetaImportProperty>,
     val states: List<String>,
+    val dependencies: List<ApiMetaImportDependency> = emptyList(),
 )
+
+@Serializable
+internal data class ApiMetaImportDependency(val component: String, val type: String = "compose")
 
 @Serializable
 internal data class ApiMetaImportProperty(
@@ -90,6 +108,7 @@ internal data class ApiMetaImportProperty(
     val type: String,
     val platformNames: List<ApiMetaImportAlias>,
     val description: String? = null,
+    val componentTargets: List<String> = emptyList(),
     val stateSupport: ApiMetaImportStateSupport? = null,
 )
 
@@ -156,10 +175,19 @@ internal data class ApiMetaRejectionResponse(
 )
 
 /** Строит тело запроса импорта по манифесту: общее для импорта меты и публикации плагина. */
-internal fun ApiMetaManifest.toImportRequest(platform: String, source: String, dryRun: Boolean): ApiMetaImportRequest =
+internal fun ApiMetaManifest.toImportRequest(
+    platform: String,
+    source: String,
+    dryRun: Boolean,
+    release: CoreReleaseRef? = null,
+    sourceBytes: ByteArray = byteArrayOf(),
+): ApiMetaImportRequest =
     ApiMetaImportRequest(
         platform = platform,
         meta = ApiMetaImportMeta(source = source),
+        coreRelease = release?.let { CoreReleaseRequest(it.libraryId, it.platform, it.version) },
+        sourceMetaBase64 = sourceBytes.toByteString().base64(),
+        metaSha256 = sourceBytes.toByteString().sha256().hex(),
         dryRun = dryRun,
         components = components.map { component ->
             ApiMetaImportComponent(
@@ -178,9 +206,11 @@ internal fun ApiMetaManifest.toImportRequest(platform: String, source: String, d
                         stateSupport = property.stateSupport?.let {
                             ApiMetaImportStateSupport(it.states, it.combinations)
                         },
+                        componentTargets = property.componentTargets,
                     )
                 },
                 states = component.states,
+                dependencies = component.dependencies.map { ApiMetaImportDependency(it) },
             )
         },
         interactionStates = interactionStates,

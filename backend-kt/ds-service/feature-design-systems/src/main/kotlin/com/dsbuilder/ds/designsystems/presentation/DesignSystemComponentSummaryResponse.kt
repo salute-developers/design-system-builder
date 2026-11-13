@@ -16,6 +16,8 @@ data class DesignSystemComponentSummaryResponse(
     val createdAt: String,
     /** Updated at carried by this contract. */
     val updatedAt: String,
+    /** Платформа каталога: web, compose, xml или ios. */
+    val platform: String,
 ) {
     companion object {
         /** Performs the from operation. */
@@ -25,6 +27,7 @@ data class DesignSystemComponentSummaryResponse(
             value.description,
             value.createdAt.toString(),
             value.updatedAt.toString(),
+            value.platform,
         )
     }
 }

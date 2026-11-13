@@ -3,12 +3,10 @@ import { useLocation, useNavigate, useOutletContext, useParams } from 'react-rou
 
 import {
     ComposePreviewHostProvider,
-    getComposePreviewPluginUrl,
     isComposePreviewEnvironmentSupported,
     loadComposePreviewManifest,
     parseComponentRoute,
     toComponentRoute,
-    useWebPreviewPluginLocation,
 } from '../../composePreview';
 import type { ComponentRoute, ComposePreviewComponentGroup } from '../../composePreview';
 import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
@@ -24,12 +22,11 @@ import {
 } from '../../controllers';
 import { Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
-import {
-    componentRepository as repository,
-    type ComponentCatalogEntry,
-    type ComponentTemplateEntry,
-} from '../../api/componentRepository';
-import { fetchWebPreviewPluginDescriptor } from '../../api/webPreviewPluginRepository';
+import { componentRepository as repository } from '../../api/componentRepository';
+import { useModelPreviewUrl } from '../../composePreview/useModelPreviewUrl';
+import { useCoreCompatibility } from '../../hooks/useCoreCompatibility';
+import { useCorePreview } from '../../composePreview/useCorePreview';
+import { CoreProblems } from '../../components/CoreProblems';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
 import '../../styles/component-tree.css';
@@ -109,12 +106,18 @@ export const Components = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
+    const parameters = designSystem?.getParameters();
+    const problemMode = new URLSearchParams(location.search).get('section') === 'problems';
+    const selectedVersionId = new URLSearchParams(location.search).get('versionId') ?? undefined;
+    const composeLocation = useCorePreview('compose', parameters, Boolean(composeComponents?.length));
+    const webLocation = useCorePreview('web', parameters, Boolean(components?.length));
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
     // Группы компонентов из манифеста плагина: до загрузки и без них меню строится по таблице клиента.
     const [pluginGroups, setPluginGroups] = useState<ComposePreviewComponentGroup[]>();
 
     useEffect(() => {
-        const pluginUrl = getComposePreviewPluginUrl();
+        const pluginUrl = composeLocation.pluginUrl;
+        setPluginGroups(undefined);
         if (!pluginUrl || !composeComponents?.length) return;
 
         let cancelled = false;
@@ -127,7 +130,7 @@ export const Components = () => {
         return () => {
             cancelled = true;
         };
-    }, [composeComponents]);
+    }, [composeComponents, composeLocation.pluginUrl]);
 
     const componentGroups = useMemo(
         () => ({
@@ -329,134 +332,34 @@ export const Components = () => {
     }, [theme, openConfig]);
 
     const config = configs?.[0];
-    const parameters = designSystem?.getParameters();
     const editorContext = useMemo<EditorContextKey | null>(() => {
         if (!parameters?.projectId || !parameters.designSystemId || !parameters.tenantId) return null;
         return {
             projectId: parameters.projectId,
             designSystemId: parameters.designSystemId,
             tenantId: parameters.tenantId,
+            versionId: selectedVersionId,
         };
-    }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId]);
-    const designSystemReadOnly = parameters?.readOnly === true;
-
-    // Структурная операция «Структуры»: сначала уходят несохранённые правки, затем запрос, затем компонент
-    // перечитывается и, если операция создала конфигурацию, она открывается.
-    const runStructureOperation = useCallback(
-        async (operation: StructureOperation) => {
-            if (!editorContext || !openConfig) return;
-            const queue = autosaveQueue.current;
-            queue?.flushAll();
-            const deadline = Date.now() + AUTOSAVE_WAIT_MS;
-            while (queue?.hasPendingWhere(() => true)) {
-                if (Date.now() > deadline) throw new Error('Не удалось сохранить изменения перед операцией');
-                await new Promise((resolve) => setTimeout(resolve, 100));
-            }
-            await runStructureOperationOnServer(
-                operation,
-                editorContext,
-                toComponentRoute(openConfig.getPlatform(), openConfig.getName()),
-                (route) => loadComponent?.(route, true),
-                onConfigurationSelect,
-            );
-        },
-        [editorContext, loadComponent, onConfigurationSelect, openConfig],
-    );
-    const structure = useMemo(
-        () => (editorContext ? { context: editorContext, run: runStructureOperation } : undefined),
-        [editorContext, runStructureOperation],
-    );
-
-    // Состав перечитывается вместе с меню (в том числе после отката в журнале), после каждого скрытия и возврата
-    // и при открытии диалога возврата: меню после записи может не измениться, а состав должен быть свежим.
-    const [catalogRevision, setCatalogRevision] = useState(0);
-    const refreshCatalog = () => setCatalogRevision((value) => value + 1);
-    useEffect(() => {
-        if (!editorContext || !components) return;
-
-        const controller = new AbortController();
-        repository
-            .loadComponentTemplates(editorContext, controller.signal)
-            .then(setTemplates)
-            .catch(() => undefined);
-        repository
-            .loadComponentCatalog(editorContext, controller.signal)
-            .then(setCatalog)
-            .catch(() => {
-                if (!controller.signal.aborted) setCatalogError('Не удалось загрузить состав дизайн-системы.');
-            });
-
-        return () => controller.abort();
-    }, [editorContext, components, composeComponents, catalogRevision]);
-
-    // Меню перечитывается при открытии страницы и после изменений извне (например, отката в журнале): загрузчик раздела
-    // пропускает обновление, пока у открытого компонента не сохранены правки, а индекс от этих правок не зависит.
-    useEffect(() => {
-        if (!editorContext) return;
-
-        void loadComponent?.().catch(() => undefined);
-        return subscribeEditorDataInvalidation(editorContext, (scopes) => {
-            if (!['all', 'design-system', 'component-configurations'].some((scope) => scopes.has(scope as never)))
-                return;
-            void loadComponent?.().catch(() => undefined);
-            refreshCatalog();
-        });
-    }, [editorContext, loadComponent]);
-
-    // Самопроверка: если меню расходится с составом (например, откат в журнале не смог обновить данные редактора),
-    // данные редактора перечитываются принудительно. Попыток немного, чтобы устойчивое расхождение не зациклило загрузку.
-    const syncAttempts = useRef({ catalog: undefined as ComponentCatalogEntry[] | undefined, count: 0 });
-    useEffect(() => {
-        if (!catalog || hiding.size || syncAttempts.current.catalog === catalog || syncAttempts.current.count >= 3)
-            return;
-        const inMenu = (platform: Platform, name: string) =>
-            componentGroups[platform].some(({ items }) => items.some((item) => sameName(item.getName(), name)));
-        const editable = catalog.filter(
-            ({ name, platform: item }) => (item === 'web' || item === 'compose') && isEditableComponent(name, item),
-        );
-        const mismatch = editable.some(
-            ({ name, platform: item, linkId }) => Boolean(linkId) !== inMenu(item as Platform, name),
-        );
-        if (!mismatch) return;
-        syncAttempts.current = { catalog, count: syncAttempts.current.count + 1 };
-        reload();
-        void loadComponent?.().catch(() => undefined);
-    }, [catalog, componentGroups, hiding, loadComponent, reload]);
-
-    // Строка остаётся заблокированной, пока скрытие не видно и в составе, и в меню: они перечитываются разными
-    // запросами, и меню обновляется позже состава.
-    useEffect(
-        () =>
-            setHiding((current) => {
-                const next = new Map(
-                    [...current].filter(([name, targets]) =>
-                        targets.some(
-                            ({ componentId, platform: target }) =>
-                                Boolean(catalog?.find((item) => item.componentId === componentId)?.linkId) ||
-                                componentGroups[target].some(({ items }) =>
-                                    items.some((item) => sameName(item.getName(), name)),
-                                ),
-                        ),
-                    ),
-                );
-                return next.size === current.size ? current : next;
-            }),
-        [catalog, componentGroups],
-    );
-
-    // Compose-плагин живёт на уровне раздела: запускается при входе, переживает смену компонента и уничтожается
-    // при уходе из раздела, смене адреса плагина или контекста дизайн-системы.
+    }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId, selectedVersionId]);
+    useCoreCompatibility(editorContext, undefined, reload);
+    const modelCore = config?.getCoreReleaseId?.();
+    const modelPlatform = config?.getPlatform();
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
-    const composePluginUrl = composeEnvironmentSupported ? getComposePreviewPluginUrl() : undefined;
-    // Web-плагин превью — свой хост рядом с Compose: отдельные iframe и сессия, без проверки WebAssembly. Адрес
-    // (прямой из сборки или от бэкенда) запрашивается при входе в раздел, только если в нём есть web-компоненты;
-    // без адреса хост не создаётся, а область превью web-компонента показывает причину.
-    const webPluginLocation = useWebPreviewPluginLocation(
-        components?.length ? parameters?.projectId : undefined,
-        fetchWebPreviewPluginDescriptor,
+    const matchingComposeUrl = useModelPreviewUrl(
+        editorContext,
+        modelPlatform === 'compose' ? modelCore : undefined,
+        composeLocation,
+        reload,
     );
-    const webPluginUrl = webPluginLocation.status === 'resolved' ? webPluginLocation.pluginUrl : undefined;
-    const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId].join(':');
+    const composePluginUrl = composeEnvironmentSupported ? matchingComposeUrl : undefined;
+    const webPluginUrl = useModelPreviewUrl(
+        editorContext,
+        modelPlatform === 'web' ? modelCore : undefined,
+        webLocation,
+        reload,
+    );
+    const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId, selectedVersionId,
+        composeLocation.coreRelease?.releaseId, composeLocation.buildId, webLocation.coreRelease?.releaseId, webLocation.buildId].join(':');
     const storagePrefix = editorContext
         ? `ds_pending_component:${editorContext.projectId}:${editorContext.designSystemId}:${editorContext.tenantId}`
         : null;
@@ -750,6 +653,8 @@ export const Components = () => {
         }
     };
 
+    const problemComponentId = config?.getComponentId?.();
+
     const section =
         !designSystem || !theme || !components ? (
             <ComponentsSectionSkeleton />
@@ -850,7 +755,21 @@ export const Components = () => {
                                     </button>
                                 </div>
                             )}
-                            {!platform ? (
+                            <SegmentButton label="Раздел компонента"
+                                items={[{ label: 'Настройки', value: 'settings' }, { label: 'Проблемы', value: 'problems' }]}
+                                selected={{ label: problemMode ? 'Проблемы' : 'Настройки', value: problemMode ? 'problems' : 'settings' }}
+                                onSelect={(item) => {
+                                    const query = new URLSearchParams(location.search);
+                                    query.set('section', String(item.value));
+                                    if (item.value !== 'problems') query.delete('issueId');
+                                    navigate({ search: query.toString() });
+                                }} />
+                            {problemMode && editorContext ? (
+                                problemComponentId ? <CoreProblems context={editorContext}
+                                    componentId={problemComponentId}
+                                    readOnly={parameters?.readOnly} onRepaired={reload} />
+                                    : <p role="alert">Не удалось определить компонент для диагностики</p>
+                            ) : !platform ? (
                                 <div role="status">Нет компонента для предпросмотра.</div>
                             ) : componentLoading ? (
                                 <ComponentEditorSkeleton />
@@ -889,6 +808,10 @@ export const Components = () => {
                 scope={composeHostScope}
                 preload={Boolean(components?.length)}
             >
+                {(composeLocation.developmentOverride || webLocation.developmentOverride) &&
+                    <p role="status">Preview по прямому URL · режим разработки</p>}
+                {composeLocation.error && <p role="alert">Compose: {composeLocation.error}</p>}
+                {webLocation.error && <p role="alert">Web: {webLocation.error}</p>}
                 {section}
             </ComposePreviewHostProvider>
         </ComposePreviewHostProvider>

@@ -13,7 +13,7 @@ import { componentRepository } from './componentRepository';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 const root = '/api/projects/project-1/design-systems/ds-1';
-const rootCatalog = '/api/projects/project-1/design-systems/catalog';
+const rootCatalog = root;
 
 /** Ответы ds-service: Button со свойствами height (web, шаблон) и focusColor (только compose), AvatarGroup → Avatar. */
 const getResponses: Record<string, unknown> = {
@@ -103,7 +103,7 @@ describe('componentRepository.loadComponentData', () => {
             { name: 'buttonHeight' },
         ]);
         expect(get.mock.calls.some(([url]) => url.endsWith('/property-platform-params'))).toBe(false);
-        expect(get.mock.calls.some(([url]) => url === `${rootCatalog}/appearances`)).toBe(false);
+        expect(get.mock.calls.some(([url]) => url.includes('/design-systems/catalog/'))).toBe(false);
     });
 
     it('fills web params and declared variations of the web preview', async () => {

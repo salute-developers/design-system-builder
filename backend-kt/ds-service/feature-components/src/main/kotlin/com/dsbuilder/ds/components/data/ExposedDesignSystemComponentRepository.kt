@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.components.application.DesignSystemComponentRepository
+import com.dsbuilder.ds.components.application.EditorRuleViolationException
 import com.dsbuilder.ds.components.domain.DesignSystemComponent
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -49,11 +50,56 @@ class ExposedDesignSystemComponentRepository : DesignSystemComponentRepository {
         componentId: UUID,
     ): DesignSystemComponent? {
         if (!ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, designSystemId)) return null
-        if (ComponentsTable.selectAll().where { ComponentsTable.id eq componentId }.none()) return null
-        val linkId = restoreDesignSystemComponentLink(designSystemId, componentId)
+        val existing = StableDesignSystemComponentsTable.selectAll().where {
+            (StableDesignSystemComponentsTable.designSystemId eq designSystemId) and
+                (StableDesignSystemComponentsTable.componentId eq componentId)
+        }.singleOrNull()
+        val id = if (existing != null) {
+            restoreLink(existing[StableDesignSystemComponentsTable.id], designSystemId)
+        } else {
+            createLink(designSystemId, componentId)
+        } ?: return null
         return DesignSystemComponentsTable.selectAll()
-            .where { DesignSystemComponentsTable.id eq linkId }
+            .where { DesignSystemComponentsTable.id eq id }
             .single().let(::link)
+    }
+
+    private fun createLink(designSystemId: UUID, componentId: UUID): UUID? {
+        if (ComponentsTable.selectAll().where { ComponentsTable.id eq componentId }.none()) return null
+        val entity = StableDesignSystemComponentsTable.insertReturning {
+            it[StableDesignSystemComponentsTable.designSystemId] = designSystemId
+            it[StableDesignSystemComponentsTable.componentId] = componentId
+        }.single()
+        val id = entity[StableDesignSystemComponentsTable.id]
+        DesignSystemComponentRevisionsTable.replaceRevision(
+            DesignSystemComponentRevisionsTable.entityId,
+            id,
+            designSystemId,
+        )
+        return id
+    }
+
+    private fun restoreLink(id: UUID, designSystemId: UUID): UUID? {
+        if (!lockComponentSubject(
+                StableDesignSystemComponentsTable,
+                StableDesignSystemComponentsTable.id,
+                StableDesignSystemComponentsTable.designSystemId,
+                "design-system-component",
+                id,
+            )
+        ) {
+            return null
+        }
+        if (DesignSystemComponentsTable.selectAll().where { DesignSystemComponentsTable.id eq id }.any()) {
+            throw EditorRuleViolationException("constraint_conflict", "Component is already linked", conflict = true)
+        }
+        // A hidden configured component may have disappeared from Core; restoring it also restores its diagnostics.
+        DesignSystemComponentRevisionsTable.replaceRevision(
+            DesignSystemComponentRevisionsTable.entityId,
+            id,
+            designSystemId,
+        )
+        return id
     }
 
     @Suppress("ReturnCount")

@@ -1,5 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
+import { ComposePreviewHostProvider } from '../../../../composePreview';
+import { useCorePreview } from '../../../../composePreview/useCorePreview';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -89,8 +92,12 @@ vi.mock('../../../../composePreview/config', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../../../../composePreview/config')>()),
     getWebPreviewPluginOverride: () => pluginState.webUrl,
 }));
-vi.mock('../../../../api/webPreviewPluginRepository', () => ({
-    fetchWebPreviewPluginDescriptor: (projectId: string) => pluginState.fetchDescriptor(projectId),
+vi.mock('../../../../api/http', () => ({
+    http: { get: async (url: string, options: unknown) => {
+        const data = await pluginState.fetchDescriptor(url, options);
+        if (!data) throw { isAxiosError: true, response: { status: 404 } };
+        return { data };
+    } },
 }));
 vi.mock('../../../../composePreview/manifest', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../../../../composePreview/manifest')>()),
@@ -123,9 +130,18 @@ const theme = {
     getRevision: () => 1,
 };
 
-const designSystem = { getParameters: () => ({ projectId: 'project-1' }) };
+const designSystem = { getParameters: () => ({ projectId: 'project-1', designSystemId: 'ds-1' }) };
+
+const SelectedWebPreview = ({ children, enabled }: { children: ReactNode; enabled: boolean }) => {
+    const selected = useCorePreview('web', designSystem.getParameters(), enabled);
+    return <ComposePreviewHostProvider platform="web" pluginUrl={selected.pluginUrl} scope={selected.key}>
+        {selected.error && <p role="alert">{selected.error}</p>}
+        {children}
+    </ComposePreviewHostProvider>;
+};
 
 const previewElement = (config = configOf('Button')) => (
+    <MemoryRouter><SelectedWebPreview enabled={config.getPlatform() === 'web'}>
     <ComponentEditorPreview
         config={config as never}
         theme={theme as never}
@@ -138,6 +154,7 @@ const previewElement = (config = configOf('Button')) => (
         platforms={[]}
         onPlatformSelect={vi.fn()}
     />
+    </SelectedWebPreview></MemoryRouter>
 );
 
 const lastWebPayload = () =>
@@ -305,7 +322,9 @@ describe('ComponentEditorPreview web plugin', () => {
         render(withStoryArgs(previewElement()));
 
         expect(await screen.findByTestId('web-frame')).toBeInTheDocument();
-        expect(pluginState.fetchDescriptor).toHaveBeenCalledWith('project-1');
+        expect(pluginState.fetchDescriptor).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/preview/web', expect.anything(),
+        );
         expect(pluginState.loadManifest).toHaveBeenCalledWith(backendUrl, 'web');
     });
 
@@ -331,7 +350,7 @@ describe('ComponentEditorPreview web plugin', () => {
         render(withStoryArgs(previewElement()));
 
         expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
-            'Превью недоступно: web-плагин превью не опубликован',
+            'Превью недоступно: Для выбранного Core пока нет preview',
         );
         expect(screen.getByRole('switch', { name: 'Тёмная тема' })).toBeInTheDocument();
         expect(screen.queryByTestId('web-frame')).not.toBeInTheDocument();
@@ -345,9 +364,10 @@ describe('ComponentEditorPreview web plugin', () => {
         render(withStoryArgs(previewElement()));
 
         expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
-            'Превью недоступно: адрес web-плагина превью не получен: Network Error',
+            'Превью недоступно: Для выбранного Core пока нет preview',
         );
-        expect(screen.getByRole('switch', { name: 'Тёмная тема' })).toBeInTheDocument();
+        expect(await screen.findByText('Не удалось загрузить preview')).toBeInTheDocument();
+        expect(screen.getByText('View')).toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
 

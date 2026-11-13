@@ -42,7 +42,11 @@ class PublishPreviewPluginUseCaseTest {
         uikit: String = "0.55.0",
         sha: String? = metaSha,
     ) = buildString {
-        append("""{"version":"$version","uikitComposeVersion":"$uikit"""")
+        append(
+            """{"coreRelease":{"libraryId":"uikit-compose","platform":"compose",""" +
+                """"version":"$uikit"},""" +
+                """"version":"$version","uikitComposeVersion":"$uikit"""",
+        )
         if (sha != null) append(""","apiMetaSha256":"$sha"""")
         append("}")
     }
@@ -50,7 +54,12 @@ class PublishPreviewPluginUseCaseTest {
     private fun webManifest(platform: String? = "web", sha: String = webMetaSha) = buildString {
         append("{")
         if (platform != null) append(""""platform":"$platform",""")
-        append(""""version":"0a1b2c3d4e5f","plasmaNewHopeVersion":"0.384.0","apiMetaSha256":"$sha"}""")
+        append(
+            """"coreRelease":{"libraryId":"plasma-new-hope","platform":"web",""" +
+                """"version":"0.384.0"},""" +
+                """"version":"0a1b2c3d4e5f","plasmaNewHopeVersion":"0.384.0",""" +
+                """"apiMetaSha256":"$sha"}""",
+        )
     }
 
     private fun webArchive(manifestText: String = webManifest()) = PreviewPluginArchiveResult.Read(
@@ -264,8 +273,10 @@ class PublishPreviewPluginUseCaseTest {
 
     @Test
     fun aComposeManifestThatNamesItsPlatformIsAccepted() = runTest {
-        val manifestText = """{"platform":"compose","version":"0123456789ab","uikitComposeVersion":"0.55.0",""" +
-            """"apiMetaSha256":"$metaSha"}"""
+        val manifestText =
+            """{"coreRelease":{"libraryId":"uikit-compose","platform":"compose","version":"0.55.0"},""" +
+                """"platform":"compose","version":"0123456789ab","uikitComposeVersion":"0.55.0",""" +
+                """"apiMetaSha256":"$metaSha"}"""
 
         val result = execute(archive = PreviewPluginArchiveResult.Read(archive(manifestText)))
 
@@ -318,7 +329,7 @@ class PublishPreviewPluginUseCaseTest {
     }
 
     @Test
-    fun anEmptyMetaIsRefusedBeforeAnyRequest() = runTest {
+    fun anExplicitEmptyReleaseCanBePublished() = runTest {
         val empty = "[]".encodeToByteArray()
         val touched = Touched()
 
@@ -327,8 +338,8 @@ class PublishPreviewPluginUseCaseTest {
             touched = touched,
         )
 
-        assertTrue(assertIs<PublishPreviewPluginResult.Failed>(result).message.contains("api-meta.json"))
-        assertEquals(false, touched.published)
+        assertIs<PublishPreviewPluginResult.Published>(result)
+        assertEquals(true, touched.published)
     }
 
     @Test

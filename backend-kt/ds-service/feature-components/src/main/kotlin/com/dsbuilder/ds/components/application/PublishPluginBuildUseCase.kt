@@ -44,6 +44,9 @@ class PublishPluginBuildUseCase(
         }
         val archive = prepared.archive
         val manifest = prepared.manifest
+        if (!matchesCore(command.meta, prepared)) {
+            return DsResult.Failure(DsFailure.InvalidRequest("CORE_PREVIEW_META_MISMATCH"))
+        }
         val newBuild = NewPluginBuild(
             buildId = manifest.version,
             platform = platform.wire,
@@ -57,6 +60,18 @@ class PublishPluginBuildUseCase(
             publishedBy = context.principal.actorId,
         )
         return if (command.dryRun) dryRun(target, command, newBuild) else publish(target, command, archive, newBuild)
+    }
+
+    private fun matchesCore(meta: ImportApiMeta, prepared: Prepared): Boolean {
+        val release = meta.coreRelease ?: return false
+        val manifest = prepared.manifest
+        val coordinatesMatch = release == manifest.coreRelease && release.version == manifest.libraryVersion
+        val source = meta.sourceMetaBase64?.let {
+            runCatching { java.util.Base64.getDecoder().decode(it) }.getOrNull()
+        }
+        val archived = prepared.archive.files["api-meta.json"]
+        val bytesMatch = source != null && archived != null && source.contentEquals(archived)
+        return coordinatesMatch && meta.metaSha256 == manifest.apiMetaSha256 && bytesMatch
     }
 
     /** Платформа публикации с её хранилищем и настройками. */
@@ -194,6 +209,7 @@ class PublishPluginBuildUseCase(
     private suspend fun importMeta(meta: ImportApiMeta): DsResult<ApiMetaImportReport> =
         when (val attempt = apiMeta.import(meta)) {
             is ApiMetaRepository.ImportAttempt.Success -> DsResult.Success(attempt.value)
+            is ApiMetaRepository.ImportAttempt.Conflict -> DsResult.Failure(DsFailure.Conflict(attempt.code))
             is ApiMetaRepository.ImportAttempt.Failed ->
                 DsResult.Failure(DsFailure.Unprocessable("Import failed", attempt.reason))
         }
@@ -213,12 +229,12 @@ class PublishPluginBuildUseCase(
                 val recent = builds.listByRecency(target.platform.wire)
                 val inactive = recent.filterNot(PluginBuild::active)
                 val keep = (recent.filter(PluginBuild::active) + inactive.take(settings.keepBuilds))
-                    .map { it.buildId }.toSet()
+                    .map { it.buildId }.toSet() + builds.pinnedBuildIds()
                 recent.filter { it.buildId !in keep }.forEach { stale ->
                     builds.delete(stale.buildId)
                     discard(target, stale.buildId)
                 }
-                val known = recent.map { it.buildId }.toSet()
+                val known = recent.map { it.buildId }.toSet() + builds.pinnedBuildIds()
                 val threshold = Instant.now().minus(settings.orphanGrace)
                 target.storage.listBuilds().filter { it.buildId !in known && it.lastModified.isBefore(threshold) }
                     .forEach { discard(target, it.buildId) }

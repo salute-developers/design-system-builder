@@ -158,6 +158,20 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
+    fun conflictingExportDoesNotReadOrOverwriteTheSavedSnapshot() = runTest {
+        var reads = 0
+        var writes = 0
+        val result = execute(
+            exportResult = ExportComponentsResult.Failed("CORE_COMPATIBILITY_CONFLICT"),
+            onDirectoryRead = { reads++ },
+            onWrite = { writes++ },
+        )
+        assertEquals("CORE_COMPATIBILITY_CONFLICT", (result as FetchComponentsResult.Failed).message)
+        assertEquals(0, reads)
+        assertEquals(0, writes)
+    }
+
+    @Test
     fun failsWhenPlanBuilderRejects() = runTest {
         var written = false
         val result = execute(

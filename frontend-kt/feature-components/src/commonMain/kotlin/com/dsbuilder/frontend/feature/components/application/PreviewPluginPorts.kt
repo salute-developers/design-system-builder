@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.feature.components.application
 
 import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
@@ -55,6 +56,7 @@ internal class PublishPreviewPluginRemoteCommand(
     val manifest: ApiMetaManifest,
     val source: String,
     val dryRun: Boolean,
+    val coreRelease: CoreReleaseRef? = null,
 )
 
 /** Port отправки билда плагина на backend. */

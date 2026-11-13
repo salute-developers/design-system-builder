@@ -28,6 +28,15 @@ data class ErrorResponse(
     /** Актуальная редакция черновика при конфликте публикации. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val draftRevision: Long? = null,
+    /** Фактический Core-контекст отклонённой операции. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val coreContext: JsonObject? = null,
+    /** Число блокирующих проблем выбранной границы. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val blockingCount: Int? = null,
+    /** Относительный API-путь отчёта совместимости. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val compatibilityPath: String? = null,
 ) {
     constructor(
         error: String,

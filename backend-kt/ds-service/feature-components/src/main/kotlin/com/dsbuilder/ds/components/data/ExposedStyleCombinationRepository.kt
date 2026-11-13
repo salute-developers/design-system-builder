@@ -37,7 +37,13 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
         command: StyleCombinationRepository.Create,
     ): StyleCombination? {
         if (!canWriteReferences(projectId, systemAdmin, command)) return null
-        IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
+        validateCoreAssignment(
+            command.propertyId,
+            command.appearanceId,
+            command.tokenId,
+            command.value,
+            command.stateSetId,
+        )
         val designSystemId = ComponentAppearancesTable.selectAll()
             .where { ComponentAppearancesTable.id eq command.appearanceId }
             .single()[ComponentAppearancesTable.designSystemId]
@@ -93,7 +99,7 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
                 ComponentOwnership.writableProperty(StyleCombinationsTable.propertyId, projectId, systemAdmin) and
                 ComponentOwnership.writableAppearance(StyleCombinationsTable.appearanceId, projectId, systemAdmin)
         }.singleOrNull() ?: return null
-        checkIcon(existing, command)
+        validateUpdate(existing, command)
         val designSystemId = existing[StyleCombinationsTable.designSystemId]
         val changedPaths = buildSet {
             if (command.value != null) add("/value")
@@ -128,13 +134,16 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
         return find(projectId, systemAdmin, id)
     }
 
-    /** Значение свойства-иконки проверяется по каталогу; сохранённое значение принимается повторно. */
-    private fun checkIcon(existing: ResultRow, command: StyleCombinationRepository.Update) = IconValueGuard.check(
-        existing[StyleCombinationsTable.propertyId],
-        if (command.tokenIdPresent) command.tokenId else existing[StyleCombinationsTable.tokenId],
-        command.value,
-        existing[StyleCombinationsTable.value],
-    )
+    private fun validateUpdate(existing: ResultRow, command: StyleCombinationRepository.Update) {
+        validateCoreAssignment(
+            existing[StyleCombinationsTable.propertyId],
+            existing[StyleCombinationsTable.appearanceId],
+
+            if (command.tokenIdPresent) command.tokenId else existing[StyleCombinationsTable.tokenId],
+            command.value ?: existing[StyleCombinationsTable.value],
+            command.stateSetId ?: existing[StyleCombinationsTable.stateSetId],
+        )
+    }
 
     override suspend fun delete(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
         if (!lockComponentSubject(

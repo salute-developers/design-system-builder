@@ -69,6 +69,7 @@ internal class ReferenceTarget(
 )
 
 internal data class PendingComponentStyleReference(
+    val propertyId: UUID,
     val reference: String,
     val source: ComponentStyleSource,
     /** Оформление, значение которого содержит ссылку: запись ссылки считается изменением этого оформления. */

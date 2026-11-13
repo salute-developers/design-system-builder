@@ -46,7 +46,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         assertEquals(1, bundle.list("appearances").size)
         assertTrue(bundle.list("styles").isNotEmpty())
         assertEquals("Button", bundle.getValue("webAdapter").jsonObject.string("name"))
-        assertEquals(3, bundle.list("dependencies").size)
+        assertEquals(1, bundle.list("dependencies").size)
         // Icon привязан к alpha и web; Other привязан только к beta, Badge другой платформы.
         assertEquals(listOf(fixture.webIcon), bundle.list("dependencyComponents").map { it.string("id") })
     }
@@ -175,7 +175,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         val v = version?.let { "versionId=$it" }
         fun withVersion(path: String) = v?.let { if ('?' in path) "$path&$it" else "$path?$it" } ?: path
 
-        val componentRow = read(withVersion("/api/design-systems/catalog/components/$component")).jsonObject
+        val componentRow = read(withVersion("/api/design-systems/$ds/components/$component")).jsonObject
         assertEquals(componentRow, bundle.getValue("component"))
 
         val appearances = read(withVersion("/api/design-systems/$ds/appearances")).objects()
@@ -198,11 +198,11 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
                 .all { it.jsonObject.string("styleId").isNotEmpty() },
         )
 
-        val properties = read(withVersion("/api/design-systems/catalog/components/$component/properties")).objects()
+        val properties = read(withVersion("/api/design-systems/$ds/components/$component/properties")).objects()
         assertEquals(properties.byId(), bundle.list("properties").byId())
         val propertyIds = properties.map { it.string("id") }.toSet()
 
-        val params = read(withVersion("/api/design-systems/catalog/property-platform-params")).objects()
+        val params = read(withVersion("/api/design-systems/$ds/property-platform-params")).objects()
             .filter { it.string("propertyId") in propertyIds }
         assertEquals(params.byId(), bundle.list("platformParams").byId())
 
@@ -225,7 +225,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         }
         assertEquals(adapter, bundle.getValue("webAdapter"))
 
-        val dependencies = read(withVersion("/api/design-systems/catalog/component-deps")).objects()
+        val dependencies = read(withVersion("/api/design-systems/$ds/component-deps")).objects()
             .filter { it.string("parentId") == component || it.string("childId") == component }
         assertEquals(dependencies.byId(), bundle.list("dependencies").byId())
 
@@ -234,7 +234,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
             .map { it.string("componentId") }.toSet()
         val otherIds = dependencies.flatMap { listOf(it.string("parentId"), it.string("childId")) }
             .filter { it != component }.toSet()
-        val dependencyComponents = read(withVersion("/api/design-systems/catalog/components")).objects().filter {
+        val dependencyComponents = read(withVersion("/api/design-systems/$ds/components")).objects().filter {
             it.string("id") in otherIds && it.string("id") in linked && it.string("platform") == platform
         }
         assertEquals(dependencyComponents.byId(), bundle.list("dependencyComponents").byId())
@@ -459,6 +459,10 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         key?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
+    }.also { response ->
+        if (path.startsWith("/api/design-systems/catalog/") && response.status.value < 300) {
+            importFixtureCore(service.postgres)
+        }
     }
 
     private suspend fun get(path: String): HttpResponse = service.builder.client.get(path) { user(role = "viewer") }

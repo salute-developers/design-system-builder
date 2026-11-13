@@ -1,3 +1,4 @@
+import { componentCoreRelease, requireSameComponentCore } from './componentCoreContext';
 import { isAxiosError } from 'axios';
 import { http } from './http';
 import { readEditor, invalidateEditorReads } from './editorReads';
@@ -158,6 +159,7 @@ const COMPONENT_LOAD_CONCURRENCY = 4;
 
 /** Данные, из которых собирается `Meta`: либо списки всей ДС, либо они же, ограниченные одним компонентом. */
 interface ComponentSources {
+    coreReleaseId?: string;
     links: DesignSystemComponentDto[];
     catalog: ComponentDto[];
     appearances: AppearanceDto[];
@@ -189,39 +191,56 @@ const readComponentLists = async (
     const isWeb = platform === 'web';
     const isCompose = platform === 'compose';
     const empty = <T>() => Promise.resolve({ data: [] as T[] });
-    const [links, catalog, appearances, exported, params, propertyVariations, dependencies] = await Promise.all([
-        readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-        readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request, undefined, 300_000),
-        readEditor<AppearanceDto[]>(`${root}/appearances`, request),
-        readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-            platform,
-            editorIds: true,
-            ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
-        }),
-        !componentName && (isWeb || isCompose)
-            ? readEditor<PropertyPlatformParamDto[]>(
-                  `${apiRoot(context.projectId)}/property-platform-params`,
-                  request,
-                  undefined,
-                  300_000,
-              )
-            : empty<PropertyPlatformParamDto>(),
-        isWeb || isCompose
-            ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
-            : empty<PropertyVariationDto>(),
-        readEditor<ComponentDependencyDto[]>(
-            `${apiRoot(context.projectId)}/component-deps`,
-            request,
-            undefined,
-            300_000,
-        ),
-    ]);
+    const [links, catalog, appearances, exported, params, propertyVariations, dependencies] =
+        await Promise.all([
+            readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+            readEditor<ComponentDto[]>(`${apiRoot(context.projectId, context.designSystemId)}/components`, request, undefined, 300_000),
+            readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+            readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
+
+                platform,
+                ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
+            }).catch((error: unknown) => {
+                if (isAxiosError(error) && error.response?.status === 409 &&
+                    error.response.data?.code === 'CORE_COMPATIBILITY_CONFLICT') return null;
+                throw error;
+            }),
+            !componentName && (isWeb || isCompose)
+                ? readEditor<PropertyPlatformParamDto[]>(
+                      `${apiRoot(context.projectId, context.designSystemId)}/property-platform-params`,
+                      request,
+                      undefined,
+                      300_000,
+                  )
+                : empty<PropertyPlatformParamDto>(),
+            isWeb
+                ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
+                : empty<PropertyVariationDto>(),
+            readEditor<ComponentDependencyDto[]>(`${apiRoot(context.projectId, context.designSystemId)}/component-deps`, request, undefined, 300_000),
+        ]);
+    const coreReleaseId = requireSameComponentCore(context,
+        [links, catalog, appearances, exported, params, propertyVariations, dependencies]
+            .filter((response) => response !== null)
+            .map((response) => componentCoreRelease(response, platform)),
+    );
     const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
+    const diagnosticExports = exported ? [exported.data] : (await Promise.all(
+        catalog.data.filter((component) => component.platform === platform &&
+            links.data.some((link) => link.componentId === component.id) &&
+            (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)))
+            .map(async (component) => {
+                const bundle = await limitedRequest(() => readEditorBundle(context, signal, platform, component.id));
+                requireSameComponentCore(context, [coreReleaseId, bundle.coreReleaseId]);
+                return bundle;
+            }),
+    )).flatMap((bundle) => bundle.exported);
+
     return {
+        coreReleaseId,
         links: links.data,
         catalog: catalog.data,
         appearances: appearances.data,
-        exported: [exported.data],
+        exported: diagnosticExports,
         params: params.data,
         propertyVariations: propertyVariations.data,
         dependencies: dependencies.data,
@@ -251,6 +270,7 @@ const readComponentLists = async (
                     ),
                 ),
             ]);
+            requireSameComponentCore(context, [coreReleaseId, componentCoreRelease(properties, platform)]);
             const styles = componentName
                 ? (await readEditor<ComponentStyleDto[]>(`${root}/components/${component.id}/styles`, request)).data
                 : (
@@ -278,12 +298,14 @@ const readEditorBundle = async (
     componentId: string,
 ): Promise<ComponentSources> => {
     const request = readRequest(context, signal);
-    const { data } = await readEditor<ComponentEditorBundleDto>(
+    const response = await readEditor<ComponentEditorBundleDto>(
         `${apiRoot(context.projectId, context.designSystemId)}/components/${componentId}/editor-bundle`,
         { ...request, params: { ...request.params, platform } },
     );
+    const { data } = response;
     const catalog = [data.component, ...data.dependencyComponents];
     return {
+        coreReleaseId: componentCoreRelease(response, platform),
         // Сервер отдаёт только компоненты, привязанные к этой ДС и платформе.
         links: catalog.map((component) => ({
             id: component.id,
@@ -292,7 +314,7 @@ const readEditorBundle = async (
         })),
         catalog,
         appearances: data.appearances,
-        exported: [data.export],
+        exported: data.export ? [data.export] : [{ components: data.editorConfigurations ?? [] }],
         params: data.platformParams,
         propertyVariations: data.propertyVariations,
         dependencies: data.dependencies,
@@ -373,9 +395,19 @@ export const componentRepository = {
     /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей: только компоненты, связанные с дизайн-системой. */
     async loadComponentIndex(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
-        const { components, appearances, linkByComponent } = await readComponentCatalog(context, signal);
-        return components
-            .filter((component) => linkByComponent.has(component.id))
+        const root = apiRoot(context.projectId, context.designSystemId);
+        const request = readRequest(context, signal);
+        const [catalog, appearances] = await Promise.all([
+            readEditor<ComponentDto[]>(`${apiRoot(context.projectId, context.designSystemId)}/components`, request, undefined, 300_000),
+            readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+        ]);
+        const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
+        return catalog.data
+            .filter(
+                (component) =>
+                    configured.has(component.id) &&
+                    (component.platform === 'web' || component.platform === 'compose'),
+            )
             .map(
                 (component) =>
                     ({
@@ -477,7 +509,7 @@ export const componentRepository = {
                 component.platform === platform &&
                 (!componentId || component.id === componentId) &&
                 (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
-                configuredNames.has(normalizeComponentName(component.name)),
+                (configuredNames.has(normalizeComponentName(component.name)) || appearances.some((a) => a.componentId === component.id)),
         );
         const depsByParent = collectDependencies(
             dependencies,
@@ -529,6 +561,7 @@ export const componentRepository = {
                         )
                         .map(([parent]) => parent),
                     serverBinding: {
+                        coreReleaseId: sources.coreReleaseId,
                         componentId: component.id,
                         appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
                     },
@@ -583,16 +616,7 @@ export const componentRepository = {
     async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
         try {
-            // Без активного билда (и без прямого адреса) Compose-preview не предлагается.
-            const pluginUrl = await resolveComposePreviewPluginUrl(
-                context.projectId,
-                fetchComposePreviewPluginDescriptor,
-            );
-            if (!pluginUrl) return [];
-
-            return markComposeComponents(
-                (await this.loadComponentData(context, signal, 'compose')).filter(hasConfiguration),
-            );
+            return markComposeComponents((await this.loadComponentData(context, signal, 'compose')).filter(hasConfiguration));
         } catch (error) {
             if (signal?.aborted) throw error;
             console.error('[ComponentRepository] Не удалось загрузить Compose-компоненты', error);
@@ -629,8 +653,8 @@ export const componentRepository = {
                 `${root}/variation-property-values/by-appearance/${stableBinding.appearanceId}`,
                 request,
             ),
-            readEditor<ComponentStateDto[]>(`${apiRoot(context.projectId)}/states`, request),
-            readEditor<ComponentStateSetDto[]>(`${apiRoot(context.projectId)}/state-sets`, request),
+            readEditor<ComponentStateDto[]>(`${apiRoot(context.projectId, context.designSystemId)}/states`, request),
+            readEditor<ComponentStateSetDto[]>(`${apiRoot(context.projectId, context.designSystemId)}/state-sets`, request),
             readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
         ]);
         const revisions = { ...baseRevisions };
@@ -800,7 +824,7 @@ export const componentRepository = {
             if (existing) return existing;
             return (
                 await http.post<{ id: string }>(
-                    `${apiRoot(context.projectId)}/state-sets/resolve`,
+                    `${apiRoot(context.projectId, context.designSystemId)}/state-sets/resolve`,
                     { stateIds },
                     { headers: { 'Idempotency-Key': idempotency(`state-set:${key}`) } },
                 )

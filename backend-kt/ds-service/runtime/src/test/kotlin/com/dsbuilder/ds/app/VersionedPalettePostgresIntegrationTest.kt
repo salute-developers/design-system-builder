@@ -415,7 +415,7 @@ class VersionedPalettePostgresIntegrationTest {
                     """
                     INSERT INTO components(id, name, platform) VALUES ('$component', 'Fixture', 'web');
                     INSERT INTO properties(id, component_id, name, type)
-                        VALUES ('$property', '$component', 'color', 'value');
+                        VALUES ('$property', '$component', 'color', 'color');
                     INSERT INTO design_system_components(id, design_system_id, component_id)
                         VALUES ('$membership', '${fixture.system.value}', '$component');
                     INSERT INTO design_system_component_revisions(
@@ -470,7 +470,7 @@ class VersionedPalettePostgresIntegrationTest {
                         FROM generate_series(1, 260) AS n
                     ), inserted_properties AS (
                         INSERT INTO properties(id, component_id, name, type)
-                        SELECT property_id, '$component', 'color-' || n, 'value' FROM additional
+                        SELECT property_id, '$component', 'color-' || n, 'color' FROM additional
                     ), inserted_values AS (
                         INSERT INTO invariant_property_values(
                             id, property_id, design_system_id, component_id, appearance_id)
@@ -486,6 +486,7 @@ class VersionedPalettePostgresIntegrationTest {
                     """.trimIndent(),
                 )
             }
+            importFixtureCore(postgres)
             val published = fixture.publish()
             val references = ExposedPropertyValueRepository()
             val combinations = ExposedStyleCombinationRepository()
@@ -1102,7 +1103,10 @@ class VersionedPalettePostgresIntegrationTest {
                 revision
             }
             val published = mutate {
-                ExposedDesignSystemVersionRepository(journal).publish(
+                ExposedDesignSystemVersionRepository(
+                    journal,
+                    com.dsbuilder.ds.components.data.ExposedCompatibilityChecker(),
+                ).publish(
                     PROJECT,
                     CreateDesignSystemVersion(system, DesignSystemVersionId(draft), cursor, "0.1.0", ""),
                 )

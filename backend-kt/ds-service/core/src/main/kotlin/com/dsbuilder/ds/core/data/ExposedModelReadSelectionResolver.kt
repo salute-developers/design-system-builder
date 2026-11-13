@@ -45,7 +45,7 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
         }
     }
 
-    private fun resolveBoundary(
+    private suspend fun resolveBoundary(
         context: DsRequestContext,
         owner: UUID,
         selection: ModelReadSelection,
@@ -77,17 +77,21 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
         } else {
             ModelReadContext(owner, boundary.second, versionId = boundary.first)
         }
+        val coreReleases = ExposedCoreContextResolver().resolve(metadata.versionId)
+        val coreScope = coreReleases.joinToString(",") { it.releaseId.toString() }
         return DsResult.Success(
             ResolvedModelRead(
                 context.copy(
+                    designSystemId = owner,
                     versionId = metadata.versionId,
                     version = null,
                     readQuery = context.readQuery.copy(
                         version = null,
-                        scope = "${context.projectId.value}/$owner/${metadata.versionId ?: metadata.draftId}",
+                        scope = "${context.projectId.value}/$owner/" +
+                            "${metadata.versionId ?: metadata.draftId}/$coreScope",
                     ),
                 ),
-                metadata,
+                metadata.copy(coreReleases = coreReleases),
             ),
         )
     }
