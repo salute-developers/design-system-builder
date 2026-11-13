@@ -209,6 +209,54 @@ describe('import:plasma', () => {
         assert.match(unknown.stdout + unknown.stderr, /round.nope/);
     });
 
+    it('takes a fallback token from var() and a single typography part by the web api meta', () => {
+        // Как у Skeleton: цвет через переменную темы plasma с запасным токеном, высоты — части типографики.
+        const config = join(plasma, 'packages', 'sdds-serv', 'src', 'components', 'Chip', 'Chip.config.ts');
+        writeFileSync(
+            config,
+            readFileSync(config, 'utf8')
+                .replace('${surfaceTransparentSecondary};', 'var(--plasma-colors-chip-background, ${surfaceTransparentSecondary});')
+                .replaceAll('${textPrimary};', 'var(--plasma-colors-chip-color, ${textUnknown});')
+                .replace(/\s*\$\{tokens\.(fontFamily|fontStyle|fontWeight|letterSpacing)\}: \$\{bodyM\.\w+\};/g, ''),
+        );
+        const theme = join(sdds, 'tenants', 'base_default', 'web');
+        writeFileSync(join(theme, 'web_typography.json'), JSON.stringify({ 'screen-s.body.m.normal': { fontSize: '0.875rem', lineHeight: '1.25rem' } }));
+        mkdirSync(join(sdds, 'web'), { recursive: true });
+        const meta = (lineHeight: Record<string, string>) =>
+            writeFileSync(
+                join(sdds, 'web', 'web-api-meta.json'),
+                JSON.stringify([
+                    {
+                        componentName: 'Chip',
+                        params: [
+                            { paramName: 'background', type: 'color', id: 'background' },
+                            { paramName: 'fontSize', type: 'dimension', id: 'fontSize' },
+                            { paramName: 'lineHeight', id: 'lineHeight', ...lineHeight },
+                        ],
+                    },
+                ]),
+            );
+        meta({ type: 'typography', part: 'lineHeight' });
+        const result = run(sdds, plasma, '--apply', `--templates=${join(root, 'templates')}`);
+        assert.equal(result.status, 0, result.stdout + result.stderr);
+        const package_ = JSON.parse(readFileSync(join(sdds, 'components', 'chip_default_config.json'), 'utf8'));
+        const byId = Object.fromEntries(package_.variations.map((v: { id: string; props: unknown }) => [v.id, v.props]));
+        assert.deepEqual(byId.default.background, { type: 'color', default: 'surface.default.transparent-secondary' });
+        assert.deepEqual(byId.m.lineHeight, { type: 'typography', value: 'body.m.normal' });
+        assert.deepEqual(byId.m.fontSize, { type: 'dimension', value: 14 });
+        assert.match(result.stdout, /переменная --plasma-colors-chip-background в сид не переносится/);
+        assert.match(result.stdout, /ПРИБЛИЖЕНИЯ[\s\S]*size\.m\.fontSize: bodyM\.fontSize взят числом 14px экрана screen-s/);
+        // Несопоставленный запасной идентификатор остаётся строкой, как раньше.
+        assert.equal(byId.default.color.type, 'value');
+        assert.match(result.stdout, /textUnknown/);
+
+        // Без аннотации отдельного свойства одиночная часть — по-прежнему неполная шрифтовая группа.
+        meta({ type: 'typography', part: 'fontSize' });
+        const unannotated = run(sdds, plasma);
+        assert.equal(unannotated.status, 0, unannotated.stdout + unannotated.stderr);
+        assert.match(unannotated.stdout, /ТРЕБУЕТ РЕШЕНИЯ[\s\S]*size\.m\.textStyle: шрифтовая группа неполная или смешанная \(LineHeight=bodyM\)/);
+    });
+
     it('stops without a local theme and names theme fetch', () => {
         rmSync(join(sdds, 'tenants'), { recursive: true, force: true });
         const result = run(sdds, plasma);
