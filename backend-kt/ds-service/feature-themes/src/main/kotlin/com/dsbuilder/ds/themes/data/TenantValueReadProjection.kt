@@ -11,7 +11,10 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import java.util.UUID
 
-/** Узкий GET после проверки темы: та же граница и LATERAL, одна материализация с заранее прочитанными номерами редакций. */
+/**
+ * Узкий GET после проверки темы: та же граница и LATERAL, одна материализация с заранее прочитанными номерами
+ * редакций.
+ */
 internal fun readTenantValueProjection(
     owner: UUID,
     tenant: UUID,
@@ -27,8 +30,11 @@ internal fun readTenantValueProjection(
     val exactRevisions = tokens.size <= 200
     val edits = if (exactRevisions) emptyMap() else selectedValueEditRevisions(versionId, owner, tenant, tokenIds)
     val reader = ResolvedSubjectRows(
-        ThemeTokenValuesTable, ThemeTokenValueRevisionsTable, ThemeVersionBoundariesTable,
-        ThemeTokenValueRevisionsTable.tokenValueId, designSystemId = owner,
+        ThemeTokenValuesTable,
+        ThemeTokenValueRevisionsTable,
+        ThemeVersionBoundariesTable,
+        ThemeTokenValueRevisionsTable.tokenValueId,
+        designSystemId = owner,
         columns = listOf(
             ThemeTokenValuesTable.id, ThemeTokenValuesTable.tokenId, ThemeTokenValuesTable.tenantId,
             ThemeTokenValuesTable.platform, ThemeTokenValuesTable.mode, ThemeTokenValuesTable.createdAt,
@@ -76,7 +82,7 @@ private fun selectedValueEditRevisions(
             "AND edits.design_system_id = ? AND value.design_system_id = ? AND value.tenant_id = ?" +
             if (ids == null) "" else " AND value.token_id = ANY(?)"
         val arguments = listOf(versionId, owner, owner, tenant) + listOfNotNull(ids)
-        jdbc.read(sql, *arguments.toTypedArray()) { row ->
+        jdbc.readArguments(sql, arguments) { row ->
             row.getObject(1, UUID::class.java) to row.getLong(2)
         }.toMap()
     } finally {

@@ -15,8 +15,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.util.UUID
 import java.sql.DriverManager
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -35,15 +35,23 @@ class EditorSectionReadsPostgresIntegrationTest {
                     statement.execute("GRANT USAGE ON SCHEMA public TO $role")
                     statement.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO $role")
                     statement.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO $role")
-                    statement.executeQuery("SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relrowsecurity").use {
+                    statement.executeQuery(
+                        "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relrowsecurity",
+                    ).use {
                         check(it.next())
-                        println("public tables with RLS enabled: ${it.getInt(1)}; application role has no superuser/BYPASSRLS")
+                        println(
+                            "public tables with RLS enabled: ${it.getInt(
+                                1,
+                            )}; application role has no superuser/BYPASSRLS",
+                        )
                     }
                 }
             }
             DriverManager.getConnection(database.jdbcUrl, role, "isolated-test").use { connection ->
                 connection.createStatement().use { statement ->
-                    statement.executeQuery("SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user").use {
+                    statement.executeQuery(
+                        "SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=current_user",
+                    ).use {
                         check(it.next())
                         assertEquals(false, it.getBoolean(1))
                         assertEquals(false, it.getBoolean(2))
@@ -97,8 +105,12 @@ class EditorSectionReadsPostgresIntegrationTest {
                     .map { it.field("id") }.toSet()
                 val path = "/api/design-systems/$systemId/tenants/$tenantId/token-values"
                 val firstColor = read(client, "GET", "$path?types=color").jsonArray.first()
-                read(client, "PATCH", "/api/design-systems/$systemId/token-values/${firstColor.field("id")}",
-                    """{"value":["#123456"]}""")
+                read(
+                    client,
+                    "PATCH",
+                    "/api/design-systems/$systemId/token-values/${firstColor.field("id")}",
+                    """{"value":["#123456"]}""",
+                )
                 val colors = read(client, "GET", "$path?types=color").jsonArray
                 assertTrue(colors.any { it.field("editRevision").toLong() > 0 })
                 val sizes = read(client, "GET", "$path?types=shape,spacing,shadow").jsonArray
@@ -117,8 +129,10 @@ class EditorSectionReadsPostgresIntegrationTest {
                 )
                 for (filter in listOf("", "bad", "$selectedToken,", "$selectedToken&tokenIds=$selectedToken")) {
                     assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$path?tokenIds=$filter").status)
-                    assertEquals(HttpStatusCode.BadRequest,
-                        api(client, "GET", "/api/design-systems/$systemId/tokens?tokenIds=$filter").status)
+                    assertEquals(
+                        HttpStatusCode.BadRequest,
+                        api(client, "GET", "/api/design-systems/$systemId/tokens?tokenIds=$filter").status,
+                    )
                 }
                 assertEquals(0, read(client, "GET", "$path?tokenIds=${UUID.randomUUID()}").jsonArray.size)
                 assertTrue(sizes.all { it.field("tokenId") in sizeIds })
@@ -162,7 +176,13 @@ class EditorSectionReadsPostgresIntegrationTest {
                 val deletion = api(client, "DELETE", "/api/design-systems/$systemId/token-values/$deletedId")
                 assertEquals(HttpStatusCode.OK, deletion.status, deletion.bodyAsText())
                 assertTrue(read(client, "GET", path).jsonArray.none { it.field("id") == deletedId })
-                assertTrue(read(client, "GET", "$path?versionId=$version").jsonArray.any { it.field("id") == deletedId })
+                assertTrue(
+                    read(
+                        client,
+                        "GET",
+                        "$path?versionId=$version",
+                    ).jsonArray.any { it.field("id") == deletedId },
+                )
                 for (filter in listOf("unknown", "color,", "")) {
                     assertEquals(HttpStatusCode.BadRequest, api(client, "GET", "$path?types=$filter").status)
                 }

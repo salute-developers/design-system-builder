@@ -13,10 +13,12 @@ it('смена color на gradient сохраняет shape с именем, с�
         tokenValueEntityIdsByKey: { 'color-id:web:light': 'color-value', 'shape-id:web:': 'shape-value' },
         incompleteTokenIds: [],
         themeData: {
-            meta: { tokens: [
-                { type: 'color', name: 'light.text.default.primary' },
-                { type: 'shape', name: 'light.text.default.primary' },
-            ] },
+            meta: {
+                tokens: [
+                    { type: 'color', name: 'light.text.default.primary' },
+                    { type: 'shape', name: 'light.text.default.primary' },
+                ],
+            },
             variations: Object.fromEntries(names.map((type) => [type, { web: {}, ios: {}, android: {} }])),
         },
     } as unknown as ThemeEditorSnapshot;

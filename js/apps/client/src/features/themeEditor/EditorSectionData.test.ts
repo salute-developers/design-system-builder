@@ -77,7 +77,8 @@ it('после адресного отката читает только сем�
     expect(updated).toBe(true);
     expect(reads.tokens.mock.calls[1][5]).toEqual(['primary']);
     expect(data.currentSnapshot.themeData.variations.color.web).toEqual({
-        'light.text.primary': '#333333', 'light.text.secondary': '#222222',
+        'light.text.primary': '#333333',
+        'light.text.secondary': '#222222',
     });
     expect(reads.shell).not.toHaveBeenCalled();
 });
@@ -85,14 +86,18 @@ it('после адресного отката читает только сем�
 it('pending переименование до GET блокирует адресную сверку и замену снимка', async () => {
     const initial = snapshot();
     initial.palette = { tenantId: 'theme', groups: [], tokens: [] } as never;
-    initial.tokenDefinitionsByName = { 'text.primary': { id: 'primary', name: 'text.primary', type: 'color' } } as never;
+    initial.tokenDefinitionsByName = {
+        'text.primary': { id: 'primary', name: 'text.primary', type: 'color' },
+    } as never;
     initial.tokenValueEntityIdsByKey = { 'primary:web:light': 'value-primary' };
     reads.tokens.mockResolvedValueOnce(initial);
     const data = new EditorSectionData(context, initial, new AbortController().signal);
     await data.activate('colors');
     const before = data.currentSnapshot;
     const pending = (type: string) => type === 'color';
-    expect(await data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }], pending)).toBe(false);
+    expect(await data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }], pending)).toBe(
+        false,
+    );
     expect(data.currentSnapshot).toBe(before);
     expect(reads.tokens).toHaveBeenCalledTimes(1);
 });
@@ -100,7 +105,9 @@ it('pending переименование до GET блокирует адрес�
 it('pending переименование во время GET не допускает применения адресного снимка', async () => {
     const initial = snapshot();
     initial.palette = { tenantId: 'theme', groups: [], tokens: [] } as never;
-    initial.tokenDefinitionsByName = { 'text.primary': { id: 'primary', name: 'text.primary', type: 'color' } } as never;
+    initial.tokenDefinitionsByName = {
+        'text.primary': { id: 'primary', name: 'text.primary', type: 'color' },
+    } as never;
     initial.tokenValueEntityIdsByKey = { 'primary:web:light': 'value-primary' };
     reads.tokens.mockResolvedValueOnce(initial);
     const data = new EditorSectionData(context, initial, new AbortController().signal);
@@ -108,8 +115,16 @@ it('pending переименование во время GET не допуска
     const before = data.currentSnapshot;
     let pending = false;
     let finish!: (value: ThemeEditorSnapshot) => void;
-    reads.tokens.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    const reading = data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }], () => pending);
+    reads.tokens.mockImplementationOnce(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
+    const reading = data.refreshAddressedColors(
+        [{ entityType: 'token-value', entityId: 'value-primary' }],
+        () => pending,
+    );
     await vi.waitFor(() => expect(reads.tokens).toHaveBeenCalledTimes(2));
     pending = true;
     finish(initial);
@@ -134,7 +149,12 @@ it('адресное подтверждение не применяется по
     const data = new EditorSectionData(context, initial, new AbortController().signal);
     await data.activate('colors');
     let finish!: (value: ThemeEditorSnapshot) => void;
-    reads.tokens.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    reads.tokens.mockImplementationOnce(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
     const reading = data.refreshAddressedColors([{ entityType: 'token-value', entityId: 'value-primary' }]);
     await vi.waitFor(() => expect(reads.tokens).toHaveBeenCalledTimes(2));
     setDraftAutosaveActivity(context, 'color-tokens', 'saving');
@@ -887,4 +907,43 @@ describe('параллельная загрузка выбранного ком�
         expect(reads.tokens).toHaveBeenCalledTimes(3);
         expect(Object.keys(result!.snapshot.tokenIdsByName).sort()).toEqual([...types].sort());
     });
+});
+
+it('подтверждение смены типа цвета сохраняет метаданные shape с совпадающим модальным именем', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    const name = `light.${definition.name}`;
+    const current = data.currentSnapshot;
+    current.themeData.meta.tokens = [
+        { type: 'color', name },
+        { type: 'shape', name },
+    ] as never;
+    current.themeData.variations.shape.web[name] = 12;
+    const values = (['web', 'ios', 'android'] as const).flatMap((platform) =>
+        (['light', 'dark'] as const).map((mode) => ({ platform, mode, value: ['#112233', '#445566'] })),
+    );
+    expect(data.acceptConfirmedValues([{ tokenId: definition.id, type: 'gradient', values }])).toBe(true);
+    expect(data.currentSnapshot.themeData.meta.tokens).toContainEqual({ type: 'gradient', name });
+    expect(data.currentSnapshot.themeData.meta.tokens).toContainEqual({ type: 'shape', name });
+    expect(data.currentSnapshot.themeData.variations.shape.web[name]).toBe(12);
+});
+
+it('структурный ACK переименования цвета сохраняет метаданные соседнего shape', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    const name = `light.${definition.name}`;
+    data.currentSnapshot.themeData.meta.tokens = [
+        { type: 'color', name },
+        { type: 'shape', name },
+    ] as never;
+    data.currentSnapshot.themeData.variations.shape.web[name] = 12;
+    expect(
+        data.acceptColorStructure({
+            definitions: [{ ...definition, name: 'text.default.renamed' }],
+            removedTokenIds: [],
+            placements: [],
+        }),
+    ).toBe(true);
+    expect(data.currentSnapshot.themeData.meta.tokens).toContainEqual({ type: 'shape', name });
+    expect(data.currentSnapshot.themeData.variations.shape.web[name]).toBe(12);
 });

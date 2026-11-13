@@ -61,6 +61,7 @@ tasks.register<Test>("queryPerformance") {
     systemProperty("ds.performance.fixtureImport", providers.gradleProperty("performanceFixtureImport").getOrElse(""))
     systemProperty("ds.performance.fixtureExport", providers.gradleProperty("performanceFixtureExport").getOrElse(""))
     systemProperty("ds.performance.legacy", providers.gradleProperty("performanceLegacy").getOrElse("false"))
+    systemProperty("ds.performance.readMode", providers.gradleProperty("performanceReadMode").getOrElse("addressed"))
     systemProperty("ds.performance.scenario", providers.gradleProperty("performanceScenario").getOrElse(""))
     systemProperty("ds.performance.jfr", providers.gradleProperty("performanceJfr").getOrElse(""))
     systemProperty("ds.performance.editDensity", providers.gradleProperty("performanceEditDensity").getOrElse(""))

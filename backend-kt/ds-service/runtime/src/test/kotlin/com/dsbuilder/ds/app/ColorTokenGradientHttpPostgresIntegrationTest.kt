@@ -48,8 +48,12 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 val api = Api(client)
                 val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
                 val tenant = api.createTenant(system, "theme")
-                val created = api.call("POST", "/api/design-systems/$system/tenants/$tenant/color-tokens",
-                    MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val members = api.body(created).jsonObject.getValue("value").jsonObject.array("members")
                     .associate { it.text("name") to it.text("tokenId") }
@@ -75,8 +79,16 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     .jsonArray.filter { it.text("entityType") == "token-value" }
                 val baseEntity = value(original, base, "web", "light").text("id")
                 val hoverEntity = value(original, hover, "web", "light").text("id")
-                assertTrue(metadata.single { it.text("entityId") == baseEntity }.jsonObject.getValue("warnings").jsonArray.isNotEmpty())
-                assertTrue(metadata.single { it.text("entityId") == hoverEntity }.jsonObject.getValue("warnings").jsonArray.isEmpty())
+                assertTrue(
+                    metadata.single { it.text("entityId") == baseEntity }.jsonObject.getValue(
+                        "warnings",
+                    ).jsonArray.isNotEmpty(),
+                )
+                assertTrue(
+                    metadata.single { it.text("entityId") == hoverEntity }.jsonObject.getValue(
+                        "warnings",
+                    ).jsonArray.isEmpty(),
+                )
                 val beforeInvalid = api.values(system, tenant)
                 val invalid = body(baseCurrent, hoverBefore, "#444444").replaceFirst("#444444", "not-a-color")
                 val rejected = api.call("PUT", path, EDITOR, invalid)
@@ -86,7 +98,15 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(HttpStatusCode.OK, saved.status, saved.bodyAsText())
                 val result = api.values(system, tenant)
                 for (token in listOf(base, hover)) {
-                    assertEquals(JsonArray(listOf(JsonPrimitive("#333333"))), value(result, token, "web", "light").getValue("value"))
+                    assertEquals(
+                        JsonArray(listOf(JsonPrimitive("#333333"))),
+                        value(
+                            result,
+                            token,
+                            "web",
+                            "light",
+                        ).getValue("value"),
+                    )
                     assertEquals(value(original, token, "web", "dark"), value(result, token, "web", "dark"))
                 }
             }
@@ -101,25 +121,41 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 val api = Api(client)
                 val system = api.create("/api/design-systems", OWNER, """{"name":"missing","projectName":"missing"}""")
                 val tenant = api.createTenant(system, "theme")
-                val created = api.call("POST", "/api/design-systems/$system/tenants/$tenant/color-tokens", MAINTAINER, createBody("race"))
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("race"),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val token = api.body(created).obj("value").array("members").first().text("tokenId")
                 DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
                     connection.createStatement().use { statement ->
-                        statement.execute("DELETE FROM token_value_revisions WHERE token_value_id IN " +
-                            "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light')")
-                        statement.execute("DELETE FROM entity_edit_states WHERE entity_type='token-value' AND entity_id IN " +
-                            "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light')")
-                        statement.execute("DELETE FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light'")
-                        statement.execute("""
+                        statement.execute(
+                            "DELETE FROM token_value_revisions WHERE token_value_id IN " +
+                                "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' " +
+                                "AND platform='web' AND mode='light')",
+                        )
+                        statement.execute(
+                            "DELETE FROM entity_edit_states WHERE entity_type='token-value' AND entity_id IN " +
+                                "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' " +
+                                "AND platform='web' AND mode='light')",
+                        )
+                        statement.execute(
+                            "DELETE FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light'",
+                        )
+                        statement.execute(
+                            """
                             CREATE FUNCTION delay_new_value() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
                             BEGIN PERFORM pg_sleep(0.15); RETURN NEW; END; ${'$'}${'$'};
                             CREATE TRIGGER delay_new_value BEFORE INSERT ON token_values FOR EACH ROW EXECUTE FUNCTION delay_new_value();
-                        """.trimIndent())
+                            """.trimIndent(),
+                        )
                     }
                 }
                 val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values"
-                fun body(color: String) = """{"editRevision":0,"members":[{"tokenId":"$token","values":[{"platform":"web","mode":"light","paletteId":null,"value":["$color"],"baseRevision":0}]}]}"""
+                fun body(color: String) =
+                    """{"editRevision":0,"members":[{"tokenId":"$token","values":[{"platform":"web","mode":"light","paletteId":null,"value":["$color"],"baseRevision":0}]}]}"""
                 val responses = kotlinx.coroutines.withTimeout(30_000) {
                     coroutineScope {
                         val first = async { api.call("PUT", path, EDITOR, body("#123456")) }
@@ -135,12 +171,29 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(2, selected.single().number("editRevision"))
                 val warnings = responses.flatMap { response ->
                     json.parseToJsonElement(requireNotNull(response.headers["X-DS-Mutation-Metadata"])).jsonArray
-                }.filter { it.text("entityType") == "token-value" && it.text("entityId") == selected.single().text("id") }
+                }.filter {
+                    it.text("entityType") == "token-value" &&
+                        it.text("entityId") == selected.single().text("id")
+                }
                 assertEquals(2, warnings.size)
                 assertTrue(warnings.any { it.jsonObject.getValue("warnings").jsonArray.isNotEmpty() })
-                val invalid = api.call("PUT", path, EDITOR, body("#abcdef").replace("\"mode\":\"light\"", "\"mode\":null"))
+                val invalid = api.call(
+                    "PUT",
+                    path,
+                    EDITOR,
+                    body("#abcdef").replace(
+                        "\"mode\":\"light\"",
+                        "\"mode\":null",
+                    ),
+                )
                 assertEquals(HttpStatusCode.BadRequest, invalid.status)
-                assertEquals(selected, api.values(system, tenant).filter { it.text("id") == selected.single().text("id") })
+                assertEquals(
+                    selected,
+                    api.values(
+                        system,
+                        tenant,
+                    ).filter { it.text("id") == selected.single().text("id") },
+                )
             }
         }
     }
@@ -268,7 +321,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                         "color",
                         text(
                             postgres,
-                            "SELECT type FROM token_revisions WHERE token_id='$token' ORDER BY version_sequence_number DESC LIMIT 1",
+                            "SELECT type FROM token_revisions WHERE token_id='$token' ORDER BY " +
+                                "version_sequence_number DESC LIMIT 1",
                         ),
                     )
                 }
@@ -805,7 +859,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 // Опубликованная версия раскрывает ссылку стопа по палитре своей границы, а черновик — по своей.
                 val groupA = api.read("/api/design-systems/$designSystemId/tenants/$tenantA/palette").array("tokens")
                     .single { it.text("tokenId") == base }.text("groupId")
-                val step = "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green/steps/$STEP"
+                val step =
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green/steps/$STEP"
                 val edited = api.call("PATCH", step, EDITOR, """{"value":"#112233","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, edited.status, edited.bodyAsText())
                 val publishedId = api.publish(postgres, designSystemId, "1.0.1")
@@ -835,7 +890,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertTrue(
                     links.any { it.text("tokenId") == base && it.text("mode") == "dark" && it.number("step") == STEP },
                 )
-                val ramp = "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green"
+                val ramp =
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green"
                 val removed = api.call("DELETE", ramp, EDITOR, """{"strategy":"detach","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
                 val storedWeb = text(postgres, storedValueSql(tenantA, base, "web", "dark"))
@@ -1127,7 +1183,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(HttpStatusCode.OK, layered.status, layered.bodyAsText())
                 assertEquals(0, count(postgres, accentTypeCount(designSystemId, "color")), "всё семейство — gradient")
 
-                // Общий GET отдаёт ту же форму, что чтение по теме: слой color, раскрытые ссылки, sourceValue/paletteRef.
+                // Общий GET отдаёт ту же форму, что чтение по теме: слой color, раскрытые ссылки,
+                // sourceValue/paletteRef.
                 val general = JsonArray(
                     api.read("/api/design-systems/$designSystemId/token-values").array("items"),
                 ).associateBy {

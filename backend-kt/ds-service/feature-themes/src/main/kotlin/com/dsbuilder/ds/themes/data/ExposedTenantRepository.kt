@@ -237,10 +237,17 @@ class ExposedTenantRepository : TenantRepository {
         val tenant = currentTenantRows(projectId = projectId, tenantId = id).singleOrNull() ?: return null
         val definitions = currentThemeTokenRows(tenant[TenantsTable.designSystemId], selectedTokens, types = types)
         if (definitions.isEmpty()) return emptyList()
-        val tokenIds = if (types.isEmpty() && selectedTokens == null) null
-        else definitions.mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
+        val tokenIds = if (types.isEmpty() && selectedTokens == null) {
+            null
+        } else {
+            definitions.mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
+        }
         return readTenantValueProjection(
-            tenant[TenantsTable.designSystemId], id, definitions, tokenIds, tenant[ThemeVersionBoundariesTable.id],
+            tenant[TenantsTable.designSystemId],
+            id,
+            definitions,
+            tokenIds,
+            tenant[ThemeVersionBoundariesTable.id],
         )
     }
 

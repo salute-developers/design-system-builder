@@ -1,6 +1,6 @@
 import type { ThemeEditorSnapshot, ThemeEditorTokenSnapshot } from '../../api/editorContracts';
 
-/** Заменяет только выбранные определения и их адреса, включая смену производного типа. */
+/** Заменяет выбранные цвета/градиенты и их адреса; IDs уже проверены адресным чтением раздела. */
 export function mergeAddressedTokens(
     previous: ThemeEditorSnapshot,
     next: ThemeEditorTokenSnapshot,
@@ -10,16 +10,8 @@ export function mergeAddressedTokens(
     const removed = new Map<string, Set<string>>();
     for (const token of definitions.filter((item) => ids.has(item.id))) {
         const names = removed.get(token.type) ?? new Set<string>();
-        if (token.type === 'color' || token.type === 'gradient') {
-            names.add(`light.${token.name}`);
-            names.add(`dark.${token.name}`);
-        } else {
-            names.add(token.name);
-            for (const key of Object.keys(previous.tokenValueRevisionsByKey)) {
-                const [id, , mode] = key.split(':');
-                if (id === token.id && mode) names.add(`${mode}.${token.name}`);
-            }
-        }
+        names.add(`light.${token.name}`);
+        names.add(`dark.${token.name}`);
         removed.set(token.type, names);
     }
     const retained = definitions.filter((token) => !ids.has(token.id));
@@ -42,17 +34,26 @@ export function mergeAddressedTokens(
     return {
         ...previous,
         themeData: {
-            meta: { ...previous.themeData.meta, tokens: [
-                ...previous.themeData.meta.tokens.filter((token) => keepName(token.type, token.name)),
-                ...next.themeData.meta.tokens,
-            ] },
+            meta: {
+                ...previous.themeData.meta,
+                tokens: [
+                    ...previous.themeData.meta.tokens.filter((token) => keepName(token.type, token.name)),
+                    ...next.themeData.meta.tokens,
+                ],
+            },
             variations,
         },
         tokenDefinitionsByName: Object.fromEntries(merged.map((token) => [token.name, token])),
         tokenIdsByName: Object.fromEntries(merged.map((token) => [token.name, token.id])),
         incompleteTokenIds: [...previous.incompleteTokenIds.filter((id) => !ids.has(id)), ...next.incompleteTokenIds],
         tokenValueRevisionsByKey: addresses(previous.tokenValueRevisionsByKey, next.tokenValueRevisionsByKey),
-        tokenValueEntityIdsByKey: addresses(previous.tokenValueEntityIdsByKey ?? {}, next.tokenValueEntityIdsByKey ?? {}),
-        tokenValueOverriddenByKey: addresses(previous.tokenValueOverriddenByKey ?? {}, next.tokenValueOverriddenByKey ?? {}),
+        tokenValueEntityIdsByKey: addresses(
+            previous.tokenValueEntityIdsByKey ?? {},
+            next.tokenValueEntityIdsByKey ?? {},
+        ),
+        tokenValueOverriddenByKey: addresses(
+            previous.tokenValueOverriddenByKey ?? {},
+            next.tokenValueOverriddenByKey ?? {},
+        ),
     };
 }

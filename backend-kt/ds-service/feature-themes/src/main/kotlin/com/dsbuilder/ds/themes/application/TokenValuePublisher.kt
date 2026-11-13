@@ -66,7 +66,7 @@ internal class TokenValuePublisher(@Suppress("UNUSED_PARAMETER") tenantId: UUID,
         val whole = ColorValueShape.solidColor(ThemeTokenPlatform.WEB, stored)
             ?.let(PaletteReference::parse)?.takeIf { resolvable }
         val resolved = when {
-            !resolvable || references.isEmpty() -> stored
+            !resolvable -> stored
             whole != null -> JsonArray(listOf(JsonPrimitive(requireNotNull(hexes[whole]))))
             else -> ValuePaletteReferences.rewrite(stored) { hexes[it] }
         }

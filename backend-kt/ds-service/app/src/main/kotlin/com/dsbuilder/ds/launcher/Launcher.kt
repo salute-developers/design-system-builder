@@ -10,8 +10,11 @@ import io.ktor.server.netty.Netty
 /** Запускает сохранённую самостоятельную точку входа DS. */
 fun main() {
     val configuration = DsServiceConfiguration.fromEnvironment()
-    embeddedServer(Netty, configure = {
-        connector { port = configuration.port }
-        maxInitialLineLength = DS_HTTP_INITIAL_LINE_LIMIT
-    }) { module(configuration) }.start(wait = true)
+    embeddedServer(
+        Netty,
+        configure = {
+            connector { port = configuration.port }
+            maxInitialLineLength = DS_HTTP_INITIAL_LINE_LIMIT
+        },
+    ) { module(configuration) }.start(wait = true)
 }

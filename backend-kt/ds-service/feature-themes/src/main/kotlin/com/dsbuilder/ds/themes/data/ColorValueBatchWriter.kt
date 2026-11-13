@@ -21,7 +21,10 @@ internal fun replaceColorValues(tenant: UUID, values: Map<UUID, List<ColorTokenV
     val stable = ThemeTokenValuesTable.selectAll().where {
         (ThemeTokenValuesTable.tenantId eq tenant) and (ThemeTokenValuesTable.tokenId inList values.keys)
     }.associate { row ->
-        Triple(row[ThemeTokenValuesTable.tokenId], row[ThemeTokenValuesTable.platform], row[ThemeTokenValuesTable.mode]) to
+        Triple(
+            row[ThemeTokenValuesTable.tokenId], row[ThemeTokenValuesTable.platform],
+            row[ThemeTokenValuesTable.mode],
+        ) to
             row[ThemeTokenValuesTable.id]
     }.toMutableMap()
     val addressed = values.toSortedMap().flatMap { (token, items) ->
@@ -52,6 +55,10 @@ internal fun replaceColorValues(tenant: UUID, values: Map<UUID, List<ColorTokenV
     }.sortedBy { it.id }
     if (changes.isEmpty()) return
     val draft = requireNotNull(themeDraft(owner))
+    writeColorChanges(owner, draft, changes)
+}
+
+private fun writeColorChanges(owner: UUID, draft: ResultRow, changes: List<ColorValueChange>) {
     val boundary = draft[ThemeVersionBoundariesTable.id]
     changes.chunked(250).forEach { batch ->
         ThemeTokenValueRevisionsTable.deleteWhere {
@@ -85,6 +92,8 @@ private data class ColorValueChange(val id: UUID, val item: ColorTokenValue, val
 private fun changedPaths(before: ResultRow?, item: ColorTokenValue): Set<String> = buildSet {
     if (before == null || before[ThemeTokenValueRevisionsTable.paletteId] != item.paletteId ||
         before[ThemeTokenValueRevisionsTable.value] != item.value
-    ) addAll(listOf("/palette_id", "/value"))
+    ) {
+        addAll(listOf("/palette_id", "/value"))
+    }
     if (before == null || before[ThemeTokenValueRevisionsTable.overridden] != item.overridden) add("/overridden")
 }

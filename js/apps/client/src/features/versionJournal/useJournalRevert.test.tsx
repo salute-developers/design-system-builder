@@ -3,7 +3,11 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { DraftChangeDto } from '../../api/editorContracts';
 import type { JournalActionViewModel } from './journalPresenter';
 
-const operations = vi.hoisted(() => ({ revertChange: vi.fn(), revertChanges: vi.fn(), waitForDraftAutosaveIdle: vi.fn() }));
+const operations = vi.hoisted(() => ({
+    revertChange: vi.fn(),
+    revertChanges: vi.fn(),
+    waitForDraftAutosaveIdle: vi.fn(),
+}));
 vi.mock('../../api/versionJournalRepository', () => ({ versionJournalRepository: operations }));
 vi.mock('../../api/draftAutosaveActivity', () => operations);
 
@@ -23,8 +27,8 @@ beforeEach(() => {
 });
 
 it('сверяет успешную и неизвестную части после ошибки, не отправляя оставшуюся отмену', async () => {
-    const many = Array.from({length:401}, (_, i) => ({...changes[0],entityId:String(i)}));
-    const batchAction = {...action,changes:many};
+    const many = Array.from({ length: 401 }, (_, i) => ({ ...changes[0], entityId: String(i) }));
+    const batchAction = { ...action, changes: many };
     operations.revertChanges.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('response lost'));
     const reload = vi.fn().mockResolvedValue(undefined);
     const refresh = vi.fn().mockResolvedValue(undefined);
@@ -38,8 +42,8 @@ it('сверяет успешную и неизвестную части пос�
 });
 
 it('после сбоя сверки повторяет только чтения и сохраняет сообщение о частичной отмене', async () => {
-    const many = Array.from({length:401}, (_, i) => ({...changes[0],entityId:String(i)}));
-    const batchAction = {...action,changes:many};
+    const many = Array.from({ length: 401 }, (_, i) => ({ ...changes[0], entityId: String(i) }));
+    const batchAction = { ...action, changes: many };
     operations.revertChanges.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline'));
     const refresh = vi.fn().mockRejectedValueOnce(new Error('refresh failed')).mockResolvedValue(undefined);
     const { result } = renderHook(() => useJournalRevert(context, vi.fn().mockResolvedValue(undefined), refresh));

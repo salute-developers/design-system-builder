@@ -1,7 +1,5 @@
 package com.dsbuilder.ds.designsystems.data
 
-import com.dsbuilder.ds.core.data.populatedDraftHandlers
-
 import com.dsbuilder.ds.core.application.DraftChangeCandidate
 import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
 import com.dsbuilder.ds.core.application.DraftChangeHandler
@@ -21,6 +19,7 @@ import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
 import com.dsbuilder.ds.core.data.literalValueBatchParticipants
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.modelReadJournalPage
+import com.dsbuilder.ds.core.data.populatedDraftHandlers
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.DraftAddressTarget
 import com.dsbuilder.ds.designsystems.application.DraftChangeBatchRevertResult
@@ -724,9 +723,9 @@ class ExposedDraftChangeRepository(
         val handlersByType = handlers.associateBy(DraftChangeHandler::entityType)
         val candidates = populatedDraftHandlers(handlers, designSystemId, sequenceNumber, previousSequenceNumber)
             .flatMap { subject ->
-            subject.describe(designSystemId, sequenceNumber, previousSequenceNumber)
-                .map { difference -> DraftChangeCandidate(subject.entityType, difference) }
-        }
+                subject.describe(designSystemId, sequenceNumber, previousSequenceNumber)
+                    .map { difference -> DraftChangeCandidate(subject.entityType, difference) }
+            }
         return policies.fold(candidates) { visible, policy -> policy.visible(targetVersionId, visible) }
             .mapNotNull { candidate ->
                 handlersByType[candidate.entityType]?.let { TypedDifference(it, candidate.change) }
@@ -742,15 +741,15 @@ class ExposedDraftChangeRepository(
         val handlersByType = handlers.associateBy(DraftChangeHandler::entityType)
         val candidates = populatedDraftHandlers(handlers, designSystemId, sequenceNumber, previousSequenceNumber)
             .flatMap { subject ->
-            val described = subject.describe(
-                designSystemId,
-                sequenceNumber,
-                previousSequenceNumber,
-                limit = MAX_JOURNAL_CANDIDATES_PER_TYPE + 1,
-            )
-            if (described.size > MAX_JOURNAL_CANDIDATES_PER_TYPE) return null
-            described.map { difference -> DraftChangeCandidate(subject.entityType, difference) }
-        }
+                val described = subject.describe(
+                    designSystemId,
+                    sequenceNumber,
+                    previousSequenceNumber,
+                    limit = MAX_JOURNAL_CANDIDATES_PER_TYPE + 1,
+                )
+                if (described.size > MAX_JOURNAL_CANDIDATES_PER_TYPE) return null
+                described.map { difference -> DraftChangeCandidate(subject.entityType, difference) }
+            }
         val visible = policies.fold(candidates) { current, policy -> policy.visible(targetVersionId, current) }
         if (visible.size > MAX_JOURNAL_CHANGES) return null
         return visible.mapNotNull { candidate ->

@@ -21,7 +21,10 @@ internal fun measureEditRevisionStrategies(connection: Connection, system: Strin
     val report = StringBuilder("version,count,strategy,medianMs\n")
     for (version in versions) for (count in listOf(1, 36, ids.size)) {
         val selected = ids.take(count)
-        val strategies = listOf("in-all", "in-projection", "array") + if (count == ids.size) listOf("join") else emptyList()
+        val strategies = listOf(
+            "in-all", "in-projection",
+            "array",
+        ) + if (count == ids.size) listOf("join") else emptyList()
         val times = strategies.associateWith { mutableListOf<Double>() }
         repeat(23) { iteration ->
             val order = if (iteration % 2 == 0) times.keys.toList() else times.keys.reversed()
@@ -29,7 +32,14 @@ internal fun measureEditRevisionStrategies(connection: Connection, system: Strin
             for (strategy in order) {
                 val values = mutableMapOf<UUID, Long>()
                 val elapsed = measureNanoTime {
-                    val array = if (strategy == "array") connection.createArrayOf("uuid", selected.toTypedArray()) else null
+                    val array = if (strategy == "array") {
+                        connection.createArrayOf(
+                            "uuid",
+                            selected.toTypedArray(),
+                        )
+                    } else {
+                        null
+                    }
                     try {
                         val projection = if (strategy == "in-all") "*" else "entity_id,revision"
                         val predicate = when {
@@ -39,7 +49,8 @@ internal fun measureEditRevisionStrategies(connection: Connection, system: Strin
                         }
                         connection.prepareStatement(
                             if (strategy == "join") {
-                                "SELECT e.entity_id,e.revision FROM entity_edit_states e JOIN token_values v ON v.id=e.entity_id " +
+                                "SELECT e.entity_id,e.revision FROM entity_edit_states e JOIN " +
+                                    "token_values v ON v.id=e.entity_id " +
                                     "WHERE e.design_system_version_id=? AND e.entity_type=? AND v.tenant_id=?"
                             } else {
                                 "SELECT $projection FROM entity_edit_states WHERE design_system_version_id=? " +
@@ -48,11 +59,20 @@ internal fun measureEditRevisionStrategies(connection: Connection, system: Strin
                         ).use { statement ->
                             statement.setObject(1, version)
                             statement.setString(2, "token-value")
-                            if (strategy == "join") statement.setObject(3, UUID.fromString(tenant))
-                            else if (array != null) statement.setArray(3, array)
-                            else selected.forEachIndexed { index, id -> statement.setObject(index + 3, id) }
+                            if (strategy == "join") {
+                                statement.setObject(3, UUID.fromString(tenant))
+                            } else if (array != null) {
+                                statement.setArray(3, array)
+                            } else {
+                                selected.forEachIndexed { index, id -> statement.setObject(index + 3, id) }
+                            }
                             statement.executeQuery().use { rows ->
-                                while (rows.next()) values[rows.getObject("entity_id", UUID::class.java)] = rows.getLong("revision")
+                                while (rows.next()) values[
+                                    rows.getObject(
+                                        "entity_id",
+                                        UUID::class.java,
+                                    ),
+                                ] = rows.getLong("revision")
                             }
                         }
                     } finally {

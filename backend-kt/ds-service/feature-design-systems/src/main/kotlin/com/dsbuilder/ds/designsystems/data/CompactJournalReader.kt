@@ -112,10 +112,8 @@ internal class CompactJournalReader(
                 val missing = parentIds - parentContext.keys
                 if (missing.isNotEmpty()) {
                     val found = tenantHandler?.describeEntities(owner.value, sequence, previous, missing)
-                        .orEmpty().associateBy { it.entityId }
-                    missing.forEach { id ->
-                        parentContext[id] = found[id]?.let { DraftChangeCandidate("tenant", it) }
-                    }
+                        .orEmpty().associate { it.entityId to DraftChangeCandidate("tenant", it) }
+                    missing.forEach { id -> parentContext[id] = found[id] }
                 }
                 val parents = parentIds.mapNotNull { parentContext[it] }
                 val keys = batch.mapTo(hashSetOf()) { it.entityId }
@@ -126,8 +124,9 @@ internal class CompactJournalReader(
             }
             if (tenantId == null || handler.entityType != "token-value") {
                 handler.visit(owner.value, sequence, previous, consumeBatch)
+            } else {
+                handler.visitTenant(owner.value, sequence, previous, tenantId, consumeBatch)
             }
-            else handler.visitTenant(owner.value, sequence, previous, tenantId, consumeBatch)
         }
     }
 }

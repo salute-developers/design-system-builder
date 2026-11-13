@@ -5,12 +5,12 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteLock
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
-import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
+import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import com.dsbuilder.ds.themes.domain.colortokens.ValuePaletteReferences
-import com.dsbuilder.ds.themes.domain.palette.PaletteAnchor
 import com.dsbuilder.ds.themes.domain.palette.DefaultPaletteGroups
+import com.dsbuilder.ds.themes.domain.palette.PaletteAnchor
 import com.dsbuilder.ds.themes.domain.palette.PaletteGroupKind
 import com.dsbuilder.ds.themes.domain.palette.PaletteRampRef
 import com.dsbuilder.ds.themes.domain.palette.PaletteReference
@@ -93,10 +93,15 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         projectId: ProjectId,
         tenantId: UUID,
         values: List<TenantTokenValue>,
-    ): TenantPaletteSnapshot? = readSnapshot(projectId, tenantId, false,
-        values.takeIf { items -> items.all {
-            it.tokenName != null && it.tokenType != null && DefaultPaletteGroups.stripMode(it.tokenName) == it.tokenName
-        } })
+    ): TenantPaletteSnapshot? {
+        val reusable = values.takeIf { items ->
+            items.all { value ->
+                val name = value.tokenName
+                name != null && value.tokenType != null && DefaultPaletteGroups.stripMode(name) == name
+            }
+        }
+        return readSnapshot(projectId, tenantId, false, reusable)
+    }
 
     private suspend fun readSnapshot(
         projectId: ProjectId,
@@ -148,8 +153,13 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         return filter { it.tokenType in ColorTokenFamily.TYPES && it.paletteId != null }.mapNotNull { value ->
             val platform = value.platform ?: return@mapNotNull null
             val reference = reference(value.value, value.paletteId, paletteRows) ?: return@mapNotNull null
-            PaletteTokenValue(requireNotNull(value.tokenId).toString(), value.mode, platform, reference,
-                valueId = value.id.toString())
+            PaletteTokenValue(
+                requireNotNull(value.tokenId).toString(),
+                value.mode,
+                platform,
+                reference,
+                valueId = value.id.toString(),
+            )
         }
     }
 
@@ -226,8 +236,12 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
     /** Ссылки цветов слоёв теней [tokenIds] темы: по одной на слой со ссылкой. */
     private fun layerValues(designSystemId: UUID, tenantId: UUID, tokenIds: List<UUID>): List<PaletteTokenValue> {
         if (tokenIds.isEmpty()) return emptyList()
-        return currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet(),
-            knownTenantIds = setOf(tenantId))
+        return currentThemeTokenValueRows(
+            designSystemId,
+            tenantIds = setOf(tenantId),
+            tokenIds = tokenIds.toSet(),
+            knownTenantIds = setOf(tenantId),
+        )
             .flatMap { row ->
                 val platform = row[ThemeTokenValuesTable.platform] ?: return@flatMap emptyList()
                 ShadowLayerColors.references(row[ThemeTokenValueRevisionsTable.value]).map { reference ->
@@ -256,8 +270,12 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
     ): List<PaletteTokenValue> {
         val paletteRows by lazy { paletteRows() }
         if (tokenIds.isEmpty()) return emptyList()
-        return currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet(),
-            knownTenantIds = setOf(tenantId))
+        return currentThemeTokenValueRows(
+            designSystemId,
+            tenantIds = setOf(tenantId),
+            tokenIds = tokenIds.toSet(),
+            knownTenantIds = setOf(tenantId),
+        )
             .flatMap { row ->
                 val platform = row[ThemeTokenValuesTable.platform] ?: return@flatMap emptyList()
                 // У градиента ссылок может быть несколько: по записи на каждую различную ссылку значения.
@@ -336,10 +354,24 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
 
     /** Ссылка значения: `palette_id` с прозрачностью `null`/`["0.56"]` или строка `[type.shade.step][opacity]`. */
     private fun reference(row: ResultRow, paletteRows: Map<UUID, Pair<PaletteRampRef, Int>>): PaletteReference? {
-        return reference(row[ThemeTokenValueRevisionsTable.value], row[ThemeTokenValueRevisionsTable.paletteId], paletteRows)
+        return reference(
+            row[ThemeTokenValueRevisionsTable.value],
+            row[ThemeTokenValueRevisionsTable.paletteId],
+            paletteRows,
+        )
     }
 
-    private fun reference(value: JsonElement?, paletteId: UUID?, paletteRows: Map<UUID, Pair<PaletteRampRef, Int>>): PaletteReference? {
+    private fun reference(
+        value: JsonElement?,
+        paletteId: UUID?,
+        paletteRows: Map<
+            UUID,
+            Pair<
+                PaletteRampRef,
+                Int,
+                >,
+            >,
+    ): PaletteReference? {
         val text = value.singleText()
         val entry = paletteId?.let(paletteRows::get)
         val opacity = text?.toDoubleOrNull()

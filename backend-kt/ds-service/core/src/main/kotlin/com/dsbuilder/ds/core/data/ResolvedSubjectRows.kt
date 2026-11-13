@@ -50,7 +50,9 @@ class ResolvedSubjectRows(
     fun <T : Any> readProjected(predicate: Op<Boolean>, decode: (java.sql.ResultSet) -> T?): List<T> {
         val selection = selection(predicate) ?: return emptyList()
         return TransactionManager.current().exec(
-            selection.builder.toString(), selection.builder.args, explicitStatementType = StatementType.SELECT,
+            selection.builder.toString(),
+            selection.builder.args,
+            explicitStatementType = StatementType.SELECT,
         ) { result ->
             buildList { while (result.next()) decode(result)?.let(::add) }
         }.orEmpty()

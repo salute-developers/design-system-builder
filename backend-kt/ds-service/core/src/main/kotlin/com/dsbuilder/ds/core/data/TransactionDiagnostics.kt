@@ -89,10 +89,30 @@ internal class TransactionDiagnostics(
                 put("commitMs", JsonPrimitive(commitNanos / NANOS_PER_MS))
                 put("totalMs", JsonPrimitive((System.nanoTime() - started) / NANOS_PER_MS))
                 poolBefore?.let { state ->
-                    put("poolBefore", buildJsonObject { state.forEach { (key, value) -> put(key, JsonPrimitive(value)) } })
+                    put(
+                        "poolBefore",
+                        buildJsonObject {
+                            state.forEach { (key, value) ->
+                                put(
+                                    key,
+                                    JsonPrimitive(value),
+                                )
+                            }
+                        },
+                    )
                 }
                 poolConnected?.let { state ->
-                    put("poolConnected", buildJsonObject { state.forEach { (key, value) -> put(key, JsonPrimitive(value)) } })
+                    put(
+                        "poolConnected",
+                        buildJsonObject {
+                            state.forEach { (key, value) ->
+                                put(
+                                    key,
+                                    JsonPrimitive(value),
+                                )
+                            }
+                        },
+                    )
                 }
             }.toString(),
         )
@@ -102,8 +122,21 @@ internal class TransactionDiagnostics(
         private const val NANOS_PER_MS = 1_000_000L
         private val logger = LoggerFactory.getLogger(TransactionDiagnostics::class.java)
 
-        fun start(readOnly: Boolean, attempt: Int, poolState: (() -> Map<String, Int>)? = null): TransactionDiagnostics? =
-            if (System.getenv("DS_QUERY_DIAGNOSTICS") == "true") TransactionDiagnostics(readOnly, attempt, poolState) else null
+        fun start(
+            readOnly: Boolean,
+            attempt: Int,
+            poolState: (
+                () -> Map<
+                    String,
+                    Int,
+                    >
+            )? = null,
+        ): TransactionDiagnostics? =
+            if (System.getenv("DS_QUERY_DIAGNOSTICS") == "true") {
+                TransactionDiagnostics(readOnly, attempt, poolState)
+            } else {
+                null
+            }
     }
 }
 

@@ -6,12 +6,12 @@ import { versionJournalRepository as repository } from '../../api/versionJournal
 import type { JournalActionViewModel } from './journalPresenter';
 import { errorCode } from './useJournal';
 
-const revertError = (cause: unknown) => {
-    const code = errorCode(cause);
-    if (code === 'DRAFT_CHANGE_STALE') return 'Черновик уже изменился. Журнал обновлён; выберите изменение ещё раз.';
-    if (code === 'REVERT_DEPENDENCY_CONFLICT') return 'Изменение нельзя отменить из-за зависимых изменений. Журнал обновлён.';
-    return 'Не удалось полностью отменить изменение. Журнал обновлён.';
+const revertErrors: Record<string, string> = {
+    DRAFT_CHANGE_STALE: 'Черновик уже изменился. Журнал обновлён; выберите изменение ещё раз.',
+    REVERT_DEPENDENCY_CONFLICT: 'Изменение нельзя отменить из-за зависимых изменений. Журнал обновлён.',
 };
+const revertError = (cause: unknown) =>
+    revertErrors[errorCode(cause) ?? ''] ?? 'Не удалось полностью отменить изменение. Журнал обновлён.';
 
 export const useJournalRevert = (
     context: EditorContextKey | undefined,
@@ -27,7 +27,12 @@ export const useJournalRevert = (
     const unknownOutcome = useRef(false);
     const refresh = async (action: JournalActionViewModel) => {
         if (context) await waitForDraftAutosaveIdle(context, 10_000);
-        const results = await Promise.allSettled([unknownOutcome.current ? refreshChanges?.(action.changes, { outcome: 'unknown' }) : refreshChanges?.(action.changes), onReload()]);
+        const results = await Promise.allSettled([
+            unknownOutcome.current
+                ? refreshChanges?.(action.changes, { outcome: 'unknown' })
+                : refreshChanges?.(action.changes),
+            onReload(),
+        ]);
         const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
         if (failed) throw failed.reason;
         setRefreshFailed(false);

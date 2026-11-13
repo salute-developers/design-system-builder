@@ -13,7 +13,8 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Форма значений общего маршрута `GET /api/design-systems/{designSystemId}/token-values` та же, что у `GET /api/design-systems/{designSystemId}/tenants/{id}/token-values`:
+ * Форма значений общего маршрута `GET /api/design-systems/{designSystemId}/token-values` та же, что у `GET
+ * /api/design-systems/{designSystemId}/tenants/{id}/token-values`:
  * ссылки на палитру раскрываются по палитре темы значения на границе выбранной версии, сплошные значения iOS и
  * Android градиентного семейства отдаются слоем `color`, исходное значение — в `sourceValue`, а при ссылке на всё
  * значение — в `paletteRef` без `sourceValue`. Значения не цветовых токенов не меняются.

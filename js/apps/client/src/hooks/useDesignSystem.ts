@@ -10,7 +10,12 @@ import { EditorSectionData } from '../features/themeEditor/EditorSectionData';
 import { sectionTokenTypes, type EditorSection } from '../features/themeEditor/editorSections';
 import { notifyEditorDataInvalidated } from '../api/draftInvalidationStream';
 import { invalidateEditorReads } from '../api/editorReads';
-import type { EditorContextKey, ThemeEditorSnapshot, DraftRefreshChange, TokenDefinitionDto } from '../api/editorContracts';
+import type {
+    EditorContextKey,
+    ThemeEditorSnapshot,
+    DraftRefreshChange,
+    TokenDefinitionDto,
+} from '../api/editorContracts';
 import type { AutosaveStatus } from '../api/tokenAutosaveQueue';
 import { ThemeEditorSession, type ComponentsScope } from '../features/themeEditor/ThemeEditorSession';
 import { preservePendingComponents } from '../features/themeEditor/preservePendingComponents';

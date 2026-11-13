@@ -36,7 +36,8 @@ class GetTenantTokenValuesUseCaseTest {
         val transactions = RecordingReadTransaction()
         val tenant = UUID.randomUUID()
         val golden = PaletteGoldenTest()
-        val tokens = golden.scenarioTokens().let { listOf(it.first().copy(id = UUID.randomUUID().toString())) + it.drop(1) }
+        val tokens =
+            golden.scenarioTokens().let { listOf(it.first().copy(id = UUID.randomUUID().toString())) + it.drop(1) }
         var published = false
         val outsideTokens = object : AbstractList<PaletteTokenRef>() {
             override val size: Int get() = tokens.size
@@ -54,7 +55,8 @@ class GetTenantTokenValuesUseCaseTest {
             3, Instant.EPOCH, Instant.EPOCH, tokenType = ThemeTokenType.COLOR,
         )
         val repository = Proxy.newProxyInstance(
-            TenantRepository::class.java.classLoader, arrayOf(TenantRepository::class.java),
+            TenantRepository::class.java.classLoader,
+            arrayOf(TenantRepository::class.java),
         ) { _, method, _ ->
             assertTrue(transactions.inside)
             check(method.name.startsWith("tokenValues-"))
@@ -72,11 +74,14 @@ class GetTenantTokenValuesUseCaseTest {
             }
         }
         val context = DsRequestContext(
-            ProjectPrincipal(ProjectActorType.USER, "user", "project", "owner"), "read",
+            ProjectPrincipal(ProjectActorType.USER, "user", "project", "owner"),
+            "read",
         )
         val result = GetTenantTokenValuesUseCase(
             DsAccessPolicy(PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded())),
-            transactions, repository, palette,
+            transactions,
+            repository,
+            palette,
         ).execute(context, tenant)
         val success = assertIs<DsResult.Success<List<TenantTokenValue>>>(result)
         assertTrue(published)
@@ -103,7 +108,8 @@ class GetTenantTokenValuesUseCaseTest {
             ),
         )
         val repository = Proxy.newProxyInstance(
-            TenantRepository::class.java.classLoader, arrayOf(TenantRepository::class.java),
+            TenantRepository::class.java.classLoader,
+            arrayOf(TenantRepository::class.java),
         ) { _, method, _ ->
             assertTrue(transactions.inside)
             check(method.name.startsWith("tokenValues-"))
@@ -111,11 +117,14 @@ class GetTenantTokenValuesUseCaseTest {
         } as TenantRepository
         val palette = FakeTenantPaletteRepository(null)
         val context = DsRequestContext(
-            ProjectPrincipal(ProjectActorType.USER, "user", "project", "owner"), "read",
+            ProjectPrincipal(ProjectActorType.USER, "user", "project", "owner"),
+            "read",
         )
         val result = GetTenantTokenValuesUseCase(
             DsAccessPolicy(PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded())),
-            transactions, repository, palette,
+            transactions,
+            repository,
+            palette,
         ).execute(context, tenant)
         assertEquals(TokenValuePublisher(tenant, null).publish(values), assertIs<DsResult.Success<*>>(result).value)
         assertEquals(0, palette.snapshotReads)
@@ -136,7 +145,9 @@ class GetTenantTokenValuesUseCaseTest {
             return when (result) {
                 is DsResult.Failure -> result
                 is DsResult.Success -> result.copy(
-                    mutationMetadata = "metadata", readContext = readContext, readPage = readPage,
+                    mutationMetadata = "metadata",
+                    readContext = readContext,
+                    readPage = readPage,
                 )
             }
         }

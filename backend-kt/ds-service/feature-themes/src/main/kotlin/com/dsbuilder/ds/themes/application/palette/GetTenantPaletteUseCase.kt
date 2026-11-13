@@ -9,8 +9,8 @@ import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.domain.ThemePaletteType
-import com.dsbuilder.ds.themes.domain.palette.ThemePalette
 import com.dsbuilder.ds.themes.domain.palette.PaletteLink
+import com.dsbuilder.ds.themes.domain.palette.ThemePalette
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import java.util.UUID
 
@@ -24,54 +24,50 @@ class GetTenantPaletteUseCase(
      * Читает палитру без ленивой инициализации. Опубликованная граница доступна только для просмотра.
      */
     suspend fun execute(context: DsRequestContext, tenantId: UUID): DsResult<ThemePalette> =
-        when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
-            is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly(
-                context,
-                ModelReadTarget(ModelReadTarget.Kind.TENANT, tenantId),
-            ) { selected ->
-                val filter = selected.readQuery
-                if (!validFilter(filter)) {
-                    return@readOnly DsResult.Failure(DsFailure.InvalidRequest("INVALID_QUERY"))
-                }
-                val writable = selected.versionId == null &&
-                    policy.require(context, ProjectScope.TENANTS_WRITE) is DsResult.Success
-                repository.snapshot(selected.projectId, tenantId, includeSubjectRevisions = true)?.let { snapshot ->
-                    if (!snapshot.hasSystemGroups()) return@readOnly DsResult.Failure(DsFailure.NotFound)
-                    val palette = snapshot.palette(tenantId.toString(), writable && snapshot.owned)
-                    DsResult.Success(filtered(palette, filter).copy(subjectRevisions = snapshot.subjectRevisions))
-                } ?: DsResult.Failure(DsFailure.NotFound)
-            }
+        withSnapshot(context, tenantId, includeSubjectRevisions = true) { selected, snapshot ->
+            val writable = selected.versionId == null &&
+                policy.require(context, ProjectScope.TENANTS_WRITE) is DsResult.Success
+            val palette = snapshot.palette(tenantId.toString(), writable && snapshot.owned)
+            filtered(palette, selected.readQuery).copy(subjectRevisions = snapshot.subjectRevisions)
         }
 
     /** Читает только связи, не строя растяжки, ступени и счётчики представления палитры. */
     suspend fun links(context: DsRequestContext, tenantId: UUID): DsResult<List<PaletteLink>> =
-        when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
-            is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly(
-                context,
-                ModelReadTarget(ModelReadTarget.Kind.TENANT, tenantId),
-            ) { selected ->
-                val filter = selected.readQuery
-                if (!validFilter(filter)) return@readOnly DsResult.Failure(DsFailure.InvalidRequest("INVALID_QUERY"))
-                val snapshot = repository.snapshot(selected.projectId, tenantId)
-                    ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
-                if (!snapshot.hasSystemGroups()) return@readOnly DsResult.Failure(DsFailure.NotFound)
-                val links = ThemePaletteBuilder.links(
-                    snapshot.state,
-                    snapshot.tokens + snapshot.layerTokens,
-                    snapshot.values + snapshot.layerValues,
-                )
-                DsResult.Success(links.filter {
-                    matchesGroup(filter, it.groupId) && matches(filter, it.slot.type.wireValue, it.slot.shade)
-                })
+        withSnapshot(context, tenantId) { selected, snapshot ->
+            ThemePaletteBuilder.links(
+                snapshot.state,
+                snapshot.tokens + snapshot.layerTokens,
+                snapshot.values + snapshot.layerValues,
+            ).filter {
+                matchesGroup(selected.readQuery, it.groupId) &&
+                    matches(selected.readQuery, it.slot.type.wireValue, it.slot.shade)
             }
         }
 
-    private fun validFilter(filter: ModelReadQuery): Boolean {
-        val missingType = filter.shade != null && filter.type == null
-        val unknownType = filter.type != null && ThemePaletteType.fromWire(filter.type) == null
-        return !missingType && !unknownType
+    private suspend fun <T> withSnapshot(
+        context: DsRequestContext,
+        tenantId: UUID,
+        includeSubjectRevisions: Boolean = false,
+        transform: (DsRequestContext, TenantPaletteSnapshot) -> T,
+    ): DsResult<T> = when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
+        is DsResult.Failure -> allowed
+        is DsResult.Success -> transactions.readOnly(
+            context,
+            ModelReadTarget(ModelReadTarget.Kind.TENANT, tenantId),
+        ) { selected ->
+            val filter = selected.readQuery
+            val valid = when (val type = filter.type) {
+                null -> filter.shade == null
+                else -> ThemePaletteType.fromWire(type) != null
+            }
+            if (!valid) {
+                return@readOnly DsResult.Failure(DsFailure.InvalidRequest("INVALID_QUERY"))
+            }
+            val snapshot = repository.snapshot(selected.projectId, tenantId, includeSubjectRevisions)
+                ?.takeIf(TenantPaletteSnapshot::hasSystemGroups)
+                ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
+            DsResult.Success(transform(selected, snapshot))
+        }
     }
 
     private fun matches(filter: ModelReadQuery, type: String, shade: String?): Boolean =

@@ -59,7 +59,8 @@ export const PaletteInspector = ({
         }
         let cancelled = false;
         const step = paletteMode ? undefined : selection.step;
-        paletteRepository.links(context, { slot: selection.slot, step })
+        paletteRepository
+            .links(context, { slot: selection.slot, step })
             .then((everywhere) => {
                 if (cancelled) return;
                 setGroupLinks(everywhere.filter((link) => link.groupId === selection.groupId));

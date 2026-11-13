@@ -79,8 +79,14 @@ class ExposedDraftChangeHandler(
         if (entityType != "token-value") return visit(designSystemId, sequenceNumber, previousSequenceNumber, consume)
         var afterId: UUID? = null
         while (true) {
-            val batch = differences(designSystemId, sequenceNumber, previousSequenceNumber, 500,
-                afterId = afterId, tenantId = tenantId)
+            val batch = differences(
+                designSystemId,
+                sequenceNumber,
+                previousSequenceNumber,
+                500,
+                afterId = afterId,
+                tenantId = tenantId,
+            )
             if (batch.isEmpty()) return
             consume(batch)
             afterId = batch.last().entityId
@@ -144,13 +150,8 @@ class ExposedDraftChangeHandler(
         val previousResolved = resolvedValueExpression("previous", previousValue)
         val currentResolved = resolvedValueExpression("current", currentValue)
         val limitClause = limit?.let { "LIMIT $it" }.orEmpty()
-        val entityClause = entityIds?.joinToString(
-            ",",
-            prefix = "AND entity.${stableId.quotedName()} IN (",
-            postfix = ")",
-        ) {
-            "?"
-        }.orEmpty()
+        val entityPlaceholders = entityIds?.joinToString(",") { "?" }
+        val entityClause = entityPlaceholders?.let { "AND entity.${stableId.quotedName()} IN ($it)" }.orEmpty()
         val candidateJoin = if (entityIds == null) changedEntitiesJoin() else ""
         val afterClause = if (afterId == null) "" else "AND entity.${stableId.quotedName()} > ?"
         val tenantClause = if (tenantId == null) "" else "AND entity.tenant_id = ?"

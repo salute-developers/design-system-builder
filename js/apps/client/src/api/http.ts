@@ -1,3 +1,4 @@
+import { abortableDelay as retryDelay } from './abortableDelay';
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 
 import { API_GATEWAY_URL } from './constants';
@@ -17,21 +18,6 @@ let sessionGeneration = 0;
 authService.onSessionReset(() => {
     sessionGeneration += 1;
 });
-
-const retryDelay = (milliseconds: number, signal: RetryConfig['signal']) =>
-    new Promise<void>((resolve, reject) => {
-        const cancel = () => {
-            clearTimeout(timer);
-            signal?.removeEventListener?.('abort', cancel);
-            reject(new axios.CanceledError());
-        };
-        const timer = setTimeout(() => {
-            signal?.removeEventListener?.('abort', cancel);
-            resolve();
-        }, milliseconds);
-        signal?.addEventListener?.('abort', cancel, { once: true });
-        if (signal?.aborted) cancel();
-    });
 
 const forceLogout = () => {
     const base = getBaseName().replace(/\/$/, '');

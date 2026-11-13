@@ -4,12 +4,12 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import jdk.jfr.Configuration
+import jdk.jfr.Recording
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
-import jdk.jfr.Configuration
-import jdk.jfr.Recording
 import java.nio.file.Path
 
 /** Существующие серверные HTTP-замеры отдельно от получения и разбора тела измерительным клиентом. */

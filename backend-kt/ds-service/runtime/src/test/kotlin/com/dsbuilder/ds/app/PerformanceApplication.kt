@@ -29,6 +29,7 @@ internal suspend fun withPerformanceApplication(
     }) { module(configuration) }.start(wait = false)
     try {
         val port = server.engine.resolvedConnectors().single().port
+        System.setProperty("ds.performance.port", port.toString())
         HttpClient(CIO) { defaultRequest { url("http://127.0.0.1:$port") } }.use { block(it) }
     } finally {
         server.stop(100, 1_000)

@@ -35,7 +35,9 @@ class AddressedReadTransportTest {
             private fun decision(authorization: String?, project: String) =
                 if (authorization == "Bearer test") {
                     GatewayAuthDecision.Allowed(TrustedHeaders("user", "user", project, "owner", systemAdmin = "false"))
-                } else GatewayAuthDecision.Unauthorized("missing")
+                } else {
+                    GatewayAuthDecision.Unauthorized("missing")
+                }
         }
         val server = embeddedServer(Netty, configure = {
             connector {
@@ -59,7 +61,8 @@ class AddressedReadTransportTest {
             val root = "http://127.0.0.1:$port/api/projects/${UUID.randomUUID()}/design-systems/${UUID.randomUUID()}"
             val ids = List(200) { UUID.randomUUID() }.joinToString("%2C")
             val query = "tokenIds=$ids&versionId=${UUID.randomUUID()}" +
-                "&types=color%2Cgradient%2Ctypography%2CfontFamily%2Cshape%2Cspacing%2Cshadow&platforms=web%2Cios%2Candroid"
+                "&types=color%2Cgradient%2Ctypography%2CfontFamily%2Cshape%2Cspacing%2Cshadow" +
+                "&platforms=web%2Cios%2Candroid"
             val client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()
             for (suffix in listOf("tokens", "tenants/${UUID.randomUUID()}/token-values")) {
                 val uri = URI.create("$root/$suffix?$query")
@@ -69,7 +72,10 @@ class AddressedReadTransportTest {
                 assertEquals(HttpClient.Version.HTTP_1_1, response.version())
                 assertEquals(200, response.statusCode(), response.body())
                 assertEquals("200:user", response.body())
-                val denied = client.send(HttpRequest.newBuilder(uri).GET().build(), HttpResponse.BodyHandlers.ofString())
+                val denied = client.send(
+                    HttpRequest.newBuilder(uri).GET().build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
                 assertEquals(401, denied.statusCode())
             }
         } finally {

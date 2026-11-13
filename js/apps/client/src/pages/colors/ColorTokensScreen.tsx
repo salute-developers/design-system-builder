@@ -372,12 +372,17 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
     };
 
-    const tokenReset = useTokenReset(props.context, async (changes, options) => {
-        if (!changes.length) return;
-        if (props.refreshChanges) await props.refreshChanges(changes, options);
-        else props.reload();
-        rerender();
-    }, props.designSystem.getParameters()?.draftId, props.reload);
+    const tokenReset = useTokenReset(
+        props.context,
+        async (changes, options) => {
+            if (!changes.length) return;
+            if (props.refreshChanges) await props.refreshChanges(changes, options);
+            else props.reload();
+            rerender();
+        },
+        props.designSystem.getParameters()?.draftId,
+        props.reload,
+    );
 
     /** Описание общее для семейства токена; ошибка остаётся у поля описания. */
     const describeToken = async (view: ColorTokenView, description: string) => {
@@ -625,7 +630,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                         <div className="ct-banner" role="alert">
                             {tokenReset.error}
                             {tokenReset.refreshFailed && (
-                                <button type="button" disabled={tokenReset.busy} onClick={() => void tokenReset.retryRefresh()}>
+                                <button
+                                    type="button"
+                                    disabled={tokenReset.busy}
+                                    onClick={() => void tokenReset.retryRefresh()}
+                                >
                                     Повторить загрузку данных
                                 </button>
                             )}
