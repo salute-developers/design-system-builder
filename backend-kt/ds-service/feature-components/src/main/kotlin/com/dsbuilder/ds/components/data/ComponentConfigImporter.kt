@@ -891,10 +891,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             }
         }
 
-    /** Токен ссылки по правилам [referenceCandidates]; ненайденное имя попадает в отчёт. */
+    /** Токен ссылки по правилам [referenceCandidates]; ненайденное имя, кроме литерала CSS, попадает в отчёт. */
     private fun token(name: String?, type: String?, context: ComponentConfigImportContext): UUID? = name?.let {
         referenceCandidates(it, type).firstNotNullOfOrNull(context.tokens::get) ?: run {
-            context.report.unresolvedTokens += it
+            if (!isLiteralValue(it)) context.report.unresolvedTokens += it
             null
         }
     }
@@ -987,7 +987,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         type: String,
         value: ComponentConfig.Scalar,
     ) = (value as? ComponentConfig.Scalar.Text)?.value
-        ?.takeIf { type in tokenTypes && it.isNotEmpty() && !isLiteralValue(it) }
+        ?.takeIf { type in tokenTypes && it.isNotEmpty() }
     private fun compatible(
         a: String,
         b: String,

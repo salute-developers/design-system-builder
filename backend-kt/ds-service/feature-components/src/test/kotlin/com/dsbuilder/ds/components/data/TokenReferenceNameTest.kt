@@ -28,11 +28,20 @@ class TokenReferenceNameTest {
     }
 
     @Test
-    fun `литералы CSS не считаются именами токенов`() {
-        listOf("transparent", "inherit", "#F3A912", "rgba(35, 35, 35, 0.2)", "rgb(0,0,0)").forEach {
+    fun `литерал CSS — только из явного списка, имя без точки — не литерал`() {
+        listOf(
+            "transparent",
+            "inherit",
+            "none",
+            "currentColor",
+            "#F3A912",
+            "rgba(35, 35, 35, 0.2)",
+            "rgb(0,0,0)",
+            "hsl(0, 0%, 0%)",
+        ).forEach {
             assertTrue(isLiteralValue(it), it)
         }
-        listOf("surface.default.accent", "body.l.bold", "screen-s.body.l.bold", "general.red.300").forEach {
+        listOf("surface.default.accent", "body.l.bold", "general.red.300", "card", "elevated").forEach {
             assertFalse(isLiteralValue(it), it)
         }
     }

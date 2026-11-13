@@ -26,11 +26,17 @@ internal fun referenceCandidates(name: String, type: String?): List<String> =
         listOf(name)
     }
 
+/** Ключевые слова CSS, которые значение свойства может содержать вместо ссылки на токен. */
+private val LITERAL_KEYWORDS = setOf("transparent", "inherit", "initial", "unset", "currentcolor", "none")
+
+/** Запись цвета CSS, которая значение свойства может содержать вместо ссылки на токен. */
+private val LITERAL_COLOR_PREFIXES = listOf("#", "rgb(", "rgba(", "hsl(", "hsla(")
+
 /**
- * Значение свойства токенного типа, которое не может быть именем токена: имя токена всегда разделено точками
- * (`группа.подгруппа.имя`), а `transparent`, `inherit`, `#F3A912`, `rgba(35, 35, 35, 0.2)` — литералы CSS.
+ * Литерал CSS вместо ссылки на токен: `transparent`, `inherit`, `#F3A912`, `rgba(35, 35, 35, 0.2)`. Импорт проверяет
+ * признак только для значения, токен которого не нашёлся: имя токена может быть и без точки (тень `card`).
  */
 internal fun isLiteralValue(value: String): Boolean {
     val text = value.trim().lowercase()
-    return text.startsWith("#") || text.startsWith("rgb(") || text.startsWith("rgba(") || '.' !in text
+    return text in LITERAL_KEYWORDS || LITERAL_COLOR_PREFIXES.any(text::startsWith)
 }
