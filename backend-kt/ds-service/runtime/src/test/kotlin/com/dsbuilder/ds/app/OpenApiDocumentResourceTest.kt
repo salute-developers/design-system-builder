@@ -273,8 +273,9 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора и группы типографии.
-        assertEquals(199, operationCount)
+        // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора
+        // и каталог иконок.
+        assertEquals(200, operationCount)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)
         assertTrue("/api/design-systems/catalog/web-preview/plugin" in paths)

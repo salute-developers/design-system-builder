@@ -41,6 +41,12 @@ class PublicRouteBoundaryTest {
     }
 
     @Test
+    fun `icon catalog upload is public`() {
+        assertEquals(true, publicGatewayPath("/api/admin/icons/catalog"))
+        assertEquals(false, publicGatewayPath("/api/admin/icons/other"))
+    }
+
+    @Test
     fun `inventory rejects internal routes below nested branches`() = testApplication {
         application {
             routing {

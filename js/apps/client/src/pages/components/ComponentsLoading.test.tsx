@@ -50,7 +50,11 @@ const renderPage = (
     reload = vi.fn(),
 ) => {
     const context = {
-        designSystem: { getParameters: () => editorContext, getComponentDataByName: () => ({}) },
+        designSystem: {
+            getParameters: () => editorContext,
+            getComponentDataByName: () => ({}),
+            getComponentData: () => ({}),
+        },
         theme: {},
         components: [mocks.config],
         updated: {},

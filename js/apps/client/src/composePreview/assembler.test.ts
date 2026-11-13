@@ -367,6 +367,15 @@ describe('assembleComposePreviewPayload', () => {
             expect(assembleComposePreviewPayload(cycle)).toMatchObject({ ok: false, diagnostics: [{ code: 'cycle' }] });
         });
 
+        it('passes icon SVG assets to the payload without references', () => {
+            const d = draft();
+            d.assets = [...d.assets, { id: 'icon:plus.16', type: 'SVG', url: 'https://example.test/Plus.svg' }];
+            d.invariantProperties.push(prop({ name: 'icon', type: 'icon', value: 'plus.16' }));
+            const payload = assembled(d);
+            expect(payload.component.properties.icon.base).toEqual({ type: 'literal', value: 'plus.16' });
+            expect(payload.assets).toContainEqual({ id: 'icon:plus.16', type: 'SVG', url: 'https://example.test/Plus.svg' });
+        });
+
         it('includes referenced assets and rejects a missing one', () => {
             const d = draft();
             d.assets = [...d.assets, { id: 'icon.close', type: 'SVG', url: 'https://example.test/close.svg' }];

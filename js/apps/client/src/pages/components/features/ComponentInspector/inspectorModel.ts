@@ -17,7 +17,16 @@ export type PropertySource =
 type SelectionSource = Exclude<PropertySource, { kind: 'combination' }>;
 
 /** Секции в порядке прототипа; свойства без секции уходят в дополнительные группы. */
-export const INSPECTOR_SECTIONS = ['Size', 'Layout', 'Color', 'Text', 'Border', 'Appearance', 'Effects'] as const;
+export const INSPECTOR_SECTIONS = [
+    'Size',
+    'Layout',
+    'Color',
+    'Text',
+    'Border',
+    'Appearance',
+    'Effects',
+    'Icons',
+] as const;
 
 export type InspectorSection = (typeof INSPECTOR_SECTIONS)[number] | 'Additional';
 
@@ -39,6 +48,8 @@ export { humanizeName };
  */
 export const sectionOf = (type: PropType | undefined, name: string): InspectorSection | undefined => {
     if (type === 'value' || type === undefined) return undefined;
+    // Иконки — отдельная секция, развёрнутая по умолчанию: в свёрнутой группе Behaviour поля легко не заметить.
+    if (type === 'icon') return 'Icons';
     if (type === 'shadow' || /(shadow|blur)/i.test(name)) return 'Effects';
     if (type === 'shape' || /radius/i.test(name)) return 'Appearance';
     if (/(border|outline|stroke)/i.test(name)) return 'Border';
@@ -130,7 +141,7 @@ const emptyProp = (item: ComponentAPI, api: ComponentAPI[]) => new Props([{ id: 
 
 /**
  * Строки инспектора: заданные свойства источников сочетания и пустые строки для остальных свойств API этих источников.
- * Ссылки на стили и иконки показываются только заданными.
+ * Ссылки на стили показываются только заданными.
  *
  * `showAll` добавляет стилю пустыми строками и свойства, не привязанные к его вариации (`linked: false`); у вариации
  * без привязанных свойств (новой) они видны всегда.
@@ -152,6 +163,7 @@ export const collectSourceProperties = (
         });
         const empty = candidates.flatMap((item): InspectorProperty[] => {
             const section = sectionOf(item.type, item.name);
+            // Ссылки на стили показываются только заданными; незаданную иконку можно выбрать из каталога.
             if (!section || section === 'Additional' || props?.getProp(item.id)) return [];
             const prop = emptyProp(item, api);
             return prop ? [{ prop, source, section, isSet: false, linked: linkedIds.has(item.id) }] : [];

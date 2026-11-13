@@ -8,6 +8,7 @@ export type EditorSection =
     | 'components'
     | 'changes'
     | 'versions'
+    | 'icons'
     | 'settings';
 
 /** Раздел — целая единица чтения, без отдельных жизненных циклов платформ и параметров. */
@@ -18,6 +19,6 @@ export const sectionTokenTypes: Partial<Record<EditorSection, TokenDefinitionDto
 };
 
 export const editorSection = (value?: string): EditorSection =>
-    ['palette', 'typography', 'shapes', 'components', 'changes', 'versions', 'settings'].includes(value ?? '')
+    ['palette', 'typography', 'shapes', 'components', 'changes', 'versions', 'icons', 'settings'].includes(value ?? '')
         ? (value as EditorSection)
         : 'colors';

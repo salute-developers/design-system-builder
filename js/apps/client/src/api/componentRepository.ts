@@ -24,6 +24,7 @@ import type {
 } from './editorContracts';
 import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
+import { isUnknownIconError } from './autosaveHttp';
 import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
 import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
 import { camelToKebab } from '../utils/text';
@@ -181,29 +182,33 @@ const readComponentLists = async (
     const isWeb = platform === 'web';
     const isCompose = platform === 'compose';
     const empty = <T>() => Promise.resolve({ data: [] as T[] });
-    const [links, catalog, appearances, exported, params, propertyVariations, dependencies] =
-        await Promise.all([
-            readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-            readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request, undefined, 300_000),
-            readEditor<AppearanceDto[]>(`${root}/appearances`, request),
-            readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-                platform,
-                editorIds: true,
-                ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
-            }),
-            !componentName && (isWeb || isCompose)
-                ? readEditor<PropertyPlatformParamDto[]>(
-                      `${apiRoot(context.projectId)}/property-platform-params`,
-                      request,
-                      undefined,
-                      300_000,
-                  )
-                : empty<PropertyPlatformParamDto>(),
-            isWeb || isCompose
-                ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
-                : empty<PropertyVariationDto>(),
-            readEditor<ComponentDependencyDto[]>(`${apiRoot(context.projectId)}/component-deps`, request, undefined, 300_000),
-        ]);
+    const [links, catalog, appearances, exported, params, propertyVariations, dependencies] = await Promise.all([
+        readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+        readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request, undefined, 300_000),
+        readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+        readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
+            platform,
+            editorIds: true,
+            ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
+        }),
+        !componentName && (isWeb || isCompose)
+            ? readEditor<PropertyPlatformParamDto[]>(
+                  `${apiRoot(context.projectId)}/property-platform-params`,
+                  request,
+                  undefined,
+                  300_000,
+              )
+            : empty<PropertyPlatformParamDto>(),
+        isWeb || isCompose
+            ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
+            : empty<PropertyVariationDto>(),
+        readEditor<ComponentDependencyDto[]>(
+            `${apiRoot(context.projectId)}/component-deps`,
+            request,
+            undefined,
+            300_000,
+        ),
+    ]);
     const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
     return {
         links: links.data,
@@ -240,12 +245,7 @@ const readComponentLists = async (
                 ),
             ]);
             const styles = componentName
-                ? (
-                      await readEditor<ComponentStyleDto[]>(
-                          `${root}/components/${component.id}/styles`,
-                          request,
-                      )
-                  ).data
+                ? (await readEditor<ComponentStyleDto[]>(`${root}/components/${component.id}/styles`, request)).data
                 : (
                       await Promise.all(
                           variations.data.map((variation) =>
@@ -355,6 +355,10 @@ const readComponentCatalog = async (context: EditorContextKey, signal?: AbortSig
         ),
     };
 };
+
+/** Копия объекта без полей со значением `null`: так отправляется тело создания. */
+const withoutNulls = <T extends Record<string, unknown>>(value: T): Partial<T> =>
+    Object.fromEntries(Object.entries(value).filter(([, item]) => item !== null)) as Partial<T>;
 
 /** Предметный клиент с ограниченным набором операций. */
 export const componentRepository = {
@@ -729,7 +733,6 @@ export const componentRepository = {
                 const created = await http.post<ComponentStyleDto>(
                     `${root}/styles`,
                     {
-
                         variationId: change.variationId,
                         name: change.name,
                     },
@@ -791,57 +794,69 @@ export const componentRepository = {
                 )
             ).data.id;
         };
+        let rejectedIcon: unknown;
         await applySequentially(
             changes.filter(
                 (item): item is Extract<ComponentChange, { kind: 'property' }> & { action: 'upsert' } =>
                     item.kind === 'property' && item.action === 'upsert',
             ),
             async (change) => {
-                const resolvedStyleId = change.styleId ? actualStyleId(change.styleId) : undefined;
-                const actual = { ...change, styleId: resolvedStyleId };
-                const existing = valueByKey.get(propertyKey(actual));
-                const rawValue = change.value == null ? null : String(change.value).replace(/^\[|\]$/g, '');
-                const tokenName = rawValue?.replace(/^(light|dark)\./, '') ?? '';
-                const tokenId = tokenIdByName.get(tokenName) ?? null;
-                const body = {
-                    tokenId,
-                    value: tokenId ? null : rawValue,
-                    adjustment: change.adjustment == null ? null : String(change.adjustment),
-                };
-                const entityType = resolvedStyleId ? 'variation-property-value' : 'invariant-property-value';
-                if (existing) {
-                    const response = await http.patch(
-                        `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
-                        body,
-                        { headers: entityHeaders(entityType, existing.id) },
+                try {
+                    const resolvedStyleId = change.styleId ? actualStyleId(change.styleId) : undefined;
+                    const actual = { ...change, styleId: resolvedStyleId };
+                    const existing = valueByKey.get(propertyKey(actual));
+                    const rawValue = change.value == null ? null : String(change.value).replace(/^\[|\]$/g, '');
+                    const tokenName = rawValue?.replace(/^(light|dark)\./, '') ?? '';
+                    const tokenId = tokenIdByName.get(tokenName) ?? null;
+                    // В PATCH `null` — очистка поля: при смене токена на сырое значение (и обратно) прежнее поле должно
+                    // быть сброшено явно, поэтому тело правки отправляется целиком.
+                    const body = {
+                        tokenId,
+                        value: tokenId ? null : rawValue,
+                        adjustment: change.adjustment == null ? null : String(change.adjustment),
+                    };
+                    const entityType = resolvedStyleId ? 'variation-property-value' : 'invariant-property-value';
+                    if (existing) {
+                        const response = await http.patch(
+                            `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
+                            body,
+                            { headers: entityHeaders(entityType, existing.id) },
+                        );
+                        acceptMetadata(response.headers);
+                        return;
+                    }
+                    const stateSetId = await resolveStateSet(change.stateNames);
+                    // Создание: сервер отклоняет явный `null` (`400 invalid_body`), поэтому пустые поля не отправляются.
+                    const createBody = withoutNulls(
+                        resolvedStyleId
+                            ? {
+                                  ...body,
+                                  propertyId: change.propertyId,
+                                  styleId: resolvedStyleId,
+                                  appearanceId: stableBinding.appearanceId,
+                                  stateSetId,
+                              }
+                            : {
+                                  ...body,
+                                  propertyId: change.propertyId,
+                                  componentId: stableBinding.componentId,
+                                  appearanceId: stableBinding.appearanceId,
+                                  stateSetId,
+                              },
+                    );
+                    const operationKey = `property:${propertyKey(actual)}`;
+                    const response = await http.post<PropertyValueDto>(
+                        `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values`,
+                        createBody,
+                        { headers: entityHeaders(entityType, operationKey, idempotency(operationKey)) },
                     );
                     acceptMetadata(response.headers);
-                    return;
+                } catch (error) {
+                    // Иконки нет в каталоге: остальные правки того же окна автосохранения всё равно записываются, а
+                    // отказ поднимается после них, чтобы редактор вернул прежнее значение иконки.
+                    if (!isUnknownIconError(error)) throw error;
+                    rejectedIcon ??= error;
                 }
-                const stateSetId = await resolveStateSet(change.stateNames);
-                const createBody = resolvedStyleId
-                    ? {
-                          ...body,
-                          propertyId: change.propertyId,
-                          styleId: resolvedStyleId,
-                          appearanceId: stableBinding.appearanceId,
-                          stateSetId,
-                      }
-                    : {
-                          ...body,
-                          propertyId: change.propertyId,
-
-                          componentId: stableBinding.componentId,
-                          appearanceId: stableBinding.appearanceId,
-                          stateSetId,
-                      };
-                const operationKey = `property:${propertyKey(actual)}`;
-                const response = await http.post<PropertyValueDto>(
-                    `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values`,
-                    createBody,
-                    { headers: entityHeaders(entityType, operationKey, idempotency(operationKey)) },
-                );
-                acceptMetadata(response.headers);
             },
         );
 
@@ -865,6 +880,7 @@ export const componentRepository = {
                 acceptMetadata(deleted.headers);
             },
         );
+        if (rejectedIcon) throw rejectedIcon;
         return revisions;
     },
 };

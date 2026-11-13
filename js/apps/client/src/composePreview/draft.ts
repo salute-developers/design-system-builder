@@ -122,8 +122,8 @@ const projectProperty = (prop: PropUnion): PreviewPropertyDraft => ({
     webParameters: (prop.getPlatformMappings()?.web ?? []).map((param) => param.name),
     hasNonWebMappings: Boolean(
         splitComposeMapping(prop.getPlatformMappings()?.compose).length ||
-            prop.getPlatformMappings()?.xml ||
-            prop.getPlatformMappings()?.ios,
+        prop.getPlatformMappings()?.xml ||
+        prop.getPlatformMappings()?.ios,
     ),
     value: prop.getValue(),
     states: (prop.getStates() ?? []).map((state) => ({ names: state.state, value: state.value, alpha: state.alpha })),
@@ -284,7 +284,25 @@ export interface CreateComponentPreviewDraftOptions {
     view?: PreviewView;
     surface: PreviewSurface;
     assets?: PreviewAsset[];
+    /** SVG-ресурс иконки по значению свойства (`disclosure.down.fill.16`); `undefined` — иконки нет в каталоге. */
+    resolveIconAsset?: (value: string) => PreviewAsset | undefined;
 }
+
+/** Идентификатор SVG-ресурса иконки в `assets`: плагин ищет по нему иконку по значению свойства. */
+export const ICON_ASSET_PREFIX = 'icon:';
+
+const collectIconAssets = (
+    properties: PreviewPropertyDraft[],
+    resolve: ((value: string) => PreviewAsset | undefined) | undefined,
+): PreviewAsset[] => {
+    const assets = new Map<string, PreviewAsset>();
+    for (const property of properties) {
+        if (property.type !== 'icon' || typeof property.value !== 'string' || !property.value) continue;
+        const asset = resolve?.(property.value);
+        if (asset) assets.set(asset.id, { ...asset, id: `${ICON_ASSET_PREFIX}${property.value}` });
+    }
+    return [...assets.values()];
+};
 
 export const createComponentPreviewDraft = ({
     config,
@@ -302,6 +320,7 @@ export const createComponentPreviewDraft = ({
     view = 'default',
     surface,
     assets = [],
+    resolveIconAsset,
 }: CreateComponentPreviewDraftOptions): DraftResult => {
     const metadata = previewMetadata ?? config.getPreviewMetadata();
     const diagnostics: AssemblyDiagnostic[] = [];
@@ -405,7 +424,17 @@ export const createComponentPreviewDraft = ({
             invariantProperties: invariants,
             selectedStyleProperties,
             themeTokens: applyPreviewView(themeTokens, view),
-            assets,
+            assets: [
+                ...assets,
+                ...collectIconAssets(
+                    [
+                        ...invariants,
+                        ...selectedStyleProperties,
+                        ...[...context.styles.values()].flatMap((s) => s.properties),
+                    ],
+                    resolveIconAsset,
+                ),
+            ],
             ...(context.styles.size ? { styles: [...context.styles.values()] } : {}),
             ...(relatedStyles.length ? { relatedStyles } : {}),
             ...(componentVariations ? { componentVariations } : {}),

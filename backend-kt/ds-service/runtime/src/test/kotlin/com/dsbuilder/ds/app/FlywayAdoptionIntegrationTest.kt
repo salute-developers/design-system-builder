@@ -40,7 +40,7 @@ class FlywayAdoptionIntegrationTest {
             assertEquals(BASELINE_FINGERPRINT, fingerprint(connection))
             insertThemes(connection)
             val flyway = flyway(url, postgres)
-            assertEquals(18, adoptAndMigrate(connection, flyway))
+            assertEquals(19, adoptAndMigrate(connection, flyway))
             assertEquals(FINAL_FINGERPRINT, fingerprint(connection))
             assertEquals(
                 "Alpha Theme",
@@ -60,7 +60,7 @@ class FlywayAdoptionIntegrationTest {
                 scalar(connection, "SELECT count(*) FROM tenants WHERE design_system_id = '$DESIGN_SYSTEM'"),
             )
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_values WHERE token_id = '$TOKEN'"))
-            assertEquals("19", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
+            assertEquals("20", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
             assertEquals(0, adoptAndMigrate(connection, flyway))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_values WHERE token_id = '$TOKEN'"))
             connection.createStatement().use {
@@ -78,7 +78,7 @@ class FlywayAdoptionIntegrationTest {
             applySchema(connection)
             assertEquals(BASELINE_FINGERPRINT, fingerprint(connection))
             // Represents a restart before baseline adoption.
-            assertEquals(18, adoptAndMigrate(connection, flyway(url, postgres)))
+            assertEquals(19, adoptAndMigrate(connection, flyway(url, postgres)))
             assertEquals(0, adoptAndMigrate(connection, flyway(url, postgres)))
         }
         val pendingUrl = createDatabase(postgres, "baseline_pending")
@@ -90,7 +90,7 @@ class FlywayAdoptionIntegrationTest {
                 flyway,
                 BASELINE_FINGERPRINT,
             )
-            assertEquals(18, adoptAndMigrate(connection, flyway))
+            assertEquals(19, adoptAndMigrate(connection, flyway))
         }
     }
 
@@ -113,7 +113,7 @@ class FlywayAdoptionIntegrationTest {
         }
         val url = createDatabase(postgres, "future_history")
         val flyway = flyway(url, postgres)
-        assertEquals(19, flyway.migrate().migrationsExecuted)
+        assertEquals(20, flyway.migrate().migrationsExecuted)
         connection(url, postgres).use { connection ->
             assertEquals(0, adoptAndMigrate(connection, flyway))
             connection.createStatement().use {
@@ -177,7 +177,7 @@ class FlywayAdoptionIntegrationTest {
             connection.createStatement().use {
                 it.execute("UPDATE tenants SET name = 'Gamma' WHERE id = '$SECOND_THEME'")
             }
-            assertEquals(18, adoptAndMigrate(connection, flyway(url, postgres)))
+            assertEquals(19, adoptAndMigrate(connection, flyway(url, postgres)))
             assertEquals(FINAL_FINGERPRINT, fingerprint(connection))
             assertEquals(
                 "Alpha Theme",
@@ -233,7 +233,7 @@ class FlywayAdoptionIntegrationTest {
                         "DROP FUNCTION attach_test_backfill_guard(); DROP FUNCTION reject_test_backfill();",
                 )
             }
-            assertEquals(13, adoptAndMigrate(connection, flyway))
+            assertEquals(14, adoptAndMigrate(connection, flyway))
             assertEquals(FINAL_FINGERPRINT, fingerprint(connection))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_value_revisions"))
         }
@@ -244,8 +244,8 @@ class FlywayAdoptionIntegrationTest {
         connection(url, postgres).use { connection ->
             applySchema(connection)
             insertThemes(connection)
-            assertEquals(18, adoptAndMigrate(connection, flyway(url, postgres)))
-            assertEquals("19", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
+            assertEquals(19, adoptAndMigrate(connection, flyway(url, postgres)))
+            assertEquals("20", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM tenant_revisions"))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_value_revisions"))
             assertEquals(
@@ -286,7 +286,7 @@ class FlywayAdoptionIntegrationTest {
                 it.execute("RESET search_path")
             }
             assertEquals(BASELINE_FINGERPRINT, fingerprint(connection))
-            assertEquals(18, adoptAndMigrate(connection, flyway(restoredUrl, postgres)))
+            assertEquals(19, adoptAndMigrate(connection, flyway(restoredUrl, postgres)))
             assertEquals(FINAL_FINGERPRINT, fingerprint(connection))
         }
     }
@@ -372,7 +372,7 @@ class FlywayAdoptionIntegrationTest {
 
     private companion object {
         const val BASELINE_FINGERPRINT = "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
-        const val FINAL_FINGERPRINT = "a479d75861de9811d87c948af90795ce0fce082f654b80206deed7297af3e1d3"
+        const val FINAL_FINGERPRINT = "5e40488e770abf06d89172a9016734565f1bb0513d29c6b4069af345a15edfa9"
         const val DESIGN_SYSTEM = "11111111-1111-4111-8111-111111111111"
         const val FIRST_THEME = "22222222-2222-4222-8222-222222222222"
         const val SECOND_THEME = "33333333-3333-4333-8333-333333333333"
