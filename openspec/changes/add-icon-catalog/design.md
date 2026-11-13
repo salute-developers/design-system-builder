@@ -219,7 +219,7 @@ fun Route.iconCatalogPublishRoutes(evaluator: PolicyEvaluator, publish: PublishI
 fun Route.iconCatalogReadRoutes(evaluator: PolicyEvaluator, get: GetIconCatalogUseCase)
 ```
 
-`IconValueValidator` подключается в use case записи значений свойств типа `icon` (создание и изменение значений вариации и инвариантного значения и `SetAppearancePropertyValueUseCase` для `PUT /appearances/{id}/property-values`: маршрут есть в route-manifest и OpenAPI, клиент его пока не вызывает, но он открыт для записи); остальные типы свойств его не используют.
+`IconValueValidator` подключается в use case записи значений свойств типа `icon` (создание и изменение значений вариации, инвариантного значения и комбинации стилей и `SetAppearancePropertyValueUseCase` для `PUT /appearances/{id}/property-values`: маршрут есть в route-manifest и OpenAPI, клиент его пока не вызывает, но он открыт для записи); остальные типы свойств его не используют.
 
 CLI (`frontend-kt`, `feature-components`, `cli`):
 
