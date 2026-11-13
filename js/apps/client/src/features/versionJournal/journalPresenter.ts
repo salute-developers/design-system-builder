@@ -3,6 +3,8 @@ import type { VariationType } from '../../controllers/themeBuilder/types/token';
 import type { DraftChangeDto, EditorContextKey, PaletteDto, TokenDefinitionDto } from '../../api/editorContracts';
 import { presentChangedFields, tokenValueHasStructuralChanges, type JournalChangedField } from './journalFields';
 import { presentPaletteChange, type JournalPaletteStep } from './paletteJournalPresentation';
+import { humanizeName } from '../../utils/text';
+import type { JournalComponentMetadata } from '../../api/journalComponentMetadata';
 export type JournalSection = 'themes' | 'tokens' | 'components';
 export type JournalSource = 'themes' | 'palette' | 'colors' | 'typography' | 'sizes' | 'components';
 export const journalSources: Array<{
@@ -27,7 +29,7 @@ export const journalSources: Array<{
     },
     {
         id: 'sizes',
-        label: 'Размеры и радиусы',
+        label: 'Отступы, радиусы и тени',
     },
     {
         id: 'components',
@@ -68,7 +70,8 @@ export interface JournalActionViewModel {
     canRevert: boolean;
 }
 export interface JournalPresenterInput {
-    componentMetadata?: { componentNames: Record<string, string>; referenceNames: Record<string, string> };
+    componentMetadata?: Pick<JournalComponentMetadata, 'componentNames' | 'referenceNames'> &
+        Partial<Pick<JournalComponentMetadata, 'styleVariations' | 'stateSetStates'>>;
     changes: DraftChangeDto[];
     tokens: TokenDefinitionDto[];
     components: Meta[];
@@ -276,10 +279,175 @@ const navigationFor = (
         kind: 'unavailable',
     };
 };
+/** Глаголы заголовка записи: подключения и связь с дизайн-системой называются своими словами. */
+const structureVerbs: Record<string, Record<DraftChangeDto['operation'], string>> = {
+    link: { created: 'Подключение', updated: 'Изменение', deleted: 'Отключение' },
+    plain: operationLabels,
+};
+const quoted = (value: unknown) => (typeof value === 'string' && value ? `«${value}»` : undefined);
+const phrase = (...parts: Array<string | false | undefined>) => parts.filter(Boolean).join(' ');
+
+/**
+ * Заголовок записи о структурной части компонента: стиль, вариация, конфигурация, их подключения, значения свойств.
+ * `undefined` — для остальных сущностей компонента остаётся общий заголовок «<Операция> компонента «<имя>»».
+ */
+const componentStructureTitle = (
+    change: DraftChangeDto,
+    componentName: string | undefined,
+    metadata: JournalPresenterInput['componentMetadata'],
+): string | undefined => {
+    const names = metadata?.referenceNames ?? {};
+    const of = quoted(componentName) && `компонента ${quoted(componentName)}`;
+    const op = change.operation;
+    const styleId = String(field(change, 'style_id') ?? (change.entityType === 'style' ? change.entityId : ''));
+    const styleName = quoted(
+        change.entityType === 'style' ? (field(change, 'name') ?? names[styleId]) : names[styleId],
+    );
+    const variationName = quoted(
+        names[String(field(change, 'variation_id') ?? '')] ?? metadata?.styleVariations?.[styleId],
+    );
+    const appearanceName = quoted(
+        change.entityType === 'appearance'
+            ? field(change, 'name')
+            : names[String(field(change, 'appearance_id') ?? '')],
+    );
+    switch (change.entityType) {
+        case 'style':
+            return phrase(operationLabels[op], 'стиля', styleName, variationName && `вариации ${variationName}`, of);
+        case 'appearance-variation-value':
+            // Подключение без пары: стиль переставлен в списке, добавлен в конфигурацию или исключён из неё.
+            if (op === 'updated')
+                return phrase(
+                    change.changedPaths.every((path) => path === '/position') ? 'Перемещение стиля' : 'Изменение стиля',
+                    styleName,
+                    variationName && `в вариации ${variationName}`,
+                    of,
+                );
+            return phrase(
+                op === 'created' ? 'Добавление стиля' : 'Исключение стиля',
+                styleName,
+                of && `${op === 'created' ? 'в конфигурацию' : 'из конфигурации'} ${of}`,
+            );
+        case 'variation':
+            return phrase(operationLabels[op], 'вариации', quoted(field(change, 'name') ?? names[change.entityId]), of);
+        case 'appearance-variation':
+            return phrase(
+                structureVerbs.link[op],
+                'вариации',
+                variationName,
+                appearanceName &&
+                    `${op === 'deleted' ? 'от' : op === 'created' ? 'к' : 'в'} конфигурации ${appearanceName}`,
+                of,
+            );
+        case 'appearance':
+            return phrase(operationLabels[op], 'конфигурации', appearanceName, of);
+        case 'design-system-component':
+            if (op === 'created') return phrase('Добавление компонента', quoted(componentName), 'в дизайн-систему');
+            if (op === 'deleted') return phrase('Скрытие компонента', quoted(componentName));
+            return undefined;
+        case 'variation-property-value':
+        case 'invariant-property-value':
+            return phrase(operationLabels[op], 'значения свойства', of);
+        case 'variation-platform-param-adjustment':
+        case 'invariant-platform-param-adjustment':
+            return phrase(operationLabels[op], 'платформенного параметра', of);
+        default:
+            return undefined;
+    }
+};
+
+/** Подключение стиля или вариации к конфигурации и сущность, которую оно подключает. */
+const pairLinks: Record<string, { link: string; ref: string }> = {
+    style: { link: 'appearance-variation-value', ref: 'style_id' },
+    variation: { link: 'appearance-variation', ref: 'variation_id' },
+};
+
+/**
+ * Пары записей одного действия: создание (удаление) стиля или вариации и её подключения к конфигурации одним автором.
+ * Возвращает подключение для каждой сущности, у которой нашлась пара.
+ */
+export const pairStructureChanges = (changes: DraftChangeDto[]) => {
+    const pairs = new Map<string, DraftChangeDto>();
+    const used = new Set<string>();
+    changes.forEach((entity) => {
+        const rule = pairLinks[entity.entityType];
+        if (!rule || entity.operation === 'updated') return;
+        const link = changes
+            .filter(
+                (candidate) =>
+                    candidate.entityType === rule.link &&
+                    candidate.operation === entity.operation &&
+                    candidate.actorId === entity.actorId &&
+                    !used.has(candidate.changeId) &&
+                    String(field(candidate, rule.ref)) === entity.entityId,
+            )
+            .sort(
+                (a, b) =>
+                    Math.abs(Date.parse(a.changedAt) - Date.parse(entity.changedAt)) -
+                    Math.abs(Date.parse(b.changedAt) - Date.parse(entity.changedAt)),
+            )[0];
+        if (!link) return;
+        pairs.set(entity.changeId, link);
+        used.add(link.changeId);
+    });
+    return { pairs, used };
+};
+
+/** Строка пары: заголовок, поля и записи в порядке отмены (созданное — сначала подключение, удалённое — сначала сущность). */
+const pairedAction = (
+    action: JournalActionViewModel,
+    entity: DraftChangeDto,
+    link: DraftChangeDto,
+    componentName: string | undefined,
+    metadata: JournalPresenterInput['componentMetadata'],
+): JournalActionViewModel => {
+    const names = metadata?.referenceNames ?? {};
+    const created = entity.operation === 'created';
+    const of = quoted(componentName);
+    const name = String(field(entity, 'name') ?? names[entity.entityId] ?? '');
+    const value = (text: string | undefined) => ({
+        before: created ? undefined : text,
+        after: created ? text : undefined,
+    });
+    if (entity.entityType === 'style') {
+        const variation = quoted(names[String(field(entity, 'variation_id') ?? '')]);
+        return {
+            ...action,
+            key: `${entity.changeId}+${link.changeId}`,
+            title: phrase(
+                created ? 'Добавление стиля' : 'Удаление стиля',
+                quoted(name),
+                variation && `${created ? 'в вариацию' : 'из вариации'} ${variation}`,
+                of && `компонента ${of}`,
+            ),
+            changedFields: [{ path: '/name', label: 'Стиль', ...value(name || undefined) }],
+            changes: created ? [link, entity] : [entity, link],
+        };
+    }
+    const defaultStyle = names[String(field(link, 'default_style_id') ?? '')];
+    return {
+        ...action,
+        key: `${entity.changeId}+${link.changeId}`,
+        title: phrase(
+            created ? 'Добавление вариации' : 'Удаление вариации',
+            quoted(name),
+            of && `${created ? 'в компонент' : 'из компонента'} ${of}`,
+        ),
+        changedFields: [
+            { path: '/name', label: 'Вариация', ...value(name || undefined) },
+            ...(defaultStyle
+                ? [{ path: '/default_style_id', label: 'Стиль по умолчанию', ...value(defaultStyle) }]
+                : []),
+        ],
+        changes: created ? [link, entity] : [entity, link],
+    };
+};
+
 const titleFor = (
     change: DraftChangeDto,
     tokensById: Map<string, TokenDefinitionDto>,
     componentIndex: Map<string, string>,
+    metadata?: JournalPresenterInput['componentMetadata'],
 ) => {
     const prefix = operationLabels[change.operation];
     if (change.entityType === 'palette-group')
@@ -310,10 +478,100 @@ const titleFor = (
         return `${tokenPresentation.get(type ?? '')?.label ?? 'Токен'}: ${name}`;
     }
     if (componentEntityTypes.has(change.entityType)) {
-        return `${prefix} компонента «${componentNameFor(change, componentIndex) ?? 'Компонент'}»`;
+        const componentName = componentNameFor(change, componentIndex);
+        return (
+            componentStructureTitle(change, componentName, metadata) ??
+            `${prefix} компонента «${componentName ?? 'Компонент'}»`
+        );
     }
     return `${prefix} настройки дизайн-системы`;
 };
+const propertyValueTypes = new Set(['variation-property-value', 'invariant-property-value']);
+/** Порядок состояний в подписи — как в инспекторе компонента. */
+const stateOrder = ['focused', 'pressed', 'hovered'];
+
+/**
+ * Подпись значения свойства компонента: «Accordion gap · size: m», «Disable alpha · Инвариант»,
+ * «Background · view: default · pressed + hovered». Неизвестные части пропускаются; `undefined`, если не известно ничего.
+ */
+export const propertyValueLabel = (
+    change: DraftChangeDto,
+    metadata: JournalPresenterInput['componentMetadata'],
+): string | undefined => {
+    if (!propertyValueTypes.has(change.entityType) || !metadata) return undefined;
+    const value = change.currentValue ?? change.previousValue ?? {};
+    const property = metadata.referenceNames[String(value.property_id)];
+    const styleId = String(value.style_id ?? '');
+    const style = metadata.referenceNames[styleId];
+    const variation = metadata.styleVariations?.[styleId];
+    const place =
+        change.entityType === 'invariant-property-value'
+            ? 'Инвариант'
+            : style && variation
+              ? `${variation}: ${style}`
+              : style;
+    const states = [...(metadata.stateSetStates?.[String(value.state_set_id)] ?? [])].sort(
+        (a, b) =>
+            (stateOrder.includes(a) ? stateOrder.indexOf(a) : stateOrder.length) -
+            (stateOrder.includes(b) ? stateOrder.indexOf(b) : stateOrder.length),
+    );
+    if (!property && !place) return undefined;
+    return [property && humanizeName(property), place, states.length ? states.join(' + ') : undefined]
+        .filter(Boolean)
+        .join(' · ');
+};
+
+/**
+ * Поля значения свойства подписываются свойством и местом вместо «Значение»; смена токена, которую общий разбор
+ * считает техническим полем, показывается именами токенов.
+ */
+const propertyValueFields = (
+    change: DraftChangeDto,
+    fields: JournalChangedField[],
+    namesById: Map<string, string>,
+    metadata: JournalPresenterInput['componentMetadata'],
+): JournalChangedField[] => {
+    if (change.entityType === 'appearance-variation' || change.entityType === 'appearance-variation-value') {
+        // Место в списке стилей или вариаций — с единицы, как его видит пользователь.
+        const place = (position: unknown) =>
+            (typeof position === 'number' ? position + 1 : position) as JournalChangedField['before'];
+        return fields.map((entry) =>
+            entry.path === '/position'
+                ? { ...entry, label: 'Место в списке', before: place(entry.before), after: place(entry.after) }
+                : entry,
+        );
+    }
+    if (!propertyValueTypes.has(change.entityType)) return fields;
+    const label = propertyValueLabel(change, metadata);
+    const labelled = label
+        ? fields.map((entry) =>
+              /^\/value(?:\/|$)/.test(entry.path)
+                  ? { ...entry, label }
+                  : entry.path === '/alpha' || entry.path === '/adjustment'
+                    ? { ...entry, label: `${label} · ${entry.label}` }
+                    : entry,
+          )
+        : fields;
+    if (!change.changedPaths.includes('/token_id') || labelled.some(({ path }) => path === '/token_id'))
+        return labelled;
+    const tokenText = (state: Record<string, unknown> | null) => {
+        const id = state?.token_id;
+        if (id) return namesById.get(String(id)) ?? null;
+        return (state?.value as string | null | undefined) ?? null;
+    };
+    return [
+        // Токен отменяется только записью целиком: путь `/token_id` не отменяется отдельно.
+        {
+            path: '/token_id',
+            label: label ?? 'Значение',
+            before: tokenText(change.previousValue),
+            after: tokenText(change.currentValue),
+            revertPaths: [],
+        },
+        ...labelled.filter(({ path }) => !/^\/value(?:\/|$)/.test(path)),
+    ];
+};
+
 export const presentJournal = ({
     changes,
     tokens,
@@ -338,8 +596,11 @@ export const presentJournal = ({
     components.forEach((component) => collectReferenceNames(component.sources, namesById));
     // Ступень `palette_id` записывается ссылкой: журнал показывает её как значение, записанное строкой-ссылкой.
     palette.forEach((entry) => namesById.set(entry.id, `[${entry.type}.${entry.shade}.${entry.saturation}]`));
+    const { pairs, used } = pairStructureChanges(changes);
     return changes
         .flatMap((first) => {
+            // Подключение из пары показывается строкой своей сущности.
+            if (used.has(first.changeId)) return [];
             const key = first.changeId;
             const tokenId = String(field(first, 'token_id', 'tokenId') ?? first.entityId);
             const tokenType = tokensById.get(tokenId)?.type ?? (field(first, 'type') as VariationType | undefined);
@@ -354,7 +615,7 @@ export const presentJournal = ({
                 key,
                 section: sectionFor(first.entityType),
                 source: sourceFor(first, tokenType),
-                title: palette?.title ?? titleFor(first, tokensById, componentIndex),
+                title: palette?.title ?? titleFor(first, tokensById, componentIndex, componentMetadata),
                 groupLabel: palette?.groupLabel,
                 paletteSteps: palette?.paletteSteps,
                 platformLabel:
@@ -371,11 +632,21 @@ export const presentJournal = ({
                 actorId: first.actorId,
                 actorLabel,
                 changedAt: first.changedAt,
-                changedFields: palette?.fields ?? presentChangedFields([first], namesById, tokenType),
+                changedFields:
+                    palette?.fields ??
+                    propertyValueFields(
+                        first,
+                        presentChangedFields([first], namesById, tokenType),
+                        namesById,
+                        componentMetadata,
+                    ),
                 changes: [first],
                 navigation: navigationFor(first, context, tokensById, componentIndex),
                 canRevert: !context.versionId && !readOnly,
             } satisfies JournalActionViewModel;
+            const link = pairs.get(first.changeId);
+            if (link)
+                return [pairedAction(action, first, link, componentNameFor(first, componentIndex), componentMetadata)];
             if (
                 first.entityType !== 'token-value' ||
                 first.operation !== 'updated' ||

@@ -7,8 +7,6 @@ import kotlinx.serialization.Serializable
 data class CreateInvariantPropertyValueRequest(
     /** Property id carried by this contract. */
     val propertyId: String,
-    /** Design system id carried by this contract. */
-    val designSystemId: String,
     /** Component id carried by this contract. */
     val componentId: String,
     /** Appearance id carried by this contract. */

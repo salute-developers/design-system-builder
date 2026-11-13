@@ -13,4 +13,6 @@ class EditorRuleViolationException(
     message: String,
     /** Отказ является конфликтом состояния (`409`), а не недопустимой операцией (`422`). */
     val conflict: Boolean = false,
+    /** Отказ является ошибкой значения запроса (`400`), а не недопустимой операцией (`422`). */
+    val invalid: Boolean = false,
 ) : RuntimeException(message)

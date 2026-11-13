@@ -33,7 +33,7 @@ export interface AutosaveDeps {
     retryMaxMs?: number;
 }
 
-/** Создание или удаление: выполняются после отправки очереди правок. */
+/** Создание, переименование или удаление: выполняются после отправки очереди правок. */
 export type StructuralOperation = Exclude<SizeTokenOperation, { type: 'update' }>;
 
 export interface SizeTokenAutosave {
@@ -41,7 +41,7 @@ export interface SizeTokenAutosave {
     schedule(key: string, build: () => SizeTokenOperation | null): void;
     /** Команда, сохранённая до перезагрузки: отправляется сразу и без изменений. */
     replay(key: string, command: SizeTokenCommand): void;
-    /** Создание или удаление после отправки очереди; ошибки сети и `5xx` повторяются той же командой. */
+    /** Создание, переименование или удаление после отправки очереди; сеть и `5xx` повторяются той же командой. */
     run(operation: StructuralOperation): Promise<SizeTokenResult>;
     /** Отправляет [key] (без ключа — все операции с ошибкой) сразу, не дожидаясь автоматического повтора. */
     retry(key?: string): void;
@@ -231,7 +231,7 @@ export const createSizeTokenAutosave = ({
             const key =
                 operation.type === 'create'
                     ? `create:${command.idempotencyKey ?? command.id}`
-                    : `delete:${operation.tokenId}`;
+                    : `${operation.type}:${operation.tokenId}`;
             store.save(key, command);
             return new Promise<SizeTokenResult>((resolve, reject) => {
                 entries.set(key, entryOf({ command, version: 1, waiters: [{ resolve, reject }] }));

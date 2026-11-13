@@ -7,9 +7,9 @@ public sealed interface BackendCredential {
     /**
      * Project-scoped API key credential.
      *
-     * @property value raw project API key.
+     * @property value raw PAT.
      */
-    public data class ProjectKey(
+    public data class PersonalAccessToken(
         public val value: String,
     ) : BackendCredential
 
@@ -37,7 +37,7 @@ public sealed interface BackendCredential {
  * Public credential category safe for diagnostics.
  */
 public enum class BackendCredentialType {
-    PROJECT_KEY,
+    PERSONAL_ACCESS_TOKEN,
     USER_SESSION,
     SERVICE_ACCOUNT,
 }
@@ -59,6 +59,8 @@ public data class UserSession(
     public val refreshToken: String,
     public val refreshExpiresAt: Long,
     public val updatedAt: Long,
+    /** OAuth-клиент, которому принадлежит refresh-сессия. */
+    public val clientId: String = INTERACTIVE_CLIENT_ID,
 )
 
 /**
@@ -72,6 +74,8 @@ public data class TokenResponse(
     public val accessToken: String,
     public val refreshToken: String,
     public val refreshExpiresAt: Long,
+    /** Время жизни access token в секундах. */
+    public val expiresInSeconds: Long = 0,
 )
 
 /**
@@ -79,7 +83,7 @@ public data class TokenResponse(
  */
 public enum class AuthErrorCode {
     AUTH_REQUIRED,
-    PROJECT_KEY_INVALID,
+    PAT_INVALID,
     FORBIDDEN,
     BACKEND_UNAVAILABLE,
     INVALID_AUTH_URL,
@@ -134,6 +138,12 @@ public interface CredentialStore {
  * Session store capable of rotating refresh tokens under a single cross-process lock.
  */
 public interface RotatingCredentialStore : CredentialStore {
+    /** Отзывает актуальный refresh token и удаляет сессию под одной блокировкой. */
+    public suspend fun logoutSession(
+        apiUrl: String,
+        revoke: suspend (UserSession) -> AuthResult<Unit>,
+    ): AuthResult<Unit>
+
     /**
      * Re-reads the current session under lock, refreshes it, and atomically saves the rotated token.
      */
@@ -147,14 +157,17 @@ public interface RotatingCredentialStore : CredentialStore {
  * Gateway token client port.
  */
 public interface TokenClient {
-    /**
-     * Exchanges username and password for access and refresh tokens.
-     */
-    public suspend fun login(
+    /** Обменивает authorization code, привязанный к verifier и redirect URI. */
+    public suspend fun exchangeCode(
         apiUrl: String,
-        username: String,
-        password: String,
-    ): AuthResult<TokenResponse>
+        code: String,
+        verifier: String,
+        redirectUri: String,
+    ): AuthResult<TokenResponse> = AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "PKCE не настроен.")
+
+    /** Получает безопасное имя из проверенного userinfo. */
+    public suspend fun username(apiUrl: String, accessToken: String): AuthResult<String> =
+        AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Userinfo недоступен.")
 
     /**
      * Rotates a refresh token and returns a new short-lived access token.

@@ -133,7 +133,7 @@ describe('import:plasma', () => {
         assert.equal(existsSync(join(sdds, 'components', 'meta.json')), false);
     });
 
-    it('writes the package config by the model rules and templates into the generator manifest', () => {
+    it('writes the package config by the model rules and prints templates for web-adapter.json', () => {
         // Манифест генератора уходит во временную папку, настоящие шаблоны не трогаются.
         const templates = join(root, 'templates');
         const manifestDir = join(templates, 'Chip');
@@ -151,7 +151,7 @@ describe('import:plasma', () => {
             ]);
             const byId = Object.fromEntries(config.variations.map((v: { id: string; props: unknown }) => [v.id, v.props]));
             // Цвет по токену темы — в `default`; шрифтовая группа — одно свойство typography;
-            // радиус совпал с токенами формы — shape; многозначный отступ — число стиля, шаблон в манифесте.
+            // радиус совпал с токенами формы — shape; многозначный отступ — число стиля, шаблон в отчёте.
             assert.deepEqual(byId.default, {
                 background: { type: 'color', default: 'surface.default.transparent-secondary' },
                 color: { type: 'color', default: 'text.default.primary' },
@@ -163,9 +163,12 @@ describe('import:plasma', () => {
                 textStyle: { type: 'typography', value: 'body.m.normal' },
             });
             assert.deepEqual(byId.l.borderRadius, { type: 'shape', value: 'round.l' });
-            assert.equal(JSON.stringify(config).includes('webTemplates'), false);
-            const manifest = JSON.parse(readFileSync(join(manifestDir, 'component.json'), 'utf8'));
-            assert.deepEqual(manifest.webTemplates, { padding: { padding: '0.25rem $1' } });
+            assert.equal(JSON.stringify(config).includes('0.25rem $1'), false);
+            // Шаблон печатается фрагментом записи web-adapter.json и не попадает в манифест генератора.
+            const manifestFile = join(manifestDir, 'component.json');
+            assert.equal(existsSync(manifestFile) && readFileSync(manifestFile, 'utf8').includes('0.25rem $1'), false);
+            assert.match(result.stdout, /"componentName": "chip"/);
+            assert.match(result.stdout, /"padding": "0\.25rem \$1"/);
             // Повторный импорт без --remove перезаписывает записи компонента.
             const again = run(sdds, plasma, '--apply', `--templates=${templates}`);
             assert.equal(again.status, 0, again.stdout + again.stderr);
@@ -204,6 +207,54 @@ describe('import:plasma', () => {
         const unknown = run(sdds, plasma, '--shape=borderRadius=round.nope');
         assert.notEqual(unknown.status, 0);
         assert.match(unknown.stdout + unknown.stderr, /round.nope/);
+    });
+
+    it('takes a fallback token from var() and a single typography part by the web api meta', () => {
+        // Как у Skeleton: цвет через переменную темы plasma с запасным токеном, высоты — части типографики.
+        const config = join(plasma, 'packages', 'sdds-serv', 'src', 'components', 'Chip', 'Chip.config.ts');
+        writeFileSync(
+            config,
+            readFileSync(config, 'utf8')
+                .replace('${surfaceTransparentSecondary};', 'var(--plasma-colors-chip-background, ${surfaceTransparentSecondary});')
+                .replaceAll('${textPrimary};', 'var(--plasma-colors-chip-color, ${textUnknown});')
+                .replace(/\s*\$\{tokens\.(fontFamily|fontStyle|fontWeight|letterSpacing)\}: \$\{bodyM\.\w+\};/g, ''),
+        );
+        const theme = join(sdds, 'tenants', 'base_default', 'web');
+        writeFileSync(join(theme, 'web_typography.json'), JSON.stringify({ 'screen-s.body.m.normal': { fontSize: '0.875rem', lineHeight: '1.25rem' } }));
+        mkdirSync(join(sdds, 'web'), { recursive: true });
+        const meta = (lineHeight: Record<string, string>) =>
+            writeFileSync(
+                join(sdds, 'web', 'web-api-meta.json'),
+                JSON.stringify([
+                    {
+                        componentName: 'Chip',
+                        params: [
+                            { paramName: 'background', type: 'color', id: 'background' },
+                            { paramName: 'fontSize', type: 'dimension', id: 'fontSize' },
+                            { paramName: 'lineHeight', id: 'lineHeight', ...lineHeight },
+                        ],
+                    },
+                ]),
+            );
+        meta({ type: 'typography', part: 'lineHeight' });
+        const result = run(sdds, plasma, '--apply', `--templates=${join(root, 'templates')}`);
+        assert.equal(result.status, 0, result.stdout + result.stderr);
+        const package_ = JSON.parse(readFileSync(join(sdds, 'components', 'chip_default_config.json'), 'utf8'));
+        const byId = Object.fromEntries(package_.variations.map((v: { id: string; props: unknown }) => [v.id, v.props]));
+        assert.deepEqual(byId.default.background, { type: 'color', default: 'surface.default.transparent-secondary' });
+        assert.deepEqual(byId.m.lineHeight, { type: 'typography', value: 'body.m.normal' });
+        assert.deepEqual(byId.m.fontSize, { type: 'dimension', value: 14 });
+        assert.match(result.stdout, /переменная --plasma-colors-chip-background в сид не переносится/);
+        assert.match(result.stdout, /ПРИБЛИЖЕНИЯ[\s\S]*size\.m\.fontSize: bodyM\.fontSize взят числом 14px экрана screen-s/);
+        // Несопоставленный запасной идентификатор остаётся строкой, как раньше.
+        assert.equal(byId.default.color.type, 'value');
+        assert.match(result.stdout, /textUnknown/);
+
+        // Без аннотации отдельного свойства одиночная часть — по-прежнему неполная шрифтовая группа.
+        meta({ type: 'typography', part: 'fontSize' });
+        const unannotated = run(sdds, plasma);
+        assert.equal(unannotated.status, 0, unannotated.stdout + unannotated.stderr);
+        assert.match(unannotated.stdout, /ТРЕБУЕТ РЕШЕНИЯ[\s\S]*size\.m\.textStyle: шрифтовая группа неполная или смешанная \(LineHeight=bodyM\)/);
     });
 
     it('stops without a local theme and names theme fetch', () => {

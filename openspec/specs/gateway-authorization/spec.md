@@ -2,7 +2,6 @@
 
 ## Purpose
 Защита проектных маршрутов на Gateway, формирование доверенного контекста и изоляция внутренних маршрутов сервисов.
-
 ## Requirements
 ### Requirement: Gateway protects project routes
 
@@ -24,31 +23,6 @@ Gateway SHALL направлять project-scoped routes через internal aut
 - **THEN** сетевой контур MUST запретить внешний доступ
 - **AND** сам `ds-service` MUST отклонить запрос без корректного trusted context
 
-### Requirement: Trusted request context headers
-
-Gateway SHALL передавать downstream-сервисам нормализованный trusted context только после успешной проверки и SHALL передавать `ds-service` все поля principal, необходимые общей RBAC-политике.
-
-#### Scenario: User actor context
-
-- **WHEN** authenticated user получает доступ к project-scoped route
-- **THEN** Gateway MUST передать `X-Actor-Type`, `X-User-Id`, `X-Project-Id`, `X-Project-Role` и `X-System-Admin`
-
-#### Scenario: Project key actor context
-
-- **WHEN** валидный project access key получает доступ к project-scoped route
-- **THEN** Gateway MUST передать `X-Actor-Type`, `X-Project-Id`, `X-Project-Key-Id`, `X-Project-Scopes` и `X-System-Admin`
-
-#### Scenario: Incoming trusted headers are spoofed
-
-- **WHEN** внешний клиент отправляет `X-User-Id`, `X-Project-Role`, `X-Project-Scopes` или другие trusted headers
-- **THEN** Gateway MUST удалить incoming values и установить только значения, полученные от Auth Helper
-
-#### Scenario: Project id не совпадает
-
-- **WHEN** `projectId` публичного пути не совпадает с проверенным `X-Project-Id`
-- **THEN** Gateway MUST отклонить запрос до переписывания пути и предметной операции
-- **AND** MUST NOT передавать запрос в `ds-service`
-
 ### Requirement: Internal endpoints are not externally available
 
 Gateway SHALL запрещать внешний доступ к internal endpoints.
@@ -60,7 +34,7 @@ Gateway SHALL запрещать внешний доступ к internal endpoin
 
 ### Requirement: Gateway направляет предметный API в ds-service
 
-Gateway SHALL направлять согласованный набор `/api/projects/{projectId}/ds/**` в `ds-service` после project-scoped авторизации и SHALL переписывать публичный префикс во внутренний `/api/ds` без изменения остатка пути и query string.
+Gateway SHALL направлять согласованный набор `/api/projects/{projectId}/design-systems/**` в `ds-service` после project-scoped авторизации и SHALL переписывать публичный префикс во внутренний `/api/design-systems` без изменения остатка пути и query string.
 
 #### Scenario: Вызов перенесённого маршрута
 
@@ -73,7 +47,7 @@ Gateway SHALL направлять согласованный набор `/api/p
 
 - **WHEN** клиент вызывает исключённый маршрут `/api/projects/{projectId}/ds/legacy/**`
 - **THEN** Gateway MUST ответить `404`: upstream db-service удалён
-- **AND** общее правило `/ds/**` MUST направлять разрешённый набор в `ds-service`
+- **AND** общее правило `/api/projects/{projectId}/design-systems/**` MUST направлять разрешённый набор в `ds-service`
 
 #### Scenario: Атомарный откат
 
@@ -81,3 +55,102 @@ Gateway SHALL направлять согласованный набор `/api/p
 - **THEN** откат выполняется версией образа `ds-service`
 - **AND** конфигурация Gateway MUST остаться прежней: единственный upstream предметного API — `ds-service`
 
+### Requirement: Успешный CORS preflight допускает ограниченное переиспользование
+
+Публичный Ktor-вход backend-kt/app SHALL возвращать `Access-Control-Max-Age: 600` для успешного OPTIONS разрешённого origin при локальном и production-запуске с корректным `Vary: Origin`. Оптимизация SHALL NOT расширять допустимые origin, методы или заголовки и SHALL NOT кешировать решение авторизации фактической команды.
+
+#### Scenario: Повторный запрос разрешённого origin
+- **WHEN** браузер повторяет запрос с тем же CORS-контекстом в пределах объявленного времени
+- **THEN** успешный preflight MUST быть пригоден для переиспользования браузером
+- **THEN** фактический GET или изменяющий запрос MUST по-прежнему проходить прежнюю авторизацию шлюза
+
+#### Scenario: Запрещённый origin
+- **WHEN** OPTIONS получен от origin вне разрешённого списка
+- **THEN** Gateway MUST NOT возвращать разрешающий CORS-ответ для этого origin
+- **THEN** наличие кеша другого origin MUST NOT давать доступ
+
+#### Scenario: Доступ отозван после preflight
+- **WHEN** браузер сохранил успешный preflight, но право на проект отозвано
+- **THEN** последующий предметный запрос MUST быть отклонён серверной авторизацией
+
+### Requirement: Оптимизация сохраняет публичную границу монолита
+
+Подсчёт каталога SHALL выполняться внутри процесса через прикладные интерфейсы. Оптимизация SHALL NOT открывать внутренние маршруты или обходить пользовательскую авторизацию. Исторические nginx-конфигурации SHALL NOT изменяться.
+
+#### Scenario: Прямой вызов внутреннего пути
+- **WHEN** клиент обращается к /internal/** или прямому /api/design-systems/** через публичный порт
+- **THEN** app MUST сохранять действующий запрет обхода project-scoped авторизации
+- **THEN** публичный список MUST включать только проекты user-scoped контекста
+
+### Requirement: CORS для Figma-плагина
+
+Публичный вход `backend-kt/app` SHALL разрешать origin из настройки `OIDC_PLUGIN_ORIGINS` (значение для Figma — `null`) только для `POST` на endpoint устройства Keycloak, `/auth/token` и `/auth/logout` и для `GET` на `/api/projects` и `/api/projects/**`. Настройка SHALL быть необязательной; без неё поведение CORS MUST NOT меняться. Gateway MUST NOT возвращать `Access-Control-Allow-Credentials` для такого origin. Авторизация запросов MUST NOT зависеть от origin.
+
+#### Scenario: Чтение из плагина
+
+- **WHEN** запрос `GET /api/projects/{id}/design-systems` приходит с `Origin: null`, а origin разрешён настройкой
+- **THEN** ответ и его preflight MUST содержать `Access-Control-Allow-Origin: null` и `Vary: Origin`
+- **THEN** `Access-Control-Allow-Methods` MUST NOT содержать методы записи, иначе браузер закэширует их на этот адрес
+
+#### Scenario: Запись из плагина
+
+- **WHEN** запрос `PATCH` или preflight `PATCH` на `/api/projects/**` приходит с `Origin: null`
+- **THEN** Gateway MUST NOT возвращать разрешающий CORS-ответ
+
+#### Scenario: Настройка не задана
+
+- **WHEN** `OIDC_PLUGIN_ORIGINS` не задана, а запрос приходит с `Origin: null`
+- **THEN** Gateway MUST NOT возвращать `Access-Control-Allow-Origin`
+
+#### Scenario: Запрос без токена
+
+- **WHEN** разрешённый origin отправляет запрос к `/api/projects` без `Authorization`
+- **THEN** Gateway MUST вернуть `401`, как и для любого другого origin
+
+### Requirement: PAT и OAuth различаются при общей схеме Bearer
+
+Gateway SHALL распознавать PAT по префиксу `dsb_pat_` в `Authorization: Bearer`, проверять его отдельным способом и MUST NOT повторять проверку отклонённого PAT как OAuth. Схема ProjectKey SHALL быть отклонена.
+
+#### Scenario: Некорректный PAT
+- **WHEN** Bearer содержит PAT с неверным секретом
+- **THEN** Gateway MUST вернуть `401` без попытки OAuth-аутентификации
+
+#### Scenario: Обычный OAuth
+- **WHEN** Bearer содержит OAuth access token
+- **THEN** Gateway MUST сохранить существующую проверку JWT и сессии
+
+### Requirement: Пользовательский API PAT входит в публичную границу
+
+Монолит SHALL публиковать `/api/settings/personal-access-tokens`, `/api/settings/personal-access-tokens/{id}` и `/api/settings/personal-access-tokens/scopes` с обязательной OAuth-авторизацией. Внутренние маршруты проверки MUST оставаться закрытыми снаружи.
+
+#### Scenario: Запрос собственных PAT
+- **WHEN** пользователь вызывает новый маршрут с валидной OAuth-сессией
+- **THEN** app MUST передать проверенный userId в сценарий
+
+#### Scenario: Внешняя проверка секрета
+- **WHEN** внешний клиент обращается к внутреннему маршруту проверки PAT
+- **THEN** app MUST отказать до выполнения внутреннего сценария
+
+### Requirement: Проверенный контекст пользователя и PAT
+Gateway SHALL передавать downstream-сервисам нормализованный trusted context только после успешной проверки и SHALL передавать `ds-service` все поля principal, необходимые общей RBAC-политике.
+
+#### Scenario: User actor context
+
+- **WHEN** authenticated user получает доступ к project-scoped route
+- **THEN** Gateway MUST передать `X-Actor-Type`, `X-User-Id`, `X-Project-Id`, `X-Project-Role` и `X-System-Admin`
+
+#### Scenario: Контекст PAT
+
+- **WHEN** валидный PAT получает доступ к project-scoped route
+- **THEN** Gateway MUST передать `X-Actor-Type: personal_access_token`, `X-User-Id` владельца, `X-Project-Id`, актуальный `X-Project-Role`, `X-Personal-Access-Token-Id`, `X-Project-Scopes` и `X-System-Admin` с актуальным проверенным значением владельца
+
+#### Scenario: Incoming trusted headers are spoofed
+
+- **WHEN** внешний клиент отправляет `X-User-Id`, `X-Project-Role`, `X-Project-Scopes` или другие trusted headers
+- **THEN** Gateway MUST удалить incoming values и установить только значения, полученные от Auth Helper
+
+#### Scenario: Project id не совпадает
+
+- **WHEN** `projectId` публичного пути не совпадает с проверенным `X-Project-Id`
+- **THEN** Gateway MUST отклонить запрос до переписывания пути и предметной операции
+- **AND** MUST NOT передавать запрос в `ds-service`

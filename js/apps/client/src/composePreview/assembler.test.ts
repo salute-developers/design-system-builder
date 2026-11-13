@@ -25,6 +25,51 @@ describe('assembleComposePreviewPayload', () => {
         expect(result.payload.assets).toHaveLength(1);
     });
 
+    it('lets the plugin fall back to the default font when a font file cannot be downloaded', () => {
+        const result = assembleComposePreviewPayload(draft());
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const family = result.payload.theme['font.body'];
+        expect(family).toMatchObject({ type: 'fontFamily', allowFallback: true });
+        expect(family.type === 'fontFamily' && family.faces.length).toBeGreaterThan(0);
+    });
+
+    it('does not derive web state tokens: a state without a value is left to the web plugin', () => {
+        const web = draft();
+        web.rendererPlatform = 'WEB';
+        web.themeValuePlatform = 'web';
+        for (const property of [...web.invariantProperties, ...web.selectedStyleProperties]) {
+            property.webParameters = property.composeParameters;
+        }
+        const background = [...web.invariantProperties, ...web.selectedStyleProperties].find(
+            (property) => property.name === 'backgroundColor',
+        )!;
+        background.states = [{ names: ['hovered'] }, { names: ['pressed'], value: 'color.pressed' }];
+        const result = assembleComposePreviewPayload(web);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.payload.component.properties.backgroundColor.states).toEqual([
+            { when: ['pressed'], source: { type: 'tokenRef', tokenId: 'color.pressed' } },
+        ]);
+        expect(Object.keys(result.payload.theme).some((id) => id.endsWith('-hover'))).toBe(false);
+    });
+
+    it('passes an integer property as a numeric literal, also when the value is stored as a string', () => {
+        const integer = draft();
+        integer.invariantProperties.push({
+            id: 'cols',
+            name: 'smallMColsCount',
+            type: 'integer',
+            composeParameters: ['smallMColsCount'],
+            value: '6',
+            states: [],
+        } as PreviewPropertyDraft);
+        const result = assembleComposePreviewPayload(integer);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.payload.component.properties.smallMColsCount.base).toEqual({ type: 'literal', value: 6 });
+    });
+
     it('rejects missing mappings, conflicts, cycles and unavailable platform values', () => {
         const missingMapping = draft();
         missingMapping.invariantProperties[0].composeParameters = [];
@@ -320,6 +365,15 @@ describe('assembleComposePreviewPayload', () => {
                 { id: 'b', componentId: 'x', properties: [prop({ name: 'next', styleRef: 'a' })] },
             ];
             expect(assembleComposePreviewPayload(cycle)).toMatchObject({ ok: false, diagnostics: [{ code: 'cycle' }] });
+        });
+
+        it('passes icon SVG assets to the payload without references', () => {
+            const d = draft();
+            d.assets = [...d.assets, { id: 'icon:plus.16', type: 'SVG', url: 'https://example.test/Plus.svg' }];
+            d.invariantProperties.push(prop({ name: 'icon', type: 'icon', value: 'plus.16' }));
+            const payload = assembled(d);
+            expect(payload.component.properties.icon.base).toEqual({ type: 'literal', value: 'plus.16' });
+            expect(payload.assets).toContainEqual({ id: 'icon:plus.16', type: 'SVG', url: 'https://example.test/Plus.svg' });
         });
 
         it('includes referenced assets and rejects a missing one', () => {

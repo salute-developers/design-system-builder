@@ -1,3 +1,11 @@
-FROM quay.io/keycloak/keycloak:26.6.1
+FROM python:3.13-alpine
 
-COPY --chmod=755 ./identity-gateway/keycloak/bootstrap-production-keycloak.sh /opt/keycloak/bootstrap/bootstrap-production-keycloak.sh
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /opt/keycloak/bootstrap
+COPY --chmod=755 ./identity-gateway/keycloak/bootstrap-production-keycloak.sh ./
+COPY ./identity-gateway/keycloak/bootstrap-production-keycloak.py ./
+COPY ./identity-gateway/keycloak/bootstrap-user-profile.json ./
+COPY ./identity-gateway/keycloak/studio-plugin-client.json ./
+COPY ./identity-gateway/keycloak/figma-plugin-client.json ./
+USER 10001:10001
+ENTRYPOINT ["/bin/sh", "/opt/keycloak/bootstrap/bootstrap-production-keycloak.sh"]

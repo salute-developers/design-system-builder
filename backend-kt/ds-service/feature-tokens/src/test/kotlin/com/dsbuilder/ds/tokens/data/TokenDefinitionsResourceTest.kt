@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 class TokenDefinitionsResourceTest {
     @Test
     fun `canonical token definitions are complete and valid`() {
-        val bytes = requireNotNull(javaClass.getResourceAsStream("/token-definitions.json"))
+        val bytes = requireNotNull(javaClass.getResourceAsStream("/dsbuilder/ds/seeds/token-definitions.json"))
             .use { it.readBytes() }
         val definitions = Json.parseToJsonElement(bytes.decodeToString()).jsonArray
 

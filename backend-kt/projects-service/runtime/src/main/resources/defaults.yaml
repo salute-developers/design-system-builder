@@ -1,0 +1,20 @@
+database:
+  poolSize: "$PROJECTS_DATABASE_POOL_SIZE:10"
+  connectionTimeoutMs: "$PROJECTS_DATABASE_CONNECTION_TIMEOUT_MS:5000"
+  url: "$PROJECTS_DATABASE_URL:jdbc:postgresql://localhost:5434/projects_service"
+  username: "$PROJECTS_POSTGRES_USER:projects"
+  password: "$PROJECTS_POSTGRES_PASSWORD:projects"
+
+authorization:
+  policyPath: "$PROJECT_AUTHORIZATION_POLICY_PATH:"
+
+projects:
+  internal:
+    apiKey: "$PROJECTS_INTERNAL_API_KEY:local-projects-internal-key"
+  identity:
+    keycloak:
+      baseUrl: "$PROJECTS_IDENTITY_KEYCLOAK_BASE_URL:http://localhost:8090"
+      realm: "$PROJECTS_IDENTITY_KEYCLOAK_REALM:dsbuilder"
+      clientId: "$PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:projects-service"
+      clientSecret: "$PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:projects-service-secret"
+      timeoutMs: "$PROJECTS_IDENTITY_KEYCLOAK_TIMEOUT_MS:1500"

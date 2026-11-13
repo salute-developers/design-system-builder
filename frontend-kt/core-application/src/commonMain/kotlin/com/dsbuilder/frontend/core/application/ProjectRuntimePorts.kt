@@ -6,7 +6,7 @@ import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
+import com.dsbuilder.frontend.core.domain.PersonalAccessToken
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
 
@@ -14,12 +14,10 @@ import com.dsbuilder.frontend.core.domain.ProjectContext
  * Inputs for one project-context lookup.
  * @property startingDirectory local search root.
  * @property designSystemUri explicit portable link, when supplied.
- * @property projectKeyEnvName key env name for an explicit link.
  */
 public data class ContextRequest(
     public val startingDirectory: String? = null,
     public val designSystemUri: String? = null,
-    public val projectKeyEnvName: String? = null,
 )
 
 /**
@@ -36,6 +34,10 @@ public data class CredentialRequest(
     public val credentialEnvName: CredentialEnvName,
     public val policy: CredentialPolicy,
     public val projectEnvironment: EnvironmentReader? = null,
+    /** Принудительное обновление после 401 с обходом кеша. */
+    public val forceRefresh: Boolean = false,
+    /** Отвергнутый bearer для объединения конкурентных повторов после 401. */
+    public val rejectedAccessToken: String? = null,
 )
 
 /** Explicit choice between local discovery and a portable link. */
@@ -43,10 +45,9 @@ public sealed interface ContextSelection {
     /** Local context discovery. @property startingDirectory optional search root. */
     public data class Local(public val startingDirectory: String? = null) : ContextSelection
 
-    /** Portable link selection. @property uri link. @property projectKeyEnvName optional key env name. */
+    /** Portable link selection. @property uri link. */
     public data class Link(
         public val uri: String,
-        public val projectKeyEnvName: String? = null,
     ) : ContextSelection
 }
 
@@ -67,7 +68,6 @@ public data class RuntimeRequest(
             is ContextSelection.Local -> ContextRequest(startingDirectory = selected.startingDirectory)
             is ContextSelection.Link -> ContextRequest(
                 designSystemUri = selected.uri,
-                projectKeyEnvName = selected.projectKeyEnvName,
             )
         }
 }
@@ -81,7 +81,7 @@ public fun interface ProjectContextReader {
 
     /** Rejects explicit selection when a legacy reader has no link support. */
     public fun requireContext(request: ContextRequest): ProjectContextReadResult =
-        if (request.designSystemUri == null && request.projectKeyEnvName == null) {
+        if (request.designSystemUri == null) {
             requireContext(request.startingDirectory)
         } else {
             ProjectContextReadResult.Failed(
@@ -93,26 +93,19 @@ public fun interface ProjectContextReader {
     /** Resolves one explicit link without changing the reader's local context. */
     public fun requireContext(startingDirectory: String?, designSystemUri: String?): ProjectContextReadResult =
         requireContext(ContextRequest(startingDirectory, designSystemUri))
-
-    /** Selects one explicit link and optional project key environment variable. */
-    public fun requireContext(
-        startingDirectory: String?,
-        designSystemUri: String?,
-        projectKeyEnvName: String?,
-    ): ProjectContextReadResult = requireContext(ContextRequest(startingDirectory, designSystemUri, projectKeyEnvName))
 }
 
 /**
- * Port resolution project API key для клиентов DS Builder.
+ * Port resolution PAT для клиентов DS Builder.
  */
-public fun interface ProjectApiKeyProvider {
+public fun interface PersonalAccessTokenProvider {
     /**
      * Возвращает runtime API key для project context.
      */
     public fun resolve(
         override: String?,
         credentialEnvName: CredentialEnvName,
-    ): ProjectApiKeyResult
+    ): PersonalAccessTokenResult
 }
 
 /**
@@ -232,15 +225,15 @@ public enum class ProjectContextFailure {
 /**
  * Результат resolution API key.
  */
-public sealed interface ProjectApiKeyResult {
+public sealed interface PersonalAccessTokenResult {
     /**
      * API key найден.
      *
      * @property value raw API key для runtime request.
      */
     public data class Found(
-        public val value: ProjectApiKey,
-    ) : ProjectApiKeyResult
+        public val value: PersonalAccessToken,
+    ) : PersonalAccessTokenResult
 
     /**
      * API key не найден.
@@ -249,5 +242,5 @@ public sealed interface ProjectApiKeyResult {
      */
     public data class Missing(
         public val message: String,
-    ) : ProjectApiKeyResult
+    ) : PersonalAccessTokenResult
 }

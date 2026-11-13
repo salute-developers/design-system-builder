@@ -13,7 +13,6 @@ import com.dsbuilder.frontend.feature.theme.domain.Token
 import com.dsbuilder.frontend.feature.theme.domain.TokenValue
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -32,7 +31,7 @@ internal class HttpRemoteThemeDataSource(
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
-                "/api/projects/${command.context.projectId.value}/ds/design-systems/" +
+                "/api/projects/${command.context.projectId.value}/design-systems/" +
                     "${command.context.designSystemId.value}/tenants",
             ),
             decode = ::decodeTenants,
@@ -44,7 +43,7 @@ internal class HttpRemoteThemeDataSource(
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
-                "/api/projects/${command.context.projectId.value}/ds/design-systems/" +
+                "/api/projects/${command.context.projectId.value}/design-systems/" +
                     "${command.context.designSystemId.value}/tokens",
             ),
             decode = ::decodeTokens,
@@ -56,7 +55,7 @@ internal class HttpRemoteThemeDataSource(
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
-                "/api/projects/${command.context.projectId.value}/ds/palette",
+                "/api/projects/${command.context.projectId.value}/design-systems/catalog/palette",
             ),
             decode = ::decodePalette,
             parseFailureMessage = "Error: Cannot parse palette response.",
@@ -68,7 +67,8 @@ internal class HttpRemoteThemeDataSource(
         return getDecoded(
             result = client.get(
                 // Цвета по палитре темы: ds-service заменяет ссылки на HEX с учётом групп палитры темы.
-                "/api/projects/${command.context.projectId.value}/ds/tenants/${command.tenantId}/token-values",
+                "/api/projects/${command.context.projectId.value}/design-systems/" +
+                    "${command.context.designSystemId.value}/tenants/${command.tenantId}/token-values",
             ),
             decode = ::decodeTokenValues,
             parseFailureMessage = "Error: Cannot parse token values response for tenant `${command.tenantId}`.",
@@ -112,8 +112,6 @@ internal class HttpRemoteThemeDataSource(
     ): List<T>? =
         try {
             json.decodeFromString(ListSerializer(serializer), body)
-        } catch (exception: SerializationException) {
-            null
         } catch (exception: IllegalArgumentException) {
             null
         }
@@ -144,8 +142,8 @@ private data class TokenResponse(
     val designSystemId: String,
     val name: String,
     val type: String,
-    val displayName: String,
-    val description: String,
+    val displayName: String?,
+    val description: String?,
     val enabled: Boolean,
     val createdAt: String,
     val updatedAt: String,
@@ -155,8 +153,8 @@ private data class TokenResponse(
         designSystemId = designSystemId,
         name = name,
         type = type,
-        displayName = displayName,
-        description = description,
+        displayName = displayName ?: name,
+        description = description.orEmpty(),
         enabled = enabled,
         createdAt = createdAt,
         updatedAt = updatedAt,

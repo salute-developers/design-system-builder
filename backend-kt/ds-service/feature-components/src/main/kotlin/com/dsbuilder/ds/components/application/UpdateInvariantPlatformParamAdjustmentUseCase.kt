@@ -19,6 +19,6 @@ class UpdateInvariantPlatformParamAdjustmentUseCase(
         id: UUID,
         command: ComponentModelRepository.AdjustmentUpdate,
     ): DsResult<InvariantPlatformParamAdjustment> = modelMutate(policy, transactions, context) {
-        repository.updateInvariantAdjustment(context.projectId, context.principal.systemAdmin, id, command)
+        repository.updateInvariantAdjustment(context.projectId, context.principal.globalAdmin, id, command)
     }
 }

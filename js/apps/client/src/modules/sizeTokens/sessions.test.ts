@@ -9,7 +9,7 @@ import { restorePendingSizeTokenCommands, setSizeTokenRepository, sizeTokenSessi
 import type { SizeTokenValue } from './domain';
 
 const context = { projectId: 'p1', designSystemId: 'ds', tenantId: 't-replay' };
-const base = '/api/projects/p1/ds/tenants/t-replay/size-tokens';
+const base = '/api/projects/p1/design-systems/ds/tenants/t-replay/size-tokens';
 const layer = { offsetX: 0, offsetY: 8, blur: 24, spread: -8, color: '#0000001F' };
 const stored = () =>
     Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index) ?? '')
@@ -92,11 +92,7 @@ describe('повтор неподтверждённых команд токен�
         const session = closedPage();
         void session.autosave.run({
             type: 'create',
-            request: {
-                kind: 'shadow',
-                name: 'xl',
-                variants: [{ variant: 'down.soft', layers: [layer], fallbackElevation: 2 }],
-            },
+            request: { kind: 'shadow', name: 'card', layers: [layer], fallbackElevation: 2 },
         });
         await vi.advanceTimersByTimeAsync(0);
         const [command] = stored();

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { CloseOutline } from '@salutejs/sdds-icons/16';
 
 import { ColorConstructor } from '../../features/ColorPicker/ui';
 import { isHexColor, toUpperHex, type PaletteContext, type ThemePalette } from '../../modules/palette';
@@ -9,8 +10,8 @@ import { followAnchor } from './positionPopover';
 import type { PaletteEditor } from './usePaletteEditor';
 
 /**
- * Правка ступени: выбор цвета только с режимом Custom (HEX, RGB, HSL) и без прозрачности.
- * Оформлен как поповер `.source-palette-edit-popover` прототипа.
+ * Правка ступени `Palette/ColorPickerPopover` (240 px): выбор цвета только с режимом Custom (HEX, RGB, HSL) и без
+ * прозрачности.
  */
 export const StepColorEditor = ({
     context,
@@ -26,7 +27,7 @@ export const StepColorEditor = ({
     const target = editor.stepEditor!;
     const group = palette.groups.find((item) => item.id === target.groupId);
     const ramp = findRamp(palette, target.groupId, target.slot);
-    const initial = ramp ? stepOf(ramp, target.step)?.value ?? '#000000' : '#000000';
+    const initial = ramp ? (stepOf(ramp, target.step)?.value ?? '#000000') : '#000000';
     const [color, setColor] = useState(initial);
     const popoverRef = useRef<HTMLElement | null>(null);
     const hex = toUpperHex(getNormalizedColor(color).slice(0, 7));
@@ -49,7 +50,8 @@ export const StepColorEditor = ({
 
     const apply = async () => {
         const done = await editor.run(
-            (editRevision) => paletteRepository.updateStep(context, group.id, ramp.slot, target.step, hex, editRevision),
+            (editRevision) =>
+                paletteRepository.updateStep(context, group.id, ramp.slot, target.step, hex, editRevision),
             (value) => ({
                 title: 'Цвет изменён',
                 text: `${value.displayName} #${target.step} — ${hex}. Цвет отличается от брендовой палитры.`,
@@ -61,49 +63,51 @@ export const StepColorEditor = ({
     return (
         <section
             ref={popoverRef}
-            className="source-palette-edit-popover source-palette-step-editor"
+            className="palette-popover palette-step-editor"
             role="dialog"
             aria-label={`Цвет ${ramp.displayName} ${target.step}`}
         >
-            <header>
-                <div className="source-palette-edit-tabs" role="tablist">
-                    <button type="button" role="tab" className="is-active" aria-selected="true">
-                        Custom
-                    </button>
-                </div>
+            <header className="palette-popover-head">
+                <strong className="palette-popover-title">Цвет оттенка #{target.step}</strong>
                 <button
                     type="button"
-                    className="source-palette-edit-close"
+                    className="tw-icon-button"
                     aria-label="Закрыть"
+                    title="Закрыть"
                     onClick={() => editor.setStepEditor(null)}
                 >
-                    ×
+                    <CloseOutline />
                 </button>
             </header>
-            <div className="source-palette-edit-scope">
-                <span>{group.label}</span>
-                <i>/</i>
-                <strong>
-                    {ramp.displayName} #{target.step}
-                </strong>
-                <em>Только эта группа</em>
+            <p className="palette-popover-scope">
+                {group.label} / {ramp.displayName} · <span>Только эта группа</span>
+            </p>
+            <div className="palette-step-editor-body">
+                <ColorConstructor
+                    color={color}
+                    opacity={1}
+                    hideOpacity
+                    onChange={setColor}
+                    onOpacityChange={() => undefined}
+                />
             </div>
-            <div className="source-palette-step-editor-body">
-                <ColorConstructor color={color} opacity={1} hideOpacity onChange={setColor} onOpacityChange={() => undefined} />
-            </div>
-            <div className="source-palette-step-editor-actions">
-                <button type="button" className="secondary" onClick={() => editor.setStepEditor(null)}>
+            <footer className="palette-popover-actions">
+                <button
+                    type="button"
+                    className="tw-action-button is-secondary"
+                    onClick={() => editor.setStepEditor(null)}
+                >
                     Отмена
                 </button>
                 <button
                     type="button"
-                    className="source-palette-inline-apply"
+                    className="tw-action-button"
                     disabled={!canEdit || !valid || hex === initial.toUpperCase() || editor.busy}
                     onClick={apply}
                 >
                     Применить
                 </button>
-            </div>
+            </footer>
         </section>
     );
 };

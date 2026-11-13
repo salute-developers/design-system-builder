@@ -5,7 +5,7 @@ import java.util.UUID
 
 /**
  * Предметные правила другой фичи для значений, которые пишутся общими маршрутами `token-values`
- * (`POST`, `PATCH` и `DELETE /api/ds/token-values`). Вызываются в транзакции записи: [prepare] — до записи,
+ * (`POST`, `PATCH` и `DELETE /api/design-systems/{designSystemId}/token-values`). Вызываются в транзакции записи: [prepare] — до записи,
  * [afterWrite] — после успешной записи или удаления, например для пересчёта производного типа цветового токена.
  *
  * Единый порядок блокировок записи значений: существующее значение (`PATCH`, `DELETE`, откат `token-value`) —

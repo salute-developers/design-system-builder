@@ -69,6 +69,28 @@ class TokenUseCaseTest {
     }
 
     @Test
+    fun `admin PAT cannot mutate global palette`() = runBlocking {
+        val context = DsRequestContext(
+            ProjectPrincipal(
+                ProjectActorType.PERSONAL_ACCESS_TOKEN,
+                "admin",
+                "project-1",
+                projectScopes = setOf("tokens:write"),
+                systemAdmin = true,
+                personalAccessTokenId = "pat",
+            ),
+            "correlation",
+        )
+        val result = CreatePaletteEntryUseCase(
+            policy,
+            transactions,
+            UnusedPaletteRepository(),
+            NoopIdempotentRequestRepository(),
+        ).execute(context, CreatePaletteEntry(PaletteType.GENERAL, "red", 50, "#ff0000"))
+        assertEquals(DsFailure.Forbidden, assertIs<DsResult.Failure>(result).error)
+    }
+
+    @Test
     fun `missing token is represented as non-disclosing not found`() = runBlocking {
         val result = GetTokenUseCase(
             policy,
@@ -114,6 +136,11 @@ class TokenUseCaseTest {
     )
 
     private class ImmediateTransactions : TransactionRunner {
+        override suspend fun <T> rollback(
+            context: DsRequestContext,
+            block: suspend () -> DsResult<T>,
+        ): DsResult<T> = required(context, block)
+
         override suspend fun <T> required(block: suspend () -> DsResult<T>) = block()
         override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
     }

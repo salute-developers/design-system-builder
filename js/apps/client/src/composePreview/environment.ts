@@ -1,3 +1,5 @@
+import type { PreviewPluginPlatform } from './types';
+
 interface WebAssemblyValidator {
     validate(bytes: BufferSource): boolean;
 }
@@ -18,7 +20,7 @@ const defaultWebAssembly = (): WebAssemblyValidator | null =>
 
 /**
  * Проверяет, что браузер способен выполнить Compose/Wasm-плагин: есть WebAssembly, WasmGC и
- * exception handling. При `false` плагин не загружается, остаётся React-preview.
+ * exception handling. При `false` Compose-плагин не загружается.
  */
 export const isComposePreviewEnvironmentSupported = (
     wasm: WebAssemblyValidator | null = defaultWebAssembly(),
@@ -30,3 +32,12 @@ export const isComposePreviewEnvironmentSupported = (
         return false;
     }
 };
+
+/**
+ * Может ли браузер выполнить плагин превью платформы `platform`. WebAssembly нужен только Compose-плагину;
+ * web-плагин — обычное React-приложение и проверок окружения не требует.
+ */
+export const isPreviewPluginEnvironmentSupported = (
+    platform: PreviewPluginPlatform,
+    wasm: WebAssemblyValidator | null = defaultWebAssembly(),
+): boolean => (platform === 'compose' ? isComposePreviewEnvironmentSupported(wasm) : true);

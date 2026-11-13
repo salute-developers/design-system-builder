@@ -11,6 +11,7 @@ const operations = vi.hoisted(() => ({
     listVersions: vi.fn(),
     getDesignSystem: vi.fn(),
     revertChange: vi.fn(),
+    revertChanges: vi.fn(),
     publish: vi.fn(),
     waitForDraftAutosaveIdle: vi.fn(),
     reloadEditor: vi.fn(),
@@ -94,6 +95,7 @@ beforeEach(() => {
     operations.listVersions.mockResolvedValue([]);
     operations.getDesignSystem.mockResolvedValue({ draftId: 'draft-1', draftRevision: 7 });
     operations.revertChange.mockResolvedValue({});
+    operations.revertChanges.mockResolvedValue({});
     operations.refreshChanges.mockResolvedValue(undefined);
     operations.publish.mockResolvedValue({
         id: 'version-1',
@@ -112,8 +114,11 @@ afterEach(cleanup);
 
 describe('DesignSystemChangesPage', () => {
     it('при отказе журнала после неизвестного результата блокирует отмену и повторяет только чтения', async () => {
-        operations.revertChange.mockRejectedValueOnce(new Error('response lost after commit'));
-        operations.listChanges.mockResolvedValueOnce([change]).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]);
+        operations.revertChanges.mockRejectedValueOnce(new Error('response lost after commit'));
+        operations.listChanges
+            .mockResolvedValueOnce([change])
+            .mockRejectedValueOnce(new Error('offline'))
+            .mockResolvedValueOnce([]);
         renderPage('changes');
         fireEvent.click(await screen.findByRole('button', { name: /^Отменить изменение:/ }));
         const retry = await screen.findByRole('button', { name: 'Повторить загрузку данных' });
@@ -121,7 +126,7 @@ describe('DesignSystemChangesPage', () => {
         expect(screen.getByRole('button', { name: 'Перейти к источнику' })).toBeDisabled();
         fireEvent.click(retry);
         await screen.findByText(/Неопубликованных изменений нет/);
-        expect(operations.revertChange).toHaveBeenCalledTimes(1);
+        expect(operations.revertChanges).toHaveBeenCalledTimes(1);
         expect(operations.listChanges).toHaveBeenCalledTimes(3);
         expect(operations.refreshChanges).toHaveBeenCalledTimes(2);
     });
@@ -153,7 +158,7 @@ describe('DesignSystemChangesPage', () => {
         await waitFor(() =>
             expect(screen.queryByRole('button', { name: 'Повторить загрузку данных' })).not.toBeInTheDocument(),
         );
-        expect(operations.revertChange).toHaveBeenCalledTimes(1);
+        expect(operations.revertChanges).toHaveBeenCalledTimes(1);
         expect(operations.refreshChanges).toHaveBeenCalledTimes(2);
     });
     it('сохраняет список на экране до получения обновлённого журнала после отмены', async () => {
@@ -176,8 +181,8 @@ describe('DesignSystemChangesPage', () => {
         renderPage('changes');
         const undo = await screen.findByRole('button', { name: 'Отменить изменение: Типографика: Размер текста' });
         fireEvent.click(undo);
-        await waitFor(() => expect(operations.revertChange).toHaveBeenCalledWith(context, change));
-        expect(operations.revertChange).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(operations.revertChanges).toHaveBeenCalledWith(context, [change]));
+        expect(operations.revertChanges).toHaveBeenCalledTimes(1);
     });
 
     it('показывает счётчики только непустых фильтров и склоняет количество изменений', async () => {
@@ -293,8 +298,9 @@ describe('DesignSystemChangesPage', () => {
         );
         await waitFor(() => expect(operations.revertChange).toHaveBeenCalledWith(context, stop, ['/value/0/colors/1']));
         fireEvent.click(await screen.findByRole('button', { name: 'Отменить изменение: Градиент: Акцент · Android' }));
-        await waitFor(() => expect(operations.revertChange).toHaveBeenCalledWith(context, kind));
-        expect(operations.revertChange).toHaveBeenCalledTimes(2);
+        await waitFor(() => expect(operations.revertChanges).toHaveBeenCalledWith(context, [kind]));
+        expect(operations.revertChange).toHaveBeenCalledTimes(1);
+        expect(operations.revertChanges).toHaveBeenCalledTimes(1);
     });
 
     it('отменяет выбранный параметр типографики отдельным запросом', async () => {
@@ -335,11 +341,11 @@ describe('DesignSystemChangesPage', () => {
         fireEvent.click(screen.getByRole('button', { name: /^Типографика\s*1$/ }));
         expect(operations.listChanges).toHaveBeenCalledTimes(1);
         fireEvent.click(screen.getByRole('button', { name: 'Отменить изменение' }));
-        await waitFor(() => expect(operations.revertChange).toHaveBeenCalledWith(context, change));
+        await waitFor(() => expect(operations.revertChanges).toHaveBeenCalledWith(context, [change]));
     });
 
     it('обновляет журнал без автоматического повтора при устаревшей отмене', async () => {
-        operations.revertChange.mockRejectedValueOnce({
+        operations.revertChanges.mockRejectedValueOnce({
             isAxiosError: true,
             response: { data: { code: 'DRAFT_CHANGE_STALE' } },
         });
@@ -348,7 +354,7 @@ describe('DesignSystemChangesPage', () => {
         await screen.findAllByText('Типографика: Размер текста');
         fireEvent.click(screen.getByRole('button', { name: 'Отменить изменение' }));
         expect(await screen.findByRole('alert')).toHaveTextContent('Черновик уже изменился');
-        expect(operations.revertChange).toHaveBeenCalledTimes(1);
+        expect(operations.revertChanges).toHaveBeenCalledTimes(1);
         expect(operations.listChanges).toHaveBeenCalledTimes(2);
     });
 
@@ -463,6 +469,7 @@ describe('DesignSystemVersionsPage', () => {
         expect(operations.listChanges).toHaveBeenCalledWith(
             { ...context, versionId: 'version-1' },
             expect.any(AbortSignal),
+            expect.any(Function),
         );
     });
 

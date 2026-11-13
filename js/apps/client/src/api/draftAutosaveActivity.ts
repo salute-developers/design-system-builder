@@ -1,4 +1,4 @@
-import type { EditorContextKey } from './editorContracts';
+import type { TokenDefinitionDto, EditorContextKey } from './editorContracts';
 import type { AutosaveStatus } from './tokenAutosaveQueue';
 import { authService } from './authService';
 
@@ -6,22 +6,60 @@ const statuses = new Map<string, Map<string, AutosaveStatus>>();
 const idleListeners = new Map<string, Set<() => void>>();
 const activityRevisions = new Map<string, number>();
 const savedAtByContext = new Map<string, number>();
+export interface ConfirmedTokenValues {
+    type?: TokenDefinitionDto['type'];
+    tokenId: string;
+    values: Array<{
+        entityId?: string;
+        revision?: number;
+        platform: 'web' | 'ios' | 'android';
+        value: unknown;
+        mode?: 'light' | 'dark' | null;
+        overridden?: boolean;
+    }>;
+}
+export type ConfirmedColorStructure =
+    import('../modules/colorTokens/application/colorTokenRepository').ColorTokenStructure;
+const savedColorStructure = new Map<string, ConfirmedColorStructure | undefined>();
+export const getDraftSaveColorStructure = (context: EditorContextKey) => savedColorStructure.get(contextKey(context));
+const savedTokenValues = new Map<string, ConfirmedTokenValues[] | undefined>();
+const savedTokenTypes = new Map<string, TokenDefinitionDto['type'][] | undefined>();
 const statusListeners = new Map<string, Set<(status: AutosaveStatus, savedAt?: number) => void>>();
 let activityRevision = 0;
 type SourceOwner = { status: AutosaveStatus; detached: boolean; transferred: boolean; released: boolean };
 const sourceOwners = new Map<string, Map<string, Map<symbol, SourceOwner>>>();
+/** Повтор неудавшихся операций каждой очереди: индикатор редактора повторяет все очереди сразу. */
+const retryHandlers = new Map<string, Map<string, () => void>>();
 let sessionGeneration = 0;
 authService.onSessionReset(() => {
     sessionGeneration += 1;
     sourceOwners.clear();
+    retryHandlers.clear();
     statuses.clear();
     idleListeners.clear();
     activityRevisions.clear();
     savedAtByContext.clear();
+    savedTokenTypes.clear();
+    savedTokenValues.clear();
+    savedColorStructure.clear();
     statusListeners.clear();
 });
 
 const contextKey = (context: EditorContextKey) => `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
+
+/** Регистрирует повтор очереди `source`; `null` снимает его. */
+export const setDraftAutosaveRetry = (context: EditorContextKey, source: string, retry: (() => void) | null) => {
+    const key = contextKey(context);
+    const handlers = retryHandlers.get(key) ?? new Map<string, () => void>();
+    if (retry) handlers.set(source, retry);
+    else handlers.delete(source);
+    if (handlers.size) retryHandlers.set(key, handlers);
+    else retryHandlers.delete(key);
+};
+
+/** Повторяет неудавшиеся операции всех зарегистрированных очередей редактора. */
+export const retryDraftAutosave = (context: EditorContextKey) =>
+    retryHandlers.get(contextKey(context))?.forEach((retry) => retry());
 
 /** Каждая живая очередь владеет своим статусом, включая очередь, завершающуюся после ухода со страницы. */
 export const registerDraftAutosaveSource = (context: EditorContextKey, source: string) => {
@@ -90,8 +128,20 @@ export const getDraftAutosaveSourceStatus = (context: EditorContextKey, source: 
     statuses.get(contextKey(context))?.get(source) ?? 'saved';
 
 /** Фиксирует только подтверждённое сервером сохранение, не завершение неуспешного запроса. */
-export const recordDraftSave = (context: EditorContextKey) => {
+export const getDraftSaveTokenTypes = (context: EditorContextKey) => savedTokenTypes.get(contextKey(context));
+
+export const getDraftSaveTokenValues = (context: EditorContextKey) => savedTokenValues.get(contextKey(context));
+
+export const recordDraftSave = (
+    context: EditorContextKey,
+    tokenTypes?: TokenDefinitionDto['type'][],
+    values?: ConfirmedTokenValues[],
+    structure?: ConfirmedColorStructure,
+) => {
     const key = contextKey(context);
+    savedTokenTypes.set(key, tokenTypes);
+    savedTokenValues.set(key, values);
+    savedColorStructure.set(key, structure);
     savedAtByContext.set(key, Math.max(Date.now(), (savedAtByContext.get(key) ?? 0) + 1));
     notifyStatus(key);
 };

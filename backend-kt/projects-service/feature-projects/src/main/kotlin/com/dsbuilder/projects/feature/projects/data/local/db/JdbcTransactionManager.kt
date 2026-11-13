@@ -13,7 +13,7 @@ internal class JdbcTransactionManager(
 ) : TransactionManager {
     override suspend fun <T> required(block: suspend () -> T): T =
         withContext(dispatcher) {
-            transaction(databaseProvider.database) {
+            transaction(db = databaseProvider.database) {
                 kotlinx.coroutines.runBlocking {
                     block()
                 }

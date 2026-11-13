@@ -1,13 +1,13 @@
 package com.dsbuilder.frontend.core.application
 
 import com.dsbuilder.frontend.core.auth.AccessTokenResponse
-import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.PatResolver
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
 import com.dsbuilder.frontend.core.auth.UserSession
@@ -26,9 +26,6 @@ class ServiceAccountCredentialProviderTest {
     private var clientResult: AuthResult<AccessTokenResponse> = AuthResult.Success(AccessTokenResponse("service-token"))
 
     private val tokenClient = object : TokenClient {
-        override suspend fun login(apiUrl: String, username: String, password: String): AuthResult<TokenResponse> =
-            error("login must not be used")
-
         override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
             AuthResult.Success(TokenResponse("user-access", "user-refresh", 999))
 
@@ -47,7 +44,7 @@ class ServiceAccountCredentialProviderTest {
     private val store = object : CredentialStore {
         override suspend fun read(apiUrl: String): UserSession? {
             sessionReads++
-            return UserSession(1, apiUrl, "admin", "refresh", 999, 1)
+            return UserSession(2, apiUrl, "admin", "refresh", 999, 1)
         }
 
         override suspend fun save(session: UserSession) = Unit
@@ -56,7 +53,7 @@ class ServiceAccountCredentialProviderTest {
     }
 
     private fun provider(env: Map<String, String>) = RuntimeCredentialProvider(
-        apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
+        apiKeyResolver = PatResolver(EnvironmentReader { null }),
         credentialStore = store,
         tokenClient = tokenClient,
         environment = EnvironmentReader { env[it] },

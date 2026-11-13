@@ -171,6 +171,71 @@ describe('ComposePreviewSession', () => {
         session.dispose();
     });
 
+    it('describes the requested story and accepts the story list of the description', async () => {
+        const { hostWindow, targetWindow, session } = createSession();
+        ready(hostWindow, targetWindow);
+        await session.waitUntilReady();
+        const stories = [
+            { id: 'Default', name: 'Default' },
+            { id: 'Placement', name: 'Placement' },
+        ];
+
+        const described = session.describeComponent('Tooltip', 'Placement');
+
+        expect(targetWindow.postMessage).toHaveBeenLastCalledWith(
+            {
+                type: PREVIEW_MESSAGE_TYPES.describe,
+                protocolVersion: 1,
+                requestId: described.requestId,
+                componentId: 'Tooltip',
+                storyId: 'Placement',
+            },
+            'https://plugin.example',
+        );
+        hostWindow.emit(targetWindow, 'https://plugin.example', {
+            type: PREVIEW_MESSAGE_TYPES.description,
+            result: {
+                type: 'success',
+                requestId: described.requestId,
+                description: {
+                    protocolVersion: 1,
+                    componentId: 'Tooltip',
+                    storyId: 'Placement',
+                    stories,
+                    properties: [],
+                },
+            },
+        });
+        await expect(described.result).resolves.toEqual({
+            protocolVersion: 1,
+            componentId: 'Tooltip',
+            storyId: 'Placement',
+            stories,
+            properties: [],
+        });
+
+        // Без storyId конверт не содержит поля: плагин описывает story по умолчанию.
+        const byDefault = session.describeComponent('Tooltip');
+        expect(Object.keys(vi.mocked(targetWindow.postMessage).mock.lastCall![0] as object)).not.toContain('storyId');
+
+        hostWindow.emit(targetWindow, 'https://plugin.example', {
+            type: PREVIEW_MESSAGE_TYPES.description,
+            result: {
+                type: 'success',
+                requestId: byDefault.requestId,
+                description: {
+                    protocolVersion: 1,
+                    componentId: 'Tooltip',
+                    storyId: 'Default',
+                    stories: [{ id: '', name: 'Default' }],
+                    properties: [],
+                },
+            },
+        });
+        await expect(byDefault.result).rejects.toThrow('malformed component stories');
+        session.dispose();
+    });
+
     it('rejects unknown and malformed descriptions while ignoring stale sources', async () => {
         const { hostWindow, targetWindow, session } = createSession();
         ready(hostWindow, targetWindow);

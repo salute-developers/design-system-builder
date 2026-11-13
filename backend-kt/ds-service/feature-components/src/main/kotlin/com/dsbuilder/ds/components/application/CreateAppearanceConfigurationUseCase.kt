@@ -23,8 +23,8 @@ class CreateAppearanceConfigurationUseCase(
         idempotencyKey: String? = null,
     ): DsResult<Appearance> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-appearance-configuration", command,
-        { repository.findAppearance(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createAppearance(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findAppearance(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createAppearance(context.projectId, context.principal.globalAdmin, command) },
         Appearance::id,
         validateCreate = {
             // Единственность конфигурации по умолчанию и имени проверяются под блокировкой ключей пары.

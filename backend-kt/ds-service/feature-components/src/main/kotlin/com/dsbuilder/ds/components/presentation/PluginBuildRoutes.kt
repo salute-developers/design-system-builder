@@ -4,10 +4,14 @@ import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.components.application.GetActivePluginBuildUseCase
 import com.dsbuilder.ds.components.application.PublishPluginBuild
 import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
+import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.ErrorResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRequestBodyConsumed
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
@@ -25,35 +29,66 @@ import kotlinx.serialization.json.Json
 
 private val lenientJson = Json { ignoreUnknownKeys = true }
 
-/** Публикация билда плагина: архив и нормализованная мета одним multipart-запросом. */
-@Suppress("ReturnCount", "LongMethod")
+/** Каталог маршрутов платформы: `compose-preview` или `web-preview`. */
+private val PreviewPluginPlatform.routeSegment: String
+    get() = when (this) {
+        PreviewPluginPlatform.COMPOSE -> "compose-preview"
+        PreviewPluginPlatform.WEB -> "web-preview"
+    }
+
+/**
+ * Публикация билда плагина: архив и нормализованная мета одним multipart-запросом. Маршруты Compose и web
+ * параллельны и различаются только платформой; ответ Compose сохраняет прежний формат.
+ */
 fun Route.pluginBuildPublishRoutes(
     evaluator: PolicyEvaluator,
     publish: PublishPluginBuildUseCase,
     maxArchiveBytes: Long,
 ) {
-    route("/api/ds/admin/compose-preview") {
+    PreviewPluginPlatform.entries.forEach { platform ->
+        pluginBuildPublishRoute(
+            platform,
+            evaluator,
+            publish,
+            maxArchiveBytes,
+        )
+    }
+}
+
+@Suppress("ReturnCount", "LongMethod")
+private fun Route.pluginBuildPublishRoute(
+    platform: PreviewPluginPlatform,
+    evaluator: PolicyEvaluator,
+    publish: PublishPluginBuildUseCase,
+    maxArchiveBytes: Long,
+) {
+    route(dsRoutePath("/api/admin/${platform.routeSegment}")) {
         post("/plugin-builds") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             // Роль проверяется до чтения тела: отказанный вызывающий ничего не загружает.
-            if (!context.principal.systemAdmin && !context.principal.composePreviewPublisher) {
+            if (!context.principal.globalAdmin && !context.principal.composePreviewPublisher) {
                 return@post call.respondFailure(DsFailure.Forbidden)
             }
             val dryRun = call.request.queryParameters["dryRun"]?.toBooleanStrictOrNull() ?: true
             val upload = call.readPluginUpload(maxArchiveBytes)
+            call.dsRequestBodyConsumed()
             if (upload.tooLarge) {
                 return@post call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Payload too large"))
             }
             val request = runCatching { lenientJson.decodeFromString<ImportApiMetaRequest>(upload.meta.orEmpty()) }
                 .getOrNull()
-                ?.takeIf { it.valid() && it.platform == PublishPluginBuildUseCase.PLATFORM }
+                ?.takeIf { it.valid() && it.platform == platform.wire }
             val bytes = upload.archive
             if (bytes == null || request == null) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
-            when (val result = publish.execute(context, PublishPluginBuild(bytes, request.toCommand(), dryRun))) {
-                is DsResult.Success -> call.respond(PublishPluginBuildResponse.from(result.value, dryRun))
+            val command = PublishPluginBuild(bytes, request.toCommand(), dryRun)
+            when (val result = publish.execute(platform, context, command)) {
+                is DsResult.Success -> when (platform) {
+                    PreviewPluginPlatform.COMPOSE -> call.respond(PublishPluginBuildResponse.from(result.value, dryRun))
+                    PreviewPluginPlatform.WEB -> call.respond(PublishWebPluginBuildResponse.from(result.value, dryRun))
+                }
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
@@ -89,16 +124,21 @@ private suspend fun ApplicationCall.readPluginUpload(maxArchiveBytes: Long): Plu
     return PluginUpload(archive, meta, tooLarge)
 }
 
-/** Выдача адреса активного билда плагина участнику проекта. */
+/** Выдача адреса активного билда плагина участнику проекта: по маршруту на платформу. */
 fun Route.activePluginBuildRoutes(evaluator: PolicyEvaluator, active: GetActivePluginBuildUseCase) {
-    route("/api/ds/compose-preview") {
-        get("/plugin") {
-            // `versionId` намеренно не передаётся: активный билд не зависит от версии дизайн-системы.
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            when (val result = active.execute(context)) {
-                is DsResult.Success -> call.respond(ActivePluginBuildResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
+    PreviewPluginPlatform.entries.forEach { platform ->
+        route(dsRoutePath("/api/design-systems/catalog/${platform.routeSegment}")) {
+            get("/plugin") {
+                // `versionId` намеренно не передаётся: активный билд не зависит от версии дизайн-системы.
+                val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
+                    ?: return@get call.respondFailure(DsFailure.Forbidden)
+                when (val result = active.execute(platform, context)) {
+                    is DsResult.Success -> when (platform) {
+                        PreviewPluginPlatform.COMPOSE -> call.respond(ActivePluginBuildResponse.from(result.value))
+                        PreviewPluginPlatform.WEB -> call.respond(ActiveWebPluginBuildResponse.from(result.value))
+                    }
+                    is DsResult.Failure -> call.respondFailure(result.error)
+                }
             }
         }
     }

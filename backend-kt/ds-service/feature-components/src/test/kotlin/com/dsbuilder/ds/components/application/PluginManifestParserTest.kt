@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.components.application
 
+import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -30,16 +31,51 @@ class PluginManifestParserTest {
         sha256 = "0".repeat(64),
     )
 
-    private fun code(archive: PluginArchive) = assertIs<PluginManifestResult.Invalid>(
-        PluginManifestParser.parse(archive),
-    ).code
+    private fun webManifest(
+        platform: String = "\"web\"",
+        library: String? = "\"0.386.0\"",
+    ) = """{"schemaVersion":1,"platform":$platform,"protocolVersion":1,"commit":"$commit",""" +
+        """"version":"${commit.take(12)}",""" + (library?.let { """"plasmaNewHopeVersion":$it,""" } ?: "") +
+        """"apiMetaSha256":"${sha256Hex(meta.toByteArray())}","entrypoint":"index.html"}"""
+
+    private fun code(archive: PluginArchive, platform: PreviewPluginPlatform = PreviewPluginPlatform.COMPOSE) =
+        assertIs<PluginManifestResult.Invalid>(PluginManifestParser.parse(archive, platform)).code
 
     @Test
     fun `a consistent manifest is accepted`() {
-        val result = assertIs<PluginManifestResult.Valid>(PluginManifestParser.parse(archive()))
+        val result = assertIs<PluginManifestResult.Valid>(
+            PluginManifestParser.parse(archive(), PreviewPluginPlatform.COMPOSE),
+        )
+        assertEquals(PreviewPluginPlatform.COMPOSE, result.manifest.platform)
         assertEquals(commit.take(12), result.manifest.version)
-        assertEquals("0.55.0", result.manifest.uikitComposeVersion)
+        assertEquals("0.55.0", result.manifest.libraryVersion)
         assertEquals(1, result.manifest.protocolVersion)
+    }
+
+    @Test
+    fun `a web manifest carries the plasma-new-hope version`() {
+        val result = assertIs<PluginManifestResult.Valid>(
+            PluginManifestParser.parse(archive(webManifest()), PreviewPluginPlatform.WEB),
+        )
+        assertEquals(PreviewPluginPlatform.WEB, result.manifest.platform)
+        assertEquals(commit.take(12), result.manifest.version)
+        assertEquals("0.386.0", result.manifest.libraryVersion)
+    }
+
+    @Test
+    fun `a web manifest is checked by the rules of its platform`() {
+        listOf(
+            webManifest(library = null),
+            webManifest(library = "\"latest\""),
+            webManifest(platform = "\"compose\""),
+            // the Compose version field does not replace the web one
+            webManifest(library = null).replace("\"entrypoint\"", "\"uikitComposeVersion\":\"0.55.0\",\"entrypoint\""),
+        ).forEach { assertEquals("PLUGIN_MANIFEST_INVALID", code(archive(it), PreviewPluginPlatform.WEB), it) }
+        // a Compose archive is refused by the web route and a web archive by the Compose route
+        assertEquals("PLUGIN_MANIFEST_INVALID", code(archive(), PreviewPluginPlatform.WEB))
+        assertEquals("PLUGIN_MANIFEST_INVALID", code(archive(webManifest()), PreviewPluginPlatform.COMPOSE))
+        val otherMeta = archive(webManifest(), files = mapOf("index.html" to "<html/>", "api-meta.json" to "[]"))
+        assertEquals("PLUGIN_META_SHA256_MISMATCH", code(otherMeta, PreviewPluginPlatform.WEB))
     }
 
     @Test

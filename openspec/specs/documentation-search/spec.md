@@ -3,6 +3,7 @@
 Авторизованный поиск по активным публикациям документации с фильтрами, предсказуемым ранжированием и получением ресурсов знаний.
 
 ## Requirements
+
 ### Requirement: Private combined documentation search
 Service SHALL предоставлять private project-scoped lexical search по active publication только actor с permission `documentation:read`, объединяя normalized exact/prefix/trigram `StructuredLookupTerm` и technical/Russian/English PostgreSQL FTS `KnowledgeChunk` без semantic/vector search, embedding provider, LLM или network dependency.
 
@@ -29,15 +30,31 @@ Service SHALL предоставлять private project-scoped lexical search �
 - **THEN** service MUST NOT вызывать embedding provider, LLM или другой network retrieval dependency
 
 ### Requirement: Ограничение поиска active publication и filters
-Search MUST принимать `designSystemId`, `version`, canonical `platform`, query и optional subjects и MUST искать только внутри соответствующей active publication trusted project.
+
+Поиск SHALL принимать designSystemId, query, subjects и точные version/platform либо явный publicationId. Он MUST искать только в доступной опубликованной публикации доверенного проекта, сохраняя действующий ответ и числовой cursor.
 
 #### Scenario: Subject filter указан
-- **WHEN** client передаёт один или несколько subjects
-- **THEN** structured и markdown channels SHALL вернуть только results, связанные с этими subjects
+
+- **WHEN** клиент передаёт один или несколько повторяющихся subject
+- **THEN** оба поисковых канала MUST вернуть результаты, связанные с этими subjects
 
 #### Scenario: Active publication отсутствует
-- **WHEN** для запрошенного ключа нет active publication
-- **THEN** search MUST вернуть `404 Not Found`
+
+- **WHEN** запрос без publicationId не находит active publication по точным version/platform
+- **THEN** поиск MUST вернуть 404 Not Found
+
+#### Scenario: Явная публикация
+
+- **WHEN** передан publicationId доступной опубликованной публикации
+- **THEN** поиск MUST выполняться в ней, пока публикация доступна, даже если active pointer сменился
+- **WHEN** явно переданные version/platform несовместимы с ID
+- **THEN** сервер MUST вернуть INVALID_QUERY
+
+#### Scenario: Совместимость прежнего запроса
+
+- **WHEN** publicationId отсутствует
+- **THEN** прежнее разрешение active publication MUST сохраниться
+- **THEN** лимиты 20/100, candidate window, ранжирование и форма items/nextCursor с числовым продолжением MUST сохраниться
 
 ### Requirement: Предсказуемое ранжирование без vectors
 Service MUST ранжировать exact structured reference выше exact subject/name/other structured terms, после чего MUST детерминированно объединять structured prefix/trigram и technical/Russian/English FTS channels через versioned weighted reciprocal-rank fusion; service MUST дедуплицировать результаты по `codeBindingId` или `kbUrl` и MUST NOT публиковать fusion score как стабильный API contract.
@@ -226,3 +243,32 @@ Service MUST требовать permission `documentation:read` до получ�
 
 - **WHEN** actor с `documentation:read` передаёт `kbUrl` publication другого project
 - **THEN** service MUST вернуть `404 Not Found`
+
+### Requirement: Закрепление публикации поиска через метаданные
+
+Поиск SHALL возвращать X-DS-Read-Context с фактической DS, version/platform/publicationId. Продолжение по явному ID SHALL использовать выбранную публикацию, пока она доступна, без требования одноимённой версии модели.
+
+#### Scenario: Переиздание между страницами
+
+- **WHEN** после первой страницы active pointer сменился
+- **THEN** запрос следующей страницы с publicationId первого ответа и исходными query/subjects MUST искать в прежней доступной публикации
+- **THEN** сервис MUST NOT переключить его на новый active pointer
+- **WHEN** прежняя публикация больше недоступна
+- **THEN** сервис MUST вернуть NOT_FOUND без автоматического поиска в новой публикации
+
+#### Scenario: Предел гарантий числового cursor
+
+- **WHEN** клиент продолжает поиск
+- **THEN** он MUST сохранять исходные фильтры и передавать выбранный publicationId
+- **THEN** числовой cursor MUST NOT объявляться непрозрачным токеном, доказанно привязанным ко всем фильтрам
+- **WHEN** фильтры изменились
+- **THEN** клиент MUST начинать новый поиск с первой страницы
+- **WHEN** явная публикация больше недоступна
+- **THEN** вызывающий клиент MAY начать новый поиск; MCP MUST NOT выполнять автоматический повтор
+
+#### Scenario: Чужая публикация и качество поиска
+
+- **WHEN** publicationId недоступен доверенному проекту либо не опубликован
+- **THEN** поиск MUST вернуть NOT_FOUND без чужих результатов
+- **WHEN** запускается регрессионный корпус
+- **THEN** ранжирование, отсутствие внешнего inference и принятые показатели качества MUST сохраняться

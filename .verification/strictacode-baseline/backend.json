@@ -1,12 +1,12 @@
 {
   "project": {
     "lang": "kotlin",
-    "loc": 28970,
-    "packages": 71,
-    "modules": 560,
-    "classes": 854,
-    "methods": 1143,
-    "functions": 288,
+    "loc": 70382,
+    "packages": 113,
+    "modules": 1252,
+    "classes": 1595,
+    "methods": 2541,
+    "functions": 658,
     "status": {
       "name": "warning",
       "score": 41,
@@ -23,20 +23,20 @@
       "stat(modules)": {
         "avg": 4,
         "min": 0,
-        "max": 23,
-        "p50": 2,
-        "p90": 12
+        "max": 35,
+        "p50": 1,
+        "p90": 13
       }
     },
     "complexity": {
-      "score": 2243,
-      "density": 7.74,
+      "score": 5532,
+      "density": 7.86,
       "stat(modules)": {
         "avg": 4,
         "min": 0,
-        "max": 96,
+        "max": 101,
         "p50": 1,
-        "p90": 11
+        "p90": 13
       }
     }
   }

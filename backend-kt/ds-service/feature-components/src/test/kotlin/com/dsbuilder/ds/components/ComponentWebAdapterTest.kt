@@ -60,9 +60,11 @@ class ComponentWebAdapterTest {
     fun `rejects a key without components read before touching the repository`() = runBlocking {
         val repository = RecordingWebAdapterRepository(listOf(entry()))
         val key = ProjectPrincipal(
-            type = ProjectActorType.PROJECT_KEY,
+            type = ProjectActorType.PERSONAL_ACCESS_TOKEN,
             actorId = "key-1",
             projectId = "project-1",
+            personalAccessTokenId = "pat",
+            projectRole = "owner",
             projectScopes = setOf("tokens:read"),
         )
 
@@ -109,6 +111,11 @@ class ComponentWebAdapterTest {
 
 private class ImmediateWebAdapterTransactions : TransactionRunner {
     var readContext: DsRequestContext? = null
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = required(context, block)
+
     override suspend fun <T> required(block: suspend () -> DsResult<T>) = block()
     override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
     override suspend fun <T> readOnly(context: DsRequestContext, block: suspend () -> DsResult<T>): DsResult<T> {

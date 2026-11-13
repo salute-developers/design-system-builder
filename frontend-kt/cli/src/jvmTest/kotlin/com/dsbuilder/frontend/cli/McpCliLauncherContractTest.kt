@@ -1,6 +1,13 @@
 package com.dsbuilder.frontend.cli
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,19 +15,11 @@ import kotlin.test.assertTrue
 
 private const val PROCESS_TIMEOUT_SECONDS = 10L
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class McpCliLauncherContractTest {
     @Test
     fun mcpServeRespondsToInitializeAndToolsListOverSubprocessStdio() {
-        val process = ProcessBuilder(
-            javaBinary(),
-            "-cp",
-            System.getProperty("java.class.path"),
-            "com.dsbuilder.frontend.cli.MainKt",
-            "mcp",
-            "serve",
-        )
-            .directory(File(System.getProperty("java.io.tmpdir")))
-            .start()
+        val process = startUnauthenticatedServer()
         try {
             val stdin = process.outputStream.bufferedWriter()
             val stdout = process.inputStream.bufferedReader()
@@ -42,29 +41,70 @@ class McpCliLauncherContractTest {
             val stderr = process.errorStream.readBytes().decodeToString()
             assertEquals(0, process.exitValue(), stderr)
             assertTrue(initializeResponse.contains(""""id":1"""), initializeResponse)
-            assertTrue(initializeResponse.contains(""""version":"0.1.0""""))
+            assertTrue(initializeResponse.contains(""""version":"0.2.0""""))
             assertTrue(toolsListResponse.contains(""""id":2"""), toolsListResponse)
             assertTrue(toolsListResponse.contains("design_system_get_context"), toolsListResponse)
             assertTrue(toolsListResponse.contains("project_get_status"), toolsListResponse)
-            assertTrue(contextResponse.contains("project-headless"), contextResponse)
-            assertTrue(contextResponse.contains("explicit-link"), contextResponse)
-            assertTrue(toolsListResponse.contains("components.basic-button"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("component-style"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("The value component is not valid"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("\"enum\":[\"component-style\",\"token\"]"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("BasicButton.S.Accent"), toolsListResponse)
-            assertTrue(toolsListResponse.contains("android for Compose"), toolsListResponse)
-            assertTrue(
-                toolsListResponse.contains("queries such as BasicButton or button may be empty"),
-                toolsListResponse,
-            )
-            assertTrue(toolsListResponse.contains("\"enum\":[\"light\",\"dark\"]"), toolsListResponse)
+            assertTrue(contextResponse.contains("AUTH_REQUIRED"), contextResponse)
+            val registry = Json.parseToJsonElement(toolsListResponse).jsonObject
+                .getValue("result").jsonObject.getValue("tools").jsonArray
+            assertEquals(61, registry.size)
+            val names = registry.map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
+            assertTrue("component_configurations_list" in names)
+            assertTrue("component_tokens_get" in names)
+            assertTrue("documentation_publications_list" in names)
+            val byName = registry.associateBy { it.jsonObject.getValue("name").jsonPrimitive.content }
+            assertEditorTools(names, byName)
+            fun required(tool: String): List<String> = byName.getValue(tool).jsonObject
+                .getValue("inputSchema").jsonObject.getValue("required").jsonArray
+                .map { it.jsonPrimitive.content }
+            assertEquals(listOf("appearanceId"), required("component_config_get"))
+            assertEquals(listOf("componentId"), required("component_configurations_list"))
+            assertEquals(listOf("bindingId"), required("code_binding_get"))
+            assertEquals(listOf("path"), required("documentation_get_page"))
+            assertTrue(toolsListResponse.contains("appearanceId"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("selectedValueIds"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("publicationId"), toolsListResponse)
             assertTrue(!initializeResponse.contains("Run DS Builder MCP tools."), initializeResponse)
             assertTrue(!toolsListResponse.contains("Run DS Builder MCP tools."), toolsListResponse)
             assertTrue(!toolsListResponse.contains("secret"), toolsListResponse)
         } finally {
             process.destroyForcibly()
         }
+    }
+
+    private fun startUnauthenticatedServer(): Process = ProcessBuilder(
+        javaBinary(),
+        "-Duser.home=${Files.createTempDirectory("dsbuilder-mcp-test-home")}",
+        "-cp",
+        System.getProperty("java.class.path"),
+        "com.dsbuilder.frontend.cli.MainKt",
+        "mcp",
+        "serve",
+    )
+        .directory(File(System.getProperty("java.io.tmpdir")))
+        .apply {
+            environment().remove("DSBUILDER_API_KEY")
+            environment().remove("DSBUILDER_API_URL")
+        }
+        .start()
+
+    private fun assertClosedEditorSchema(schema: JsonObject) {
+        assertEquals("false", schema.getValue("additionalProperties").jsonPrimitive.content)
+        val members = schema.getValue("properties").jsonObject.getValue("members").jsonObject
+        assertEquals(
+            "false",
+            members.getValue("items").jsonObject.getValue("additionalProperties").jsonPrimitive.content,
+        )
+    }
+
+    private fun assertEditorTools(names: Set<String>, tools: Map<String, JsonElement>) {
+        assertClosedEditorSchema(
+            tools.getValue("color_token_values_update").jsonObject.getValue("inputSchema").jsonObject,
+        )
+        assertTrue("color_token_values_update" in names)
+        assertTrue("component_property_set" in names)
+        assertTrue("token_edit_data_get" in names)
     }
 
     private fun javaBinary(): String =
@@ -87,7 +127,7 @@ class McpCliLauncherContractTest {
 
     private fun contextRequest(): String =
         """
-        {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{"designSystem":"dsbuilder://projects/project-headless/design-systems/ds-headless?version=1.0&platform=compose"}}}
+        {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{"designSystem":"dsbuilder://projects/project-headless/design-systems/ds-headless?version=1.0.0&platform=compose"}}}
         """.trimIndent()
 }
 

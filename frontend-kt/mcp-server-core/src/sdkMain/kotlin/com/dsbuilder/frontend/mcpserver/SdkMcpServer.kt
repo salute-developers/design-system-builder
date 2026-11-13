@@ -22,7 +22,6 @@ import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
@@ -41,30 +40,21 @@ internal fun DsBuilderMcpServerCore.createSdkServer(): Server {
                 name = tool.name,
                 description = tool.description,
                 inputSchema = ToolSchema(
+                    required = tool.inputSchema.filterValues { it.required }.keys.toList(),
                     properties = buildJsonObject {
                         tool.inputSchema.forEach { (name, definition) ->
                             put(
                                 name,
-                                buildJsonObject {
-                                    put("type", definition.type)
-                                    definition.description?.let { put("description", it) }
-                                    if (definition.allowedValues.isNotEmpty()) {
-                                        put(
-                                            "enum",
-                                            buildJsonArray {
-                                                definition.allowedValues.forEach { add(JsonPrimitive(it)) }
-                                            },
-                                        )
-                                    }
-                                    definition.itemType?.let { itemType ->
-                                        put("items", buildJsonObject { put("type", itemType) })
-                                    }
-                                },
+                                definition.toJsonSchema(),
                             )
                         }
                     },
                 ),
-                toolAnnotations = ToolAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true),
+                toolAnnotations = ToolAnnotations(
+                    readOnlyHint = tool.readOnly,
+                    destructiveHint = tool.destructive,
+                    idempotentHint = true,
+                ),
             ) { request ->
                 val arguments = request.arguments as? JsonObject ?: JsonObject(emptyMap())
                 val result = core.callTool(tool.name, arguments)
@@ -87,7 +77,7 @@ public suspend fun DsBuilderMcpServerCore.serveStdio(
     onError: (Throwable) -> Unit = {},
 ) {
     val closed = CompletableDeferred<Unit>()
-    val transport = StdioServerTransport(input, output)
+    val transport = StdioServerTransport(input, closedEditorSchemaSink(output))
     val shutdownRegistration = installProcessShutdownHandler {
         if (!closed.isCompleted) {
             closed.complete(Unit)

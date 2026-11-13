@@ -2,7 +2,9 @@
 
 ## Purpose
 Определяет CLI приложение `dsbuilder` в `frontend-kt`: структуру Kotlin Multiplatform модуля, JVM entrypoint, базовое поведение запуска и обязательные Gradle checks.
+
 ## Requirements
+
 ### Requirement: CLI module structure
 
 `frontend-kt` SHALL содержать Kotlin Multiplatform приложение `:cli`, общие `core-*`/`feature-*` библиотеки, новый
@@ -92,8 +94,8 @@ The CLI module SHALL include tests for baseline CLI behavior and SHALL be verifi
 
 #### Scenario: Required option is missing
 
-- **WHEN** developer runs `dsbuilder init` without required options
-- **THEN** CLI MUST return a deterministic option error
+- **WHEN** разработчик запускает `dsbuilder init` с недостающими ID без интерактивного терминала
+- **THEN** CLI MUST вернуть детерминированную ошибку с именами недостающих параметров без ожидания ввода
 - **THEN** CLI MUST NOT create `.sdds/config.json`
 
 #### Scenario: Unknown command is rejected
@@ -130,12 +132,12 @@ The `dsbuilder` CLI SHALL provide an `init` command that creates local project c
 - **THEN** CLI MUST create `.sdds/config.json` in the target directory
 - **THEN** generated config MUST contain JSON field `"projectId": "project-a"`
 - **THEN** generated config MUST contain JSON field `"designSystemId": "design-system-a"`
-- **THEN** generated config MUST contain env credential reference `DSBUILDER_API_KEY`
+- **THEN** generated config MUST contain credential.type = auto и env credential reference `DSBUILDER_API_KEY`
 
 #### Scenario: Init принимает custom API key env
 
-- **WHEN** developer runs `dsbuilder init --project-id project-a --design-system-id design-system-a --api-key-env DSBUILDER_PROJECT_A_API_KEY`
-- **THEN** generated config MUST contain env credential reference `DSBUILDER_PROJECT_A_API_KEY`
+- **WHEN** developer runs `dsbuilder init --project-id project-a --design-system-id design-system-a --api-key-env PROJECT_A_PAT`
+- **THEN** generated config MUST contain credential.type = auto и env credential reference `PROJECT_A_PAT`
 
 #### Scenario: Init принимает целевые платформы
 
@@ -147,8 +149,8 @@ The `dsbuilder` CLI SHALL provide an `init` command that creates local project c
 #### Scenario: Init не принимает raw API key
 
 - **WHEN** developer runs `dsbuilder init`
-- **THEN** CLI MUST NOT require raw API key input
-- **THEN** CLI MUST NOT write raw API key into `.sdds/config.json`
+- **THEN** CLI MUST NOT require секрет PAT input
+- **THEN** CLI MUST NOT write секрет PAT into `.sdds/config.json`
 - **THEN** CLI MUST NOT write API URL into `.sdds/config.json`
 
 #### Scenario: Init защищает существующий config
@@ -157,6 +159,33 @@ The `dsbuilder` CLI SHALL provide an `init` command that creates local project c
 - **WHEN** developer runs `dsbuilder init` without an explicit overwrite option
 - **THEN** CLI MUST return a deterministic error
 - **THEN** CLI MUST NOT silently overwrite the existing config
+
+#### Scenario: Интерактивный выбор
+- **WHEN** пользователь запускает `dsbuilder init` в терминале без одного или обоих ID
+- **THEN** CLI MUST получить доступные проекты и системы через общий выбор PAT/OAuth и сначала предложить меню проектов, затем загрузить и показать меню систем только выбранного проекта с именем, ID и описанием при наличии
+- **THEN** стрелки ↑/↓ MUST перемещать выделение, Enter MUST подтверждать вариант без ввода названий и ID
+- **THEN** длинный список MUST поддерживать прокрутку, единственный вариант MUST подтверждаться Enter
+- **THEN** явно переданный ID MUST пропустить соответствующий вопрос
+- **THEN** после выбора системы CLI MUST предложить необязательный множественный выбор платформ: ↑/↓ перемещают курсор, Space включает или выключает платформу, Enter сохраняет выбранные платформы, включая пустой список
+- **THEN** если передан хотя бы один `--platform`, CLI MUST пропустить меню платформ и сохранить явно переданные значения
+- **THEN** созданная конфигурация MUST использовать `credential.type = "auto"` и имя DSBUILDER_API_KEY либо явно заданное --api-key-env независимо от интерактивного режима
+- **THEN** версия MUST NOT требоваться для локальной конфигурации
+
+#### Scenario: Нет доступного выбора или ввод отменён
+- **WHEN** список проектов или систем пуст, пользователь нажимает Ctrl+C либо закрывает stdin на любом шаге
+- **THEN** CLI MUST завершиться без создания конфигурации с понятным сообщением
+- **THEN** режим терминала и видимость курсора MUST восстанавливаться после завершения, отмены и ошибки
+- **WHEN** терминал не поддерживает интерактивное меню
+- **THEN** CLI MUST сообщить о необходимости передать явные ID без ожидания ввода
+
+#### Scenario: Сессия отсутствует
+- **WHEN** для интерактивного выбора не найден PAT и нет действующей пользовательской сессии
+- **THEN** CLI MUST предложить выполнить `dsbuilder auth login` без скрытого запуска входа и без записи конфигурации
+
+#### Scenario: Совместимый явный режим
+- **WHEN** переданы оба ID и нет интерактивного выбора
+- **THEN** CLI MUST сохранить существующее создание конфигурации без сетевых запросов и с env-ссылкой на API key
+- **THEN** существующий `--platform` MUST сохранять прежнее поведение
 
 ### Requirement: CLI project-scoped command foundation
 
@@ -167,7 +196,7 @@ Project-scoped CLI commands SHALL использовать общие context, A
 - **WHEN** новая project-scoped команда добавлена в `dsbuilder`
 - **THEN** она MUST разрешать локальный или явный контекст через CLI core
 - **THEN** она MUST разрешать credential через общий provider
-- **THEN** её HTTP adapter MUST отправлять `Authorization: ProjectKey <key>` либо `Authorization: Bearer <token>` согласно выбранному credential
+- **THEN** её HTTP adapter MUST отправлять `Authorization: Bearer <PAT>` либо `Authorization: Bearer <OAuth access token>` согласно выбранному типу учётных данных
 
 #### Scenario: Theme fetch использует CLI core
 
@@ -195,12 +224,12 @@ Project-scoped CLI commands SHALL использовать общие context, A
 
 #### Scenario: Project key отсутствует, но user session доступна
 
-- **WHEN** локальная policy `auto` не находит project key и для resolved API URL доступна user session
+- **WHEN** локальная policy `auto` не находит PAT и для resolved API URL доступна user session
 - **THEN** команда MUST выполнить backend request с Bearer access token
 
 #### Scenario: Project key найден, но отклонен
 
-- **WHEN** backend отвечает `401` или `403` для выбранного project key
+- **WHEN** backend отвечает `401` или `403` для выбранного PAT
 - **THEN** команда MUST вернуть соответствующую ошибку
 - **THEN** команда MUST NOT повторять запрос от другого actor
 
@@ -212,11 +241,11 @@ The `dsbuilder` CLI SHALL provide a `status` command that verifies the configure
 
 - **WHEN** developer runs `dsbuilder status` inside an initialized project directory
 - **THEN** CLI MUST resolve the nearest `.sdds/config.json`
-- **THEN** CLI MUST resolve API key credentials through CLI core
+- **THEN** CLI MUST выбирать PAT или OAuth-сессию через общий provider
 - **THEN** CLI MUST resolve API URL through CLI core
 - **THEN** CLI MUST send `GET /api/projects/{projectId}` using `projectId` from config
-- **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}` using `projectId` and `designSystemId` from config
-- **THEN** CLI MUST include `Authorization: ProjectKey <api_key>`
+- **THEN** CLI MUST send `GET /api/projects/{projectId}/design-systems/{designSystemId}` using `projectId` and `designSystemId` from config
+- **THEN** CLI MUST передать `Authorization: Bearer <PAT>` или Bearer OAuth access token согласно выбранному типу учётных данных
 
 #### Scenario: Status показывает только результат проверки
 
@@ -225,18 +254,18 @@ The `dsbuilder` CLI SHALL provide a `status` command that verifies the configure
 - **THEN** CLI MUST print project `name` from project response
 - **THEN** CLI MUST print design system `name` from design system response
 - **THEN** CLI MUST NOT print the project list
-- **THEN** CLI MUST NOT print the raw API key
+- **THEN** CLI MUST NOT print the секрет PAT
 
 #### Scenario: Status сообщает об ошибке авторизации
 
 - **WHEN** backend returns `401`, `403`, or `404` for `dsbuilder status`
 - **THEN** CLI MUST map the response through common CLI core HTTP error handling
-- **THEN** CLI MUST print a deterministic failure message without raw API key values
+- **THEN** CLI MUST print a deterministic failure message without секрет PAT values
 
 #### Scenario: Status не использует user-scoped project list
 
 - **WHEN** developer runs `dsbuilder status`
-- **THEN** CLI MUST NOT call `GET /api/projects` for API key validation
+- **THEN** CLI MUST NOT call `GET /api/projects` for проверки авторизации
 - **THEN** CLI MUST validate only the project configured in `.sdds/config.json`
 
 ### Requirement: CLI feature backend integration boundary
@@ -267,14 +296,14 @@ Use case фичи CLI SHALL обращаться к backend API только ч�
 
 - **WHEN** выполняется `dsbuilder components push`
 - **THEN** use case MUST отправлять пакет через port-интерфейс component-config remote source
-- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/ds/component-config/import` через CLI core authenticated HTTP client
+- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/import` через CLI core authenticated HTTP client
 - **THEN** отчёт импорта MUST приходить в use case доменной моделью
 
 #### Scenario: Components fetch обращается к backend через тот же port
 
 - **WHEN** выполняется `dsbuilder components fetch`
 - **THEN** use case MUST запрашивать пакет через тот же port-интерфейс component-config remote source
-- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/ds/component-config/export` через CLI core authenticated HTTP client
+- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/export` через CLI core authenticated HTTP client
 - **THEN** выгруженный пакет MUST приходить в use case доменной моделью
 - **THEN** use case MUST NOT импортировать `@Serializable` модель ответа export
 
@@ -332,3 +361,39 @@ Project-scoped CLI команды SHALL принимать `--design-system <uri
 - **THEN** CLI MUST сообщить об отсутствии bundle
 - **THEN** URI MUST NOT интерпретироваться как путь к локальному файлу
 
+### Requirement: Нативный выпуск CLI для Windows x64
+
+`:cli` SHALL предоставлять исполняемый файл `dsbuilder.exe` для Windows x64, запускаемый без установленной Java, Node.js или Gradle.
+
+#### Scenario: Базовые команды на чистой Windows
+
+- **WHEN** пользователь распаковывает выпуск Windows x64 и запускает `dsbuilder.exe --help` или `dsbuilder.exe --version`
+- **THEN** команда MUST завершиться с ожидаемым кодом и детерминированным выводом
+- **THEN** для запуска MUST NOT требоваться Java, Node.js, Gradle, Docker, учётные данные или сервер DS Builder
+
+#### Scenario: Установка из выпуска
+
+- **WHEN** пользователь выполняет приложенный сценарий установки Windows
+- **THEN** `dsbuilder.exe` MUST копироваться в каталог пользователя без административных прав
+- **THEN** инструкция MUST объяснять, как добавить этот каталог в `PATH` и как вызвать `dsbuilder.exe mcp serve` из MCP-клиента
+
+#### Scenario: Существующие команды не теряются
+
+- **WHEN** пользователь запускает `dsbuilder.exe --help`
+- **THEN** набор команд MUST включать те же группы, что и нативный выпуск macOS, включая `auth` и `mcp`
+- **THEN** команды, которым нужен внешний платформенный инструмент, MUST сообщать о его отсутствии или недоступности без требования Java для запуска самого CLI
+
+### Requirement: Восстановление Windows-консоли после интерактивного выбора
+
+Интерактивный мастер на Windows SHALL сохранять исходные режимы консоли до открытия меню и восстанавливать их при любом завершении. Ограничения терминальной библиотеки SHALL NOT оставлять консоль в изменённом режиме.
+
+#### Scenario: Подтверждение выбора
+- **WHEN** пользователь выбирает проект и его дизайн-систему стрелками и Enter на Windows
+- **THEN** мастер MUST использовать ID выбранных объектов без ручного ввода
+- **THEN** после завершения режимы консоли MUST совпадать с исходными, а видимость курсора MUST быть восстановлена
+- **THEN** последующий ввод в той же консоли MUST работать как до запуска мастера
+
+#### Scenario: Отмена или ошибка
+- **WHEN** мастер на Windows завершён через Ctrl+C, закрытие входа либо ошибку после открытия меню
+- **THEN** исходные режимы консоли и видимость курсора MUST быть восстановлены
+- **THEN** незавершённый выбор MUST NOT создавать локальную конфигурацию

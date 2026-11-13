@@ -109,7 +109,7 @@ class ImportApiMetaUseCaseTest {
         val imported = assertIs<ImportApiMetaResult.Imported>(result)
         assertEquals(REPORT, imported.report)
         assertEquals("http://localhost:8080", imported.target.apiUrl.value)
-        assertEquals("--api-url", imported.target.apiUrl.sourceName)
+        assertEquals("runtime override", imported.target.apiUrl.sourceName)
         assertEquals(TargetPlatform.COMPOSE, imported.target.platform)
         assertEquals(META_PATH, imported.target.source)
         assertEquals(3, imported.target.componentCount)
@@ -188,7 +188,7 @@ class ImportApiMetaUseCaseTest {
         val result = execute(apiUrlOverride = null, environment = { null }, touched = touched)
 
         val failed = assertIs<ImportApiMetaResult.Failed>(result)
-        assertTrue(failed.message.contains("--api-url"), failed.message)
+        assertTrue(failed.message.contains("DSBUILDER_API_URL"), failed.message)
         assertTrue(failed.message.contains(API_URL_ENV), failed.message)
         assertNull(failed.target)
         touched.assertNothing()
@@ -274,7 +274,10 @@ class ImportApiMetaUseCaseTest {
 
         val failed = assertIs<ImportApiMetaResult.Failed>(result)
         assertTrue(failed.message.startsWith("Error: authentication is required."), failed.message)
-        assertTrue(failed.message.contains("dsbuilder auth login --api-url http://localhost:8080"), failed.message)
+        assertTrue(
+            failed.message.contains("DSBUILDER_API_URL=http://localhost:8080 dsbuilder auth login"),
+            failed.message,
+        )
         assertTrue(failed.message.contains("system administrator"), failed.message)
         assertTrue(!touched.requested)
         assertNull(failed.target)

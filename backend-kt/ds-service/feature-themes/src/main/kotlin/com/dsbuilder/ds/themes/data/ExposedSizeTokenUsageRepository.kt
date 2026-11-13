@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.data.selectedVersionBoundarySql
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUsageRepository
 import com.dsbuilder.ds.themes.domain.sizetokens.AdjustedUsage
 import com.dsbuilder.ds.themes.domain.sizetokens.ComponentUsage
@@ -19,15 +20,15 @@ import java.util.UUID
  */
 class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
     private val variationValues =
-        resolved("variation_property_values", "variation_property_value", ", entity.appearance_id", VALUE_FIELDS)
+        resolved("variation_property_values", "variation_property_value", VALUE_KEYS, VALUE_FIELDS)
     private val invariantValues = resolved(
         "invariant_property_values",
         "invariant_property_value",
-        ", entity.appearance_id, entity.component_id",
+        "$VALUE_KEYS, entity.component_id",
         VALUE_FIELDS,
     )
     private val combinationValues =
-        resolved("style_combinations", "style_combination", ", entity.appearance_id", VALUE_FIELDS)
+        resolved("style_combinations", "style_combination", VALUE_KEYS, VALUE_FIELDS)
     private val appearances = resolved("appearances", "appearance", ", entity.component_id", "latest.name")
     private val sizeTokens = resolved("tokens", "token", "", "latest.name, latest.type")
 
@@ -56,15 +57,27 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
                 }
             }
 
+    override suspend fun textReferences(designSystemId: UUID, tokenId: UUID, name: String): Set<UUID> =
+        references(designSystemId, mapOf(tokenId to name))
+            .filter(Reference::byName)
+            .mapTo(hashSetOf(), Reference::rowId)
+
     override suspend fun adjustments(designSystemId: UUID, tokens: Map<UUID, String>): Map<String, List<RadiusOffset>> {
         val references = references(designSystemId, tokens)
         if (references.isEmpty()) return emptyMap()
         val params = paramOffsets(designSystemId, references)
         return references.mapNotNull { reference ->
+            val param = params[reference.source to reference.rowId]
+            // Импорт пишет смещение в колонку значения, а поправка параметра с тем же числом остаётся рядом:
+            // имя параметра берётся из неё, чтобы использование не теряло параметр.
             val own = reference.adjustment?.let(::offset)?.let { offset ->
-                RadiusOffset(offset, AdjustedUsage(reference.component, reference.platform, null))
+                RadiusOffset(
+                    offset,
+                    param?.takeIf { it.offset == offset }?.usage(reference)
+                        ?: AdjustedUsage(reference.component, reference.platform, null),
+                )
             }
-            (own ?: params[reference.source to reference.rowId]?.let { RadiusOffset(it.offset, it.usage(reference)) })
+            (own ?: param?.let { RadiusOffset(it.offset, it.usage(reference)) })
                 ?.let { reference.token to it }
         }.groupBy({ it.first }, { it.second })
     }
@@ -77,12 +90,13 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         if (tokens.isEmpty()) return emptyList()
         val names = tokens.values.toSet()
         val sql = """
-            WITH variation_values AS ($variationValues),
-                 invariant_values AS ($invariantValues),
-                 combination_values AS ($combinationValues),
-                 live_appearances AS ($appearances),
-                 size_tokens AS ($sizeTokens),
-                 live_links AS ($componentLinks)
+            WITH selected_boundary AS MATERIALIZED ($SELECTED_BOUNDARY),
+                 variation_values AS MATERIALIZED ($variationValues),
+                 invariant_values AS MATERIALIZED ($invariantValues),
+                 combination_values AS MATERIALIZED ($combinationValues),
+                 live_appearances AS MATERIALIZED ($appearances),
+                 size_tokens AS MATERIALIZED ($sizeTokens),
+                 live_links AS MATERIALIZED ($componentLinks)
             SELECT 'variation' AS source, v.id AS row_id, v.token_id, v.value, v.adjustment,
                    c.name AS component, c.platform::text AS platform
               FROM variation_values v
@@ -107,11 +121,12 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
              WHERE $REFERENCE_FILTER
                AND EXISTS (SELECT 1 FROM live_links l WHERE l.component_id = c.id)
         """.trimIndent()
-        return query(sql, designSystemId, CTE_COUNT) { rows ->
+        return query(sql, designSystemId, CTE_COUNT + 1) { rows ->
             val tokenId = rows.getString("token_id")?.let(UUID::fromString)
             val value = rows.getString("value")
             // Ссылка через `token_id` на другой токен не считается ссылкой на токен раздела, текст — считается.
-            val token = tokenId?.let(tokens::get) ?: value?.takeIf { it in names } ?: return@query null
+            val byId = tokenId?.let(tokens::get)
+            val token = byId ?: value?.takeIf { it in names } ?: return@query null
             Reference(
                 rowId = UUID.fromString(rows.getString("row_id")),
                 source = rows.getString("source"),
@@ -120,6 +135,7 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
                 component = rows.getString("component"),
                 platform = rows.getString("platform"),
                 adjustment = rows.getString("adjustment"),
+                byName = byId == null,
             )
         }
     }
@@ -133,8 +149,9 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         val byRow = references.filter { it.source != COMBINATION }.associateBy { it.source to it.rowId }
         if (byRow.isEmpty()) return emptyMap()
         val sql = """
-            WITH variation_adjustments AS ($variationAdjustments),
-                 invariant_adjustments AS ($invariantAdjustments)
+            WITH selected_boundary AS MATERIALIZED ($SELECTED_BOUNDARY),
+                 variation_adjustments AS MATERIALIZED ($variationAdjustments),
+                 invariant_adjustments AS MATERIALIZED ($invariantAdjustments)
             SELECT 'variation' AS source, a.value_id, a.value, p.platform::text AS platform, p.name
               FROM variation_adjustments a
               JOIN property_platform_params p ON p.id = a.platform_param_id
@@ -145,7 +162,7 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
               JOIN property_platform_params p ON p.id = a.platform_param_id
              WHERE a.value IS NOT NULL
         """.trimIndent()
-        return query(sql, designSystemId, 2) { rows ->
+        return query(sql, designSystemId, ADJUSTMENT_CTE_COUNT + 1) { rows ->
             val key = rows.getString("source") to UUID.fromString(rows.getString("value_id"))
             val reference = byRow[key] ?: return@query null
             val number = rows.getString("value")?.takeIf { it != reference.rowValue }?.let(::offset)
@@ -180,14 +197,7 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
     private fun resolved(table: String, revision: String, stable: String, fields: String): String = """
         SELECT entity.id, entity.design_system_id$stable, $fields
           FROM $table entity
-          JOIN design_system_versions boundary
-            ON boundary.design_system_id = entity.design_system_id
-           AND boundary.id = COALESCE(
-                NULLIF(current_setting('ds.version_id', true), '')::uuid,
-                (SELECT active.id FROM design_system_versions active
-                  WHERE active.design_system_id = entity.design_system_id AND active.status = 'draft')
-           )
-           AND boundary.status IN ('draft', 'published')
+          JOIN selected_boundary boundary ON boundary.design_system_id = entity.design_system_id
           JOIN LATERAL (
                 SELECT candidate.*
                   FROM ${revision}_revisions candidate
@@ -213,6 +223,8 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         val component: String,
         val platform: String,
         val adjustment: String?,
+        /** Ссылка текстом, равным имени токена, а не через `token_id`. */
+        val byName: Boolean,
     )
 
     /** Поправка платформенного параметра строки значения. */
@@ -221,20 +233,37 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
     }
 
     private companion object {
+        val SELECTED_BOUNDARY = """
+            SELECT boundary.id, boundary.design_system_id, boundary.sequence_number
+              FROM design_system_versions boundary
+             WHERE ${selectedVersionBoundarySql("boundary")}
+               AND boundary.design_system_id = ?
+        """.trimIndent()
+
         const val COMBINATION = "combination"
 
         /** Число подзапросов `resolved` в запросе ссылок: у каждого свой параметр дизайн-системы. */
         const val CTE_COUNT = 6
 
+        /** Два набора поправок; параметр выбранной границы добавляется отдельно. */
+        const val ADJUSTMENT_CTE_COUNT = 2
+
+        /** Поля устойчивой строки значения свойства, которые нужны запросу использования. */
+        const val VALUE_KEYS = ", entity.appearance_id, entity.property_id"
+
         /** Поля редакции значения свойства, которые нужны запросу использования. */
         const val VALUE_FIELDS = "latest.token_id, latest.value, latest.adjustment"
 
         /**
-         * Предварительный отбор: `token_id` токена размеров или текст с префиксом имени раздела; точное совпадение
-         * имени проверяется после чтения.
+         * Предварительный отбор: `token_id` токена размеров, текст с префиксом радиуса или отступа или точное имя
+         * тени в свойстве типа `shadow` или общего типа `value`: имя тени произвольное, и короткое имя вроде `m` не
+         * должно совпадать с текстом свойств цвета, типографики, размеров и чисел. Точное совпадение имени
+         * проверяется после чтения.
          */
         const val REFERENCE_FILTER = "(v.token_id IN (SELECT id FROM size_tokens " +
-            "WHERE type IN ('shape', 'spacing', 'shadow')) OR v.value ~ '^(round|spacing|down|up)\\.')"
+            "WHERE type IN ('shape', 'spacing', 'shadow')) OR v.value ~ '^(round|spacing)\\.' " +
+            "OR (v.value IN (SELECT name FROM size_tokens WHERE type = 'shadow') " +
+            "AND v.property_id IN (SELECT id FROM properties WHERE type IN ('shadow', 'value'))))"
 
         val PLATFORM_PRIORITY = listOf("web", "xml", "compose", "ios")
         val DECIMAL = Regex("""[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?""")

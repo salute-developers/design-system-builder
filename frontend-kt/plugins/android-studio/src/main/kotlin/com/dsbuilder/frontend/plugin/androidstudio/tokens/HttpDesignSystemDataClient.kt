@@ -14,13 +14,6 @@ private const val RGB_HEX_LENGTH = 7
 private const val HEX_RADIX = 16
 
 @Serializable
-internal data class DesignSystemDto(
-    val id: String,
-    val name: String,
-    val description: String? = null,
-)
-
-@Serializable
 internal data class TokenDto(
     val id: String,
     val designSystemId: String? = null,
@@ -47,19 +40,14 @@ internal data class PaletteDto(
 )
 
 /**
- * Ktor-реализация [DesignSystemDataClient] поверх `/api/projects/{id}/ds/design-systems`,
- * `/ds/tokens` и `/ds/token-values`.
+ * Ktor-реализация [DesignSystemDataClient] поверх `/api/projects/{id}/design-systems`,
+ * `/design-systems/{designSystemId}/tokens` и `/design-systems/{designSystemId}/token-values`.
  */
 public class HttpDesignSystemDataClient(
     private val apiClient: AuthenticatedApiClient,
 ) : DesignSystemDataClient {
-    override suspend fun listDesignSystems(projectId: String): List<DesignSystem> {
-        val dtos = getList<DesignSystemDto>("/api/projects/$projectId/ds/design-systems")
-        return dtos.map { DesignSystem(id = it.id, name = it.name, description = it.description) }
-    }
-
-    override suspend fun listTokens(projectId: String): List<DesignToken> {
-        val dtos = getList<TokenDto>("/api/projects/$projectId/ds/tokens")
+    override suspend fun listTokens(projectId: String, designSystemId: String): List<DesignToken> {
+        val dtos = getList<TokenDto>("/api/projects/$projectId/design-systems/$designSystemId/tokens")
         return dtos.map {
             DesignToken(
                 id = it.id,
@@ -71,8 +59,8 @@ public class HttpDesignSystemDataClient(
         }
     }
 
-    override suspend fun listTokenValues(projectId: String): List<TokenValue> {
-        val dtos = getList<TokenValueDto>("/api/projects/$projectId/ds/token-values")
+    override suspend fun listTokenValues(projectId: String, designSystemId: String): List<TokenValue> {
+        val dtos = getList<TokenValueDto>("/api/projects/$projectId/design-systems/$designSystemId/token-values")
         // Цвет может быть ссылкой на палитру (`[general.green.600]`): тогда value пустое (или содержит
         // только непрозрачность), а сам цвет лежит в палитре — без её разрешения такие токены
         // (большинство цветов темы) показывались бы без значения.
@@ -92,7 +80,7 @@ public class HttpDesignSystemDataClient(
     }
 
     private suspend fun loadPalette(projectId: String): Map<String, String> =
-        getList<PaletteDto>("/api/projects/$projectId/ds/palette").associate { it.id to it.value }
+        getList<PaletteDto>("/api/projects/$projectId/design-systems/catalog/palette").associate { it.id to it.value }
 
     @Suppress("TooGenericExceptionCaught")
     private suspend inline fun <reified T> getList(path: String): List<T> {

@@ -27,7 +27,7 @@ public class HttpDesignSystemTenantsClient(
         designSystemId: String,
     ): DesignSystemTenantsResult {
         val client = httpClientFactory.create(apiUrl, credential)
-        return when (val result = client.get("/api/projects/$projectId/ds/design-systems/$designSystemId/tenants")) {
+        return when (val result = client.get("/api/projects/$projectId/design-systems/$designSystemId/tenants")) {
             is AuthenticatedHttpResult.Success -> decode(result.body)
             is AuthenticatedHttpResult.Failure -> DesignSystemTenantsResult.Failed(
                 if (result.statusCode == HTTP_UNAUTHORIZED) {
@@ -44,7 +44,12 @@ public class HttpDesignSystemTenantsClient(
         try {
             DesignSystemTenantsResult.Success(
                 json.decodeFromString<List<TenantDto>>(body).map {
-                    DesignSystemTenant(id = it.id, name = it.name ?: it.id, description = it.description)
+                    DesignSystemTenant(
+                        id = it.id,
+                        name = it.name ?: it.id,
+                        description = it.description,
+                        named = !it.name.isNullOrEmpty(),
+                    )
                 },
             )
         } catch (exception: SerializationException) {

@@ -36,8 +36,8 @@ public data class ProcessRequest(
     public val inheritStdio: Boolean = true,
 ) {
     init {
-        require(executable.startsWith("/")) { "Process executable must be an absolute path: '$executable'." }
-        require(workingDirectory.startsWith("/")) {
+        require(isAbsolutePath(executable)) { "Process executable must be an absolute path: '$executable'." }
+        require(isAbsolutePath(workingDirectory)) {
             "Process working directory must be an absolute path: '$workingDirectory'."
         }
         require(environment.keys.none { it.isBlank() }) { "Process environment keys must not be blank." }

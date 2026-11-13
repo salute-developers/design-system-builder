@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaCommand
@@ -7,7 +8,6 @@ import com.dsbuilder.frontend.feature.components.application.ImportApiMetaResult
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaTarget
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaUseCase
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.UsageError
@@ -23,15 +23,13 @@ import kotlinx.coroutines.runBlocking
  */
 internal class ComponentsImportApiCliCommand(
     private val importApiMetaUseCase: ImportApiMetaUseCase,
-) : CliktCommand(name = "import-api") {
+) : AnalyticsCliCommand(name = "import-api", operation = "components import-api") {
     private val from: String by option("--from")
         .required()
         .help("API meta file of the platform: the output of the meta generator or of the dsBuilder plugin.")
 
     private val platform: TargetPlatform by option("--platform").targetPlatform().required()
         .help(platformImportApiHelp(importApiMetaUseCase.supportedPlatforms))
-
-    private val apiUrl: String? by option("--api-url")
         .help("Backend API URL; the user session saved by `dsbuilder auth login` for this URL is used.")
 
     private val mapType: List<String> by option("--map-type")
@@ -46,7 +44,7 @@ internal class ComponentsImportApiCliCommand(
     private val strict: Boolean by option("--strict").flag()
         .help("Exit with code 1 when the backend rejects any property.")
 
-    override fun run() {
+    override fun runOperation() {
         if (apply && dryRun) {
             throw UsageError("Options --apply and --dry-run cannot be used together.")
         }
@@ -59,7 +57,7 @@ internal class ComponentsImportApiCliCommand(
                     from = from,
                     dryRun = !apply,
                     typeMap = typeMap,
-                    apiUrlOverride = apiUrl,
+                    apiUrlOverride = null,
                 ),
                 onTarget = { target -> echo(target.render()) },
             )

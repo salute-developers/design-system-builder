@@ -11,6 +11,8 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -33,10 +35,10 @@ fun Route.designSystemComponentRoutes(
     delete: DeleteDesignSystemComponentUseCase,
     json: Json,
 ) {
-    route("/api/ds/design-system-components") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/design-system-components")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -51,7 +53,7 @@ fun Route.designSystemComponentRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -65,13 +67,13 @@ fun Route.designSystemComponentRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateDesignSystemComponentRequest>()
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
             val componentId = request.componentId.toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_component_id"))
@@ -86,6 +88,7 @@ fun Route.designSystemComponentRoutes(
                     designSystemId,
                     componentId,
                     call.request.headers["Idempotency-Key"],
+                    request.fromTemplate,
                 )
             ) {
                 is DsResult.Success -> call.respondSuccess(
@@ -98,7 +101,7 @@ fun Route.designSystemComponentRoutes(
         }
         delete("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

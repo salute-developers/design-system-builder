@@ -6,6 +6,7 @@ plugins {
 kotlin {
     macosArm64()
     macosX64()
+    mingwX64()
 
     sourceSets {
         commonMain.dependencies {
@@ -18,10 +19,10 @@ kotlin {
             api(projects.coreNetwork)
             // ThemeAliasListResult.Listed exposes ProjectConfigTenant (core-workspace) publicly.
             api(projects.coreWorkspace)
-            implementation(projects.coreApplication)
+            api(projects.coreApplication)
             // themeApplicationModule(): Module is a public factory returning a Koin type.
             api(libs.koin.core)
-            implementation(libs.kotlinx.serialization.json)
+            api(libs.kotlinx.serialization.json)
         }
 
         commonTest.dependencies {

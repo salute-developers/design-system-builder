@@ -7,6 +7,9 @@ import com.dsbuilder.ds.core.application.DraftInvalidationStream
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemDraftCursorUseCase
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
@@ -41,10 +44,10 @@ fun Route.draftInvalidationRoutes(
     json: Json,
 ) {
     val connectionLimiter = DraftInvalidationConnectionLimiter(MAX_CONNECTIONS_PER_ACTOR)
-    get("/api/ds/design-systems/{id}/events") {
-        val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+    get(dsRoutePath("/api/design-systems/{designSystemId}/events")) {
+        val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
             ?: return@get call.respondFailure(DsFailure.Forbidden)
-        val designSystemId = call.parameters["id"]?.toUuidOrNull()
+        val designSystemId = call.dsPathDesignSystemId()?.toUuidOrNull()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
         val knownDraftId = call.request.queryParameters["draftId"]?.toUuidOrNull()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_draft_id"))

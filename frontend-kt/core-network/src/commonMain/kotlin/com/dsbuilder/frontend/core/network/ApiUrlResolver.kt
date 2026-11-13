@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.core.network
 
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.normalizeSessionApiUrl
 
 /**
  * Имя env-переменной с backend API URL.
@@ -17,7 +18,7 @@ public const val DEFAULT_API_URL: String = "https://gateway.design-system-builde
  */
 public enum class ApiUrlSource {
     /**
-     * Значение передано аргументом `--api-url`.
+     * Значение передано вызывающим кодом как runtime override.
      */
     ARGUMENT,
 
@@ -47,7 +48,7 @@ public data class ResolvedApiUrl(
      */
     public val sourceName: String
         get() = when (source) {
-            ApiUrlSource.ARGUMENT -> "--api-url"
+            ApiUrlSource.ARGUMENT -> "runtime override"
             ApiUrlSource.ENVIRONMENT -> API_URL_ENV
             ApiUrlSource.CODE_DEFAULT -> "default"
         }
@@ -66,18 +67,24 @@ public class ApiUrlResolver(
     private val environmentReader: EnvironmentReader,
 ) {
     /**
-     * Возвращает API URL в порядке `--api-url`, `DSBUILDER_API_URL`, code default.
+     * Возвращает API URL в порядке runtime override, `DSBUILDER_API_URL`, code default.
      */
     public fun resolve(override: String?, projectEnvironment: EnvironmentReader? = null): ResolvedApiUrl {
         if (!override.isNullOrBlank()) {
-            return ResolvedApiUrl(value = override, source = ApiUrlSource.ARGUMENT)
+            return ResolvedApiUrl(
+                value = normalizeSessionApiUrl(override),
+                source = ApiUrlSource.ARGUMENT,
+            )
         }
 
         (
             environmentReader.get(API_URL_ENV)?.takeIf { it.isNotBlank() }
                 ?: projectEnvironment?.get(API_URL_ENV)?.takeIf { it.isNotBlank() }
             )?.let {
-            return ResolvedApiUrl(value = it, source = ApiUrlSource.ENVIRONMENT)
+            return ResolvedApiUrl(
+                value = normalizeSessionApiUrl(it),
+                source = ApiUrlSource.ENVIRONMENT,
+            )
         }
 
         return ResolvedApiUrl(value = DEFAULT_API_URL, source = ApiUrlSource.CODE_DEFAULT)
@@ -93,7 +100,7 @@ public class ApiUrlResolver(
         return if (resolved.isCodeDefault) {
             WriteApiUrlResult.Rejected(
                 "Error: writing commands require an explicit backend API URL. " +
-                    "Pass --api-url or set $API_URL_ENV.",
+                    "Set $API_URL_ENV.",
             )
         } else {
             WriteApiUrlResult.Resolved(resolved)

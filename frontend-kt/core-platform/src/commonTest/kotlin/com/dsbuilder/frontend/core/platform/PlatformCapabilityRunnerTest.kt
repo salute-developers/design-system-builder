@@ -93,6 +93,19 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
+    fun missingIosDelegateReportsUnsupportedOperatingSystem() {
+        val runner = PlatformCapabilityRunner(
+            projectContextReader = contextReader(listOf(TargetPlatform.SWIFT_UI)),
+            registry = PlatformDelegateRegistry(emptyList()),
+            fileSystem = FakeWorkspaceFileSystem(),
+        )
+
+        val result = runner.execute(PlatformRunCommand(capability = Capability.THEME))
+
+        assertTrue(assertIs<PlatformRunResult.Failed>(result).message.contains("unavailable on this operating system"))
+    }
+
+    @Test
     fun missingProjectContextStopsBeforeAnyDelegateCall() {
         val delegate = iosDelegate()
         val runner = PlatformCapabilityRunner(

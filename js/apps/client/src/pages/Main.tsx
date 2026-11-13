@@ -1,7 +1,8 @@
 import { useChangedTokenNames } from '../features/versionJournal/useChangedTokenNames';
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
+import { SymbolsOutline } from '@salutejs/sdds-icons/16';
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 import { isDebugMode, isComponentEditorEnabled } from '../utils';
 import { useDesignSystem, useForceRerender } from '../hooks';
@@ -11,8 +12,10 @@ import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell
 import { Visible } from '../components/rendering';
 import { IconColorSwatchOutline } from '../icons';
 import { StyledSpinner as EditorLoadingSpinner } from '../components/EditorLoading/EditorLoading.styles';
+import { ComponentsSectionSkeleton } from './components/ComponentsSectionSkeleton';
 
 import { AutosaveIndicator } from '../components/AutosaveIndicator';
+import { McpLinkButton } from '../components/McpLinkButton';
 import { EditorVersionSelect } from '../components/EditorVersionSelect';
 import { useJournal, useReloadAfterAutosave } from '../features/versionJournal/useJournal';
 import { Button as JournalButton } from './versionJournal/VersionJournalPages.styles';
@@ -33,8 +36,9 @@ const editorSectionLabels: Record<string, string> = {
     palette: 'Палитра',
     colors: 'Цветовые токены',
     typography: 'Типографика',
-    shapes: 'Размеры и радиусы',
+    shapes: 'Отступы, радиусы и тени',
     components: 'Компоненты',
+    icons: 'Иконки',
     changes: 'Журнал изменений',
     versions: 'Версии',
     settings: 'Настройки темы',
@@ -68,6 +72,11 @@ export const Main = () => {
     );
     const editorSection = currentPath[editorContext ? 6 : 3];
     const editorSectionLabel = editorSectionLabels[editorSection] ?? 'Редактор';
+    /** Экраны токенов и палитра сами показывают загрузку скелетонами и ошибку загрузки с «Повторить». */
+    const ownsSectionStates =
+        Boolean(editorContext) && ['palette', 'colors', 'typography', 'shapes', 'icons'].includes(editorSection);
+    /** Раздел компонентов на время загрузки показывает свой скелетон вместо общего спиннера. */
+    const componentsSkeleton = Boolean(editorContext) && editorSection === 'components';
     const sectionSelection = useMemo(
         () => ({
             section: toEditorSection(editorSection),
@@ -92,8 +101,11 @@ export const Main = () => {
         loadError,
         sectionLoading,
         sectionError,
+        componentLoading,
+        componentError,
         hasConfiguredComponents,
         reload,
+        loadComponent,
         palette,
         paletteError,
         setPalette,
@@ -101,34 +113,49 @@ export const Main = () => {
         lastSavedAt,
         retryAutosave,
         refreshChanges,
+        refreshRevision,
     } = useDesignSystem(editorContext, true, sectionSelection);
 
     // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
     const isEditingDesignSystem = Boolean(editorContext);
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
-    // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
-    const hasComponents = isComponentEditorEnabled() && hasConfiguredComponents;
+    // Раздел «Компоненты» показываем, если к ДС привязан хотя бы один компонент. Пока тема грузится, кнопка видна
+    // вместе с остальными: иначе она появляется с задержкой и сдвигает нижние кнопки.
+    const hasComponents = isComponentEditorEnabled() && (hasConfiguredComponents || !designSystem);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = !isEditingDesignSystem;
     const isEditorLoading = Boolean(editorContext && !designSystem && !loadError);
     const journalComponents = useMemo(() => designSystem?.getComponentsData() ?? [], [designSystem]);
+    const journalOpen = editorSection === 'changes' || editorSection === 'versions';
     const editorJournal = useJournal(
         editorContext,
         journalComponents,
-        designSystem,
+        `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}`,
         designSystem?.getParameters()?.readOnly !== false,
-        Boolean(designSystem) && (editorSection === 'changes' || editorSection === 'versions'),
+        Boolean(designSystem) && journalOpen,
     );
     useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
-    const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}`;
+    const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}:${refreshRevision}`;
     const changedTokenNames = useChangedTokenNames(
         editorContext,
         tokenDefinitions,
         summaryCursor,
-        Boolean(designSystem) && ['shapes', 'typography'].includes(editorSection),
+        Boolean(designSystem) && ['colors', 'shapes', 'typography'].includes(editorSection),
     );
-    const journalSummary = useJournalSummary(editorContext, summaryCursor, Boolean(designSystem));
-    useReloadAfterAutosave(autosaveStatus, journalSummary.reload);
+    const journalHasTotal = journalOpen && !editorJournal.error && editorJournal.total !== undefined;
+    const summaryNeeded =
+        Boolean(designSystem) &&
+        (!journalOpen || Boolean(editorJournal.error) || (!editorJournal.loading && !journalHasTotal));
+    const journalSummary = useJournalSummary(
+        editorContext,
+        `${summaryCursor}:${summaryNeeded && journalOpen ? (editorJournal.readAt ?? '') : ''}`,
+        summaryNeeded,
+    );
+    const journalTotal = journalHasTotal ? editorJournal.total! : journalSummary.total;
+    const journalCountError = journalHasTotal ? false : journalSummary.error;
+    const reloadJournalAfterRevert = useCallback(async () => {
+        await editorJournal.reloadChecked();
+    }, [editorJournal.reloadChecked]);
     const onClickPanelButton = (path: string) => {
         if (path === '') {
             navigate('/', {
@@ -204,55 +231,57 @@ export const Main = () => {
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('colors') ? 'is-active' : ''}`}
                                         data-testid="editor-nav-colors"
+                                        aria-label={editorSectionLabels.colors}
+                                        title={editorSectionLabels.colors}
                                         selected={currentPath.includes('colors')}
                                         onClick={() => onClickPanelButton('colors')}
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railColorsIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railColorsIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('typography') ? 'is-active' : ''}`}
                                         data-testid="editor-nav-typography"
+                                        aria-label={editorSectionLabels.typography}
+                                        title={editorSectionLabels.typography}
                                         selected={currentPath.includes('typography')}
                                         onClick={() => onClickPanelButton('typography')}
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railTypographyIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railTypographyIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('shapes') ? 'is-active' : ''}`}
                                         data-testid="editor-nav-shapes"
+                                        aria-label={editorSectionLabels.shapes}
+                                        title={editorSectionLabels.shapes}
                                         selected={currentPath.includes('shapes')}
                                         onClick={() => onClickPanelButton('shapes')}
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railCornerRadiusIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railCornerRadiusIcon} alt="" />
                                     </StyledIconButton>
                                     {hasComponents ? (
                                         <>
                                             <StyledIconButton
                                                 className={`builder-rail-button ${currentPath.includes('components') ? 'is-active' : ''}`}
                                                 data-testid="editor-nav-components"
+                                                aria-label={editorSectionLabels.components}
+                                                title={editorSectionLabels.components}
                                                 selected={currentPath.includes('components')}
                                                 onClick={() => onClickPanelButton('components')}
                                             >
-                                                <img
-                                                    className="builder-rail-icon"
-                                                    src={railComponentsIcon}
-                                                    alt=""
-                                                />
+                                                <img className="builder-rail-icon" src={railComponentsIcon} alt="" />
                                             </StyledIconButton>
                                         </>
                                     ) : null}
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('icons') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-icons"
+                                        aria-label={editorSectionLabels.icons}
+                                        title={editorSectionLabels.icons}
+                                        selected={currentPath.includes('icons')}
+                                        onClick={() => onClickPanelButton('icons')}
+                                    >
+                                        <SymbolsOutline color="inherit" />
+                                    </StyledIconButton>
                                     <Separator />
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('changes') ? 'is-active' : ''}`}
@@ -260,12 +289,9 @@ export const Main = () => {
                                         selected={currentPath.includes('changes')}
                                         onClick={() => onClickPanelButton('changes')}
                                         aria-label="Изменения дизайн-системы"
+                                        title="Изменения дизайн-системы"
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railChangesIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railChangesIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('versions') ? 'is-active' : ''}`}
@@ -273,12 +299,9 @@ export const Main = () => {
                                         selected={currentPath.includes('versions')}
                                         onClick={() => onClickPanelButton('versions')}
                                         aria-label="Версии дизайн-системы"
+                                        title="Версии дизайн-системы"
                                     >
-                                        <img
-                                            className="builder-rail-icon"
-                                            src={railVersionsIcon}
-                                            alt=""
-                                        />
+                                        <img className="builder-rail-icon" src={railVersionsIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('settings') ? 'is-active' : ''}`}
@@ -304,6 +327,7 @@ export const Main = () => {
                             projectName={designSystem?.getParameters()?.projectName ?? 'Проект'}
                             projectId={projectId}
                             ariaLabel="Навигация темы"
+                            rootless
                             loading={isEditorLoading}
                             breadcrumbSegments={[
                                 {
@@ -342,8 +366,17 @@ export const Main = () => {
                                                 selectedVersion={designSystem?.getVersion()}
                                             />
                                         )}
+                                        {editorContext &&
+                                            designSystem &&
+                                            (!editorVersionId || designSystem.getVersion()) && (
+                                                <McpLinkButton
+                                                    projectId={editorContext.projectId}
+                                                    designSystemId={editorContext.designSystemId}
+                                                    version={editorVersionId ? designSystem.getVersion()! : 'draft'}
+                                                />
+                                            )}
                                         <JournalButton
-                                            className="primary"
+                                            className="primary editor-changes-button"
                                             type="button"
                                             style={{
                                                 gap: 6,
@@ -351,10 +384,10 @@ export const Main = () => {
                                             onClick={() => onClickPanelButton('changes')}
                                         >
                                             Изменения
-                                            {!journalSummary.error && journalSummary.total > 0 && (
+                                            {!journalCountError && journalTotal > 0 && (
                                                 <>
                                                     <span aria-hidden="true">·</span>
-                                                    <span>{journalSummary.total}</span>
+                                                    <span>{journalTotal}</span>
                                                 </>
                                             )}
                                         </JournalButton>
@@ -365,7 +398,9 @@ export const Main = () => {
                     </>
                 ) : null}
                 <EditorCanvas>
-                    {isSectionSwitching || isEditorLoading || sectionLoading ? (
+                    {componentsSkeleton && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
+                        <ComponentsSectionSkeleton />
+                    ) : !ownsSectionStates && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
                         <div
                             className="editor-section-loading"
                             role="status"
@@ -373,7 +408,7 @@ export const Main = () => {
                         >
                             <EditorLoadingSpinner aria-hidden="true" />
                         </div>
-                    ) : sectionError ? (
+                    ) : sectionError && !ownsSectionStates ? (
                         <div role="alert">
                             Не удалось загрузить раздел{' '}
                             <button type="button" onClick={reload}>
@@ -392,6 +427,9 @@ export const Main = () => {
                                 updated,
                                 rerender,
                                 reload,
+                                loadComponent,
+                                componentLoading,
+                                componentError,
                                 palette,
                                 paletteError,
                                 setPalette,
@@ -400,9 +438,12 @@ export const Main = () => {
                                 incompleteTokenIds,
                                 editorContext,
                                 autosaveStatus,
-                                editorJournal,
+                                editorJournal: { ...editorJournal, reloadChecked: reloadJournalAfterRevert },
                                 changedTokenNames,
                                 refreshChanges,
+                                sectionError,
+                                // Тема ещё не загружена целиком: экраны токенов и палитра показывают свои скелетоны.
+                                sectionPending: isSectionSwitching || isEditorLoading || sectionLoading,
                             }}
                         />
                     )}

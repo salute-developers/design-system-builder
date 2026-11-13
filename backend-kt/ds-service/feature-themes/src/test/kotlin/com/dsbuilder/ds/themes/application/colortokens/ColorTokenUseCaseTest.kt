@@ -256,7 +256,7 @@ class ColorTokenUseCaseTest {
         assertEquals(DsFailure.Forbidden, failure(delete.execute(tokensOnly, current, id, 0)))
         val full = key("tenants:write", "tokens:write", "tokens:delete")
         assertEquals(1, success(create.execute(full, current, command())).editRevision)
-        assertEquals(2, success(delete.execute(full, current, id, 1)))
+        assertEquals(2, success(delete.execute(full, current, id, 1)).editRevision)
     }
 
     @Test
@@ -266,7 +266,7 @@ class ColorTokenUseCaseTest {
         val kept = tokens.define("text.default.primary")
         tokens.values[other to base] = complete("#111111")
 
-        assertEquals(1, success(delete.execute(context("maintainer"), current, base, 0)))
+        assertEquals(1, success(delete.execute(context("maintainer"), current, base, 0)).editRevision)
         assertEquals(listOf(kept), tokens.definitions.map { it.id })
         assertTrue(tokens.values.isEmpty())
         assertEquals(mapOf(current to 1, other to 1), tokens.revisions)
@@ -440,6 +440,24 @@ class ColorTokenUseCaseTest {
 
         assertEquals(ThemeTokenType.GRADIENT, tokens.definitions.single { it.id == hover }.type)
         assertEquals(ThemeTokenType.COLOR, tokens.definitions.single { it.id == base }.type)
+    }
+
+    @Test
+    fun `одно действие пакета пересчитывает все семейства после разделения исходного`() {
+        val base = tokens.define("text.default.accent", ThemeTokenType.GRADIENT)
+        val hover = tokens.define("text.default.accent-hover", ThemeTokenType.GRADIENT)
+        tokens.values[current to base] = complete("#111111")
+        tokens.values[current to hover] = gradientIn(hover, ThemeTokenMode.DARK).members.getValue(hover)
+        val listener = ColorTokenRevertListener(tokens)
+        val first = listener.beforeBatchRevert(tokens.designSystemId, base)
+        val second = listener.beforeBatchRevert(tokens.designSystemId, hover)
+        assertEquals(first.key, second.key)
+        assertEquals(setOf(base, hover), first.coveredTokenIds)
+        assertEquals(first.coveredTokenIds, second.coveredTokenIds)
+        tokens.rename(base, "text.default.brand")
+        first.run()
+        assertEquals(ThemeTokenType.COLOR, tokens.definitions.single { it.id == base }.type)
+        assertEquals(ThemeTokenType.GRADIENT, tokens.definitions.single { it.id == hover }.type)
     }
 
     @Test
@@ -627,7 +645,14 @@ class ColorTokenUseCaseTest {
     )
 
     private fun key(vararg scopes: String) = DsRequestContext(
-        ProjectPrincipal(ProjectActorType.PROJECT_KEY, "key-1", "project-1", projectScopes = scopes.toSet()),
+        ProjectPrincipal(
+            ProjectActorType.PERSONAL_ACCESS_TOKEN,
+            "key-1",
+            "project-1",
+            personalAccessTokenId = "pat",
+            projectRole = "owner",
+            projectScopes = scopes.toSet(),
+        ),
         "correlation-1",
     )
 

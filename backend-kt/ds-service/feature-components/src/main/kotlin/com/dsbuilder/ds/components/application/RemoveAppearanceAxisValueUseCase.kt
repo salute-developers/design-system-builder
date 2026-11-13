@@ -21,7 +21,7 @@ class RemoveAppearanceAxisValueUseCase(
         valueId: UUID,
         confirmCascade: Boolean,
     ): DsResult<EditorRemoval> = modelMutate(policy, transactions, context, ProjectScope.COMPONENT_VARIATIONS_DELETE) {
-        val admin = context.principal.systemAdmin
+        val admin = context.principal.globalAdmin
         repository.removeAxisValue(context.projectId, admin, appearanceId, valueId, confirmCascade)
     }
 }

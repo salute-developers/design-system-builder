@@ -3,8 +3,6 @@ package com.dsbuilder.identity.auth.application
 import com.dsbuilder.identity.auth.application.port.JwtInvalidReason
 import com.dsbuilder.identity.auth.application.port.JwtVerificationResult
 import com.dsbuilder.identity.auth.application.port.JwtVerifier
-import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerificationResult
-import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerifier
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolution
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolver
 import com.dsbuilder.identity.auth.application.usecase.AuthorizeProjectRequestUseCase
@@ -32,7 +30,6 @@ class AuthorizeProjectRequestUseCaseTest {
             projectContextResolver = FixedProjectContextResolver(
                 ProjectContextResolution.Allowed(ProjectContext("project-1", ProjectRole.EDITOR)),
             ),
-            projectAccessKeyVerifier = FixedProjectAccessKeyVerifier(ProjectAccessKeyVerificationResult.Invalid),
         )
 
         val decision = useCase.execute(GatewayAuthInput("Bearer token", "project-1"))
@@ -53,7 +50,6 @@ class AuthorizeProjectRequestUseCaseTest {
                 ),
             ),
             projectContextResolver = FixedProjectContextResolver(ProjectContextResolution.Denied),
-            projectAccessKeyVerifier = FixedProjectAccessKeyVerifier(ProjectAccessKeyVerificationResult.Invalid),
         )
 
         val decision = useCase.execute(GatewayAuthInput("Bearer token", "project-1"))
@@ -69,7 +65,6 @@ class AuthorizeProjectRequestUseCaseTest {
             val useCase = AuthorizeProjectRequestUseCase(
                 jwtVerifier = FixedJwtVerifier(JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)),
                 projectContextResolver = FixedProjectContextResolver(ProjectContextResolution.Denied),
-                projectAccessKeyVerifier = FixedProjectAccessKeyVerifier(ProjectAccessKeyVerificationResult.Invalid),
             )
 
             val decision = useCase.execute(GatewayAuthInput(null, "project-1"))
@@ -84,7 +79,6 @@ class AuthorizeProjectRequestUseCaseTest {
             val useCase = AuthorizeProjectRequestUseCase(
                 jwtVerifier = FixedJwtVerifier(JwtVerificationResult.Valid(actor())),
                 projectContextResolver = FixedProjectContextResolver(ProjectContextResolution.Denied),
-                projectAccessKeyVerifier = FixedProjectAccessKeyVerifier(ProjectAccessKeyVerificationResult.Invalid),
             )
 
             val decision = useCase.execute(GatewayAuthInput("Bearer token", "project-1"))
@@ -111,26 +105,14 @@ class AuthorizeProjectRequestUseCaseTest {
     }
 
     @Test
-    fun `returns trusted headers for valid project access key`() = kotlinx.coroutines.runBlocking {
+    fun `rejects old project access key`(): Unit = kotlinx.coroutines.runBlocking {
         val useCase = AuthorizeProjectRequestUseCase(
             jwtVerifier = FixedJwtVerifier(JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)),
             projectContextResolver = FixedProjectContextResolver(ProjectContextResolution.Denied),
-            projectAccessKeyVerifier = FixedProjectAccessKeyVerifier(
-                ProjectAccessKeyVerificationResult.Valid(
-                    keyId = "key-1",
-                    projectId = "project-1",
-                    scopes = setOf("projects:read"),
-                ),
-            ),
         )
-
-        val decision = useCase.execute(GatewayAuthInput("ProjectKey raw-key", "project-1"))
-
-        val allowed = assertIs<GatewayAuthDecision.Allowed>(decision)
-        assertEquals("project_key", allowed.trustedHeaders.actorType)
-        assertEquals("key-1", allowed.trustedHeaders.userId)
-        assertEquals("key-1", allowed.trustedHeaders.projectKeyId)
-        assertEquals("projects:read", allowed.trustedHeaders.projectScopes)
+        assertIs<GatewayAuthDecision.Unauthorized>(
+            useCase.execute(GatewayAuthInput("ProjectKey raw-key", "project-1")),
+        )
     }
 
     private fun actor(globalRoles: Set<GlobalRole> = setOf(GlobalRole.USER)): AuthenticatedActor =
@@ -155,10 +137,4 @@ private class FixedProjectContextResolver(
         actor: AuthenticatedActor,
         projectId: String,
     ): ProjectContextResolution = result
-}
-
-private class FixedProjectAccessKeyVerifier(
-    private val result: ProjectAccessKeyVerificationResult,
-) : ProjectAccessKeyVerifier {
-    override suspend fun verify(token: String): ProjectAccessKeyVerificationResult = result
 }

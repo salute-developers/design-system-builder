@@ -26,11 +26,11 @@ class DuplicateAppearanceConfigurationUseCase(
     ): DsResult<Appearance> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "duplicate-appearance-configuration",
         listOf(sourceId.toString(), name),
-        { repository.findAppearance(context.projectId, context.principal.systemAdmin, it) },
-        { repository.duplicateAppearance(context.projectId, context.principal.systemAdmin, sourceId, name) },
+        { repository.findAppearance(context.projectId, context.principal.globalAdmin, it) },
+        { repository.duplicateAppearance(context.projectId, context.principal.globalAdmin, sourceId, name) },
         Appearance::id,
         validateCreate = {
-            repository.findAppearance(context.projectId, context.principal.systemAdmin, sourceId)?.let { source ->
+            repository.findAppearance(context.projectId, context.principal.globalAdmin, sourceId)?.let { source ->
                 uniqueKeys.lock(source.designSystemId, "appearance-default", source.componentId.toString())
                 name?.trim()?.lowercase()?.let {
                     uniqueKeys.lock(source.designSystemId, "appearance", "${source.componentId}:$it")

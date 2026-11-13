@@ -14,6 +14,15 @@ data class DocumentationSearchRequest(
     /** Optional canonical subjects OR filter. */ val subjects: Set<String> = emptySet(),
     /** Offset cursor. */ val cursor: Int = 0,
     /** Page size. */ val limit: Int = 20,
+    /** Явная опубликованная версия документации. */ val publicationId: String? = null,
+)
+
+/** Фактическая граница опубликованной документации. */
+data class SearchPublication(
+    /** ID фактической публикации. */ val publicationId: String,
+    /** ID её дизайн-системы. */ val designSystemId: String,
+    /** Фактическая версия. */ val version: String,
+    /** Фактическая платформа. */ val platform: String,
 )
 
 /** Canonical representations одного literal query. */
@@ -92,6 +101,9 @@ data class MarkdownSearchHit(
 fun interface ActivePublicationResolver {
     /** Возвращает ID только active published publication trusted project. */
     suspend fun resolve(projectId: String, designSystemId: String, version: String, platform: String): String?
+
+    /** Возвращает доступную публикацию по ID с фактическими селекторами. */
+    suspend fun resolveExplicit(projectId: String, publicationId: String): SearchPublication? = null
 }
 
 /** Port PostgreSQL structured и FTS channels. */
@@ -141,6 +153,7 @@ sealed interface DocumentationSearchOutcome {
     /** Успешная search page. */
     data class Found(
         /** Страница результатов. */ val page: DocumentationSearchPage,
+        /** Фактическая публикация. */ val publication: SearchPublication,
     ) : DocumentationSearchOutcome
 }
 
@@ -200,12 +213,26 @@ class SearchDocumentationUseCase(
     private val metrics: DocumentationSearchMetrics = DocumentationSearchMetrics { },
 ) {
     /** Выполняет поиск только по active publication и применяет stable cursor pagination. */
+    @Suppress("ComplexCondition", "ReturnCount")
     suspend fun execute(request: DocumentationSearchRequest): DocumentationSearchOutcome {
         val started = System.nanoTime()
         val query = LexicalSearchQuery.from(request.query) ?: return DocumentationSearchOutcome.InvalidQuery
-        val publicationId = publications.resolve(
-            request.projectId, request.designSystemId, request.version, request.platform,
-        ) ?: return DocumentationSearchOutcome.PublicationNotFound
+        val publication = if (request.publicationId != null) {
+            publications.resolveExplicit(request.projectId, request.publicationId)
+        } else {
+            publications.resolve(
+                request.projectId, request.designSystemId, request.version, request.platform,
+            )?.let { SearchPublication(it, request.designSystemId, request.version, request.platform) }
+        } ?: return DocumentationSearchOutcome.PublicationNotFound
+        if (request.publicationId == null && publication.designSystemId != request.designSystemId) {
+            return DocumentationSearchOutcome.PublicationNotFound
+        }
+        if ((request.version.isNotBlank() && publication.version != request.version) ||
+            (request.platform.isNotBlank() && publication.platform != request.platform)
+        ) {
+            return DocumentationSearchOutcome.InvalidQuery
+        }
+        val publicationId = publication.publicationId
         val candidateLimit = profile.channelCandidateLimit
         val structured = index.structured(publicationId, query, request.subjects, candidateLimit, profile)
         val markdown = index.markdown(publicationId, query, request.subjects, candidateLimit, profile)
@@ -221,7 +248,7 @@ class SearchDocumentationUseCase(
                 matchChannels = items.mapTo(mutableSetOf(), DocumentationSearchResultDto::matchChannel),
             ),
         )
-        return DocumentationSearchOutcome.Found(DocumentationSearchPage(items, next))
+        return DocumentationSearchOutcome.Found(DocumentationSearchPage(items, next), publication)
     }
 
     private fun rank(

@@ -1,8 +1,10 @@
 import { AxiosError, AxiosHeaders } from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-vi.mock('../../../api/editorReads', () => ({ invalidateEditorReads: vi.fn() }));
+vi.mock('../../../api/editorReads', () => ({ invalidateEditorReads: vi.fn(), readEditor: vi.fn() }));
+import { readEditor } from '../../../api/editorReads';
+import { getDraftSaveTokenValues } from '../../../api/draftAutosaveActivity';
 
-import { observeTokenValueRevisions } from '../../../api/subjectRevisions';
+import { observeTokenValueRevisions, tokenValueBaseRevision } from '../../../api/subjectRevisions';
 import { createHttpColorTokenRepository } from './httpColorTokenRepository';
 import { http } from '../../../api/http';
 import { ColorTokenOperationError } from '../application/colorTokenRepository';
@@ -31,16 +33,16 @@ describe('HTTP-адаптер операций цветового токена',
         await repository.delete(context, 'tok', 3);
         const headers = { 'X-DS-Base-Revision': '0', 'Idempotency-Key': expect.any(String) };
         expect(post).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/color-tokens',
+            '/api/projects/p1/design-systems/ds/tenants/t1/color-tokens',
             { ...input, editRevision: 1 },
             { headers },
         );
         expect(put).toHaveBeenCalledWith(
-            '/api/projects/p1/ds/tenants/t1/color-tokens/tok/values',
+            '/api/projects/p1/design-systems/ds/tenants/t1/color-tokens/tok/values',
             { members: [], editRevision: 2 },
             { headers },
         );
-        expect(del).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/color-tokens/tok', {
+        expect(del).toHaveBeenCalledWith('/api/projects/p1/design-systems/ds/tenants/t1/color-tokens/tok', {
             data: { editRevision: 3 },
             headers,
         });
@@ -115,4 +117,86 @@ describe('редакции отдельных платформ цветовог�
         );
         expect(put.mock.calls[2][1].members[0].values[0].baseRevision).toBe(7);
     });
+});
+
+it('сверяет только записанные значения, без чтения других токенов и палитры', async () => {
+    const put = vi.spyOn(http, 'put').mockResolvedValue({
+        data: { editRevision: 2, type: 'color' },
+        headers: {
+            'x-ds-mutation-metadata': JSON.stringify([{ entityType: 'token-value', entityId: 'value-1', revision: 2 }]),
+        },
+    });
+    vi.mocked(readEditor)
+        .mockReset()
+        .mockResolvedValue({
+            data: [
+                {
+                    id: 'value-1',
+                    tokenId: 'tok',
+                    tenantId: 't1',
+                    platform: 'web',
+                    mode: 'light',
+                    paletteId: null,
+                    value: '#123456',
+                },
+            ],
+        } as never);
+    const result = await createHttpColorTokenRepository().updateValues(
+        context,
+        'tok',
+        { members: [{ tokenId: 'tok', values: [] }] },
+        1,
+    );
+    expect(put).toHaveBeenCalledOnce();
+    expect(readEditor).toHaveBeenCalledExactlyOnceWith('/api/projects/p1/design-systems/ds/tokens/tok/values', {
+        params: { tenantId: 't1' },
+    });
+    expect(result.editRevision).toBe(2);
+    expect(getDraftSaveTokenValues(context)).toMatchObject([{ tokenId: 'tok', values: [{ value: '#123456' }] }]);
+});
+
+it('отказ адресной сверки не повторяет подтверждённый PUT', async () => {
+    const put = vi.spyOn(http, 'put').mockResolvedValue({
+        data: { editRevision: 2, type: 'color' },
+        headers: {
+            'x-ds-mutation-metadata': JSON.stringify([{ entityType: 'token-value', entityId: 'value-1', revision: 2 }]),
+        },
+    });
+    vi.mocked(readEditor).mockReset().mockRejectedValue(new Error('read unavailable'));
+    await expect(
+        createHttpColorTokenRepository().updateValues(context, 'tok', { members: [{ tokenId: 'tok', values: [] }] }, 1),
+    ).resolves.toMatchObject({ editRevision: 2 });
+    expect(put).toHaveBeenCalledOnce();
+    expect(getDraftSaveTokenValues(context)).toBeUndefined();
+});
+
+it('полный JSON ACK градиента заменяет truncated metadata без чтения раздела', async () => {
+    const values = [
+        {
+            id: 'value-ack',
+            tokenId: 'tok',
+            tenantId: 't1',
+            platform: 'web',
+            mode: 'light',
+            value: ['linear-gradient(91deg, #000, #fff)'],
+            editRevision: 27,
+            overridden: false,
+        },
+    ];
+    vi.spyOn(http, 'put').mockResolvedValue({
+        data: { editRevision: 0, type: 'gradient', confirmedValues: values },
+        headers: { 'x-ds-mutation-metadata-truncated': 'true' },
+    });
+    vi.mocked(readEditor).mockReset();
+    await createHttpColorTokenRepository().updateValues(
+        context,
+        'tok',
+        { members: [{ tokenId: 'tok', values: [] }] },
+        0,
+    );
+    expect(readEditor).not.toHaveBeenCalled();
+    expect(getDraftSaveTokenValues(context)).toMatchObject([
+        { tokenId: 'tok', type: 'gradient', values: [{ value: values[0].value }] },
+    ]);
+    expect(tokenValueBaseRevision(context, 'tok', 'web', 'light')).toBe(27);
 });

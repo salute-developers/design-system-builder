@@ -13,7 +13,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greater
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.javatime.timestamp
-import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -72,6 +71,8 @@ private enum class EditBoundaryStatus(val wireValue: String) { DRAFT("draft") }
 
 /** Не допускает публикацию до завершения обычной предметной транзакции этой дизайн-системы. */
 fun lockDesignSystemMutation(designSystemId: UUID) {
+    requireRequestDesignSystem(designSystemId)
+    requireRequestDesignSystemMutable()
     TransactionManager.current().exec(
         "SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(? AS text), 684313))",
         listOf(UUIDColumnType() to designSystemId),
@@ -122,25 +123,51 @@ private fun lockExistingDraftSubjects(designSystemId: UUID, entityType: String, 
         (EditVersionBoundariesTable.designSystemId eq designSystemId) and
             (EditVersionBoundariesTable.status eq EditBoundaryStatus.DRAFT)
     }.singleOrNull()?.get(EditVersionBoundariesTable.id) ?: return false
-    val actorId = org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager.current().exec(
-        "SELECT COALESCE(NULLIF(current_setting('ds.actor_id', true), ''), 'system')",
-    ) { rows -> if (rows.next()) rows.getString(1) else "system" } ?: "system"
-    orderedIds.chunked(500).forEach { ids ->
-        EntityEditStatesTable.batchInsert(ids, ignore = true, shouldReturnGeneratedValues = false) { id ->
-            this[EntityEditStatesTable.designSystemVersionId] = boundaryId
-            this[EntityEditStatesTable.designSystemId] = designSystemId
-            this[EntityEditStatesTable.entityType] = entityType
-            this[EntityEditStatesTable.entityId] = id
-            this[EntityEditStatesTable.revision] = 0
-            this[EntityEditStatesTable.lastActorId] = actorId
-            this[EntityEditStatesTable.updatedAt] = Instant.now()
-        }
+    return lockResolvedDraftSubjects(designSystemId, boundaryId, entityType, orderedIds)
+}
+
+/**
+ * Блокирует адреса на уже проверенной границе под lockDesignSystemMutation. Создание нулевых состояний и порядок
+ * блокировок общие для одиночной записи и пакетного отката; существующие состояния значений можно только проверить.
+ */
+fun lockResolvedDraftSubjects(
+    designSystemId: UUID,
+    draftId: UUID,
+    entityType: String,
+    entityIds: Collection<UUID>,
+    createMissing: Boolean = true,
+): Boolean {
+    if (entityIds.isEmpty()) return true
+    val ids = entityIds.distinct().sorted()
+    val jdbc = BatchJdbc()
+    if (createMissing) {
+        jdbc.query(
+            """
+                INSERT INTO entity_edit_states(design_system_version_id,design_system_id,entity_type,
+                  entity_id,revision,last_actor_id,updated_at)
+                SELECT ?,?,?,id,0,coalesce(nullif(current_setting('ds.actor_id',true),''),'system'),now()
+                FROM unnest(?::uuid[]) id ON CONFLICT DO NOTHING
+            """.trimIndent(),
+            draftId,
+            designSystemId,
+            entityType,
+            jdbc.uuids(ids),
+        )
     }
-    return EntityEditStatesTable.selectAll().where {
-        (EntityEditStatesTable.designSystemVersionId eq boundaryId) and
-            (EntityEditStatesTable.entityType eq entityType) and
-            (EntityEditStatesTable.entityId inList orderedIds)
-    }.orderBy(EntityEditStatesTable.entityId).forUpdate().toList().size == orderedIds.size
+    return jdbc.query(
+        "SELECT entity_id FROM entity_edit_states WHERE design_system_version_id=? AND design_system_id=? " +
+            "AND entity_type=? AND entity_id=ANY(?) ORDER BY entity_id FOR UPDATE",
+        draftId, designSystemId, entityType, jdbc.uuids(ids),
+    ).size == ids.size
+}
+
+/** Проверяет итоговый граф отмены до успешного ответа и возвращает отложенный режим ограничений. */
+fun checkDraftRevertConstraints() {
+    val transaction = TransactionManager.current()
+    transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
+    transaction.exec("SET CONSTRAINTS ALL IMMEDIATE")
+    transaction.exec("SET CONSTRAINTS ALL DEFERRED")
+    transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
 }
 
 /** PostgreSQL-реализация технических редакций сущности и её путей. */

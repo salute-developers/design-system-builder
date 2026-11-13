@@ -1,11 +1,36 @@
 package com.dsbuilder.frontend.plugin.androidstudio.tokens
 
-/** Возвращает дизайн-системы, видимые в рамках выбранного проекта. */
+import com.dsbuilder.frontend.feature.ds.application.DesignSystemsReadErrorCode.AUTH_REQUIRED
+import com.dsbuilder.frontend.feature.ds.application.DesignSystemsReadResult.Failed
+import com.dsbuilder.frontend.feature.ds.application.DesignSystemsReadResult.Success
+import com.dsbuilder.frontend.plugin.androidstudio.api.ApiRequestException
+import com.dsbuilder.frontend.plugin.androidstudio.api.SessionExpiredException
+import com.dsbuilder.frontend.feature.ds.application.ListDesignSystemsUseCase as SharedListDesignSystemsUseCase
+
+/** Адаптирует общий каталог к экранной модели IDE с обновлением сессии. */
 public class ListDesignSystemsUseCase(
-    private val client: DesignSystemDataClient,
+    private val catalog: SharedListDesignSystemsUseCase,
+    private val refresh: suspend () -> Boolean = { false },
 ) {
-    /** Выполняет сценарий. */
-    public suspend fun execute(projectId: String): List<DesignSystem> = client.listDesignSystems(projectId)
+    /** Возвращает имена, ID и описания без отдельного HTTP-клиента IDE. */
+    public suspend fun execute(projectId: String): List<DesignSystem> {
+        var result = catalog.execute(projectId)
+        if (result is Failed &&
+            result.code == AUTH_REQUIRED && refresh()
+        ) {
+            result = catalog.execute(projectId)
+        }
+        return when (result) {
+            is Success ->
+                result.items.map { DesignSystem(it.id, it.name, it.description) }
+            is Failed ->
+                if (result.code == AUTH_REQUIRED) {
+                    throw SessionExpiredException(result.message)
+                } else {
+                    throw ApiRequestException(result.message)
+                }
+        }
+    }
 }
 
 /**
@@ -29,8 +54,8 @@ public class GetDesignSystemTokensUseCase(
         mode: TokenMode,
         tenantId: String,
     ): List<TokenWithValue> {
-        val tokens = client.listTokens(projectId).filter { it.designSystemId == designSystemId }
-        val values = client.listTokenValues(projectId)
+        val tokens = client.listTokens(projectId, designSystemId).filter { it.designSystemId == designSystemId }
+        val values = client.listTokenValues(projectId, designSystemId)
             .filter { it.tenantId == tenantId && it.platform == platform && (it.mode == null || it.mode == mode) }
             .groupBy { it.tokenId }
             .mapValues { (_, valuesForToken) ->

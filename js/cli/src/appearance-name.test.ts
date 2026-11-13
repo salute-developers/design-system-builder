@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import ts from 'typescript';
+
+import { appearanceConfigFile, appearanceIdentifier, assertDistinctAppearances } from './generator/utils/appearanceName.ts';
+
+process.env.NPM_PACKAGE_SCOPE ??= '@test-scope';
+const { createConditionalComponent, createGenericComponent } = await import('./generator/creators/createComponent.ts');
+
+const syntaxErrors = (source: string) => {
+    const file = ts.createSourceFile('Accordion.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    return (file as unknown as { parseDiagnostics: ts.Diagnostic[] }).parseDiagnostics.map((item) =>
+        ts.flattenDiagnosticMessageText(item.messageText, '\n'),
+    );
+};
+
+describe('имена конфигураций в web-генерации', () => {
+    it('строит camelCase-идентификаторы и файлы из kebab-case, значение appearance оставляет как в данных', () => {
+        const source = createConditionalComponent('Accordion', 'Аккордеон', ['default', 'clear-action'], 'accordionConfig');
+
+        assert.deepEqual(syntaxErrors(source), []);
+        assert.match(source, /import \{ config as clearActionConfig \} from '\.\/Accordion\.clearAction\.config';/);
+        assert.match(source, /import \{ config as defaultConfig \} from '\.\/Accordion\.config';/);
+        assert.match(source, /export const AccordionClearAction = component\(mergedClearActionConfig\);/);
+        assert.match(source, /    'clear-action': AccordionClearAction,/);
+        assert.match(source, /    default: AccordionDefault,/);
+        assert.equal(appearanceConfigFile('Accordion', 'clear-action'), 'Accordion.clearAction.config');
+    });
+
+    it('останавливает генерацию на имени не в kebab-case', () => {
+        assert.throws(() => appearanceIdentifier('Accordion', 'Accordion new'), /Accordion.*«Accordion new»/);
+        assert.throws(
+            () => createConditionalComponent('Accordion', '', ['default', 'Accordion new'], 'accordionConfig'),
+            /kebab-case/,
+        );
+    });
+
+    it('останавливает генерацию, если две конфигурации дают один идентификатор', () => {
+        assert.throws(() => assertDistinctAppearances('Button', ['default', 'dense-2', 'dense2']), /Button.*«dense-2».*«dense2»/);
+        assert.throws(() => assertDistinctAppearances('Button', ['a-b', 'ab']), /«a-b».*«ab»/);
+        assert.doesNotThrow(() => assertDistinctAppearances('Button', ['default', 'dense', 'dense-2']));
+    });
+
+    it('дженерик-обёртка с несколькими конфигурациями выбирает appearance и сохраняет параметр типа', () => {
+        const generic = { propsType: 'SelectProps', itemType: 'SelectItemOption', refElement: 'HTMLButtonElement' };
+        const source = createGenericComponent('Select', 'Выпадающий список', null, generic, ['default', 'clear']);
+        const file = ts.createSourceFile('Select.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+
+        assert.deepEqual((file as unknown as { parseDiagnostics: ts.Diagnostic[] }).parseDiagnostics, []);
+        assert.match(source, /import \{ config as clearConfig \} from '\.\/Select\.clear\.config';/);
+        assert.match(source, /const SelectComponent = createConditionalComponent\(\{\n    default: SelectDefault,\n    clear: SelectClear,\n\}\);/);
+        assert.match(source, /appearance\?: 'default' \| 'clear';/);
+        assert.match(source, /export const Select = fixedForwardRef\(SelectWithoutRef\);/);
+        // Один конфиг — прежняя обёртка без выбора appearance.
+        assert.doesNotMatch(createGenericComponent('Select', '', null, generic), /createConditionalComponent/);
+    });
+});

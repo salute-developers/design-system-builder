@@ -19,24 +19,24 @@ import type {
     ComponentConfigPropertyDto,
     ComponentConfigDto,
     ComponentConfigExportDto,
+    ComponentEditorBundleDto,
     PendingComponentMutation,
 } from './editorContracts';
 import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
+import { isUnknownIconError } from './autosaveHttp';
 import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
 import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
 import { camelToKebab } from '../utils/text';
 import {
     collectDependencies,
     enrichApi,
-    templateLookup,
     variationNamesByProperty,
     composeParamsByProperty,
     webParamsByProperty,
     type ComponentDependencyDto,
     type PropertyPlatformParamDto,
     type PropertyVariationDto,
-    type WebAdapterComponentDto,
 } from './componentModelEnrichment';
 
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
@@ -59,6 +59,9 @@ const toLegacyComponentConfig = (
     variationByName: Map<string, ComponentVariationDto>,
     stylesByVariation: Map<string, ComponentStyleDto[]>,
 ): Meta['sources']['configs'][number]['config'] => {
+    // Выгрузка для редактора несёт ID вариаций и стилей: имя оси и значения может быть отображаемым только в этой
+    // конфигурации, а одноимённые оси разных конфигураций — разными вариациями. Без ID остаётся поиск по имени.
+    const axisByName = new Map(config.variations.map((axis) => [axis.name, axis]));
     const property = (name: string, value: ComponentConfigPropertyDto) => ({
         id: value.id ?? propertyByName.get(name)?.id ?? name,
         value: legacyScalar(value.default ?? value.value),
@@ -70,26 +73,60 @@ const toLegacyComponentConfig = (
     });
     const variations = config.variations.map((axis) => {
         const variation = variationByName.get(axis.name) ?? variationByName.get(axis.id);
-        const variationId = variation?.id ?? axis.id;
+        const variationId = axis.variationId ?? variation?.id ?? axis.id;
         const styles = stylesByVariation.get(variationId) ?? [];
         return {
             id: variationId,
-            styles: axis.values.map((value) => ({
-                id: styles.find((style) => style.name === value.name)?.id ?? value.name,
-                name: value.name,
-                intersections: null,
-                props: Object.entries(value.properties).map(([name, item]) => property(name, item)),
-            })),
+            name: axis.name,
+            // Значение с `targets` — пересечение со стилями других вариаций, а не отдельный стиль.
+            styles: axis.values
+                .filter((value) => !value.targets?.length)
+                .map((value) => ({
+                    id: value.styleId ?? styles.find((style) => style.name === value.name)?.id ?? value.name,
+                    name: value.name,
+                    intersections: null,
+                    props: Object.entries(value.properties).map(([name, item]) => property(name, item)),
+                })),
         };
     });
+    // Пересечение — значение стиля-владельца с `targets`: остальные стили сочетания по осям выгрузки и именам значений.
+    const styleIdOf = (axisId: string, name: string) =>
+        variations[config.variations.findIndex((item) => item.id === axisId)]?.styles.find(
+            (style) => style.name === name,
+        )?.id;
+    const combinations = config.variations.flatMap((axis, index) =>
+        axis.values.flatMap((value) => {
+            const owner = variations[index].styles.find(
+                (style) => style.id === value.styleId || style.name === value.name,
+            )?.id;
+            return (value.targets ?? []).flatMap((target) => {
+                const others = target.properties.map((item) => styleIdOf(item.id, String(unwrapValue(item.value))));
+                if (!owner || others.some((id) => !id)) {
+                    console.warn(`Пересечение ${axis.name}: ${value.name} не сопоставлено со стилями`, target);
+                    return [];
+                }
+                return [
+                    {
+                        styleIDs: [owner, ...(others as string[])],
+                        props: Object.entries(value.properties).map(([name, item]) => property(name, item)),
+                    },
+                ];
+            });
+        }),
+    );
     return {
+        combinations,
         defaultVariations: config.defaults.map((item) => {
+            const axis = axisByName.get(item.id);
             const variation = variationByName.get(item.id);
-            const variationId = variation?.id ?? item.id;
+            const variationId = axis?.variationId ?? variation?.id ?? item.id;
             const styleName = String(unwrapValue(item.value) ?? '');
             return {
                 variationID: variationId,
-                styleID: stylesByVariation.get(variationId)?.find((style) => style.name === styleName)?.id ?? styleName,
+                styleID:
+                    axis?.values.find((value) => !value.targets?.length && value.name === styleName)?.styleId ??
+                    stylesByVariation.get(variationId)?.find((style) => style.name === styleName)?.id ??
+                    styleName,
             };
         }),
         invariantProps: Object.entries(config.invariants).map(([name, item]) => property(name, item)),
@@ -114,34 +151,223 @@ const createRequestLimiter = (maximum: number) => {
 
 const COMPONENT_LOAD_CONCURRENCY = 4;
 
+/** Данные, из которых собирается `Meta`: либо списки всей ДС, либо они же, ограниченные одним компонентом. */
+interface ComponentSources {
+    links: DesignSystemComponentDto[];
+    catalog: ComponentDto[];
+    appearances: AppearanceDto[];
+    exported: ComponentConfigExportDto[];
+    params: PropertyPlatformParamDto[];
+    propertyVariations: PropertyVariationDto[];
+    dependencies: ComponentDependencyDto[];
+    details: (component: ComponentDto) => Promise<{
+        properties: ComponentPropertyDto[];
+        variations: ComponentVariationDto[];
+        styles: ComponentStyleDto[];
+        params: PropertyPlatformParamDto[];
+    }>;
+}
+
+/** Прежний путь: списки всей дизайн-системы и по три чтения на компонент. */
+const readComponentLists = async (
+    context: EditorContextKey,
+    signal: AbortSignal | undefined,
+    platform: ComponentDto['platform'],
+    componentName: string | undefined,
+): Promise<ComponentSources> => {
+    const root = apiRoot(context.projectId, context.designSystemId);
+    const request = readRequest(context, signal);
+    // Compose-превью нужны имена Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
+    // Связи свойств с вариациями нужны инспектору web- и Compose-компонентов.
+    const isWeb = platform === 'web';
+    const isCompose = platform === 'compose';
+    const empty = <T>() => Promise.resolve({ data: [] as T[] });
+    const [links, catalog, appearances, exported, params, propertyVariations, dependencies] = await Promise.all([
+        readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+        readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request, undefined, 300_000),
+        readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+        readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
+            platform,
+            editorIds: true,
+            ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
+        }),
+        !componentName && (isWeb || isCompose)
+            ? readEditor<PropertyPlatformParamDto[]>(
+                  `${apiRoot(context.projectId)}/property-platform-params`,
+                  request,
+                  undefined,
+                  300_000,
+              )
+            : empty<PropertyPlatformParamDto>(),
+        isWeb || isCompose
+            ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
+            : empty<PropertyVariationDto>(),
+        readEditor<ComponentDependencyDto[]>(
+            `${apiRoot(context.projectId)}/component-deps`,
+            request,
+            undefined,
+            300_000,
+        ),
+    ]);
+    const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
+    return {
+        links: links.data,
+        catalog: catalog.data,
+        appearances: appearances.data,
+        exported: [exported.data],
+        params: params.data,
+        propertyVariations: propertyVariations.data,
+        dependencies: dependencies.data,
+        details: async (component) => {
+            const [properties, variations] = await Promise.all([
+                limitedRequest(() =>
+                    readEditor<(ComponentPropertyDto & { platformParams?: PropertyPlatformParamDto[] })[]>(
+                        `${root}/components/${component.id}/properties`,
+                        componentName
+                            ? {
+                                  ...request,
+                                  params: {
+                                      ...request.params,
+
+                                      include: 'platformParams',
+                                  },
+                              }
+                            : request,
+                        undefined,
+                        300_000,
+                    ),
+                ),
+                limitedRequest(() =>
+                    readEditor<ComponentVariationDto[]>(
+                        `${root}/components/${component.id}/variations`,
+                        variationReadRequest(context, signal),
+                    ),
+                ),
+            ]);
+            const styles = componentName
+                ? (await readEditor<ComponentStyleDto[]>(`${root}/components/${component.id}/styles`, request)).data
+                : (
+                      await Promise.all(
+                          variations.data.map((variation) =>
+                              limitedRequest(() =>
+                                  readEditor<ComponentStyleDto[]>(`${root}/variations/${variation.id}/styles`, request),
+                              ),
+                          ),
+                      )
+                  ).flatMap((response) => response.data);
+            const propertyParams = componentName
+                ? properties.data.flatMap((property) => property.platformParams ?? [])
+                : params.data;
+            return { properties: properties.data, variations: variations.data, styles, params: propertyParams };
+        },
+    };
+};
+
+/** Один компонент — одно чтение: те же DTO, что у списков, уже ограниченные компонентом и его связями. */
+const readEditorBundle = async (
+    context: EditorContextKey,
+    signal: AbortSignal | undefined,
+    platform: ComponentDto['platform'],
+    componentId: string,
+): Promise<ComponentSources> => {
+    const request = readRequest(context, signal);
+    const { data } = await readEditor<ComponentEditorBundleDto>(
+        `${apiRoot(context.projectId, context.designSystemId)}/components/${componentId}/editor-bundle`,
+        { ...request, params: { ...request.params, platform } },
+    );
+    const catalog = [data.component, ...data.dependencyComponents];
+    return {
+        // Сервер отдаёт только компоненты, привязанные к этой ДС и платформе.
+        links: catalog.map((component) => ({
+            id: component.id,
+            designSystemId: context.designSystemId,
+            componentId: component.id,
+        })),
+        catalog,
+        appearances: data.appearances,
+        exported: [data.export],
+        params: data.platformParams,
+        propertyVariations: data.propertyVariations,
+        dependencies: data.dependencies,
+        details: async () => ({
+            properties: data.properties,
+            variations: data.variations,
+            styles: data.styles,
+            params: data.platformParams,
+        }),
+    };
+};
+
+export interface ComponentCatalogEntry {
+    componentId: string;
+    name: string;
+    platform: ComponentDto['platform'];
+    /** Связь с дизайн-системой; `null` — компонент скрыт. */
+    linkId: string | null;
+    /** Компоненты дизайн-системы, которые используют этот: пока они в составе, скрывать его нельзя. */
+    usedBy: string[];
+    /** Идентификаторы компонентов, от которых зависит этот: скрытые возвращаются вместе с ним. */
+    dependsOn: string[];
+}
+
+export interface ComponentTemplateEntry {
+    componentId: string;
+    name: string;
+    platform: ComponentDto['platform'];
+    /** Компоненты, от которых он зависит по шаблону: сервер добавляет их вместе с ним. */
+    dependsOn: string[];
+}
+
+const readComponentCatalog = async (context: EditorContextKey, signal?: AbortSignal) => {
+    // Компоненты и связи между ними — глобальный каталог; оформления и состав — ресурсы дизайн-системы.
+    const catalogRoot = apiRoot(context.projectId);
+    const root = apiRoot(context.projectId, context.designSystemId);
+    const request = readRequest(context, signal);
+    const [catalog, appearances, links, dependencies] = await Promise.all([
+        readEditor<ComponentDto[]>(`${catalogRoot}/components`, request, undefined, 300_000),
+        readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+        readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+        readEditor<ComponentDependencyDto[]>(`${catalogRoot}/component-deps`, request, undefined, 300_000),
+    ]);
+    const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
+    // Без активного билда (и без прямого адреса) Compose-компоненты в навигации не показываются; адрес плагина
+    // запрашивается только когда в каталоге есть настроенные Compose-компоненты.
+    const hasCompose = catalog.data.some(
+        (component) => component.platform === 'compose' && configured.has(component.id),
+    );
+    const pluginUrl = hasCompose
+        ? await resolveComposePreviewPluginUrl(context.projectId, fetchComposePreviewPluginDescriptor).catch(
+              () => undefined,
+          )
+        : undefined;
+    return {
+        components: catalog.data.filter(
+            (component) =>
+                configured.has(component.id) &&
+                (component.platform === 'web' || (component.platform === 'compose' && Boolean(pluginUrl))),
+        ),
+        appearances: appearances.data,
+        dependencies: dependencies.data,
+        linkByComponent: new Map(
+            links.data
+                .filter((link) => link.designSystemId === context.designSystemId)
+                .map((link) => [link.componentId, link.id]),
+        ),
+    };
+};
+
+/** Копия объекта без полей со значением `null`: так отправляется тело создания. */
+const withoutNulls = <T extends Record<string, unknown>>(value: T): Partial<T> =>
+    Object.fromEntries(Object.entries(value).filter(([, item]) => item !== null)) as Partial<T>;
+
 /** Предметный клиент с ограниченным набором операций. */
 export const componentRepository = {
-    /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей. */
+    /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей: только компоненты, связанные с дизайн-системой. */
     async loadComponentIndex(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
-        const root = apiRoot(context.projectId);
-        const request = readRequest(context, signal);
-        const [catalog, appearances] = await Promise.all([
-            readEditor<ComponentDto[]>(`${root}/components`, request),
-            readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
-        ]);
-        const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
-        // Без активного билда (и без прямого адреса) Compose-компоненты в навигации не показываются; адрес плагина
-        // запрашивается только когда в каталоге есть настроенные Compose-компоненты.
-        const hasCompose = catalog.data.some(
-            (component) => component.platform === 'compose' && configured.has(component.id),
-        );
-        const pluginUrl = hasCompose
-            ? await resolveComposePreviewPluginUrl(context.projectId, fetchComposePreviewPluginDescriptor).catch(
-                  () => undefined,
-              )
-            : undefined;
-        return catalog.data
-            .filter(
-                (component) =>
-                    configured.has(component.id) &&
-                    (component.platform === 'web' || (component.platform === 'compose' && Boolean(pluginUrl))),
-            )
+        const { components, appearances, linkByComponent } = await readComponentCatalog(context, signal);
+        return components
+            .filter((component) => linkByComponent.has(component.id))
             .map(
                 (component) =>
                     ({
@@ -151,9 +377,8 @@ export const componentRepository = {
                         serverBinding: {
                             componentId: component.id,
                             appearanceId:
-                                appearances.data.find((appearance) => appearance.componentId === component.id)?.id ??
-                                '',
-                            appearanceNames: appearances.data
+                                appearances.find((appearance) => appearance.componentId === component.id)?.id ?? '',
+                            appearanceNames: appearances
                                 .filter((appearance) => appearance.componentId === component.id)
                                 .map((appearance) => appearance.name ?? 'default'),
                         },
@@ -162,106 +387,105 @@ export const componentRepository = {
             );
     },
 
+    /** Состав дизайн-системы: скрытый компонент сохраняет оформление, но не имеет связи. */
+    async loadComponentCatalog(context: EditorContextKey, signal?: AbortSignal): Promise<ComponentCatalogEntry[]> {
+        if (!isComponentEditorEnabled()) return [];
+        const { components, dependencies, linkByComponent } = await readComponentCatalog(context, signal);
+        const names = new Map(components.map((component) => [component.id, component.name]));
+        return components.map((component) => ({
+            componentId: component.id,
+            name: component.name,
+            platform: component.platform,
+            linkId: linkByComponent.get(component.id) ?? null,
+            usedBy: [
+                ...new Set(
+                    dependencies
+                        .filter(({ childId, parentId }) => childId === component.id && linkByComponent.has(parentId))
+                        .map(({ parentId }) => names.get(parentId))
+                        .filter((name): name is string => Boolean(name)),
+                ),
+            ].sort(),
+            dependsOn: dependencies
+                .filter(({ parentId, childId }) => parentId === component.id && names.has(childId))
+                .map(({ childId }) => childId),
+        }));
+    },
+
+    async hideComponent(context: EditorContextKey, linkId: string): Promise<void> {
+        await http.delete(`${apiRoot(context.projectId, context.designSystemId)}/design-system-components/${linkId}`);
+    },
+
+    /**
+     * Возвращает компонент в дизайн-систему. Со `fromTemplate` компонент без конфигурации собирается из шаблона
+     * `ds-service` вместе с зависимостями; без флага восстанавливается только связь.
+     */
+    async restoreComponent(context: EditorContextKey, componentId: string, fromTemplate = false): Promise<void> {
+        await http.post(
+            `${apiRoot(context.projectId, context.designSystemId)}/design-system-components`,
+            { componentId, ...(fromTemplate ? { fromTemplate } : {}) },
+            { headers: { 'Idempotency-Key': crypto.randomUUID() } },
+        );
+    },
+
+    /** Шаблоны web-компонентов `ds-service`, которые можно добавить в дизайн-систему. */
+    async loadComponentTemplates(context: EditorContextKey, signal?: AbortSignal): Promise<ComponentTemplateEntry[]> {
+        if (!isComponentEditorEnabled()) return [];
+        const templates = await readEditor<ComponentTemplateEntry[]>(
+            `${apiRoot(context.projectId)}/component-templates`,
+            readRequest(context, signal),
+            undefined,
+            300_000,
+        );
+        return templates.data;
+    },
+
     async loadComponentData(
         context: EditorContextKey,
         signal?: AbortSignal,
         platform: ComponentDto['platform'] = 'web',
         componentName?: string,
+        componentId?: string,
     ): Promise<Meta[]> {
         // Модель web-компонентов нужна не только разделу «Компоненты»: «Цвета» берут из неё связи токенов,
         // пары контраста и канвас. Флаг прячет раздел, а не данные, поэтому здесь не проверяется.
-        const root = apiRoot(context.projectId);
-        const request = readRequest(context, signal);
-        // Web-параметры, панели вариаций и шаблоны нужны только web-превью; Compose-превью нужны только имена
-        // Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
+        // Известный компонент читается одним editor-bundle; без него — прежние списки всей дизайн-системы.
         const isWeb = platform === 'web';
         const isCompose = platform === 'compose';
-        const empty = <T>() => Promise.resolve({ data: [] as T[] });
-        const [links, catalog, appearances, exported, params, propertyVariations, adapter, dependencies] =
-            await Promise.all([
-                readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-                readEditor<ComponentDto[]>(`${root}/components`, request),
-                readEditor<AppearanceDto[]>(`${root}/appearances`, request),
-                Promise.all(
-                    [platform].map((platform) =>
-                        readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-                            designSystemId: context.designSystemId,
-                            platform,
-                            ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
-                        }),
-                    ),
-                ),
-                isWeb || isCompose
-                    ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
-                    : empty<PropertyPlatformParamDto>(),
-                isWeb
-                    ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request)
-                    : empty<PropertyVariationDto>(),
-                isWeb
-                    ? readEditor<WebAdapterComponentDto[]>(`${root}/component-config/web-adapter`, request, {
-                          designSystemId: context.designSystemId,
-                      })
-                    : empty<WebAdapterComponentDto>(),
-                readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request),
-            ]);
-        const webParams = webParamsByProperty(params.data);
-        const composeParams = composeParamsByProperty(params.data);
-        const adapterByName = new Map(adapter.data.map((entry) => [entry.name, entry]));
+        const sources: ComponentSources =
+            componentId && (isWeb || isCompose)
+                ? await readEditorBundle(context, signal, platform, componentId)
+                : await readComponentLists(context, signal, platform, componentName);
+        const { links, catalog, appearances, exported, dependencies } = sources;
+        // Связи свойств с вариациями нужны инспектору на любой платформе: по ним свойство относится к стилю.
+        const propertyVariations = sources.propertyVariations;
         const linkedIds = new Set(
-            links.data.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
+            links.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
         );
-        const entries = exported.flatMap((response) => response.data.components);
+        const entries = exported.flatMap((response) => response.components);
         const configuredNames = new Set(entries.map((entry) => normalizeComponentName(entry.componentName)));
-        const components = catalog.data.filter(
+        const components = catalog.filter(
             (component) =>
                 linkedIds.has(component.id) &&
                 component.platform === platform &&
+                (!componentId || component.id === componentId) &&
                 (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
                 configuredNames.has(normalizeComponentName(component.name)),
         );
         const depsByParent = collectDependencies(
-            dependencies.data,
+            dependencies,
             new Map(
-                catalog.data
+                catalog
                     .filter((component) => linkedIds.has(component.id) && component.platform === platform)
                     .map((component) => [component.id, component.name]),
             ),
         );
-        const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
         return Promise.all(
             components.map(async (component) => {
-                const [properties, variations] = await Promise.all([
-                    limitedRequest(() =>
-                        readEditor<ComponentPropertyDto[]>(`${root}/components/${component.id}/properties`, request),
-                    ),
-                    limitedRequest(() =>
-                        readEditor<ComponentVariationDto[]>(
-                            `${root}/components/${component.id}/variations`,
-                            variationReadRequest(context, signal),
-                        ),
-                    ),
-                ]);
-                const styles = componentName
-                    ? (
-                          await readEditor<ComponentStyleDto[]>(
-                              `${root}/design-systems/${context.designSystemId}/components/${component.id}/styles`,
-                              request,
-                          )
-                      ).data
-                    : (
-                          await Promise.all(
-                              variations.data.map((variation) =>
-                                  limitedRequest(() =>
-                                      readEditor<ComponentStyleDto[]>(
-                                          `${root}/variations/${variation.id}/styles`,
-                                          request,
-                                      ),
-                                  ),
-                              ),
-                          )
-                      ).flatMap((response) => response.data);
-                const propertyByName = new Map(properties.data.map((property) => [property.name, property]));
-                const variationByName = new Map(variations.data.map((variation) => [variation.name, variation]));
+                const { properties, variations, styles, params: propertyParams } = await sources.details(component);
+                const webParams = webParamsByProperty(propertyParams);
+                const composeParams = composeParamsByProperty(propertyParams);
+                const propertyByName = new Map(properties.map((property) => [property.name, property]));
+                const variationByName = new Map(variations.map((variation) => [variation.name, variation]));
                 const stylesByVariation = new Map<string, ComponentStyleDto[]>();
                 styles.forEach((style) =>
                     stylesByVariation.set(style.variationId, [
@@ -269,28 +493,40 @@ export const componentRepository = {
                         style,
                     ]),
                 );
-                const componentAppearances = appearances.data.filter(
+                const componentAppearances = appearances.filter(
                     (appearance) =>
                         appearance.designSystemId === context.designSystemId && appearance.componentId === component.id,
                 );
                 const componentEntries = entries.filter(
                     (entry) => normalizeComponentName(entry.componentName) === normalizeComponentName(component.name),
                 );
-                const primaryAppearance = componentAppearances.find(
-                    (candidate) => (candidate.name ?? 'default') === componentEntries[0]?.styleName,
-                );
+                const isDefaultEntry = (entry: { styleName: string }) =>
+                    componentAppearances.some(
+                        (candidate) =>
+                            candidate.isDefault === true && (candidate.name ?? 'default') === entry.styleName,
+                    );
+                const primaryAppearance =
+                    componentAppearances.find((candidate) => candidate.isDefault === true) ??
+                    componentAppearances.find(
+                        (candidate) => (candidate.name ?? 'default') === componentEntries[0]?.styleName,
+                    );
                 return {
                     name: component.name,
                     description: component.description ?? '',
                     platform: component.platform,
                     deps: depsByParent.get(component.name) ?? [],
+                    composeParents: [...depsByParent]
+                        .filter(([, deps]) =>
+                            deps.some((dep) => dep.type === 'compose' && dep.childName === component.name),
+                        )
+                        .map(([parent]) => parent),
                     serverBinding: {
                         componentId: component.id,
                         appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
                     },
                     sources: {
                         api: enrichApi(
-                            properties.data.map((property) => ({
+                            properties.map((property) => ({
                                 id: property.id,
                                 name: property.name,
                                 type: property.type as Meta['sources']['api'][number]['type'],
@@ -305,30 +541,30 @@ export const componentRepository = {
                             })),
                             webParams,
                             variationNamesByProperty(
-                                propertyVariations.data,
-                                new Map(variations.data.map((variation) => [variation.id, variation.name])),
-                            ),
-                            templateLookup(
-                                adapterByName.get(component.name),
-                                componentEntries.map((entry) => entry.styleName),
+                                propertyVariations,
+                                new Map(variations.map((variation) => [variation.id, variation.name])),
                             ),
                         ),
-                        variations: variations.data,
-                        configs: componentEntries.map((entry) => {
-                            const appearance = componentAppearances.find(
-                                (candidate) => (candidate.name ?? 'default') === entry.styleName,
-                            );
-                            return {
-                                id: appearance?.id ?? `${component.id}:${component.platform}:${entry.styleName}`,
-                                name: entry.styleName,
-                                config: toLegacyComponentConfig(
-                                    entry.config,
-                                    propertyByName,
-                                    variationByName,
-                                    stylesByVariation,
-                                ),
-                            };
-                        }),
+                        variations,
+                        // Конфигурация по умолчанию — первой: редактор открывает её, пока не выбрана другая.
+                        configs: [...componentEntries]
+                            .sort((a, b) => Number(isDefaultEntry(b)) - Number(isDefaultEntry(a)))
+                            .map((entry) => {
+                                const appearance = componentAppearances.find(
+                                    (candidate) => (candidate.name ?? 'default') === entry.styleName,
+                                );
+                                return {
+                                    id: appearance?.id ?? `${component.id}:${component.platform}:${entry.styleName}`,
+                                    name: entry.styleName,
+                                    isDefault: appearance?.isDefault === true,
+                                    config: toLegacyComponentConfig(
+                                        entry.config,
+                                        propertyByName,
+                                        variationByName,
+                                        stylesByVariation,
+                                    ),
+                                };
+                            }),
                     },
                 } as Meta;
             }),
@@ -338,7 +574,7 @@ export const componentRepository = {
     async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
         try {
-            // Без активного билда (и без прямого адреса) Compose-preview не предлагается: React-preview не меняется.
+            // Без активного билда (и без прямого адреса) Compose-preview не предлагается.
             const pluginUrl = await resolveComposePreviewPluginUrl(
                 context.projectId,
                 fetchComposePreviewPluginDescriptor,
@@ -362,26 +598,30 @@ export const componentRepository = {
         baseRevisions: Record<string, number>,
         onPendingUpdate?: (revisions: Record<string, number>) => void,
     ): Promise<Record<string, number>> {
-        const binding = meta.serverBinding;
+        // Правка пишется в конфигурацию, открытую в редакторе; старые операции без неё — в основную.
+        const binding = meta.serverBinding && {
+            ...meta.serverBinding,
+            appearanceId: mutation.appearanceId ?? meta.serverBinding.appearanceId,
+        };
         if ([binding?.componentId, binding?.appearanceId].some((value) => !value))
             throw new Error('COMPONENT_SERVER_BINDING_REQUIRED');
         const stableBinding = binding as { componentId: string; appearanceId: string };
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const request = { params: context.versionId ? { versionId: context.versionId } : undefined };
         const [axes, axisValues, invariantValues, variationValues, states, stateSets, tokens] = await Promise.all([
             readEditor<AppearanceVariationDto[]>(`${root}/appearance-variations`, request),
             readEditor<AppearanceVariationValueDto[]>(`${root}/appearance-variation-values`, request),
             readEditor<PropertyValueDto[]>(
-                `${root}/invariant-property-values/by-component/${stableBinding.componentId}/by-design-system/${context.designSystemId}`,
+                `${root}/invariant-property-values/by-component/${stableBinding.componentId}`,
                 request,
             ),
             readEditor<PropertyValueDto[]>(
                 `${root}/variation-property-values/by-appearance/${stableBinding.appearanceId}`,
                 request,
             ),
-            readEditor<ComponentStateDto[]>(`${root}/states`, request),
-            readEditor<ComponentStateSetDto[]>(`${root}/state-sets`, request),
-            readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
+            readEditor<ComponentStateDto[]>(`${apiRoot(context.projectId)}/states`, request),
+            readEditor<ComponentStateSetDto[]>(`${apiRoot(context.projectId)}/state-sets`, request),
+            readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
         ]);
         const revisions = { ...baseRevisions };
         const axisByVariation = new Map(
@@ -403,7 +643,11 @@ export const componentRepository = {
             ]),
         );
         const tokenIdByName = new Map(tokens.data.map((token) => [token.name, token.id]));
-        const propertyValues = [...invariantValues.data, ...variationValues.data];
+        // Инварианты читаются по компоненту для всех его конфигураций: правка открытой не должна найти чужое значение.
+        const propertyValues = [
+            ...invariantValues.data.filter((value) => value.appearanceId === stableBinding.appearanceId),
+            ...variationValues.data,
+        ];
         const propertyKey = (change: Extract<ComponentChange, { kind: 'property' }>) =>
             [change.styleId ?? 'invariant', change.propertyId, [...change.stateNames].sort().join('+')].join(':');
         const valueByKey = new Map(
@@ -417,7 +661,7 @@ export const componentRepository = {
             ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
         });
         const acceptMetadata = (headers: unknown) => {
-            invalidateEditorReads();
+            invalidateEditorReads(context);
             const raw = (headers as Record<string, unknown> | undefined)?.['x-ds-mutation-metadata'];
             parseMutationMetadata(raw).forEach((item) => {
                 revisions[`${item.entityType}:${item.entityId}`] = item.revision;
@@ -489,7 +733,6 @@ export const componentRepository = {
                 const created = await http.post<ComponentStyleDto>(
                     `${root}/styles`,
                     {
-                        designSystemId: context.designSystemId,
                         variationId: change.variationId,
                         name: change.name,
                     },
@@ -545,63 +788,75 @@ export const componentRepository = {
             if (stateIds.some((id) => !id)) throw new Error('COMPONENT_STATE_NOT_FOUND');
             return (
                 await http.post<{ id: string }>(
-                    `${root}/state-sets/resolve`,
+                    `${apiRoot(context.projectId)}/state-sets/resolve`,
                     { stateIds },
                     { headers: { 'Idempotency-Key': idempotency(`state-set:${key}`) } },
                 )
             ).data.id;
         };
+        let rejectedIcon: unknown;
         await applySequentially(
             changes.filter(
                 (item): item is Extract<ComponentChange, { kind: 'property' }> & { action: 'upsert' } =>
                     item.kind === 'property' && item.action === 'upsert',
             ),
             async (change) => {
-                const resolvedStyleId = change.styleId ? actualStyleId(change.styleId) : undefined;
-                const actual = { ...change, styleId: resolvedStyleId };
-                const existing = valueByKey.get(propertyKey(actual));
-                const rawValue = change.value == null ? null : String(change.value).replace(/^\[|\]$/g, '');
-                const tokenName = rawValue?.replace(/^(light|dark)\./, '') ?? '';
-                const tokenId = tokenIdByName.get(tokenName) ?? null;
-                const body = {
-                    tokenId,
-                    value: tokenId ? null : rawValue,
-                    adjustment: change.adjustment == null ? null : String(change.adjustment),
-                };
-                const entityType = resolvedStyleId ? 'variation-property-value' : 'invariant-property-value';
-                if (existing) {
-                    const response = await http.patch(
-                        `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
-                        body,
-                        { headers: entityHeaders(entityType, existing.id) },
+                try {
+                    const resolvedStyleId = change.styleId ? actualStyleId(change.styleId) : undefined;
+                    const actual = { ...change, styleId: resolvedStyleId };
+                    const existing = valueByKey.get(propertyKey(actual));
+                    const rawValue = change.value == null ? null : String(change.value).replace(/^\[|\]$/g, '');
+                    const tokenName = rawValue?.replace(/^(light|dark)\./, '') ?? '';
+                    const tokenId = tokenIdByName.get(tokenName) ?? null;
+                    // В PATCH `null` — очистка поля: при смене токена на сырое значение (и обратно) прежнее поле должно
+                    // быть сброшено явно, поэтому тело правки отправляется целиком.
+                    const body = {
+                        tokenId,
+                        value: tokenId ? null : rawValue,
+                        adjustment: change.adjustment == null ? null : String(change.adjustment),
+                    };
+                    const entityType = resolvedStyleId ? 'variation-property-value' : 'invariant-property-value';
+                    if (existing) {
+                        const response = await http.patch(
+                            `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
+                            body,
+                            { headers: entityHeaders(entityType, existing.id) },
+                        );
+                        acceptMetadata(response.headers);
+                        return;
+                    }
+                    const stateSetId = await resolveStateSet(change.stateNames);
+                    // Создание: сервер отклоняет явный `null` (`400 invalid_body`), поэтому пустые поля не отправляются.
+                    const createBody = withoutNulls(
+                        resolvedStyleId
+                            ? {
+                                  ...body,
+                                  propertyId: change.propertyId,
+                                  styleId: resolvedStyleId,
+                                  appearanceId: stableBinding.appearanceId,
+                                  stateSetId,
+                              }
+                            : {
+                                  ...body,
+                                  propertyId: change.propertyId,
+                                  componentId: stableBinding.componentId,
+                                  appearanceId: stableBinding.appearanceId,
+                                  stateSetId,
+                              },
+                    );
+                    const operationKey = `property:${propertyKey(actual)}`;
+                    const response = await http.post<PropertyValueDto>(
+                        `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values`,
+                        createBody,
+                        { headers: entityHeaders(entityType, operationKey, idempotency(operationKey)) },
                     );
                     acceptMetadata(response.headers);
-                    return;
+                } catch (error) {
+                    // Иконки нет в каталоге: остальные правки того же окна автосохранения всё равно записываются, а
+                    // отказ поднимается после них, чтобы редактор вернул прежнее значение иконки.
+                    if (!isUnknownIconError(error)) throw error;
+                    rejectedIcon ??= error;
                 }
-                const stateSetId = await resolveStateSet(change.stateNames);
-                const createBody = resolvedStyleId
-                    ? {
-                          ...body,
-                          propertyId: change.propertyId,
-                          styleId: resolvedStyleId,
-                          appearanceId: stableBinding.appearanceId,
-                          stateSetId,
-                      }
-                    : {
-                          ...body,
-                          propertyId: change.propertyId,
-                          designSystemId: context.designSystemId,
-                          componentId: stableBinding.componentId,
-                          appearanceId: stableBinding.appearanceId,
-                          stateSetId,
-                      };
-                const operationKey = `property:${propertyKey(actual)}`;
-                const response = await http.post<PropertyValueDto>(
-                    `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values`,
-                    createBody,
-                    { headers: entityHeaders(entityType, operationKey, idempotency(operationKey)) },
-                );
-                acceptMetadata(response.headers);
             },
         );
 
@@ -625,6 +880,7 @@ export const componentRepository = {
                 acceptMetadata(deleted.headers);
             },
         );
+        if (rejectedIcon) throw rejectedIcon;
         return revisions;
     },
 };

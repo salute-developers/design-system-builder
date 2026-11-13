@@ -14,6 +14,9 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -40,10 +43,10 @@ fun Route.invariantPropertyValueRoutes(
     delete: DeleteInvariantPropertyValueUseCase,
     json: Json,
 ) {
-    route("/api/ds/invariant-property-values") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/invariant-property-values")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -58,7 +61,7 @@ fun Route.invariantPropertyValueRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -70,15 +73,15 @@ fun Route.invariantPropertyValueRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        get("/by-component/{componentId}/by-design-system/{designSystemId}") {
+        get("/by-component/{componentId}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val componentId = call.parameters["componentId"].toUuidOrNull()
-            val designSystemId = call.parameters["designSystemId"].toUuidOrNull()
+            val designSystemId = call.dsPathDesignSystemId().toUuidOrNull()
             if (componentId == null || designSystemId == null) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             }
@@ -92,19 +95,17 @@ fun Route.invariantPropertyValueRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val payload = call.receive<JsonObject>()
-            if (payload.hasInvalidNull("tokenId", "value", "alpha", "adjustment")) {
-                return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            }
+            // null в полях значения означает «не задано», как и отсутствие поля.
             val request = runCatching {
                 json.decodeFromJsonElement(CreateInvariantPropertyValueRequest.serializer(), payload)
             }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            val command = request.toCommand()
+            val command = request.toCommand(requireNotNull(context.designSystemId))
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val createContext = context.withIdempotentResponse { value: InvariantPropertyValue ->
                 json.encodeToString(
@@ -123,7 +124,7 @@ fun Route.invariantPropertyValueRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -131,7 +132,8 @@ fun Route.invariantPropertyValueRoutes(
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val payload = call.receive<JsonObject>()
-            if (payload.hasInvalidNull("tokenId", "value", "alpha", "adjustment", "stateSetId")) {
+            // null в полях значения очищает поле; набор состояний у значения обязателен.
+            if (payload.hasInvalidNull("stateSetId")) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             val request = runCatching {
@@ -152,7 +154,7 @@ fun Route.invariantPropertyValueRoutes(
         }
         delete("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -169,9 +171,11 @@ fun Route.invariantPropertyValueRoutes(
 }
 
 @Suppress("ReturnCount")
-private fun CreateInvariantPropertyValueRequest.toCommand(): PropertyValueRepository.InvariantCreate? {
+private fun CreateInvariantPropertyValueRequest.toCommand(
+    owner: java.util.UUID,
+): PropertyValueRepository.InvariantCreate? {
     val propertyUuid = propertyId.toUuidOrNull() ?: return null
-    val designSystemUuid = designSystemId.toUuidOrNull() ?: return null
+    val designSystemUuid = owner
     val componentUuid = componentId.toUuidOrNull() ?: return null
     val appearanceUuid = appearanceId.toUuidOrNull() ?: return null
     val tokenUuid = tokenId?.toUuidOrNull()

@@ -8,20 +8,23 @@ kotlin {
         macosArm64(),
         macosX64(),
     )
+    val windowsTarget = mingwX64()
 
     sourceSets {
         commonMain.dependencies {
             implementation(projects.coreApplication)
-            implementation(projects.coreAuth)
-            implementation(projects.coreNetwork)
-            implementation(projects.featureComponents)
+            api(projects.featureComponents)
+            api(projects.featureTheme)
+            implementation(projects.featureDs)
+            implementation(projects.featureProjects)
             implementation(projects.featureDocs)
             implementation(projects.featureStatus)
-            implementation(projects.featureTheme)
             implementation(libs.kotlinx.serialization.json)
         }
 
         commonTest.dependencies {
+            implementation(projects.coreAuth)
+            implementation(projects.coreNetwork)
             implementation(libs.kotlinx.coroutines.test)
         }
 
@@ -45,6 +48,10 @@ kotlin {
             }
         }
 
+        mingwX64Main.dependencies {
+            implementation(libs.kotlin.logging)
+        }
+
         val macosMain by creating {
             dependsOn(sdkMain)
         }
@@ -52,6 +59,8 @@ kotlin {
         macosTargets.forEach { target ->
             target.compilations.getByName("main").defaultSourceSet.dependsOn(macosMain)
         }
+
+        windowsTarget.compilations.getByName("main").defaultSourceSet.dependsOn(sdkMain)
     }
 }
 

@@ -38,9 +38,19 @@ class HttpDesignSystemTenantsClientTest {
             """[{"id":"t1","designSystemId":"ds1","name":"sdds_cs","description":null}]""",
         ) { path = it }.listTenants("https://gw", credential, "p1", "ds1")
 
-        assertEquals("/api/projects/p1/ds/design-systems/ds1/tenants", path)
+        assertEquals("/api/projects/p1/design-systems/ds1/tenants", path)
         assertIs<DesignSystemTenantsResult.Success>(result)
         assertEquals(listOf(DesignSystemTenant("t1", "sdds_cs", null)), result.tenants)
+    }
+
+    @Test
+    fun marksTenantWithoutName() = runTest {
+        val result = client(HttpStatusCode.OK, """[{"id":"t1","name":null},{"id":"t2","name":""}]""")
+            .listTenants("https://gw", credential, "p1", "ds1")
+
+        assertIs<DesignSystemTenantsResult.Success>(result)
+        assertEquals(listOf("t1", ""), result.tenants.map { it.name })
+        assertEquals(listOf(false, false), result.tenants.map { it.named })
     }
 
     @Test

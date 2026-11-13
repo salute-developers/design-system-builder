@@ -34,6 +34,10 @@ public class ProjectConfigStore(
         return ProjectContext(config = config, configPath = configPath)
     }
 
+    /** Проверяет наличие config перед интерактивным выбором и сетевыми запросами. */
+    public fun configExists(targetDirectory: String): Boolean =
+        fileSystem.exists(fileSystem.resolve(fileSystem.resolve(targetDirectory, CONFIG_DIRECTORY), CONFIG_FILE))
+
     /**
      * Создает `.sdds/config.json` в target directory без silent overwrite.
      */

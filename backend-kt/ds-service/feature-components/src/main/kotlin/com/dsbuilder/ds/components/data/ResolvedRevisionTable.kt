@@ -24,6 +24,7 @@ internal fun resolvedRevisionSql(
     stableColumns: List<String>,
     revisionColumns: List<String>,
     computedColumns: List<String> = emptyList(),
+    scopeToRequest: Boolean = true,
 ): String {
     val selections = buildList {
         addAll(stableColumns.map { "entity.$it AS $it" })
@@ -45,7 +46,8 @@ internal fun resolvedRevisionSql(
         JOIN $revisionTable revision
           ON revision.$entityColumn = entity.id
          AND revision.version_sequence_number <= draft.sequence_number
-        WHERE NOT revision.deleted
+        WHERE ${if (scopeToRequest) "ds_request_matches_design_system(entity.design_system_id)" else "TRUE"}
+          AND NOT revision.deleted
           AND revision.version_sequence_number = (
               SELECT max(candidate.version_sequence_number)
               FROM $revisionTable candidate

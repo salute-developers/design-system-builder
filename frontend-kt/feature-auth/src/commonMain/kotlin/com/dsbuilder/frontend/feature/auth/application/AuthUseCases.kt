@@ -2,54 +2,66 @@ package com.dsbuilder.frontend.feature.auth.application
 
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.CredentialStore
+import com.dsbuilder.frontend.core.auth.INTERACTIVE_CLIENT_ID
+import com.dsbuilder.frontend.core.auth.PkcePlatform
+import com.dsbuilder.frontend.core.auth.RotatingCredentialStore
 import com.dsbuilder.frontend.core.auth.TokenClient
+import com.dsbuilder.frontend.core.auth.UnavailablePkcePlatform
+import com.dsbuilder.frontend.core.auth.UserAccessTokenCache
 import com.dsbuilder.frontend.core.auth.UserSession
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
+import kotlinx.coroutines.NonCancellable
 
-/**
- * Logs in and stores only the refresh session for the resolved backend API URL.
- */
+/** Выполняет общий браузерный вход CLI/MCP с PKCE S256. */
 public class LoginUseCase internal constructor(
     private val apiUrlResolver: ApiUrlResolver,
     private val tokenClient: TokenClient,
     private val credentialStore: CredentialStore,
+    private val platform: PkcePlatform =
+        UnavailablePkcePlatform,
+    private val cache: UserAccessTokenCache = UserAccessTokenCache(),
 ) {
-    /**
-     * Resolves the backend URL, exchanges credentials for a refresh session, and stores it.
-     */
+    /** Получает подтверждённое имя и сохраняет refresh-сессию CLI/MCP. */
     public suspend fun execute(command: LoginCommand): LoginResult {
-        val apiUrl = apiUrlResolver.resolve(command.apiUrlOverride).value
-        return when (val result = tokenClient.login(apiUrl, command.username, command.password)) {
-            is AuthResult.Failed -> LoginResult.Failed(result.message)
-            is AuthResult.Success -> {
-                credentialStore.save(
-                    UserSession(
-                        schemaVersion = 1,
-                        apiUrl = apiUrl,
-                        username = command.username,
-                        refreshToken = result.value.refreshToken,
-                        refreshExpiresAt = result.value.refreshExpiresAt,
-                        updatedAt = command.updatedAt,
-                    ),
-                )
-                LoginResult.LoggedIn(apiUrl = apiUrl, username = command.username)
+        val apiUrl = try {
+            apiUrlResolver.resolve(command.apiUrlOverride).value
+        } catch (exception: IllegalArgumentException) {
+            return LoginResult.Failed("Некорректный API URL.")
+        }
+        val result = PkceLoginFlow(platform).execute(apiUrl, INTERACTIVE_CLIENT_ID) { code ->
+            when (val tokens = tokenClient.exchangeCode(apiUrl, code.code, code.verifier, code.redirectUri)) {
+                is AuthResult.Failed -> tokens
+                is AuthResult.Success -> when (val username = tokenClient.username(apiUrl, tokens.value.accessToken)) {
+                    is AuthResult.Failed -> username
+                    is AuthResult.Success -> {
+                        cache.withSessionLock {
+                            val session = UserSession(
+                                schemaVersion = 2,
+                                apiUrl = apiUrl,
+                                username = username.value,
+                                refreshToken = tokens.value.refreshToken,
+                                refreshExpiresAt = tokens.value.refreshExpiresAt,
+                                updatedAt = platform.currentTimeMillis(),
+                            )
+                            credentialStore.save(session)
+                            cache.put(session, tokens.value, platform.currentTimeMillis())
+                        }
+                        AuthResult.Success(username.value)
+                    }
+                }
             }
+        }
+        return when (result) {
+            is AuthResult.Failed -> LoginResult.Failed(result.message)
+            is AuthResult.Success -> LoginResult.LoggedIn(apiUrl, result.value)
         }
     }
 }
 
-/**
- * Input for a user login request.
- */
+/** Параметры браузерного входа. */
 public data class LoginCommand(
-    /** Username accepted by the identity gateway. */
-    public val username: String,
-    /** Password collected interactively by presentation code and never persisted. */
-    public val password: String,
-    /** Optional API URL supplied by the caller instead of environment/default resolution. */
+    /** Явный API URL вместо окружения или значения по умолчанию. */
     public val apiUrlOverride: String?,
-    /** Timestamp written into the stored session metadata. */
-    public val updatedAt: Long = 0,
 )
 
 /**
@@ -88,6 +100,9 @@ public class AuthStatusUseCase internal constructor(
     public suspend fun execute(command: AuthStatusCommand): AuthStatusResult {
         val apiUrl = apiUrlResolver.resolve(command.apiUrlOverride).value
         val session = credentialStore.read(apiUrl) ?: return AuthStatusResult.NotLoggedIn(apiUrl)
+        if (session.schemaVersion != 2 || session.clientId != INTERACTIVE_CLIENT_ID) {
+            return AuthStatusResult.NotLoggedIn(apiUrl)
+        }
         return AuthStatusResult.LoggedIn(apiUrl = apiUrl, username = session.username)
     }
 }
@@ -97,6 +112,7 @@ public class AuthStatusUseCase internal constructor(
  */
 public data class AuthStatusCommand(
     /** Optional API URL supplied by the caller instead of environment/default resolution. */
+    /** Явный API URL вместо окружения или значения по умолчанию. */
     public val apiUrlOverride: String?,
 )
 
@@ -130,20 +146,37 @@ public class LogoutUseCase internal constructor(
     private val apiUrlResolver: ApiUrlResolver,
     private val tokenClient: TokenClient,
     private val credentialStore: CredentialStore,
+    private val cache: UserAccessTokenCache = UserAccessTokenCache(),
 ) {
     /**
      * Revokes the stored refresh token when present and removes the local session.
      */
     public suspend fun execute(command: LogoutCommand): LogoutResult {
         val apiUrl = apiUrlResolver.resolve(command.apiUrlOverride).value
-        val session = credentialStore.read(apiUrl) ?: return LogoutResult.LoggedOut(apiUrl)
-        val revocation = tokenClient.logout(apiUrl, session.refreshToken)
-        credentialStore.delete(apiUrl)
+        val revocation = cache.withSessionLock {
+            try {
+                revokeSession(apiUrl)
+            } finally {
+                cache.clear(apiUrl)
+            }
+        }
         return when (revocation) {
             is AuthResult.Failed -> LogoutResult.Failed(revocation.message)
             is AuthResult.Success -> LogoutResult.LoggedOut(apiUrl)
         }
     }
+
+    private suspend fun revokeSession(apiUrl: String): AuthResult<Unit> =
+        if (credentialStore is RotatingCredentialStore) {
+            credentialStore.logoutSession(apiUrl) { session -> tokenClient.logout(apiUrl, session.refreshToken) }
+        } else {
+            try {
+                val session = credentialStore.read(apiUrl)
+                if (session == null) AuthResult.Success(Unit) else tokenClient.logout(apiUrl, session.refreshToken)
+            } finally {
+                kotlinx.coroutines.withContext(NonCancellable) { credentialStore.delete(apiUrl) }
+            }
+        }
 }
 
 /**
@@ -151,6 +184,7 @@ public class LogoutUseCase internal constructor(
  */
 public data class LogoutCommand(
     /** Optional API URL supplied by the caller instead of environment/default resolution. */
+    /** Явный API URL вместо окружения или значения по умолчанию. */
     public val apiUrlOverride: String?,
 )
 

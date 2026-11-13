@@ -1,4 +1,12 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
+import {
+    CloseOutline,
+    LinkBrokenChainOutline,
+    LinkOutline,
+    PlusOutline,
+    RotateCcwOutline,
+    TrashOutline,
+} from '@salutejs/sdds-icons/16';
 
 import {
     COLOR_CONTEXTS,
@@ -11,10 +19,9 @@ import {
     type SaveStatus,
 } from '../../../modules/colorTokens';
 import type { FieldId } from '../colorTokenEditor';
+import { InspectorHeader, SectionHeader } from '../../../components/tokenWorkspace';
 import { ColorField } from './ColorField';
-import { CtGlyph } from './CtGlyph';
 import { PublishedWarning } from './ColorTokenTree';
-import { InlineRename } from './InlineRename';
 
 const CONTEXT_LABELS: Record<ColorContext, string> = { ondark: 'OnDark', onlight: 'OnLight', inverse: 'Inverse' };
 export const PLATFORM_LABELS: Record<PaintPlatform, string> = { web: 'Web', ios: 'iOS', android: 'Android' };
@@ -53,81 +60,14 @@ interface InspectorProps {
     onRetry: () => void;
     /** Переименование токена: отказ бросает ошибку с текстом для поля имени. */
     onRename: (label: string) => Promise<void>;
+    /** Описание токена, общее для семейства: отказ бросает ошибку с текстом для поля описания. */
+    onDescribe?: (description: string) => Promise<void>;
+    /** Сброс изменений токена в черновике; без него кнопки сброса нет. */
+    onReset?: () => void;
+    resetDisabled?: boolean;
     /** Подпись адреса недопустимого значения `<токен>:<platform>:<mode>`: подтема, платформа и режим. */
     addressLabel: (address: string) => string;
 }
-
-/** Описание токена (`colorTokenDescription`): своё или общее. */
-const description = (view: ColorTokenView) =>
-    view.description ||
-    'Значение токена используется в связанных состояниях темы и наследуется компонентами дизайн-системы.';
-
-/**
- * Имя в заголовке инспектора: двойной щелчок делает его редактируемым на месте, как в навигаторе Xcode; Enter
- * или уход фокуса переименовывают токен, Escape отменяет правку.
- */
-const HeaderName = ({ view, editable, onRename }: Pick<InspectorProps, 'view' | 'editable' | 'onRename'>) => {
-    const [editing, setEditing] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [busy, setBusy] = useState(false);
-    const running = useRef(false);
-    useEffect(() => {
-        setEditing(false);
-        setError(null);
-    }, [view.id]);
-    const submit = async (label: string) => {
-        if (running.current) return;
-        running.current = true;
-        setBusy(true);
-        setError(null);
-        try {
-            await onRename(label);
-            setEditing(false);
-        } catch (failure) {
-            setError(failure instanceof Error ? failure.message : String(failure));
-        } finally {
-            running.current = false;
-            setBusy(false);
-        }
-    };
-    return (
-        <>
-            <strong
-                role="heading"
-                aria-level={1}
-                className={editing ? 'is-renaming' : ''}
-                title={editable && !editing ? 'Дважды щёлкните, чтобы переименовать' : undefined}
-                onDoubleClick={() => {
-                    if (!editable || editing) return;
-                    setError(null);
-                    setEditing(true);
-                }}
-            >
-                {editing ? (
-                    <InlineRename
-                        label={`Новое имя ${view.displayName}`}
-                        initial={view.displayName}
-                        busy={busy}
-                        error={error}
-                        onSubmit={(label) => void submit(label)}
-                        onCancel={() => {
-                            setEditing(false);
-                            setError(null);
-                        }}
-                    />
-                ) : (
-                    view.displayName
-                )}
-                {editing && view.publishedIn && <PublishedWarning version={view.publishedIn} />}
-            </strong>
-            {editing && error && (
-                <span className="token-tree-input-error ct-header-rename-error" role="alert">
-                    {error}
-                </span>
-            )}
-        </>
-    );
-};
 
 /** «+» у значения: меню платформ, у которых ещё нет своей строки. */
 const PlatformAdd = ({
@@ -162,7 +102,7 @@ const PlatformAdd = ({
         <div className="ct-platform-add" ref={ref}>
             <button
                 type="button"
-                className="ct-platform-button"
+                className="tw-icon-button ct-platform-button"
                 aria-label={`Своё значение платформы: ${name}`}
                 title="Своё значение для платформы"
                 aria-haspopup="menu"
@@ -170,15 +110,16 @@ const PlatformAdd = ({
                 disabled={!platforms.length}
                 onClick={() => setOpen((current) => !current)}
             >
-                +
+                <PlusOutline />
             </button>
             {open && (
-                <div className="reset-dropdown ct-platform-menu" role="menu">
+                <div className="tw-menu ct-platform-menu" role="menu">
                     {platforms.map((platform) => (
                         <button
                             key={platform}
                             type="button"
                             role="menuitem"
+                            className="tw-menu-item"
                             onClick={() => {
                                 setOpen(false);
                                 onAdd(platform);
@@ -196,6 +137,18 @@ const PlatformAdd = ({
 /** Инспектор токена по `tokenInspector` прототипа. */
 export const ColorTokenInspector = (props: InspectorProps) => {
     const { view, editable, canDelete, openPicker, save } = props;
+    // Поле имени открыто: у опубликованного токена рядом предупреждение, что новое имя изменит переменную пакета.
+    const [naming, setNaming] = useState(false);
+    useEffect(() => setNaming(false), [view.id]);
+    const isNameField = (target: EventTarget) =>
+        target instanceof HTMLInputElement && target.getAttribute('aria-label') === 'Имя токена';
+
+    /** Ошибка значения под полем: проверка значения или отказ сервера по этому полю и платформе. */
+    const message = (id: FieldId, platform: PaintPlatform) => {
+        if (props.invalidField?.field === id && props.invalidField.platform === platform && save.error)
+            return save.error.message;
+        return platform === 'web' ? (view.issues.find((issue) => issue.field === id)?.message ?? null) : null;
+    };
 
     /**
      * Поле значения Light или Dark и под ним строки своих значений платформ. «+» есть только у полей режимов.
@@ -222,6 +175,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     editable={editable}
                     pickerOpen={openPicker?.field === id && openPicker.platform === 'web'}
                     invalid={props.invalidField?.field === id && props.invalidField.platform === 'web'}
+                    message={message(id, 'web')}
                     pickerAnchor={props.pickerAnchor}
                     onOpenPicker={() => props.onOpenPicker(web)}
                     onCommit={(next) => props.onCommit(web, next)}
@@ -249,6 +203,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                             editable={editable}
                             pickerOpen={openPicker?.field === id && openPicker.platform === platform}
                             invalid={props.invalidField?.field === id && props.invalidField.platform === platform}
+                            message={message(id, platform)}
                             pickerAnchor={props.pickerAnchor}
                             onOpenPicker={() => props.onOpenPicker(target)}
                             onCommit={(next) => props.onCommit(target, next)}
@@ -258,12 +213,12 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                                 canRemove && (
                                     <button
                                         type="button"
-                                        className="ct-platform-button"
+                                        className="tw-icon-button ct-platform-button"
                                         aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}: ${name}`}
                                         title={`Убрать своё значение ${PLATFORM_LABELS[platform]}: снова строится из Web`}
                                         onClick={() => props.onRemovePlatform(id, platform)}
                                     >
-                                        ×
+                                        <CloseOutline />
                                     </button>
                                 )
                             }
@@ -275,24 +230,38 @@ export const ColorTokenInspector = (props: InspectorProps) => {
     };
     return (
         <>
-            <header className="token-inspector-header">
-                <div>
-                    <HeaderName view={view} editable={editable} onRename={props.onRename} />
-                    <span className="token-inspector-actions">
-                        {canDelete && (
-                            <button
-                                type="button"
-                                title="Удалить токен"
-                                aria-label="Удалить токен"
-                                onClick={props.onDelete}
-                            >
-                                <CtGlyph name="delete" />
-                            </button>
-                        )}
-                    </span>
-                </div>
-                <p>{description(view)}</p>
-            </header>
+            <div
+                className="ct-inspector-head"
+                onFocus={(event) => isNameField(event.target) && setNaming(true)}
+                onBlur={(event) => isNameField(event.target) && setNaming(false)}
+            >
+                <InspectorHeader
+                    // Поля имени и описания принадлежат токену: другой токен открывает их заново.
+                    key={view.id}
+                    title={view.displayName}
+                    description={view.description}
+                    onRename={editable ? props.onRename : undefined}
+                    onDescribe={editable ? props.onDescribe : undefined}
+                    onReset={props.onReset}
+                    resetDisabled={!editable || props.resetDisabled}
+                    actions={
+                        <>
+                            {naming && view.publishedIn && <PublishedWarning version={view.publishedIn} />}
+                            {canDelete && (
+                                <button
+                                    type="button"
+                                    className="tw-icon-button"
+                                    title="Удалить токен"
+                                    aria-label="Удалить токен"
+                                    onClick={props.onDelete}
+                                >
+                                    <TrashOutline />
+                                </button>
+                            )}
+                        </>
+                    }
+                />
+            </div>
             {view.incomplete && (
                 <div className="ct-banner" role="status">
                     <span>Нет значений в этой теме</span>
@@ -303,44 +272,47 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     )}
                 </div>
             )}
-            <section className="inspector-section figma-inspector-group">
-                <span className="inspector-heading">ТЕМЫ ПО УМОЛЧАНИЮ</span>
+            <section className="ct-inspector-section tw-section">
+                <SectionHeader title="Темы по умолчанию" />
                 {field('light', 'Light', view.modes.light, 'Light')}
                 {field('dark', 'Dark', view.modes.dark, 'Dark')}
             </section>
-            <section className="inspector-section figma-inspector-group figma-subthemes">
-                <div className="figma-subthemes-heading">
-                    <span className="inspector-heading">ПОДТЕМЫ</span>
-                    <button
-                        type="button"
-                        title="Сбросить подтемы"
-                        aria-label="Сбросить подтемы"
-                        disabled={!editable}
-                        onClick={props.onResetContexts}
-                    >
-                        <CtGlyph name="reset" />
-                    </button>
-                </div>
+            <section className="ct-inspector-section tw-section">
+                <SectionHeader
+                    title="Подтемы"
+                    actions={
+                        <button
+                            type="button"
+                            className="tw-icon-button"
+                            title="Сбросить подтемы"
+                            aria-label="Сбросить подтемы"
+                            disabled={!editable}
+                            onClick={props.onResetContexts}
+                        >
+                            <RotateCcwOutline />
+                        </button>
+                    }
+                />
                 {COLOR_CONTEXTS.map((context) => {
                     const { linked, values } = view.contexts[context];
                     return (
                         <Fragment key={context}>
-                            <div className="figma-subtheme-title">
-                                <span>{CONTEXT_LABELS[context]}</span>
-                                <b>
+                            <SectionHeader
+                                title={CONTEXT_LABELS[context]}
+                                actions={
                                     <button
                                         type="button"
-                                        className={`context-link-toggle ${linked ? 'is-linked' : 'is-unlinked'}`}
+                                        className={`tw-icon-button context-link-toggle ${linked ? 'is-linked' : 'is-unlinked'}`}
                                         title={linked ? LINKED_TIP : UNLINKED_TIP}
                                         aria-label={linked ? 'Связь с Modes включена' : 'Связь с Modes отключена'}
                                         aria-pressed={linked}
                                         disabled={!editable}
                                         onClick={() => !linked && props.onRelink(context)}
                                     >
-                                        {linked ? '⛓' : '⛓̸'}
+                                        {linked ? <LinkOutline /> : <LinkBrokenChainOutline />}
                                     </button>
-                                </b>
-                            </div>
+                                }
+                            />
                             {field(`${context}-light`, 'Light', values.light, 'Light', false, !linked)}
                             {field(`${context}-dark`, 'Dark', values.dark, 'Dark', false, !linked)}
                         </Fragment>

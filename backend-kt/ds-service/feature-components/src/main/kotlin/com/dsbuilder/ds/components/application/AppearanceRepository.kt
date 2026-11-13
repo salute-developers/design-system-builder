@@ -13,6 +13,14 @@ interface AppearanceRepository {
     /** Performs the list operation. */
     suspend fun list(projectId: ProjectId, systemAdmin: Boolean): List<Appearance>
 
+    /** Читает конфигурации доступной пары дизайн-система/компонент; `null` означает недоступную пару. */
+    suspend fun listByComponent(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID,
+        componentId: UUID,
+    ): List<Appearance>?
+
     /** Performs the find operation. */
     suspend fun find(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Appearance?
 

@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.cli.feature.previewplugin.presentation
 
 import com.dsbuilder.frontend.cli.feature.components.presentation.render
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_ID_ENV
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_SECRET_ENV
@@ -9,7 +10,6 @@ import com.dsbuilder.frontend.feature.components.application.PublishPreviewPlugi
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginResult
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginTarget
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.flag
@@ -25,12 +25,15 @@ import kotlinx.coroutines.runBlocking
  */
 internal class PreviewPluginPublishCliCommand(
     private val publishUseCase: PublishPreviewPluginUseCase,
-) : CliktCommand(name = "publish") {
+) : AnalyticsCliCommand(name = "publish", operation = "preview-plugin publish") {
     private val platform: TargetPlatform by option("--platform").targetPlatform().required()
-        .help("Platform of the plugin; only compose is supported.")
+        .help("Platform of the plugin: compose or react (the web plugin).")
 
     private val from: String by option("--from").required()
-        .help("Plugin archive (preview-compose-plugin.zip) with preview-plugin.json and api-meta.json.")
+        .help(
+            "Plugin archive (preview-compose-plugin.zip or preview-web-plugin.zip) with preview-plugin.json " +
+                "and api-meta.json.",
+        )
 
     private val apiUrl: String? by option("--api-url")
         .help("Backend API URL; an explicit URL is required because the command writes to the backend.")
@@ -38,7 +41,7 @@ internal class PreviewPluginPublishCliCommand(
     private val apply: Boolean by option("--apply").flag()
         .help("Write the build. Without it the command performs a dry run.")
 
-    override fun run() {
+    override fun runOperation() {
         val result = runBlocking {
             publishUseCase.execute(
                 PublishPreviewPluginCommand(
@@ -72,7 +75,7 @@ internal class PreviewPluginPublishCliCommand(
 /** Цель и состав печатаются до запроса; секреты и токены не выводятся. */
 private fun PublishPreviewPluginTarget.render(): String = """
     Plugin: $source
-    Build: $buildId (uikit-compose $uikitComposeVersion)
+    Build: $buildId (${platform.libraryName()} $libraryVersion)
     Components: $componentCount
     Properties: $propertyCount
     States: $stateCount
@@ -87,8 +90,14 @@ private fun PublishPreviewPluginResult.Published.render(): String = buildString 
             else -> "Outcome: $outcome"
         },
     )
-    appendLine("Build: $buildId (uikit-compose $uikitComposeVersion)")
+    appendLine("Build: $buildId (${target.platform.libraryName()} $libraryVersion)")
     appendLine("Plugin URL: $pluginUrl")
     appendLine(report.render())
     append(if (dryRun) "Status: dry run, nothing was written" else "Status: plugin build published")
+}
+
+/** Библиотека компонентов, версия которой записана в manifest плагина платформы. */
+private fun TargetPlatform.libraryName(): String = when (this) {
+    TargetPlatform.REACT -> "plasma-new-hope"
+    else -> "uikit-compose"
 }

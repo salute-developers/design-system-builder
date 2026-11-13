@@ -9,6 +9,8 @@ import com.dsbuilder.documentation.publication.application.CodeBindingDto
 import com.dsbuilder.documentation.publication.application.IngestionJobStatusDto
 import com.dsbuilder.documentation.publication.application.NavigationNodeDto
 import com.dsbuilder.documentation.publication.application.ProgressDto
+import com.dsbuilder.documentation.publication.application.PublicationListQuery
+import com.dsbuilder.documentation.publication.application.PublicationPageDto
 import com.dsbuilder.documentation.publication.application.PublicationReadRepository
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
@@ -52,14 +54,18 @@ class PublicationReadRoutesTest {
         }
 
         val forbidden = client.get("/documentation/ingestion-jobs/job-1") {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "key")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "pat")
+            header("X-User-Id", "user")
+            header("X-Project-Role", "editor")
+            header("X-Project-Scopes", "projects:read")
             header("X-Project-Id", "project-1")
         }
         val allowedKey = client.get("/documentation/ingestion-jobs/job-1") {
-            header("X-Actor-Type", "project_key")
-            header("X-User-Id", "key")
-            header("X-Project-Key-Id", "key")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-User-Id", "owner")
+            header("X-Personal-Access-Token-Id", "pat")
+            header("X-Project-Role", "viewer")
             header("X-Project-Id", "project-1")
             header("X-Project-Scopes", "documentation:read")
             header("X-System-Admin", "false")
@@ -69,9 +75,9 @@ class PublicationReadRoutesTest {
             header("X-Project-Id", "project-1")
         }
         val contradictory = client.get("/documentation/ingestion-jobs/job-1") {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "key")
-            header("X-User-Id", "forged-user")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-User-Id", "user")
+            header("X-Project-Role", "editor")
             header("X-Project-Id", "project-1")
             header("X-Project-Scopes", "documentation:read")
         }
@@ -116,6 +122,7 @@ class PublicationReadRoutesTest {
         }
 
         assertEquals(HttpStatusCode.OK, owned.status)
+        assertTrue(owned.headers["X-DS-Read-Context"]?.contains("\"publicationId\":\"publication-1\"") == true)
         assertContentEquals(bytes, owned.bodyAsBytes())
         assertEquals("nosniff", owned.headers["X-Content-Type-Options"])
         assertEquals(null, owned.headers[HttpHeaders.ContentDisposition])
@@ -169,7 +176,10 @@ class PublicationReadRoutesTest {
         ) { viewer("project-1") }
         val owned = client.get(
             "/documentation/publications/publication-1/bindings" +
-                "?subject=components.avatar&kind=component-style&limit=200",
+                "?subject=components.avatar&kind=component-style&limit=100",
+        ) { viewer("project-1") }
+        val excessiveLimit = client.get(
+            "/documentation/publications/publication-1/bindings?limit=200",
         ) { viewer("project-1") }
         val hidden = client.get("/documentation/publications/publication-1/bindings/binding-1") {
             viewer("project-2")
@@ -177,10 +187,67 @@ class PublicationReadRoutesTest {
 
         assertEquals(HttpStatusCode.NotFound, candidate.status)
         assertEquals(HttpStatusCode.OK, owned.status)
+        assertEquals(HttpStatusCode.BadRequest, excessiveLimit.status)
         assertEquals(HttpStatusCode.NotFound, hidden.status)
     }
 
+    @Test
+    fun publicationListAndIdReadsExposeFactualContext() = testApplication {
+        application {
+            install(ContentNegotiation) { json(Json) }
+            routing { publicationReadRoutes(repository()) }
+        }
+        val list = client.get("/documentation/publications?designSystemId=ds-1") { viewer("project-1") }
+        val navigation = client.get("/documentation/publications/publication-1/navigation") { viewer("project-1") }
+        val foreign = client.get("/documentation/publications/publication-1/navigation") { viewer("project-2") }
+
+        assertEquals(HttpStatusCode.OK, list.status)
+        assertTrue(list.bodyAsText().contains("\"items\":[]"))
+        assertEquals("{\"designSystemId\":\"ds-1\"}", list.headers["X-DS-Read-Context"])
+        assertEquals(HttpStatusCode.OK, navigation.status)
+        assertEquals(
+            "{\"designSystemId\":\"ds-1\",\"version\":\"1.0.0\",\"platform\":\"compose\"," +
+                "\"publicationId\":\"publication-1\"}",
+            navigation.headers["X-DS-Read-Context"],
+        )
+        assertEquals(HttpStatusCode.NotFound, foreign.status)
+    }
+
+    @Test
+    fun bindingProjectionParametersPreserveLegacyAndRejectConflicts() = testApplication {
+        application {
+            install(ContentNegotiation) { json(Json) }
+            routing { publicationReadRoutes(repository()) }
+        }
+        val base = "/documentation/publications/publication-1/bindings"
+        val legacy = client.get("$base/binding-1") { viewer("project-1") }
+        val summary = client.get("$base?subject=components.avatar&kind=component-style&detail=summary&limit=100") {
+            viewer("project-1")
+        }
+        val conflictingNames = client.get("$base?name=Avatar&exactName=Avatar") { viewer("project-1") }
+        val conflictingDetail = client.get("$base/binding-1?detail=summary&variationNames=m") {
+            viewer("project-1")
+        }
+
+        assertEquals(HttpStatusCode.OK, legacy.status)
+        assertTrue(legacy.bodyAsText().contains("platformPayload"))
+        assertEquals(HttpStatusCode.OK, summary.status)
+        assertTrue(!summary.bodyAsText().contains("platformPayload"))
+        assertEquals(HttpStatusCode.BadRequest, conflictingNames.status)
+        assertEquals(HttpStatusCode.BadRequest, conflictingDetail.status)
+    }
+
     private fun repository() = object : PublicationReadRepository {
+        override suspend fun publications(projectId: String, query: PublicationListQuery): PublicationPageDto? =
+            PublicationPageDto(emptyList(), null)
+
+        override suspend fun publication(projectId: String, publicationId: String): ActivePublicationDto? =
+            if (projectId == "project-1" && publicationId == "publication-1") {
+                ActivePublicationDto("publication-1", "ds-1", "1.0.0", "compose", "published", "2024-01-01T00:00:00Z")
+            } else {
+                null
+            }
+
         override suspend fun ingestionJob(projectId: String, jobId: String): IngestionJobStatusDto? =
             if (projectId == "project-1" && jobId == "job-1") {
                 IngestionJobStatusDto(

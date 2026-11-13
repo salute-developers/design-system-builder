@@ -1,17 +1,9 @@
 package com.dsbuilder.frontend.plugin.androidstudio.ui
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -25,9 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.window.PopupProperties
 import com.dsbuilder.frontend.feature.projects.application.Project
 import com.dsbuilder.frontend.feature.projects.application.ProjectsReadErrorCode
 import com.dsbuilder.frontend.feature.projects.application.ProjectsReadResult
@@ -40,25 +29,11 @@ import com.dsbuilder.frontend.plugin.androidstudio.tokens.DesignSystem
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.GetDesignSystemTokensUseCase
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.ListDesignSystemsUseCase
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenMode
-import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenPlatform
-import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenWithValue
 import com.sdds.compose.uikit.Button
-import com.sdds.compose.uikit.IconButton
-import com.sdds.compose.uikit.PopoverAlignment
-import com.sdds.compose.uikit.PopoverPlacement
-import com.sdds.compose.uikit.PopoverPlacementMode
 import com.sdds.compose.uikit.Text
-import com.sdds.compose.uikit.Tooltip
-import com.sdds.compose.uikit.TriggerInfo
-import com.sdds.compose.uikit.popoverTrigger
-import com.sdds.icons.compose.SddsIcons
-import com.sdds.icons.compose.SleepOutline24
-import com.sdds.icons.compose.SunOutline24
 import com.sdds.serv.styles.basicbutton.BasicButtonStyles
 import com.sdds.serv.styles.basicbutton.style
-import com.sdds.serv.styles.iconbutton.IconButtonStyles
 import com.sdds.serv.styles.iconbutton.style
-import com.sdds.serv.styles.tooltip.TooltipStyles
 import com.sdds.serv.styles.tooltip.style
 import com.sdds.serv.theme.SddsServTheme
 
@@ -78,17 +53,6 @@ internal sealed interface Step {
  * Полный путь выбора для крошек: подпись выбранного элемента и шаг, на который он возвращает
  * (тот, где этот элемент выбирался). Авто-выбранные шаги в путь попадают, но не в историю.
  */
-private fun Step.path(): List<Pair<String, Step>> = when (this) {
-    is Step.PickProject -> emptyList()
-    is Step.PickDesignSystem -> listOf(project.name to Step.PickProject)
-    is Step.PickTenant -> listOf(project.name to Step.PickProject, designSystem.name to Step.PickDesignSystem(project))
-    is Step.ShowTokens -> listOf(
-        project.name to Step.PickProject,
-        designSystem.name to Step.PickDesignSystem(project),
-        tenant.name to Step.PickTenant(project, designSystem),
-    )
-}
-
 /**
  * Состояние навигации главного экрана. Живёт вне композиции — у tool window, а не у `remember`:
  * при сворачивании панели `ComposePanel` сбрасывает композицию, и без этого пользователь
@@ -111,7 +75,7 @@ public class MainScreenState {
     }
 }
 
-private sealed interface LoadState<out T> {
+internal sealed interface LoadState<out T> {
     data object Loading : LoadState<Nothing>
     data class Loaded<T>(val value: T) : LoadState<T>
     data class Failed(val message: String, val isSessionExpired: Boolean = false) : LoadState<Nothing>
@@ -200,62 +164,6 @@ public fun MainScreen(
             }
         }
     }
-}
-
-@Composable
-private fun Breadcrumbs(path: List<Pair<String, Step>>, history: List<Step>, onSelect: (Step) -> Unit) {
-    if (path.isEmpty()) return
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = SddsServTheme.spacing.spacing4x, vertical = SddsServTheme.spacing.spacing2x),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        path.forEachIndexed { index, (label, target) ->
-            val isLast = index == path.lastIndex
-            when {
-                isLast -> Text(
-                    text = label,
-                    textColor = SddsServTheme.colors.textDefaultPrimary,
-                    style = SddsServTheme.typography.bodySBold,
-                )
-                // Авто-выбранный шаг в историю не попадает — вернуться на него нельзя (выбор повторился бы сам).
-                target in history -> BreadcrumbItem(label = label, onClick = { onSelect(target) })
-                else -> Text(
-                    text = label,
-                    textColor = SddsServTheme.colors.textDefaultSecondary,
-                    style = SddsServTheme.typography.bodySNormal,
-                )
-            }
-            if (!isLast) {
-                Text(
-                    text = " / ",
-                    textColor = SddsServTheme.colors.textDefaultSecondary,
-                    style = SddsServTheme.typography.bodySNormal,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BreadcrumbItem(label: String, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val color = when {
-        isPressed -> SddsServTheme.colors.textDefaultPrimaryActive
-        isHovered -> SddsServTheme.colors.textDefaultPrimaryHover
-        else -> SddsServTheme.colors.textDefaultPrimary
-    }
-
-    Text(
-        text = label,
-        textColor = color,
-        style = SddsServTheme.typography.bodySNormal,
-        // Без ripple/фона при ховере и клике — только смена цвета текста на hover/active токен.
-        modifier = Modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-    )
 }
 
 @Composable
@@ -375,113 +283,8 @@ private fun TenantStep(
     }
 }
 
-/**
- * Плагин работает только с Android: платформа не выбирается. Значения и code-ссылки токенов
- * запрашиваются для `android`.
- */
-private val TOKENS_PLATFORM = TokenPlatform.ANDROID
-
-@Composable
-private fun TokensStep(
-    getDesignSystemTokens: GetDesignSystemTokensUseCase,
-    project: Project,
-    designSystem: DesignSystem,
-    tenant: DesignSystemTenant,
-    state: MainScreenState,
-    getTokenCodeReference: suspend (projectId: String, designSystemId: String, tokenName: String, mode: String) ->
-    TokenCodeReferenceResult,
-    onSessionExpired: () -> Unit,
-) {
-    val mode = state.tokenMode
-    var loadState by remember(project, designSystem, tenant, mode) {
-        mutableStateOf<LoadState<List<TokenWithValue>>>(LoadState.Loading)
-    }
-
-    LaunchedEffect(project, designSystem, tenant, mode) {
-        loadState = runCatchingLoad {
-            getDesignSystemTokens.execute(project.id, designSystem.id, TOKENS_PLATFORM, mode, tenant.id)
-        }
-    }
-
-    // Code-ссылка запрашивается по клику на конкретный токен (CodeBinding опубликованной документации).
-    val resolveCodeReference: suspend (TokenWithValue) -> TokenCodeReferenceResult =
-        { item -> getTokenCodeReference(project.id, designSystem.id, item.token.name, mode.name.lowercase()) }
-
-    Column(Modifier.fillMaxSize()) {
-        when (val current = loadState) {
-            is LoadState.Loading -> LoadingText("Загружаем токены…")
-            is LoadState.Failed ->
-                ErrorText(current.message, onLoginClick = if (current.isSessionExpired) onSessionExpired else null)
-            is LoadState.Loaded ->
-                TokenList(
-                    tokens = current.value,
-                    selectedTabIndex = state.tokenTabIndex,
-                    onTabSelected = { state.tokenTabIndex = it },
-                    query = state.tokenQuery,
-                    onQueryChange = { state.tokenQuery = it },
-                    modifier = Modifier.weight(1f),
-                    resolveCodeReference = resolveCodeReference,
-                    modeToggle = { enabled -> ModeToggle(mode, { state.tokenMode = it }, enabled) },
-                )
-        }
-    }
-}
-
-private fun TokenMode.label(): String = when (this) {
-    TokenMode.LIGHT -> "Светлая"
-    TokenMode.DARK -> "Тёмная"
-}
-
-/**
- * Кнопка режима темы: иконка показывает текущий режим (солнце — светлая, полумесяц — тёмная),
- * нажатие переключает на другой. Компактнее сегмента и не конкурирует
- * с сегментом типов токенов. Тултип по наведению называет режим и действие; на заблокированной
- * кнопке объясняет, почему она недоступна.
- */
-@Composable
-private fun ModeToggle(mode: TokenMode, onModeChange: (TokenMode) -> Unit, enabled: Boolean) {
-    val icon = when (mode) {
-        TokenMode.LIGHT -> SddsIcons.SunOutline24
-        TokenMode.DARK -> SddsIcons.SleepOutline24
-    }
-    val next = if (mode == TokenMode.LIGHT) TokenMode.DARK else TokenMode.LIGHT
-    // hoverable на обёртке, а не на кнопке: у заблокированной кнопки hover может не доходить.
-    val hoverSource = remember { MutableInteractionSource() }
-    val isHovered by hoverSource.collectIsHoveredAsState()
-    val triggerInfo = remember { mutableStateOf(TriggerInfo()) }
-
-    Box(Modifier.hoverable(hoverSource).popoverTrigger(triggerInfo)) {
-        IconButton(
-            icon = rememberVectorPainter(icon),
-            onClick = { onModeChange(next) },
-            style = IconButtonStyles.IconButtonSSecondary.style(),
-            enabled = enabled,
-            iconContentDescription = "Режим темы: ${mode.label()}",
-        )
-        Tooltip(
-            show = isHovered,
-            onDismissRequest = {},
-            triggerInfo = { triggerInfo.value },
-            style = TooltipStyles.TooltipS.style(),
-            text = AnnotatedString(
-                if (enabled) {
-                    "${mode.label()} тема, переключить на ${next.label().lowercase()}"
-                } else {
-                    "Режим темы влияет только на цвета и градиенты"
-                },
-            ),
-            placement = PopoverPlacement.Bottom,
-            placementMode = PopoverPlacementMode.StrictClipped,
-            // Кнопка у правого края панели — выравниваем по её концу, чтобы подсказка росла влево.
-            alignment = PopoverAlignment.End,
-            // Подсказка по наведению не должна забирать фокус у поля поиска.
-            popupProperties = PopupProperties(focusable = false, clippingEnabled = false),
-        )
-    }
-}
-
 @Suppress("TooGenericExceptionCaught")
-private suspend fun <T> runCatchingLoad(block: suspend () -> T): LoadState<T> = try {
+internal suspend fun <T> runCatchingLoad(block: suspend () -> T): LoadState<T> = try {
     LoadState.Loaded(block())
 } catch (exception: SessionExpiredException) {
     LoadState.Failed(exception.message ?: "Сессия истекла.", isSessionExpired = true)
@@ -490,7 +293,7 @@ private suspend fun <T> runCatchingLoad(block: suspend () -> T): LoadState<T> = 
 }
 
 @Composable
-private fun LoadingText(text: String) {
+internal fun LoadingText(text: String) {
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -505,7 +308,7 @@ private fun LoadingText(text: String) {
 }
 
 @Composable
-private fun ErrorText(message: String, onLoginClick: (() -> Unit)? = null) {
+internal fun ErrorText(message: String, onLoginClick: (() -> Unit)? = null) {
     Column(
         modifier = Modifier.fillMaxSize().padding(SddsServTheme.spacing.spacing6x),
         verticalArrangement = Arrangement.Center,

@@ -15,6 +15,8 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -42,10 +44,10 @@ fun Route.variationPropertyValueRoutes(
     delete: DeleteVariationPropertyValueUseCase,
     json: Json,
 ) {
-    route("/api/ds/variation-property-values") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/variation-property-values")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -60,7 +62,7 @@ fun Route.variationPropertyValueRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -74,7 +76,7 @@ fun Route.variationPropertyValueRoutes(
         }
         get("/by-style/{styleId}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -91,7 +93,7 @@ fun Route.variationPropertyValueRoutes(
         }
         get("/by-appearance/{appearanceId}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -108,15 +110,13 @@ fun Route.variationPropertyValueRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val payload = call.receive<JsonObject>()
-            if (payload.hasInvalidNull("tokenId", "value", "alpha", "adjustment")) {
-                return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            }
+            // null в полях значения означает «не задано», как и отсутствие поля.
             val request = runCatching {
                 json.decodeFromJsonElement(CreateVariationPropertyValueRequest.serializer(), payload)
             }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
@@ -139,7 +139,7 @@ fun Route.variationPropertyValueRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -147,7 +147,8 @@ fun Route.variationPropertyValueRoutes(
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val payload = call.receive<JsonObject>()
-            if (payload.hasInvalidNull("tokenId", "value", "alpha", "adjustment", "stateSetId")) {
+            // null в полях значения очищает поле; набор состояний у значения обязателен.
+            if (payload.hasInvalidNull("stateSetId")) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             val request = runCatching {
@@ -168,7 +169,7 @@ fun Route.variationPropertyValueRoutes(
         }
         delete("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

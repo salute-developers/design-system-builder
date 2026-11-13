@@ -1,7 +1,12 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package com.dsbuilder.ds.components.presentation
 
 import com.dsbuilder.ds.components.domain.ComponentDependencyGraph
+import com.dsbuilder.ds.components.domain.ComponentReuseConfig
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
 /** External bidirectional dependency graph. */
 @Serializable
@@ -30,6 +35,9 @@ data class ComponentDependencyGraphResponse(
         val updatedAt: String,
         /** Child carried by this contract. */
         val child: ComponentResponse,
+        /** Настройки переиспользования при явном include. */
+        @EncodeDefault(EncodeDefault.Mode.NEVER)
+        val reuseConfig: List<ComponentReuseConfigResponse>? = null,
     )
 
     /** Dependency row with the parent relation. */
@@ -51,11 +59,17 @@ data class ComponentDependencyGraphResponse(
         val updatedAt: String,
         /** Parent carried by this contract. */
         val parent: ComponentResponse,
+        /** Настройки переиспользования при явном include. */
+        @EncodeDefault(EncodeDefault.Mode.NEVER)
+        val reuseConfig: List<ComponentReuseConfigResponse>? = null,
     )
 
     companion object {
         /** Performs the from operation. */
-        fun from(value: ComponentDependencyGraph) = ComponentDependencyGraphResponse(
+        fun from(
+            value: ComponentDependencyGraph,
+            reuseConfigs: Map<UUID, List<ComponentReuseConfig>>? = null,
+        ) = ComponentDependencyGraphResponse(
             value.asParent.map {
                 WithChild(
                     it.dependency.id.toString(),
@@ -66,6 +80,8 @@ data class ComponentDependencyGraphResponse(
                     it.dependency.createdAt.toString(),
                     it.dependency.updatedAt.toString(),
                     ComponentResponse.from(it.child),
+                    reuseConfigs?.get(it.dependency.id).orEmpty().takeIf { reuseConfigs != null }
+                        ?.map(ComponentReuseConfigResponse::from),
                 )
             },
             value.asChild.map {
@@ -78,6 +94,8 @@ data class ComponentDependencyGraphResponse(
                     it.dependency.createdAt.toString(),
                     it.dependency.updatedAt.toString(),
                     ComponentResponse.from(it.parent),
+                    reuseConfigs?.get(it.dependency.id).orEmpty().takeIf { reuseConfigs != null }
+                        ?.map(ComponentReuseConfigResponse::from),
                 )
             },
         )

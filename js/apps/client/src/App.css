@@ -8,7 +8,7 @@ body {
 }
 
 /* Оболочка билдера всегда в Inter. Исключение — превью (data-preview): там компонент рендерится
-   шрифтами самой дизайн-системы (SB Sans и т.п.). */
+   шрифтами самой дизайн-системы (SB Sans и т.п.), а образец стиля на борде «Типографики» — шрифтом стиля. */
 *:not([data-preview], [data-preview] *) {
     font-family: 'Inter', Helvetica, Arial, sans-serif !important;
 }

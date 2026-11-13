@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.toolchain.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.platform.ToolchainStatus
@@ -43,8 +44,8 @@ internal class ToolchainCliCommand(
  */
 internal class ToolchainListCliCommand(
     private val listToolchainsUseCase: ListToolchainsUseCase,
-) : CliktCommand(name = "list") {
-    override fun run() {
+) : AnalyticsCliCommand(name = "list", operation = "toolchain list") {
+    override fun runOperation() {
         val toolchains = listToolchainsUseCase.execute()
         if (toolchains.isEmpty()) {
             echo("No platform toolchains are registered.")
@@ -62,14 +63,14 @@ internal class ToolchainListCliCommand(
  */
 internal class ToolchainDoctorCliCommand(
     private val doctorToolchainsUseCase: DoctorToolchainsUseCase,
-) : CliktCommand(name = "doctor") {
+) : AnalyticsCliCommand(name = "doctor", operation = "toolchain doctor") {
     private val platform: TargetPlatform? by option("--platform").targetPlatform()
         .help("Check only the toolchain serving this platform.")
 
     private val tool: String? by option("--tool")
         .help("Check this tool instead of the ones found by toolchain discovery.")
 
-    override fun run() {
+    override fun runOperation() {
         val command = DoctorToolchainsCommand(platform = platform, toolOverride = tool)
         when (val result = doctorToolchainsUseCase.execute(command)) {
             is DoctorToolchainsResult.Checked -> echoChecked(result)
@@ -104,9 +105,9 @@ internal class ToolchainDoctorCliCommand(
  */
 internal class ToolchainInstallCliCommand(
     private val installToolchainUseCase: InstallToolchainUseCase,
-) : CliktCommand(name = "install") {
+) : AnalyticsCliCommand(name = "install", operation = "toolchain install") {
     private val toolchain: String by argument("toolchain")
-        .help("Toolchain to install, for example 'ios'.")
+        .help("Toolchain to install: 'ios' or 'web' (the React generator, installed with npm install --global).")
 
     private val version: String? by option("--version")
         .help("Install this release instead of the latest one.")
@@ -114,7 +115,7 @@ internal class ToolchainInstallCliCommand(
     private val from: String? by option("--from")
         .help("Install this archive (path or URL) instead of resolving a release.")
 
-    override fun run() {
+    override fun runOperation() {
         val command = InstallToolchainCommand(toolchain = toolchain, version = version, archive = from)
         when (val result = installToolchainUseCase.execute(command)) {
             is InstallToolchainResult.Installed -> {

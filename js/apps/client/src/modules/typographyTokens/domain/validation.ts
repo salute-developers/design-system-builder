@@ -6,7 +6,12 @@ export const TYPOGRAPHY_MESSAGES = {
     size: 'Размер и межстрочный интервал должны быть положительными числами.',
     letterSpacing: 'Letter spacing должен быть в диапазоне от -0.2em до 1em.',
     weight: 'Вес шрифта должен быть числом от 100 до 900 с шагом 100.',
+    lineHeightBelowSize: 'Высота строки меньше размера шрифта.',
 } as const;
+
+/** Предупреждение Figma: высота строки меньше размера шрифта. Значение допустимо и сохраняется. */
+export const lineHeightWarning = (sizePx: number, lineHeightPx: number) =>
+    lineHeightPx > 0 && sizePx > 0 && lineHeightPx < sizePx ? TYPOGRAPHY_MESSAGES.lineHeightBelowSize : null;
 
 /** Первое нарушение правил значения стиля: поле и текст; `null` — правка допустима. */
 export const validateChange = (change: TypographyStyleChange): { field: TypographyField; message: string } | null => {

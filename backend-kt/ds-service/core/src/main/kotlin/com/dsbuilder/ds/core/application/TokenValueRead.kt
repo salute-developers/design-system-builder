@@ -3,7 +3,7 @@ package com.dsbuilder.ds.core.application
 import kotlinx.serialization.json.JsonElement
 import java.util.UUID
 
-/** Значение токена, которое общий маршрут чтения `GET /api/ds/token-values` отдаёт потребителю. */
+/** Значение токена, которое общий маршрут чтения `GET /api/design-systems/{designSystemId}/token-values` отдаёт потребителю. */
 data class TokenValueRead(
     /** Идентификатор значения. */
     val id: UUID,

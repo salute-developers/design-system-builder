@@ -9,6 +9,8 @@ import com.dsbuilder.ds.components.domain.ComponentConfigPackage
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inSubQuery
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 
 /** Component-config repository backed by the existing normalized db-service schema. */
@@ -67,7 +69,13 @@ class ExposedComponentConfigRepository internal constructor(
             entries += ComponentConfigPackage.Entry(
                 componentName,
                 styleName,
-                builder.build(appearance, exported = true, underived, withPlatformOffsets = true),
+                builder.build(
+                    appearance,
+                    exported = true,
+                    underived,
+                    withPlatformOffsets = true,
+                    editorIds = query.editorIds,
+                ),
             )
         }
         return ComponentConfigRepository.ExportAttempt.Success(
@@ -100,7 +108,12 @@ class ExposedComponentConfigRepository internal constructor(
         val query = ComponentAppearancesTable.innerJoin(ComponentsTable).selectAll()
             .where {
                 (ComponentAppearancesTable.designSystemId eq designSystemId) and
-                    (ComponentsTable.platform eq platform)
+                    (ComponentsTable.platform eq platform) and
+                    (
+                        ComponentAppearancesTable.componentId inSubQuery
+                            DesignSystemComponentsTable.select(DesignSystemComponentsTable.componentId)
+                                .where { DesignSystemComponentsTable.designSystemId eq designSystemId }
+                        )
             }
         return query.map {
             ConfigAppearance(

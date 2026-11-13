@@ -13,6 +13,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -39,18 +41,15 @@ fun Route.variationRoutes(
     properties: ListVariationPropertiesUseCase,
     json: Json,
 ) {
-    route("/api/ds/variations") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/variations")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val designSystemId = call.request.queryParameters["designSystemId"]?.let {
-                it.toUuidOrNull()
-                    ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
-            }
+            val designSystemId = context.designSystemId
             when (val result = list.execute(context, designSystemId)) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
@@ -61,7 +60,7 @@ fun Route.variationRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -75,13 +74,13 @@ fun Route.variationRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateVariationRequest>()
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val componentId = request.componentId.toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
@@ -113,7 +112,7 @@ fun Route.variationRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -148,7 +147,7 @@ fun Route.variationRoutes(
         }
         get("/{id}/styles") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -165,7 +164,7 @@ fun Route.variationRoutes(
         }
         get("/{id}/properties") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

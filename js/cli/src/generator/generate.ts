@@ -17,7 +17,19 @@ import {
 
 import { BaseFileStructure, ComponentManifest, ComponentsFiles } from './types/index.ts';
 import { Config, Meta } from './componentBuilder/index.ts';
-import { getPlasmaConfigName, NPM_PACKAGE_SCOPE } from './utils/index.ts';
+import { getPlasmaConfigName, resolveNpmPackageScope } from './utils/index.ts';
+import { appearanceConfigFile, assertDistinctAppearances } from './utils/appearanceName.ts';
+
+/**
+ * Служебные файлы заготовки хранятся без точки: npm не включает `.gitignore` и `.npmrc` в опубликованный
+ * генератор, а вложенный `.npmignore` исключил бы `tsconfig.json` заготовки. Имя с точкой
+ * возвращается при копировании в пакет.
+ */
+const TEMPLATE_DOTFILES: Record<string, string> = {
+    gitignore: '.gitignore',
+    npmignore: '.npmignore',
+    npmrc: '.npmrc',
+};
 
 export const generateBaseFileStructure = async ({
     pathToDir,
@@ -27,6 +39,9 @@ export const generateBaseFileStructure = async ({
     hasComponents,
     hasTheme = true,
 }: BaseFileStructure) => {
+    // Scope проверяется до очистки каталога: неверная переменная не должна стирать прошлый результат.
+    const packageScope = resolveNpmPackageScope();
+
     // Полностью очищаем прошлый результат: иначе остаются старые node_modules/package-lock.json
     // и `npm install` при сборке подтягивает устаревшую версию @salutejs/plasma-new-hope.
     await fs.remove(pathToDir);
@@ -34,6 +49,9 @@ export const generateBaseFileStructure = async ({
 
     const constantsDir = path.join(import.meta.dirname, 'constants');
     await fs.copy(constantsDir, pathToDir);
+    for (const [stored, name] of Object.entries(TEMPLATE_DOTFILES)) {
+        await fs.move(path.join(pathToDir, stored), path.join(pathToDir, name), { overwrite: true });
+    }
 
     const packageJSON = createPackageJSON({
         packageName,
@@ -41,7 +59,7 @@ export const generateBaseFileStructure = async ({
         coreVersion,
         hasComponents,
         hasTheme,
-        packageScope: NPM_PACKAGE_SCOPE,
+        packageScope,
     });
     await fs.writeFile(`${pathToDir}/package.json`, packageJSON);
 
@@ -80,6 +98,8 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
     const manifest = await readComponentManifest(componentName);
     const componentDescription = componentMeta.description;
     const configs = componentMeta.sources.configs;
+    // Совпадающие идентификаторы останавливают генерацию до записи файлов: иначе один конфиг перезапишет другой.
+    assertDistinctAppearances(componentName, configs.map(({ name }) => name));
 
     // Несколько appearance (Tabs): на каждый — свой файл конфига темы в подпапке и обёртка,
     // выбирающая базовый конфиг ядра по пропу из манифеста.
@@ -87,7 +107,7 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
         for await (const { id, name } of configs) {
             await fs.mkdir(`${pathToComponent}/${name}`, { recursive: true });
             const config = new Config(componentMeta, id);
-            const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport);
+            const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport, manifest.breakpointView);
             await fs.writeFile(`${pathToComponent}/${getAppearanceConfigFile(name, componentName)}.ts`, componentConfig);
         }
         const names = configs.map(({ name }) => name);
@@ -123,7 +143,13 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
     } else if (manifest.generic) {
         await fs.writeFile(
             `${pathToComponent}/${componentName}.tsx`,
-            createGenericComponent(componentName, componentDescription, manifest.coreConfigExport, manifest.generic),
+            createGenericComponent(
+                componentName,
+                componentDescription,
+                manifest.coreConfigExport,
+                manifest.generic,
+                configs.map(({ name }) => name),
+            ),
         );
     } else if (conditional) {
         await fs.writeFile(
@@ -140,10 +166,9 @@ const writeComponentFiles = async (pathToComponent: string, componentMeta: Meta)
     for await (const item of configs) {
         const { id, name } = item;
         const config = new Config(componentMeta, id);
-        const componentConfigFileName = name === 'default' ? componentName : `${componentName}.${name}`;
 
-        const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport);
-        await fs.writeFile(`${pathToComponent}/${componentConfigFileName}.config.ts`, componentConfig);
+        const componentConfig = createComponentConfig(componentName, config, manifest.coreTokensExport, manifest.breakpointView);
+        await fs.writeFile(`${pathToComponent}/${appearanceConfigFile(componentName, name)}.ts`, componentConfig);
     }
 };
 
@@ -173,7 +198,17 @@ const copyComponentTemplates = async (pathToComponent: string, componentName: st
     return files.filter((file) => file !== wrapper).map((file) => file.replace(/\.tsx?$/, ''));
 };
 
-export const generateComponentsFiles = async ({ pathToDir, componentsMeta }: ComponentsFiles) => {
+export const generateComponentsFiles = async ({ pathToDir, componentsMeta: allMeta, hasTheme = true }: ComponentsFiles) => {
+    // Компонент, обёртка которого берёт данные из темы (ViewContainer), без темы в пакете не собрался бы.
+    const componentsMeta: Meta[] = [];
+    for await (const meta of allMeta) {
+        if (!hasTheme && (await readComponentManifest(meta.name)).requiresTheme) {
+            console.warn(`Skipped ${meta.name}: it needs the theme of the package, generate it together with the theme (generate:ds).`);
+            continue;
+        }
+        componentsMeta.push(meta);
+    }
+
     if (componentsMeta.length === 0) {
         await fs.writeFile(`${pathToDir}/src/index.ts`, createRootIndex([]));
         return;

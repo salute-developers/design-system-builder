@@ -22,6 +22,13 @@ class AndroidGradleLocatorTest {
     }
 
     @Test
+    fun findsWindowsWrapperAtDriveRoot() {
+        val locator = locator(existing = setOf("C:\\gradlew.bat"))
+
+        assertEquals("C:\\gradlew.bat", locator.locate("C:\\work\\project", null))
+    }
+
+    @Test
     fun nothingFoundWhenNoAncestorHasGradlew() {
         val locator = locator(existing = emptySet())
 
@@ -53,10 +60,18 @@ internal class FakeFileSystem(
 ) : WorkspaceFileSystem {
     override fun currentWorkingDirectory(): String = "/repo"
 
-    override fun parent(path: String): String? = path.substringBeforeLast('/', "").takeIf { it.isNotEmpty() }
+    override fun parent(path: String): String? =
+        com.dsbuilder.frontend.core.process.parentOfAbsolutePath(path)
 
     override fun resolve(parent: String, child: String): String =
-        if (child.startsWith("/")) child else "${parent.trimEnd('/')}/$child"
+        if (child.startsWith(
+                "/",
+            )
+        ) {
+            child
+        } else {
+            "${parent.trimEnd('/', '\\')}${if (parent.contains('\\')) "\\" else "/"}$child"
+        }
 
     override fun absolutePath(path: String): String = path
 

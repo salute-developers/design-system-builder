@@ -7,4 +7,7 @@ import java.util.UUID
 interface TypographyUsageRepository {
     /** Ссылки значений свойств компонентов дизайн-системы [designSystemId]: текст значения или имя токена. */
     suspend fun references(designSystemId: UUID): List<ComponentPropertyReference>
+
+    /** Строки значений свойств компонентов, которые ссылаются на стиль текстом из [values], без `token_id`. */
+    suspend fun textReferences(designSystemId: UUID, values: Set<String>): Map<String, Set<UUID>>
 }

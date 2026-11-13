@@ -1,4 +1,4 @@
-# Design System Builder
+   # Design System Builder
 
 Монорепозиторий DS Builder объединяет текущую JavaScript/TypeScript реализацию и новую Kotlin-архитектуру.
 
@@ -140,15 +140,48 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 ./setup-local.sh
 ```
 
+На Windows используйте PowerShell и Docker Desktop в режиме Linux-контейнеров:
+
+```powershell
+.\setup-local.ps1
+```
+
+Для запуска Windows-контура нужны Docker Desktop и доступ к образам и зависимостям сборки. JDK, Node.js,
+Bash и WSL на Windows-хосте не требуются: backend собирается в Linux-контейнерах, а существующие
+`bootstrap-base.sh`, `publish-preview-plugin.sh` и `seed-local-design-system.sh` выполняются во вспомогательном
+Linux-контейнере. PowerShell-сценарий управляет Docker и настраивает Keycloak через HTTP API.
+Его опции соответствуют Bash-сценарию: `-Reset`, `-Down`, `-PluginZip`, `-WebPluginZip`, `-SkipPlugin`,
+`-ComponentsPackage`, `-ThemePackage`, `-SkipDesignSystem`. Пути к собственным архивам плагинов или пакету
+компонентов можно также задать через `COMPOSE_PREVIEW_PLUGIN_ZIP`, `WEB_PREVIEW_PLUGIN_ZIP` и `COMPOSE_COMPONENTS_PACKAGE`.
+
+После наполнения `base` скрипт публикует Compose- и web-плагин превью из `local-dev/` в локальный MinIO
+(`./publish-preview-plugin.sh --platform compose|react`), и клиент загружает оба плагина оттуда по адресу,
+который выдаёт бэкенд. Архивы и их обновление описаны в [local-dev/README.md](./local-dev/README.md).
+
 Скрипт запускает Kotlin backend в detached-режиме,
-наполняет дизайн-систему `base` и поднимает клиент. База `ds_registry` живёт в стеке `backend-kt` (сервис `ds-db`,
-хостовый порт `5433`, переопределяется `DS_DB_PORT`), её схему создаёт Flyway в `ds-service`; Drizzle-миграции не
-запускаются. Наполнение делает `backend-kt/bootstrap-base.sh` только через Gateway: находит или создаёт проект
-пользователя `admin@example.com`, заливает глобальный слой web-компонентов (`dsbuilder components import-api` по
-`web-api-meta.json` из `js/cli`), создаёт дизайн-систему `base` с темой `base_default`; версию он не публикует, `base` остаётся черновиком.
-Токены, их значения, палитру и компоненты темы `ds-service` заводит сам из своих ресурсов. Для bootstrap нужны JVM-дистрибутив
-CLI (`frontend-kt/gradlew :cli:installJvmDist`, собирается автоматически) и установленные зависимости `js/cli`
-(`cd js/cli && npm ci`) для генерации `web-api-meta.json`; готовый файл можно передать через `DSBUILDER_WEB_API_META`.
+готовит проект, глобальный Web API и Compose API/плагин, затем поднимает клиент. База `ds_registry` живёт в стеке
+`backend-kt` (сервис `ds-db`, хостовый порт `5433`, переопределяется `DS_DB_PORT`), её схему создаёт Flyway;
+Drizzle-миграции не запускаются. `backend-kt/bootstrap-base.sh` через Gateway находит или создаёт проект
+пользователя `admin@example.com` и импортирует глобальный Web API из `web-api-meta.json` в `js/cli`.
+Для генерации этого файла нужны зависимости `js/cli` (`cd js/cli && npm ci`);
+готовый файл можно передать через `DSBUILDER_WEB_API_META`.
+
+Обычный запуск не создаёт демонстрационные `base`/`sdds_serv_local` и темы, не импортирует значения токенов
+и конфигурации компонентов. Создайте ДС и тему в интерфейсе: начальные токены и компоненты backend заполнит
+из собственных ресурсов. Существующие ДС и журналы сохраняются.
+
+Для отдельной проверки готовой Compose-темы импорт можно запустить явно:
+
+```bash
+./setup-local.sh --components-package ./local-dev/design-system/components
+# Либо на уже запущенном контуре:
+./seed-local-design-system.sh --package ./local-dev/design-system/components
+```
+
+В PowerShell: `.\setup-local.ps1 -ComponentsPackage .\local-dev\design-system\components`.
+Этот импорт дополнительно заменяет Android-значения и конфигурации, поэтому может создать большой журнал;
+он не требуется для штатного создания ДС. `--skip-design-system`/`-SkipDesignSystem` запрещает импорт,
+включая пакет, заданный через `COMPOSE_COMPONENTS_PACKAGE`.
 
 По умолчанию локальные данные сохраняются, повторный запуск ничего не дублирует. Чтобы удалить данные обоих стеков
 (все Docker volumes) и начать с чистой базы, запустите с явной опцией:
@@ -157,7 +190,7 @@ CLI (`frontend-kt/gradlew :cli:installJvmDist`, собирается автом�
 ./setup-local.sh --reset
 ```
 
-Для сборки Kotlin backend нужен JDK 17. `backend-kt/start-local.sh` автоматически использует JDK 17 из
+Для сборки Kotlin backend через `setup-local.sh` на macOS/Linux нужен JDK 17. `backend-kt/start-local.sh` автоматически использует JDK 17 из
 `DSBUILDER_JAVA_HOME`, `JAVA_HOME`, `PATH` или стандартных системных установок. JetBrains IDE для запуска не требуется.
 Если JDK установлен в нестандартной директории, укажите её явно:
 
@@ -183,10 +216,10 @@ DSBUILDER_JAVA_HOME=/path/to/jdk-17 ./setup-local.sh
 cp js/.env.example js/.env
 ```
 
-Для локального запуска `NPM_PACKAGE_SCOPE` по умолчанию равен `@sddsjs`. `NPM_TOKEN` JS-контуром не используется:
+`NPM_PACKAGE_SCOPE` необязательна: без неё генератор `js/cli` использует scope `@sddsjs`. `NPM_TOKEN` JS-контуром не используется:
 сервиса публикации npm-пакета в нём больше нет.
 
-Kotlin backend можно запускать и отдельно, а наполнить базу повторным bootstrap:
+Kotlin backend можно запускать отдельно, затем подготовить проект и глобальный Web API повторным bootstrap:
 
 ```bash
 ./backend-kt/start-local.sh --detach

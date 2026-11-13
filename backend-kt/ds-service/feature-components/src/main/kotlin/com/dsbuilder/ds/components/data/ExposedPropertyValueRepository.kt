@@ -2,6 +2,7 @@
 
 package com.dsbuilder.ds.components.data
 
+import com.dsbuilder.ds.components.application.EditorRuleViolationException
 import com.dsbuilder.ds.components.application.PropertyValueRepository
 import com.dsbuilder.ds.components.domain.InvariantPropertyValue
 import com.dsbuilder.ds.components.domain.VariationPropertyValue
@@ -137,6 +138,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         systemAdmin: Boolean,
         styleId: UUID,
     ): List<VariationPropertyValue>? {
+        if (!ComponentOwnership.canReadStyle(projectId, systemAdmin, styleId)) return null
         return VariationPropertyValuesTable.selectAll().where {
             (VariationPropertyValuesTable.styleId eq styleId) and readableVariationValue(projectId, systemAdmin)
         }.map(::variationPropertyValue)
@@ -147,6 +149,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         systemAdmin: Boolean,
         appearanceId: UUID,
     ): List<VariationPropertyValue>? {
+        if (!ComponentOwnership.canReadAppearance(projectId, systemAdmin, appearanceId)) return null
         return VariationPropertyValuesTable.selectAll()
             .where {
                 (VariationPropertyValuesTable.appearanceId eq appearanceId) and
@@ -161,6 +164,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
     ): VariationPropertyValue? {
         if (!canWriteVariationReferences(projectId, systemAdmin, command)) return null
         val appearance = appearanceRow(command.appearanceId) ?: return null
+        IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
         val designSystemId = appearance[ComponentAppearancesTable.designSystemId]
         val id = StableVariationPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
@@ -213,6 +217,18 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         val current = VariationPropertyValuesTable.selectAll().where {
             (VariationPropertyValuesTable.id eq id) and writableVariationValue(projectId, systemAdmin)
         }.singleOrNull() ?: return null
+        requireContent(
+            command,
+            current[VariationPropertyValuesTable.tokenId],
+            current[VariationPropertyValuesTable.value],
+        )
+        IconValueGuard.check(
+            current[VariationPropertyValuesTable.propertyId],
+            command.tokenId,
+            command.value,
+            current[VariationPropertyValuesTable.value],
+            command.valuePresent,
+        )
         writeVariationRevision(current, command, deleted = false)
         return VariationPropertyValuesTable.selectAll().where { VariationPropertyValuesTable.id eq id }
             .singleOrNull()?.let(::variationPropertyValue)
@@ -268,6 +284,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         command: PropertyValueRepository.InvariantCreate,
     ): InvariantPropertyValue? {
         if (!canWriteInvariantReferences(projectId, systemAdmin, command)) return null
+        IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
         val id = StableInvariantPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
             it[designSystemId] = command.designSystemId
@@ -319,6 +336,18 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         val current = InvariantPropertyValuesTable.selectAll().where {
             (InvariantPropertyValuesTable.id eq id) and writableInvariantValue(projectId, systemAdmin)
         }.singleOrNull() ?: return null
+        requireContent(
+            command,
+            current[InvariantPropertyValuesTable.tokenId],
+            current[InvariantPropertyValuesTable.value],
+        )
+        IconValueGuard.check(
+            current[InvariantPropertyValuesTable.propertyId],
+            command.tokenId,
+            command.value,
+            current[InvariantPropertyValuesTable.value],
+            command.valuePresent,
+        )
         writeInvariantRevision(current, command, deleted = false)
         return InvariantPropertyValuesTable.selectAll().where { InvariantPropertyValuesTable.id eq id }
             .singleOrNull()?.let(::invariantPropertyValue)
@@ -340,6 +369,18 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         }.singleOrNull() ?: return false
         writeInvariantRevision(current, null, deleted = true)
         return true
+    }
+
+    /** Изменение не может оставить значение свойства без токена и без литерала: такую запись нечем показать. */
+    private fun requireContent(command: PropertyValueRepository.ValueUpdate, tokenId: UUID?, value: String?) {
+        val nextToken = if (command.tokenIdPresent) command.tokenId else tokenId
+        val nextValue = if (command.valuePresent) command.value else value
+        if (nextToken == null && nextValue == null) {
+            throw EditorRuleViolationException(
+                "property_value_empty",
+                "A property value must keep a token or a value; delete it instead",
+            )
+        }
     }
 
     private fun writeVariationRevision(

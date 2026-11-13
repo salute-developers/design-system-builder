@@ -1,0 +1,122 @@
+openapi: 3.0.3
+info:
+  title: DS Builder Gateway Authentication API
+  version: 1.0.0
+  description: Public authentication endpoint exposed by the identity gateway.
+servers:
+  - url: /
+paths:
+  /realms/dsbuilder/protocol/openid-connect/auth/device:
+    post:
+      operationId: requestDeviceCode
+      tags: [Authentication]
+      summary: Start device authorization for clients without a redirect, such as the Figma plugin
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [client_id]
+              properties:
+                client_id:
+                  type: string
+                  default: dsbuilder-figma-plugin
+                scope:
+                  type: string
+                  default: openid profile offline_access
+      responses:
+        '200':
+          description: Device authorization response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceAuthorizationResponse'
+        '400':
+          description: Invalid client or device grant is not enabled
+  /auth/token:
+    post:
+      operationId: obtainAccessToken
+      tags: [Authentication]
+      summary: Obtain or refresh an access token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, client_id]
+              properties:
+                grant_type:
+                  type: string
+                  enum: [password, refresh_token, 'urn:ietf:params:oauth:grant-type:device_code']
+                  default: password
+                client_id:
+                  type: string
+                  default: dsbuilder-api
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                refresh_token:
+                  type: string
+                device_code:
+                  type: string
+                  description: Device code for the device_code grant
+                scope:
+                  type: string
+                  default: openid
+      responses:
+        '200':
+          description: Token response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: >-
+            Invalid token request. The device_code grant reports polling state in the OAuth error field:
+            authorization_pending, slow_down, expired_token or access_denied. Offline sessions report
+            not_allowed when the user has no offline_access role.
+        '401':
+          description: Invalid credentials
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    DeviceAuthorizationResponse:
+      type: object
+      required: [device_code, user_code, verification_uri, expires_in]
+      properties:
+        device_code:
+          type: string
+        user_code:
+          type: string
+        verification_uri:
+          type: string
+          format: uri
+        verification_uri_complete:
+          type: string
+          format: uri
+        expires_in:
+          type: integer
+        interval:
+          type: integer
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          format: int32

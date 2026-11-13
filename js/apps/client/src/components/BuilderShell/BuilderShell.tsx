@@ -7,13 +7,15 @@ import { projectsApi } from '../../modules/projects/data/projectsApi';
 import { useLoad } from '../../shared/data/useLoad';
 import '../../styles/workflow.css';
 import { choose, Visible } from '../rendering';
+import { ChevronLeftOutline, ChevronRightOutline } from '@salutejs/sdds-icons/16';
 import railBrandItemIcon from '../../assets/catalog/icons/rail-brand-item.svg';
 import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg';
 
-export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление';
+export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление' | 'Personal Access Token';
 export type BreadcrumbSegment = { label: string; to: string };
 export const settingsSectionIds: Record<SettingsSection, string> = {
     Основное: 'general',
+    'Personal Access Token': 'personal-access-token',
     'Участники и роли': 'members',
     Администрирование: 'lifecycle',
     Удаление: 'delete',
@@ -91,6 +93,10 @@ export const BuilderAccount = () => {
                                 {[user?.username, user?.email].filter(Boolean).join(' · ') || 'Нет данных профиля'}
                             </span>
                         </div>
+                        <button role="menuitem" onClick={() => {
+                            setAccountOpen(false);
+                            navigate('/settings?section=personal-access-token');
+                        }}>Настройки</button>
                         <button
                             role="menuitem"
                             className="danger-menu-item"
@@ -134,6 +140,21 @@ export const BuilderIconRail = ({
     </aside>
 );
 
+/** Кнопки `Back` шапки: переход по истории браузера. */
+const HistoryButtons = () => {
+    const navigate = useNavigate();
+    return (
+        <div className="builder-history-buttons">
+            <button type="button" aria-label="Назад" title="Назад" onClick={() => navigate(-1)}>
+                <ChevronLeftOutline />
+            </button>
+            <button type="button" aria-label="Вперёд" title="Вперёд" onClick={() => navigate(1)}>
+                <ChevronRightOutline />
+            </button>
+        </div>
+    );
+};
+
 export const BuilderHierarchyBar = ({
     title,
     action,
@@ -142,6 +163,7 @@ export const BuilderHierarchyBar = ({
     breadcrumbSegments,
     ariaLabel,
     loading = false,
+    rootless = false,
 }: {
     title: string;
     action?: ReactNode;
@@ -150,8 +172,11 @@ export const BuilderHierarchyBar = ({
     breadcrumbSegments?: BreadcrumbSegment[];
     ariaLabel?: string;
     loading?: boolean;
+    /** Путь редактора темы по Figma: «Проект / Дизайн-система / Тема / Раздел» и «Назад / Вперёд» перед ним. */
+    rootless?: boolean;
 }) => (
     <header className="builder-hierarchy-bar">
+        {rootless && <HistoryButtons />}
         <nav
             className={`builder-hierarchy-path ${loading ? 'is-loading' : ''}`}
             aria-label={ariaLabel}
@@ -159,9 +184,13 @@ export const BuilderHierarchyBar = ({
         >
             {!loading && (
                 <>
-                    <span className="hierarchy-product">DS Builder</span>
-                    <span className="hierarchy-separator">/</span>
-                    <Visible when={Boolean(projectName || breadcrumbSegments?.length)}>
+                    <Visible when={!rootless}>
+                        <>
+                            <span className="hierarchy-product">DS Builder</span>
+                            <span className="hierarchy-separator">/</span>
+                        </>
+                    </Visible>
+                    <Visible when={!rootless && Boolean(projectName || breadcrumbSegments?.length)}>
                         <>
                             <Link to="/projects">Проекты</Link>
                             <span className="hierarchy-separator">/</span>

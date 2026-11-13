@@ -3,14 +3,13 @@ import type {
     DimensionProp,
     FloatProp,
     IconProp,
+    IntegerProp,
     ShadowProp,
     ShapeProp,
     StyleReferenceProp,
     TypographyProp,
     ValueProp,
 } from './props';
-
-export const DEFAULT_FONT_SIZE = 16;
 
 // type ConfigTokenFields<T extends ConfigToken> = {
 //     [K in Exclude<keyof T, 'name'>]: T[K];
@@ -34,6 +33,8 @@ export type PropType =
     | 'color'
     | 'dimension'
     | 'float'
+    /** Целое число без единиц (число колонок сетки). */
+    | 'integer'
     /** Иконка: имя в формате данных (`disclosure.down.fill.16`). */
     | 'icon'
     | 'shadow'
@@ -43,7 +44,7 @@ export type PropType =
     /** Ссылка на стиль другого компонента: `<конфигурация>.<стиль>.<стиль>`. */
     | 'component_style';
 
-export type PropState = 'hovered' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
+export type PropState = 'hovered' | 'pressed' | 'focused'; //| 'disabled' | 'loading';
 
 export type Intersections = Record<string, string[]>;
 
@@ -51,6 +52,7 @@ export type PropUnion =
     | ColorProp
     | FloatProp
     | IconProp
+    | IntegerProp
     | ShadowProp
     | ShapeProp
     | DimensionProp
@@ -60,7 +62,6 @@ export type PropUnion =
 
 export interface WebToken {
     name: string;
-    adjustment: string | null;
 }
 
 export interface PlatformTokens {
@@ -114,6 +115,8 @@ export interface StyleConfig {
 
 export interface VariationConfig {
     id: string;
+    /** Имя вариации в этой конфигурации (отображаемое имя оси); без него — имя вариации из `sources.variations`. */
+    name?: string;
     styles?: StyleConfig[];
 }
 
@@ -140,6 +143,8 @@ export interface ComponentDep {
 export interface Config {
     name: string;
     id: string;
+    /** Конфигурация по умолчанию компонента: её нельзя удалить, она открывается первой. */
+    isDefault?: boolean;
     config: ComponentConfig;
 }
 
@@ -157,6 +162,8 @@ export interface Meta {
     /** Платформа компонента; без значения — `web`. Проставляется клиентом при загрузке. */
     platform?: ComponentPlatform;
     deps?: ComponentDep[];
+    /** Родители по зависимости `compose` (`Tabs` у `TabItem`): их стили нужны превью вместе с компонентом. */
+    composeParents?: string[];
     preview?: {
         compose?: {
             componentId: string;
@@ -173,8 +180,3 @@ export interface Meta {
     };
 }
 
-export interface ThemeValues {
-    getTokenValue(name: string, type: 'color' | 'shape' | 'shadow' | 'typography' | 'fontFamily', platform: 'web'): any;
-}
-
-export type WebTokenValues = Record<string, string>;

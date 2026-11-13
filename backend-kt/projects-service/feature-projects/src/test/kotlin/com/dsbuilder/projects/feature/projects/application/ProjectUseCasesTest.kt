@@ -18,8 +18,6 @@ import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProject
 import com.dsbuilder.projects.feature.projects.domain.model.ActorType
 import com.dsbuilder.projects.feature.projects.domain.model.AuthenticatedActor
 import com.dsbuilder.projects.feature.projects.domain.model.Project
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKey
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKeyStatus
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
@@ -37,6 +35,43 @@ class ProjectUseCasesTest {
     private val tx = ImmediateTransactionManager()
     private val policy = ProjectAccessPolicy()
     private val identityUserLookup = InMemoryIdentityUserLookup()
+
+    @Test
+    fun `catalog batches authorized projects and preserves partial failures`() = kotlinx.coroutines.runBlocking {
+        val now = Instant.now(clock)
+        repeat(501) { index ->
+            val id = "visible-$index"
+            repository.seedProject(Project(id, id, null, ProjectStatus.ACTIVE, "user", now, now))
+        }
+        repository.seedProject(Project("hidden", "Hidden", null, ProjectStatus.ACTIVE, "other", now, now))
+        val batches = mutableListOf<List<String>>()
+        val counts = com.dsbuilder.projects.feature.projects.application.port.DesignSystemCounts { ids ->
+            batches += ids
+            if (batches.size == 2) error("DS unavailable")
+            ids.associateWith { 0 }
+        }
+        val result = ListProjectsUseCase(repository, tx, policy, counts).execute(
+            ListProjectsInput(AuthenticatedActor(ActorType.USER, "user", false)),
+        )
+        assertEquals(listOf(500, 1), batches.map { it.size })
+        assertFalse(batches.flatten().contains("hidden"))
+        assertEquals(500, result.count { it.designSystemCount == 0 })
+        assertEquals(1, result.count { it.designSystemCount == null })
+    }
+
+    @Test
+    fun `catalog propagates cancellation of count query`() = kotlinx.coroutines.runBlocking<Unit> {
+        val now = Instant.now(clock)
+        repository.seedProject(Project("owned", "Owned", null, ProjectStatus.ACTIVE, "user", now, now))
+        val counts = com.dsbuilder.projects.feature.projects.application.port.DesignSystemCounts {
+            throw kotlinx.coroutines.CancellationException("cancelled")
+        }
+        kotlin.test.assertFailsWith<kotlinx.coroutines.CancellationException> {
+            ListProjectsUseCase(repository, tx, policy, counts).execute(
+                ListProjectsInput(AuthenticatedActor(ActorType.USER, "user", false)),
+            )
+        }
+    }
 
     @Test
     fun `create project keeps owner outside members table`() {
@@ -306,7 +341,6 @@ private class ImmediateTransactionManager : TransactionManager {
 private class InMemoryProjectRepository : ProjectRepository {
     val projects = linkedMapOf<String, Project>()
     val members = linkedMapOf<Pair<String, String>, ProjectMember>()
-    val accessKeys = linkedMapOf<String, ProjectAccessKey>()
 
     override suspend fun createProject(project: Project) {
         projects[project.id] = project
@@ -356,37 +390,6 @@ private class InMemoryProjectRepository : ProjectRepository {
 
     override suspend fun removeMember(projectId: String, userId: String): Boolean =
         members.remove(projectId to userId) != null
-
-    override suspend fun createAccessKey(accessKey: ProjectAccessKey) {
-        accessKeys[accessKey.id] = accessKey
-    }
-
-    override suspend fun listAccessKeys(projectId: String): List<ProjectAccessKey> =
-        accessKeys.values.filter { it.projectId == projectId }
-
-    override suspend fun getAccessKey(projectId: String, keyId: String): ProjectAccessKey? =
-        accessKeys[keyId]?.takeIf { it.projectId == projectId }
-
-    override suspend fun getAccessKeyById(keyId: String): ProjectAccessKey? = accessKeys[keyId]
-
-    override suspend fun updateAccessKeyUsage(keyId: String, lastUsedAt: Instant, updatedAt: Instant) {
-        val current = accessKeys[keyId] ?: return
-        accessKeys[keyId] = current.copy(lastUsedAt = lastUsedAt, updatedAt = updatedAt)
-    }
-
-    override suspend fun updateAccessKeyStatus(
-        projectId: String,
-        keyId: String,
-        status: ProjectAccessKeyStatus,
-        revokedAt: Instant?,
-        updatedAt: Instant,
-    ): ProjectAccessKey? {
-        val current = accessKeys[keyId]?.takeIf { it.projectId == projectId } ?: return null
-        return current.copy(
-            revokedAt = revokedAt,
-            updatedAt = updatedAt,
-        ).also { accessKeys[keyId] = it }
-    }
 
     fun seedProject(project: Project) {
         projects[project.id] = project

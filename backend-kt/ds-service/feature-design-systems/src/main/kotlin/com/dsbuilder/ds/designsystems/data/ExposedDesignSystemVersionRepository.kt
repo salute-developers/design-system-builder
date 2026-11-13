@@ -1,6 +1,11 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
+import com.dsbuilder.ds.core.application.mapItems
 import com.dsbuilder.ds.core.data.lockDesignSystemPublication
+import com.dsbuilder.ds.core.data.modelReadVersionPage
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.data.resolvedDraftRevision
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersion
@@ -18,6 +23,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
@@ -41,6 +47,21 @@ class ExposedDesignSystemVersionRepository(
         if (!accessible(projectId, designSystemId)) return null
         return publishedRows(projectId, designSystemId)
             .map(::toDomain)
+    }
+
+    override suspend fun pageByDesignSystem(
+        projectId: ProjectId,
+        designSystemId: DesignSystemId,
+        read: ModelReadQuery,
+    ): ModelReadItems<DesignSystemVersion>? {
+        if (!accessible(projectId, designSystemId)) return null
+        return VersionBoundariesTable.selectAll().where {
+            (VersionBoundariesTable.designSystemId eq designSystemId.value) and
+                (VersionBoundariesTable.status eq DesignSystemVersionStatus.PUBLISHED) and
+                VersionBoundariesTable.snapshot.isNull() and
+                (read.version?.let { VersionBoundariesTable.version eq it } ?: org.jetbrains.exposed.v1.core.Op.TRUE)
+        }.modelReadVersionPage(read, VersionBoundariesTable.sequenceNumber, VersionBoundariesTable.id)
+            .mapItems(::toDomain)
     }
 
     @Suppress("ReturnCount")
@@ -104,7 +125,7 @@ class ExposedDesignSystemVersionRepository(
         .selectAll()
         .where {
             var predicate: Op<Boolean> = (VersionBoundariesTable.status eq DesignSystemVersionStatus.PUBLISHED) and
-                (DesignSystemsTable.projectId eq projectId.value)
+                (DesignSystemsTable.projectId eq projectId.value) and requestDesignSystemScope(DesignSystemsTable.id)
             designSystemId?.let { predicate = predicate and (VersionBoundariesTable.designSystemId eq it.value) }
             id?.let { predicate = predicate and (VersionBoundariesTable.id eq it.value) }
             predicate
@@ -115,7 +136,7 @@ class ExposedDesignSystemVersionRepository(
     private fun accessible(projectId: ProjectId, designSystemId: DesignSystemId): Boolean =
         DesignSystemsTable.selectAll().where {
             (DesignSystemsTable.id eq designSystemId.value) and
-                (DesignSystemsTable.projectId eq projectId.value)
+                (DesignSystemsTable.projectId eq projectId.value) and requestDesignSystemScope(DesignSystemsTable.id)
         }.limit(1).any()
 
     private fun owned(projectId: ProjectId, designSystemId: DesignSystemId): Boolean =

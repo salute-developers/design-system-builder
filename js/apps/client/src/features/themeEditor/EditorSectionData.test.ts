@@ -1,5 +1,5 @@
-import { beforeEach, expect, it, vi } from 'vitest';
-import type { ThemeEditorSnapshot } from '../../api/editorContracts';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DraftChangeDto, ThemeEditorSnapshot } from '../../api/editorContracts';
 import type { Meta } from '../../controllers/componentBuilder/type';
 
 const reads = vi.hoisted(() => ({
@@ -52,6 +52,25 @@ const component = (name: string): Meta => ({
 });
 const create = () => new EditorSectionData(context, snapshot(), new AbortController().signal);
 
+it('после отката значения сохраняет группы, но не теряет независимую инвалидацию групп', async () => {
+    const data = create();
+    await data.activate('colors');
+    const changes = [{ entityType: 'token-value' } as DraftChangeDto];
+    data.invalidate(new Set(['theme-tokens']), changes);
+    await data.activate('colors');
+    expect(reads.tokens).toHaveBeenCalledTimes(2);
+    expect(reads.groups).toHaveBeenCalledOnce();
+    expect(reads.shell).not.toHaveBeenCalled();
+    expect(reads.index).not.toHaveBeenCalled();
+    data.invalidate(new Set(['theme-tokens']));
+    data.invalidate(new Set(['theme-tokens']), changes);
+    await data.activate('colors');
+    expect(reads.groups).toHaveBeenCalledTimes(2);
+    data.invalidate(new Set(['theme-tokens']), [{ entityType: 'token-group' } as DraftChangeDto]);
+    await data.activate('colors');
+    expect(reads.groups).toHaveBeenCalledTimes(3);
+});
+
 it('сначала получает группы, затем определения цветов, сохраняя результат в кэше раздела', async () => {
     let finishGroups!: (value: []) => void;
     reads.groups.mockImplementationOnce(
@@ -82,7 +101,11 @@ beforeEach(() => {
             requested.map((type) => [type, { id: type, name: type, type }]),
         );
         result.tokenIdsByName = Object.fromEntries(requested.map((type) => [type, type]));
-        return result;
+        // Как tokenRepository.loadTokenData: только поля токенов, без компонентов и оболочки.
+        const tokenSnapshot: Partial<ThemeEditorSnapshot> = { ...result };
+        delete tokenSnapshot.componentsData;
+        delete tokenSnapshot.composeComponentsData;
+        return tokenSnapshot;
     });
     reads.index.mockResolvedValue([component('A'), component('B')]);
     reads.component.mockImplementation(async (_context, _signal, _platform, name) => [component(name)]);
@@ -138,7 +161,13 @@ it('палитровое SSE во время чтения цветов не от
 it('открывает цвета без любых конфигураций компонентов и без остальных типов темы', async () => {
     const data = create();
     const result = await data.activate('colors');
-    expect(reads.tokens).toHaveBeenCalledExactlyOnceWith(context, expect.anything(), '0.1.0', ['color', 'gradient']);
+    expect(reads.tokens).toHaveBeenCalledExactlyOnceWith(
+        context,
+        expect.anything(),
+        '0.1.0',
+        ['color', 'gradient'],
+        undefined,
+    );
     expect(reads.index).not.toHaveBeenCalled();
     expect(reads.component).not.toHaveBeenCalled();
     expect(Object.keys(result!.snapshot.tokenIdsByName)).toEqual(['color', 'gradient']);
@@ -217,14 +246,14 @@ it('кэширует целые разделы и сохраняет данны�
     expect(Object.keys(result!.snapshot.tokenIdsByName)).toEqual(['color', 'gradient', 'typography', 'fontFamily']);
 });
 
-it('SSE не читает скрытые разделы и сохраняет их устаревание после сверки курсора', async () => {
+it('инвалидация токенов не читает оболочку и скрытые разделы', async () => {
     const data = create();
     await data.activate('colors');
     await data.activate('settings');
     data.invalidate(new Set(['theme-tokens']));
     await data.refresh();
     expect(reads.tokens).toHaveBeenCalledTimes(1);
-    expect(reads.shell).toHaveBeenCalledTimes(1);
+    expect(reads.shell).not.toHaveBeenCalled();
     await data.activate('colors');
     expect(reads.tokens).toHaveBeenCalledTimes(2);
     expect(reads.component).not.toHaveBeenCalled();
@@ -250,7 +279,8 @@ it('список из ста компонентов не загружает их
     expect(reads.tokens).not.toHaveBeenCalled();
     expect(reads.component).not.toHaveBeenCalled();
     await data.activate('components', 'C50');
-    expect(reads.component).toHaveBeenCalledExactlyOnceWith(context, expect.anything(), 'web', 'C50');
+    // Последний аргумент — componentId записи индекса: по нему компонент читается одним editor-bundle.
+    expect(reads.component).toHaveBeenCalledExactlyOnceWith(context, expect.anything(), 'web', 'C50', 'C50');
     await data.activate('components', 'C50');
     expect(reads.component).toHaveBeenCalledTimes(1);
     expect(reads.index).toHaveBeenCalledTimes(1);
@@ -354,4 +384,411 @@ it('читает только необходимые вложенные комп
     expect(reads.component.mock.calls.map((call) => call[3])).toEqual(['A', 'B']);
     await data.activate('components', 'B');
     expect(reads.component).toHaveBeenCalledTimes(2);
+});
+
+it('token invalidation reloads neither the shell nor hidden sections', async () => {
+    const data = create();
+    await data.activate('colors');
+    reads.tokens.mockClear();
+    data.invalidate(new Set(['theme-tokens']));
+    expect(reads.tokens).not.toHaveBeenCalled();
+    await data.activate('colors');
+    expect(reads.shell).not.toHaveBeenCalled();
+    expect(reads.tokens).toHaveBeenCalledOnce();
+    expect(reads.tokens.mock.calls[0][3]).toEqual(['color', 'gradient']);
+});
+
+it('a local color write invalidates colors without typography or component configuration reads', async () => {
+    const data = create();
+    await data.activate('colors');
+    await data.activate('typography');
+    reads.tokens.mockClear();
+    data.invalidateTokenTypes(['color', 'gradient']);
+    expect(reads.tokens).not.toHaveBeenCalled();
+    await data.activate('typography');
+    expect(reads.tokens).not.toHaveBeenCalled();
+    await data.activate('colors');
+    expect(reads.tokens).toHaveBeenCalledOnce();
+    expect(reads.shell).not.toHaveBeenCalled();
+    expect(reads.component).not.toHaveBeenCalled();
+});
+
+it('expires derived component models on reuse without polling hidden components', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+        const data = create();
+        await data.activate('components', 'A');
+        const initial = reads.component.mock.calls.length;
+        await data.activate('components', 'A');
+        expect(reads.component).toHaveBeenCalledTimes(initial);
+        await data.activate('settings');
+        now.mockReturnValue(1_300_001);
+        expect(reads.component).toHaveBeenCalledTimes(initial);
+        await data.activate('components', 'A');
+        expect(reads.component.mock.calls.length).toBeGreaterThan(initial);
+    } finally {
+        now.mockRestore();
+    }
+});
+
+it('применяет достаточный ACK без GET и не снимает удалённую инвалидацию', async () => {
+    const data = create();
+    await data.activate('shapes');
+    const updates = [{ tokenId: 'shape', values: [{ platform: 'web' as const, value: [19] }] }];
+    expect(data.acceptConfirmedValues(updates)).toBe(true);
+    const next = await data.activate('shapes');
+    expect(reads.tokens).toHaveBeenCalledOnce();
+    expect(next!.snapshot.themeData.variations.shape.web.shape).toBe(19);
+    data.invalidate(new Set(['theme-tokens']));
+    expect(data.acceptConfirmedValues(updates)).toBe(false);
+    await data.activate('shapes');
+    expect(reads.tokens).toHaveBeenCalledTimes(2);
+    expect(data.acceptConfirmedValues([{ tokenId: 'missing', values: [] }])).toBe(false);
+});
+
+it('собственная правка цвета переиспользует палитру, удалённая инвалидация её обновляет', async () => {
+    const palette = { tenantId: 'theme', groups: [] } as unknown as NonNullable<ThemeEditorSnapshot['palette']>;
+    const initial = await reads.tokens(context, undefined, undefined, ['color', 'gradient']);
+    reads.tokens.mockResolvedValue({ ...initial, palette });
+    reads.tokens.mockClear();
+    const data = create();
+    await data.activate('colors');
+    data.invalidateTokenTypes(['color']);
+    await data.activate('colors');
+    expect(reads.tokens.mock.calls[1][4]).toBe(palette);
+    data.invalidate(new Set(['theme-tokens']));
+    await data.activate('colors');
+    expect(reads.tokens.mock.calls[2][4]).toBeUndefined();
+});
+
+const familyFixture = () => {
+    const value = snapshot();
+    const definition = {
+        id: 'color-id',
+        designSystemId: context.designSystemId,
+        name: 'text.default.accent',
+        type: 'color' as const,
+        displayName: 'Accent',
+        description: null,
+        enabled: true,
+        groupId: 'group',
+        position: 0,
+        publishedIn: '1.0.0',
+    };
+    value.palette = { tenantId: context.tenantId, groups: [] } as never;
+    value.tokenDefinitionsByName = { [definition.name]: definition };
+    value.tokenIdsByName = { [definition.name]: definition.id };
+    value.themeData.meta.tokens = ['light', 'dark'].map((mode) => ({
+        name: `${mode}.${definition.name}`,
+        tags: [],
+        type: 'color',
+        enabled: true,
+        displayName: 'Accent',
+    }));
+    for (const platform of ['web', 'ios', 'android'])
+        for (const mode of ['light', 'dark'])
+            (value.themeData.variations.color as unknown as Record<string, Record<string, unknown>>)[platform][
+                `${mode}.${definition.name}`
+            ] = '#112233';
+    reads.tokens.mockResolvedValue(value);
+    return { definition, data: create() };
+};
+
+it('подтверждённый перенос сохраняет значения по ID без HTTP и сохраняет publishedIn', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    reads.tokens.mockClear();
+    reads.groups.mockClear();
+    const next = { ...definition, name: 'text.default.renamed', position: 2 };
+    expect(
+        data.acceptColorStructure({
+            definitions: [next],
+            removedTokenIds: [],
+            placements: [{ id: next.id, groupId: 'group', position: 2 }],
+        }),
+    ).toBe(true);
+    const result = await data.activate('colors');
+    expect(result?.tokensChanged).toBe(true);
+    expect(data.currentSnapshot.tokenIdsByName[next.name]).toBe(definition.id);
+    expect(data.currentSnapshot.tokenIdsByName[definition.name]).toBeUndefined();
+    expect(data.currentSnapshot.themeData.variations.color.web['light.text.default.renamed']).toBe('#112233');
+    expect(reads.tokens).not.toHaveBeenCalled();
+    expect(reads.groups).not.toHaveBeenCalled();
+});
+
+it('подтверждённое создание и удаление не перечитывает соседние токены и скрытую палитру', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    reads.tokens.mockClear();
+    const next = { ...definition, id: 'new', name: 'text.default.new' };
+    const values = ['web', 'ios', 'android'].flatMap((platform) =>
+        ['light', 'dark'].map((mode) => ({
+            platform,
+            mode,
+            value: '#445566',
+            revision: 3,
+            entityId: `new-${platform}-${mode}`,
+        })),
+    );
+    expect(
+        data.acceptColorStructure({ definitions: [next], removedTokenIds: [], placements: [] }, [
+            { tokenId: 'new', type: 'color', values },
+        ] as never),
+    ).toBe(true);
+    await data.activate('colors');
+    expect(data.currentSnapshot.themeData.variations.color.web['light.text.default.new']).toBe('#445566');
+    expect(data.currentSnapshot.themeData.variations.color.web['light.text.default.accent']).toBe('#112233');
+    expect(data.acceptColorStructure({ definitions: [], removedTokenIds: ['new'], placements: [] })).toBe(true);
+    await data.activate('colors');
+    expect(data.currentSnapshot.tokenIdsByName[next.name]).toBeUndefined();
+    expect(reads.tokens).not.toHaveBeenCalled();
+    expect(reads.palette).not.toHaveBeenCalled();
+});
+
+it('свой структурный ACK не снимает более новую SSE-инвалидацию', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    data.invalidate(new Set(['theme-tokens']));
+    expect(
+        data.acceptColorStructure({
+            definitions: [{ ...definition, name: 'text.default.old-ack' }],
+            removedTokenIds: [],
+            placements: [],
+        }),
+    ).toBe(false);
+    expect(data.currentSnapshot.tokenIdsByName[definition.name]).toBe(definition.id);
+});
+
+it('запоздавший ACK не заменяет уже прочитанную более новую редакцию значения', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    data.currentSnapshot.tokenValueRevisionsByKey[`${definition.id}:web:light`] = 5;
+    expect(
+        data.acceptConfirmedValues([
+            { tokenId: definition.id, values: [{ platform: 'web', mode: 'light', value: '#000000', revision: 4 }] },
+        ]),
+    ).toBe(false);
+    expect(data.currentSnapshot.themeData.variations.color.web['light.text.default.accent']).toBe('#112233');
+});
+
+it('смена ссылки помечает палитру устаревшей и не читает её до открытия', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    expect(
+        data.acceptConfirmedValues([
+            { tokenId: definition.id, values: [{ platform: 'web', mode: 'light', value: '[general.green.500]' }] },
+        ]),
+    ).toBe(true);
+    expect(reads.palette).not.toHaveBeenCalled();
+    await data.activate('palette');
+    expect(reads.palette).toHaveBeenCalledOnce();
+});
+
+it('обычная правка HEX не перечитывает неизменившуюся палитру даже при открытии', async () => {
+    const { data, definition } = familyFixture();
+    await data.activate('colors');
+    expect(
+        data.acceptConfirmedValues([
+            { tokenId: definition.id, values: [{ platform: 'web', mode: 'light', value: '#445566' }] },
+        ]),
+    ).toBe(true);
+    await data.activate('palette');
+    expect(reads.palette).not.toHaveBeenCalled();
+});
+
+it('переименование сохраняет явную группу палитры по ID и обновляет поиск по имени без HTTP', async () => {
+    const { data, definition } = familyFixture();
+    const value = await reads.tokens();
+    value.palette = {
+        tenantId: context.tenantId,
+        groups: [{ id: 'custom', kind: 'custom', systemKey: null, label: 'Custom', ramps: [] }],
+        tokens: [{ tokenId: definition.id, tokenName: definition.name, groupId: 'custom', assignment: 'explicit' }],
+    };
+    reads.tokens.mockResolvedValue(value);
+    await data.activate('colors');
+    const next = { ...definition, name: 'text.default.renamed' };
+    expect(data.acceptColorStructure({ definitions: [next], removedTokenIds: [], placements: [] })).toBe(true);
+    expect(data.currentSnapshot.palette?.tokens).toMatchObject([
+        { tokenId: definition.id, tokenName: next.name, groupId: 'custom', assignment: 'explicit' },
+    ]);
+    expect(reads.palette).not.toHaveBeenCalled();
+});
+
+it('вместе с web-компонентом читает его зависимости и родителей по compose для превью, по разу каждый', async () => {
+    reads.index.mockResolvedValue(['TabItem', 'Tabs', 'Counter', 'Other'].map(component));
+    reads.component.mockImplementation(async (_context, _signal, _platform, name) => [
+        name === 'TabItem'
+            ? {
+                  ...component(name),
+                  deps: [{ childId: 'Counter', childName: 'Counter', type: 'reuse', order: 0 }],
+                  composeParents: ['Tabs'],
+              }
+            : name === 'Tabs'
+              ? { ...component(name), deps: [{ childId: 'TabItem', childName: 'TabItem', type: 'compose', order: 0 }] }
+              : component(name),
+    ]);
+    const data = create();
+    await data.activate('components', 'TabItem');
+    expect(reads.component.mock.calls.map((call) => call[3])).toEqual(['TabItem', 'Counter', 'Tabs']);
+    const tabs = data.currentSnapshot.componentsData.find((item) => item.name === 'Tabs');
+    expect(tabs?.deps?.[0]?.childName).toBe('TabItem');
+});
+
+it('канвас «Цвета» загружает компонент со связанными, не меняя активный раздел, и не читает его повторно', async () => {
+    reads.index.mockResolvedValue(['Tabs', 'TabItem', 'Other'].map(component));
+    reads.component.mockImplementation(async (_context, _signal, _platform, name) => [
+        name === 'TabItem' ? { ...component(name), composeParents: ['Tabs'] } : component(name),
+    ]);
+    const data = create();
+    await data.activate('colors');
+    expect(await data.loadComponent()).toMatchObject({ componentsChanged: true });
+    expect(data.currentSnapshot.componentsData.map((item) => item.name)).toEqual(['Tabs', 'TabItem', 'Other']);
+    expect(reads.component).not.toHaveBeenCalled();
+
+    await data.loadComponent('TabItem');
+    expect(reads.component.mock.calls.map((call) => call[3])).toEqual(['TabItem', 'Tabs']);
+    expect(data.activeSection).toBe('colors');
+    expect(await data.loadComponent('TabItem')).toBeUndefined();
+    expect(reads.component).toHaveBeenCalledTimes(2);
+});
+
+describe('параллельная загрузка выбранного компонента', () => {
+    /** A ссылается на стили B и C, оба — на D; D ни на что не ссылается. */
+    const references: Record<string, string[]> = { A: ['b.small', 'c.large'], B: ['d.small'], C: ['d.large'], D: [] };
+    const indexed = () =>
+        Object.keys(references).map((name) => ({
+            ...component(name),
+            serverBinding: { componentId: `id-${name}`, appearanceId: name, appearanceNames: [name.toLowerCase()] },
+        }));
+    const loadedMeta = (name: string): Meta => ({
+        ...component(name),
+        serverBinding: { componentId: `id-${name}`, appearanceId: `${name}-appearance` },
+        sources: {
+            api: [
+                { id: 'nested', name: 'nested', type: 'component_style' },
+                { id: 'fill', name: 'fill', type: name === 'D' ? 'dimension' : 'color' },
+            ] as never,
+            variations: [],
+            configs: [
+                {
+                    id: 'config',
+                    name: name.toLowerCase(),
+                    config: {
+                        defaultVariations: [],
+                        variations: [],
+                        invariantProps: [{ id: 'nested', value: references[name] }],
+                    },
+                },
+            ],
+        },
+    });
+    const deferred = () => {
+        const pending = new Map<string, () => void>();
+        reads.component.mockImplementation(
+            (_context, _signal, _platform, name: string) =>
+                new Promise((resolve) => pending.set(name, () => resolve([loadedMeta(name)]))),
+        );
+        return pending;
+    };
+    const names = () => reads.component.mock.calls.map((call) => call[3]);
+
+    beforeEach(() => reads.index.mockResolvedValue(indexed()));
+
+    it('запускает загрузки одного уровня до завершения первой и читает общую ссылку один раз', async () => {
+        const pending = deferred();
+        const data = create();
+        const reading = data.activate('components', 'A');
+        await vi.waitFor(() => expect(names()).toEqual(['A']));
+        pending.get('A')!();
+        await vi.waitFor(() => expect(names()).toEqual(['A', 'B', 'C']));
+        expect(pending.has('D')).toBe(false);
+        // Ответы уровня приходят в обратном порядке, но вливаются в порядке ссылок.
+        pending.get('C')!();
+        pending.get('B')!();
+        await vi.waitFor(() => expect(names()).toEqual(['A', 'B', 'C', 'D']));
+        pending.get('D')!();
+        await reading;
+        expect(names()).toEqual(['A', 'B', 'C', 'D']);
+        expect(reads.component.mock.calls.map((call) => call[4])).toEqual(['id-A', 'id-B', 'id-C', 'id-D']);
+    });
+
+    it('итоговый снимок совпадает с последовательной загрузкой', async () => {
+        reads.component.mockImplementation(async (_context, _signal, _platform, name: string) => [loadedMeta(name)]);
+        const sequential = create();
+        await sequential.activate('components', 'A');
+        const expected = sequential.currentSnapshot;
+        expect(expected.componentsData).toEqual(
+            Object.keys(references).map((name) => ({
+                ...loadedMeta(name),
+                serverBinding: { ...loadedMeta(name).serverBinding, appearanceNames: [name.toLowerCase()] },
+            })),
+        );
+
+        vi.clearAllMocks();
+        const pending = deferred();
+        const parallel = create();
+        const reading = parallel.activate('components', 'A');
+        await vi.waitFor(() => expect(pending.has('A')).toBe(true));
+        pending.get('A')!();
+        await vi.waitFor(() => expect(pending.has('C')).toBe(true));
+        pending.get('C')!();
+        pending.get('B')!();
+        await vi.waitFor(() => expect(pending.has('D')).toBe(true));
+        pending.get('D')!();
+        const result = await reading;
+        expect(parallel.currentSnapshot).toEqual(expected);
+        expect(result!.tokenTypes).toEqual([
+            'typography',
+            'fontFamily',
+            'color',
+            'gradient',
+            'shape',
+            'spacing',
+            'shadow',
+        ]);
+    });
+
+    it('разделы токенов читаются одновременно, оболочка — один раз до них', async () => {
+        reads.component.mockImplementation(async (_context, _signal, _platform, name: string) => [loadedMeta(name)]);
+        const releases: Array<() => void> = [];
+        const tokens = reads.tokens.getMockImplementation()!;
+        reads.tokens.mockImplementation(
+            (...args) => new Promise((resolve) => releases.push(() => resolve(tokens(...args)))),
+        );
+        reads.groups.mockImplementation(() => new Promise((resolve) => releases.push(() => resolve([]))));
+        let releaseA!: () => void;
+        reads.component.mockImplementationOnce(
+            (_context, _signal, _platform, name: string) =>
+                new Promise((resolve) => (releaseA = () => resolve([loadedMeta(name)]))),
+        );
+        const data = create();
+        const reading = data.activate('components', 'A');
+        await vi.waitFor(() => expect(reads.component).toHaveBeenCalledOnce());
+        // Событие во время чтения компонента делает оболочку устаревшей до запуска разделов.
+        data.invalidate(new Set(['theme-metadata']));
+        releaseA();
+        // Типографика и группы цветов стартуют, не дожидаясь друг друга; shapes добавляется после D.
+        await vi.waitFor(() => {
+            expect(reads.tokens.mock.calls.map((call) => call[3])).toEqual(
+                expect.arrayContaining([
+                    ['typography', 'fontFamily'],
+                    ['shape', 'spacing', 'shadow'],
+                ]),
+            );
+            expect(reads.groups).toHaveBeenCalledOnce();
+        });
+        expect(reads.shell).toHaveBeenCalledOnce();
+        // Ни одно чтение раздела ещё не завершено: группы цветов держат определения цветов.
+        expect(reads.tokens).toHaveBeenCalledTimes(2);
+        let settled = false;
+        void reading.finally(() => (settled = true));
+        while (!settled) {
+            releases.splice(0).forEach((release) => release());
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+        const result = await reading;
+        expect(reads.shell).toHaveBeenCalledOnce();
+        expect(reads.tokens).toHaveBeenCalledTimes(3);
+        expect(Object.keys(result!.snapshot.tokenIdsByName).sort()).toEqual([...types].sort());
+    });
 });

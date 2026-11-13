@@ -16,6 +16,6 @@ class ListVariationPropertyValuesByAppearanceUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, appearanceId: UUID): DsResult<List<VariationPropertyValue>> =
         modelFindList(policy, transactions, context) {
-            repository.listVariationByAppearance(context.projectId, context.principal.systemAdmin, appearanceId)
+            repository.listVariationByAppearance(context.projectId, context.principal.globalAdmin, appearanceId)
         }
 }

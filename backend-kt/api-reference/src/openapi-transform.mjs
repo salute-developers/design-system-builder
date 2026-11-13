@@ -30,7 +30,7 @@ export function transformOpenApi(document, descriptor, servers, requestDefaults 
   const sourceParameters = document.components?.parameters ?? {};
   const paths = Object.fromEntries(
     Object.entries(document.paths ?? {})
-      .filter(([sourcePath]) => sourcePath === descriptor.sourcePrefix || sourcePath.startsWith(`${descriptor.sourcePrefix}/`))
+      .filter(([sourcePath]) => isPublished(sourcePath, descriptor))
       .map(([sourcePath, pathItem]) => [
         rewritePath(sourcePath, descriptor),
         transformPathItem(pathItem, descriptor, sourceParameters, requestDefaults),
@@ -63,7 +63,16 @@ export function transformOpenApi(document, descriptor, servers, requestDefaults 
   };
 }
 
+function isPublished(sourcePath, descriptor) {
+  return (
+    descriptor.exactPaths?.includes(sourcePath) ||
+    sourcePath === descriptor.sourcePrefix ||
+    sourcePath.startsWith(`${descriptor.sourcePrefix}/`)
+  );
+}
+
 function rewritePath(sourcePath, descriptor) {
+  if (descriptor.exactPaths?.includes(sourcePath)) return sourcePath;
   const suffix = sourcePath.slice(descriptor.sourcePrefix.length);
   return `${descriptor.gatewayPrefix}${suffix}`;
 }

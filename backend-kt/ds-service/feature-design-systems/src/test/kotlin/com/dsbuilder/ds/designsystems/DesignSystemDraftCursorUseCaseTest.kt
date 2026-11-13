@@ -72,6 +72,11 @@ class DesignSystemDraftCursorUseCaseTest {
 }
 
 private class CursorTransactions : TransactionRunner {
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = required(context, block)
+
     override suspend fun <T> required(block: suspend () -> DsResult<T>) = block()
     override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
 }

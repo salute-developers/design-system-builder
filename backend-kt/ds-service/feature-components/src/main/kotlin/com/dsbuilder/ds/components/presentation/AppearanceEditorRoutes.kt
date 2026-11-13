@@ -7,6 +7,8 @@ import com.dsbuilder.ds.components.application.AppearanceEditorRepository
 import com.dsbuilder.ds.components.application.CreateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.DuplicateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceEditorModelUseCase
+import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCase
+import com.dsbuilder.ds.components.application.GetResolvedComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisValueUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearancePropertyValueUseCase
@@ -25,6 +27,9 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -50,6 +55,8 @@ private const val IDEMPOTENCY_HEADER = "Idempotency-Key"
 fun Route.appearanceEditorRoutes(
     evaluator: PolicyEvaluator,
     model: GetAppearanceEditorModelUseCase,
+    resolvedProperties: GetResolvedComponentPropertiesUseCase,
+    tokenReferences: GetComponentTokenReferencesUseCase,
     addAxis: AddAppearanceAxisUseCase,
     removeAxis: RemoveAppearanceAxisUseCase,
     reorderAxes: ReorderAppearanceAxesUseCase,
@@ -63,12 +70,46 @@ fun Route.appearanceEditorRoutes(
     duplicateConfiguration: DuplicateAppearanceConfigurationUseCase,
     json: Json,
 ) {
-    route("/api/ds/appearances") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/appearances")) {
         get("/{id}/editor-model") {
             val context = requestContext(evaluator) ?: return@get
             val id = pathUuid("id") ?: return@get
             when (val result = model.execute(context, id)) {
                 is DsResult.Success -> call.respondSuccess(result, AppearanceEditorModelResponse.from(result.value))
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
+        }
+        get("/{id}/resolved-properties") {
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = pathUuid("id") ?: return@get
+            val valueIds = call.request.queryParameters.getAll("selectedValueId").orEmpty().map { it.toUuidOrNull() }
+            if (valueIds.any { it == null }) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_selected_value_id"))
+            }
+            when (val result = resolvedProperties.execute(context, id, valueIds.filterNotNull())) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    ResolvedComponentPropertiesResponse(
+                        id.toString(),
+                        valueIds.filterNotNull().map(UUID::toString),
+                        result.value.map(EditorPropertyValueResponse::from),
+                    ),
+                )
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
+        }
+        get("/{id}/token-references") {
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = pathUuid("id") ?: return@get
+            val valueIds = call.request.queryParameters.getAll("selectedValueId").orEmpty().map { it.toUuidOrNull() }
+            if (valueIds.any { it == null }) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_selected_value_id"))
+            }
+            when (val result = tokenReferences.execute(context, id, valueIds.filterNotNull())) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    ComponentTokenReferencesResponse(result.value.map(ComponentTokenReferenceResponse::from)),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
@@ -88,7 +129,7 @@ fun Route.appearanceEditorRoutes(
             val createContext = context.withIdempotentResponse { value: EditorAxis ->
                 json.encodeToString(EditorAxisResponse.serializer(), EditorAxisResponse.from(value))
             }
-            val key = call.request.headers[IDEMPOTENCY_HEADER]
+            val key = call.dsTrustedHeaders()[IDEMPOTENCY_HEADER]
             when (val result = addAxis.execute(createContext, id, command, key)) {
                 is DsResult.Success ->
                     call.respondSuccess(result, HttpStatusCode.Created, EditorAxisResponse.from(result.value))
@@ -134,7 +175,7 @@ fun Route.appearanceEditorRoutes(
             val createContext = context.withIdempotentResponse { value: EditorAxisValue ->
                 json.encodeToString(EditorAxisValueResponse.serializer(), EditorAxisValueResponse.from(value))
             }
-            val key = call.request.headers[IDEMPOTENCY_HEADER]
+            val key = call.dsTrustedHeaders()[IDEMPOTENCY_HEADER]
             when (val result = addValue.execute(createContext, id, axisId, command, key)) {
                 is DsResult.Success ->
                     call.respondSuccess(result, HttpStatusCode.Created, EditorAxisValueResponse.from(result.value))
@@ -223,7 +264,7 @@ fun Route.appearanceEditorRoutes(
         post("/new") {
             val context = requestContext(evaluator) ?: return@post
             val request = requestBody<CreateAppearanceConfigurationRequest>(json) ?: return@post
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
             val componentId = request.componentId.toUuidOrNull()
             val name = request.name?.trim()?.takeIf { it.isNotEmpty() }
             if (designSystemId == null || componentId == null || (name?.length ?: 0) > MAX_NAME_LENGTH) {
@@ -231,7 +272,7 @@ fun Route.appearanceEditorRoutes(
             }
             val command = AppearanceEditorRepository.NewAppearance(designSystemId, componentId, name)
             val createContext = context.withAppearanceResponse(json)
-            val key = call.request.headers[IDEMPOTENCY_HEADER]
+            val key = call.dsTrustedHeaders()[IDEMPOTENCY_HEADER]
             when (val result = createConfiguration.execute(createContext, command, key)) {
                 is DsResult.Success ->
                     call.respondSuccess(result, HttpStatusCode.Created, AppearanceResponse.from(result.value))
@@ -247,7 +288,7 @@ fun Route.appearanceEditorRoutes(
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             val createContext = context.withAppearanceResponse(json)
-            val key = call.request.headers[IDEMPOTENCY_HEADER]
+            val key = call.dsTrustedHeaders()[IDEMPOTENCY_HEADER]
             when (val result = duplicateConfiguration.execute(createContext, id, name, key)) {
                 is DsResult.Success ->
                     call.respondSuccess(result, HttpStatusCode.Created, AppearanceResponse.from(result.value))
@@ -265,7 +306,7 @@ private fun DsRequestContext.withAppearanceResponse(json: Json): DsRequestContex
 /** Контекст запроса из доверенных заголовков; при отказе отвечает `403` и возвращает `null`. */
 private suspend fun RoutingContext.requestContext(evaluator: PolicyEvaluator): DsRequestContext? {
     val context = TrustedDsRequestContextMapper.map(
-        call.request.headers,
+        call.dsTrustedHeaders(),
         evaluator,
         call.request.queryParameters["versionId"],
     )

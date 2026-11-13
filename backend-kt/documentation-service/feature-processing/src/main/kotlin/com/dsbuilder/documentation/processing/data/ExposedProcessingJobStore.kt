@@ -361,7 +361,7 @@ class ExposedProcessingJobStore(
     )
 
     private suspend fun <T> dbTransaction(block: JdbcTransaction.() -> T): T =
-        withContext(Dispatchers.IO) { transaction(database, block) }
+        withContext(Dispatchers.IO) { transaction(db = database, statement = block) }
 }
 
 internal fun publicationLockKey(

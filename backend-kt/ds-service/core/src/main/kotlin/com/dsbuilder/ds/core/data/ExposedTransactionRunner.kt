@@ -8,6 +8,7 @@ import com.dsbuilder.ds.core.application.IdempotentReplayException
 import com.dsbuilder.ds.core.application.IdempotentRequestLookup
 import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.RequestHash
 import com.dsbuilder.ds.core.application.TransactionFailureMapper
 import com.dsbuilder.ds.core.application.TransactionRunner
@@ -31,13 +32,16 @@ class ExposedTransactionRunner(
     private val database: Database,
     private val failureMapper: TransactionFailureMapper,
 ) : TransactionRunner {
-    override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = false, block)
+    override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = false) {
+        clearDesignSystemScope()
+        block()
+    }
 
     override suspend fun <T> required(
         context: DsRequestContext,
         block: suspend () -> DsResult<T>,
     ): DsResult<T> = execute(readOnly = false) {
-        if (context.versionId != null) {
+        if (context.versionId != null || context.version != null) {
             return@execute DsResult.Failure(DsFailure.InvalidRequest("historical_version_read_only"))
         }
         configure(context)
@@ -63,6 +67,9 @@ class ExposedTransactionRunner(
         when (val result = block()) {
             is DsResult.Failure -> result
             is DsResult.Success -> {
+                // Пустая команда без ключа тоже проверяет систему. Удаление уже проверено до записи,
+                // а сохранённые идемпотентные ответы выходят через IdempotentReplayException раньше.
+                verifyRequestMutationScope(context.designSystemId)
                 if (request != null) saveMutationResponse(context, request, requireNotNull(result.value))
                 result.copy(mutationMetadata = mutationMetadata())
             }
@@ -87,7 +94,8 @@ class ExposedTransactionRunner(
 
     override suspend fun <T> rollback(block: suspend () -> DsResult<T>): DsResult<T> = try {
         withContext(Dispatchers.IO) {
-            transaction(database) {
+            transaction(db = database) {
+                clearDesignSystemScope()
                 val result = runBlocking { block() }
                 rollback()
                 result
@@ -101,13 +109,28 @@ class ExposedTransactionRunner(
         DsResult.Failure(failureMapper.map(failure))
     }
 
-    override suspend fun <T> readOnly(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = true, block)
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = execute(readOnly = false) {
+        configure(context)
+        requireRequestDesignSystemMutable()
+        val result = block()
+        TransactionManager.current().rollback()
+        result
+    }
+
+    override suspend fun <T> readOnly(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = true) {
+        clearDesignSystemScope()
+        block()
+    }
 
     override suspend fun <T> readOnly(
         context: DsRequestContext,
         block: suspend () -> DsResult<T>,
     ): DsResult<T> = execute(readOnly = true) {
         configure(context)
+        requireRequestDesignSystemAccessible()
         if (context.versionId != null && !versionAccessible(context)) {
             DsResult.Failure(DsFailure.NotFound)
         } else {
@@ -115,22 +138,57 @@ class ExposedTransactionRunner(
         }
     }
 
+    override suspend fun <T> readOnly(
+        context: DsRequestContext,
+        target: ModelReadTarget,
+        block: suspend (DsRequestContext) -> DsResult<T>,
+    ): DsResult<T> = execute(readOnly = true) {
+        configure(context)
+        requireRequestDesignSystemAccessible()
+        when (val resolved = ExposedModelReadSelectionResolver().resolve(context, target)) {
+            is DsResult.Failure -> resolved
+            is DsResult.Success -> {
+                configure(resolved.value.context)
+                when (val result = block(resolved.value.context)) {
+                    is DsResult.Failure -> result
+                    is DsResult.Success -> result.copy(readContext = resolved.value.metadata)
+                }
+            }
+        }
+    }
+
     private fun versionAccessible(context: DsRequestContext): Boolean {
         val versionId = requireNotNull(context.versionId)
-        val access = if (context.principal.systemAdmin) "TRUE" else "system.project_id = ?"
         val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to versionId)
-        if (!context.principal.systemAdmin) args += TextColumnType() to context.projectId.value
+        val access = if (context.principal.globalAdmin) {
+            "TRUE"
+        } else {
+            args += TextColumnType() to context.projectId.value
+            "system.project_id = ?"
+        }
         return TransactionManager.current().exec(
             "SELECT EXISTS(" +
                 "SELECT 1 FROM design_system_versions boundary " +
                 "JOIN design_systems system ON system.id = boundary.design_system_id " +
                 "WHERE boundary.id = ? AND boundary.status = 'published' " +
-                "AND boundary.snapshot IS NULL AND $access)",
+                "AND boundary.snapshot IS NULL AND ds_request_matches_design_system(system.id) AND $access)",
             args,
         ) { rows -> rows.next() && rows.getBoolean(1) } ?: false
     }
 
+    private fun clearDesignSystemScope() {
+        // SET LOCAL не создаёт снимок до выбора уровня изоляции глобальной публикацией.
+        TransactionManager.current().exec("SET LOCAL ds.design_system_id = ''")
+    }
+
     private fun configure(context: DsRequestContext) {
+        clearResolvedSubjectReads()
+        TransactionManager.current().putUserData(DIAGNOSTIC_CORRELATION, context.correlationId)
+        TransactionManager.current().putUserData(requestMutationScopeChecked, false)
+        TransactionManager.current().exec(
+            "SELECT set_config('ds.design_system_id', ?, true)",
+            listOf(TextColumnType() to context.designSystemId?.toString().orEmpty()),
+        )
         TransactionManager.current().exec(
             "SELECT set_config('ds.actor_id', ?, true)",
             listOf(TextColumnType() to context.principal.actorId),
@@ -141,7 +199,7 @@ class ExposedTransactionRunner(
         )
         TransactionManager.current().exec(
             "SELECT set_config('ds.system_admin', ?, true)",
-            listOf(TextColumnType() to context.principal.systemAdmin.toString()),
+            listOf(TextColumnType() to context.principal.globalAdmin.toString()),
         )
         context.baseRevision?.let { revision ->
             TransactionManager.current().exec(
@@ -163,10 +221,42 @@ class ExposedTransactionRunner(
         }
     }
 
-    private fun mutationMetadata(): String? = TransactionManager.current().exec(
-        "SELECT NULLIF(current_setting('ds.mutation_metadata', true), '')",
-    ) { rows ->
-        if (rows.next()) rows.getString(1) else null
+    private fun mutationMetadata(): String? {
+        return TransactionManager.current().exec(
+            "SELECT NULLIF(current_setting('ds.mutation_metadata', true), '')",
+        ) { rows ->
+            if (rows.next()) rows.getString(1) else null
+        }
+    }
+
+    private suspend fun <T> executeAttempt(
+        readOnly: Boolean,
+        attempt: Int,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = withContext(Dispatchers.IO) {
+        val diagnostics = TransactionDiagnostics.start(readOnly, attempt)
+        var succeeded = false
+        try {
+            transaction(db = database) {
+                val acquired = connection
+                diagnostics?.connected()
+                if (diagnostics != null) {
+                    registerInterceptor(diagnostics)
+                    putUserData(activeTransactionDiagnostics, diagnostics)
+                }
+                acquired.readOnly = readOnly
+                connection.transactionIsolation = if (readOnly) {
+                    Connection.TRANSACTION_REPEATABLE_READ
+                } else {
+                    Connection.TRANSACTION_SERIALIZABLE
+                }
+                val result = runBlocking { block() }
+                if (result is DsResult.Failure) rollback()
+                result
+            }.also { succeeded = it is DsResult.Success }
+        } finally {
+            diagnostics?.finished(succeeded)
+        }
     }
 
     @Suppress("ReturnCount")
@@ -177,21 +267,13 @@ class ExposedTransactionRunner(
         var lastFailure: SQLException? = null
         repeat(if (readOnly) 1 else SERIALIZABLE_ATTEMPTS) { attempt ->
             try {
-                return withContext(Dispatchers.IO) {
-                    transaction(database) {
-                        connection.readOnly = readOnly
-                        connection.transactionIsolation = if (readOnly) {
-                            Connection.TRANSACTION_REPEATABLE_READ
-                        } else {
-                            Connection.TRANSACTION_SERIALIZABLE
-                        }
-                        val result = runBlocking { block() }
-                        if (result is DsResult.Failure) rollback()
-                        result
-                    }
-                }
+                return executeAttempt(readOnly, attempt, block)
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (_: InaccessibleDesignSystemException) {
+                return DsResult.Failure(DsFailure.NotFound)
+            } catch (_: InvalidModelReadQueryException) {
+                return DsResult.Failure(DsFailure.InvalidRequest("INVALID_QUERY"))
             } catch (failure: ExposedSQLException) {
                 if (!failure.isRetryableTransactionFailure() || attempt == SERIALIZABLE_ATTEMPTS - 1) {
                     return DsResult.Failure(failureMapper.map(failure))

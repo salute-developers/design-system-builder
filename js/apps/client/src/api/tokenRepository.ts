@@ -1,5 +1,6 @@
+import { storedTokenValue } from './confirmedTokenValues';
 import { http } from './http';
-import { readEditor, invalidateEditorReads } from './editorReads';
+import { readEditor, invalidateEditorReads, invalidateEditorResources } from './editorReads';
 import type { ThemeMeta } from '../controllers/themeBuilder/types/meta';
 import type { TokenType } from '../controllers/themeBuilder/types/token';
 import type { PlatformsVariations } from '../controllers/themeBuilder/types/theme';
@@ -14,7 +15,14 @@ import type {
     DesignSystemVersionDto,
     PendingTokenMutation,
 } from './editorContracts';
-import { apiRoot, tokenValueKey, parseMutationMetadata, readRequest, keepaliveRequest } from './editorHttp';
+import {
+    apiRoot,
+    tokenValueKey,
+    tokenDefinitionsUrl,
+    parseMutationMetadata,
+    readRequest,
+    keepaliveRequest,
+} from './editorHttp';
 import { nextPatchVersion } from './versionNumbers';
 import { normalizedColorValue } from './colorValue';
 import { createHttpPaletteRepository, paletteSourceFromEnv } from '../modules/palette';
@@ -26,7 +34,7 @@ export const tokenRepository = {
     async loadColorGroups(context: EditorContextKey, signal?: AbortSignal) {
         const request = readRequest(context, signal);
         const response = await readEditor<import('../modules/colorTokens/domain/types').TokenGroupDto[]>(
-            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/token-groups`,
+            `${apiRoot(context.projectId, context.designSystemId)}/token-groups`,
             { ...request, params: { ...request.params, kind: 'color' } },
         );
         return response.data;
@@ -36,34 +44,36 @@ export const tokenRepository = {
         signal?: AbortSignal,
         knownPublicationVersion?: string,
         types?: TokenDefinitionDto['type'][],
+        knownPalette?: ThemeEditorTokenSnapshot['palette'],
     ): Promise<ThemeEditorTokenSnapshot> {
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const request = readRequest(context, signal);
-        const themePalette =
-            paletteSourceFromEnv() === 'api' &&
-            (!types || types.some((type) => type === 'color' || type === 'gradient' || type === 'shadow'))
-                ? createHttpPaletteRepository()
-                      .load(context, signal)
-                      .then(
-                          (palette) => ({ palette, paletteError: undefined }),
-                          (error: unknown) => ({
-                              palette: undefined,
-                              paletteError: error instanceof Error ? error : new Error(String(error)),
-                          }),
-                      )
-                : Promise.resolve({ palette: undefined, paletteError: undefined });
+        const themePalette = knownPalette
+            ? Promise.resolve({ palette: knownPalette, paletteError: undefined })
+            : paletteSourceFromEnv() === 'api' &&
+                (!types || types.some((type) => type === 'color' || type === 'gradient' || type === 'shadow'))
+              ? createHttpPaletteRepository()
+                    .load(context, signal)
+                    .then(
+                        (palette) => ({ palette, paletteError: undefined }),
+                        (error: unknown) => ({
+                            palette: undefined,
+                            paletteError: error instanceof Error ? error : new Error(String(error)),
+                        }),
+                    )
+              : Promise.resolve({ palette: undefined, paletteError: undefined });
         const [tenant, tokens, values, versions] = await Promise.all([
             readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
             types
                 ? Promise.all(
                       types.map((type) =>
-                          readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, {
+                          readEditor<TokenDefinitionDto[]>(`${root}/tokens`, {
                               ...request,
                               params: { ...request.params, type },
                           }),
                       ),
                   ).then((responses) => ({ data: responses.flatMap((response) => response.data) }))
-                : readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
+                : readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
             readEditor<TenantTokenValueDto[]>(
                 `${root}/tenants/${context.tenantId}/token-values`,
                 types ? { ...request, params: { ...request.params, types: types.join(',') } } : request,
@@ -71,13 +81,13 @@ export const tokenRepository = {
             context.versionId || knownPublicationVersion
                 ? Promise.resolve({ data: [] as DesignSystemVersionDto[] })
                 : readEditor<DesignSystemVersionDto[]>(
-                      `${root}/design-system-versions/by-design-system/${context.designSystemId}`,
+                      `${root}/versions`,
                       { signal },
                   ),
         ]);
         if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
         const palette = values.data.some((value) => value.paletteId)
-            ? await readEditor<PaletteDto[]>(`${root}/palette`, { signal })
+            ? await readEditor<PaletteDto[]>(`${apiRoot(context.projectId)}/palette`, { signal })
             : { data: [] as PaletteDto[] };
         const paletteById = new Map(palette.data.map((entry) => [entry.id, entry]));
         const valuesByToken = new Map<string, TenantTokenValueDto[]>();
@@ -133,13 +143,7 @@ export const tokenRepository = {
                 const name = value.mode ? `${value.mode}.${token.name}` : token.name;
                 const group = variations[token.type] as unknown as Record<string, Record<string, unknown>>;
                 const paletteEntry = value.paletteId ? paletteById.get(value.paletteId) : undefined;
-                const preservesArrayShape = ['gradient', 'shadow'].includes(token.type);
-                // Редактор работает с хранимым значением: ссылки стопов и строка сплошного цвета платформы.
-                const source =
-                    value.sourceValue !== undefined && value.sourceValue !== null ? value.sourceValue : value.value;
-                const storedValue = [unwrapValue(source), ([] as unknown[]).concat(source as never)][
-                    Number(preservesArrayShape)
-                ];
+                const storedValue = storedTokenValue(token.type, value.sourceValue ?? value.value);
                 const rawOpacity = paletteEntry ? unwrapValue(value.value) : undefined;
                 const opacity =
                     typeof rawOpacity === 'number' || (typeof rawOpacity === 'string' && rawOpacity.trim() !== '')
@@ -213,7 +217,7 @@ export const tokenRepository = {
         idempotencyKey: string = crypto.randomUUID(),
     ) {
         const response = await http.put<{ editRevision: number; values: TenantTokenValueDto[] }>(
-            `${apiRoot(context.projectId)}/tenants/${context.tenantId}/token-values`,
+            `${apiRoot(context.projectId, context.designSystemId)}/tenants/${context.tenantId}/token-values`,
             { editRevision, values },
             {
                 headers: { 'X-DS-Base-Revision': '0', 'Idempotency-Key': idempotencyKey },
@@ -221,7 +225,7 @@ export const tokenRepository = {
                 ...keepaliveRequest(keepalive),
             },
         );
-        invalidateEditorReads();
+        invalidateEditorReads(context);
         return {
             ...response.data,
             mutationMetadata: parseMutationMetadata(response.headers?.['x-ds-mutation-metadata']),
@@ -239,7 +243,7 @@ export const tokenRepository = {
         keepalive = false,
         signal?: AbortSignal,
     ) {
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const mode: 'light' | 'dark' | null = mutation.tokenName.startsWith('light.')
             ? 'light'
             : mutation.tokenName.startsWith('dark.')
@@ -256,13 +260,16 @@ export const tokenRepository = {
                 ...transport,
             });
             const metadata = parseMutationMetadata(deleted.headers?.['x-ds-mutation-metadata']);
-            invalidateEditorReads();
+            invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
             const revision = metadata.reduce((latest, item) => Math.max(latest, item.revision), baseRevision);
             return {
                 tokenId: stableTokenId,
                 editRevision,
                 baseRevision: revision,
                 valueBaseRevisions,
+                values: undefined,
             };
         }
         let tokenMutationMetadata: Array<{ entityType: string; entityId: string; revision: number }> = [];
@@ -270,7 +277,7 @@ export const tokenRepository = {
             const created = await http.post<TokenDefinitionDto>(
                 `${root}/tokens`,
                 {
-                    designSystemId: context.designSystemId,
+
                     name: tokenName,
                     type: mutation.change.type,
                     displayName: mutation.change.meta?.displayName ?? tokenName,
@@ -283,7 +290,9 @@ export const tokenRepository = {
                 },
             );
             stableTokenId = created.data.id;
-            invalidateEditorReads();
+            invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
             tokenMutationMetadata = parseMutationMetadata(created.headers?.['x-ds-mutation-metadata']);
         } else if (mutation.definitionPatch && Object.keys(mutation.definitionPatch).length > 0) {
             const updated = await http.patch(`${root}/tokens/${stableTokenId}`, mutation.definitionPatch, {
@@ -291,7 +300,9 @@ export const tokenRepository = {
                 ...transport,
             });
             tokenMutationMetadata = parseMutationMetadata(updated.headers?.['x-ds-mutation-metadata']);
-            invalidateEditorReads();
+            invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
         }
         const values = (['web', 'ios', 'android'] as const)
             .filter((platform) => mutation.change.values[platform] !== undefined)
@@ -315,6 +326,7 @@ export const tokenRepository = {
         return {
             tokenId: stableTokenId,
             editRevision: saved.editRevision,
+            values: saved.values,
             baseRevision: tokenRevision,
             valueBaseRevisions: Object.fromEntries(
                 saved.values.map((value) => [
@@ -333,7 +345,7 @@ export const tokenRepository = {
     async listDefinitions(context: EditorContextKey, signal?: AbortSignal) {
         return (
             await readEditor<TokenDefinitionDto[]>(
-                `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/tokens`,
+                `${apiRoot(context.projectId, context.designSystemId)}/tokens`,
                 readRequest(context, signal),
             )
         ).data;

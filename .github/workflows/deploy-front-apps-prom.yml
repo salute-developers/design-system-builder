@@ -28,13 +28,23 @@ jobs:
 
       - name: Build client
         env:
+          OTHER_WEB_COUNTER: ${{ vars.VITE_METRICA_COUNTER_ID_DEV }}
+          CLI_COUNTER_PROM: ${{ vars.DSBUILDER_METRICA_COUNTER_ID_PROM }}
+          VITE_METRICA_ENABLED: ${{ vars.VITE_METRICA_ENABLED_PROM || 'false' }}
+          VITE_METRICA_COUNTER_ID: ${{ vars.VITE_METRICA_COUNTER_ID_PROM }}
           VITE_API_GATEWAY_URL: ${{ vars.VITE_API_GATEWAY_URL_PROM }}
           VITE_CLIENT_ID: ${{ vars.VITE_CLIENT_ID_PROM }}
           VITE_REQUEST_ACCESS_URL: ${{ vars.VITE_REQUEST_ACCESS_URL_PROM }}
-          VITE_COMPONENT_EDITOR_ENABLED: 'false'
+          VITE_COMPONENT_EDITOR_ENABLED: 'true'
           BASE_URL: '/design-system-builder/'
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider
+          if [[ "$VITE_METRICA_ENABLED" == true ]]; then
+            if [[ ! "$VITE_METRICA_COUNTER_ID" =~ ^[1-9][0-9]*$ || "$VITE_METRICA_COUNTER_ID" == "$OTHER_WEB_COUNTER" || "$VITE_METRICA_COUNTER_ID" == "$CLI_COUNTER_PROM" ]]; then
+              echo 'Analytics requires an isolated positive web counter' >&2
+              exit 1
+            fi
+          fi
           npm run build --prefix="./apps/client"
           cp -R ./apps/client/dist ./s3_build/client
 

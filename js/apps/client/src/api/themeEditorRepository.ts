@@ -6,6 +6,7 @@ import type {
     ThemeEditorSnapshot,
     DesignSystemComponentDto,
     DesignSystemVersionDto,
+    AppearanceDto,
 } from './editorContracts';
 import { apiRoot, readRequest } from './editorHttp';
 import { tokenRepository } from './tokenRepository';
@@ -14,19 +15,27 @@ import type { ThemeSource } from '../controllers/designSystem';
 
 /** Оболочка не читает значения токенов, палитру, компоненты и историю. */
 export async function loadThemeShell(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
-    const root = apiRoot(context.projectId);
+    const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
     const [project, designSystem, tenant, links, version] = await Promise.all([
         readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
-        readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request),
+        readEditor<DesignSystemDto>(`${root}`, request, undefined, 30_000),
         readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
         readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
         context.versionId
-            ? readEditor<DesignSystemVersionDto>(`${root}/design-system-versions/${context.versionId}`, request)
+            ? readEditor<DesignSystemVersionDto>(`${root}/versions/${context.versionId}`, request)
             : Promise.resolve(undefined),
     ]);
     if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
-    if (version && version.data.designSystemId !== context.designSystemId) throw new Error('VERSION_DESIGN_SYSTEM_MISMATCH');
+    // Раздел компонентов доступен, когда все компоненты скрыты (у скрытых остаются оформления) и когда их нет совсем,
+    // но есть шаблоны: добавить и вернуть компоненты можно только из раздела. Дополнительные чтения — лишь без связей.
+    const hasComponents =
+        links.data.some((link) => link.designSystemId === context.designSystemId) ||
+        (await readEditor<AppearanceDto[]>(`${root}/appearances`, request))
+            .data.length > 0 ||
+        (await componentRepository.loadComponentTemplates(context, signal)).length > 0;
+    if (version && version.data.designSystemId !== context.designSystemId)
+        throw new Error('VERSION_DESIGN_SYSTEM_MISMATCH');
     const types = ['color', 'gradient', 'typography', 'fontFamily', 'shape', 'spacing', 'shadow'];
     const empty = {
         mode: [],
@@ -60,7 +69,7 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
         publicationVersion: version?.data.version ?? '0.1.0',
         componentsData: [],
         composeComponentsData: [],
-        hasComponents: links.data.some((link) => link.designSystemId === context.designSystemId),
+        hasComponents,
         parameters: {
             projectId: context.projectId,
             projectName: project.data.name,
@@ -85,7 +94,7 @@ export type * from './editorContracts';
 export async function loadDesignSystemCursor(context: EditorContextKey, signal?: AbortSignal) {
     return (
         await readEditor<DesignSystemDto>(
-            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}`,
+            `${apiRoot(context.projectId, context.designSystemId)}`,
             readRequest(context, signal),
         )
     ).data;
@@ -93,11 +102,11 @@ export async function loadDesignSystemCursor(context: EditorContextKey, signal?:
 
 /** Первичная загрузка редактора объединяет независимые предметные данные. */
 export async function loadThemeEditor(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
-    const root = apiRoot(context.projectId);
+    const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
     const [project, designSystem, tokenData, components, composeComponentsData] = await Promise.all([
         readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
-        readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request),
+        readEditor<DesignSystemDto>(`${root}`, request),
         tokenRepository.loadTokenData(context, signal),
         componentRepository.loadComponentData(context, signal),
         componentRepository.loadComposeComponentData(context, signal),

@@ -552,7 +552,9 @@
 .settings-content[data-active-section='lifecycle'] #settings-lifecycle,
 .ps-content[data-active-section='lifecycle'] #settings-lifecycle,
 .settings-content[data-active-section='delete'] #settings-delete,
-.ps-content[data-active-section='delete'] #settings-delete {
+.ps-content[data-active-section='delete'] #settings-delete,
+.settings-content[data-active-section='personal-access-token'] #settings-personal-access-token,
+.ps-content[data-active-section='personal-access-token'] #settings-personal-access-token {
     display: block;
 }
 .settings-main {
@@ -2385,7 +2387,7 @@ button:disabled {
 }
 .catalog-loading-grid {
     height: 284px;
-    margin-top: 82px;
+    margin-top: 0;
     padding: 12px 0;
     display: grid;
     grid-template-columns: repeat(auto-fill, 330px);
@@ -3150,12 +3152,14 @@ button:disabled {
 }
 .project-settings-layout .ps-cli-list {
     width: 100%;
+    overflow-x: auto;
     margin-top: 16px;
     border-top: 1px solid var(--p-line);
 }
 .project-settings-layout .ps-cli-head,
 .project-settings-layout .ps-cli-row {
     display: grid;
+    min-width: 640px;
     grid-template-columns: minmax(120px, 1fr) 70px minmax(240px, 2fr) 90px 72px;
     gap: 12px;
     align-items: center;
@@ -3170,6 +3174,8 @@ button:disabled {
 }
 .project-settings-layout .ps-cli-row {
     min-height: 42px;
+    align-items: baseline;
+    padding: 8px 0;
     border-bottom: 1px solid var(--p-line);
     font-size: 10px;
 }
@@ -3246,13 +3252,15 @@ button:disabled {
     width: min(520px, 100%);
 }
 .ps-button-danger,
-.project-settings .ps-button-danger {
+.project-settings .ps-button-danger,
+.project-settings .settings-section .ps-button-danger {
     border-color: #9f2632;
     background: #9f2632;
     color: #fff;
 }
 .ps-button-danger:hover:not(:disabled),
 .project-settings .ps-button-danger:hover:not(:disabled),
+.project-settings .settings-section .ps-button-danger:hover:not(:disabled),
 .danger-menu-item:hover {
     border-color: #bd3545 !important;
     background: #bd3545 !important;
@@ -3655,6 +3663,36 @@ button:disabled {
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
 }
+.ps-scope-actions {
+    display: flex;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.ps-scope-group + .ps-scope-group {
+    margin-top: 12px;
+}
+.ps-scope-group-toggle {
+    min-height: 36px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 6px;
+    background: #ffffff08;
+    color: #f3f3f3;
+    font: 600 12px/16px Inter, system-ui, sans-serif;
+    cursor: pointer;
+}
+.ps-scope-group-toggle > span {
+    margin-left: auto;
+    color: #9e9fa2;
+    font-weight: 400;
+}
+.ps-scope-group .ps-scope-option {
+    padding-left: 24px;
+}
 .ps-scope-option {
     min-height: 44px;
     padding: 7px 8px;
@@ -3664,11 +3702,47 @@ button:disabled {
     border-top: 1px solid #ffffff12;
     cursor: pointer;
 }
-.ps-scope-option input {
+.ps-scope-picker input[type='checkbox'] {
+    appearance: none;
+    position: relative;
+    flex: 0 0 16px;
     width: 16px;
     height: 16px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #ffffff40;
+    border-radius: 4px;
+    background: #202124;
+    cursor: pointer;
+}
+.ps-scope-option input[type='checkbox'] {
     margin-top: 2px;
-    accent-color: var(--p-accent);
+}
+.ps-scope-picker input[type='checkbox']:checked,
+.ps-scope-picker input[type='checkbox']:indeterminate {
+    border-color: var(--p-accent);
+    background: var(--p-accent);
+}
+.ps-scope-picker input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.ps-scope-picker input[type='checkbox']:indeterminate::after {
+    content: '';
+    position: absolute;
+    inset: 6px 3px auto;
+    border-top: 2px solid #fff;
+}
+.ps-scope-picker input[type='checkbox']:focus-visible {
+    outline: 2px solid var(--p-accent);
+    outline-offset: 3px;
 }
 .ps-scope-option span {
     display: grid;
@@ -3746,10 +3820,10 @@ button:disabled {
     overflow-wrap: anywhere;
 }
 .ps-cli-row .ps-scope-flow {
-    align-self: stretch;
-    align-content: center;
+    align-self: baseline;
+    align-content: start;
     gap: 6px 8px;
-    padding: 7px 0;
+    padding: 0;
 }
 .catalog-card-link .catalog-body h2 {
     position: relative;
@@ -3844,7 +3918,8 @@ button:disabled {
     border: 0;
     background: transparent;
 }
-.project-settings #settings-members {
+.project-settings #settings-members,
+.project-settings #settings-personal-access-token {
     width: 100%;
     max-width: none;
 }
@@ -3935,9 +4010,10 @@ button:disabled {
 .project-settings .settings-section button:hover:not(:disabled) {
     background: #4a9df0;
 }
-.project-settings #settings-lifecycle .ps-cli-copy-button {
+.project-settings .settings-section .ps-cli-copy-button {
     width: 32px;
     min-width: 32px;
+    flex: 0 0 32px;
     height: auto;
     padding: 0;
     display: grid;
@@ -3949,10 +4025,10 @@ button:disabled {
     color: #eacb8b;
     line-height: 0;
 }
-.project-settings #settings-lifecycle .ps-cli-copy-button svg {
+.project-settings .settings-section .ps-cli-copy-button svg {
     display: block;
 }
-.project-settings #settings-lifecycle .ps-cli-copy-button:hover:not(:disabled) {
+.project-settings .settings-section .ps-cli-copy-button:hover:not(:disabled) {
     background: #9b742e2e;
     color: #fff0c9;
 }
@@ -4111,4 +4187,108 @@ button:disabled {
 }
 .change-journal small {
     color: #ffffff99;
+}
+
+.mcp-link-popover {
+    padding: 16px;
+    border: 1px solid var(--p-line, #ffffff1a);
+    border-radius: 8px;
+    background: var(--builder-panel, #212327);
+    color: var(--p-text, #f3f3f3);
+    box-shadow: 0 4px 16px #0006;
+    font: 400 13px/20px Inter, system-ui, sans-serif;
+    overflow: auto;
+}
+.mcp-link-popover p { margin: 0 0 12px; }
+.mcp-link-field { display: flex; align-items: center; gap: 8px; }
+.mcp-link-field input {
+    flex: 1; min-width: 0; padding: 8px;
+    border: 1px solid var(--p-line, #ffffff1a); border-radius: 4px;
+    background: transparent; color: inherit; font: inherit;
+}
+.mcp-link-field button { flex-shrink: 0; }
+.mcp-link-popover [role="status"] { display: block; margin-top: 8px; }
+
+/*
+ * Оболочка по Figma (`Rail`, `Topbar`, `Back`): знак без плашки, линии `outline/general/primary`,
+ * шаг пунктов рейла 36 px, аккаунт с рамкой, крошки 12/14, кнопки «Назад / Вперёд».
+ */
+/* Свечение `Gradient_logo`: в Figma слой 705×800 лежит поверх рейла, шапки и панелей, градиент — круг радиусом
+ * √(705² + 800²) ≈ 1066 px из угла. Слой выше рабочей области (`z-index: 2`), но ниже меню и окон: у рабочей
+ * области нет своего слоя наложения, и их `z-index` от 3 выводит их над свечением. */
+.builder-shell-gradient {
+    z-index: 2;
+    background: radial-gradient(
+        circle 1066px at 0 0,
+        rgba(43, 140, 237, 0.16) 0,
+        rgba(43, 140, 237, 0.08) 10.26%,
+        rgba(43, 140, 237, 0.02) 24.55%,
+        rgba(43, 140, 237, 0) 60.43%
+    );
+}
+.builder-main {
+    z-index: auto;
+}
+/* Полная запись границ: jsdom падает, если `border-color` перекрывает запись с `var()`. */
+.builder-icon-sidebar {
+    border-right: 1px solid #3d3f42;
+}
+.builder-icon-sidebar .builder-rail-section-head,
+.builder-hierarchy-bar {
+    border-bottom: 1px solid #3d3f42;
+}
+.builder-icon-sidebar .builder-rail-logo {
+    padding: 0;
+    background: transparent;
+}
+.builder-icon-sidebar .builder-rail-logo img {
+    width: 32px;
+    height: 32px;
+}
+.builder-icon-sidebar .builder-avatar {
+    border: 1px solid #3d3f42;
+    background: transparent;
+}
+.builder-history-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: -8px;
+}
+.builder-history-buttons button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #b6b7b9;
+    cursor: pointer;
+}
+.builder-history-buttons button:hover,
+.builder-history-buttons button:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f3f3f3;
+    outline: 0;
+}
+.builder-hierarchy-path .hierarchy-product,
+.builder-hierarchy-path a,
+.builder-hierarchy-path .hierarchy-current,
+.builder-hierarchy-path .hierarchy-separator {
+    height: 14px;
+    font: 400 12px/14px Inter;
+    letter-spacing: -0.24px;
+}
+.builder-hierarchy-bar .editor-version-select .styled-select-trigger,
+.builder-hierarchy-bar .editor-version-actions > button:not(.editor-changes-button) {
+    border: 1px solid #3d3f42;
+    background: #27282c;
+}
+.builder-hierarchy-bar .editor-changes-button {
+    border: 0;
+    background: #166dc4;
+    color: #f3f3f3;
 }

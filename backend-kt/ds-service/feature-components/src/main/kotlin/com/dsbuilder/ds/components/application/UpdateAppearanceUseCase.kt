@@ -2,6 +2,7 @@ package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.authorization.ProjectScope
 import com.dsbuilder.ds.components.domain.Appearance
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -24,15 +25,15 @@ class UpdateAppearanceUseCase(
         command: AppearanceRepository.AppearanceUpdate,
     ): DsResult<Appearance> = policy.read(context, ProjectScope.COMPONENT_VARIATIONS_WRITE) {
         transactions.required(context) {
-            val current = repository.find(context.projectId, context.principal.systemAdmin, id)
+            val current = repository.find(context.projectId, context.principal.globalAdmin, id)
                 ?: return@required DsResult.Failure(DsFailure.NotFound)
             if (command.name != null) {
-                val normalizedName = command.name.trim().lowercase()
+                val normalizedName = ConfigurationName.key(command.name)
                 uniqueKeys.lock(current.designSystemId, "appearance", "${current.componentId}:$normalizedName")
                 if (
                     repository.nameExists(
                         context.projectId,
-                        context.principal.systemAdmin,
+                        context.principal.globalAdmin,
                         current.designSystemId,
                         current.componentId,
                         normalizedName,
@@ -42,7 +43,7 @@ class UpdateAppearanceUseCase(
                     return@required DsResult.Failure(DsFailure.Conflict("APPEARANCE_NAME_CONFLICT"))
                 }
             }
-            repository.update(context.projectId, context.principal.systemAdmin, id, command)
+            repository.update(context.projectId, context.principal.globalAdmin, id, command)
                 ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
         }
     }

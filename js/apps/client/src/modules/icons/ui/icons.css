@@ -1,0 +1,367 @@
+/*
+ * Каталог иконок: поле выбора в инспекторе, всплывающее окно с сеткой и экран «Иконки».
+ * Значения — переменные Builder из `token-workspace.css`; поле и список берут правила
+ * `component-token-field` и `component-token-picker` из `inspector-controls.css`.
+ */
+
+/* Поле выбора иконки: поле токена с миниатюрой иконки и крестиком очистки внутри. */
+.component-token-field.icon-field > button {
+    padding-right: var(--tw-space-xs);
+}
+.component-token-field.icon-field.has-clear > button {
+    padding-right: 28px;
+}
+.component-token-field.icon-field > button > span.is-empty {
+    color: var(--tw-text-paragraph);
+}
+.component-token-field.icon-field > button > span.is-missing {
+    color: var(--tw-warning);
+}
+/* Миниатюра ограничена высотой строки поля: 16 px при поле в 24 px. */
+.icon-field .icon-thumb {
+    width: var(--tw-icon-size);
+    height: var(--tw-icon-size);
+    flex: none;
+}
+.component-token-field.icon-field > button.icon-field-clear {
+    position: absolute;
+    top: 50%;
+    right: var(--tw-space-xs);
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--tw-radius-s);
+    background: transparent;
+    color: var(--tw-text-paragraph);
+    border-color: transparent;
+    gap: 0;
+    transform: translateY(-50%);
+}
+.component-token-field.icon-field > button.icon-field-clear:hover {
+    background: var(--tw-surface-selected);
+    color: var(--tw-text-primary);
+}
+.component-token-field.icon-field > button.icon-field-clear:focus-visible {
+    outline: 1px solid var(--tw-accent);
+    outline-offset: -1px;
+}
+.icon-field-clear > .ui-glyph {
+    width: 12px !important;
+    height: 12px !important;
+}
+
+/* Контекстное окно выбора: открывается под полем, как список токенов. */
+.component-token-picker.icon-popover {
+    width: min(328px, calc(100cqw - 24px));
+    max-width: calc(100cqw - 24px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-m);
+}
+.icon-popover > input {
+    margin-bottom: 0;
+}
+.icon-popover-body {
+    min-height: 0;
+}
+.icon-popover-foot {
+    min-height: 16px;
+    overflow: hidden;
+    color: var(--tw-text-paragraph);
+    font-size: 11px;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Переключатели начертания и размера. */
+.icon-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--tw-space-m);
+}
+.icon-segment {
+    display: inline-flex;
+    padding: 2px;
+    gap: 2px;
+    border-radius: var(--tw-radius-m);
+    background: var(--tw-surface-field);
+    box-shadow: inset 0 0 0 1px var(--tw-outline-field);
+}
+.icon-segment > button {
+    height: 20px;
+    padding: 0 var(--tw-space-m);
+    border: 0;
+    border-radius: var(--tw-radius-s);
+    background: transparent;
+    color: var(--tw-text-secondary);
+    font: inherit;
+    font-size: 12px;
+    line-height: 16px;
+}
+.icon-segment > button:hover {
+    background: var(--tw-surface-field);
+}
+.icon-segment > button.is-selected {
+    background: var(--tw-surface-selected);
+    color: var(--tw-text-primary);
+}
+.icon-segment > button:focus-visible {
+    outline: 1px solid var(--tw-accent);
+    outline-offset: -1px;
+}
+
+/* Сетка с виртуализацией. */
+.icon-grid {
+    position: relative;
+    min-height: 120px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+.icon-grid.is-compact {
+    height: 216px;
+}
+.icon-grid.is-board {
+    flex: 1;
+    min-height: 240px;
+}
+.icon-grid-body {
+    position: relative;
+}
+.icon-grid-row {
+    position: absolute;
+    right: 0;
+    left: 0;
+    display: flex;
+}
+.icon-card {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--tw-space-m);
+    padding: var(--tw-space-xs);
+    border: 1px solid transparent;
+    border-radius: var(--tw-radius-m);
+    background: transparent;
+    color: var(--tw-text-secondary);
+}
+.icon-card:hover,
+.icon-card:focus-visible {
+    outline: none;
+    background: var(--tw-surface-field);
+    color: var(--tw-text-primary);
+}
+.icon-card.is-selected {
+    border-color: var(--tw-accent);
+    background: var(--tw-surface-selected);
+    color: var(--tw-text-primary);
+}
+.icon-card-name {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--tw-text-paragraph);
+    font-size: 11px;
+    line-height: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/*
+ * Экран «Иконки»: три области раздела редактора (дерево, рабочая область, инспектор), как у остальных экранов токенов.
+ * Раскладка и разделители ширины повторяют «Цвета» и «Типографику»; общие шапки, поля и строки дерева — `tw-*`
+ * из `token-workspace.css`, который подключён глобально.
+ */
+.icons-screen {
+    position: relative;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    font-family: Inter, Arial, sans-serif;
+    line-height: 1.45;
+    color: var(--tw-text-primary);
+    color-scheme: dark;
+    background: var(--tw-surface-workspace);
+}
+.icons-screen *,
+.icons-screen *::before,
+.icons-screen *::after {
+    box-sizing: border-box;
+}
+.icons-screen :where(button, input) {
+    font: inherit;
+}
+.icons-screen :where(button) {
+    cursor: pointer;
+}
+
+/* Колонки 280 / остаток / 320; панели не выше окна, прокручиваются только их тела. */
+.icons-screen .icons-workbench {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: var(--panel-left, 280px) minmax(0, 1fr) var(--panel-right, 320px);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+}
+.icons-screen .token-browser,
+.icons-screen .properties-panel {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    background: var(--tw-surface-card);
+}
+.icons-screen .token-browser {
+    overflow: hidden;
+    border-right: 1px solid var(--tw-outline);
+}
+.icons-screen .properties-panel {
+    border-left: 1px solid var(--tw-outline);
+}
+.icons-screen .preview-canvas {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    background: var(--tw-surface-workspace);
+}
+.icons-screen .icons-load-error {
+    grid-column: 2 / 4;
+    min-height: 0;
+    display: flex;
+    background: var(--tw-surface-workspace);
+}
+.icons-screen .icons-tree-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: var(--tw-space-m);
+}
+.icons-screen .icons-tree-value {
+    color: var(--tw-text-primary);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 12px;
+}
+
+/* Разделители ширины панелей — как в «Цветах» и «Типографике». */
+.icons-screen .panel-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 6;
+    width: 9px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    cursor: col-resize;
+}
+.icons-screen .panel-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 4px;
+    width: 1px;
+    background: transparent;
+    transition: background 0.15s;
+}
+.icons-screen .panel-resizer:hover::after {
+    background: var(--tw-accent);
+}
+.icons-screen .panel-resizer:focus-visible {
+    outline: 2px solid var(--tw-accent);
+    outline-offset: -2px;
+}
+.icons-screen .panel-resizer-left {
+    left: calc(var(--panel-left, 280px) - 4px);
+}
+.icons-screen .panel-resizer-right {
+    right: calc(var(--panel-right, 320px) - 5px);
+}
+
+/* Экран «Иконки»: строка фильтров и сетка в центре, сведения об иконке справа. */
+.icons-screen .icon-board {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--tw-space-xl);
+    box-sizing: border-box;
+    padding: var(--tw-space-xl);
+}
+.icons-screen .icon-board-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--tw-space-m);
+}
+.icons-screen .icon-board-count {
+    color: var(--tw-text-paragraph);
+    font-size: 12px;
+    line-height: 16px;
+}
+.icons-screen .icon-board-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--tw-space-m);
+    padding: var(--tw-space-xxl) 0;
+    color: var(--tw-text-paragraph);
+    font-size: 12px;
+}
+.icons-screen .icon-preview {
+    height: 96px;
+    margin: var(--tw-space-m) var(--tw-space-l);
+    display: grid;
+    place-items: center;
+    border-radius: var(--tw-radius-m);
+    background: var(--tw-surface-field);
+    box-shadow: inset 0 0 0 1px var(--tw-outline-field);
+    color: var(--tw-text-primary);
+}
+.icons-screen .icon-value {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--tw-text-primary);
+    font-size: 12px;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    user-select: all;
+    white-space: nowrap;
+}
+.icons-screen .icon-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--tw-space-m);
+    padding: var(--tw-space-m) var(--tw-space-l);
+}
+.icons-screen .icon-note {
+    margin: 0;
+    padding: var(--tw-space-m) var(--tw-space-l);
+    color: var(--tw-text-paragraph);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+/* Страница каталога вне редактора темы: оболочка не ограничивает высоту, поэтому экран получает её явно
+   (окно за вычетом строки пути `builder-hierarchy-bar` высотой 44 px), и сетка прокручивается внутри, а не
+   растягивает страницу. */
+.icons-page-frame {
+    height: calc(100vh - 44px);
+    min-height: 0;
+}
+.icons-page-frame > .icons-screen {
+    height: 100%;
+}

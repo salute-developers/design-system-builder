@@ -17,6 +17,18 @@ interface ColorTokenRepository {
     /** Семейство токена [tokenId] дизайн-системы [designSystemId]. */
     suspend fun family(designSystemId: UUID, tokenId: UUID): ColorTokenLookup
 
+    /** Текущие значения только выбранного семейства и темы, включая полные технические редакции. */
+    fun confirmedValues(designSystemId: UUID, tenantId: UUID, tokenIds: Collection<UUID>):
+        List<com.dsbuilder.ds.themes.domain.TenantTokenValue>? = null
+
+    /** Подтверждение структуры семейства и порядка только затронутых групп. */
+    suspend fun confirmedStructure(
+        designSystemId: UUID,
+        tokenIds: Collection<UUID>,
+        removed: Collection<UUID> = emptyList(),
+        groupIds: Collection<UUID> = emptyList(),
+    ): ColorTokenStructure? = null
+
     /** Имена из [names], уже занятые определениями дизайн-системы. */
     suspend fun takenNames(designSystemId: UUID, names: Collection<String>): Set<String>
 

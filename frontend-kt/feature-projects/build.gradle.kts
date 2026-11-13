@@ -6,12 +6,14 @@ plugins {
 kotlin {
     macosArm64()
     macosX64()
+    mingwX64()
 
     sourceSets {
         commonMain.dependencies {
             // ListProjectsUseCase/ProjectsClient/HttpProjectsClient публично возвращают/принимают
             // типы из core-auth (BackendCredential, UserSessionCredentialResolver) и core-network
             // (ApiUrlResolver, AuthenticatedHttpClientFactory) — оба обязаны быть `api`.
+            api(projects.coreApplication)
             api(projects.coreAuth)
             api(projects.coreNetwork)
             // projectsApplicationModule(): Module is a public factory returning a Koin type.

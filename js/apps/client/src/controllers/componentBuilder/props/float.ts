@@ -7,14 +7,4 @@ export class FloatProp extends Prop {
     constructor(name: string, data: PropConfig, platformTokens?: PlatformTokens) {
         super(name, data, platformTokens);
     }
-
-    public getWebTokenValue() {
-        if (this.value === undefined) {
-            return;
-        }
-
-        return {
-            ...this.createWebToken(this.value),
-        };
-    }
 }

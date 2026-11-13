@@ -3,10 +3,9 @@ import type { ComponentAPI, ComponentDep, WebToken } from '../controllers/compon
 /**
  * Дополнение модели компонентов редактора тем данными, которых нет в ответах `componentRepository`.
  *
- * Превью берёт имена CSS-переменных из web-параметров свойства (`platformMappings.web`), панель свойств
- * фильтрует их по объявленным вариациям (`variations`). Многозначное CSS-значение раскладывается шаблоном
- * из `web-adapter` (`0 $1`). Связанные компоненты превью собирает по `deps`. Функции чистые: запросы
- * делает загрузчик, здесь только сборка по ответам ds-service.
+ * Сборка payload отбирает свойства по web-параметрам (`platformMappings.web`), панель свойств фильтрует их
+ * по объявленным вариациям (`variations`). Связанные компоненты превью собираются по `deps`. Функции чистые:
+ * запросы делает загрузчик, здесь только сборка по ответам ds-service.
  */
 
 /** Платформенное имя свойства из `GET /property-platform-params`. */
@@ -21,16 +20,6 @@ export interface PropertyPlatformParamDto {
 export interface PropertyVariationDto {
     propertyId: string;
     variationId: string;
-}
-
-/** Шаблоны одной конфигурации: свойство -> web-параметр -> шаблон. */
-type StyleTemplates = Record<string, Record<string, string>>;
-
-/** Запись `POST /component-config/web-adapter`: компонент по имени, шаблоны web-параметров по стилям. */
-export interface WebAdapterComponentDto {
-    componentName: string;
-    name: string;
-    styles?: Record<string, { templates: StyleTemplates }> | null;
 }
 
 /** Web-параметры свойства в порядке базы: так их заводил импорт API-меты. */
@@ -66,33 +55,15 @@ export const variationNamesByProperty = (
     return byProperty;
 };
 
-/**
- * Шаблон web-параметра компонента. Шаблон принадлежит конфигурации, а API в модели один на компонент;
- * внутри компонента шаблоны appearance совпадают, поэтому берётся первый найденный по стилям.
- */
-export const templateLookup = (entry: WebAdapterComponentDto | undefined, styleNames: string[]) => {
-    const styles = entry?.styles ?? {};
-    return (property: string, param: string): string | null => {
-        for (const style of styleNames) {
-            const template = styles[style]?.templates?.[property]?.[param];
-            if (template) return template;
-        }
-        return null;
-    };
-};
-
 /** Заполняет web-параметры и объявленные вариации свойств API компонента. */
 export const enrichApi = (
     api: ComponentAPI[],
     webParams: ReadonlyMap<string, string[]>,
     variationNames: ReadonlyMap<string, string[]>,
-    templateOf: (property: string, param: string) => string | null,
 ): ComponentAPI[] =>
     api.map((item) => {
         const params = webParams.get(item.id) ?? [];
-        const web: WebToken[] | null = params.length
-            ? params.map((name) => ({ name, adjustment: templateOf(item.name, name) }))
-            : null;
+        const web: WebToken[] | null = params.length ? params.map((name) => ({ name })) : null;
         return {
             ...item,
             variations: variationNames.get(item.id) ?? item.variations,

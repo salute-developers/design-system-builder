@@ -6,14 +6,17 @@
 содержимое файлов может отличаться от удалённого `cli/theme-builder` в обработке отсутствующих значений,
 старых токенов Plasma и форматировании.
 Нужны только зависимости самого CLI (`npm ci` в `js/cli`).
-`generate:theme`, `generate:components` и `generate:ds` загружают `js/.env`, если он есть: генератору нужен
-`NPM_PACKAGE_SCOPE` (scope пакета). `generate:api-meta` переменных окружения не требует.
+`generate:theme`, `generate:components` и `generate:ds` загружают `js/.env`, если он есть. Scope
+генерируемого пакета задаёт необязательная `NPM_PACKAGE_SCOPE`, по умолчанию `@sddsjs`; переменная
+действует и при запуске через `dsbuilder` (`NPM_PACKAGE_SCOPE=@acme dsbuilder ds generate --platform react`).
+`generate:api-meta` переменных окружения не требует.
 
 Тема и компоненты генерируются раздельно, как у Android: `generate:theme` — только тема,
 `generate:components` — только компоненты; `generate:ds` — обе части одним запуском, а с `--package` —
 папка одного полного пакета (`dsbuilder ds generate`). Из общего CLI их запускает
 `dsbuilder theme generate --platform react` и `dsbuilder components generate --platform react`:
-делегат платформы `web` ищет этот каталог по `--tool` или переменной `DSBUILDER_WEB_TOOL`.
+делегат платформы `web` берёт этот каталог по `--tool` или переменной `DSBUILDER_WEB_TOOL`, а без них —
+установленный пакет (см. «npm-пакет»).
 
 Из `js/cli`:
 
@@ -27,10 +30,12 @@ npm run generate:components
 
 - `.sdds/components/` — выгрузка `dsbuilder components fetch`: `meta.json` (состав пакета) и
   `<component>_<style>_config.json` (значения).
-- `.sdds/web/web-adapter.json` — временный файл из базы, массив записей по `componentName`: имена и описания компонентов, дочерние
+- `src/data/web-adapter.json` — встроенный в CLI массив записей по `componentName`: имена и описания компонентов, дочерние
   компоненты `compose` (по ним раскладываются папки пакета) и шаблоны web-параметров по стилям
-  (свойство → параметр → шаблон вроде `0 $1`). Пишет `dsbuilder components fetch` для платформы
-  React (`--platform react` или `"platforms": ["react"]` в `config.json`).
+  (свойство → параметр → шаблон вроде `0 $1`). Файл — побайтная копия
+  `js/apps/preview-web-plugin/src/data/web-adapter.json`, совпадение проверяет тест; меняются обе копии
+  сразу. Шаблоны в базу не заносятся. `--web <каталог>` подменяет источник на `<каталог>/web-adapter.json`,
+  например на выгрузку базы `.sdds/web`, которую пишет `dsbuilder components fetch` для React.
 - Web-параметры свойств — из аннотаций токенов `@salutejs/plasma-new-hope`, установленного в
   `js/cli`. `generate:components` собирает их на каждый запуск тем же кодом, что и
   `generate:api-meta` (см. ниже), поэтому они всегда соответствуют установленной версии; файл
@@ -86,6 +91,47 @@ npm run generate:ds -- --package --name base
 eslint в ней нет, и `src` она не меняет. CLI не обращается к бэкенду и не публикует пакет.
 `component-configs.json` генерацией не используется.
 
+# npm-пакет
+
+`js/cli` публикуется в npm как `@sddsjs/design-system-builder-generator` с командой
+`dsbuilder-web-generator`. Её ставит `dsbuilder toolchain install web` в `~/.dsbuilder/toolchains/web`
+(`npm install --global --prefix`, без `sudo`), и через неё делегат `web` генерирует React без клона
+репозитория. Нужны Node.js 22+ и npm.
+
+```sh
+dsbuilder-web-generator theme|components|ds [опции npm run generate:*]
+dsbuilder-web-generator --version
+```
+
+Подкоманды повторяют `generate:theme`, `generate:components` и `generate:ds` с теми же опциями; без
+`--sdds` и `--out` команда читает `./.sdds` и пишет в `./output` текущего каталога. Точка входа —
+`bin/dsbuilder-web-generator.js`: она подключает загрузчик `tsx` и вызывает `main(args)` из `src/*.ts`.
+Поэтому `tsx`, `typescript`, `@salutejs/plasma-new-hope`, `@salutejs/plasma-tokens-utils`, `fs-extra`,
+а также `react` и `react-dom` лежат в `dependencies`: последние две закрепляют peer-зависимости
+`plasma-new-hope`, без них `npm install --global` зацикливается на подборе версии React.
+Временный каталог сборки создаётся в системном `tmpdir`, а не в каталоге пакета.
+
+Служебные файлы заготовки пакета (`src/generator/constants`) хранятся без точки — `gitignore`,
+`npmignore`, `npmrc` — и получают её при копировании в сгенерированный пакет: npm не включает
+`.gitignore` и `.npmrc` в опубликованный архив, а вложенный `.npmignore` исключил бы `tsconfig.json`.
+
+## Публикация
+
+Пакет публикуется вручную владельцем scope `@salutejs`:
+
+1. Поднять `version` в `package.json` (`npm version patch --no-git-tag-version`) и закоммитить.
+2. Проверить архив: `npm pack --dry-run` (нет тестов, `.sdds`, `output`; есть `bin`, `src`, шаблоны
+   и `src/generator/constants`) и `sh scripts/check-global-install.sh` — глобальная установка архива в
+   отдельный prefix и генерация из постороннего каталога; с путём к `.sdds` в аргументе генерируется
+   дизайн-система целиком. С `DSBUILDER=<путь к собранному dsbuilder>` скрипт ещё ставит распакованный
+   каталог пакета без `node_modules` через `dsbuilder toolchain install web --from <каталог>` с временным
+   `HOME` и генерирует установленным генератором.
+3. `npm publish` в `js/cli`: `prepublishOnly` запускает проверку типов и тесты, `publishConfig.access`
+   равен `public`.
+
+Сначала публикуется генератор, затем выпускается `dsbuilder` (`cli-vX.Y.Z`), который его ставит:
+иначе установщики CLI выведут предупреждение о ненайденном пакете.
+
 # Метаданные Style API
 
 `npm run generate:api-meta` строит машиночитаемый `api-meta.json` по JSDoc-аннотациям CSS-токенов
@@ -94,14 +140,26 @@ React-компонентов. Метаданные связывают внутр
 
 ## Импорт компонента из plasma
 
+Корневой `src/index.ts` пакета с компонентами реэкспортирует из ядра компоненты без конфига темы, которые не заводятся в ДС
+(`CORE_REEXPORTS` в `src/package-output.ts`, сейчас `SSRProvider`). Компонент с `requiresTheme: true` в манифесте
+(`ViewContainer`: вид берёт наборы переменных `viewContainer` темы пакета) генерируется только в пакет с темой: `generate:ds`
+или `generate:components` без `--package` при существующей `src/theme`; иначе генератор пропускает его с предупреждением.
+
+`npm run seeds:update -- --from <пакет> --component=<X>[:<appearance>] [--dependency=<Родитель>:<Ребёнок>:reuse]` переносит
+названные компоненты и appearance из пакета компонентов в `component-seeds.json` ds-service, из которого заполняется каждая
+новая дизайн-система; остальные записи не меняются. Ссылка на токен из `token-definitions.json` пишется `token`, остальное —
+`value`, состояния — отдельными значениями с `state`, шаблоны web-параметров не пишутся. Пакет — результат импорта из ядра и
+sdds-serv, а не выгрузка стенда. После записи обновляется контрольная сумма в `ComponentSeedsResourceTest`.
+
 `npm run import:plasma -- --component=<X>` читает конфиг `packages/sdds-serv/src/components/<X>/<X>.config.ts`
 и токены `packages/plasma-new-hope/src/components/<X>/<X>.tokens.ts` из клона plasma (`--plasma=`, `PLASMA_DIR`,
 по умолчанию `~/Documents/work/plasma`) и пишет записи компонента в `.sdds/components` в том же native-формате,
 что отдаёт `dsbuilder components fetch`: файл `<component>_<style>_config.json` на каждый appearance и запись в
 `meta.json`. Имена токенов темы и web-значения формы берутся из выгрузки `dsbuilder theme fetch` в
 `.sdds/tenants/<тема>/` (`--theme=`, иначе единственная тема или `base_default`); без темы инструмент
-останавливается. Манифест генератора `src/generator/templates/<X>/component.json` он пишет сам, включая
-`webTemplates` — шаблоны многозначных CSS-значений (`0.25rem $1`), которые в ds-service не хранятся.
+останавливается. Манифест генератора `src/generator/templates/<X>/component.json` он пишет сам. Шаблоны
+многозначных CSS-значений (`0.25rem $1`) он печатает в отчёте фрагментом записи `web-adapter.json`: их
+переносят в обе копии файла (`src/data` и web-плагин), в пакет, манифест и ds-service они не попадают.
 Если рядом лежит `.sdds/web/web-api-meta.json` (вывод `generate:api-meta`), типы свойств сверяются с
 аннотациями глобального слоя, расхождения попадают в «ТРЕБУЕТ РЕШЕНИЯ»; радиус, не совпавший с `round.*`,
 закрывается токеном через `--shape=<prop>=<round.x>`. Без `--apply` — отчёт без записи; `--remove --apply`

@@ -15,7 +15,7 @@ enum class SizeTokenKind(
     /** Отступ — токен `spacing` с именем `spacing.<имя>`. */
     SPACING("spacing", ThemeTokenType.SPACING),
 
-    /** Вариант тени — токен `shadow` с именем `<down|up>.<soft|hard>.<размер>`. */
+    /** Тень — токен `shadow` с произвольным именем: `card` или вариант размера `<down|up>.<soft|hard>.<размер>`. */
     SHADOW("shadow", ThemeTokenType.SHADOW),
     ;
 

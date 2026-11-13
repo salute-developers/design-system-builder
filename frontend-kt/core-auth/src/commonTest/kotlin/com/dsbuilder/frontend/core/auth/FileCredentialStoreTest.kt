@@ -3,6 +3,7 @@ package com.dsbuilder.frontend.core.auth
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -16,7 +17,7 @@ class FileCredentialStoreTest {
 
         val savedPath = fs.files.keys.single { it.endsWith(".json") }
         val body = fs.files.getValue(savedPath)
-        assertTrue(body.contains(""""schemaVersion":1"""), body)
+        assertTrue(body.contains(""""schemaVersion":2"""), body)
         assertTrue(body.contains(""""apiUrl":"https://api.example.com""""))
         assertTrue(body.contains(""""username":"alice""""))
         assertTrue(body.contains(""""refreshToken":"refresh-a""""))
@@ -34,6 +35,20 @@ class FileCredentialStoreTest {
         store.save(session("https://api.example.com", "refresh-a"))
 
         assertNull(store.read("https://other.example.com"))
+    }
+
+    @Test
+    fun failedTemporaryWriteKeepsPreviouslySavedSession() = runTest {
+        val fs = MemoryCredentialStoreFileSystem()
+        val store = FileCredentialStore(fs)
+        store.save(session("https://api.example.com", "refresh-old"))
+        fs.failNextNonEmptyWrite = true
+
+        assertFailsWith<IllegalStateException> {
+            store.save(session("https://api.example.com", "refresh-new"))
+        }
+
+        assertEquals("refresh-old", store.read("https://api.example.com")?.refreshToken)
     }
 
     @Test
@@ -85,8 +100,34 @@ class FileCredentialStoreTest {
         assertTrue(lockEvents.last().startsWith("unlock:"))
     }
 
+    @Test
+    fun normalizedUrlsShareOneFileAndLegacySchemaIsRejected() = runTest {
+        val fs = MemoryCredentialStoreFileSystem()
+        val store = FileCredentialStore(fs)
+        store.save(session("HTTPS://API.EXAMPLE.COM:443/", "refresh"))
+        assertEquals("refresh", store.read("https://api.example.com")?.refreshToken)
+        assertEquals(1, fs.files.size)
+        val path = fs.files.keys.single()
+        fs.files[path] = fs.files.getValue(path).replace("\"schemaVersion\":2", "\"schemaVersion\":1")
+        assertNull(store.read("https://api.example.com"))
+    }
+
+    @Test
+    fun logoutDeletesSessionEvenWhenRevocationFailsAndRefreshCannotRestoreIt() = runTest {
+        val fs = MemoryCredentialStoreFileSystem()
+        val store = FileCredentialStore(fs)
+        store.save(session("https://api.example.com", "refresh"))
+        val result = store.logoutSession("https://api.example.com") {
+            AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "offline")
+        }
+        assertEquals(AuthErrorCode.BACKEND_UNAVAILABLE, (result as AuthResult.Failed).code)
+        assertNull(store.read("https://api.example.com"))
+        val refresh = store.refreshSession("https://api.example.com") { error("Удалённая сессия") }
+        assertEquals(AuthErrorCode.AUTH_REQUIRED, (refresh as AuthResult.Failed).code)
+    }
+
     private fun session(apiUrl: String, refreshToken: String): UserSession = UserSession(
-        schemaVersion = 1,
+        schemaVersion = 2,
         apiUrl = apiUrl,
         username = "alice",
         refreshToken = refreshToken,
@@ -96,6 +137,7 @@ class FileCredentialStoreTest {
 }
 
 private class MemoryCredentialStoreFileSystem : CredentialStoreFileSystem {
+    var failNextNonEmptyWrite: Boolean = false
     val files = mutableMapOf<String, String>()
     val permissions = mutableMapOf<String, String>()
     val replacements = mutableListOf<Pair<String, String>>()
@@ -115,6 +157,10 @@ private class MemoryCredentialStoreFileSystem : CredentialStoreFileSystem {
     override fun readText(path: String): String = files.getValue(path)
 
     override fun writeText(path: String, text: String) {
+        if (text.isNotEmpty() && failNextNonEmptyWrite) {
+            failNextNonEmptyWrite = false
+            error("temporary write failed")
+        }
         files[path] = text
     }
 

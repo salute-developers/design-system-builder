@@ -38,20 +38,21 @@ feature-init feature-auth feature-status feature-theme feature-docs feature-comp
 
 Состав слоёв:
 
-- `core-domain` — общие доменные типы без внешних зависимостей: `ProjectContext`, `ProjectApiKey`, `ProjectApiUrl`, `ProjectId`, `DesignSystemId`, `CredentialEnvName`, `ProjectAccessCheck`, `ProjectConfigDraft`.
+- `core-domain` — общие доменные типы без внешних зависимостей: `ProjectContext`, `PersonalAccessToken`, `ProjectApiUrl`, `ProjectId`, `DesignSystemId`, `CredentialEnvName`, `ProjectAccessCheck`, `ProjectConfigDraft`.
 - `core-auth` — разрешение project API key из CLI-аргумента и env (`ApiKeyResolver`, `EnvironmentReader`). Без зависимостей на другие `core-*`.
 - `core-workspace` — доступ к файловой системе и `.sdds/config.json` (`WorkspaceFileSystem`, `ProjectConfigStore`, `ProjectConfig`). Без зависимостей на другие `core-*`.
 - `core-network` — authenticated HTTP-клиент и разрешение backend API URL (`AuthenticatedHttpClient`, `ApiUrlResolver`). Зависит от `core-auth` — оба резолвера (API key и API URL) читают env через общий `EnvironmentReader`.
 - `core-process` — порт запуска внешних процессов (`ProcessRunner`, `ProcessRequest`, `ProcessResult`). Без зависимостей на другие `core-*`: платформенные реализации живут в composition root клиента и приезжают через `ClientRuntime`.
-- `core-application` — порты разрешения контекста/credentials/API URL (`ProjectContextReader`, `ProjectApiKeyProvider`, `ProjectApiUrlProvider`) и их runtime-адаптеры, плюс `ClientRuntime` — контейнер платформенных зависимостей клиента. Зависит от всех четырёх модулей выше.
+- `core-application` — порты разрешения контекста/credentials/API URL (`ProjectContextReader`, `PersonalAccessTokenProvider`, `ProjectApiUrlProvider`) и их runtime-адаптеры, плюс `ClientRuntime` — контейнер платформенных зависимостей клиента. Зависит от всех четырёх модулей выше.
 - `core-platform` — делегирование платформам: порт `PlatformDelegate`, реестр `PlatformDelegateRegistry`, выбор платформы `PlatformResolver`, общий сценарий запуска `PlatformCapabilityRunner` и порт установки инструментов `ToolchainInstaller` с реестром `ToolchainInstallerRegistry`. Зависит от `core-domain` и `core-application`. Адаптеры конкретных платформ живут в отдельных модулях `platform-<toolchain>` и в `core-platform` не попадают.
 - `feature-init`, `feature-auth`, `feature-status`, `feature-theme`, `feature-docs`, `feature-components`, `feature-toolchain`, `feature-ds` — по одному модулю на пользовательскую возможность. Каждый зависит только от тех `core-*`, которые реально использует (например, `feature-init` не использует `core-network`, `feature-status` не использует `core-workspace`) — зависимость не добавляется «про запас».
 - `feature-ds` — дизайн-система целиком: `GenerateDesignSystemUseCase` (capability `DESIGN_SYSTEM`). Зависит только от `core-*`; `ds fetch` своего use case не имеет и склеивает загрузки `theme` и `components` в presentation `:cli`, потому что фичи не зависят друг от друга.
 - `platform-ios` — адаптер платформы iOS: переводит capability в вызовы `dsbuilder-ios` и ищет этот инструмент на машине. Зависит от `core-platform` и `core-process`; ни один `feature-*` от него не зависит.
-- `platform-web` — адаптер платформы React: переводит `THEME`/`COMPONENTS` в `npm run generate:theme`/`generate:components` web-генератора `js/cli`, каталог которого задаётся `--tool` или `DSBUILDER_WEB_TOOL`. Зависимости те же, что у `platform-ios`.
+- `platform-web` — адаптер платформы React: переводит `THEME`/`COMPONENTS`/`DESIGN_SYSTEM` в подкоманды установленного `dsbuilder-web-generator` (npm-пакет `@sddsjs/design-system-builder-generator`: сначала `~/.dsbuilder/toolchains/web`, затем `PATH` и `npm prefix -g`), а при `--tool` или `DSBUILDER_WEB_TOOL` — в `npm run generate:*` каталога `js/cli`. `WebToolchainInstaller` ставит пакет через `npm install --global --prefix ~/.dsbuilder/toolchains/web`: глобальный prefix npm часто принадлежит root. Зависимости те же, что у `platform-ios`.
 - `mcp-server-core` — shared MCP tool registry и protocol/domain DTO поверх `core-application`, `feature-status` и общего `ContextResolver`; JVM/macOS source sets содержат bridge к официальному MCP SDK, а common API не протаскивает SDK-типы в `core-*`/`feature-*`.
 - `:cli` — тонкая presentation-обёртка и composition root для команды `dsbuilder`, включая launcher `dsbuilder mcp serve`. Смотри [`cli/AGENTS.md`](cli/AGENTS.md).
 - `:mcp-node` — Kotlin/JS Node.js executable и npm package `dsbuilder-mcp`; это отдельный presentation/composition root для MCP и auth-команд, а не библиотека бизнес-логики.
+- `:plugins:figma-core` — Kotlin/JS для браузера и composition root окна плагина Figma: собирает общие клиенты, держит сессию плагина и отдаёт API через `@JsExport`. Сборка плагина забирает результат задачей `syncFigmaPluginCore`.
 
 ## Правило направления зависимостей
 

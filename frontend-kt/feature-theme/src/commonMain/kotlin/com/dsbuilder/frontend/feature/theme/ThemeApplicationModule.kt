@@ -3,22 +3,26 @@ package com.dsbuilder.frontend.feature.theme
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.ProjectApiUrlProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReader
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.platform.PlatformCapabilityRunner
 import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import com.dsbuilder.frontend.feature.theme.application.EditThemeUseCase
+import com.dsbuilder.frontend.feature.theme.application.EditTokenUseCase
 import com.dsbuilder.frontend.feature.theme.application.FetchThemesUseCase
 import com.dsbuilder.frontend.feature.theme.application.GenerateThemeUseCase
 import com.dsbuilder.frontend.feature.theme.application.ListThemeAliasesUseCase
 import com.dsbuilder.frontend.feature.theme.application.LocalThemeWriter
+import com.dsbuilder.frontend.feature.theme.application.ReadTokenEditDataUseCase
 import com.dsbuilder.frontend.feature.theme.application.RemoteThemeDataSource
 import com.dsbuilder.frontend.feature.theme.application.SetThemeAliasUseCase
 import com.dsbuilder.frontend.feature.theme.application.ThemeAliasConfigRepository
-import com.dsbuilder.frontend.feature.theme.application.TokenReadRemoteSource
-import com.dsbuilder.frontend.feature.theme.application.TokenReadUseCases
 import com.dsbuilder.frontend.feature.theme.application.UnsetThemeAliasUseCase
 import com.dsbuilder.frontend.feature.theme.data.HttpRemoteThemeDataSource
-import com.dsbuilder.frontend.feature.theme.data.HttpTokenReadRemoteSource
+import com.dsbuilder.frontend.feature.theme.data.HttpThemeEditRemoteSource
+import com.dsbuilder.frontend.feature.theme.data.HttpTokenEditDataSource
+import com.dsbuilder.frontend.feature.theme.data.HttpTokenEditRemoteSource
 import com.dsbuilder.frontend.feature.theme.data.LocalThemeAliasConfigRepository
 import com.dsbuilder.frontend.feature.theme.data.LocalThemeFileWriter
 import com.dsbuilder.frontend.feature.theme.domain.ThemeWritePlanBuilder
@@ -29,8 +33,10 @@ import org.koin.dsl.module
  * Создает Koin module для прикладного слоя фичи `theme`.
  */
 public fun themeApplicationModule(): Module = module {
+    single { EditThemeUseCase(RuntimeRequestResolver(get(), get(), get()), HttpThemeEditRemoteSource(get())) }
+    single { EditTokenUseCase(RuntimeRequestResolver(get(), get(), get()), HttpTokenEditRemoteSource(get())) }
+    single { ReadTokenEditDataUseCase(RuntimeRequestResolver(get(), get(), get()), HttpTokenEditDataSource(get())) }
     single<RemoteThemeDataSource> { HttpRemoteThemeDataSource(get<AuthenticatedHttpClientFactory>()) }
-    single<TokenReadRemoteSource> { HttpTokenReadRemoteSource(get(), get()) }
     single { ThemeWritePlanBuilder() }
     single<LocalThemeWriter> {
         LocalThemeFileWriter(
@@ -42,7 +48,6 @@ public fun themeApplicationModule(): Module = module {
     single { ListThemeAliasesUseCase(get<ThemeAliasConfigRepository>()) }
     single { SetThemeAliasUseCase(get<ThemeAliasConfigRepository>()) }
     single { UnsetThemeAliasUseCase(get<ThemeAliasConfigRepository>()) }
-    single { TokenReadUseCases(get(), get(), get(), get()) }
     single {
         FetchThemesUseCase(
             projectContextReader = get<ProjectContextReader>(),

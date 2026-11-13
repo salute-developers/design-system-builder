@@ -5,6 +5,9 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteMutation
@@ -34,9 +37,9 @@ import kotlinx.serialization.json.JsonNull
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
-/** Регистрирует маршруты палитры темы `/api/ds/tenants/{tenantId}/palette`. */
+/** Регистрирует маршруты палитры темы `/api/design-systems/{designSystemId}/tenants/{tenantId}/palette`. */
 fun Route.tenantPaletteRoutes(evaluator: PolicyEvaluator, useCases: TenantPaletteUseCases) {
-    route("/api/ds/tenants/{tenantId}/palette") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tenants/{tenantId}/palette")) {
         paletteReadRoutes(evaluator, useCases)
         paletteGroupRoutes(evaluator, useCases)
         route("/groups/{groupId}/ramps") {
@@ -48,9 +51,11 @@ fun Route.tenantPaletteRoutes(evaluator: PolicyEvaluator, useCases: TenantPalett
 
 private fun Route.paletteReadRoutes(evaluator: PolicyEvaluator, useCases: TenantPaletteUseCases) {
     get {
-        val (context, tenantId) = call.paletteTarget(evaluator) ?: return@get
+        val context = call.modelReadContext(evaluator) ?: return@get
+        val tenantId = call.parameters["tenantId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            ?: return@get call.respondFailure(INVALID_TENANT)
         when (val result = useCases.get.execute(context, tenantId)) {
-            is DsResult.Success -> call.respond(result.value.toResponse())
+            is DsResult.Success -> call.respondSuccess(result, result.value.toResponse())
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }
@@ -217,7 +222,7 @@ private suspend fun ApplicationCall.respondRemoveRamp(
 
 /** Контекст запроса и тема; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.paletteTarget(evaluator: PolicyEvaluator): Pair<DsRequestContext, UUID>? {
-    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"])
+    val context = TrustedDsRequestContextMapper.map(dsTrustedHeaders(), evaluator, request.queryParameters["versionId"])
         ?: return null.also { respondFailure(DsFailure.Forbidden) }
     val tenantId = parameters["tenantId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         ?: return null.also { respondFailure(INVALID_TENANT) }

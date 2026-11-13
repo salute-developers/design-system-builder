@@ -1,8 +1,12 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.entityEditRevisions
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.modelReadPage
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.CreateTenant
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValues
@@ -21,9 +25,12 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.like
+import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
@@ -31,6 +38,7 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.util.UUID
 
 /** Exposed theme repository with ownership resolved through the parent design system. */
@@ -40,6 +48,29 @@ class ExposedTenantRepository : TenantRepository {
         val revisions = tenantEditRevisions(rows)
         return rows.map { row -> toTenant(row, revisions[row[TenantsTable.id]] ?: 0) }
             .let(::withResolvedPreviews)
+    }
+
+    override suspend fun pageAccessible(
+        projectId: ProjectId,
+        read: ModelReadQuery,
+    ): ModelReadItems<Tenant> {
+        val query = currentTenantQuery(projectId)
+        query.adjustWhere {
+            var filter = requireNotNull(this)
+            read.name?.let { filter = filter and (TenantRevisionsTable.name eq it) }
+            read.query?.takeIf(String::isNotBlank)?.let {
+                val pattern = "%${it.trim().lowercase()}%"
+                filter = filter and (
+                    (TenantRevisionsTable.name.lowerCase() like pattern) or
+                        (TenantRevisionsTable.description.lowerCase() like pattern)
+                    )
+            }
+            filter
+        }
+        val selected = query.modelReadPage(read, "tenants", TenantRevisionsTable.name, TenantsTable.id)
+        val revisions = tenantEditRevisions(selected.items)
+        val tenants = selected.items.map { row -> toTenant(row, revisions[row[TenantsTable.id]] ?: 0) }
+        return ModelReadItems(withResolvedPreviews(tenants), selected.page)
     }
 
     override suspend fun findAccessible(
@@ -190,17 +221,14 @@ class ExposedTenantRepository : TenantRepository {
         types: Set<ThemeTokenType>,
     ): List<TenantTokenValue>? {
         val tenant = currentTenantRows(projectId = projectId, tenantId = id).singleOrNull() ?: return null
-        val tokenIds = if (types.isEmpty()) {
-            null
-        } else {
-            currentThemeTokenRows(tenant[TenantsTable.designSystemId], types = types)
-                .mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
-                .also { if (it.isEmpty()) return emptyList() }
-        }
+        val definitions = currentThemeTokenRows(tenant[TenantsTable.designSystemId], types = types)
+        if (definitions.isEmpty()) return emptyList()
+        val tokenIds = if (types.isEmpty()) null else definitions.mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
         val rows = currentThemeTokenValueRows(
             designSystemId = tenant[TenantsTable.designSystemId],
             tenantIds = setOf(id),
             tokenIds = tokenIds,
+            knownTokens = definitions,
         )
         val revisions = rows.firstOrNull()?.let { row ->
             entityEditRevisions(
@@ -210,7 +238,7 @@ class ExposedTenantRepository : TenantRepository {
             )
         }.orEmpty()
         // Тип на той же выбранной границе версии задаёт форму сплошных значений платформ при чтении.
-        val types = currentThemeTokenRows(tenant[TenantsTable.designSystemId])
+        val types = definitions
             .associate { it[ThemeTokensTable.id] to it[ThemeTokenRevisionsTable.type] }
         return rows.map { row ->
             toTokenValue(row, revisions[row[ThemeTokenValuesTable.id]] ?: 0)
@@ -336,7 +364,11 @@ class ExposedTenantRepository : TenantRepository {
 
     private fun ownedDesignSystem(projectId: ProjectId, id: UUID): Boolean = ThemeDesignSystemsTable
         .selectAll()
-        .where { (ThemeDesignSystemsTable.id eq id) and (ThemeDesignSystemsTable.projectId eq projectId.value) }
+        .where {
+            (ThemeDesignSystemsTable.id eq id) and
+                (ThemeDesignSystemsTable.projectId eq projectId.value) and
+                requestDesignSystemScope(ThemeDesignSystemsTable.id)
+        }
         .limit(1)
         .any()
 
@@ -368,38 +400,58 @@ class ExposedTenantRepository : TenantRepository {
         updatedAt = row[ThemeTokenValueRevisionsTable.updatedAt],
     )
 
-    private fun tenantEditRevisions(rows: List<ResultRow>): Map<UUID, Int> {
-        if (rows.isEmpty()) return emptyMap()
-        val tenantIds = rows.mapTo(hashSetOf()) { it[TenantsTable.id] }
-        val valuesByTenant = ThemeTokenValuesTable.selectAll()
-            .where { ThemeTokenValuesTable.tenantId inList tenantIds }
-            .groupBy({ it[ThemeTokenValuesTable.tenantId] }, { it[ThemeTokenValuesTable.id] })
-        return rows.groupBy { it[ThemeVersionBoundariesTable.id] }.flatMap { (boundaryId, boundaryRows) ->
-            val valueToTenant = boundaryRows.flatMap { row ->
-                valuesByTenant[row[TenantsTable.id]].orEmpty().map { valueId -> valueId to row[TenantsTable.id] }
-            }.toMap()
-            val revisions = entityEditRevisions(boundaryId, TOKEN_VALUE_ENTITY_TYPE, valueToTenant.keys)
-            boundaryRows.map { row ->
-                val tenantId = row[TenantsTable.id]
-                tenantId to valueToTenant.filterValues { it == tenantId }.keys
-                    .maxOfOrNull { revisions[it] ?: 0L }?.toInt().orZero()
-            }
+    private fun tenantEditRevisions(rows: List<ResultRow>): Map<UUID, Int> =
+        rows.groupBy { it[ThemeVersionBoundariesTable.id] }.flatMap { (boundary, tenants) ->
+            val placeholders = tenants.joinToString(",") { "?" }
+            TransactionManager.current().exec(
+                "SELECT value.tenant_id, COALESCE(max(edits.revision), 0) AS revision " +
+                    "FROM token_values value LEFT JOIN entity_edit_states edits " +
+                    "ON edits.entity_id = value.id AND edits.entity_type = 'token-value' " +
+                    "AND edits.design_system_version_id = ? WHERE value.tenant_id IN ($placeholders) " +
+                    "GROUP BY value.tenant_id",
+                listOf(UUIDColumnType() to boundary) + tenants.map { UUIDColumnType() to it[TenantsTable.id] },
+            ) { result ->
+                buildList {
+                    while (result.next()) add(result.getObject(1, UUID::class.java) to result.getLong(2).toInt())
+                }
+            }.orEmpty()
         }.toMap()
-    }
 
     private fun withResolvedPreviews(tenants: List<Tenant>): List<Tenant> {
         if (tenants.isEmpty()) return tenants
         val designSystemIds = tenants.mapTo(hashSetOf()) { it.designSystemId }
-        val colorTokens = designSystemIds.flatMap { currentThemeTokenRows(it) }
-            .filter { it[ThemeTokenRevisionsTable.type] == ThemeTokenType.COLOR }
-            .associate { row -> row[ThemeTokensTable.id] to row[ThemeTokenRevisionsTable.name] }
-        val palettes = ThemePaletteTable.selectAll()
-            .associate { row -> row[ThemePaletteTable.id] to row[ThemePaletteTable.value] }
-        val tenantIds = tenants.map(Tenant::id).toSet()
-        val values = designSystemIds.flatMap { designSystemId ->
-            currentThemeTokenValueRows(designSystemId = designSystemId, tenantIds = tenantIds)
+        val definitions = designSystemIds.associateWith {
+            currentThemeTokenRows(
+                it,
+                types = setOf(ThemeTokenType.COLOR),
+                names = ACCENT_NAMES + ON_ACCENT_NAMES + SURFACE_NAMES,
+            )
         }
-            .mapNotNull { row -> previewValue(row, colorTokens, palettes) }
+        val colorTokens = definitions.values.flatten()
+            .associate { row -> row[ThemeTokensTable.id] to row[ThemeTokenRevisionsTable.name] }
+        val tenantIds = tenants.map(Tenant::id).toSet()
+        val rows = designSystemIds.flatMap { designSystemId ->
+            val tokens = definitions.getValue(designSystemId)
+            if (tokens.isEmpty()) {
+                emptyList()
+            } else {
+                currentThemeTokenValueRows(
+                    designSystemId = designSystemId,
+                    tenantIds = tenantIds,
+                    tokenIds = tokens.mapTo(hashSetOf()) { it[ThemeTokensTable.id] },
+                    knownTokens = tokens,
+                )
+            }
+        }
+        val paletteIds = rows.mapNotNull { it[ThemeTokenValueRevisionsTable.paletteId] }.toSet()
+        val palettes = if (paletteIds.isEmpty()) {
+            emptyMap()
+        } else {
+            ThemePaletteTable.selectAll()
+                .where { ThemePaletteTable.id inList paletteIds }
+                .associate { row -> row[ThemePaletteTable.id] to row[ThemePaletteTable.value] }
+        }
+        val values = rows.mapNotNull { row -> previewValue(row, colorTokens, palettes) }
         return tenants.map { tenant -> tenant.copy(preview = preview(tenant, values)) }
     }
 
@@ -532,5 +584,3 @@ class ExposedTenantRepository : TenantRepository {
         const val TOKEN_VALUE_ENTITY_TYPE = "token-value"
     }
 }
-
-private fun Int?.orZero(): Int = this ?: 0

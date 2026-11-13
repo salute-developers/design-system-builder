@@ -1,10 +1,23 @@
-const npmPackageScope = process.env.NPM_PACKAGE_SCOPE;
+/** Scope генерируемого пакета, когда `NPM_PACKAGE_SCOPE` не задана. */
+export const DEFAULT_NPM_PACKAGE_SCOPE = '@sddsjs';
 
-if (!npmPackageScope) {
-    throw new Error('NPM_PACKAGE_SCOPE must be set');
-}
+/** Scope по правилам npm: `@`, затем строчные латинские буквы, цифры и `-._~`, не с точки или подчёркивания. */
+const NPM_SCOPE_PATTERN = /^@[a-z0-9~-][a-z0-9._~-]*$/;
 
-export const NPM_PACKAGE_SCOPE = npmPackageScope;
+/**
+ * Scope генерируемого пакета из `NPM_PACKAGE_SCOPE`; без неё или с пустым значением — `@sddsjs`.
+ * Неверное значение — ошибка с именем переменной, чтобы генерация остановилась до записи файлов.
+ */
+export const resolveNpmPackageScope = (env: NodeJS.ProcessEnv = process.env): string => {
+    const value = env.NPM_PACKAGE_SCOPE?.trim();
+    if (!value) {
+        return DEFAULT_NPM_PACKAGE_SCOPE;
+    }
+    if (!NPM_SCOPE_PATTERN.test(value)) {
+        throw new Error(`NPM_PACKAGE_SCOPE must be an npm scope like ${DEFAULT_NPM_PACKAGE_SCOPE}, got "${value}"`);
+    }
+    return value;
+};
 
 export const CORE_VERSION = 'latest';
 

@@ -1,7 +1,5 @@
 name: Publish CLI release
 
-# JVM-дистрибутив CLI для CI других репозиториев (например, публикация Compose preview plugin из plasma-android).
-# Релиз создаётся по тегу `cli-vX.Y.Z`, файл `dsbuilder-cli-jvm.zip` прикладывается к нему.
 on:
   push:
     tags:
@@ -9,34 +7,196 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag of the release, for example cli-v0.1.0'
+        description: 'Existing release tag, for example cli-v0.1.0'
         required: true
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: publish-cli-release
+  cancel-in-progress: false
+
+env:
+  CLI_RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
-  jvm-distribution:
-    name: JVM distribution
-    runs-on: macos-14
-    env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  build:
+    runs-on: macos-15
     steps:
+      - name: Require the selected release tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != tag || "$GITHUB_REF_NAME" != "$CLI_RELEASE_TAG" ]]; then
+            echo 'Run this workflow on the existing release tag, with the same tag in the input' >&2
+            exit 1
+          fi
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.RELEASE_TAG }}
+      - name: Validate and check out the exact tag
+        shell: bash
+        run: |
+          python3 frontend-kt/cli/distribution/release.py version --tag "$CLI_RELEASE_TAG"
+          git fetch origin "refs/tags/$CLI_RELEASE_TAG:refs/tags/$CLI_RELEASE_TAG"
+          git checkout --detach "refs/tags/$CLI_RELEASE_TAG"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+      - name: Ensure wget for installer HTTPS contract tests
+        run: brew list wget >/dev/null 2>&1 || brew install wget
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :cli:packageJvmCli
-        working-directory: frontend-kt
-      - name: Publish the release asset
+      - name: Download the pinned macOS arm64 iOS CLI
+        shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" \
-            --title "DS Builder CLI ${RELEASE_TAG#cli-v}" \
-            --notes "JVM distribution of the dsbuilder CLI (Java 17): unpack and run bin/dsbuilder."
-          gh release upload "$RELEASE_TAG" frontend-kt/cli/build/distributions/dsbuilder-cli-jvm.zip --clobber
+          ios_tag=$(cat frontend-kt/cli/distribution/ios-cli-release.txt)
+          if [[ ! "$ios_tag" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || "$ios_tag" == current ]]; then
+            echo 'Set an exact plasma-ios release tag in cli/distribution/ios-cli-release.txt' >&2
+            exit 1
+          fi
+          asset="dsbuilder-ios-cli-$ios_tag.zip"
+          archive="frontend-kt/cli/build/ios-cli/$asset"
+          digest=$(gh api "repos/salute-developers/plasma-ios/releases/tags/$ios_tag" \
+            --jq ".assets[] | select(.name == \"$asset\") | .digest")
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Missing SHA-256 digest for $asset" >&2
+            exit 1
+          fi
+          mkdir -p "$(dirname "$archive")"
+          gh release download "$ios_tag" --repo salute-developers/plasma-ios \
+            --pattern "$asset" --dir "$(dirname "$archive")"
+          printf '%s  %s\n' "${digest#sha256:}" "$archive" | shasum -a 256 -c -
+          unzip -p "$archive" dsbuilder-ios-cli/dsbuilder-ios > "$RUNNER_TEMP/dsbuilder-ios"
+          test "$(lipo -archs "$RUNNER_TEMP/dsbuilder-ios")" = arm64
+      - name: Build and check distributions
+        working-directory: frontend-kt
+        env:
+          DSBUILDER_ANALYTICS_ENABLED: ${{ vars.DSBUILDER_ANALYTICS_ENABLED_PROM || 'false' }}
+          DSBUILDER_METRICA_COUNTER_ID: ${{ vars.DSBUILDER_METRICA_COUNTER_ID_PROM }}
+          DSBUILDER_METRICA_BASE_URL: ${{ vars.DSBUILDER_METRICA_BASE_URL_PROM }}
+          DSBUILDER_METRICA_CLI_TOKEN: ${{ secrets.DSBUILDER_METRICA_CLI_TOKEN_PROM }}
+          DSBUILDER_METRICA_MCP_TOKEN: ${{ secrets.DSBUILDER_METRICA_MCP_TOKEN_PROM }}
+          DSBUILDER_ANALYTICS_DISABLED: '1'
+          WEB_COUNTER_DEV: ${{ vars.VITE_METRICA_COUNTER_ID_DEV }}
+          WEB_COUNTER_PROM: ${{ vars.VITE_METRICA_COUNTER_ID_PROM }}
+        run: |
+          if [[ "$DSBUILDER_ANALYTICS_ENABLED" == true && ( ! "$DSBUILDER_METRICA_COUNTER_ID" =~ ^[1-9][0-9]*$ || "$DSBUILDER_METRICA_COUNTER_ID" == "$WEB_COUNTER_DEV" || "$DSBUILDER_METRICA_COUNTER_ID" == "$WEB_COUNTER_PROM" ) ]]; then
+            echo 'CLI/MCP analytics requires an isolated positive counter distinct from web' >&2
+            exit 1
+          fi
+          ./gradlew :cli:distributionTests :cli:jvmTest :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli -PbundleIosCli=true
+          python3 cli/distribution/release.py validate --tag "$CLI_RELEASE_TAG" --directory cli/build/distributions
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-distributions
+          path: frontend-kt/cli/build/distributions/dsbuilder-cli-*.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-release-tools
+          path: frontend-kt/cli/distribution/
+          if-no-files-found: error
+
+  smoke:
+    env:
+      DSBUILDER_ANALYTICS_DISABLED: '1'
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: macos-arm64
+          - os: macos-15-intel
+            target: macos-x64
+          - os: windows-2022
+            target: windows-x64
+          - os: ubuntu-22.04
+            target: jvm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-distributions
+          path: archives
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-release-tools
+          path: release-tools
+      - name: Windows installer contract tests
+        if: matrix.target == 'windows-x64'
+        shell: powershell
+        run: ./release-tools/tests/install-windows.Tests.ps1
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'jvm'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install and smoke test on Unix
+        if: matrix.target != 'windows-x64'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          unzip -q "archives/dsbuilder-cli-$TARGET.zip" -d extracted
+          export DSBUILDER_INSTALL_DIR="$RUNNER_TEMP/CLI install"
+          export DSBUILDER_BIN_DIR="$RUNNER_TEMP/CLI bin"
+          export HOME="$RUNNER_TEMP/CLI home"
+          mkdir -p "$HOME"
+          installer=$(find extracted -name install.sh -type f)
+          sh "$installer" --without-web
+          sh "$installer" --without-web
+          "$DSBUILDER_BIN_DIR/dsbuilder" --help
+          test "$("$DSBUILDER_BIN_DIR/dsbuilder" --version)" = "dsbuilder version ${CLI_RELEASE_TAG#cli-v}"
+          if [ "$TARGET" = macos-arm64 ]; then
+            test -x "$HOME/.dsbuilder/toolchains/ios/current/dsbuilder-ios"
+            "$HOME/.dsbuilder/toolchains/ios/current/dsbuilder-ios" --version
+          fi
+      - name: Install and smoke test on Windows
+        if: matrix.target == 'windows-x64'
+        shell: powershell
+        run: |
+          Expand-Archive archives/dsbuilder-cli-windows-x64.zip extracted
+          $env:DSBUILDER_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'CLI install'
+          $installer = 'extracted/dsbuilder-cli-windows-x64/install.ps1'
+          & $installer -WithoutWeb
+          & $installer -WithoutWeb
+          $binary = Join-Path $env:DSBUILDER_INSTALL_DIR 'dsbuilder.exe'
+          & $binary --help
+          if ($LASTEXITCODE -ne 0) { throw 'CLI help failed' }
+          $version = & $binary --version
+          if ($LASTEXITCODE -ne 0 -or $version -ne "dsbuilder version $($env:CLI_RELEASE_TAG.Substring(5))") { throw 'CLI version mismatch' }
+
+  publish:
+    needs: [build, smoke]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-distributions
+          path: distributions
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-release-tools
+          path: release-tools
+      - run: python3 -m pip install s3cmd==2.4.0
+      - name: Prepare and verify GitHub draft or existing release
+        run: |
+          python3 release-tools/release.py prepare --tag "$CLI_RELEASE_TAG" --directory distributions
+          python3 release-tools/release.py upload --tag "$CLI_RELEASE_TAG" --directory distributions
+      - name: Overwrite and verify the two S3 installers
+        env:
+          AWS_ENDPOINT: ${{ secrets.AWS_ENDPOINT }}
+          AWS_S3_BUCKET_2: ${{ secrets.AWS_S3_BUCKET_2 }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          CLI_S3_PREFIX: ${{ vars.CLI_S3_PREFIX }}
+        run: python3 release-tools/release.py upload-installers --tag "$CLI_RELEASE_TAG" --directory distributions
+      - name: Publish the verified release and advance Latest when newer
+        run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions

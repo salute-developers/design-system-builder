@@ -160,3 +160,20 @@ describe('icon properties of a Compose component', () => {
         });
     });
 });
+
+describe('icon chosen from the catalog', () => {
+    it('reaches the payload as the same legacy-format literal the picker stores', async () => {
+        const { toLegacyValue } = await import('../modules/icons/domain/iconCatalog');
+        const value = toLegacyValue({ legacyKey: 'disclosure.up.fill' }, 16);
+        const { result } = assemble([
+            { id: 'closed-icon', value },
+            { id: 'opened-icon', value },
+        ]);
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.payload.component.properties.closedIcon).toEqual({
+            base: { type: 'literal', value: 'disclosure.up.fill.16' },
+        });
+    });
+});

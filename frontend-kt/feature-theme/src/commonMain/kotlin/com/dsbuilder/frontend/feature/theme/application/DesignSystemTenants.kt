@@ -10,11 +10,13 @@ import com.dsbuilder.frontend.core.network.ApiUrlResolver
  * @property id идентификатор tenant.
  * @property name имя tenant.
  * @property description описание, если задано.
+ * @property named `false`, если у tenant нет имени и вместо него стоит [id].
  */
 public data class DesignSystemTenant(
     public val id: String,
     public val name: String,
     public val description: String?,
+    public val named: Boolean = true,
 )
 
 /** Stable error category получения tenant. */
@@ -49,7 +51,7 @@ public sealed interface DesignSystemTenantsResult {
 
 /** Port чтения tenant дизайн-системы. `public` — non-Koin клиент (плагин) собирает use case напрямую. */
 public fun interface DesignSystemTenantsClient {
-    /** `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tenants`. */
+    /** `GET /api/projects/{projectId}/design-systems/{designSystemId}/tenants`. */
     public suspend fun listTenants(
         apiUrl: String,
         credential: BackendCredential,

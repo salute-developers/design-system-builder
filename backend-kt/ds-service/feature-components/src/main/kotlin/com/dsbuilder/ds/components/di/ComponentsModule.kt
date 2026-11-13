@@ -5,6 +5,7 @@ import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ComponentDependencyRepository
 import com.dsbuilder.ds.components.application.ComponentRepository
 import com.dsbuilder.ds.components.application.ComponentReuseConfigRepository
+import com.dsbuilder.ds.components.application.ComponentTemplateRepository
 import com.dsbuilder.ds.components.application.ComponentWebAdapterRepository
 import com.dsbuilder.ds.components.application.CreateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.CreateComponentReuseConfigUseCase
@@ -18,22 +19,29 @@ import com.dsbuilder.ds.components.application.DesignSystemComponentRepository
 import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetActivePluginBuildUseCase
 import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
+import com.dsbuilder.ds.components.application.GetComponentDependenciesWithReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
+import com.dsbuilder.ds.components.application.GetComponentPropertiesWithPlatformParamsUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
+import com.dsbuilder.ds.components.application.GetIconCatalogUseCase
+import com.dsbuilder.ds.components.application.IconCatalogRepository
+import com.dsbuilder.ds.components.application.IconUsageReader
 import com.dsbuilder.ds.components.application.ImportApiMetaUseCase
 import com.dsbuilder.ds.components.application.ImportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.ListComponentDependenciesUseCase
 import com.dsbuilder.ds.components.application.ListComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsByDependencyUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsUseCase
+import com.dsbuilder.ds.components.application.ListComponentTemplatesUseCase
 import com.dsbuilder.ds.components.application.ListComponentVariationsUseCase
 import com.dsbuilder.ds.components.application.ListComponentsUseCase
 import com.dsbuilder.ds.components.application.ListDependenciesByComponentUseCase
 import com.dsbuilder.ds.components.application.ListDesignSystemComponentsUseCase
 import com.dsbuilder.ds.components.application.PluginBuildRepository
+import com.dsbuilder.ds.components.application.PublishIconCatalogUseCase
 import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentReuseConfigUseCase
@@ -43,8 +51,11 @@ import com.dsbuilder.ds.components.data.ExposedComponentConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentDependencyRepository
 import com.dsbuilder.ds.components.data.ExposedComponentRepository
 import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
+import com.dsbuilder.ds.components.data.ExposedComponentTemplateRepository
 import com.dsbuilder.ds.components.data.ExposedComponentWebAdapterRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
+import com.dsbuilder.ds.components.data.ExposedIconCatalogRepository
+import com.dsbuilder.ds.components.data.ExposedIconUsageReader
 import com.dsbuilder.ds.components.data.ExposedPluginBuildRepository
 import com.dsbuilder.ds.components.data.GeneratedDesignSystemComponentInitializer
 import com.dsbuilder.ds.components.data.componentDraftChangeHandlers
@@ -58,13 +69,19 @@ val componentsModule = module {
     componentDraftChangeHandlers().forEach { handler ->
         single<DraftChangeHandler>(named(handler.entityType)) { handler }
     }
-    single<DesignSystemComponentInitializer> { GeneratedDesignSystemComponentInitializer() }
+    single { GeneratedDesignSystemComponentInitializer() }
+    single<DesignSystemComponentInitializer> { get<GeneratedDesignSystemComponentInitializer>() }
+    single<ComponentTemplateRepository> { ExposedComponentTemplateRepository(get()) }
     single<ComponentRepository> { ExposedComponentRepository() }
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
     single<ApiMetaRepository> { ExposedApiMetaRepository() }
     single<PluginBuildRepository> { ExposedPluginBuildRepository() }
-    factory { PublishPluginBuildUseCase(get(), get(), get(), get(), get()) }
-    factory { GetActivePluginBuildUseCase(get(), get(), get(), get(), get()) }
+    single<IconCatalogRepository> { ExposedIconCatalogRepository() }
+    single<IconUsageReader> { ExposedIconUsageReader() }
+    factory { PublishIconCatalogUseCase(get(), get(), get(), get(), get()) }
+    factory { GetIconCatalogUseCase(get(), get(), get(), get()) }
+    factory { PublishPluginBuildUseCase(get(), get(), get(), get()) }
+    factory { GetActivePluginBuildUseCase(get(), get(), get(), get()) }
     single<ComponentWebAdapterRepository> { ExposedComponentWebAdapterRepository() }
     single<DesignSystemComponentRepository> { ExposedDesignSystemComponentRepository() }
     single<ComponentDependencyRepository> { ExposedComponentDependencyRepository() }
@@ -77,9 +94,12 @@ val componentsModule = module {
     factory { ListComponentVariationsUseCase(get(), get(), get()) }
     factory { ListComponentPropertiesUseCase(get(), get(), get()) }
     factory { ListDependenciesByComponentUseCase(get(), get(), get()) }
+    factory { GetComponentPropertiesWithPlatformParamsUseCase(get(), get(), get(), get(), get()) }
+    factory { GetComponentDependenciesWithReuseConfigUseCase(get(), get(), get(), get(), get()) }
     factory { ListDesignSystemComponentsUseCase(get(), get(), get()) }
     factory { GetDesignSystemComponentUseCase(get(), get(), get()) }
-    factory { CreateDesignSystemComponentUseCase(get(), get(), get(), get()) }
+    factory { CreateDesignSystemComponentUseCase(get(), get(), get(), get(), get()) }
+    factory { ListComponentTemplatesUseCase(get(), get(), get()) }
     factory { DeleteDesignSystemComponentUseCase(get(), get(), get()) }
     factory { ListComponentDependenciesUseCase(get(), get(), get()) }
     factory { GetComponentDependencyUseCase(get(), get(), get()) }

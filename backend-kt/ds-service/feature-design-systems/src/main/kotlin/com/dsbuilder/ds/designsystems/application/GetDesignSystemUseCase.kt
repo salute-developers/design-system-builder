@@ -4,6 +4,7 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.designsystems.domain.DesignSystem
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
@@ -18,8 +19,11 @@ class GetDesignSystemUseCase(
     suspend fun execute(context: DsRequestContext, id: DesignSystemId): DsResult<DesignSystem> =
         when (val authorization = accessPolicy.require(context, "design-systems:read")) {
             is DsResult.Failure -> authorization
-            is DsResult.Success -> transactions.readOnly(context) {
-                repository.findAccessible(context.projectId, id)?.let { DsResult.Success(it) }
+            is DsResult.Success -> transactions.readOnly(
+                context,
+                ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, id.value),
+            ) { selected ->
+                repository.findAccessible(selected.projectId, id)?.let { DsResult.Success(it) }
                     ?: DsResult.Failure(DsFailure.NotFound)
             }
         }

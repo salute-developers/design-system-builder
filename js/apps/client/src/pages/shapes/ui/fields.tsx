@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes } from 'react';
+import { PlusOutline } from '@salutejs/sdds-icons/16';
 
 import { NATIVE_PLATFORMS, PLATFORM_LABELS, type NativePlatform } from '../../../modules/sizeTokens';
 
@@ -49,7 +50,10 @@ interface PlatformAddProps {
     onAdd: (platform: NativePlatform) => void;
 }
 
-/** «+» с меню iOS / Android без уже добавленных платформ; когда добавлены обе, «+» недоступен. */
+/**
+ * «+» своего значения платформы — кнопка-иконка 24×24, видна всегда, одного вида на экранах токенов. Меню iOS /
+ * Android без уже добавленных платформ; когда добавлены обе, «+» недоступен.
+ */
 export const PlatformAdd = ({ added, label, onAdd }: PlatformAddProps) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLSpanElement>(null);
@@ -71,22 +75,23 @@ export const PlatformAdd = ({ added, label, onAdd }: PlatformAddProps) => {
         <span className="st-platform-add" ref={ref}>
             <button
                 type="button"
-                className="st-icon-btn"
+                className="tw-icon-button"
                 title={label}
                 aria-label={label}
                 aria-expanded={open}
                 disabled={!free.length}
                 onClick={() => setOpen((current) => !current)}
             >
-                +
+                <PlusOutline />
             </button>
             {open && free.length > 0 && (
-                <div className="st-menu" role="menu">
+                <div className="tw-menu st-platform-menu" role="menu">
                     {free.map((platform) => (
                         <button
                             key={platform}
                             type="button"
                             role="menuitem"
+                            className="tw-menu-item"
                             onClick={() => {
                                 setOpen(false);
                                 onAdd(platform);

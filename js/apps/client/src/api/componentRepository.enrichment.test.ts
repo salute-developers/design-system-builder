@@ -12,7 +12,8 @@ vi.mock('../utils/featureFlags', () => ({ isComponentEditorEnabled: () => true }
 import { componentRepository } from './componentRepository';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
-const root = '/api/projects/project-1/ds';
+const root = '/api/projects/project-1/design-systems/ds-1';
+const rootCatalog = '/api/projects/project-1/design-systems/catalog';
 
 /** Ответы ds-service: Button со свойствами height (web, шаблон) и focusColor (только compose), AvatarGroup → Avatar. */
 const getResponses: Record<string, unknown> = {
@@ -21,7 +22,7 @@ const getResponses: Record<string, unknown> = {
         { id: 'l-2', designSystemId: 'ds-1', componentId: 'c-avatar-group' },
         { id: 'l-3', designSystemId: 'ds-1', componentId: 'c-avatar' },
     ],
-    [`${root}/components`]: [
+    [`${rootCatalog}/components`]: [
         { id: 'c-button', name: 'Button', description: null, platform: 'web' },
         { id: 'c-avatar-group', name: 'AvatarGroup', description: null, platform: 'web' },
         { id: 'c-avatar', name: 'Avatar', description: null, platform: 'web' },
@@ -37,12 +38,12 @@ const getResponses: Record<string, unknown> = {
     [`${root}/components/c-avatar-group/variations`]: [],
     [`${root}/components/c-avatar/properties`]: [],
     [`${root}/components/c-avatar/variations`]: [],
-    [`${root}/property-platform-params`]: [
+    [`${rootCatalog}/property-platform-params`]: [
         { id: '1', propertyId: 'p-height', platform: 'web', name: 'buttonHeight' },
         { id: '2', propertyId: 'p-focus', platform: 'compose', name: 'focusColor' },
     ],
     [`${root}/property-variations`]: [{ propertyId: 'p-height', variationId: 'v-size' }],
-    [`${root}/component-deps`]: [
+    [`${rootCatalog}/component-deps`]: [
         { id: 'd-1', parentId: 'c-avatar-group', childId: 'c-avatar', type: 'reuse', order: 1 },
     ],
 };
@@ -72,26 +73,44 @@ beforeEach(() => {
                     ],
                 },
             });
-        if (url.endsWith('/component-config/web-adapter'))
-            return Promise.resolve({
-                data: [
-                    {
-                        componentName: 'button',
-                        name: 'Button',
-                        styles: { default: { templates: { height: { buttonHeight: '$1 1rem' } } } },
-                    },
-                ],
-            });
         throw new Error(`Unexpected POST ${url}`);
     });
 });
 
 describe('componentRepository.loadComponentData', () => {
-    it('fills web params, declared variations and templates of the web preview', async () => {
+    it('uses existing enriched properties for one selected component without a global params read', async () => {
+        get.mockImplementation((url: string, request?: { params?: { include?: string } }) => {
+            const data =
+                getResponses[url] ??
+                (url.endsWith('/components/c-button/styles')
+                    ? getResponses[`${root}/variations/v-size/styles`]
+                    : undefined) ??
+                (url.endsWith('/appearances') ? [] : undefined);
+            if (data === undefined) throw new Error(`Unexpected GET ${url}`);
+            if (request?.params?.include === 'platformParams') {
+                const params = getResponses[`${rootCatalog}/property-platform-params`] as Array<{ propertyId: string }>;
+                return Promise.resolve({
+                    data: (data as Array<{ id: string }>).map((property) => ({
+                        ...property,
+                        platformParams: params.filter((param) => param.propertyId === property.id),
+                    })),
+                });
+            }
+            return Promise.resolve({ data });
+        });
+        const [button] = await componentRepository.loadComponentData(context, undefined, 'web', 'Button');
+        expect(button.sources.api.find((item) => item.name === 'height')?.platformMappings.web).toEqual([
+            { name: 'buttonHeight' },
+        ]);
+        expect(get.mock.calls.some(([url]) => url.endsWith('/property-platform-params'))).toBe(false);
+        expect(get.mock.calls.some(([url]) => url === `${rootCatalog}/appearances`)).toBe(false);
+    });
+
+    it('fills web params and declared variations of the web preview', async () => {
         const meta = await componentRepository.loadComponentData(context);
         const button = meta.find((item) => item.name === 'Button')!;
         const height = button.sources.api.find((item) => item.name === 'height')!;
-        expect(height.platformMappings.web).toEqual([{ name: 'buttonHeight', adjustment: '$1 1rem' }]);
+        expect(height.platformMappings.web).toEqual([{ name: 'buttonHeight' }]);
         expect(height.variations).toEqual(['size']);
         const focus = button.sources.api.find((item) => item.name === 'focusColor')!;
         expect(focus.platformMappings.web).toBeNull();
@@ -109,7 +128,7 @@ describe('componentRepository.loadComponentData', () => {
             const call = get.mock.calls.find(([url]) => String(url).endsWith(suffix));
             expect(call?.[1]).toMatchObject({ params: { versionId: 'version-1' } });
         }
-        const adapter = post.mock.calls.find(([url]) => String(url).endsWith('/component-config/web-adapter'));
-        expect(adapter?.[2]).toMatchObject({ params: { versionId: 'version-1' } });
+        // Web-шаблоны клиент не читает: они лежат в web-плагине превью.
+        expect(post.mock.calls.some(([url]) => String(url).endsWith('/component-config/web-adapter'))).toBe(false);
     });
 });

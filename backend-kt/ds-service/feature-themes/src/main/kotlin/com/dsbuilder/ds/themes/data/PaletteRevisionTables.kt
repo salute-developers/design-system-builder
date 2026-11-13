@@ -40,7 +40,7 @@ internal open class PaletteResolvedTable(
         stableColumns.map { "entity.$it AS $it" } +
             revisionColumns.map { "revision.$it AS $it" } + "revision.updated_at AS updated_at"
         ).joinToString(", ")
-    private val revisionSql = """
+    internal val revisionSql = """
         SELECT $selections, COALESCE((SELECT edits.revision FROM entity_edit_states edits
           WHERE edits.design_system_version_id = boundary.id AND edits.entity_type = '$subjectType'
             AND edits.entity_id = entity.id), 0)::bigint AS edit_revision FROM $name entity

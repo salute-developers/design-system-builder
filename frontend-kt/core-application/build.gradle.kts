@@ -5,13 +5,15 @@ plugins {
 kotlin {
     macosArm64()
     macosX64()
+    mingwX64()
 
     sourceSets {
         commonMain.dependencies {
             // ClientRuntime exposes WorkspaceFileSystem/EnvironmentReader/AuthenticatedHttpClientFactory
             // directly as public properties, and the ports/results expose core-domain types
-            // (ProjectContext, ProjectApiKey, ProjectApiUrl, CredentialEnvName) — all four core-*
+            // (ProjectContext, PersonalAccessToken, ProjectApiUrl, CredentialEnvName) — all four core-*
             // modules cross this module's public API, so consumers need them transitively.
+            api(projects.coreAnalytics)
             api(projects.coreDomain)
             api(projects.coreNetwork)
             // ClientRuntime.processRunner — публичное свойство типа ProcessRunner.

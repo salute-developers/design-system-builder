@@ -46,7 +46,7 @@ class UpdateColorTokenValuesUseCase(
         }
         return transactions.required(context) {
             when (val lock = tokens.lock(context.projectId, tenantId, command.editRevision, allThemes = false)) {
-                is ColorTokenLock.Locked -> update(tenantId, tokenId, lock, command)
+                is ColorTokenLock.Locked -> update(context, tenantId, tokenId, lock, command)
                 else -> DsResult.Failure(requireNotNull(lock.failure()))
             }
         }
@@ -54,6 +54,7 @@ class UpdateColorTokenValuesUseCase(
 
     @Suppress("ReturnCount")
     private suspend fun update(
+        context: DsRequestContext,
         tenantId: UUID,
         tokenId: UUID,
         lock: ColorTokenLock.Locked,
@@ -71,6 +72,18 @@ class UpdateColorTokenValuesUseCase(
         palette.valueRule(tenantId).firstViolation(addressed)?.let { return DsResult.Failure(it) }
         tokens.replaceValues(tenantId, command.members.storedForm())
         val type = typeSync.sync(lock.designSystemId, tokenId) ?: stored.family.type
-        return DsResult.Success(ColorTokenMutation(tokens.bumpRevisions(listOf(tenantId)).getValue(tenantId), type))
+        val values = tokens.confirmedValues(lock.designSystemId, tenantId, stored.members.values)?.let { values ->
+            com.dsbuilder.ds.themes.application.TokenValuePublisher(
+                tenantId,
+                palette.snapshot(context.projectId, tenantId),
+            ).publish(values.map { it.copy(tokenType = type) })
+        }
+        return DsResult.Success(
+            ColorTokenMutation(
+                tokens.bumpRevisions(listOf(tenantId)).getValue(tenantId),
+                type,
+                confirmedValues = values,
+            ),
+        )
     }
 }

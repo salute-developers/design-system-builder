@@ -1,5 +1,7 @@
+import { DesignSystem } from '../controllers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const invalidateEditorResources = vi.hoisted(() => vi.fn());
 const { pluginUrl, platformParams, get, put, post, patch, remove } = vi.hoisted(() => ({
     pluginUrl: { value: undefined as string | undefined },
     platformParams: { value: false },
@@ -30,6 +32,7 @@ vi.mock('./editorReads', () => ({
               ? get(url, request)
               : post(url, body, request),
     invalidateEditorReads: vi.fn(),
+    invalidateEditorResources,
 }));
 
 import { loadThemeEditor } from './themeEditorRepository';
@@ -39,7 +42,6 @@ import { versionJournalRepository } from './versionJournalRepository';
 import type { PendingComponentMutation } from './editorContracts';
 
 import { AndroidGradient, GradientToken, IOSGradient, Theme, WebGradient } from '../controllers';
-import { getMenuItems } from '../utils';
 import { parseCssLayer } from '../modules/sizeTokens';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
@@ -80,7 +82,7 @@ const reply = (tenantId: string, color: string) => (url: string) => {
     if (url.endsWith('/components')) return { data: [] };
     if (url.endsWith('/appearances')) return { data: [] };
     if (url.endsWith('/property-platform-params')) return { data: [] };
-    if (url.endsWith('/design-system-versions/by-design-system/ds-1'))
+    if (url.endsWith('/design-systems/ds-1/versions'))
         return {
             data: [
                 {
@@ -122,6 +124,11 @@ describe('ThemeEditorRepository with the component editor disabled', () => {
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
 
         const snapshot = await loadThemeEditor(context);
+        const model = DesignSystem.fromSnapshot({
+            name: snapshot.designSystem.name,
+            ...snapshot,
+        });
+        expect(model.getParameters()).toMatchObject(context);
 
         // «Цвета» берут из модели web-компонентов связи токенов, пары контраста и канвас: флаг их не отключает.
         const exports = post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'));
@@ -277,7 +284,7 @@ describe('ThemeEditorRepository', () => {
                         },
                     ],
                 });
-            if (url.endsWith('/ds/palette'))
+            if (url.endsWith('/design-systems/catalog/palette'))
                 return Promise.resolve({ data: [{ id: 'p1', type: 'general', shade: 'amber', saturation: 300 }] });
             return Promise.resolve(reply('tenant-1', '#111111')(url));
         });
@@ -317,7 +324,10 @@ describe('ThemeEditorRepository', () => {
         const snapshot = await repository.load(context);
         expect(snapshot.themeData.variations.color.web['dark.surface.default.accent']).toBe('[general.green.500][0.8]');
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#FFFFFF');
-        expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/\/ds\/palette$/), expect.anything());
+        expect(get).not.toHaveBeenCalledWith(
+            expect.stringMatching(/\/design-systems\/catalog\/palette$/),
+            expect.anything(),
+        );
     });
 });
 
@@ -559,7 +569,7 @@ describe('Editor repositories', () => {
         expect(snapshot.themeData.variations.gradient.web['surface.default.gradient']).toEqual([
             'linear-gradient(90deg, #000 0%, #fff 100%)',
         ]);
-        expect(() => getMenuItems(theme, 'color')).not.toThrow();
+        expect(theme.getTokens('gradient')).toHaveLength(1);
     });
 
     it('keeps single-layer and multi-layer shadows array-shaped for the shadow editor', async () => {
@@ -660,7 +670,7 @@ describe('Editor repositories', () => {
             mutationMetadata: [],
         });
         expect(put).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/tenants/tenant-1/token-values',
+            '/api/projects/project-1/design-systems/ds-1/tenants/tenant-1/token-values',
             { editRevision: 3, values },
             { headers: { 'X-DS-Base-Revision': '0', 'Idempotency-Key': expect.any(String) } },
         );
@@ -710,12 +720,12 @@ describe('Editor repositories', () => {
             'request-key',
         );
         expect(post).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/tokens',
-            expect.objectContaining({ designSystemId: 'ds-1', name: 'surface.custom' }),
+            '/api/projects/project-1/design-systems/ds-1/tokens',
+            expect.objectContaining({ name: 'surface.custom' }),
             { headers: { 'X-DS-Base-Revision': '1', 'Idempotency-Key': 'request-key' } },
         );
         expect(put).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/tenants/tenant-1/token-values',
+            '/api/projects/project-1/design-systems/ds-1/tenants/tenant-1/token-values',
             expect.objectContaining({
                 editRevision: 4,
                 values: expect.arrayContaining([
@@ -731,6 +741,7 @@ describe('Editor repositories', () => {
             editRevision: 5,
             baseRevision: 1,
             valueBaseRevisions: { 'token-created:web:light': 2 },
+            values: [expect.objectContaining({ id: 'value-1', value: '#111111', editRevision: 2 })],
         });
     });
 
@@ -828,7 +839,7 @@ describe('Editor repositories', () => {
         );
 
         expect(patch).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/tokens/token-1',
+            '/api/projects/project-1/design-systems/ds-1/tokens/token-1',
             { description: 'Changed deliberately' },
             { headers: { 'X-DS-Base-Revision': '8', 'Idempotency-Key': 'request-key:definition' } },
         );
@@ -864,11 +875,127 @@ describe('Editor repositories', () => {
             'unused-for-delete',
         );
 
-        expect(remove).toHaveBeenCalledWith('/api/projects/project-1/ds/tokens/token-1', {
+        expect(remove).toHaveBeenCalledWith('/api/projects/project-1/design-systems/ds-1/tokens/token-1', {
             headers: { 'X-DS-Base-Revision': '6', 'Idempotency-Key': 'unused-for-delete:delete' },
         });
         expect(result).toEqual({ tokenId: 'token-1', editRevision: 4, baseRevision: 7, valueBaseRevisions: {} });
         expect(put).not.toHaveBeenCalled();
+        // Справочник токенов кешируется с `freshFor`: после удаления определения он сбрасывается адресно.
+        expect(invalidateEditorResources).toHaveBeenCalledWith(['/api/projects/project-1/design-systems/ds-1/tokens']);
+    });
+
+    it('writes component edits to the configuration open in the editor', async () => {
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/appearance-variations'))
+                return Promise.resolve({
+                    data: [
+                        { id: 'axis-base', appearanceId: 'appearance', variationId: 'variation' },
+                        { id: 'axis-copy', appearanceId: 'copy', variationId: 'variation' },
+                    ],
+                });
+            return Promise.resolve({ data: [] });
+        });
+        patch.mockResolvedValue({ data: {}, headers: {} });
+        const before: PendingComponentMutation['before'] = {
+            defaultVariations: [{ variationID: 'variation', styleID: 'style-m' }],
+            invariantProps: [],
+            variations: [
+                {
+                    id: 'variation',
+                    styles: [
+                        { id: 'style-m', name: 'm', intersections: null, props: [] },
+                        { id: 'style-l', name: 'l', intersections: null, props: [] },
+                    ],
+                },
+            ],
+        };
+        const mutation: PendingComponentMutation = {
+            componentName: 'Button#copy',
+            appearanceId: 'copy',
+            before,
+            idempotencyKeys: {},
+            after: { ...before, defaultVariations: [{ variationID: 'variation', styleID: 'style-l' }] },
+        };
+        const meta = {
+            name: 'Button',
+            description: '',
+            serverBinding: { componentId: 'component', appearanceId: 'appearance' },
+            sources: { api: [], variations: [], configs: [] },
+        };
+
+        await componentRepository.saveComponentMutation(context, meta, mutation, {});
+
+        expect(get).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/variation-property-values/by-appearance/copy',
+            expect.anything(),
+        );
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/appearance-variations/axis-copy',
+            { defaultStyleId: 'style-l' },
+            expect.anything(),
+        );
+    });
+
+    it('edits the invariant of the open configuration, not the same invariant of another one', async () => {
+        get.mockImplementation((url: string) => {
+            if (url.includes('/invariant-property-values/by-component/'))
+                return Promise.resolve({
+                    data: [
+                        {
+                            id: 'value-copy',
+                            propertyId: 'focus',
+                            appearanceId: 'copy',
+                            tokenId: null,
+                            value: '#111111',
+                            adjustment: null,
+                            stateSetId: 'empty',
+                        },
+                        {
+                            id: 'value-base',
+                            propertyId: 'focus',
+                            appearanceId: 'appearance',
+                            tokenId: null,
+                            value: '#000000',
+                            adjustment: null,
+                            stateSetId: 'empty',
+                        },
+                    ],
+                });
+            if (url.endsWith('/state-sets')) return Promise.resolve({ data: [{ id: 'empty', stateIds: [] }] });
+            return Promise.resolve({ data: [] });
+        });
+        patch.mockResolvedValue({ data: {}, headers: {} });
+        const before: PendingComponentMutation['before'] = {
+            defaultVariations: [],
+            invariantProps: [{ id: 'focus', value: '#111111' }],
+            variations: [],
+        };
+        const mutation: PendingComponentMutation = {
+            componentName: 'Button#copy',
+            appearanceId: 'copy',
+            before,
+            idempotencyKeys: {},
+            after: { ...before, invariantProps: [{ id: 'focus', value: '#222222' }] },
+        };
+        const meta = {
+            name: 'Button',
+            description: '',
+            serverBinding: { componentId: 'component', appearanceId: 'appearance' },
+            sources: { api: [], variations: [], configs: [] },
+        };
+
+        await componentRepository.saveComponentMutation(context, meta, mutation, {});
+
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/invariant-property-values/value-copy',
+            expect.objectContaining({ value: '#222222' }),
+            expect.anything(),
+        );
+        expect(patch).not.toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/invariant-property-values/value-base',
+            expect.anything(),
+            expect.anything(),
+        );
     });
 
     it('replays the original axis-link body after partial success and recovery', async () => {
@@ -1131,17 +1258,109 @@ describe('Editor repositories', () => {
         );
 
         expect(patch).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/appearance-variations/axis-1',
+            '/api/projects/project-1/design-systems/ds-1/appearance-variations/axis-1',
             { defaultStyleId: 'style-2' },
             { headers: { 'X-DS-Base-Revision': '2' } },
         );
         expect(patch).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/variation-property-values/value-1',
+            '/api/projects/project-1/design-systems/ds-1/variation-property-values/value-1',
             { tokenId: null, value: '48', adjustment: null },
             { headers: { 'X-DS-Base-Revision': '4' } },
         );
         expect(revisions['variation-property-value:value-1']).toBe(5);
         expect(post.mock.calls.some(([url]) => String(url).includes('/component-config/import'))).toBe(false);
+    });
+
+    it('keeps saving the other properties of the window when one icon is unknown, then reports it', async () => {
+        const value = (id: string, propertyId: string, text: string) => ({
+            id,
+            propertyId,
+            appearanceId: 'appearance-1',
+            styleId: 'style-1',
+            tokenId: null,
+            value: text,
+            adjustment: null,
+            stateSetId: 'empty-states',
+        });
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/appearance-variations'))
+                return Promise.resolve({
+                    data: [
+                        {
+                            id: 'axis-1',
+                            appearanceId: 'appearance-1',
+                            variationId: 'variation-1',
+                            defaultStyleId: 'style-1',
+                        },
+                    ],
+                });
+            if (url.endsWith('/appearance-variation-values')) return Promise.resolve({ data: [] });
+            if (url.includes('/invariant-property-values/by-component/')) return Promise.resolve({ data: [] });
+            if (url.endsWith('/variation-property-values/by-appearance/appearance-1'))
+                return Promise.resolve({
+                    data: [value('icon-value', 'icon-property', 'add.outline.24'), value('size-value', 'size', '40')],
+                });
+            if (url.endsWith('/states')) return Promise.resolve({ data: [] });
+            if (url.endsWith('/state-sets')) return Promise.resolve({ data: [{ id: 'empty-states', stateIds: [] }] });
+            if (url.endsWith('/design-systems/ds-1/tokens')) return Promise.resolve({ data: [] });
+            throw new Error(`Unexpected GET ${url}`);
+        });
+        const unknownIcon = { isAxiosError: true, response: { status: 400, data: { code: 'unknown_icon' } } };
+        patch.mockImplementation((url: string) =>
+            url.endsWith('/variation-property-values/icon-value')
+                ? Promise.reject(unknownIcon)
+                : Promise.resolve({
+                      data: {},
+                      headers: {
+                          'x-ds-mutation-metadata': JSON.stringify([
+                              { entityType: 'variation-property-value', entityId: 'size-value', revision: 5 },
+                          ]),
+                      },
+                  }),
+        );
+        const before = {
+            defaultVariations: [{ variationID: 'variation-1', styleID: 'style-1' }],
+            invariantProps: [],
+            variations: [
+                {
+                    id: 'variation-1',
+                    styles: [
+                        {
+                            id: 'style-1',
+                            name: 'm',
+                            intersections: null,
+                            props: [
+                                { id: 'icon-property', value: 'add.outline.24' },
+                                { id: 'size', value: 40 },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+        const after = structuredClone(before);
+        after.variations[0].styles[0].props[0].value = 'no.such.icon.16';
+        after.variations[0].styles[0].props[1].value = 48;
+
+        await expect(
+            componentRepository.saveComponentMutation(
+                context,
+                {
+                    name: 'Button',
+                    description: '',
+                    serverBinding: { componentId: 'component-1', appearanceId: 'appearance-1' },
+                    sources: { api: [], variations: [], configs: [] },
+                },
+                { componentName: 'Button', before, after, idempotencyKeys: {} },
+                { 'variation-property-value:icon-value': 1, 'variation-property-value:size-value': 4 },
+            ),
+        ).rejects.toBe(unknownIcon);
+
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/variation-property-values/size-value',
+            { tokenId: null, value: '48', adjustment: null },
+            expect.anything(),
+        );
     });
 
     it('marks the existing editor read-only for a Viewer', async () => {
@@ -1196,7 +1415,7 @@ describe('Editor repositories', () => {
         expect(snapshot.parameters.readOnly).toBe(true);
     });
 
-    it('loads the computed journal and reverts with revision and a fresh idempotency key', async () => {
+    it('uses addressed batches for full revert and the revision header for parameter revert', async () => {
         const change = {
             changeId: 'change-1',
             versionId: 'draft-1',
@@ -1217,19 +1436,17 @@ describe('Editor repositories', () => {
         await expect(versionJournalRepository.listChanges(context)).resolves.toEqual([change]);
         await versionJournalRepository.revertChange(context, change);
         expect(post).toHaveBeenCalledWith(
-            '/api/projects/project-1/ds/design-systems/ds-1/changes/change-1/revert',
-            {},
+            '/api/projects/project-1/design-systems/ds-1/changes/revert-by-address',
             {
-                headers: {
-                    'X-DS-Base-Revision': '4',
-                    'Idempotency-Key': expect.any(String),
-                },
+                draftId: 'draft-1',
+                targets: [{ entityType: 'token', entityId: 'token-1', expectedRevision: 4 }],
             },
+            { headers: { 'Idempotency-Key': expect.any(String) } },
         );
         post.mockResolvedValueOnce({ data: { ok: true } });
         await versionJournalRepository.revertChange(context, change, ['/value/fontSize']);
         expect(post).toHaveBeenLastCalledWith(
-            '/api/projects/project-1/ds/design-systems/ds-1/changes/change-1/revert',
+            '/api/projects/project-1/design-systems/ds-1/changes/change-1/revert',
             { paths: ['/value/fontSize'] },
             { headers: { 'X-DS-Base-Revision': '4', 'Idempotency-Key': expect.any(String) } },
         );
@@ -1240,5 +1457,22 @@ describe('Editor repositories', () => {
             ]),
         ).rejects.toThrow('Сервер не подтвердил поддержку');
         expect(post).toHaveBeenCalledTimes(calls);
+
+        post.mockResolvedValueOnce({ data: { ok: true } });
+        await versionJournalRepository.revertChanges(context, [
+            change,
+            { ...change, changeId: 'change-2', entityId: 'token-2', editRevision: 7 },
+        ]);
+        expect(post).toHaveBeenLastCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/changes/revert-by-address',
+            {
+                draftId: 'draft-1',
+                targets: [
+                    { entityType: 'token', entityId: 'token-1', expectedRevision: 4 },
+                    { entityType: 'token', entityId: 'token-2', expectedRevision: 7 },
+                ],
+            },
+            { headers: { 'Idempotency-Key': expect.any(String) } },
+        );
     });
 });

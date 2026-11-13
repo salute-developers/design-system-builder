@@ -154,7 +154,7 @@ bootstrap_projects_lookup_client() {
   log "Bootstrapping Keycloak client for Projects Service user lookup"
 
   admin_token="$(
-    curl -fsS -X POST "http://localhost:8090/realms/master/protocol/openid-connect/token" \
+    curl -fsS -X POST "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/realms/master/protocol/openid-connect/token" \
       -H "Content-Type: application/x-www-form-urlencoded" \
       -d "client_id=admin-cli" \
       -d "grant_type=password" \
@@ -169,13 +169,13 @@ bootstrap_projects_lookup_client() {
 
   client_uuid="$(
     curl -fsS -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8090/admin/realms/$lookup_realm/clients?clientId=$lookup_client_id" | \
+      "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/admin/realms/$lookup_realm/clients?clientId=$lookup_client_id" | \
       ruby -rjson -e 'data = JSON.parse(STDIN.read); print(data.first && data.first["id"] || "")'
   )"
 
   if [[ -z "$client_uuid" ]]; then
     client_uuid="$(
-      curl -fsS -X POST "http://localhost:8090/admin/realms/$lookup_realm/clients" \
+      curl -fsS -X POST "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/admin/realms/$lookup_realm/clients" \
         -H "Authorization: Bearer $admin_token" \
         -H "Content-Type: application/json" \
         -d "{
@@ -191,11 +191,11 @@ bootstrap_projects_lookup_client() {
           \"serviceAccountsEnabled\":true
         }" >/dev/null && \
       curl -fsS -H "Authorization: Bearer $admin_token" \
-        "http://localhost:8090/admin/realms/$lookup_realm/clients?clientId=$lookup_client_id" | \
+        "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/admin/realms/$lookup_realm/clients?clientId=$lookup_client_id" | \
         ruby -rjson -e 'data = JSON.parse(STDIN.read); print(data.first && data.first["id"] || "")'
     )"
   else
-    curl -fsS -X PUT "http://localhost:8090/admin/realms/$lookup_realm/clients/$client_uuid" \
+    curl -fsS -X PUT "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/admin/realms/$lookup_realm/clients/$client_uuid" \
       -H "Authorization: Bearer $admin_token" \
       -H "Content-Type: application/json" \
       -d "{
@@ -215,19 +215,19 @@ bootstrap_projects_lookup_client() {
 
   service_account_user_id="$(
     curl -fsS -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8090/admin/realms/$lookup_realm/clients/$client_uuid/service-account-user" | \
+      "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/admin/realms/$lookup_realm/clients/$client_uuid/service-account-user" | \
       read_json_field '["id"]'
   )"
 
   realm_management_client_id="$(
     curl -fsS -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8090/admin/realms/$lookup_realm/clients?clientId=realm-management" | \
+      "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/admin/realms/$lookup_realm/clients?clientId=realm-management" | \
       ruby -rjson -e 'data = JSON.parse(STDIN.read); print(data.first && data.first["id"] || "")'
   )"
 
   role_payload="$(
     curl -fsS -H "Authorization: Bearer $admin_token" \
-      "http://localhost:8090/admin/realms/$lookup_realm/clients/$realm_management_client_id/roles" | \
+      "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/admin/realms/$lookup_realm/clients/$realm_management_client_id/roles" | \
       ruby -rjson -e '
         data = JSON.parse(STDIN.read)
         selected = data.select { |role| ["query-users", "view-users"].include?(role["name"]) }
@@ -236,7 +236,7 @@ bootstrap_projects_lookup_client() {
   )"
 
   curl -fsS -X POST \
-    "http://localhost:8090/admin/realms/$lookup_realm/users/$service_account_user_id/role-mappings/clients/$realm_management_client_id" \
+    "http://localhost:${KEYCLOAK_LOCAL_PORT:-8090}/admin/realms/$lookup_realm/users/$service_account_user_id/role-mappings/clients/$realm_management_client_id" \
     -H "Authorization: Bearer $admin_token" \
     -H "Content-Type: application/json" \
     -d "$role_payload" >/dev/null
@@ -307,7 +307,7 @@ cd "$ROOT_DIR"
 
 if [[ "$DOWN" == true ]]; then
   log "Stopping local stack"
-  $COMPOSE_CMD -f docker-compose.local.yml down
+  $COMPOSE_CMD -f docker-compose.local.yml stop
   exit 0
 fi
 
@@ -319,14 +319,8 @@ fi
 
 if [[ "$BUILD_JAR" == true ]]; then
   ensure_jdk_17
-  log "Building Auth Helper fat jar"
-  "$ROOT_DIR/gradlew" -p "$ROOT_DIR/identity-gateway" :app:shadowJar
-  log "Building Projects Service fat jar"
-  "$ROOT_DIR/gradlew" -p "$ROOT_DIR/projects-service" :app:shadowJar
-  log "Building Documentation Service fat jar"
-  "$ROOT_DIR/gradlew" -p "$ROOT_DIR/documentation-service" :app:shadowJar
-  log "Building DS Service fat jar"
-  "$ROOT_DIR/gradlew" -p "$ROOT_DIR/ds-service" :app:shadowJar
+  log "Building the modular backend fat jar"
+  "$ROOT_DIR/gradlew" -p "$ROOT_DIR/app" shadowJar
 fi
 
 if [[ "$BUILD_ONLY" == true ]]; then
@@ -335,9 +329,12 @@ if [[ "$BUILD_ONLY" == true ]]; then
   exit 0
 fi
 
-log "Starting Keycloak, Auth Helper, Gateway, Projects Service, Documentation Service, and DS Service"
-$COMPOSE_CMD -f docker-compose.local.yml up --build -d
+log "Starting the modular backend and its infrastructure"
+# Compose removes the previous application containers before binding the monolith port.
+# Local data preservation during this transition is not required.
+$COMPOSE_CMD -f docker-compose.local.yml up --build --remove-orphans -d
 bootstrap_projects_lookup_client
+$COMPOSE_CMD -f docker-compose.local.yml up --no-deps --wait --wait-timeout 180 backend
 
 if [[ "$DETACH" != true ]]; then
   $COMPOSE_CMD -f docker-compose.local.yml logs -f

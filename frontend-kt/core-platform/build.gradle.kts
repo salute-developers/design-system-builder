@@ -5,11 +5,13 @@ plugins {
 kotlin {
     macosArm64()
     macosX64()
+    mingwX64()
 
     sourceSets {
         commonMain.dependencies {
             // PlatformDelegate.platforms и PlatformRunCommand публично оперируют TargetPlatform.
             api(projects.coreDomain)
+            implementation(projects.coreProcess)
             // PlatformCapabilityRunner собирается из ProjectContextReader и WorkspaceFileSystem.
             implementation(projects.coreApplication)
             // corePlatformModule(): Module — публичная фабрика, возвращающая тип Koin.

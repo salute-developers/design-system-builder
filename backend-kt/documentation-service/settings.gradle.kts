@@ -16,3 +16,6 @@ include(
     ":feature-publication",
     ":feature-search",
 )
+
+include(":runtime")
+includeBuild("../runtime-contracts")

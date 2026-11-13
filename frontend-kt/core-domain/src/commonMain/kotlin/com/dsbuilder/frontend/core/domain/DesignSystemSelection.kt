@@ -10,7 +10,7 @@ public enum class ContextProvenance {
 public enum class CredentialPolicy {
     AUTO,
     USER_SESSION,
-    PROJECT_KEY_ENV,
+    PAT_ENV,
 
     /** Service account from `DSBUILDER_CLIENT_ID`/`DSBUILDER_CLIENT_SECRET`, otherwise the user session. */
     SERVICE_ACCOUNT_OR_USER_SESSION,
@@ -21,13 +21,13 @@ public enum class CredentialPolicy {
  * @property projectId project identifier.
  * @property designSystemId design-system identifier.
  * @property version publication version.
- * @property platform target platform.
+ * @property platform optional target platform.
  */
 public data class DesignSystemSelection(
     public val projectId: ProjectId,
     public val designSystemId: DesignSystemId,
     public val version: String,
-    public val platform: TargetPlatform,
+    public val platform: TargetPlatform? = null,
 ) {
     init {
         require(version.isNotBlank()) { "Version must not be blank." }
@@ -50,8 +50,8 @@ public data class ResolvedDesignSystemContext(
     public val configPath: String? = null,
 ) {
     init {
-        if (credentialPolicy == CredentialPolicy.PROJECT_KEY_ENV) {
-            require(credentialEnvName != null) { "Project key env name is required." }
+        if (credentialPolicy == CredentialPolicy.PAT_ENV) {
+            require(credentialEnvName != null) { "PAT env name is required." }
         }
         if (provenance == ContextProvenance.EXPLICIT_LINK) {
             require(configPath == null) { "Explicit selection cannot use a local config path." }

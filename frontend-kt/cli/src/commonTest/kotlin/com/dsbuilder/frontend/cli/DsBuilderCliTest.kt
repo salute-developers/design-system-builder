@@ -1,10 +1,17 @@
 package com.dsbuilder.frontend.cli
 
+import com.dsbuilder.frontend.cli.feature.init.presentation.InitChoice
+import com.dsbuilder.frontend.cli.feature.init.presentation.InitSelectionMenu
+import com.dsbuilder.frontend.core.analytics.Analytics
+import com.dsbuilder.frontend.core.analytics.AnalyticsEvent
+import com.dsbuilder.frontend.core.analytics.AnalyticsFlushResult
+import com.dsbuilder.frontend.core.analytics.AnalyticsValue
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.CredentialStore
+import com.dsbuilder.frontend.core.auth.CredentialStoreLockException
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
@@ -23,8 +30,12 @@ import com.dsbuilder.frontend.core.workspace.ProjectConfigCodec
 import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
 import com.dsbuilder.frontend.core.workspace.ProjectConfigTenant
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import com.github.ajalt.mordant.terminal.Terminal
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -37,6 +48,133 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DsBuilderCliTest {
+    @Test fun analyticsTracksOnlyStartedLeafAndIsolatesFailures() {
+        val events = mutableListOf<AnalyticsEvent>()
+        val recorder = object : Analytics {
+            override fun track(event: AnalyticsEvent) { events += event }
+            override suspend fun flush(timeoutMillis: Long) = AnalyticsFlushResult.COMPLETED
+            override fun close() = Unit
+        }
+        val cli = DsBuilderCli(
+            fakeRuntime(),
+            analyticsFactory = { channel, operations ->
+                assertEquals("cli", channel)
+                assertEquals(CLI_ANALYTICS_OPERATIONS, operations)
+                recorder
+            },
+        )
+        listOf(listOf("--help"), listOf("--version"), listOf("theme"), listOf("theme", "fetch", "--unknown")).forEach {
+            cli.execute(it)
+        }
+        assertTrue(events.isEmpty())
+        cli.execute(listOf("toolchain", "list"))
+        cli.execute(listOf("theme", "fetch"))
+        assertEquals(
+            listOf("toolchain list", "theme fetch"),
+            events.map {
+                (it.properties.getValue("operation") as AnalyticsValue.Text).value
+            },
+        )
+        assertEquals(
+            listOf("success", "failure"),
+            events.map {
+                (it.properties.getValue("outcome") as AnalyticsValue.Text).value
+            },
+        )
+        val baseline = DsBuilderCli(fakeRuntime()).execute(listOf("theme", "fetch"))
+        val broken = DsBuilderCli(fakeRuntime(), analyticsFactory = { _, _ -> error("analytics down") })
+            .execute(listOf("theme", "fetch"))
+        assertEquals(baseline, broken)
+    }
+
+    @Test
+    fun themeFetchRetainsMoreThanTwoHundredDefinitionsAndFiftyThemesWithoutPageParameters() {
+        val fileSystem = initializedFileSystem()
+        val tenants = (1..51).map { configTenant("tenant-$it").copy(name = "Theme $it") }
+        val token = Json.parseToJsonElement(singleColorTokenResponse()).jsonArray.single().jsonObject
+        val tokens = (1..205).map { index ->
+            JsonObject(
+                token + mapOf(
+                    "id" to JsonPrimitive("token-$index"), "name" to JsonPrimitive("color.primary$index"),
+                ),
+            )
+        }
+        val value = Json.parseToJsonElement(nullableAndNonNullColorValuesResponse()).jsonArray.last().jsonObject
+        val results = successfulThemeHttpResults().toMutableMap()
+        results[
+            "/api/projects/project-a/design-systems/" +
+                "design-system-a/tenants",
+        ] = AuthenticatedHttpResult.Success(
+            Json.encodeToString(ListSerializer(ProjectConfigTenant.serializer()), tenants),
+        )
+        results["/api/projects/project-a/design-systems/design-system-a/tokens"] =
+            AuthenticatedHttpResult.Success(JsonArray(tokens).toString())
+        tenants.forEach { tenant ->
+            val values = (1..205).map { index ->
+                JsonObject(
+                    value + mapOf(
+                        "id" to JsonPrimitive("value-$index"), "tokenId" to JsonPrimitive("token-$index"),
+                        "tenantId" to JsonPrimitive(tenant.id),
+                    ),
+                )
+            }
+            results["/api/projects/project-a/design-systems/design-system-a/tenants/${tenant.id}/token-values"] =
+                AuthenticatedHttpResult.Success(JsonArray(values).toString())
+        }
+        val calls = mutableListOf<String>()
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "test-key"),
+                httpResults = results,
+                onGet = { calls += it },
+            ),
+        ).execute(listOf("theme", "fetch"))
+        assertEquals(0, result.exitCode, result.output)
+        val config = ProjectConfigCodec().decode(fileSystem.readText("/repo/.sdds/config.json"))
+        assertEquals(51, config.tenants.size)
+        config.tenants.forEach { tenant ->
+            val meta = Json.parseToJsonElement(
+                fileSystem.readText("/repo/${tenant.directoryPath}/meta.json"),
+            ).jsonObject
+            assertEquals(205, meta.getValue("tokens").jsonArray.size)
+            assertTrue("name" in meta && "version" in meta)
+        }
+        assertTrue(calls.none { "limit=" in it || "cursor=" in it })
+        assertEquals(51, calls.count { it.endsWith("/token-values") })
+    }
+
+    @Test
+    fun componentsFetchRetainsMoreThanTwoHundredConfigurationsAndExistingFileFormat() {
+        val fileSystem = initializedFileSystem()
+        val components = (1..205).joinToString(",") {
+            """{"componentName":"component$it","styleName":"default","config":{"invariants":{}}}"""
+        }
+        val response = """{"meta":{"name":"large","version":"1.0.0"},"components":[$components]}"""
+        val calls = mutableListOf<String>()
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "test-key"),
+                httpResults = successfulComponentHttpResults() + mapOf(
+                    "/api/projects/project-a/design-systems/" +
+                        "design-system-a/component-config/export" to AuthenticatedHttpResult.Success(response),
+                ),
+                onGet = { calls += it },
+            ),
+        ).execute(listOf("components", "fetch"))
+        assertEquals(0, result.exitCode, result.output)
+        (1..205).forEach { index ->
+            val path = "/repo/.sdds/components/component${index}_default_config.json"
+            assertTrue(fileSystem.exists(path), path)
+            assertEquals(
+                Json.parseToJsonElement("""{"bindings":[]}"""),
+                Json.parseToJsonElement(fileSystem.readText(path)),
+            )
+        }
+        assertEquals(listOf("/api/projects/project-a/design-systems/design-system-a/component-config/export"), calls)
+    }
+
     @Test
     fun statusUsesProjectEnvForKeyAndApiUrl() {
         val fileSystem = initializedFileSystem()
@@ -55,7 +193,7 @@ class DsBuilderCliTest {
         ).execute(listOf("status"))
 
         assertEquals(0, result.exitCode, result.output)
-        assertTrue(selected.all { it == BackendCredential.ProjectKey("project-secret") })
+        assertTrue(selected.all { it == BackendCredential.PersonalAccessToken("project-secret") })
         assertTrue(urls.all { it == "https://project.test" })
         assertFalse(result.output.contains("project-secret"))
     }
@@ -82,7 +220,7 @@ class DsBuilderCliTest {
         ).execute(listOf("status"))
 
         assertEquals(0, result.exitCode, result.output)
-        assertTrue(selected.all { it == BackendCredential.ProjectKey("process-secret") })
+        assertTrue(selected.all { it == BackendCredential.PersonalAccessToken("process-secret") })
         assertTrue(urls.all { it == "https://process.test" })
         assertFalse(result.output.contains("process-secret"))
     }
@@ -112,7 +250,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-b" to AuthenticatedHttpResult.Success(
                     """{"id":"project-b","name":"Other project"}""",
                 ),
-                "/api/projects/project-b/ds/design-systems/ds-b" to AuthenticatedHttpResult.Success(
+                "/api/projects/project-b/design-systems/ds-b" to AuthenticatedHttpResult.Success(
                     """{"id":"internal-b","designSystemId":"ds-b","name":"Other DS"}""",
                 ),
             ),
@@ -136,7 +274,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-b" to AuthenticatedHttpResult.Success(
                     """{"id":"project-b","name":"Other project"}""",
                 ),
-                "/api/projects/project-b/ds/design-systems/ds-b" to AuthenticatedHttpResult.Success(
+                "/api/projects/project-b/design-systems/ds-b" to AuthenticatedHttpResult.Success(
                     """{"id":"internal-b","designSystemId":"ds-b","name":"Other DS"}""",
                 ),
             ),
@@ -145,11 +283,11 @@ class DsBuilderCliTest {
         val link = "dsbuilder://projects/project-b/design-systems/ds-b?version=2.0&platform=compose"
 
         val result = DsBuilderCli(runtime).execute(
-            listOf("status", "--design-system", link, "--project-key-env", "CI_PROJECT_KEY"),
+            listOf("status", "--design-system", link, "--api-key", "ci-secret"),
         )
 
         assertEquals(0, result.exitCode, result.output)
-        assertTrue(selected.all { it == BackendCredential.ProjectKey("ci-secret") })
+        assertTrue(selected.all { it == BackendCredential.PersonalAccessToken("ci-secret") })
         assertFalse(result.output.contains("ci-secret"))
     }
 
@@ -166,7 +304,7 @@ class DsBuilderCliTest {
             val result = cli.execute(command + "--help")
             assertEquals(0, result.exitCode, result.output)
             assertTrue(result.output.contains("--design-system"), result.output)
-            assertTrue(result.output.contains("--project-key-env"), result.output)
+            assertFalse(result.output.contains("--project-key-env"), result.output)
         }
     }
 
@@ -192,11 +330,14 @@ class DsBuilderCliTest {
         val result = DsBuilderCli(
             fakeRuntime(
                 fileSystem = fileSystem,
-                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                environment = mapOf(
+                    "DSBUILDER_API_URL" to "http://backend",
+                    "DSBUILDER_PROJECT_A_API_KEY" to "secret-value",
+                ),
                 httpResults = successfulComponentHttpResults(),
                 onGet = { calls += it },
             ),
-        ).execute(listOf("components", "fetch", "--to", "/custom-components", "--api-url", "http://backend"))
+        ).execute(listOf("components", "fetch", "--to", "/custom-components"))
 
         assertEquals(1, result.exitCode, result.output)
         assertTrue(result.output.contains("compose, android-view"), result.output)
@@ -259,14 +400,45 @@ class DsBuilderCliTest {
     }
 
     @Test
+    fun credentialLockTimeoutIsPrintedWithoutUncaughtException() {
+        val store = object : CredentialStore {
+            override suspend fun read(apiUrl: String): UserSession? = throw CredentialStoreLockException("session.lock")
+            override suspend fun save(session: UserSession) = Unit
+            override suspend fun delete(apiUrl: String) = Unit
+        }
+        val result = DsBuilderCli(fakeRuntime(credentialStore = store)).execute(listOf("auth", "status"))
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("timed out waiting for credential store lock"), result.output)
+        assertTrue(result.output.contains("Stop other CLI/MCP processes"), result.output)
+    }
+
+    @Test
     fun authLoginRejectsPasswordArgumentBeforeParsing() {
         val result = DsBuilderCli(fakeRuntime()).execute(
             listOf("auth", "login", "--username", "alice", "--password", "secret"),
         )
 
         assertEquals(1, result.exitCode)
-        assertTrue(result.output.contains("password must be entered interactively"), result.output)
+        assertTrue(result.output.contains("password login was removed"), result.output)
         assertFalse(result.output.contains("secret"), result.output)
+    }
+
+    @Test
+    fun apiUrlOptionIsRejectedByNetworkCommands() {
+        listOf(
+            listOf("auth", "status"),
+            listOf("auth", "logout"),
+            listOf("mcp", "serve"),
+            listOf("status"),
+            listOf("theme", "fetch"),
+            listOf("components", "fetch"),
+            listOf("components", "push"),
+            listOf("ds", "fetch"),
+        ).forEach { command ->
+            val result = DsBuilderCli(fakeRuntime()).execute(command + listOf("--api-url", "http://backend"))
+            assertEquals(1, result.exitCode, result.output)
+            assertTrue(result.output.contains("--api-url"), result.output)
+        }
     }
 
     @Test
@@ -276,7 +448,7 @@ class DsBuilderCliTest {
         assertEquals(0, result.exitCode, result.output)
         assertTrue(result.output.contains("Serve DS Builder MCP tools over stdio."), result.output)
         assertTrue(result.output.contains("--workspace"), result.output)
-        assertTrue(result.output.contains("--api-url"), result.output)
+        assertFalse(result.output.contains("--api-url"), result.output)
     }
 
     @Test
@@ -284,7 +456,7 @@ class DsBuilderCliTest {
         val result = DsBuilderCli(fakeRuntime()).execute(listOf("--version"))
 
         assertEquals(0, result.exitCode)
-        assertEquals("dsbuilder version 0.1.0", result.output)
+        assertEquals("dsbuilder version $VERSION", result.output)
     }
 
     @Test
@@ -325,6 +497,7 @@ class DsBuilderCliTest {
         var createdApiKey = ""
         val result = DsBuilderCli(
             fakeRuntime(
+                environment = mapOf("DSBUILDER_API_URL" to "https://override.example.com"),
                 fileSystem = fileSystem,
                 multipartResponse = AuthenticatedHttpResponse(
                     422,
@@ -343,8 +516,6 @@ class DsBuilderCliTest {
                 "/custom.tar.gz",
                 "--api-key",
                 "override-key",
-                "--api-url",
-                "https://override.example.com",
             ),
         )
 
@@ -496,7 +667,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a" to AuthenticatedHttpResult.Success(
                     """{"id":"project-a","name":"SDDS"}""",
                 ),
-                "/api/projects/project-a/ds/design-systems/design-system-a" to AuthenticatedHttpResult.Success(
+                "/api/projects/project-a/design-systems/design-system-a" to AuthenticatedHttpResult.Success(
                     """{"id":"internal-id","designSystemId":"design-system-a","name":"sdds_cs"}""",
                 ),
             ),
@@ -536,7 +707,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a" to AuthenticatedHttpResult.Success(
                     """{"id":"project-a","name":"SDDS"}""",
                 ),
-                "/api/projects/project-a/ds/design-systems/design-system-a" to AuthenticatedHttpResult.Success(
+                "/api/projects/project-a/design-systems/design-system-a" to AuthenticatedHttpResult.Success(
                     """{"id":"internal-id","designSystemId":"design-system-a","name":"sdds_cs"}""",
                 ),
             ),
@@ -548,7 +719,7 @@ class DsBuilderCliTest {
         assertEquals(
             listOf(
                 "/api/projects/project-a",
-                "/api/projects/project-a/ds/design-systems/design-system-a",
+                "/api/projects/project-a/design-systems/design-system-a",
             ),
             calls,
         )
@@ -564,7 +735,7 @@ class DsBuilderCliTest {
         val help = DsBuilderCli(runtime).execute(listOf("--help"))
 
         assertEquals(1, missingOption.exitCode)
-        assertTrue(missingOption.output.contains("missing option --project-id"))
+        assertTrue(missingOption.output.contains("--project-id"))
         assertEquals(1, unknown.exitCode)
         assertTrue(unknown.output.contains("unknown-command"))
         assertEquals(0, help.exitCode)
@@ -584,7 +755,7 @@ class DsBuilderCliTest {
 
         assertEquals(0, help.exitCode)
         assertEquals(0, version.exitCode)
-        assertEquals("dsbuilder version 0.1.0", version.output)
+        assertEquals("dsbuilder version $VERSION", version.output)
     }
 
     @Test
@@ -684,9 +855,9 @@ class DsBuilderCliTest {
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -704,8 +875,9 @@ class DsBuilderCliTest {
                             ]
                         """.trimIndent(),
                     ),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -741,12 +913,13 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(singleColorTokenResponse()),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(nullableAndNonNullColorValuesResponse()),
             ),
         )
@@ -764,12 +937,13 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(singleColorTokenResponse()),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -806,7 +980,7 @@ class DsBuilderCliTest {
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success("""{"not":"an-array"}"""),
             ),
             onGet = { calls += it },
@@ -817,7 +991,7 @@ class DsBuilderCliTest {
         assertEquals(1, result.exitCode)
         assertEquals("Error: Cannot parse tenants response.", result.output)
         assertEquals(
-            listOf("/api/projects/project-a/ds/design-systems/design-system-a/tenants"),
+            listOf("/api/projects/project-a/design-systems/design-system-a/tenants"),
             calls,
         )
         assertFalse(result.output.contains("secret-value"))
@@ -830,7 +1004,7 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -857,10 +1031,11 @@ class DsBuilderCliTest {
                             ]
                         """.trimIndent(),
                     ),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success("[]"),
             ),
         )
@@ -879,12 +1054,13 @@ class DsBuilderCliTest {
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """{"error":"unexpected wrapper","apiKey":"secret-value"}""",
                     ),
@@ -908,11 +1084,11 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
-                "/api/projects/project-a/ds/palette" to
+                "/api/projects/project-a/design-systems/catalog/palette" to
                     AuthenticatedHttpResult.Success("""{"not":"an-array","apiKey":"secret-value"}"""),
             ),
         )
@@ -985,6 +1161,33 @@ class DsBuilderCliTest {
     }
 
     @Test
+    fun themeFetchAcceptsNullTokenDisplayNameAndDescription() {
+        val fileSystem = initializedFileSystem()
+        val results = successfulThemeHttpResults().toMutableMap()
+        val tokenPath = "/api/projects/project-a/design-systems/design-system-a/tokens"
+        val response = tokensResponse()
+            .replace("\"displayName\": \"iOS primary\"", "\"displayName\": null")
+            .replace("\"description\": \"iOS primary color\"", "\"description\": null")
+        assertTrue(response.contains("\"displayName\": null"))
+        assertTrue(response.contains("\"description\": null"))
+        results[tokenPath] = AuthenticatedHttpResult.Success(response)
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "test-key"),
+                httpResults = results,
+            ),
+        ).execute(listOf("theme", "fetch"))
+
+        assertEquals(0, result.exitCode, result.output)
+        val meta = Json.parseToJsonElement(fileSystem.readText("/repo/.sdds/tenants/sdds_cs/meta.json")).jsonObject
+        val token = meta.getValue("tokens").jsonArray
+            .single { it.jsonObject.getValue("id").jsonPrimitive.content == "ios-color-token" }.jsonObject
+        assertEquals("color.ios.primary", token.getValue("displayName").jsonPrimitive.content)
+        assertEquals("", token.getValue("description").jsonPrimitive.content)
+    }
+
+    @Test
     fun componentsFetchDoesNotRequestLegacyEndpointAndKeepsExistingSnapshot() {
         val fileSystem = initializedFileSystem()
         fileSystem.writeText("/repo/.sdds/component-configs.json", "old configs")
@@ -1008,7 +1211,7 @@ class DsBuilderCliTest {
 
     @Test
     fun componentsFetchPreservesLocalFilesWhenWebAdapterDownloadFails() {
-        val webAdapterEndpoint = "/api/projects/project-a/ds/component-config/web-adapter"
+        val webAdapterEndpoint = "/api/projects/project-a/design-systems/design-system-a/component-config/web-adapter"
         val failures = listOf(
             webAdapterEndpoint to AuthenticatedHttpResult.Failure("Error: unavailable"),
             webAdapterEndpoint to AuthenticatedHttpResult.Success("{\"items\":{}}"),
@@ -1039,6 +1242,7 @@ class DsBuilderCliTest {
         val calls = mutableListOf<String>()
         val result = DsBuilderCli(
             fakeRuntime(
+                environment = mapOf("DSBUILDER_API_URL" to "https://api.example.com"),
                 fileSystem = initializedFileSystem(),
                 httpResults = successfulComponentHttpResults(),
                 onGet = { calls += it },
@@ -1047,14 +1251,15 @@ class DsBuilderCliTest {
                     assertEquals("override-key", key)
                 },
             ),
-        ).execute(listOf("components", "fetch", "--api-url", "https://api.example.com", "--api-key", "override-key"))
+        ).execute(listOf("components", "fetch", "--api-key", "override-key"))
 
         assertEquals(0, result.exitCode, result.output)
-        assertEquals(listOf("/api/projects/project-a/ds/component-config/export"), calls)
+        assertEquals(listOf("/api/projects/project-a/design-systems/design-system-a/component-config/export"), calls)
     }
 
     @Test
     fun componentsFetchReportsComponentFileWriteFailure() {
+        val analytics = RecordingClientAnalytics()
         val fileSystem = initializedFileSystem()
         fileSystem.writeFailurePath = "/repo/.sdds/web/web-adapter.json"
         val result = DsBuilderCli(
@@ -1063,11 +1268,15 @@ class DsBuilderCliTest {
                 environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
                 httpResults = successfulComponentHttpResults(),
             ),
+            analyticsFactory = { _, _ -> analytics },
         ).execute(listOf("components", "fetch", "--platform", "react"))
 
         assertEquals(1, result.exitCode)
         assertTrue(result.output.contains("Cannot write web adapter"), result.output)
         assertFalse(result.output.contains("Written to:"))
+        assertEquals(1, analytics.events.size)
+        assertEquals(AnalyticsValue.Text("components fetch"), analytics.events.single().properties["operation"])
+        assertEquals(AnalyticsValue.Text("failure"), analytics.events.single().properties["outcome"])
     }
 
     @Test
@@ -1085,7 +1294,8 @@ class DsBuilderCliTest {
                 fileSystem = fileSystem,
                 environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
                 httpResults = mapOf(
-                    "/api/projects/project-a/ds/component-config/export" to AuthenticatedHttpResult.Success(response),
+                    "/api/projects/project-a/design-systems/" +
+                        "design-system-a/component-config/export" to AuthenticatedHttpResult.Success(response),
                 ) + successfulComponentHttpResults().filterKeys { it.endsWith("/web-adapter") },
             ),
         ).execute(listOf("components", "fetch"))
@@ -1097,12 +1307,14 @@ class DsBuilderCliTest {
     }
 
     private fun successfulComponentHttpResults(): Map<String, AuthenticatedHttpResult> = mapOf(
-        "/api/projects/project-a/ds/component-config/export" to AuthenticatedHttpResult.Success(
-            """{"meta":{"name":"SDDS CS","version":"latest"},"components":[]}""",
-        ),
-        "/api/projects/project-a/ds/component-config/web-adapter" to AuthenticatedHttpResult.Success(
-            "[]",
-        ),
+        "/api/projects/project-a/design-systems/" +
+            "design-system-a/component-config/export" to AuthenticatedHttpResult.Success(
+                """{"meta":{"name":"SDDS CS","version":"latest"},"components":[]}""",
+            ),
+        "/api/projects/project-a/design-systems/" +
+            "design-system-a/component-config/web-adapter" to AuthenticatedHttpResult.Success(
+                "[]",
+            ),
     )
 
     @Test
@@ -1113,15 +1325,15 @@ class DsBuilderCliTest {
         val result = DsBuilderCli(
             fakeRuntime(
                 fileSystem = fileSystem,
-                environment = mapOf("CI_PROJECT_KEY" to "ci-secret"),
+                environment = mapOf("DSBUILDER_API_URL" to "https://api.example.com", "CI_PROJECT_KEY" to "ci-secret"),
                 httpResults = successfulComponentHttpResults(),
                 onCredential = { credentials += it },
             ),
         ).execute(
             listOf(
                 "components", "fetch", "--design-system", link,
-                "--project-key-env", "CI_PROJECT_KEY", "--to", "/target/components",
-                "--api-url", "https://api.example.com", "--platform", "react",
+                "--api-key", "ci-secret", "--to", "/target/components",
+                "--platform", "react",
             ),
         )
 
@@ -1130,11 +1342,12 @@ class DsBuilderCliTest {
         assertEquals("[]", fileSystem.readText("/target/components/web/web-adapter.json"))
         assertFalse(fileSystem.exists("/repo/.sdds/config.json"))
         assertEquals(2, credentials.size)
-        assertTrue(credentials.all { it == BackendCredential.ProjectKey("ci-secret") })
+        assertTrue(credentials.all { it == BackendCredential.PersonalAccessToken("ci-secret") })
     }
 
     @Test
     fun dsFetchFetchesThemeThenComponentsWithTheSameContext() {
+        val analytics = RecordingClientAnalytics()
         val fileSystem = initializedFileSystem()
         val calls = mutableListOf<String>()
         val result = DsBuilderCli(
@@ -1144,6 +1357,7 @@ class DsBuilderCliTest {
                 httpResults = successfulThemeHttpResults() + successfulComponentHttpResults(),
                 onGet = { calls += it },
             ),
+            analyticsFactory = { _, _ -> analytics },
         ).execute(listOf("ds", "fetch"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -1152,10 +1366,13 @@ class DsBuilderCliTest {
         // Сначала тема, затем компоненты; без React web-адаптер не запрашивается.
         assertThemeFetchCalls(calls.take(4))
         assertEquals(
-            listOf("/api/projects/project-a/ds/component-config/export"),
+            listOf("/api/projects/project-a/design-systems/design-system-a/component-config/export"),
             calls.drop(4),
         )
         assertFalse(result.output.contains("secret-value"))
+        assertEquals(1, analytics.events.size)
+        assertEquals(AnalyticsValue.Text("ds fetch"), analytics.events.single().properties["operation"])
+        assertEquals(AnalyticsValue.Text("success"), analytics.events.single().properties["outcome"])
     }
 
     @Test
@@ -1178,10 +1395,10 @@ class DsBuilderCliTest {
     private fun assertThemeFetchCalls(calls: List<String>) {
         assertEquals(
             listOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants",
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens",
-                "/api/projects/project-a/ds/palette",
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values",
+                "/api/projects/project-a/design-systems/design-system-a/tenants",
+                "/api/projects/project-a/design-systems/design-system-a/tokens",
+                "/api/projects/project-a/design-systems/catalog/palette",
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values",
             ),
             calls,
         )
@@ -1207,7 +1424,7 @@ class DsBuilderCliTest {
         val config = ProjectConfigCodec().decode(fileSystem.readText("/target/.sdds/config.json"))
         assertEquals("project-a", config.projectId)
         assertEquals("design-system-a", config.designSystemId)
-        assertEquals(CredentialReferenceType.USER_SESSION, config.credential.type)
+        assertEquals(CredentialReferenceType.AUTO, config.credential.type)
         assertEquals(listOf("compose"), config.platforms)
         assertTrue(fileSystem.exists("/target/.sdds/tenants/palette.json"))
         assertFalse(fileSystem.exists("/repo/.sdds/config.json"))
@@ -1282,12 +1499,13 @@ class DsBuilderCliTest {
             fileSystem = fileSystem,
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
             httpResults = mapOf(
-                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                "/api/projects/project-a/design-systems/design-system-a/tenants" to
                     AuthenticatedHttpResult.Success(tenantsResponse()),
-                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                "/api/projects/project-a/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
-                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/design-systems/" +
+                    "catalog/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(""),
             ),
         )
@@ -1353,16 +1571,16 @@ class DsBuilderCliTest {
     )
 
     private fun successfulThemeHttpResults(): Map<String, AuthenticatedHttpResult> = mapOf(
-        "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to AuthenticatedHttpResult.Success(
+        "/api/projects/project-a/design-systems/design-system-a/tenants" to AuthenticatedHttpResult.Success(
             tenantsResponse(),
         ),
-        "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to AuthenticatedHttpResult.Success(
+        "/api/projects/project-a/design-systems/design-system-a/tokens" to AuthenticatedHttpResult.Success(
             tokensResponse(),
         ),
-        "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(
+        "/api/projects/project-a/design-systems/catalog/palette" to AuthenticatedHttpResult.Success(
             paletteResponse(),
         ),
-        "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+        "/api/projects/project-a/design-systems/design-system-a/tenants/tenant-a/token-values" to
             AuthenticatedHttpResult.Success(tokenValuesResponse()),
     )
 
@@ -1533,6 +1751,184 @@ class DsBuilderCliTest {
         return fileSystem
     }
 
+    @Test
+    fun interactiveInitSelectsProjectThenItsSystemsUsingUserSessionDespiteProjectKey() {
+        val fs = FakeFileSystem(currentDirectory = "/repo")
+        val events = mutableListOf<String>()
+        val credentials = mutableListOf<BackendCredential>()
+        val menu = object : InitSelectionMenu {
+            override fun supported(terminal: Terminal) = true
+            override fun select(
+                terminal: Terminal,
+                title: String,
+                choices: List<InitChoice>,
+            ): String {
+                events += "menu:${choices.map { it.id }}"
+                return choices.last().id
+            }
+            override fun selectMultiple(terminal: Terminal, title: String, choices: List<InitChoice>): List<String> =
+                error("Explicit --platform must skip platform menu")
+        }
+        val runtime = fakeRuntime(
+            fileSystem = fs,
+            environment = mapOf("DSBUILDER_API_KEY" to "ignored-key"),
+            credentialStore = testSessionStore(),
+            tokenClient = testTokenClient(),
+            onCredential = { credentials += it },
+            onGet = { events += it },
+            httpResults = mapOf(
+                "/api/projects" to AuthenticatedHttpResult.Success(
+                    """[{"id":"p1","name":"Same"},{"id":"p2","name":"Same","description":"second"}]""",
+                ),
+                "/api/projects/p2/design-systems" to AuthenticatedHttpResult.Success(
+                    """[{"id":"s2","name":"System","description":"chosen"}]""",
+                ),
+            ),
+        )
+        val result = DsBuilderCli(runtime, menu).execute(listOf("init", "--platform", "swiftui"))
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(
+            listOf(
+                "/api/projects",
+                "menu:[p1, p2]",
+                "/api/projects/p2/design-systems",
+                "menu:[s2]",
+            ),
+            events,
+        )
+        assertTrue(credentials.all { it == BackendCredential.PersonalAccessToken("ignored-key") })
+        val config = ProjectConfigCodec().decode(fs.readText("/repo/.sdds/config.json"))
+        assertEquals("p2", config.projectId)
+        assertEquals("s2", config.designSystemId)
+        assertEquals(CredentialReferenceType.AUTO, config.credential.type)
+        assertEquals(listOf("swiftui"), config.platforms)
+        assertFalse(fs.readText("/repo/.sdds/config.json").contains("access-token"))
+    }
+
+    @Test
+    fun interactiveInitHandlesPartialIdsCancellationEmptyListsAndMembershipWithoutWritingConfig() {
+        for (scenario in listOf("cancel", "empty", "foreign", "no-session", "closed")) {
+            val fs = FakeFileSystem(currentDirectory = "/repo")
+            val calls = mutableListOf<String>()
+            val menu = object : InitSelectionMenu {
+                override fun supported(terminal: Terminal) = true
+                override fun select(
+                    terminal: Terminal,
+                    title: String,
+                    choices: List<InitChoice>,
+                ): String? {
+                    if (scenario == "closed") throw IllegalStateException("fixture EOF")
+                    return null
+                }
+                override fun selectMultiple(
+                    terminal: Terminal,
+                    title: String,
+                    choices: List<InitChoice>,
+                ): List<String> = error("Platform menu must not run after failed selection")
+            }
+            val runtime = fakeRuntime(
+                fileSystem = fs,
+                credentialStore = if (scenario == "no-session") null else testSessionStore(),
+                tokenClient = testTokenClient(),
+                onGet = { calls += it },
+                httpResults = mapOf(
+                    "/api/projects/p1/design-systems" to AuthenticatedHttpResult.Success(
+                        if (scenario == "empty") "[]" else """[{"id":"s1","name":"One"}]""",
+                    ),
+                    "/api/projects" to AuthenticatedHttpResult.Success("""[{"id":"p1","name":"One"}]"""),
+                ),
+            )
+            val args = if (scenario == "foreign") {
+                listOf("init", "--design-system-id", "foreign")
+            } else {
+                listOf("init", "--project-id", "p1")
+            }
+            val analytics = RecordingClientAnalytics()
+            val result = DsBuilderCli(runtime, menu, analyticsFactory = { _, _ -> analytics }).execute(args)
+            val expected = if (scenario in setOf("cancel", "closed", "foreign")) "cancelled" else "failure"
+            assertEquals(AnalyticsValue.Text(expected), analytics.events.single().properties["outcome"], scenario)
+            assertEquals(1, result.exitCode, scenario)
+            assertFalse(fs.exists("/repo/.sdds/config.json"), scenario)
+            if (scenario != "foreign") assertFalse("/api/projects" in calls)
+            if (scenario == "no-session") assertTrue(result.output.contains("auth login"))
+        }
+    }
+
+    @Test
+    fun interactiveInitChecksExistingConfigBeforeNetworkAndHonorsExplicitEnv() {
+        val fs = FakeFileSystem(currentDirectory = "/repo")
+        fs.writeText("/repo/.sdds/config.json", ProjectConfigCodec().encode(projectConfig()))
+        val runtime = fakeRuntime(fileSystem = fs, onGet = { error("No network before config check") })
+        val result = DsBuilderCli(runtime).execute(listOf("init"))
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("already exists"))
+        val fresh = FakeFileSystem(currentDirectory = "/repo")
+        val menu = object : InitSelectionMenu {
+            override fun supported(terminal: Terminal) = true
+            override fun select(
+                terminal: Terminal,
+                title: String,
+                choices: List<InitChoice>,
+            ) = choices.single().id
+            override fun selectMultiple(terminal: Terminal, title: String, choices: List<InitChoice>): List<String> =
+                listOf("compose")
+        }
+        val selected = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fresh,
+                credentialStore = testSessionStore(),
+                tokenClient = testTokenClient(),
+                httpResult = AuthenticatedHttpResult.Success("""[{"id":"s1","name":"One"}]"""),
+            ),
+            menu,
+        )
+            .execute(listOf("init", "--project-id", "p1", "--api-key-env", "CUSTOM_KEY"))
+        assertEquals(0, selected.exitCode, selected.output)
+        assertEquals(
+            CredentialReference(CredentialReferenceType.AUTO, "CUSTOM_KEY"),
+            ProjectConfigCodec().decode(fresh.readText("/repo/.sdds/config.json")).credential,
+        )
+        assertEquals(
+            listOf("compose"),
+            ProjectConfigCodec().decode(fresh.readText("/repo/.sdds/config.json")).platforms,
+        )
+    }
+
+    @Test
+    fun interactiveInitAllowsSkippingPlatformsAndCancellingBeforeConfigWrite() {
+        for (selection in listOf<List<String>?>(emptyList(), null)) {
+            val fs = FakeFileSystem(currentDirectory = "/repo")
+            val menu = object : InitSelectionMenu {
+                override fun supported(terminal: Terminal) = true
+                override fun select(terminal: Terminal, title: String, choices: List<InitChoice>) = choices.single().id
+                override fun selectMultiple(
+                    terminal: Terminal,
+                    title: String,
+                    choices: List<InitChoice>,
+                ): List<String>? {
+                    assertEquals(listOf("compose", "android-view", "swiftui", "react"), choices.map { it.id })
+                    return selection
+                }
+            }
+            val result = DsBuilderCli(
+                fakeRuntime(
+                    fileSystem = fs,
+                    credentialStore = testSessionStore(),
+                    tokenClient = testTokenClient(),
+                    httpResult = AuthenticatedHttpResult.Success("""[{"id":"s1","name":"One"}]"""),
+                ),
+                menu,
+            ).execute(listOf("init", "--project-id", "p1"))
+            if (selection == null) {
+                assertEquals(1, result.exitCode)
+                assertFalse(fs.exists("/repo/.sdds/config.json"))
+            } else {
+                assertEquals(0, result.exitCode, result.output)
+                assertEquals(emptyList(), ProjectConfigCodec().decode(fs.readText("/repo/.sdds/config.json")).platforms)
+            }
+        }
+    }
+
     private fun fakeRuntime(
         fileSystem: FakeFileSystem = FakeFileSystem(currentDirectory = "/repo"),
         environment: Map<String, String> = emptyMap(),
@@ -1547,7 +1943,9 @@ class DsBuilderCliTest {
         onCredential: (BackendCredential) -> Unit = {},
     ): ClientRuntime = ClientRuntime(
         fileSystem = fileSystem,
-        environmentReader = EnvironmentReader { name -> environment[name] },
+        environmentReader = EnvironmentReader { name ->
+            if (name == "DSBUILDER_ANALYTICS_DISABLED") "1" else environment[name]
+        },
         httpClientFactory = FakeAuthenticatedHttpClientFactory(
             httpResult,
             httpResults,
@@ -1567,7 +1965,7 @@ class DsBuilderCliTest {
 
     private fun testSessionStore(): CredentialStore = object : CredentialStore {
         override suspend fun read(apiUrl: String): UserSession = UserSession(
-            schemaVersion = 1,
+            schemaVersion = 2,
             apiUrl = apiUrl,
             username = "user@example.com",
             refreshToken = "refresh-token",
@@ -1579,7 +1977,12 @@ class DsBuilderCliTest {
     }
 
     private fun testTokenClient(): TokenClient = object : TokenClient {
-        override suspend fun login(apiUrl: String, username: String, password: String): AuthResult<TokenResponse> =
+        override suspend fun exchangeCode(
+            apiUrl: String,
+            code: String,
+            verifier: String,
+            redirectUri: String,
+        ): AuthResult<TokenResponse> =
             AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
         override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
             AuthResult.Success(TokenResponse("access-token", "refresh-token", 999))
@@ -1600,7 +2003,7 @@ private class FakeAuthenticatedHttpClientFactory(
     override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient {
         onCredential(credential)
         return when (credential) {
-            is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
+            is BackendCredential.PersonalAccessToken -> create(apiUrl, credential.value)
             is BackendCredential.Bearer -> create(apiUrl, "")
             is BackendCredential.ServiceToken -> create(apiUrl, "")
         }
@@ -1648,7 +2051,10 @@ private class FakeFileSystem(
             .takeUnless { it == normalized }
     }
 
-    override fun resolve(parent: String, child: String): String = normalize("${normalize(parent).trimEnd('/')}/$child")
+    override fun resolve(
+        parent: String,
+        child: String,
+    ): String = normalize("${normalize(parent).trimEnd('/')}/$child")
 
     override fun absolutePath(path: String): String = normalize(path)
 
@@ -1732,4 +2138,11 @@ private class FakeFileSystem(
             }
         return "/" + parts.joinToString("/")
     }
+}
+
+private class RecordingClientAnalytics : Analytics {
+    val events = mutableListOf<AnalyticsEvent>()
+    override fun track(event: AnalyticsEvent) { events += event }
+    override suspend fun flush(timeoutMillis: Long): AnalyticsFlushResult = AnalyticsFlushResult.COMPLETED
+    override fun close() = Unit
 }

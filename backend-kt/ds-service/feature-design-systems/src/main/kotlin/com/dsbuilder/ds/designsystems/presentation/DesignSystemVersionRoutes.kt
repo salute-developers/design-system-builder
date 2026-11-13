@@ -5,12 +5,15 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersion
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemVersionUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemVersionsUseCase
 import com.dsbuilder.ds.designsystems.application.ListVersionsByDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
@@ -29,23 +32,15 @@ import java.util.UUID
 @Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
 fun Route.designSystemVersionRoutes(
     evaluator: PolicyEvaluator,
-    list: ListDesignSystemVersionsUseCase,
     get: GetDesignSystemVersionUseCase,
     listByDesignSystem: ListVersionsByDesignSystemUseCase,
     publish: CreateDesignSystemVersionUseCase,
     json: Json,
 ) {
-    route("/api/ds/design-system-versions") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/versions")) {
         get {
-            val context = context(evaluator) ?: return@get call.respondFailure(DsFailure.Forbidden)
-            when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respondSuccess(result, result.value.map(DesignSystemVersionResponse::from))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-        get("/by-design-system/{designSystemId}") {
-            val context = context(evaluator) ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["designSystemId"]?.uuid()
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = call.dsPathDesignSystemId()?.uuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = listByDesignSystem.execute(context, DesignSystemId(id))) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(DesignSystemVersionResponse::from))
@@ -64,9 +59,9 @@ fun Route.designSystemVersionRoutes(
         post {
             val context = context(evaluator) ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateDesignSystemVersionRequest>()
-            val designSystemId = request.designSystemId.uuid()
+            val designSystemId = context.designSystemId
             val draftId = request.draftId.uuid()
-            val idempotencyKey = call.request.headers["Idempotency-Key"]
+            val idempotencyKey = call.dsTrustedHeaders()["Idempotency-Key"]
             if (
                 designSystemId == null || draftId == null || request.draftRevision < 0 ||
                 !VERSION_PATTERN.matches(request.version) ||
@@ -97,7 +92,7 @@ fun Route.designSystemVersionRoutes(
 }
 
 private fun io.ktor.server.routing.RoutingContext.context(evaluator: PolicyEvaluator) =
-    TrustedDsRequestContextMapper.map(call.request.headers, evaluator, call.request.queryParameters["versionId"])
+    TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"])
 
 private fun String.uuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
 

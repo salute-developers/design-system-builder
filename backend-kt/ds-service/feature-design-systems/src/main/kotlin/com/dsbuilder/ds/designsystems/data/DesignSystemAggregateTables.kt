@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.data.selectedVersionBoundarySql
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.QueryBuilder
@@ -9,6 +10,7 @@ import org.jetbrains.exposed.v1.javatime.timestamp
 import org.jetbrains.exposed.v1.json.jsonb
 
 internal object AggregateComponentsTable : Table("components") {
+    val platform = text("platform")
     val id = uuid("id")
     val name = text("name")
     val description = text("description").nullable()
@@ -38,6 +40,7 @@ internal object AggregateTokensTable : AggregateResolvedRevisionTable(
         "token_id",
         listOf("id", "design_system_id", "created_at"),
         listOf("name", "type", "display_name", "description", "enabled", "group_id", "position"),
+        resolveOnce = true,
     ),
 ) {
     val id = uuid("id")
@@ -143,23 +146,37 @@ private fun aggregateRevisionSql(
     entityColumn: String,
     stableColumns: List<String>,
     revisionColumns: List<String>,
+    resolveOnce: Boolean = false,
 ): String {
     val selections = (
         stableColumns.map { "entity.$it AS $it" } +
             revisionColumns.map { "revision.$it AS $it" } +
             "revision.updated_at AS updated_at"
         ).joinToString(", ")
+    if (resolveOnce) {
+        return """
+            WITH boundaries AS MATERIALIZED (
+                SELECT * FROM design_system_versions boundary
+                WHERE ${selectedVersionBoundarySql("boundary")}
+            )
+            SELECT $selections
+            FROM $stableTable entity
+            JOIN boundaries draft ON draft.design_system_id = entity.design_system_id
+            JOIN LATERAL (
+                SELECT * FROM $revisionTable candidate
+                WHERE candidate.$entityColumn = entity.id
+                  AND candidate.version_sequence_number <= draft.sequence_number
+                ORDER BY candidate.version_sequence_number DESC LIMIT 1
+            ) revision ON true
+            WHERE NOT revision.deleted
+        """.trimIndent()
+    }
     return """
         SELECT $selections
         FROM $stableTable entity
         JOIN design_system_versions draft
           ON draft.design_system_id = entity.design_system_id
-         AND draft.id = COALESCE(
-              NULLIF(current_setting('ds.version_id', true), '')::uuid,
-              (SELECT active.id FROM design_system_versions active
-               WHERE active.design_system_id = entity.design_system_id AND active.status = 'draft')
-         )
-         AND draft.status IN ('draft', 'published')
+         AND ${selectedVersionBoundarySql("draft")}
         JOIN $revisionTable revision
           ON revision.$entityColumn = entity.id
          AND revision.version_sequence_number <= draft.sequence_number

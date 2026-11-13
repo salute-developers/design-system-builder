@@ -19,6 +19,6 @@ class ReorderAppearanceAxesUseCase(
         appearanceId: UUID,
         axisIds: List<UUID>,
     ): DsResult<List<EditorAxis>> = modelMutate(policy, transactions, context) {
-        repository.reorderAxes(context.projectId, context.principal.systemAdmin, appearanceId, axisIds)
+        repository.reorderAxes(context.projectId, context.principal.globalAdmin, appearanceId, axisIds)
     }
 }

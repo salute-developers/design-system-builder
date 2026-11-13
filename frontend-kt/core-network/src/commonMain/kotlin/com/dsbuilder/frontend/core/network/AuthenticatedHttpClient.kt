@@ -17,7 +17,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import kotlinx.serialization.SerializationException
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -53,6 +53,10 @@ public sealed interface AuthenticatedHttpResult {
      */
     public data class Success(
         public val body: String,
+        /** Разрешённые заголовки чтения с именами в нижнем регистре. */
+        public val headers: Map<String, String> = emptyMap(),
+        /** Повтор разрешённого заголовка делает метаданные неоднозначными. */
+        public val readHeadersValid: Boolean = true,
     ) : AuthenticatedHttpResult
 
     /**
@@ -98,17 +102,28 @@ public data class AuthenticatedHttpResponse(
  */
 public interface AuthenticatedHttpClient {
     /**
-     * Выполняет GET request относительно resolved API URL и добавляет `Authorization: ProjectKey <apiKey>`.
+     * Выполняет GET request относительно resolved API URL и добавляет `Authorization: Bearer <PAT>`.
      */
     public suspend fun get(path: String): AuthenticatedHttpResult
 
     /**
      * Выполняет POST request с JSON-телом относительно resolved API URL и добавляет
-     * `Authorization: ProjectKey <apiKey>`.
+     * `Authorization: Bearer <PAT>`.
      *
      * Ошибки backend отображаются так же, как у чтения.
      */
     public suspend fun post(path: String, body: String): AuthenticatedHttpResult
+
+    /** Выполняет мутацию с сохранением HTTP-статуса и метаданных ответа. */
+    public suspend fun mutate(request: HttpMutationRequest): HttpMutationResult =
+        error("Mutations are not supported by this client.")
+
+    /**
+     * Выполняет POST с JSON-телом и возвращает статус и тело ответа как есть: вызывающий сам отображает коды
+     * предметных отказов (например `409`). Параметры запроса задаются в [path].
+     */
+    public suspend fun postJson(path: String, body: String): AuthenticatedHttpResponse =
+        error("JSON POST with a raw response is not supported by this client.")
 
     /** Выполняет multipart POST с project API key. */
     public suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
@@ -139,7 +154,7 @@ public interface AuthenticatedHttpClientFactory {
         credential: BackendCredential,
     ): AuthenticatedHttpClient =
         when (credential) {
-            is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
+            is BackendCredential.PersonalAccessToken -> create(apiUrl, credential.value)
             is BackendCredential.Bearer -> error("Bearer credentials are not supported by this client.")
             is BackendCredential.ServiceToken -> error("Service tokens are not supported by this client.")
         }
@@ -168,6 +183,18 @@ public class KtorAuthenticatedHttpClient(
                 setBody(body)
             }
         }
+
+    override suspend fun mutate(request: HttpMutationRequest): HttpMutationResult =
+        executeMutation(httpClient, url(request.path), credential, request)
+
+    override suspend fun postJson(path: String, body: String): AuthenticatedHttpResponse {
+        val response = httpClient.post(url(path)) {
+            authorizationHeader()
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        return AuthenticatedHttpResponse(response.status.value, response.bodyAsText())
+    }
 
     override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
         postMultipart(path, listOf(file))
@@ -209,6 +236,8 @@ public class KtorAuthenticatedHttpClient(
     @Suppress("TooGenericExceptionCaught")
     private suspend fun execute(request: suspend () -> HttpResponse): AuthenticatedHttpResult = try {
         request().toResult()
+    } catch (exception: CancellationException) {
+        throw exception
     } catch (exception: Exception) {
         AuthenticatedHttpResult.Failure("Status: failed. ${transportMessage(exception)}")
     }
@@ -228,7 +257,11 @@ public class KtorAuthenticatedHttpClient(
     }
 
     private suspend fun HttpResponse.toResult(): AuthenticatedHttpResult = when {
-        status.isSuccess() -> AuthenticatedHttpResult.Success(bodyAsText())
+        status.isSuccess() -> AuthenticatedHttpResult.Success(
+            bodyAsText(),
+            headers.safeEditorHeaders(readMetadataHeaders),
+            headers.unambiguousEditorHeaders(readMetadataHeaders),
+        )
         status == HttpStatusCode.Unauthorized -> AuthenticatedHttpResult.Failure(
             "Status: unauthorized. Credential is missing or invalid.".withReason(denialReason()),
             status.value,
@@ -271,8 +304,6 @@ public class KtorAuthenticatedHttpClient(
     private suspend fun HttpResponse.denialReason(): String? {
         val body = try {
             Json.parseToJsonElement(bodyAsText()) as? JsonObject
-        } catch (exception: SerializationException) {
-            null
         } catch (exception: IllegalArgumentException) {
             null
         }
@@ -291,12 +322,7 @@ public class KtorAuthenticatedHttpClient(
     private fun url(path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
 
     private fun io.ktor.client.request.HttpRequestBuilder.authorizationHeader() {
-        val value = when (credential) {
-            is BackendCredential.Bearer -> "Bearer ${credential.accessToken}"
-            is BackendCredential.ServiceToken -> "Bearer ${credential.accessToken}"
-            is BackendCredential.ProjectKey -> "ProjectKey ${credential.value}"
-        }
-        header(HttpHeaders.Authorization, value)
+        header(HttpHeaders.Authorization, credential.authorizationValue())
     }
 }
 
@@ -309,7 +335,7 @@ public class KtorAuthenticatedHttpClientFactory(
     override fun create(
         apiUrl: String,
         apiKey: String,
-    ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.ProjectKey(apiKey))
+    ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
 
     override fun create(
         apiUrl: String,
@@ -320,3 +346,5 @@ public class KtorAuthenticatedHttpClientFactory(
         credential = credential,
     )
 }
+
+private val readMetadataHeaders = setOf("x-ds-read-context", "x-ds-page-limit", "x-ds-next-cursor")

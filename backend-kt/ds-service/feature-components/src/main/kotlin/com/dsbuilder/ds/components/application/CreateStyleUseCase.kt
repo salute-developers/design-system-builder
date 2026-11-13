@@ -24,8 +24,8 @@ class CreateStyleUseCase(
         idempotencyKey: String? = null,
     ): DsResult<ComponentStyleSummary> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-style", command,
-        { repository.findAccessible(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createAccessible(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findAccessible(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createAccessible(context.projectId, context.principal.globalAdmin, command) },
         ComponentStyleSummary::id,
         validateCreate = {
             val normalizedName = command.name.trim().lowercase()
@@ -37,7 +37,7 @@ class CreateStyleUseCase(
             if (
                 repository.nameExists(
                     context.projectId,
-                    context.principal.systemAdmin,
+                    context.principal.globalAdmin,
                     command.designSystemId,
                     command.variationId,
                     normalizedName,

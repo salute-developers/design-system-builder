@@ -24,6 +24,17 @@ class PlatformModelsTest {
     }
 
     @Test
+    fun windowsWorkspaceKeepsDriveOrShareRoot() {
+        assertEquals("C:\\work", WorkspacePaths.fromConfigPath("C:\\work\\.sdds\\config.json").workspaceDir)
+        assertEquals("C:\\", WorkspacePaths.fromSddsDirectory("C:\\.sdds").workspaceDir)
+        assertEquals(
+            "\\\\server\\share",
+            WorkspacePaths.fromSddsDirectory("\\\\server\\share\\.sdds").workspaceDir,
+        )
+        assertFailsWith<IllegalArgumentException> { WorkspacePaths.fromSddsDirectory("C:work\\.sdds") }
+    }
+
+    @Test
     fun sddsDirectoryMustBeAbsoluteAndNotRoot() {
         assertFailsWith<IllegalArgumentException> { WorkspacePaths.fromSddsDirectory(".sdds") }
         assertFailsWith<IllegalArgumentException> { WorkspacePaths.fromSddsDirectory("/") }

@@ -6,7 +6,7 @@ import { observeTokenValueRevisions } from '../../../api/subjectRevisions';
 import { createHttpSizeTokenRepository } from './httpSizeTokenRepository';
 
 const context = { projectId: 'p1', designSystemId: 'ds', tenantId: 't1' };
-const base = '/api/projects/p1/ds/tenants/t1/size-tokens';
+const base = '/api/projects/p1/design-systems/ds/tenants/t1/size-tokens';
 
 const axiosError = (status: number | null, data: unknown = {}) =>
     new AxiosError(
@@ -146,18 +146,15 @@ describe('HTTP-адаптер токенов размеров', () => {
 
     it('создаёт с ключом повторяемости и повторяет создание тем же ключом и телом', async () => {
         const post = vi.spyOn(http, 'post').mockResolvedValue({
-            data: { kind: 'shadow', created: [{ tokenId: 'n1', name: 'down.soft.xl', layers: [layer] }] },
+            data: { kind: 'shadow', created: [{ tokenId: 'n1', name: 'card', layers: [layer] }] },
             headers: {},
         });
         const command = repository.command(context, {
             type: 'create',
-            request: {
-                kind: 'shadow',
-                name: 'xl',
-                variants: [{ variant: 'down.soft', layers: [layer], fallbackElevation: 2 }],
-            },
+            request: { kind: 'shadow', name: 'card', layers: [layer], fallbackElevation: 2 },
         });
         expect(command).toMatchObject({ operation: 'create', method: 'POST', path: base });
+        expect(command.body).toEqual({ kind: 'shadow', name: 'card', layers: [layer], fallbackElevation: 2 });
         expect(command.idempotencyKey).toEqual(expect.any(String));
         const first = await repository.send(context, command);
         await repository.send(context, command);
@@ -167,7 +164,24 @@ describe('HTTP-адаптер токенов размеров', () => {
             { headers: { 'Idempotency-Key': command.idempotencyKey } },
         ]);
         expect(post.mock.calls[1]).toEqual(post.mock.calls[0]);
-        expect(first).toMatchObject({ type: 'create', created: [{ kind: 'shadow', name: 'down.soft.xl' }] });
+        expect(first).toMatchObject({ type: 'create', created: [{ kind: 'shadow', name: 'card' }] });
+    });
+
+    it('переименовывает токен запросом PATCH с новым именем', async () => {
+        const patch = vi.spyOn(http, 'patch').mockResolvedValue({
+            data: {
+                kind: 'shadow',
+                token: { tokenId: 'a', name: 'card', layers: [layer], fallbackElevation: 0, components: [] },
+            },
+            headers: {},
+        });
+        const command = repository.command(context, { type: 'rename', tokenId: 'a', name: 'card' });
+        expect(command).toMatchObject({ operation: 'rename', method: 'PATCH', path: `${base}/a`, tokenId: 'a' });
+        await expect(repository.send(context, command)).resolves.toMatchObject({
+            type: 'rename',
+            token: { kind: 'shadow', tokenId: 'a', name: 'card' },
+        });
+        expect(patch).toHaveBeenCalledWith(`${base}/a`, { name: 'card' }, { headers: undefined });
     });
 
     it('удаляет токен и возвращает удалённые варианты', async () => {

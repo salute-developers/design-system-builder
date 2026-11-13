@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# Наполняет локальный контур дизайн-системой `base` через Gateway и ds-service.
-#
-# Порядок: проект пользователя → глобальный слой web-компонентов (`dsbuilder components import-api`
-# по web-api-meta.json) → дизайн-система `base` с темой `base_default`. Версию скрипт не публикует: `base`
-# остаётся черновиком, версии публикует пользователь из журнала.
-# Определения и значения токенов, палитру и компоненты темы ds-service заводит сам из своих ресурсов,
-# но компоненты — только при полном глобальном слое, поэтому import-api идёт до создания темы.
-# Повторный запуск ничего не дублирует. К базе напрямую скрипт не обращается.
+# Готовит проект пользователя и глобальный слой Web API через Gateway.
+# Дизайн-системы и темы создаёт пользователь; их начальные данные инициализирует backend.
+# Повторный запуск не импортирует пользовательские значения и конфигурации компонентов.
+# К базе напрямую скрипт не обращается.
 #
 # Environment (всё необязательно):
 #   DSBUILDER_GATEWAY_URL        Gateway, default http://localhost:8080
@@ -14,7 +10,6 @@
 #   DSBUILDER_PROJECT_PASSWORD   его пароль, default password
 #   DSBUILDER_PROJECT_NAME       имя нового проекта, default Base
 #   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   realm и client Keycloak, default dsbuilder / dsbuilder-api
-#   DSBUILDER_CLI                исполняемый файл dsbuilder; default — JVM-дистрибутив frontend-kt, собирается при отсутствии
 #   DSBUILDER_WEB_API_META       web-api-meta.json; default js/cli/.sdds/web/web-api-meta.json, генерируется при отсутствии
 set -euo pipefail
 
@@ -25,10 +20,7 @@ PROJECT_PASSWORD="${DSBUILDER_PROJECT_PASSWORD:-password}"
 PROJECT_NAME="${DSBUILDER_PROJECT_NAME:-Base}"
 REALM="${DSBUILDER_REALM:-dsbuilder}"
 CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-api}"
-CLI="${DSBUILDER_CLI:-$ROOT_DIR/frontend-kt/cli/build/install/cli-jvm/bin/dsbuilder}"
 WEB_API_META="${DSBUILDER_WEB_API_META:-$ROOT_DIR/js/cli/.sdds/web/web-api-meta.json}"
-DESIGN_SYSTEM_NAME="base"
-TENANT_NAME="base_default"
 
 log() { echo "[bootstrap-base] $*"; }
 fail() { echo "[bootstrap-base] ERROR: $*" >&2; exit 1; }
@@ -62,10 +54,8 @@ print(json.loads(base64.urlsafe_b64decode(payload)).get("sub", ""))
 # http <method> <path> [json-body]: тело ответа в stdout; HTTP-статус в файле STATUS_FILE,
 # потому что вызов идёт в подстановке `$(...)` и переменную из неё не вернуть.
 STATUS_FILE="$(mktemp)"
-# Сессия CLI живёт в отдельном HOME: `dsbuilder auth login` хранит одну сессию на api-url,
-# и логин bootstrap не должен подменять сессию разработчика для того же Gateway.
-CLI_HOME="$(mktemp -d)"
-trap 'rm -rf "$STATUS_FILE" "$CLI_HOME"' EXIT
+IMPORT_BODY_FILE="$(mktemp)"
+trap 'rm -f "$STATUS_FILE" "$IMPORT_BODY_FILE"' EXIT
 http() {
     local method="$1" path="$2" body="${3:-}"
     local args=(-sS -w '%{stderr}%{http_code}' -X "$method" "$GATEWAY_URL$path" -H "Authorization: Bearer $ACCESS_TOKEN")
@@ -79,15 +69,7 @@ expect_status() {
     [[ "$status" == "$expected" ]] || fail "$what: HTTP $status $body"
 }
 
-# ─── Инструменты: CLI и web-api-meta.json ───────────────────────────────────
-
-ensure_cli() {
-    if [[ -x "$CLI" ]]; then return; fi
-    if [[ -n "${DSBUILDER_CLI:-}" ]]; then fail "CLI executable not found: $CLI"; fi
-    log "Building JVM CLI distribution (frontend-kt :cli:installJvmDist, needs a JDK on PATH or JAVA_HOME)"
-    "$ROOT_DIR/frontend-kt/gradlew" -p "$ROOT_DIR/frontend-kt" :cli:installJvmDist --quiet
-    [[ -x "$CLI" ]] || fail "CLI distribution was not produced at $CLI"
-}
+# ─── Инструменты: web-api-meta.json ─────────────────────────────────────────
 
 ensure_web_api_meta() {
     if [[ -f "$WEB_API_META" ]]; then return; fi
@@ -157,82 +139,24 @@ for project in json.load(sys.stdin):
 
 # ─── Глобальный слой web-компонентов ────────────────────────────────────────
 
-cli() {
-    HOME="$CLI_HOME" JAVA_OPTS="${JAVA_OPTS:-} -Duser.home=$CLI_HOME" "$CLI" "$@"
-}
-
 import_global_layer() {
-    log "Logging the CLI in as $PROJECT_USERNAME"
-    printf '%s\n' "$PROJECT_PASSWORD" | cli auth login --api-url "$GATEWAY_URL" --username "$PROJECT_USERNAME" >/dev/null \
-        || fail "CLI login failed"
     log "Importing the web component layer from $WEB_API_META"
-    cli components import-api --platform react --from "$WEB_API_META" --api-url "$GATEWAY_URL" --apply \
-        || fail "components import-api failed (the user must be a system administrator)"
-}
-
-# ─── Дизайн-система base ────────────────────────────────────────────────────
-
-ensure_design_system() {
+    python3 "$ROOT_DIR/backend-kt/scripts/normalize_web_api_meta.py" "$WEB_API_META" > "$IMPORT_BODY_FILE" \
+        || fail "Web API meta normalization failed"
     local body
-    DS_ROOT="/api/projects/$PROJECT_ID/ds"
-    body="$(http GET "$DS_ROOT/design-systems")"
-    expect_status 200 "Design system listing failed" "$body"
-    DESIGN_SYSTEM_ID="$(printf '%s' "$body" | python3 -c '
-import json, sys
-items = json.load(sys.stdin)
-items = items if isinstance(items, list) else items.get("items", [])
-for ds in items:
-    if ds.get("name") == sys.argv[1]:
-        print(ds["id"]); break
-' "$DESIGN_SYSTEM_NAME")"
-    if [[ -n "$DESIGN_SYSTEM_ID" ]]; then
-        log "Design system '$DESIGN_SYSTEM_NAME': $DESIGN_SYSTEM_ID (existing)"
-    else
-        body="$(http POST "$DS_ROOT/design-systems" "$(python3 -c 'import json, sys; print(json.dumps({"name": sys.argv[1], "projectName": sys.argv[2], "description": "Default design system for creating base components"}, ensure_ascii=False))' "$DESIGN_SYSTEM_NAME" "$PROJECT_NAME")")"
-        expect_status 201 "Design system creation failed" "$body"
-        DESIGN_SYSTEM_ID="$(printf '%s' "$body" | json_field id)"
-        log "Design system '$DESIGN_SYSTEM_NAME' created: $DESIGN_SYSTEM_ID"
-    fi
-
-    body="$(http GET "$DS_ROOT/design-systems/$DESIGN_SYSTEM_ID/tenants")"
-    expect_status 200 "Tenant listing failed" "$body"
-    TENANT_ID="$(printf '%s' "$body" | python3 -c '
-import json, sys
-items = json.load(sys.stdin)
-items = items if isinstance(items, list) else items.get("items", [])
-for tenant in items:
-    if tenant.get("name") == sys.argv[1] and tenant.get("designSystemId") == sys.argv[2]:
-        print(tenant["id"]); break
-' "$TENANT_NAME" "$DESIGN_SYSTEM_ID")"
-    if [[ -n "$TENANT_ID" ]]; then
-        log "Theme '$TENANT_NAME': $TENANT_ID (existing)"
-    else
-        body="$(http POST "$DS_ROOT/tenants" "$(python3 -c 'import json, sys; print(json.dumps({"designSystemId": sys.argv[1], "name": sys.argv[2]}))' "$DESIGN_SYSTEM_ID" "$TENANT_NAME")")"
-        expect_status 201 "Theme creation failed" "$body"
-        TENANT_ID="$(printf '%s' "$body" | json_field id)"
-        log "Theme '$TENANT_NAME' created: $TENANT_ID"
-    fi
+    body="$(curl -sS -w '%{stderr}%{http_code}' -X POST \
+        "$GATEWAY_URL/api/admin/component-config/import-api-meta" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
+        --data-binary "@$IMPORT_BODY_FILE" 2>"$STATUS_FILE")" \
+        || fail "API meta import request failed: $(cat "$STATUS_FILE")"
+    expect_status 200 "API meta import failed" "$body"
+    log "Web component layer imported"
 }
 
-verify() {
-    local body components values
-    body="$(http POST "$DS_ROOT/component-config/export" "$(python3 -c 'import json, sys; print(json.dumps({"designSystemId": sys.argv[1], "platform": "web"}))' "$DESIGN_SYSTEM_ID")")"
-    expect_status 200 "Component export failed" "$body"
-    components="$(printf '%s' "$body" | python3 -c 'import json, sys; print(len(json.load(sys.stdin)["components"]))')"
-    [[ "$components" != "0" ]] || fail "Design system '$DESIGN_SYSTEM_NAME' has no components: the web component layer was incomplete when the theme was created. Check 'dsbuilder components import-api --platform react' output, then recreate the contour with './setup-local.sh --reset'."
-    body="$(http GET "$DS_ROOT/tenants/$TENANT_ID/token-values")"
-    expect_status 200 "Token values listing failed" "$body"
-    values="$(printf '%s' "$body" | python3 -c 'import json, sys; print(len(json.load(sys.stdin)))')"
-    [[ "$values" != "0" ]] || fail "Theme '$TENANT_NAME' has no token values"
-    log "Design system '$DESIGN_SYSTEM_NAME' is ready: $components components, $values token values in '$TENANT_NAME'"
-}
-
-ensure_cli
 ensure_web_api_meta
 wait_for_gateway
 obtain_token
 wait_for_projects_api
 ensure_project
 import_global_layer
-ensure_design_system
-verify
+log "Project and global Web API are ready; create a design system in the editor"

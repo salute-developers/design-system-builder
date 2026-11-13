@@ -1,7 +1,11 @@
 import { PROJECTS_URL } from './constants';
 import type { EditorContextKey } from './editorContracts';
 
-export const apiRoot = (projectId: string) => `${PROJECTS_URL}/${projectId}/ds`;
+export const apiRoot = (projectId: string, designSystemId?: string) =>
+    `${PROJECTS_URL}/${projectId}/design-systems/${designSystemId ?? 'catalog'}`;
+/** Справочник определений токенов дизайн-системы. */
+export const tokenDefinitionsUrl = (context: Pick<EditorContextKey, 'projectId' | 'designSystemId'>) =>
+    `${apiRoot(context.projectId, context.designSystemId)}/tokens`;
 export const tokenValueKey = (tokenId: string, platform: string | null, mode: string | null) =>
     `${tokenId}:${platform ?? ''}:${mode ?? ''}`;
 
@@ -12,8 +16,7 @@ export const readRequest = (context: EditorContextKey, signal?: AbortSignal) => 
 
 /** Оси вариации принадлежат дизайн-системе: чтение вариаций всегда ограничено системой контекста. */
 export const variationReadRequest = (context: EditorContextKey, signal?: AbortSignal) => {
-    const request = readRequest(context, signal);
-    return { ...request, params: { ...request.params, designSystemId: context.designSystemId } };
+    return readRequest(context, signal);
 };
 
 export const keepaliveRequest = (keepalive: boolean) =>

@@ -1,6 +1,5 @@
 package com.dsbuilder.projects.feature.projects.data.local
 
-import com.dsbuilder.projects.feature.projects.data.local.db.ProjectAccessKeysTable
 import com.dsbuilder.projects.feature.projects.data.local.db.ProjectMembersTable
 import com.dsbuilder.projects.feature.projects.data.local.db.ProjectsTable
 import com.dsbuilder.projects.feature.projects.domain.model.Project
@@ -26,8 +25,8 @@ class ExposedProjectRepositoryTest {
             driver = "org.h2.Driver",
         )
         transaction {
-            SchemaUtils.drop(ProjectAccessKeysTable, ProjectMembersTable, ProjectsTable)
-            SchemaUtils.create(ProjectsTable, ProjectMembersTable, ProjectAccessKeysTable)
+            SchemaUtils.drop(ProjectMembersTable, ProjectsTable)
+            SchemaUtils.create(ProjectsTable, ProjectMembersTable)
         }
         repository = ExposedProjectRepository()
     }

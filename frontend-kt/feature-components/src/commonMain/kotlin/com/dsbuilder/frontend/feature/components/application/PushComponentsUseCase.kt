@@ -43,7 +43,7 @@ public class PushComponentsUseCase internal constructor(
     @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod")
     public suspend fun execute(command: PushComponentsCommand): PushComponentsResult {
         val found = when (
-            val read = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
+            val read = projectContextReader.requireContext(null, command.designSystemUri)
         ) {
             is ProjectContextReadResult.Failed -> return PushComponentsResult.Failed(read.message)
             is ProjectContextReadResult.Found -> read
@@ -167,7 +167,6 @@ private sealed interface ConversionResult {
  * @property apiKeyOverride API key, переданный аргументом.
  * @property apiUrlOverride backend API URL, переданный аргументом.
  * @property designSystemUri явная ссылка на дизайн-систему.
- * @property projectKeyEnvName env-переменная ключа для явной ссылки.
  * @property platformOverride платформа компонентов из `--platform`; побеждает конфигурацию проекта.
  */
 public data class PushComponentsCommand(
@@ -176,7 +175,6 @@ public data class PushComponentsCommand(
     public val apiKeyOverride: String? = null,
     public val apiUrlOverride: String? = null,
     public val designSystemUri: String? = null,
-    public val projectKeyEnvName: String? = null,
     public val platformOverride: TargetPlatform? = null,
 )
 

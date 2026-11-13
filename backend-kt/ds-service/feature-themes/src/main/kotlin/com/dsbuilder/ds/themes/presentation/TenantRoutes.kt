@@ -6,6 +6,9 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -52,14 +55,9 @@ fun Route.tenantRoutes(
     saveTokenValues: SaveTenantTokenValuesUseCase,
     json: Json,
 ) {
-    route("/api/ds/tenants") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tenants")) {
         get {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+            val context = call.modelReadContext(evaluator) ?: return@get
             when (val result = list.execute(context)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(TenantResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
@@ -67,7 +65,7 @@ fun Route.tenantRoutes(
         }
         get("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -81,7 +79,7 @@ fun Route.tenantRoutes(
         }
         get("/{id}/token-values") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -93,14 +91,21 @@ fun Route.tenantRoutes(
             if (typeNames != null && (typeNames.any(String::isBlank) || types.size != typeNames.distinct().size)) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_token_types"))
             }
-            when (val result = getTokenValues.execute(context, id, types)) {
+            val platformNames = call.request.queryParameters["platforms"]?.split(',')
+            val platforms = platformNames.orEmpty()
+                .mapNotNull(com.dsbuilder.ds.themes.domain.ThemeTokenPlatform::fromWire)
+                .toSet()
+            if (platformNames != null && platforms.size != platformNames.size) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_platforms"))
+            }
+            when (val result = getTokenValues.execute(context, id, types, platforms)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(TenantTokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         put("/{id}/token-values") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -128,13 +133,13 @@ fun Route.tenantRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateTenantRequest>()
-            val designSystemId = request.designSystemId.toUuid()
+            val designSystemId = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val profile = ThemeProfile.fromWire(request.profile)
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
@@ -165,7 +170,7 @@ fun Route.tenantRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -196,7 +201,7 @@ fun Route.tenantRoutes(
         }
         delete("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

@@ -13,7 +13,7 @@ data class TypographyTokenName(
 
     companion object {
         /** Правило имени токена стиля. */
-        val PATTERN = Regex("""^screen-(s|m|l)\.([a-z]+)\.([a-z0-9]+)\.(normal|medium|bold)$""")
+        val PATTERN = Regex("""^screen-(s|m|l)\.([a-z]+)\.([a-z0-9]+(?:-[a-z0-9]+)*)\.(normal|medium|bold)$""")
 
         /** Разбирает имя токена или возвращает `null`, если оно вне правила стиля. */
         fun parse(name: String): TypographyTokenName? {
@@ -41,6 +41,6 @@ data class TypographyTokenName(
         private const val SIZE = 3
         private const val VARIANT = 4
 
-        private val REFERENCE = Regex("""^([a-z]+)\.([a-z0-9]+)\.(normal|medium|bold)$""")
+        private val REFERENCE = Regex("""^([a-z]+)\.([a-z0-9]+(?:-[a-z0-9]+)*)\.(normal|medium|bold)$""")
     }
 }

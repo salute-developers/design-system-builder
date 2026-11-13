@@ -25,6 +25,24 @@ class ExposedComponentWebAdapterRepository internal constructor() : ComponentWeb
         designSystemId: UUID,
     ): List<ComponentWebAdapterEntry>? {
         if (!ComponentOwnership.canReadDesignSystem(projectId, systemAdmin, designSystemId)) return null
+        return entries(designSystemId, onlyKey = null)
+    }
+
+    override suspend fun loadComponent(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: UUID,
+        componentName: String,
+    ): ComponentWebAdapterEntry? {
+        if (!ComponentOwnership.canReadDesignSystem(projectId, systemAdmin, designSystemId)) return null
+        // Шаблоны и compose-связи считаются только для ключа компонента, а состав пакета — целиком:
+        // от него зависят выбор записи среди одноимённых компонентов и список дочерних compose-компонентов.
+        return entries(designSystemId, onlyKey = camelToKebab(componentName))
+            .firstOrNull { it.name == componentName }
+    }
+
+    /** Записи адаптера; при [onlyKey] шаблоны и compose-связи собираются только для этого ключа. */
+    private fun entries(designSystemId: UUID, onlyKey: String?): List<ComponentWebAdapterEntry> {
         // Состав тот же, что у выгрузки: компоненты, у которых в дизайн-системе есть appearance.
         val appearances = ComponentAppearancesTable.innerJoin(ComponentsTable).selectAll()
             .where { ComponentAppearancesTable.designSystemId eq designSystemId }
@@ -39,11 +57,13 @@ class ExposedComponentWebAdapterRepository internal constructor() : ComponentWeb
             }
         if (appearances.isEmpty()) return emptyList()
 
-        val styles = styles(appearances)
-        val compose = composeDependencies(appearances)
+        val selected = onlyKey?.let { key -> appearances.filter { camelToKebab(it.componentName) == key } }
+        val styles = styles(selected ?: appearances)
+        val compose = composeDependencies(appearances, parentKey = onlyKey)
         // Сортировка обязательна: порядок строк из базы не определён, а повторный fetch не должен давать дифф.
         return appearances.sortedBy { it.componentName }
             .distinctBy { camelToKebab(it.componentName) }
+            .filter { onlyKey == null || camelToKebab(it.componentName) == onlyKey }
             .map { appearance ->
                 val key = camelToKebab(appearance.componentName)
                 ComponentWebAdapterEntry(
@@ -151,13 +171,17 @@ class ExposedComponentWebAdapterRepository internal constructor() : ComponentWeb
      * Связь глобальная, поэтому отдаётся только между компонентами пакета: ребёнка, которого в пакете
      * нет, генератору раскладывать незачем.
      */
-    private fun composeDependencies(appearances: List<AdapterAppearance>): Map<String, List<String>> {
+    private fun composeDependencies(
+        appearances: List<AdapterAppearance>,
+        parentKey: String? = null,
+    ): Map<String, List<String>> {
         val names = appearances.associate { it.componentId to camelToKebab(it.componentName) }
         val componentIds = names.keys.toList()
+        val parentIds = parentKey?.let { key -> names.filterValues { it == key }.keys.toList() } ?: componentIds
         return ComponentDependenciesTable.selectAll()
             .where {
                 (ComponentDependenciesTable.type eq RelationTypeDb.COMPOSE) and
-                    (ComponentDependenciesTable.parentId inList componentIds) and
+                    (ComponentDependenciesTable.parentId inList parentIds) and
                     (ComponentDependenciesTable.childId inList componentIds)
             }
             .map {

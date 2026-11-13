@@ -6,15 +6,20 @@ import com.dsbuilder.frontend.cli.feature.auth.di.authCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.components.di.componentsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.docs.di.docsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.ds.di.dsCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.icons.di.iconsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.init.di.initCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.init.presentation.InitSelectionMenu
+import com.dsbuilder.frontend.cli.feature.init.presentation.MordantInitSelectionMenu
 import com.dsbuilder.frontend.cli.feature.mcp.di.mcpCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.previewplugin.di.previewPluginCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.status.di.statusCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.theme.di.themeCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.toolchain.di.toolchainCliPresentationModule
 import com.dsbuilder.frontend.cli.presentation.RootCliCommand
+import com.dsbuilder.frontend.core.analytics.Analytics
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.application.coreApplicationModule
+import com.dsbuilder.frontend.core.auth.CredentialStoreLockException
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
 import com.dsbuilder.frontend.core.platform.ToolchainInstallerRegistry
 import com.dsbuilder.frontend.core.platform.corePlatformModule
@@ -23,21 +28,20 @@ import com.dsbuilder.frontend.feature.components.componentsApplicationModule
 import com.dsbuilder.frontend.feature.docs.docsApplicationModule
 import com.dsbuilder.frontend.feature.ds.dsApplicationModule
 import com.dsbuilder.frontend.feature.init.initApplicationModule
+import com.dsbuilder.frontend.feature.projects.projectsApplicationModule
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
-import com.dsbuilder.frontend.platform.android.androidPlatformModule
-import com.dsbuilder.frontend.platform.ios.iosPlatformModule
-import com.dsbuilder.frontend.platform.web.webPlatformModule
 import com.github.ajalt.clikt.core.CliktError
+import com.github.ajalt.clikt.core.obj
 import com.github.ajalt.clikt.core.parse
+import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.mordant.rendering.AnsiLevel
 import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.terminal.TerminalRecorder
 import org.koin.dsl.koinApplication
-
-internal const val VERSION = "0.1.0"
+import org.koin.dsl.module
 
 /**
  * Результат обработки CLI-вызова `dsbuilder`.
@@ -55,6 +59,8 @@ public data class CliResult(
  */
 public class DsBuilderCli(
     private val runtime: ClientRuntime = defaultClientRuntime(),
+    private val initMenu: InitSelectionMenu? = null,
+    private val analyticsFactory: ((String, Set<String>) -> Analytics)? = null,
 ) {
     /**
      * Обрабатывает аргументы CLI и возвращает детерминированный результат.
@@ -70,7 +76,7 @@ public class DsBuilderCli(
             return CliResult(exitCode = 1, output = message)
         }
 
-        return rootCommand().executeForResult(args)
+        return withAnalytics { it.executeForResult(args) }
     }
 
     /**
@@ -88,17 +94,32 @@ public class DsBuilderCli(
             return 1
         }
 
-        return rootCommand().executeDirectly(args)
+        return withAnalytics { it.executeDirectly(args) }
+    }
+
+    private inline fun <T> withAnalytics(block: (RootCliCommand) -> T): T {
+        val session = analyticsFactory?.let { CliAnalyticsSession(it) }
+            ?: defaultAnalyticsSession(runtime.environmentReader, consent = runtime.analyticsConsent)
+        val command = rootCommand()
+        command.subcommands(
+            com.dsbuilder.frontend.cli.presentation.AnalyticsSettingsCliCommand(runtime.analyticsConsent),
+        )
+        command.configureContext { obj = session }
+        try { return block(command) } finally {
+            session.finish()
+            runtime.analyticsConsent?.close()
+        }
     }
 
     private fun rootCommand(): RootCliCommand {
         val koin = koinApplication {
             modules(
                 coreApplicationModule(runtime),
+                projectsApplicationModule(),
+                module {
+                    single<InitSelectionMenu> { initMenu ?: MordantInitSelectionMenu(runtime.environmentReader) }
+                },
                 corePlatformModule(),
-                iosPlatformModule(),
-                androidPlatformModule(),
-                webPlatformModule(),
                 platformDelegatesModule(),
                 authApplicationModule(),
                 authCliPresentationModule(),
@@ -114,12 +135,14 @@ public class DsBuilderCli(
                 componentsApplicationModule(),
                 componentsCliPresentationModule(),
                 previewPluginCliPresentationModule(),
+                iconsCliPresentationModule(),
                 dsApplicationModule(),
                 dsCliPresentationModule(),
                 toolchainApplicationModule(),
                 toolchainCliPresentationModule(),
                 cliModule(),
             )
+            modules(platformModules())
         }.koin
 
         return koin.get()
@@ -135,11 +158,9 @@ public class DsBuilderCli(
         koinApplication {
             modules(
                 coreApplicationModule(runtime),
-                iosPlatformModule(),
-                androidPlatformModule(),
-                webPlatformModule(),
                 platformDelegatesModule(),
             )
+            modules(platformModules())
         }.koin.get()
 
     /**
@@ -149,11 +170,9 @@ public class DsBuilderCli(
         koinApplication {
             modules(
                 coreApplicationModule(runtime),
-                iosPlatformModule(),
-                androidPlatformModule(),
-                webPlatformModule(),
                 platformDelegatesModule(),
             )
+            modules(platformModules())
         }.koin.get()
 }
 
@@ -172,7 +191,7 @@ private fun rejectPasswordArgument(args: List<String>): String? {
 
     val hasPasswordArg = args.any { it == "--password" || it.startsWith("--password=") }
     return if (hasPasswordArg) {
-        "Error: password must be entered interactively and cannot be passed as a command-line argument."
+        "Error: password login was removed; use auth login to open the system browser."
     } else {
         null
     }
@@ -195,6 +214,9 @@ private fun RootCliCommand.executeForResult(args: List<String>): CliResult {
     } catch (error: CliktError) {
         echoFormattedHelp(error)
         exitCode = error.statusCode
+    } catch (error: CredentialStoreLockException) {
+        echo(error.message)
+        exitCode = 1
     }
 
     return CliResult(
@@ -210,6 +232,9 @@ private fun RootCliCommand.executeDirectly(args: List<String>): Int {
     } catch (error: CliktError) {
         echoFormattedHelp(error)
         exitCode = error.statusCode
+    } catch (error: CredentialStoreLockException) {
+        echo(error.message)
+        exitCode = 1
     }
     return exitCode
 }

@@ -145,6 +145,60 @@ class SearchDocumentationUseCaseTest {
         assertEquals(0, index.calls)
     }
 
+    @Test
+    fun `explicit publication stays pinned after active pointer changes`() = runTest {
+        val index = FakeIndex(structured = listOf(hit("button")))
+        var active = "new-publication"
+        var available = true
+        val publications = object : ActivePublicationResolver {
+            override suspend fun resolve(projectId: String, designSystemId: String, version: String, platform: String) =
+                active
+
+            override suspend fun resolveExplicit(projectId: String, publicationId: String): SearchPublication? =
+                if (available && projectId == "project" && publicationId == "old-publication") {
+                    SearchPublication(publicationId, "ds", "1", "compose")
+                } else {
+                    null
+                }
+        }
+        val useCase = SearchDocumentationUseCase(publications, index)
+        val request = request(subjects = setOf("components.button"), limit = 1).copy(publicationId = "old-publication")
+
+        val first = found(useCase.execute(request))
+        active = "newer-publication"
+        val second = found(useCase.execute(request.copy(cursor = first.page.nextCursor ?: 0)))
+        assertEquals("old-publication", first.publication.publicationId)
+        assertEquals("old-publication", second.publication.publicationId)
+        assertEquals("old-publication", index.lastPublicationId)
+        assertEquals(setOf("components.button"), index.structuredSubjects)
+
+        available = false
+        assertEquals(DocumentationSearchOutcome.PublicationNotFound, useCase.execute(request))
+        assertEquals("old-publication", index.lastPublicationId)
+    }
+
+    @Test
+    fun `explicit publication in another design system remains readable within project`() = runTest {
+        val index = FakeIndex(structured = listOf(hit("button")))
+        val publications = object : ActivePublicationResolver {
+            override suspend fun resolve(projectId: String, designSystemId: String, version: String, platform: String) =
+                "active"
+
+            override suspend fun resolveExplicit(projectId: String, publicationId: String) =
+                if (projectId == "project") SearchPublication(publicationId, "other-ds", "1", "compose") else null
+        }
+        val outcome = SearchDocumentationUseCase(publications, index)
+            .execute(request().copy(publicationId = "other-publication"))
+        assertEquals("other-ds", found(outcome).publication.designSystemId)
+        assertEquals("other-publication", index.lastPublicationId)
+        assertEquals(
+            DocumentationSearchOutcome.PublicationNotFound,
+            SearchDocumentationUseCase(publications, index).execute(
+                request().copy(projectId = "another-project", publicationId = "other-publication"),
+            ),
+        )
+    }
+
     private fun useCase(index: FakeIndex, profile: LexicalRankingProfile = LexicalRankingProfile()) =
         SearchDocumentationUseCase(ActivePublicationResolver { _, _, _, _ -> "pub" }, index, profile)
 
@@ -177,6 +231,7 @@ private class FakeIndex(
     var calls = 0
     var structuredSubjects: Set<String> = emptySet()
     var candidateLimit: Int = 0
+    var lastPublicationId: String? = null
 
     override suspend fun structured(
         publicationId: String,
@@ -186,6 +241,7 @@ private class FakeIndex(
         profile: LexicalRankingProfile,
     ): List<StructuredSearchHit> {
         calls++
+        lastPublicationId = publicationId
         structuredSubjects = subjects
         this.candidateLimit = candidateLimit
         return structured

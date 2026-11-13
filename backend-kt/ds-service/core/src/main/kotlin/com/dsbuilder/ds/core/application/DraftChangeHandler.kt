@@ -5,6 +5,9 @@ import java.util.UUID
 
 /** Предметный обработчик одного типа версионируемой сущности. */
 interface DraftChangeHandler {
+    /** Гарантирует адресный describeEntity; реализация по умолчанию с полным describe не подходит. */
+    val supportsAddressedRevert: Boolean get() = false
+
     /** Устойчивое имя типа в журнале и технических редакциях. */
     val entityType: String
 
@@ -22,6 +25,18 @@ interface DraftChangeHandler {
         limit: Int? = null,
     ): List<DraftSubjectChange>
 
+    /** Обрабатывает предметные отличия порциями без накопления полного журнала.
+     * Реализации хранилища переопределяют метод для ограниченной SQL-выборки.
+     */
+    fun visit(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        consume: (List<DraftSubjectChange>) -> Unit,
+    ) {
+        describe(designSystemId, sequenceNumber, previousSequenceNumber).chunked(500).forEach(consume)
+    }
+
     /** Описывает одну сущность без вычисления остальных предметных отличий ДС. */
     fun describeEntity(
         designSystemId: UUID,
@@ -30,6 +45,16 @@ interface DraftChangeHandler {
         entityId: UUID,
     ): DraftSubjectChange? = describe(designSystemId, sequenceNumber, previousSequenceNumber)
         .firstOrNull { it.entityId == entityId }
+
+    /** Описывает ограниченный набор адресов; SQL-обработчики читают его одним набором. */
+    fun describeEntities(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        entityIds: Set<UUID>,
+    ): List<DraftSubjectChange> = entityIds.mapNotNull {
+        describeEntity(designSystemId, sequenceNumber, previousSequenceNumber, it)
+    }
 
     /** Проверяет наличие хотя бы одного предметного отличия без построения публичного журнала. */
     fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =

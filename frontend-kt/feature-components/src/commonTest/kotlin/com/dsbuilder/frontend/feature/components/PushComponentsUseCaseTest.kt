@@ -70,7 +70,7 @@ class PushComponentsUseCaseTest {
 
         val sent = commands.single()
         assertEquals("http://localhost:8080", sent.apiUrl.value)
-        assertEquals(BackendCredential.ProjectKey("secret-key"), sent.credential)
+        assertEquals(BackendCredential.PersonalAccessToken("secret-key"), sent.credential)
         assertEquals("project-a", sent.projectId.value)
         assertEquals("ds-a", sent.designSystemId.value)
         assertEquals("sdds_sbcom", sent.packageName)
@@ -116,7 +116,7 @@ class PushComponentsUseCaseTest {
 
         val target = assertNotNull(result.target, "цель не сообщена")
         assertEquals("http://localhost:8080", target.apiUrl.value)
-        assertEquals("--api-url", target.apiUrl.sourceName)
+        assertEquals("runtime override", target.apiUrl.sourceName)
         assertEquals("project-a", target.projectId)
         assertEquals("ds-a", target.designSystemId)
         assertEquals("sdds_sbcom", target.packageName)
@@ -147,7 +147,7 @@ class PushComponentsUseCaseTest {
         )
 
         val failed = assertNotNull(result as? PushComponentsResult.Failed)
-        assertTrue(failed.message.contains("--api-url"), failed.message)
+        assertTrue(failed.message.contains("DSBUILDER_API_URL"), failed.message)
         assertTrue(failed.message.contains(API_URL_ENV), failed.message)
         assertTrue(!requested, "запрос отправлен несмотря на умолчание API URL")
         assertNull(failed.target, "цель сообщена, хотя запрос не готовился")
@@ -320,7 +320,10 @@ class PushComponentsUseCaseTest {
                 ProjectContextReadResult.Found(context)
         },
         credentialProvider: CredentialProvider = testCredentialProvider(
-            CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
+            CredentialResult.Selected(
+                BackendCredential.PersonalAccessToken("secret-key"),
+                BackendCredentialType.PERSONAL_ACCESS_TOKEN,
+            ),
         ),
         dryRun: Boolean = true,
         platformOverride: TargetPlatform? = null,

@@ -6,6 +6,10 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -13,10 +17,8 @@ import com.dsbuilder.ds.designsystems.application.CreateDesignSystem
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemAppearancesUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemComponentStylesUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemComponentsUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemTenantsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemTokensUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemsUseCase
 import com.dsbuilder.ds.designsystems.application.UpdateDesignSystem
@@ -47,31 +49,21 @@ fun Route.designSystemRoutes(
     listComponents: ListDesignSystemComponentsUseCase,
     listTokens: ListDesignSystemTokensUseCase,
     listComponentStyles: ListDesignSystemComponentStylesUseCase,
-    listTenants: ListDesignSystemTenantsUseCase,
-    listAppearances: ListDesignSystemAppearancesUseCase,
     json: Json,
 ) {
-    route("/api/ds/design-systems") {
+    route(dsRoutePath("/api/design-systems")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+                call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
+            ) ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(DesignSystemResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.toUuid()
+        get("/{designSystemId}") {
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = call.dsPathDesignSystemId()?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, DesignSystemId(id))) {
                 is DsResult.Success -> call.respondSuccess(result, DesignSystemResponse.from(result.value))
@@ -80,7 +72,7 @@ fun Route.designSystemRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -91,7 +83,7 @@ fun Route.designSystemRoutes(
             val createContext = context.withIdempotentResponse<DesignSystem> {
                 json.encodeToString(DesignSystemResponse.serializer(), DesignSystemResponse.from(it))
             }
-            when (val result = create.execute(createContext, command, call.request.headers["Idempotency-Key"])) {
+            when (val result = create.execute(createContext, command, call.dsTrustedHeaders()["Idempotency-Key"])) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
                     HttpStatusCode.Created,
@@ -100,14 +92,14 @@ fun Route.designSystemRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        patch("/{id}") {
+        patch("/{designSystemId}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@patch call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.toUuid()
+            val id = call.dsPathDesignSystemId()?.toUuid()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val payload = call.receive<JsonObject>()
             val request = runCatching {
@@ -122,14 +114,14 @@ fun Route.designSystemRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        delete("/{id}") {
+        delete("/{designSystemId}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.toUuid()
+            val id = call.dsPathDesignSystemId()?.toUuid()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val mutation = call.repeatableMutation(context, null, json = json) { _: Unit -> OkResponse() }
             when (val result = delete.execute(mutation, DesignSystemId(id))) {
@@ -137,14 +129,9 @@ fun Route.designSystemRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        get("/{id}/components") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.toUuid()
+        get("/{designSystemId}/components") {
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = call.dsPathDesignSystemId()?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (
                 val result = listComponents.execute(
@@ -160,14 +147,9 @@ fun Route.designSystemRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        get("/{id}/tokens") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.toUuid()
+        get("/{designSystemId}/tokens") {
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = call.dsPathDesignSystemId()?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val type = call.request.queryParameters["type"]
             if (type != null && type !in TokenTypes) {
@@ -188,14 +170,9 @@ fun Route.designSystemRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
-        get("/{id}/components/{componentId}/styles") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.toUuid()
+        get("/{designSystemId}/components/{componentId}/styles") {
+            val context = call.modelReadContext(evaluator) ?: return@get
+            val id = call.dsPathDesignSystemId()?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val componentId = call.parameters["componentId"]?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_component_id"))
@@ -203,40 +180,6 @@ fun Route.designSystemRoutes(
                 is DsResult.Success -> call.respondSuccess(
                     result,
                     result.value.map(DesignSystemStyleSummaryResponse::from),
-                )
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-        get("/{id}/tenants") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.toUuid()
-                ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = listTenants.execute(context, DesignSystemId(id))) {
-                is DsResult.Success -> call.respondSuccess(
-                    result,
-                    result.value.map(DesignSystemTenantSummaryResponse::from),
-                )
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-        get("/{id}/appearances") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.toUuid()
-                ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = listAppearances.execute(context, DesignSystemId(id))) {
-                is DsResult.Success -> call.respondSuccess(
-                    result,
-                    result.value.map(DesignSystemAppearanceSummaryResponse::from),
                 )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

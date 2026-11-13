@@ -6,6 +6,9 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -14,7 +17,6 @@ import com.dsbuilder.ds.tokens.application.CreateTokenUseCase
 import com.dsbuilder.ds.tokens.application.DeleteTokenUseCase
 import com.dsbuilder.ds.tokens.application.GetTokenUseCase
 import com.dsbuilder.ds.tokens.application.GetTokenValuesUseCase
-import com.dsbuilder.ds.tokens.application.ListTokensUseCase
 import com.dsbuilder.ds.tokens.application.TokenValueFilter
 import com.dsbuilder.ds.tokens.application.UpdateToken
 import com.dsbuilder.ds.tokens.application.UpdateTokenUseCase
@@ -38,7 +40,6 @@ import java.util.UUID
 @Suppress("CyclomaticComplexMethod", "LongMethod", "LongParameterList")
 fun Route.tokenRoutes(
     evaluator: PolicyEvaluator,
-    list: ListTokensUseCase,
     get: GetTokenUseCase,
     create: CreateTokenUseCase,
     update: UpdateTokenUseCase,
@@ -46,26 +47,9 @@ fun Route.tokenRoutes(
     getValues: GetTokenValuesUseCase,
     json: Json,
 ) {
-    route("/api/ds/tokens") {
-        get {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respondSuccess(result, result.value.map(TokenResponse::from))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tokens")) {
         get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+            val context = call.modelReadContext(evaluator) ?: return@get
             val id = call.parameters["id"]?.tokenUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, id)) {
@@ -74,12 +58,7 @@ fun Route.tokenRoutes(
             }
         }
         get("/{id}/values") {
-            val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
-                evaluator,
-                call.request.queryParameters["versionId"],
-            )
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
+            val context = call.modelReadContext(evaluator) ?: return@get
             val id = call.parameters["id"]?.tokenUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val tenantId = call.request.queryParameters["tenantId"]?.tokenUuid()
@@ -103,17 +82,17 @@ fun Route.tokenRoutes(
         }
         post {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateTokenRequest>()
-            val designSystemId = request.designSystemId?.tokenUuid()
+            val designSystemId = context.designSystemId
             val type = request.type?.let(TokenType::fromWire)
             val invalidBody = listOf(
                 !request.valid(),
-                request.designSystemId != null && designSystemId == null,
+                designSystemId == null,
                 request.type != null && type == null,
             ).any { it }
             if (invalidBody) {
@@ -130,7 +109,7 @@ fun Route.tokenRoutes(
             val createContext = context.withIdempotentResponse<Token> {
                 json.encodeToString(TokenResponse.serializer(), TokenResponse.from(it))
             }
-            when (val result = create.execute(createContext, command, call.request.headers["Idempotency-Key"])) {
+            when (val result = create.execute(createContext, command, call.dsTrustedHeaders()["Idempotency-Key"])) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
                     HttpStatusCode.Created,
@@ -141,7 +120,7 @@ fun Route.tokenRoutes(
         }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -176,7 +155,7 @@ fun Route.tokenRoutes(
         }
         delete("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )

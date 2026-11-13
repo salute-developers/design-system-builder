@@ -3,6 +3,7 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ImportComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfig
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.components.domain.RootCandidate
 import com.dsbuilder.ds.components.domain.fallbackRoot
 import kotlinx.serialization.json.JsonPrimitive
@@ -48,12 +49,24 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }
     }
 
+    /** Причина отклонить запись до записи в базу: неподдержанный тип свойства или корень не из осей. */
+    private fun entryProblem(entry: ImportComponentConfig.Entry): String? =
+        invalidType(entry)?.let { "Unsupported property type '$it'" }
+            ?: unknownRoot(entry.config)?.let { "rootVariationId '$it' names no axis of the configuration" }
+
+    /**
+     * Новая конфигурация получает имя только по правилу kebab-case и не может дать тот же идентификатор в коде, что и
+     * существующая (`dense-2` и `dense2`); существующая со старым именем обновляется без проверки.
+     */
+    private fun newNameProblem(ds: UUID, componentId: UUID, name: String): String? = when {
+        !ConfigurationName.isValid(name) -> ConfigurationName.INVALID_CODE
+        ConfigurationName.key(name) in AppearanceNaming.names(ds, componentId) -> ConfigurationName.TAKEN_CODE
+        else -> null
+    }
+
     @Suppress("LongMethod", "ReturnCount")
     private fun importOne(ds: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) {
-        invalidType(entry)?.let { return context.report.reject(entry, "Unsupported property type '$it'") }
-        unknownRoot(entry.config)?.let {
-            return context.report.reject(entry, "rootVariationId '$it' names no axis of the configuration")
-        }
+        entryProblem(entry)?.let { return context.report.reject(entry, it) }
         val component = component(entry.componentName, context) ?: return context.report.reject(
             entry,
             "Component '${entry.componentName}' is not present in the global layer for platform " +
@@ -63,6 +76,13 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         link(ds, componentId)
         loadStates(componentId, context)
         val old = appearance(ds, componentId, entry.styleName)
+        if (old == null) {
+            newNameProblem(
+                ds,
+                componentId,
+                entry.styleName,
+            )?.let { return context.report.reject(entry, it) }
+        }
         val appearanceId = old?.get(ComponentAppearancesTable.id) ?: run {
             val id = StableAppearancesTable.insertReturning {
                 it[designSystemId] = ds
@@ -161,21 +181,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     }
 
     private fun link(ds: UUID, component: UUID) {
-        if (!DesignSystemComponentsTable.selectAll().where {
-                (DesignSystemComponentsTable.designSystemId eq ds) and
-                    (DesignSystemComponentsTable.componentId eq component)
-            }.any()
-        ) {
-            val id = StableDesignSystemComponentsTable.insertReturning {
-                it[designSystemId] = ds
-                it[componentId] = component
-            }.single()[StableDesignSystemComponentsTable.id]
-            DesignSystemComponentRevisionsTable.replaceRevision(
-                DesignSystemComponentRevisionsTable.entityId,
-                id,
-                ds,
-            )
-        }
+        restoreDesignSystemComponentLink(ds, component)
     }
 
     private fun appearance(ds: UUID, component: UUID, name: String) = ComponentAppearancesTable.selectAll().where {
@@ -541,7 +547,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 id,
                 ds,
             ) { statement ->
-                val token = token(value.token, context)
+                val token = token(value.token, value.tokenType, context)
                 statement[tokenId] = token
                 statement[InvariantPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
                 statement[alpha] = value.alpha
@@ -686,7 +692,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             id,
             ds,
         ) { statement ->
-            val token = token(value.token, c)
+            val token = token(value.token, value.tokenType, c)
             statement[tokenId] = token
             statement[VariationPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
             statement[alpha] = value.alpha
@@ -729,7 +735,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         ) { statement ->
             statement[combinationKey] = key
             statement[StyleCombinationRevisionsTable.value] = value.value.orEmpty()
-            statement[tokenId] = token(value.token, c)
+            statement[tokenId] = token(value.token, value.tokenType, c)
             statement[alpha] = value.alpha
             statement[adjustment] = value.adjustment
             statement[position] = value.position
@@ -885,9 +891,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             }
         }
 
-    private fun token(name: String?, context: ComponentConfigImportContext): UUID? = name?.let {
-        context.tokens[it] ?: run {
-            context.report.unresolvedTokens += it
+    /** Токен ссылки по правилам [referenceCandidates]; ненайденное имя, кроме литерала CSS, попадает в отчёт. */
+    private fun token(name: String?, type: String?, context: ComponentConfigImportContext): UUID? = name?.let {
+        referenceCandidates(it, type).firstNotNullOfOrNull(context.tokens::get) ?: run {
+            if (!isLiteralValue(it)) context.report.unresolvedTokens += it
             null
         }
     }
@@ -956,6 +963,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         Expanded(
             p.value.raw(),
             tokenName(p.type, p.value),
+            p.type,
             p.alpha?.raw(),
             p.adjustment?.raw(),
             emptyList(),
@@ -967,6 +975,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 Expanded(
                     state.value.raw(),
                     tokenName(state.type ?: p.type, state.value),
+                    state.type ?: p.type,
                     state.alpha?.raw(),
                     null,
                     it,
@@ -986,6 +995,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     private data class Expanded(
         val value: String?,
         val token: String?,
+        val tokenType: String?,
         val alpha: String?,
         val adjustment: String?,
         val states: List<String>,

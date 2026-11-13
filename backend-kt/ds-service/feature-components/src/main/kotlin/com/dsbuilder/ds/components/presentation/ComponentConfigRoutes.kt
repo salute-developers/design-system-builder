@@ -13,6 +13,8 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.ErrorResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
@@ -39,10 +41,10 @@ fun Route.componentConfigRoutes(
     getWebAdapter: GetComponentWebAdapterUseCase,
     json: Json,
 ) {
-    route("/api/ds/component-config") {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/component-config")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -72,13 +74,13 @@ fun Route.componentConfigRoutes(
 
         post("/export") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<ExportComponentConfigRequest>()
-            val id = request.designSystemId.toUuidOrNull()
+            val id = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             if (
                 request.platform !in componentPlatforms ||
@@ -89,7 +91,7 @@ fun Route.componentConfigRoutes(
             when (
                 val result = exportConfig.execute(
                     context,
-                    ExportComponentConfig(id, request.platform, request.components, request.styles),
+                    ExportComponentConfig(id, request.platform, request.components, request.styles, request.editorIds),
                 )
             ) {
                 is DsResult.Success -> call.respondSuccess(result, ExportComponentConfigResponse.from(result.value))
@@ -101,11 +103,11 @@ fun Route.componentConfigRoutes(
         // в `.sdds/web/web-adapter.json`.
         post("/web-adapter") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers, evaluator, call.request.queryParameters["versionId"],
+                call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
-            val id = runCatching { call.receive<ComponentWebAdapterRequest>() }.getOrNull()
-                ?.designSystemId?.toUuidOrNull()
+            call.receive<ComponentWebAdapterRequest>()
+            val id = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             when (val result = getWebAdapter.execute(context, id)) {
                 is DsResult.Success -> call.respond(result.value.map(ComponentWebAdapterEntryResponse::from))
@@ -115,7 +117,7 @@ fun Route.componentConfigRoutes(
 
         post("/import") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
@@ -127,7 +129,7 @@ fun Route.componentConfigRoutes(
             val request = runCatching {
                 Json.decodeFromString<ImportComponentConfigRequest>(body.toString(Charsets.UTF_8))
             }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            val id = request.designSystemId.toUuidOrNull()
+            val id = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             if (
                 request.platform !in componentPlatforms || request.components.isEmpty() ||

@@ -72,7 +72,7 @@ it('группы цветов читаются с адресом выбранн�
     http.get.mockResolvedValueOnce({ data: [{ id: 'group' }] });
     expect(await tokenRepository.loadColorGroups({ ...context, versionId: 'version' })).toEqual([{ id: 'group' }]);
     expect(http.get).toHaveBeenCalledWith(
-        '/api/projects/project/ds/design-systems/system/token-groups',
+        '/api/projects/project/design-systems/system/token-groups',
         expect.objectContaining({ params: { versionId: 'version', kind: 'color' } }),
     );
 });
@@ -96,31 +96,80 @@ it('метаданные холодного журнала читаются па
     expect(metadata.componentNames.prop).toBe('C50');
     expect(metadata.componentNames.style).toBe('C50');
     expect(metadata.referenceNames.prop).toBe('Color');
-    expect(http.get).toHaveBeenCalledTimes(5);
+    // Пять справочников имён и два справочника состояний для подписи значений свойств — без чтений по компонентам.
+    expect(http.get).toHaveBeenCalledTimes(7);
+    expect(http.get.mock.calls.map(([url]) => String(url).split('/').pop())).toEqual(
+        expect.arrayContaining(['states', 'state-sets']),
+    );
     expect(http.post).not.toHaveBeenCalled();
+});
+
+it('оставляет раздел компонентов, когда все компоненты скрыты, но у них есть оформления', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') ? { data: [] } : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(true);
+    expect(http.get.mock.calls.map(([url]) => url)).toContain(
+        '/api/projects/project/design-systems/system/appearances',
+    );
+});
+
+it('убирает раздел компонентов, когда у дизайн-системы нет ни связей, ни оформлений, ни шаблонов', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') ||
+        url.endsWith('/appearances') ||
+        url.endsWith('/component-templates')
+            ? { data: [] }
+            : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(false);
+});
+
+it('оставляет раздел компонентов в пустой дизайн-системе, если есть шаблоны', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string) =>
+        url.endsWith('/design-system-components') || url.endsWith('/appearances')
+            ? { data: [] }
+            : url.endsWith('/component-templates')
+              ? { data: [{ componentId: 'card', name: 'Card', platform: 'web', dependsOn: [] }] }
+              : reads(url),
+    );
+
+    const shell = await loadThemeShell(context);
+
+    expect(shell.hasComponents).toBe(true);
 });
 
 it('оболочка читает только метаданные, не значения, конфигурации или историю', async () => {
     const shell = await loadThemeShell(context);
+    expect(shell.parameters).toMatchObject(context);
     expect(shell.hasComponents).toBe(true);
     expect(shell.componentsData).toEqual([]);
     expect(http.get.mock.calls.map(([url]) => url)).toEqual(
         expect.arrayContaining([
             '/api/projects/project',
-            '/api/projects/project/ds/design-systems/system',
-            '/api/projects/project/ds/tenants/theme',
-            '/api/projects/project/ds/design-system-components',
+            '/api/projects/project/design-systems/system',
+            '/api/projects/project/design-systems/system/tenants/theme',
+            '/api/projects/project/design-systems/system/design-system-components',
         ]),
     );
     expect(http.get).toHaveBeenCalledTimes(4);
     expect(http.post).not.toHaveBeenCalled();
 });
 
-it('список ста компонентов требует только каталога и кратких оформлений', async () => {
+it('список ста компонентов требует только каталога, кратких оформлений, связей и зависимостей', async () => {
     const index = await componentRepository.loadComponentIndex(context);
     expect(index).toHaveLength(100);
     expect(index.every((item) => item.sources.configs.length === 0)).toBe(true);
-    expect(http.get).toHaveBeenCalledTimes(2);
+    expect(http.get).toHaveBeenCalledTimes(4);
     expect(http.post).not.toHaveBeenCalled();
 });
 
@@ -128,32 +177,37 @@ it('данные C50 читаются адресно и стили всех ег
     const values = await componentRepository.loadComponentData(context, undefined, 'web', 'C50');
     expect(values.map((item) => item.name)).toEqual(['C50']);
     expect(http.post).toHaveBeenCalledWith(
-        '/api/projects/project/ds/component-config/export',
-        { designSystemId: 'system', platform: 'web', components: ['c50'] },
+        '/api/projects/project/design-systems/system/component-config/export',
+        { platform: 'web', editorIds: true, components: ['c50'] },
         expect.anything(),
     );
     const urls = http.get.mock.calls.map(([url]) => url);
-    expect(urls).toContain('/api/projects/project/ds/design-systems/system/components/c50/styles');
+    expect(urls).toContain('/api/projects/project/design-systems/system/components/c50/styles');
     expect(urls.filter((url) => /\/components\/c\d+\/(properties|variations)/.test(url))).toHaveLength(2);
     expect(urls.filter((url) => /\/variations\/axis\d\/styles/.test(url))).toHaveLength(0);
-    expect(http.get).toHaveBeenCalledTimes(9);
-    expect(http.post).toHaveBeenCalledTimes(2);
+    expect(http.get).toHaveBeenCalledTimes(8);
+    expect(http.get.mock.calls.some(([url]) => url.endsWith('/property-platform-params'))).toBe(false);
+    // Только экспорт: web-шаблоны клиент не читает, они лежат в web-плагине превью.
+    expect(http.post).toHaveBeenCalledTimes(1);
+    expect(http.post.mock.calls.map(([url]) => url)).not.toContain(
+        '/api/projects/project/design-systems/system/component-config/web-adapter',
+    );
 });
 
 it('типографика фильтруется сервером и не запускает чтение палитры или компонентов', async () => {
     await tokenRepository.loadTokenData(context, undefined, '0.1.0', ['typography', 'fontFamily']);
     expect(http.get).toHaveBeenCalledWith(
-        '/api/projects/project/ds/tenants/theme/token-values',
+        '/api/projects/project/design-systems/system/tenants/theme/token-values',
         expect.objectContaining({
             params: { types: 'typography,fontFamily' },
         }),
     );
     expect(http.get).toHaveBeenCalledWith(
-        '/api/projects/project/ds/design-systems/system/tokens',
+        '/api/projects/project/design-systems/system/tokens',
         expect.objectContaining({ params: { type: 'typography' } }),
     );
     expect(http.get).toHaveBeenCalledWith(
-        '/api/projects/project/ds/design-systems/system/tokens',
+        '/api/projects/project/design-systems/system/tokens',
         expect.objectContaining({ params: { type: 'fontFamily' } }),
     );
     expect(http.get).toHaveBeenCalledTimes(4);

@@ -4,8 +4,13 @@ import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.OAuthCallback
+import com.dsbuilder.frontend.core.auth.OAuthCallbackListener
+import com.dsbuilder.frontend.core.auth.PkceChallenge
+import com.dsbuilder.frontend.core.auth.PkcePlatform
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
+import com.dsbuilder.frontend.core.auth.UserAccessTokenCache
 import com.dsbuilder.frontend.core.auth.UserSession
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import kotlinx.coroutines.test.runTest
@@ -19,22 +24,18 @@ class AuthUseCasesTest {
     fun loginStoresRefreshSessionWithoutAccessTokenOrPassword() = runTest {
         val store = InMemoryCredentialStore()
         val tokenClient = RecordingTokenClient()
-        val result = LoginUseCase(apiUrlResolver(), tokenClient, store).execute(
+        val result = LoginUseCase(apiUrlResolver(), tokenClient, store, TestPkcePlatform()).execute(
             LoginCommand(
-                username = "alice",
-                password = "password-value",
                 apiUrlOverride = "https://api.example.com",
-                updatedAt = 42,
             ),
         )
 
         assertIs<LoginResult.LoggedIn>(result)
         assertEquals("alice", result.username)
         assertEquals("https://api.example.com", result.apiUrl)
-        assertEquals("password-value", tokenClient.loginPassword)
         assertEquals(
             UserSession(
-                schemaVersion = 1,
+                schemaVersion = 2,
                 apiUrl = "https://api.example.com",
                 username = "alice",
                 refreshToken = "refresh-token",
@@ -62,8 +63,8 @@ class AuthUseCasesTest {
             loginResult = AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Invalid credentials."),
         )
 
-        val result = LoginUseCase(apiUrlResolver(), tokenClient, store).execute(
-            LoginCommand("alice", "password-value", "https://api.example.com"),
+        val result = LoginUseCase(apiUrlResolver(), tokenClient, store, TestPkcePlatform()).execute(
+            LoginCommand("https://api.example.com"),
         )
 
         assertIs<LoginResult.Failed>(result)
@@ -75,7 +76,7 @@ class AuthUseCasesTest {
     fun statusReadsStoredSessionWithoutTokenOutput() = runTest {
         val store = InMemoryCredentialStore(
             initialSession = UserSession(
-                schemaVersion = 1,
+                schemaVersion = 2,
                 apiUrl = "https://api.example.com",
                 username = "alice",
                 refreshToken = "refresh-token",
@@ -97,7 +98,7 @@ class AuthUseCasesTest {
     fun logoutRevokesRefreshTokenAndDeletesLocalSession() = runTest {
         val store = InMemoryCredentialStore(
             initialSession = UserSession(
-                schemaVersion = 1,
+                schemaVersion = 2,
                 apiUrl = "https://api.example.com",
                 username = "alice",
                 refreshToken = "refresh-token",
@@ -114,6 +115,21 @@ class AuthUseCasesTest {
         assertIs<LogoutResult.LoggedOut>(result)
         assertEquals("https://api.example.com", result.apiUrl)
         assertEquals("refresh-token", tokenClient.logoutRefreshToken)
+        assertEquals("https://api.example.com", store.deletedApiUrl)
+    }
+
+    @Test
+    fun logoutClearsFileAndMemoryEvenWhenRemoteRevocationFails() = runTest {
+        val session = UserSession(2, "https://api.example.com", "alice", "refresh", 1000, 42)
+        val store = InMemoryCredentialStore(session)
+        val cache = UserAccessTokenCache()
+        cache.put(session, TokenResponse("access", "refresh", 1000, 100), 0)
+        val tokens =
+            RecordingTokenClient(logoutResult = AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "offline"))
+        val result = LogoutUseCase(apiUrlResolver(), tokens, store, cache)
+            .execute(LogoutCommand("https://api.example.com"))
+        assertIs<LogoutResult.Failed>(result)
+        assertNull(cache.current(session, 0))
         assertEquals("https://api.example.com", store.deletedApiUrl)
     }
 
@@ -153,13 +169,18 @@ private class RecordingTokenClient(
     ),
     private val logoutResult: AuthResult<Unit> = AuthResult.Success(Unit),
 ) : TokenClient {
-    var loginPassword: String? = null
     var logoutRefreshToken: String? = null
 
-    override suspend fun login(apiUrl: String, username: String, password: String): AuthResult<TokenResponse> {
-        loginPassword = password
+    override suspend fun exchangeCode(
+        apiUrl: String,
+        code: String,
+        verifier: String,
+        redirectUri: String,
+    ): AuthResult<TokenResponse> {
         return loginResult
     }
+
+    override suspend fun username(apiUrl: String, accessToken: String): AuthResult<String> = AuthResult.Success("alice")
 
     override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
         AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Refresh is not used by auth commands.")
@@ -168,4 +189,19 @@ private class RecordingTokenClient(
         logoutRefreshToken = refreshToken
         return logoutResult
     }
+}
+
+private class TestPkcePlatform : PkcePlatform {
+    override fun generate() = PkceChallenge("verifier", "challenge", "state")
+    override suspend fun listen() = object : OAuthCallbackListener {
+        override suspend fun complete(success: Boolean) = Unit
+        override val port = 1234
+        override suspend fun awaitCallback() = OAuthCallback(
+            "/callback",
+            mapOf("code" to listOf("code"), "state" to listOf("state")),
+        )
+        override fun close() = Unit
+    }
+    override suspend fun openBrowser(url: String) = Unit
+    override fun currentTimeMillis() = 42L
 }

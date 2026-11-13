@@ -7,6 +7,8 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.ErrorResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsRoutePath
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
@@ -26,16 +28,16 @@ private val lenientJson = Json { ignoreUnknownKeys = true }
  * a trusted system administrator may call it. The gateway accepts a user token only on this route.
  */
 fun Route.apiMetaImportRoutes(evaluator: PolicyEvaluator, importApiMeta: ImportApiMetaUseCase, json: Json) {
-    route("/api/ds/admin/component-config") {
+    route(dsRoutePath("/api/admin/component-config")) {
         post("/import-api-meta") {
             val context = TrustedDsRequestContextMapper.map(
-                call.request.headers,
+                call.dsTrustedHeaders(),
                 evaluator,
                 call.request.queryParameters["versionId"],
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             // The role is checked before the body is read: a caller who is refused anyway gets nothing parsed.
-            if (!context.principal.systemAdmin) return@post call.respondFailure(DsFailure.Forbidden)
+            if (!context.principal.globalAdmin) return@post call.respondFailure(DsFailure.Forbidden)
             val body = call.receiveAtMost(COMPONENT_CONFIG_IMPORT_LIMIT_BYTES)
                 ?: return@post call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Payload too large"))
             val request = runCatching {

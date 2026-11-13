@@ -5,15 +5,19 @@ import com.dsbuilder.frontend.core.auth.TokenExchangeException
 import com.dsbuilder.frontend.core.auth.TokenExchangeResult
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Parameters
 import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 
 private const val GRANT_TYPE_AUTHORIZATION_CODE = "authorization_code"
 private const val GRANT_TYPE_REFRESH_TOKEN = "refresh_token"
+private const val HTTP_SERVER_ERROR = 500
 
 /**
  * Ответ `/auth/token` содержит больше полей, чем нужно клиенту (`token_type`, `id_token`,
@@ -25,7 +29,7 @@ private val json = Json { ignoreUnknownKeys = true }
 @Serializable
 private data class TokenResponseDto(
     @SerialName("access_token") val accessToken: String,
-    @SerialName("refresh_token") val refreshToken: String,
+    @SerialName("refresh_token") val refreshToken: String? = null,
     @SerialName("expires_in") val expiresIn: Long,
 )
 
@@ -62,29 +66,53 @@ public class KtorTokenExchangeClient(
             append("refresh_token", refreshToken)
             append("client_id", clientId)
         },
+        currentRefreshToken = refreshToken,
     )
 
-    /**
-     * `kotlinx.serialization` бросает разные типы исключений в зависимости от природы
-     * невалидного JSON; общего для commonMain супертипа, кроме `Exception`, нет.
-     */
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun request(formParameters: Parameters): TokenExchangeResult {
-        val response = httpClient.submitForm(url = tokenEndpointUrl, formParameters = formParameters)
-        if (!response.status.isSuccess()) {
-            throw TokenExchangeException("Token exchange failed with HTTP ${response.status.value}.")
-        }
+    private suspend fun request(formParameters: Parameters, currentRefreshToken: String? = null) =
+        requestTokens(httpClient, tokenEndpointUrl, formParameters, currentRefreshToken)
+}
 
-        val dto = try {
-            json.decodeFromString(TokenResponseDto.serializer(), response.bodyAsText())
-        } catch (exception: Exception) {
-            throw TokenExchangeException("Token exchange response could not be parsed.")
-        }
+/**
+ * Запрашивает токены на token endpoint. Сервер может не вернуть новый refresh token при обновлении:
+ * тогда остаётся [currentRefreshToken].
+ *
+ * `kotlinx.serialization` бросает разные типы исключений в зависимости от природы
+ * невалидного JSON; общего для commonMain супертипа, кроме `Exception`, нет.
+ */
+@Suppress("TooGenericExceptionCaught")
+internal suspend fun requestTokens(
+    httpClient: HttpClient,
+    url: String,
+    formParameters: Parameters,
+    currentRefreshToken: String? = null,
+): TokenExchangeResult {
+    val response = httpClient.submitForm(url = url, formParameters = formParameters)
+    if (!response.status.isSuccess()) throw response.exchangeFailure()
 
-        return TokenExchangeResult(
-            accessToken = dto.accessToken,
-            refreshToken = dto.refreshToken,
-            expiresInSeconds = dto.expiresIn,
-        )
+    val dto = try {
+        json.decodeFromString(TokenResponseDto.serializer(), response.bodyAsText())
+    } catch (exception: Exception) {
+        null
     }
+    val refreshToken = dto?.refreshToken?.takeIf { it.isNotEmpty() } ?: currentRefreshToken
+    if (dto == null || dto.accessToken.isEmpty() || refreshToken == null) {
+        throw TokenExchangeException("Token exchange response could not be parsed.")
+    }
+
+    return TokenExchangeResult(
+        accessToken = dto.accessToken,
+        refreshToken = refreshToken,
+        expiresInSeconds = dto.expiresIn,
+    )
+}
+
+/** Отказ с кодом OAuth из тела ответа; у `5xx` кода нет: запрос можно повторить. */
+internal suspend fun HttpResponse.exchangeFailure(): TokenExchangeException {
+    val message = "Token exchange failed with HTTP ${status.value}."
+    if (status.value >= HTTP_SERVER_ERROR) return TokenExchangeException(message)
+    val code = runCatching {
+        (json.parseToJsonElement(bodyAsText()).jsonObject["error"] as? JsonPrimitive)?.content
+    }.getOrNull()
+    return TokenExchangeException(message, code ?: "http_${status.value}")
 }

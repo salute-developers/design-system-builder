@@ -8,7 +8,6 @@ import com.dsbuilder.projects.feature.projects.application.port.IdentityUser
 import com.dsbuilder.projects.feature.projects.application.port.IdentityUserLookup
 import com.dsbuilder.projects.feature.projects.application.port.ProjectRepository
 import com.dsbuilder.projects.feature.projects.application.port.TransactionManager
-import com.dsbuilder.projects.feature.projects.domain.model.AccessKeyAction
 import com.dsbuilder.projects.feature.projects.domain.model.ActorType
 import com.dsbuilder.projects.feature.projects.domain.model.AuthenticatedActor
 import com.dsbuilder.projects.feature.projects.domain.model.Project
@@ -16,6 +15,7 @@ import com.dsbuilder.projects.feature.projects.domain.model.ProjectEntity
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
+import com.dsbuilder.projects.feature.projects.domain.model.TokenAction
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -61,6 +61,7 @@ internal data class ProjectWithEffectiveRole(
     val project: Project,
     val effectiveRole: ProjectRole,
     val ownerIdentity: IdentityUser? = null,
+    val designSystemCount: Int? = null,
 )
 
 internal data class ProjectMemberWithIdentity(
@@ -103,7 +104,7 @@ internal class GetProjectUseCase(
             val project = repository.getProject(projectId) ?: throw ProjectNotFoundException(projectId)
             val member = repository.getMember(projectId, actor.userId)
             val effectiveRole = policy.requireProjectAccess(actor, project, member)
-            policy.requireProjectKeyScope(actor, ProjectEntity.PROJECTS, AccessKeyAction.READ)
+            policy.requireTokenScope(actor, ProjectEntity.PROJECTS, TokenAction.READ)
             ProjectWithEffectiveRole(project, effectiveRole)
         }
         return result.copy(
@@ -120,8 +121,24 @@ internal class ListProjectsUseCase(
     private val repository: ProjectRepository,
     private val transactionManager: TransactionManager,
     private val policy: ProjectAccessPolicy,
+    private val counts: com.dsbuilder.projects.feature.projects.application.port.DesignSystemCounts? = null,
 ) {
-    suspend fun execute(input: ListProjectsInput): List<ProjectWithEffectiveRole> =
+    suspend fun execute(input: ListProjectsInput): List<ProjectWithEffectiveRole> {
+        val projects = list(input)
+        val values = mutableMapOf<String, Int>()
+        for (batch in projects.map { it.project.id }.chunked(500)) {
+            try {
+                counts?.count(batch)?.let { values.putAll(it) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Отказ сводки не скрывает уже авторизованные проекты и не запускает N+1.
+            }
+        }
+        return projects.map { it.copy(designSystemCount = values[it.project.id]) }
+    }
+
+    private suspend fun list(input: ListProjectsInput): List<ProjectWithEffectiveRole> =
         transactionManager.required {
             val projects = if (input.actor.isSystemAdmin) {
                 repository.listAllProjects()
@@ -224,7 +241,7 @@ internal class ListProjectMembersUseCase(
             val project = repository.getProject(projectId) ?: throw ProjectNotFoundException(projectId)
             val member = repository.getMember(projectId, actor.userId)
             policy.requireProjectAccess(actor, project, member)
-            policy.requireProjectKeyScope(actor, ProjectEntity.MEMBERS, AccessKeyAction.READ)
+            policy.requireTokenScope(actor, ProjectEntity.MEMBERS, TokenAction.READ)
             repository.listMembers(projectId)
         }
         return members.map { member ->
@@ -258,7 +275,7 @@ internal class AddProjectMemberUseCase(
             val actorMembership = repository.getMember(input.projectId, input.actor.userId)
             val actorRole = policy.requireProjectAccess(input.actor, project, actorMembership)
             policy.requireMutableProject(project)
-            policy.requireProjectKeyScope(input.actor, ProjectEntity.MEMBERS, AccessKeyAction.WRITE)
+            policy.requireTokenScope(input.actor, ProjectEntity.MEMBERS, TokenAction.WRITE)
             val identityUser = identityUserLookup.findRegisteredUserByIdentifier(normalizedEmail)
                 ?: throw RegisteredIdentityUserNotFoundException(normalizedEmail)
             policy.requireMemberManagement(
@@ -310,7 +327,7 @@ internal class UpdateProjectMemberRoleUseCase(
             val actorMembership = repository.getMember(input.projectId, input.actor.userId)
             val actorRole = policy.requireProjectAccess(input.actor, project, actorMembership)
             policy.requireMutableProject(project)
-            policy.requireProjectKeyScope(input.actor, ProjectEntity.MEMBERS, AccessKeyAction.WRITE)
+            policy.requireTokenScope(input.actor, ProjectEntity.MEMBERS, TokenAction.WRITE)
             policy.requireMemberManagement(
                 actorRole,
                 input.userId,
@@ -338,7 +355,7 @@ internal class RemoveProjectMemberUseCase(
             val actorMembership = repository.getMember(projectId, actor.userId)
             val actorRole = policy.requireProjectAccess(actor, project, actorMembership)
             policy.requireMutableProject(project)
-            policy.requireProjectKeyScope(actor, ProjectEntity.MEMBERS, AccessKeyAction.DELETE)
+            policy.requireTokenScope(actor, ProjectEntity.MEMBERS, TokenAction.DELETE)
             policy.requireMemberManagement(
                 actorRole,
                 userId,

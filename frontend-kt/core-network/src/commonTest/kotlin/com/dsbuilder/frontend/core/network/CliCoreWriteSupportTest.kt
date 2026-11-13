@@ -22,7 +22,7 @@ class CliCoreWriteSupportTest {
         val resolved = ApiUrlResolver(EnvironmentReader { null }).resolve("http://localhost:8080")
 
         assertEquals(ApiUrlSource.ARGUMENT, resolved.source)
-        assertEquals("--api-url", resolved.sourceName)
+        assertEquals("runtime override", resolved.sourceName)
         assertTrue(!resolved.isCodeDefault)
     }
 
@@ -51,7 +51,7 @@ class CliCoreWriteSupportTest {
         val result = ApiUrlResolver(EnvironmentReader { null }).resolveForWrite(null)
 
         val rejected = assertNotNull(result as? WriteApiUrlResult.Rejected, "умолчание принято для записи")
-        assertTrue(rejected.message.contains("--api-url"), rejected.message)
+        assertTrue(rejected.message.contains("DSBUILDER_API_URL"), rejected.message)
         assertTrue(rejected.message.contains(API_URL_ENV), rejected.message)
     }
 
@@ -83,11 +83,11 @@ class CliCoreWriteSupportTest {
             respond(content = "{\"ok\":true}", status = HttpStatusCode.OK)
         }
 
-        val result = client.post("/api/projects/p/ds/component-config/import", "{\"dryRun\":true}")
+        val result = client.post("/api/projects/p/design-systems/system/component-config/import", "{\"dryRun\":true}")
 
         val request = assertNotNull(captured, "запрос не отправлен")
         assertEquals(HttpMethod.Post, request.method)
-        assertEquals("ProjectKey secret-key", request.headers[HttpHeaders.Authorization])
+        assertEquals("Bearer secret-key", request.headers[HttpHeaders.Authorization])
         assertEquals("{\"dryRun\":true}", capturedBody)
         assertEquals("application/json", request.body.contentType?.let { "${it.contentType}/${it.contentSubtype}" })
         assertEquals(AuthenticatedHttpResult.Success("{\"ok\":true}"), result)
@@ -101,9 +101,9 @@ class CliCoreWriteSupportTest {
             respond(content = "{}", status = HttpStatusCode.OK)
         }
 
-        client.post("/api/projects/p/ds/x", "{}")
+        client.post("/api/projects/p/design-systems/system/x", "{}")
 
-        assertEquals("http://localhost:8080/api/projects/p/ds/x", url)
+        assertEquals("http://localhost:8080/api/projects/p/design-systems/system/x", url)
     }
 
     @Test
@@ -118,7 +118,7 @@ class CliCoreWriteSupportTest {
         cases.forEach { (status, expected) ->
             val client = client { respond(content = "", status = status) }
 
-            val result = client.post("/api/projects/p/ds/x", "{}")
+            val result = client.post("/api/projects/p/design-systems/system/x", "{}")
 
             val failure = assertNotNull(result as? AuthenticatedHttpResult.Failure, "статус $status принят как успех")
             assertTrue(failure.message.contains(expected), "статус $status: ${failure.message}")
@@ -223,7 +223,7 @@ class UnreachableBackendTest {
     fun postReportsTransportFailureInsteadOfThrowing() = runTest {
         val client = unreachableClient()
 
-        val result = client.post("/api/projects/p/ds/x", "{}")
+        val result = client.post("/api/projects/p/design-systems/system/x", "{}")
 
         val failure = assertNotNull(result as? AuthenticatedHttpResult.Failure, "получен успех")
         assertTrue(failure.message.contains("unreachable"), failure.message)

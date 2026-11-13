@@ -7,6 +7,7 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
+import com.dsbuilder.ds.themes.domain.palette.ShadowLayerColors
 import com.dsbuilder.ds.themes.domain.sizetokens.DimensionTokenView
 import com.dsbuilder.ds.themes.domain.sizetokens.ShadowTokenView
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenKind
@@ -31,8 +32,17 @@ class GetSizeTokensUseCase(
             is DsResult.Success -> transactions.readOnly(context) {
                 tokens.tenant(context.projectId, tenantId)?.let { tenant ->
                     val writable = policy.require(context, ProjectScope.TENANTS_WRITE) is DsResult.Success
-                    val resolve = ShadowColorPalette(palette).resolver(context.projectId, tenantId)
                     val stored = tokens.tokens(tenant.designSystemId, tenantId)
+                    val needsPalette = stored.any { token ->
+                        token.kind == SizeTokenKind.SHADOW && token.values.values.any {
+                            ShadowLayerColors.references(it.value).isNotEmpty()
+                        }
+                    }
+                    val resolve: ShadowColorResolver = if (needsPalette) {
+                        ShadowColorPalette(palette).resolver(context.projectId, tenantId)
+                    } else {
+                        { _, _ -> null }
+                    }
                     val views = usage.views(tenant.designSystemId, stored, resolve)
                     val dimensions = views.filterIsInstance<DimensionTokenView>()
                     DsResult.Success(

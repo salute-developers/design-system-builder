@@ -101,9 +101,12 @@ private fun DsFailure.publicMessage() = when (this) {
 private fun DsFailure.details() = (this as? DsFailure.Unprocessable)?.message
 
 /** Предметный код отказа (`INVALID_TOKEN_VALUE`) — в отличие от legacy-кодов проверки полей (`invalid_body`). */
-private fun DsFailure.InvalidRequest.isDomainCode() = DOMAIN_CODE.matches(code)
+private fun DsFailure.InvalidRequest.isDomainCode() = DOMAIN_CODE.matches(code) || code in LOWERCASE_DOMAIN_CODES
 
 private val DOMAIN_CODE = Regex("^[A-Z][A-Z0-9_]+$")
+
+/** Предметные коды каталога иконок, которые публичный контракт задаёт строчными буквами. */
+private val LOWERCASE_DOMAIN_CODES = setOf("unsafe_svg", "legacy_key_collision", "unknown_icon")
 
 private fun DsFailure.toErrorResponse() = when (this) {
     is DsFailure.Conflict -> ErrorResponse(

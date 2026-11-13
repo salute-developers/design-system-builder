@@ -16,6 +16,6 @@ class GetVariationPlatformParamAdjustmentUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<VariationPlatformParamAdjustment> =
         modelFind(policy, transactions, context) {
-            repository.findVariationAdjustment(context.projectId, context.principal.systemAdmin, id)
+            repository.findVariationAdjustment(context.projectId, context.principal.globalAdmin, id)
         }
 }

@@ -7,14 +7,16 @@ import { generateComponentsFiles } from './generator/generate.ts';
 import { CORE_VERSION, cliDirectory, writePackagePart } from './package-output.ts';
 import { readThemeSetSource } from './theme-source.ts';
 import { resolveLocalThemes } from './local-theme-source.ts';
+import { isEntrypoint } from './entrypoint.ts';
 
 /**
  * Генерирует дизайн-систему целиком: тему и компоненты из .sdds одним запуском.
  * Без `--package` в `output` заменяются `src/theme` и `src/components`; с `--package` в `output` пишется
  * папка полного пакета без сборки. К бэкенду CLI не обращается.
  */
-async function main() {
+export async function main(args: string[] = process.argv.slice(2)) {
     const { values } = parseArgs({
+        args,
         options: {
             sdds: { type: 'string', default: join(cliDirectory, '.sdds') },
             components: { type: 'string' },
@@ -36,7 +38,7 @@ async function main() {
 Usage: npm run generate:ds -- [options]
   --sdds <directory>       Local data directory (default: js/cli/.sdds)
   --components <directory> Fetched components (default: <sdds>/components)
-  --web <directory>        Web data: web-adapter.json (default: <sdds>/web)
+  --web <directory>        Directory with web-adapter.json (default: the file bundled in the CLI)
   --tenant <name>          Generate one theme: a tenant name from .sdds/config.json, otherwise
                            a directory name in .sdds/tenants (default: every theme)
   --default-tenant <name>  Theme whose values become the fallbacks in tokens (default: the first
@@ -51,7 +53,7 @@ Typography media queries follow "breakpoints" in .sdds/config.json when it is se
 e.g. [{"name":"screenS","to":959},{"name":"screenM","from":960,"to":1280},{"name":"screenL","from":1281}]
 ("from" is min-width, "to" is max-width); only the listed screens are generated.
 Combines generate:theme and generate:components: every theme from .sdds/tenants, the components from
-the components directory and web-adapter.json, web token mappings from ${COMPONENTS_PACKAGE}.
+the components directory and the bundled web-adapter.json, web token mappings from ${COMPONENTS_PACKAGE}.
 Replaces src/theme, src/components and src/index.ts in the output directory; with --package writes
 the package files and replaces src. Build it with npm install && npm run build, pack it with npm pack.`);
         return;
@@ -79,13 +81,15 @@ the package files and replaces src. Build it with npm install && npm run build, 
         pack: values.package,
         fill: async (pathToDir) => {
             await generateThemes(source, join(pathToDir, 'src', 'theme'));
-            await generateComponentsFiles({ pathToDir, componentsMeta });
+            await generateComponentsFiles({ pathToDir, componentsMeta, hasTheme: true });
         },
     });
     console.log(`Generated ${result}`);
 }
 
-main().catch((error) => {
-    console.error('Failed to generate the design system:', error);
-    process.exitCode = 1;
-});
+if (isEntrypoint(import.meta.url)) {
+    main().catch((error) => {
+        console.error('Failed to generate the design system:', error);
+        process.exitCode = 1;
+    });
+}

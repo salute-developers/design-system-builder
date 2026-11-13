@@ -13,6 +13,9 @@ interface SizeTokenUsageRepository {
     /** Имя токена из [tokens] (идентификатор → имя) → компоненты [designSystemId] и число значений их свойств. */
     suspend fun usage(designSystemId: UUID, tokens: Map<UUID, String>): Map<String, List<ComponentUsage>>
 
+    /** Строки значений свойств компонентов [designSystemId], которые ссылаются на токен [tokenId] текстом [name]. */
+    suspend fun textReferences(designSystemId: UUID, tokenId: UUID, name: String): Set<UUID>
+
     /**
      * Имя токена из [tokens] → смещения ссылок компонентов [designSystemId]: `adjustment` строки значения или
      * числовая поправка платформенного параметра (web, затем xml, compose, ios).

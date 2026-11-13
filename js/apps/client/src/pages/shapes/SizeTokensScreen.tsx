@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTokenReset } from '../../features/versionJournal/tokenReset';
 
 import '../../styles/size-tokens.css';
 
@@ -22,13 +23,14 @@ import {
     layerOpacity,
     layerWithColor,
     newTokenFromName,
-    newTokenNames,
-    normalizeTokenName,
+    newTokenName,
+    normalizeNewName,
+    reloadSizeTokens,
+    saveSizeTokenDescription,
     scopeLayers,
-    shadowParts,
-    sizeLabel,
     SizeTokenOperationError,
     SIZE_MESSAGES,
+    THEME_TOKEN_TYPE,
     withLayer,
     type DeletedUsage,
     type LayerScope,
@@ -42,7 +44,9 @@ import { useSizeTokenEditor } from './useSizeTokenEditor';
 import { SizeTokenBoard } from './ui/SizeTokenBoard';
 import { DeleteSizeTokenDialog } from './ui/SizeTokenDialogs';
 import { SizeTokenInspector } from './ui/SizeTokenInspector';
+import { SizeTokensPlaceholder, SIZES_PANELS_KEY } from './ui/SizeTokensPlaceholder';
 import { SizeTokenTree, type CreatingRow } from './ui/SizeTokenTree';
+import { usePanelWidths } from '../../components/tokenWorkspace';
 
 export interface SizeTokensScreenProps {
     context: SizeTokenContext;
@@ -53,6 +57,8 @@ export interface SizeTokensScreenProps {
     rerender: () => void;
     /** Имена токенов с неопубликованными изменениями темы. */
     changedTokenNames?: Set<string>;
+    /** Перечитать тему редактора: после сброса описание токена приходит из модели темы. */
+    reload?: () => void;
 }
 
 const COLLAPSED_KEY = 'ds_size_tokens_collapsed';
@@ -88,7 +94,7 @@ interface Deleting {
     error: string | null;
 }
 
-/** Раздел «Отступы, радиусы и тени» по экрану «Отступы и радиусы» прототипа SDDS Portal. */
+/** Раздел «Отступы, радиусы и тени» по секции Figma `07 · Sizes & Radius · Handoff`. */
 export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const { context, designSystem, theme, palette } = props;
     const navigate = useNavigate();
@@ -109,8 +115,16 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const [creating, setCreating] = useState<CreatingRow | null>(null);
     const [deleting, setDeleting] = useState<Deleting | null>(null);
     const [removing, setRemoving] = useState(false);
+    const tokenReset = useTokenReset(context, async () => {
+        props.reload?.();
+        await reloadSizeTokens(session);
+        props.rerender();
+    });
     const [notice, setNotice] = useState<string | null>(null);
     const [picker, setPicker] = useState<{ tokenId: string; scope: LayerScope; index: number } | null>(null);
+    const { panels, separator } = usePanelWidths(SIZES_PANELS_KEY);
+    // Описание живёт в модели темы: после его правки экран перерисовывается сам, не дожидаясь оболочки.
+    const [, redraw] = useReducer((value: number) => value + 1, 0);
 
     const savedTokens = data?.tokens ?? [];
     const tokens = editor.tokens();
@@ -133,6 +147,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         setCollapsed((current) => ({ ...current, [target.kind]: false }));
         setScrollTo(target.tokenId);
     }, [addressed.requestedTokenName, addressed.tokenId, data]);
+    // Выбранная строка дерева видна: после выбора по адресу или на борде дерево прокручивается к ней.
     useEffect(() => {
         if (!scrollTo) return;
         document.querySelector(`[data-token-id="${CSS.escape(scrollTo)}"]`)?.scrollIntoView?.({ block: 'nearest' });
@@ -151,6 +166,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const select = (token: SizeToken) => {
         setSelectedId(token.tokenId);
         setPicked(true);
+        setScrollTo(token.tokenId);
         // Выбор сохраняет адрес в маршруте, если раздел открыт по адресу.
         appliedAddress.current = null;
         addressed.selectTokenName(token.name);
@@ -179,41 +195,37 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         } catch (error) {
             const message =
                 error instanceof SizeTokenOperationError && error.code === 'TOKEN_NAME_CONFLICT'
-                    ? SIZE_MESSAGES.exists(newTokenNames(kind, normalizeTokenName(name))[0])
+                    ? SIZE_MESSAGES.exists(newTokenName(kind, normalizeNewName(kind, name)))
                     : errorText(error);
             setCreating({ kind, busy: false, error: message });
         }
     };
 
-    /**
-     * Удаление: с подтверждением ошибка остаётся в окне, без подтверждения (токены не используют компоненты) —
-     * показывается баннером инспектора.
-     */
-    const remove = async (token: SizeToken, confirmed: boolean) => {
+    /** Удаление после подтверждения: ошибка остаётся в окне. */
+    const remove = async (token: SizeToken) => {
         if (removing) return;
         setRemoving(true);
-        if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
+        setDeleting((current) => current && { ...current, busy: true, error: null });
         try {
             await editor.remove(token);
             setDeleting(null);
-            setSelectedId(null);
+            // Удаление из дерева другого токена не меняет выбор.
+            if (deletedTogether(savedTokens, token).some((item) => item.tokenId === selected?.tokenId))
+                setSelectedId(null);
             setNotice(null);
         } catch (error) {
-            if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
-            else setNotice(`Не удалось удалить токен: ${errorText(error)}`);
+            setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
         } finally {
             setRemoving(false);
         }
     };
 
-    /** Подтверждение нужно, только если удаляемые токены (у тени — четыре варианта размера) используют компоненты. */
+    /** Удаление всегда подтверждается: случайный щелчок по корзине не удаляет токен. */
     const requestDelete = (token: SizeToken) => {
         const components = deletionUsage(savedTokens, token);
-        if (!components.length) return void remove(token, false);
         setDeleting({
             token,
-            title:
-                token.kind === 'shadow' ? `тень ${sizeLabel(shadowParts(token.name).size).toUpperCase()}` : token.name,
+            title: token.name,
             names: deletedTogether(savedTokens, token).map((item) => item.name),
             components,
             busy: false,
@@ -226,46 +238,38 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
             `../components/${encodeURIComponent(name)}${context.versionId ? `?versionId=${encodeURIComponent(context.versionId)}` : ''}`,
         );
 
+    /** Описание токена хранит определение токена; модель темы держит его после загрузки темы. */
+    const themeToken = (token: SizeToken) => props.theme.getToken?.(token.name, THEME_TOKEN_TYPE[token.kind]);
+    const describe = async (token: SizeToken, description: string) => {
+        await saveSizeTokenDescription(context, token.tokenId, description);
+        themeToken(token)?.setDescription?.(description || undefined);
+        redraw();
+        props.rerender();
+    };
+
     /** Имя растяжки палитры в группе, к которой палитра относит токен тени, как во вкладке «Библиотека». */
     const rampName = (tokenName: string) => (reference: PaletteRampRef) =>
         palette ? groupRampName(palette, resolveTokenGroupId(palette, tokenName), reference) : undefined;
 
-    if (!data) {
-        return (
-            <div className="size-tokens-screen st-shell st-theme-workspace" data-testid="size-tokens-loading">
-                <div className="st-empty" role={session.loadError ? 'alert' : 'status'}>
-                    {session.loadError ? (
-                        <>
-                            Не удалось загрузить токены размеров: {session.loadError}
-                            <button type="button" className="st-inline-action" onClick={() => void editor.reload()}>
-                                Повторить
-                            </button>
-                        </>
-                    ) : (
-                        'Загружаем радиусы, отступы и тени…'
-                    )}
-                </div>
-            </div>
-        );
-    }
+    if (!data)
+        return <SizeTokensPlaceholder failed={Boolean(session.loadError)} onRetry={() => void editor.reload()} />;
 
     const save = selected ? editor.status(selected.tokenId) : { state: 'saved' as const, error: null };
     const openPicker = picker && selected?.tokenId === picker.tokenId && !readOnly ? picker : null;
     const pickerLayer: ShadowLayer | null =
         openPicker && selected ? (scopeLayers(selected, openPicker.scope)?.[openPicker.index] ?? null) : null;
     /** Ошибка операции другого токена, создания или удаления, которая повторяется автоматически. */
-    const otherError = status.state === 'error' && save.state !== 'error' ? status.error : null;
+    const resetError = tokenReset.error ? new SizeTokenOperationError('failed', tokenReset.error) : null;
+    const otherError = resetError ?? (status.state === 'error' && save.state !== 'error' ? status.error : null);
 
     return (
-        <div
-            className="size-tokens-screen st-shell st-theme-workspace"
-            data-testid="size-tokens-screen"
-            data-editor-section="shapes"
-        >
+        <div className="size-tokens-screen st-shell" data-testid="size-tokens-screen" data-editor-section="shapes">
             <section
-                className="editor-workbench playground-workbench editor-sizes-workbench"
-                style={{ '--panel-left': '280px', '--panel-right': '340px' } as CSSProperties}
+                className="st-workbench"
+                style={{ '--panel-left': `${panels.left}px`, '--panel-right': `${panels.right}px` } as CSSProperties}
             >
+                <button type="button" className="panel-resizer panel-resizer-left" {...separator('left')} />
+                <button type="button" className="panel-resizer panel-resizer-right" {...separator('right')} />
                 <SizeTokenTree
                     sections={sections}
                     selectedId={selected?.tokenId ?? null}
@@ -274,7 +278,9 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     searchOpen={searchOpen}
                     collapsed={collapsed}
                     editable={!readOnly}
+                    canDelete={canDelete}
                     onSelect={select}
+                    onDelete={requestDelete}
                     onQuery={setQuery}
                     onSearchOpen={setSearchOpen}
                     onToggle={(kind) => setCollapsed((current) => ({ ...current, [kind]: !current[kind] }))}
@@ -282,7 +288,17 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     creating={creating}
                     onCreate={(kind, name) => void create(kind, name)}
                     onCancelCreate={() => setCreating(null)}
+                    onRename={readOnly ? undefined : (token, name) => editor.rename(token, name)}
                 />
+                <main className="preview-canvas">
+                    <SizeTokenBoard
+                        kind={boardKind}
+                        tokens={board}
+                        selectedId={selected?.tokenId ?? null}
+                        themeName={theme.getName()}
+                        onSelect={select}
+                    />
+                </main>
                 <aside className="properties-panel">
                     {notice && (
                         <div className="st-banner" role="status">
@@ -302,6 +318,11 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                             editable={!readOnly}
                             published={published}
                             canDelete={canDelete}
+                            description={themeToken(selected)?.getDescription?.() ?? ''}
+                            onDescribe={readOnly ? undefined : (value) => describe(selected, value)}
+                            onRename={readOnly ? undefined : (value) => editor.rename(selected, value)}
+                            onReset={readOnly ? undefined : () => void tokenReset.reset(new Set([selected.tokenId]))}
+                            resetDisabled={tokenReset.busy || !props.changedTokenNames?.has(selected.name)}
                             save={save}
                             otherError={otherError}
                             colorLabel={(layer) => layerColorLabel(layer, rampName(selected.name))}
@@ -322,15 +343,6 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                         />
                     )}
                 </aside>
-                <main className="preview-canvas">
-                    <SizeTokenBoard
-                        kind={boardKind}
-                        tokens={board}
-                        selectedId={selected?.tokenId ?? null}
-                        themeName={theme.getName()}
-                        onSelect={select}
-                    />
-                </main>
                 {selected && openPicker && pickerLayer && (
                     <ColorPickerPopover
                         // Состояние выбора цвета принадлежит слою: другой слой открывает новый выбор.
@@ -381,7 +393,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     busy={deleting.busy}
                     error={deleting.error}
                     onCancel={() => setDeleting(null)}
-                    onConfirm={() => void remove(deleting.token, true)}
+                    onConfirm={() => void remove(deleting.token)}
                 />
             )}
         </div>

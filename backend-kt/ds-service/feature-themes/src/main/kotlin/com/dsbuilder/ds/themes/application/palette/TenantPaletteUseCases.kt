@@ -1,6 +1,6 @@
 package com.dsbuilder.ds.themes.application.palette
 
-/** Use case палитры темы для маршрутов `/api/ds/tenants/{tenantId}/palette`. */
+/** Use case палитры темы для маршрутов `/api/design-systems/{designSystemId}/tenants/{tenantId}/palette`. */
 data class TenantPaletteUseCases(
     /** Чтение палитры. */
     val get: GetTenantPaletteUseCase,

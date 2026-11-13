@@ -1,5 +1,9 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
+import com.dsbuilder.ds.core.application.mapItems
+import com.dsbuilder.ds.core.data.modelReadPage
 import com.dsbuilder.ds.core.data.selectedVersionBelongsTo
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.DesignSystemAggregateRepository
@@ -37,7 +41,14 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         projectId: ProjectId,
         designSystemId: DesignSystemId,
         query: String?,
-    ): List<DesignSystemComponentSummary>? {
+    ): List<DesignSystemComponentSummary>? = pageComponents(projectId, designSystemId, query, ModelReadQuery())?.items
+
+    override suspend fun pageComponents(
+        projectId: ProjectId,
+        designSystemId: DesignSystemId,
+        query: String?,
+        read: ModelReadQuery,
+    ): ModelReadItems<DesignSystemComponentSummary>? {
         if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         var condition = AggregateDesignSystemComponentsTable.designSystemId eq designSystemId.value
         query?.takeIf(String::isNotBlank)?.let { raw ->
@@ -46,6 +57,10 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
                 (AggregateComponentsTable.name.lowerCase() like pattern) or
                     (AggregateComponentsTable.description.lowerCase() like pattern)
                 )
+        }
+        read.name?.let { condition = condition and (AggregateComponentsTable.name eq it) }
+        read.platform?.let {
+            condition = condition and (AggregateComponentsTable.platform.castTo<String>(TextColumnType()) eq it)
         }
         return AggregateDesignSystemComponentsTable.join(
             AggregateComponentsTable,
@@ -64,7 +79,8 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
             .where {
                 condition and accessibleDesignSystem(DesignSystemsTable, projectId)
             }
-            .map(::component)
+            .modelReadPage(read, "components", AggregateComponentsTable.name, AggregateComponentsTable.id)
+            .mapItems(::component)
     }
 
     override suspend fun listTokens(
@@ -72,7 +88,15 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         designSystemId: DesignSystemId,
         type: String?,
         query: String?,
-    ): List<DesignSystemTokenSummary>? {
+    ): List<DesignSystemTokenSummary>? = pageTokens(projectId, designSystemId, type, query, ModelReadQuery())?.items
+
+    override suspend fun pageTokens(
+        projectId: ProjectId,
+        designSystemId: DesignSystemId,
+        type: String?,
+        query: String?,
+        read: ModelReadQuery,
+    ): ModelReadItems<DesignSystemTokenSummary>? {
         if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         var condition = AggregateTokensTable.designSystemId eq designSystemId.value
         type?.let { condition = condition and (AggregateTokensTable.type.castTo<String>(TextColumnType()) eq it) }
@@ -84,6 +108,12 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
                     (AggregateTokensTable.description.lowerCase() like pattern)
                 )
         }
+        read.name?.let { condition = condition and (AggregateTokensTable.name eq it) }
+        read.groupId?.let {
+            val group = runCatching { UUID.fromString(it) }.getOrNull()
+                ?: throw com.dsbuilder.ds.core.data.InvalidModelReadQueryException()
+            condition = condition and (AggregateTokensTable.groupId eq group)
+        }
         val published = latestPublished(designSystemId)
         return AggregateTokensTable.join(
             DesignSystemsTable,
@@ -91,7 +121,7 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
             additionalConstraint = { AggregateTokensTable.designSystemId eq DesignSystemsTable.id },
         ).select(AggregateTokensTable.columns).where {
             condition and accessibleDesignSystem(DesignSystemsTable, projectId)
-        }.map { row ->
+        }.modelReadPage(read, "tokens", AggregateTokensTable.name, AggregateTokensTable.id).mapItems { row ->
             val publishedIn = published?.takeIf { (_, at) -> !row[AggregateTokensTable.createdAt].isAfter(at) }
             token(row, publishedIn?.first)
         }
@@ -118,7 +148,19 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         projectId: ProjectId,
         designSystemId: DesignSystemId,
         componentId: UUID,
-    ): List<DesignSystemStyleSummary>? {
+    ): List<DesignSystemStyleSummary>? = pageComponentStyles(
+        projectId,
+        designSystemId,
+        componentId,
+        ModelReadQuery(),
+    )?.items
+
+    override suspend fun pageComponentStyles(
+        projectId: ProjectId,
+        designSystemId: DesignSystemId,
+        componentId: UUID,
+        read: ModelReadQuery,
+    ): ModelReadItems<DesignSystemStyleSummary>? {
         if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         val linked = AggregateDesignSystemComponentsTable.selectAll().where {
             (AggregateDesignSystemComponentsTable.designSystemId eq designSystemId.value) and
@@ -131,22 +173,29 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
                     (AggregateVariationsTable.componentId eq componentId)
             }
             .map { it[AggregateVariationsTable.id] }
-        if (variationIds.isEmpty()) return emptyList()
         return AggregateStylesTable.join(
             DesignSystemsTable,
             JoinType.INNER,
             additionalConstraint = { AggregateStylesTable.designSystemId eq DesignSystemsTable.id },
         ).select(AggregateStylesTable.columns).where {
             (AggregateStylesTable.designSystemId eq designSystemId.value) and
+                (read.name?.let { AggregateStylesTable.name eq it } ?: org.jetbrains.exposed.v1.core.Op.TRUE) and
                 (AggregateStylesTable.variationId inList variationIds) and
                 accessibleDesignSystem(DesignSystemsTable, projectId)
-        }.map(::style)
+        }.modelReadPage(read, "styles/$componentId", AggregateStylesTable.name, AggregateStylesTable.id)
+            .mapItems(::style)
     }
 
     override suspend fun listTenants(
         projectId: ProjectId,
         designSystemId: DesignSystemId,
-    ): List<DesignSystemTenantSummary>? {
+    ): List<DesignSystemTenantSummary>? = pageTenants(projectId, designSystemId, ModelReadQuery())?.items
+
+    override suspend fun pageTenants(
+        projectId: ProjectId,
+        designSystemId: DesignSystemId,
+        read: ModelReadQuery,
+    ): ModelReadItems<DesignSystemTenantSummary>? {
         if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         return AggregateTenantsTable.join(
             DesignSystemsTable,
@@ -155,9 +204,18 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
         ).select(AggregateTenantsTable.columns)
             .where {
                 (AggregateTenantsTable.designSystemId eq designSystemId.value) and
+                    (read.name?.let { AggregateTenantsTable.name eq it } ?: org.jetbrains.exposed.v1.core.Op.TRUE) and
+                    (
+                        read.query?.takeIf(String::isNotBlank)?.let {
+                            val pattern = "%${it.trim().lowercase()}%"
+                            (AggregateTenantsTable.name.lowerCase() like pattern) or
+                                (AggregateTenantsTable.description.lowerCase() like pattern)
+                        } ?: org.jetbrains.exposed.v1.core.Op.TRUE
+                        ) and
                     accessibleDesignSystem(DesignSystemsTable, projectId)
             }
-            .map(::tenant)
+            .modelReadPage(read, "tenants", AggregateTenantsTable.name, AggregateTenantsTable.id)
+            .mapItems(::tenant)
     }
 
     override suspend fun listAppearances(

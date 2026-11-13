@@ -23,8 +23,18 @@ class DesignSystemLinkTest {
     }
 
     @Test
+    fun platformCanBeOmittedWithoutChoosingADefault() {
+        val selection = DesignSystemSelection(ProjectId("a"), DesignSystemId("b"), "draft")
+        val link = "dsbuilder://projects/a/design-systems/b?version=draft"
+        assertEquals(selection, DesignSystemLink.parse(link))
+        assertEquals(link, DesignSystemLink.format(selection))
+    }
+
+    @Test
     fun invalidLinksCannotFallBackToWorkspace() {
         listOf(
+            "dsbuilder://projects/a/design-systems/b?version=1&version=2",
+            "dsbuilder://projects/a/design-systems/b?version=1&platform=",
             "https://example.com/projects/a/design-systems/b?version=1&platform=compose",
             "dsbuilder://user@projects/a/design-systems/b?version=1&platform=compose",
             "dsbuilder://projects/a/design-systems/b?version=1&version=2&platform=compose",

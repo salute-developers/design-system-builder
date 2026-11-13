@@ -25,7 +25,7 @@ data class ActivePluginBuildResponse(
         /** Преобразует активный билд в ответ. */
         fun from(value: ActivePluginBuild) = ActivePluginBuildResponse(
             buildId = value.build.buildId,
-            uikitComposeVersion = value.build.uikitComposeVersion,
+            uikitComposeVersion = value.build.libraryVersion,
             metaSha256 = value.build.metaSha256,
             protocolVersion = value.build.protocolVersion,
             pluginUrl = value.pluginUrl,

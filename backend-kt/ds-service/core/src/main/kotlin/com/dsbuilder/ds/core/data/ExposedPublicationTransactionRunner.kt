@@ -12,8 +12,11 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.v1.core.DatabaseConfig
+import org.jetbrains.exposed.v1.core.TextColumnType
+import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.core.vendors.PostgreSQLDialect
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.sql.Connection
 import java.sql.SQLException
 import java.util.UUID
@@ -24,7 +27,12 @@ class ExposedPublicationTransactionRunner(
     private val pool: PostgresDatabasePool,
     failureMapper: TransactionFailureMapper,
 ) : PublicationTransactionRunner {
-    private data class Request(val context: DsRequestContext, val designSystemId: UUID, val job: Job)
+    private data class Request(
+        val context: DsRequestContext,
+        val designSystemId: UUID,
+        val job: Job,
+        val checkAccessBeforeLock: Boolean,
+    )
     private class Inaccessible : RuntimeException()
 
     private val request = ThreadLocal<Request>()
@@ -36,13 +44,53 @@ class ExposedPublicationTransactionRunner(
         },
     ).also(pool::ownDatabase)
     private val transactions = ExposedTransactionRunner(database, failureMapper)
+    private val preflightTransactions = ExposedTransactionRunner(pool.database, failureMapper)
 
     override suspend fun <T> required(
         context: DsRequestContext,
         designSystemId: UUID,
         block: suspend () -> DsResult<T>,
+    ): DsResult<T> = locked(context, designSystemId, checkAccessBeforeLock = true, block)
+
+    override suspend fun <T> required(
+        context: DsRequestContext,
+        designSystemId: UUID,
+        beforeLock: suspend () -> DsResult<Unit>,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> {
+        if (context.designSystemId != null && context.designSystemId != designSystemId) {
+            return DsResult.Failure(DsFailure.NotFound)
+        }
+        val prepared = preflightTransactions.required(context) {
+            when (val result = beforeLock()) {
+                is DsResult.Failure -> result
+                is DsResult.Success -> if (ownedInCurrentTransaction(context, designSystemId)) {
+                    DsResult.Success(Unit)
+                } else {
+                    DsResult.Failure(DsFailure.NotFound)
+                }
+            }
+        }
+        return when (prepared) {
+            is DsResult.Failure -> prepared
+            is DsResult.Success -> locked(context, designSystemId, checkAccessBeforeLock = false, block)
+        }
+    }
+
+    private fun ownedInCurrentTransaction(context: DsRequestContext, designSystemId: UUID): Boolean =
+        TransactionManager.current().exec(
+            ACCESS_SQL,
+            listOf(UUIDColumnType() to designSystemId, TextColumnType() to context.projectId.value),
+        ) { rows -> rows.next() } ?: false
+
+    private suspend fun <T> locked(
+        context: DsRequestContext,
+        designSystemId: UUID,
+        checkAccessBeforeLock: Boolean,
+        block: suspend () -> DsResult<T>,
     ): DsResult<T> = try {
-        val publication = Request(context, designSystemId, currentCoroutineContext().job)
+        if (context.designSystemId != null && context.designSystemId != designSystemId) throw Inaccessible()
+        val publication = Request(context, designSystemId, currentCoroutineContext().job, checkAccessBeforeLock)
         withContext(request.asContextElement(publication)) {
             transactions.required(context, block)
         }
@@ -56,7 +104,7 @@ class ExposedPublicationTransactionRunner(
         try {
             if (!connection.autoCommit) connection.rollback()
             connection.autoCommit = true
-            requireAccessible(connection, publication)
+            if (publication.checkAccessBeforeLock) requireAccessible(connection, publication)
             awaitLock(connection, publication)
             return PublicationConnection(connection, publication.designSystemId, pool)
         } catch (failure: Throwable) {
@@ -68,7 +116,7 @@ class ExposedPublicationTransactionRunner(
 
     private fun requireAccessible(connection: Connection, publication: Request) {
         val accessible = connection.prepareStatement(
-            "SELECT 1 FROM design_systems WHERE id = ? AND project_id = ?",
+            ACCESS_SQL,
         ).use {
             it.queryTimeout = QUERY_TIMEOUT_SECONDS
             it.setObject(1, publication.designSystemId)
@@ -130,6 +178,7 @@ class ExposedPublicationTransactionRunner(
     }
 
     private companion object {
+        const val ACCESS_SQL = "SELECT 1 FROM design_systems WHERE id = ? AND project_id = ?"
         const val QUERY_TIMEOUT_SECONDS = 2
         const val LOCK_TIMEOUT_NANOS = 10_000_000_000L
         const val POLL_MILLIS = 25L

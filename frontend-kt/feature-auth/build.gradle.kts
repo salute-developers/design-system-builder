@@ -5,6 +5,7 @@ plugins {
 kotlin {
     macosArm64()
     macosX64()
+    mingwX64()
 
     sourceSets {
         commonMain.dependencies {
@@ -13,6 +14,10 @@ kotlin {
             // OAuth use case'ы публично принимают CoroutineDispatcher.
             api(libs.kotlinx.coroutines.core)
             api(libs.koin.core)
+        }
+
+        jvmTest.dependencies {
+            implementation(libs.kotlinx.serialization.json)
         }
 
         commonTest.dependencies {

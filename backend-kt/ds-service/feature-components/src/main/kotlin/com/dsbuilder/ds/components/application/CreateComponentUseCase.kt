@@ -24,7 +24,7 @@ class CreateComponentUseCase(
         idempotencyKey: String? = null,
     ): DsResult<Component> =
         policy.read(context, ProjectScope.COMPONENTS_WRITE) {
-            if (!context.principal.systemAdmin) return@read DsResult.Failure(DsFailure.Forbidden)
+            if (!context.principal.globalAdmin) return@read DsResult.Failure(DsFailure.Forbidden)
             transactions.required(context) {
                 IdempotentCreateExecutor(repeatedRequests).execute(
                     context,

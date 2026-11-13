@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { FieldMessage, fieldClass } from '../../../components/tokenWorkspace';
 import { fieldText, type ColorFieldValue } from '../../../modules/colorTokens';
 import { alphaSwatchStyle } from './swatch';
 
@@ -12,6 +13,8 @@ interface ColorFieldProps {
     editable: boolean;
     pickerOpen: boolean;
     invalid: boolean;
+    /** Сообщение об ошибке значения под полем. */
+    message?: string | null;
     /** Получает кнопку цвета, пока у поля открыт выбор цвета: к ней привязывается окно выбора. */
     pickerAnchor?: (node: HTMLButtonElement | null) => void;
     /** Строка своего значения платформы под полем. */
@@ -46,6 +49,7 @@ export const ColorField = ({
     editable,
     pickerOpen,
     invalid,
+    message = null,
     pickerAnchor,
     platformRow = false,
     onOpenPicker,
@@ -74,10 +78,12 @@ export const ColorField = ({
     };
 
     return (
-        <div className={`figma-inspector-field ${platformRow ? 'ct-platform-field' : ''}`}>
-            <span className={`figma-inspector-field-label ${platformRow ? 'ct-platform-label' : ''}`}>{label}</span>
-            <div className="ct-value-line">
-                <div className={`figma-value-control ${invalid ? 'is-invalid' : ''}`}>
+        <div className={`figma-inspector-field tw-field-inline ${platformRow ? 'ct-platform-field' : ''}`}>
+            <span className={`figma-inspector-field-label tw-field-label ${platformRow ? 'ct-platform-label' : ''}`}>
+                {label}
+            </span>
+            <div className="ct-value-line tw-field-line">
+                <div className={`figma-value-control ${fieldClass(invalid || message ? 'error' : null)}`}>
                     <div className="figma-value-main">
                         <button
                             ref={pickerOpen ? pickerAnchor : undefined}
@@ -126,6 +132,7 @@ export const ColorField = ({
                 </div>
                 {trailing}
             </div>
+            {message && <FieldMessage>{message}</FieldMessage>}
         </div>
     );
 };

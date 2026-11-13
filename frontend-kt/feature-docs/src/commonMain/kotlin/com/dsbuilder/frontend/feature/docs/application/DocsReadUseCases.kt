@@ -2,8 +2,6 @@
 
 package com.dsbuilder.frontend.feature.docs.application
 
-import com.dsbuilder.frontend.core.application.ContextResolver
-import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.RuntimeFailureCode
 import com.dsbuilder.frontend.core.application.RuntimeRequest
 import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
@@ -12,7 +10,6 @@ import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.TargetPlatform
-import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.feature.docs.domain.DocumentationPlatform
 import com.dsbuilder.frontend.feature.docs.domain.toDocumentationPlatform
 import kotlinx.serialization.json.JsonElement
@@ -24,13 +21,31 @@ public data class DocumentationSearchCommand(
     val cursor: String?,
     val limit: String?,
     val subject: String?,
+    val publicationId: String? = null,
+    val subjects: List<String> = emptyList(),
 )
 
 public data class DocumentationFetchCommand(val kbUrl: String)
 
-public data class DocumentationPublicationCommand(val version: String?, val platform: String?)
+public data class DocumentationPublicationCommand(
+    val version: String?,
+    val platform: String?,
+    val publicationId: String? = null,
+)
 
-public data class DocumentationPageCommand(val path: String, val version: String?, val platform: String?)
+public data class DocumentationPublicationsCommand(
+    val version: String?,
+    val platform: String?,
+    val limit: String?,
+    val cursor: String?,
+)
+
+public data class DocumentationPageCommand(
+    val path: String,
+    val version: String?,
+    val platform: String?,
+    val publicationId: String? = null,
+)
 
 public data class CodeBindingSearchCommand(
     val subject: String?,
@@ -40,6 +55,7 @@ public data class CodeBindingSearchCommand(
     val cursor: String?,
     val version: String?,
     val platform: String?,
+    val publicationId: String? = null,
 )
 
 public data class CodeBindingGetCommand(
@@ -47,6 +63,9 @@ public data class CodeBindingGetCommand(
     val publicationId: String?,
     val version: String?,
     val platform: String?,
+    val detail: String? = null,
+    val appearanceNames: List<String> = emptyList(),
+    val variationNames: List<String> = emptyList(),
 )
 
 public data class DocsReadRuntime(
@@ -66,7 +85,7 @@ public enum class DocsReadErrorCode {
     INVALID_CONTEXT,
     AMBIGUOUS_CONTEXT,
     INVALID_QUERY,
-    PROJECT_KEY_INVALID,
+    PAT_INVALID,
     INVALID_AUTH_URL,
 }
 
@@ -77,6 +96,12 @@ public sealed interface DocsReadResult {
 }
 
 public interface DocsReadRemoteSource {
+    public suspend fun publications(
+        runtime: DocsReadRuntime,
+        command: DocumentationPublicationsCommand,
+    ): DocsReadResult =
+        DocsReadResult.Failed(DocsReadErrorCode.BACKEND_UNAVAILABLE, "Publication list is unavailable.")
+
     public suspend fun search(runtime: DocsReadRuntime, command: DocumentationSearchCommand): DocsReadResult
 
     public suspend fun fetch(runtime: DocsReadRuntime, command: DocumentationFetchCommand): DocsReadResult
@@ -91,21 +116,32 @@ public interface DocsReadRemoteSource {
 }
 
 public class DocsReadUseCases(
-    private val contextResolver: ContextResolver,
-    private val apiUrlResolver: ApiUrlResolver,
-    private val credentialProvider: CredentialProvider,
+    private val runtimeResolver: RuntimeRequestResolver,
     private val remoteSource: DocsReadRemoteSource,
 ) {
+    /** Читает публикации документации выбранной дизайн-системы. */
+    public suspend fun publications(
+        command: DocumentationPublicationsCommand,
+        request: RuntimeRequest = RuntimeRequest(),
+    ): DocsReadResult = withRuntime(request) { remoteSource.publications(it, command) }
+
     public suspend fun search(
         command: DocumentationSearchCommand,
         request: RuntimeRequest = RuntimeRequest(),
-    ): DocsReadResult =
-        withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
-            remoteSource.search(
-                runtime,
-                command.copy(platform = platform, version = version),
-            )
+    ): DocsReadResult = if (command.publicationId == null && command.version == null) {
+        withRuntimeAndPlatform(command.platform, request) { runtime, platform ->
+            remoteSource.search(runtime, command.copy(platform = platform))
         }
+    } else {
+        withSelectedPublication(
+            command.publicationId,
+            command.version,
+            command.platform,
+            request,
+        ) { runtime, version, platform ->
+            remoteSource.search(runtime, command.copy(platform = platform, version = version))
+        }
+    }
 
     public suspend fun fetch(
         command: DocumentationFetchCommand,
@@ -116,50 +152,64 @@ public class DocsReadUseCases(
     public suspend fun navigation(
         command: DocumentationPublicationCommand,
         request: RuntimeRequest = RuntimeRequest(),
-    ): DocsReadResult =
-        withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
-            remoteSource.navigation(
-                runtime,
-                command.copy(platform = platform, version = version),
-            )
-        }
+    ): DocsReadResult = withSelectedPublication(
+        command.publicationId,
+        command.version,
+        command.platform,
+        request,
+    ) { runtime, version, platform ->
+        remoteSource.navigation(runtime, command.copy(platform = platform, version = version))
+    }
 
     public suspend fun page(
         command: DocumentationPageCommand,
         request: RuntimeRequest = RuntimeRequest(),
-    ): DocsReadResult =
-        withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
-            remoteSource.page(
-                runtime,
-                command.copy(platform = platform, version = version),
-            )
-        }
+    ): DocsReadResult = withSelectedPublication(
+        command.publicationId,
+        command.version,
+        command.platform,
+        request,
+    ) { runtime, version, platform ->
+        remoteSource.page(runtime, command.copy(platform = platform, version = version))
+    }
 
     public suspend fun searchBindings(
         command: CodeBindingSearchCommand,
         request: RuntimeRequest = RuntimeRequest(),
-    ): DocsReadResult =
-        withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
-            remoteSource.searchBindings(
-                runtime,
-                command.copy(platform = platform, version = version),
-            )
-        }
+    ): DocsReadResult = withSelectedPublication(
+        command.publicationId,
+        command.version,
+        command.platform,
+        request,
+    ) { runtime, version, platform ->
+        remoteSource.searchBindings(runtime, command.copy(platform = platform, version = version))
+    }
 
     public suspend fun getBinding(
         command: CodeBindingGetCommand,
         request: RuntimeRequest = RuntimeRequest(),
-    ): DocsReadResult =
-        if (command.publicationId != null) {
-            withRuntime(request) { remoteSource.getBinding(it, command) }
-        } else {
-            withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
-                remoteSource.getBinding(
-                    runtime,
-                    command.copy(platform = platform, version = version),
-                )
-            }
+    ): DocsReadResult = withSelectedPublication(
+        command.publicationId,
+        command.version,
+        command.platform,
+        request,
+    ) { runtime, version, platform ->
+        remoteSource.getBinding(runtime, command.copy(platform = platform, version = version))
+    }
+
+    private suspend fun withSelectedPublication(
+        publicationId: String?,
+        version: String?,
+        platform: String?,
+        request: RuntimeRequest,
+        block: suspend (DocsReadRuntime, String?, String?) -> DocsReadResult,
+    ): DocsReadResult = if (publicationId != null) {
+        withRuntime(request) { block(it, version, platform) }
+    } else {
+        withRuntimeAndPublication(version, platform, request) { runtime, selectedVersion, selectedPlatform ->
+            block(runtime, selectedVersion, selectedPlatform)
         }
+    }
 
     private suspend fun withRuntimeAndPublication(
         explicitVersion: String?,
@@ -196,8 +246,6 @@ public class DocsReadUseCases(
         }
     }
 
-    private val runtimeResolver = RuntimeRequestResolver(contextResolver, apiUrlResolver, credentialProvider)
-
     private suspend fun withRuntime(
         request: RuntimeRequest,
         block: suspend (DocsReadRuntime) -> DocsReadResult,
@@ -208,7 +256,7 @@ public class DocsReadUseCases(
                 RuntimeFailureCode.INVALID_CONTEXT -> DocsReadErrorCode.INVALID_CONTEXT
                 RuntimeFailureCode.CONTEXT_NOT_FOUND -> DocsReadErrorCode.CONTEXT_NOT_FOUND
                 RuntimeFailureCode.AUTH_REQUIRED -> DocsReadErrorCode.AUTH_REQUIRED
-                RuntimeFailureCode.PROJECT_KEY_INVALID -> DocsReadErrorCode.PROJECT_KEY_INVALID
+                RuntimeFailureCode.PAT_INVALID -> DocsReadErrorCode.PAT_INVALID
                 RuntimeFailureCode.FORBIDDEN -> DocsReadErrorCode.FORBIDDEN
                 RuntimeFailureCode.BACKEND_UNAVAILABLE -> DocsReadErrorCode.BACKEND_UNAVAILABLE
                 RuntimeFailureCode.INVALID_AUTH_URL -> DocsReadErrorCode.INVALID_AUTH_URL

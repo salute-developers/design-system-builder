@@ -9,13 +9,13 @@ TBD - created by archiving change add-color-token-groups. Update Purpose after a
 
 #### Scenario: Список групп
 
-- **WHEN** пользователь с правом `tokens:read` запрашивает `GET /api/ds/design-systems/{id}/token-groups?kind=color`
+- **WHEN** пользователь с правом `tokens:read` запрашивает `GET /api/design-systems/{id}/token-groups?kind=color`
 - **THEN** API MUST вернуть `200` и массив `{ id, parentId, code, label, position, kind }` всех групп и подгрупп вида `color`, упорядоченный по уровню, родителю и позиции
 - **THEN** пустые группы и подгруппы MUST входить в ответ
 
 #### Scenario: Токены с группой и позицией
 
-- **WHEN** клиент запрашивает `GET /api/ds/design-systems/{designSystemId}/tokens`
+- **WHEN** клиент запрашивает `GET /api/design-systems/{designSystemId}/tokens`
 - **THEN** каждый токен MUST содержать `groupId` (группа, подгруппа или `null`) и `position`
 
 #### Scenario: Признак публикации токена
@@ -54,7 +54,7 @@ TBD - created by archiving change add-color-token-groups. Update Purpose after a
 
 ### Requirement: Операции над группами атомарны и сверяют ревизию тем
 
-`ds-service` SHALL предоставлять создание `POST /api/ds/tenants/{tenantId}/token-groups`, изменение `PATCH /api/ds/tenants/{tenantId}/token-groups/{groupId}` и удаление `DELETE /api/ds/tenants/{tenantId}/token-groups/{groupId}`. Каждая операция SHALL в одной транзакции блокировать все темы дизайн-системы текущей темы, сверять `editRevision` текущей темы и увеличивать ревизии всех тем дизайн-системы.
+`ds-service` SHALL предоставлять создание `POST /api/design-systems/{designSystemId}/tenants/{tenantId}/token-groups`, изменение `PATCH /api/design-systems/{designSystemId}/tenants/{tenantId}/token-groups/{groupId}` и удаление `DELETE /api/design-systems/{designSystemId}/tenants/{tenantId}/token-groups/{groupId}`. Каждая операция SHALL в одной транзакции блокировать все темы дизайн-системы текущей темы, сверять `editRevision` текущей темы и увеличивать ревизии всех тем дизайн-системы.
 
 #### Scenario: Создание группы
 

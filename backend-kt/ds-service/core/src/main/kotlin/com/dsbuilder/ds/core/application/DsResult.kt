@@ -7,6 +7,10 @@ sealed interface DsResult<out T> {
         val value: T,
         /** JSON-массив технических редакций и предупреждений изменённых сущностей. */
         val mutationMetadata: String? = null,
+        /** Фактическая граница предметного чтения в той же транзакции. */
+        val readContext: ModelReadContext? = null,
+        /** Продолжение и размер страницы без изменения предметного тела. */
+        val readPage: ModelReadPage? = null,
     ) : DsResult<T>
 
     /** Failed application result carrying a safe [error]. */

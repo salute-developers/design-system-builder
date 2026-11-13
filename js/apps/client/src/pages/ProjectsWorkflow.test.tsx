@@ -1,8 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ApiError, authService, designSystemsApi, projectsApi, type ProjectDto } from '../api';
 import { getAnchoredPopoverGeometry } from '../components/Overlay/Overlay';
+import { UserSettingsPage } from './userSettings/UserSettingsPage';
+import { userSettingsApi } from '../modules/userSettings/data/userSettingsApi';
 import { resetQueryCache } from '../shared/data/useLoad';
 import {
     CreateDesignSystemDialog,
@@ -31,6 +33,7 @@ import errorStateImage from '../assets/catalog/error-state.png';
 const project = (role: ProjectDto['effectiveRole'], status: ProjectDto['status'] = 'active'): ProjectDto => ({
     id: 'project-1',
     name: 'Platform',
+    designSystemCount: 1,
     description: 'Shared UI',
     status,
     ownerUserId: 'owner-1',
@@ -84,7 +87,11 @@ beforeEach(() => {
     vi.restoreAllMocks();
     resetQueryCache();
     vi.spyOn(projectsApi, 'list').mockResolvedValue([]);
-    vi.spyOn(projectsApi, 'accessKeys').mockResolvedValue([]);
+    vi.spyOn(userSettingsApi, 'tokens').mockResolvedValue([]);
+    vi.spyOn(userSettingsApi, 'scopes').mockResolvedValue({ scopes: [
+        { id: 'projects:read', title: 'Проекты', description: 'Просмотр проектов' },
+        { id: 'members:read', title: 'Участники', description: 'Просмотр участников' },
+    ] });
     vi.spyOn(projectsApi, 'memberCandidates').mockResolvedValue([]);
     vi.spyOn(designSystemsApi, 'list').mockResolvedValue([]);
     vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([]);
@@ -150,7 +157,7 @@ describe('project workflow', () => {
         const loading = at('/projects', <ProjectsPage />);
         expect(screen.getByText('Загружаем проекты…')).toBeInTheDocument();
         expect(loading.container.querySelector('.builder-shell .catalog-loading-grid.is-project')).toBeInTheDocument();
-        cleanup();
+        await act(async () => cleanup());
         vi.spyOn(projectsApi, 'list').mockRejectedValue(new ApiError(500));
         const failed = at('/projects', <ProjectsPage />);
         expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
@@ -221,6 +228,42 @@ describe('project workflow', () => {
         expect(screen.queryByRole('menuitemradio', { name: 'Название А–Я' })).not.toBeInTheDocument();
     });
 
+    it.each([1, 10, 50])('loads %s project cards with one catalog request and no per-card systems', async (count) => {
+        vi.spyOn(projectsApi, 'list').mockResolvedValue(
+            Array.from({ length: count }, (_, index) => ({
+                ...project('owner'),
+                id: `project-${index}`,
+                name: `Project ${index}`,
+                designSystemCount: 0,
+            })),
+        );
+        at('/projects', <ProjectsPage />);
+        expect(await screen.findAllByText('0 дизайн-систем')).toHaveLength(count);
+        expect(projectsApi.list).toHaveBeenCalledTimes(1);
+        expect(designSystemsApi.list).not.toHaveBeenCalled();
+    });
+
+    it('loads settings dependencies on section entry and preserves unsaved general input', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
+        vi.spyOn(projectsApi, 'members').mockResolvedValue([]);
+        at('/projects/project-1/settings', <ProjectSettingsPage />);
+        const name = await screen.findByLabelText('Название');
+        fireEvent.change(name, { target: { value: 'Unsaved name' } });
+        expect(projectsApi.members).not.toHaveBeenCalled();
+        expect(designSystemsApi.list).not.toHaveBeenCalled();
+        expect(userSettingsApi.tokens).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Участники и роли' }));
+        await waitFor(() => expect(projectsApi.members).toHaveBeenCalledOnce());
+        expect(designSystemsApi.list).not.toHaveBeenCalled();
+        expect(userSettingsApi.tokens).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Основное' }));
+        expect(screen.getByLabelText('Название')).toHaveValue('Unsaved name');
+        fireEvent.click(screen.getByRole('button', { name: 'Администрирование' }));
+        await waitFor(() => expect(designSystemsApi.list).toHaveBeenCalledOnce());
+        expect(userSettingsApi.tokens).not.toHaveBeenCalled();
+        expect(projectsApi.members).toHaveBeenCalledOnce();
+    });
+
     it('separates archived projects and shows the design-system count instead of description and status', async () => {
         vi.spyOn(projectsApi, 'list').mockResolvedValue([
             project('owner'),
@@ -233,6 +276,7 @@ describe('project workflow', () => {
         at('/projects', <ProjectsPage />);
 
         expect(await screen.findAllByText('1 дизайн-система')).toHaveLength(2);
+        expect(designSystemsApi.list).not.toHaveBeenCalled();
         expect(screen.getByRole('heading', { name: 'Архивные' })).toBeInTheDocument();
         expect(screen.queryByText(/Shared UI|Legacy|Активный|Архивный/)).not.toBeInTheDocument();
     });
@@ -423,6 +467,8 @@ describe('project workflow', () => {
         expect(await screen.findByText('Platform')).toBeInTheDocument();
         cleanup();
         vi.spyOn(projectsApi, 'list').mockRejectedValue(new ApiError(403));
+        const currentTime = Date.now();
+        vi.spyOn(Date, 'now').mockReturnValue(currentTime + 31_000);
         at('/projects', <ProjectsPage />);
         expect(screen.getByText('Platform')).toBeInTheDocument();
         expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
@@ -564,6 +610,22 @@ describe('project workflow', () => {
         expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
     });
 
+    it('hides administration from maintainer even on direct lifecycle navigation', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
+        vi.spyOn(projectsApi, 'members').mockResolvedValue([]);
+        vi.spyOn(designSystemsApi, 'list').mockResolvedValue([]);
+        render(
+            <MemoryRouter initialEntries={['/projects/project-1/settings?section=lifecycle']}>
+                <Routes>
+                    <Route path="/projects/:projectId/settings" element={<ProjectSettingsPage />} />
+                </Routes>
+            </MemoryRouter>,
+        );
+        await screen.findByRole('heading', { name: 'Основное' });
+        expect(screen.queryByRole('button', { name: 'Администрирование' })).not.toBeInTheDocument();
+        expect(document.querySelector('.project-settings-layout')).toHaveAttribute('data-active-section', 'general');
+    });
+
     it('manages registered members with non-owner roles and confirmation on removal', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
         const memberList = vi.spyOn(projectsApi, 'members').mockResolvedValue([
@@ -595,7 +657,7 @@ describe('project workflow', () => {
         expect(view.container.querySelector('.ps-search .ui-glyph')).toBeInTheDocument();
         expect(view.container.querySelector('.ps-search')).not.toHaveTextContent('⌕');
         expect(workflowCss).toMatch(/\.settings-section \.ps-search input[^}]*padding:\s*4px 30px/);
-        expect(screen.getByText('Alex User')).toBeInTheDocument();
+        expect(await screen.findByText('Alex User')).toBeInTheDocument();
         expect(screen.getByText('alex · alex@example.com')).toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('Найти участника'), { target: { value: 'alex@example.com' } });
         expect(screen.getByText('Alex User')).toBeInTheDocument();
@@ -722,58 +784,46 @@ describe('project workflow', () => {
         expect(screen.queryByRole('option', { name: 'Owner' })).not.toBeInTheDocument();
     });
 
-    it('lists, creates, reveals once, and revokes project access keys through the existing API', async () => {
+    it('lists, creates, reveals once, and revokes personal tokens through user settings', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
         vi.spyOn(projectsApi, 'members').mockResolvedValue([]);
-        vi.spyOn(projectsApi, 'accessKeys').mockResolvedValue([
+        vi.spyOn(userSettingsApi, 'tokens').mockResolvedValue([
             {
                 id: 'key-1',
-                projectId: 'project-1',
                 name: 'CI',
                 scopes: ['projects:read'],
-                createdByUserId: 'owner-1',
-                expiresAt: null,
+                expiresAt: '2099-01-01T00:00:00Z',
                 revokedAt: null,
                 lastUsedAt: null,
                 createdAt: '',
-                updatedAt: '',
             },
         ]);
-        const create = vi.spyOn(projectsApi, 'createAccessKey').mockResolvedValue({
-            key: {
+        const create = vi.spyOn(userSettingsApi, 'create').mockResolvedValue({
+            token: {
                 id: 'key-2',
-                projectId: 'project-1',
                 name: 'Production',
                 scopes: ['projects:read'],
-                createdByUserId: 'owner-1',
-                expiresAt: null,
+                expiresAt: '2099-01-01T00:00:00Z',
                 revokedAt: null,
                 lastUsedAt: null,
                 createdAt: '',
-                updatedAt: '',
             },
             secret: 'dsb_pk_secret',
         });
-        const revoke = vi.spyOn(projectsApi, 'revokeAccessKey').mockResolvedValue({
+        const revoke = vi.spyOn(userSettingsApi, 'revoke').mockResolvedValue({
             id: 'key-1',
-            projectId: 'project-1',
             name: 'CI',
             scopes: ['projects:read'],
-            createdByUserId: 'owner-1',
-            expiresAt: null,
+            expiresAt: '2099-01-01T00:00:00Z',
             revokedAt: 'now',
             lastUsedAt: null,
             createdAt: '',
-            updatedAt: '',
         });
-        at('/projects/project-1/settings', <ProjectSettingsPage />);
-        fireEvent.click(await screen.findByRole('button', { name: 'Администрирование' }));
+        at('/settings', <UserSettingsPage />);
         expect(await screen.findByText('CI')).toBeInTheDocument();
         expect(screen.getByText('projects:read')).toHaveClass('ps-scope-chip');
         expect(screen.getByText('projects:read').parentElement).toHaveClass('ps-scope-flow');
-        expect(document.querySelector('.ps-cli-head')).toHaveTextContent('НазваниеСтатусScopesСрок действияДействия');
-        expect(document.querySelector('.ps-aside-header')).toHaveTextContent('АдминистрированиеPlatform');
-        expect(document.querySelector('.ps-aside-lifecycle')).toHaveTextContent('Активные ключи1');
+        expect(document.querySelector('.ps-cli-head')).toHaveTextContent('НазваниеСтатусРазрешенияСрок действияДействия');
         fireEvent.click(screen.getAllByRole('button', { name: 'Создать ключ' }).at(-1)!);
         expect(screen.getByRole('dialog', { name: 'Создать ключ доступа' })).toBeInTheDocument();
         expect(screen.getByRole('dialog', { name: 'Создать ключ доступа' })).toHaveClass('ps-access-key-dialog');
@@ -787,7 +837,7 @@ describe('project workflow', () => {
         fireEvent.change(screen.getByPlaceholderText('Например, CI production'), { target: { value: 'Production' } });
         fireEvent.click(screen.getAllByRole('button', { name: 'Создать ключ' }).at(-1)!);
         await waitFor(() =>
-            expect(create).toHaveBeenCalledWith('project-1', {
+            expect(create).toHaveBeenCalledWith({
                 name: 'Production',
                 scopes: ['projects:read'],
                 ttlSeconds: 7776000,
@@ -800,55 +850,45 @@ describe('project workflow', () => {
         expect(screen.queryByText('Журнал аудита')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Готово' })).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Отозвать' }));
-        await waitFor(() => expect(revoke).toHaveBeenCalledWith('project-1', 'key-1'));
+        await waitFor(() => expect(revoke).toHaveBeenCalledWith('key-1'));
     });
 
-    it('allows Maintainer to list, create, and revoke access keys without owner lifecycle controls', async () => {
+    it('allows token management without project lifecycle controls', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
         vi.spyOn(projectsApi, 'members').mockResolvedValue([]);
-        vi.spyOn(projectsApi, 'accessKeys').mockResolvedValue([
+        vi.spyOn(userSettingsApi, 'tokens').mockResolvedValue([
             {
                 id: 'key-1',
-                projectId: 'project-1',
                 name: 'Maintainer CI',
                 scopes: ['projects:read'],
-                createdByUserId: 'maintainer-1',
-                expiresAt: null,
+                expiresAt: '2099-01-01T00:00:00Z',
                 revokedAt: null,
                 lastUsedAt: null,
                 createdAt: '',
-                updatedAt: '',
             },
         ]);
-        const create = vi.spyOn(projectsApi, 'createAccessKey').mockResolvedValue({
-            key: {
+        const create = vi.spyOn(userSettingsApi, 'create').mockResolvedValue({
+            token: {
                 id: 'key-2',
-                projectId: 'project-1',
                 name: 'Maintainer production',
                 scopes: ['projects:read'],
-                createdByUserId: 'maintainer-1',
-                expiresAt: null,
+                expiresAt: '2099-01-01T00:00:00Z',
                 revokedAt: null,
                 lastUsedAt: null,
                 createdAt: '',
-                updatedAt: '',
             },
             secret: 'dsb_pk_maintainer',
         });
-        const revoke = vi.spyOn(projectsApi, 'revokeAccessKey').mockResolvedValue({
+        const revoke = vi.spyOn(userSettingsApi, 'revoke').mockResolvedValue({
             id: 'key-1',
-            projectId: 'project-1',
             name: 'Maintainer CI',
             scopes: ['projects:read'],
-            createdByUserId: 'maintainer-1',
-            expiresAt: null,
+            expiresAt: '2099-01-01T00:00:00Z',
             revokedAt: 'now',
             lastUsedAt: null,
             createdAt: '',
-            updatedAt: '',
         });
-        at('/projects/project-1/settings', <ProjectSettingsPage />);
-        fireEvent.click(await screen.findByRole('button', { name: 'Администрирование' }));
+        at('/settings', <UserSettingsPage />);
         expect(await screen.findByText('Maintainer CI')).toBeInTheDocument();
         expect(screen.queryByText('Опасная зона')).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Создать ключ' }));
@@ -858,7 +898,7 @@ describe('project workflow', () => {
         fireEvent.click(screen.getAllByRole('button', { name: 'Создать ключ' }).at(-1)!);
         await waitFor(() => expect(create).toHaveBeenCalled());
         fireEvent.click(screen.getByRole('button', { name: 'Отозвать' }));
-        await waitFor(() => expect(revoke).toHaveBeenCalledWith('project-1', 'key-1'));
+        await waitFor(() => expect(revoke).toHaveBeenCalledWith('key-1'));
     });
 
     it('locks review styling for rail links, primary actions, and danger hover states', () => {
@@ -940,7 +980,7 @@ describe('design system and Theme workflow', () => {
         expect(screen.getByRole('button', { name: 'Удалить тему' })).toBeDisabled();
         fireEvent.change(confirmation, { target: { value: 'Brand' } });
         fireEvent.click(screen.getByRole('button', { name: 'Удалить тему' }));
-        await waitFor(() => expect(remove).toHaveBeenCalledWith('project-1', 'theme-1'));
+        await waitFor(() => expect(remove).toHaveBeenCalledWith('project-1', 'theme-1', 'ds-1'));
     });
 
     it('does not create a second shell for embedded theme settings, including loading', async () => {
@@ -1283,7 +1323,7 @@ describe('design system and Theme workflow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Удаление' }));
         expect(screen.queryByRole('link', { name: 'Готово' })).not.toBeInTheDocument();
         expect(screen.getByText('Опасная зона')).toHaveClass('ps-danger-title');
-        expect(screen.getByText('1 тема')).toBeInTheDocument();
+        expect(await screen.findByText('1 тема')).toBeInTheDocument();
         const confirmation = screen.getAllByRole('textbox').at(-1)!;
         fireEvent.change(confirmation, { target: { value: 'DS' } });
         fireEvent.click(screen.getByRole('button', { name: 'Удалить полностью' }));
@@ -1320,7 +1360,7 @@ describe('design system and Theme workflow', () => {
         );
         expect(screen.getByTestId('design-system-preview')).toHaveAttribute('data-count', '1');
         expect(screen.getByTestId('design-system-preview')).toHaveTextContent('BrandТема');
-        expect(screen.getByText('1 тема')).toBeInTheDocument();
+        expect(await screen.findByText('1 тема')).toBeInTheDocument();
         const settings = screen.getByRole('link', { name: 'Настройки проекта' });
         expect(settings).toHaveAttribute('title', 'Настройки проекта');
         expect(settings).not.toHaveTextContent('Настройки');
@@ -1434,7 +1474,7 @@ describe('design system and Theme workflow', () => {
         ]);
         at('/projects/project-1/settings', <ProjectSettingsPage />);
         fireEvent.click(await screen.findByRole('button', { name: 'Администрирование' }));
-        expect(screen.getByText('1 дизайн-систем')).toBeInTheDocument();
+        expect(await screen.findByText('1 дизайн-систем')).toBeInTheDocument();
         expect(screen.getByText('2 тем')).toBeInTheDocument();
         expect(screen.queryByText('11 тем')).not.toBeInTheDocument();
     });
@@ -1456,9 +1496,9 @@ describe('design system and Theme workflow', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Профиль' }));
         expect(screen.getByRole('button', { name: 'Профиль' })).toHaveTextContent('AU');
         expect(screen.getByRole('menu', { name: 'Меню профиля' })).toHaveTextContent(
-            'Alex Useralex · alex@example.comВыйти',
+            'Alex Useralex · alex@example.comНастройкиВыйти',
         );
-        expect(screen.getAllByRole('menuitem')).toHaveLength(1);
+        expect(screen.getAllByRole('menuitem')).toHaveLength(2);
         fireEvent.keyDown(document, { key: 'Escape' });
         expect(screen.queryByRole('menu', { name: 'Меню профиля' })).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Профиль' }));

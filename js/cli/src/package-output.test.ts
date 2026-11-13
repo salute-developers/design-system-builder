@@ -5,9 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-// `utils` генератора требует scope пакета при импорте; скрипты берут его из js/.env, тест задаёт сам.
-process.env.NPM_PACKAGE_SCOPE ??= '@test-scope';
-const { cliDirectory, writePackagePart } = await import('./package-output.ts');
+import { resolveNpmPackageScope } from './generator/utils/index.ts';
+import { TEMPORARY_PREFIX, writePackagePart } from './package-output.ts';
 
 let output: string;
 
@@ -48,7 +47,7 @@ const runWithOpenStdin = (command: string, cwd: string, timeoutMs: number) =>
         });
     });
 
-const temporaryDirectories = async () => (await readdir(cliDirectory)).filter((name) => name.startsWith('result-'));
+const temporaryDirectories = async () => (await readdir(tmpdir())).filter((name) => name.startsWith(TEMPORARY_PREFIX));
 
 beforeEach(async () => {
     output = join(await mkdtemp(join(tmpdir(), 'dsbuilder-package-')), 'output');
@@ -83,7 +82,7 @@ describe('writePackagePart', () => {
         const packageJson = JSON.parse(await readFile(join(output, 'package.json'), 'utf8'));
         assert.equal(packageJson.scripts.lint, undefined);
         assert.doesNotMatch(packageJson.scripts.build, /lint/);
-        assert.equal(packageJson.name, `${process.env.NPM_PACKAGE_SCOPE}/brand`);
+        assert.equal(packageJson.name, `${resolveNpmPackageScope()}/brand`);
         assert.equal(packageJson.version, '1.2.3');
         // src — ровно части нового пакета; прочее содержимое output остаётся.
         assert.deepEqual((await readdir(join(output, 'src'))).sort(), ['index.ts', 'theme']);
@@ -106,6 +105,46 @@ describe('writePackagePart', () => {
         assert.equal(code, 0, stderr);
         assert.doesNotMatch(stderr, /No such file or directory/);
         assert.doesNotMatch(stderr, /reading from STDIN/);
+    });
+
+    it('корневой индекс пакета с компонентами реэкспортирует компоненты ядра без конфига темы', async () => {
+        await writePackagePart({
+            parts: ['components'],
+            outputDirectory: output,
+            packageName: 'brand',
+            packageVersion: '1.2.3',
+            coreVersion: 'latest',
+            pack: true,
+            fill: (pathToDir) => writeText(join(pathToDir, 'src', 'components', 'Button', 'index.ts'), 'export {};\n'),
+        });
+        assert.match(
+            await readFile(join(output, 'src', 'index.ts'), 'utf8'),
+            /export \{ SSRProvider \} from '@salutejs\/plasma-new-hope\/styled-components';/,
+        );
+
+        await write(true, 'brand');
+        assert.doesNotMatch(await readFile(join(output, 'src', 'index.ts'), 'utf8'), /SSRProvider/);
+    });
+
+    it('сообщает части компонентов, будет ли в результате тема', async () => {
+        const seen: boolean[] = [];
+        const options = (pack: boolean) => ({
+            parts: ['components' as const],
+            outputDirectory: output,
+            packageName: 'brand',
+            packageVersion: '1.2.3',
+            coreVersion: 'latest',
+            pack,
+            fill: async (pathToDir: string, { hasTheme }: { hasTheme: boolean }) => {
+                seen.push(hasTheme);
+                await writeText(join(pathToDir, 'src', 'components', 'Button', 'index.ts'), 'export {};\n');
+            },
+        });
+        await writeText(join(output, 'src', 'theme', 'index.ts'), 'export {};\n');
+        // Без --package тема в output остаётся, с --package src заменяется целиком.
+        await writePackagePart(options(false));
+        await writePackagePart(options(true));
+        assert.deepEqual(seen, [true, false]);
     });
 
     it('с --package требует --name до генерации', async () => {

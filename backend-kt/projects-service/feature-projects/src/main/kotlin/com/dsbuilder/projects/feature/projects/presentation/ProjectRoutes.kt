@@ -3,27 +3,21 @@ package com.dsbuilder.projects.feature.projects.presentation
 import com.dsbuilder.projects.feature.projects.application.usecase.AddProjectMemberInput
 import com.dsbuilder.projects.feature.projects.application.usecase.AddProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ArchiveProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectAccessKeyInput
-import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectInput
 import com.dsbuilder.projects.feature.projects.application.usecase.CreateProjectUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.GetEffectiveProjectRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.GetEffectiveRoleInput
 import com.dsbuilder.projects.feature.projects.application.usecase.GetProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectAccessKeysUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectMembersUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectsInput
 import com.dsbuilder.projects.feature.projects.application.usecase.ListProjectsUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.ManageMemberInput
 import com.dsbuilder.projects.feature.projects.application.usecase.RemoveProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RestoreProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.RevokeProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.SearchProjectMemberCandidatesUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectInput
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectMemberRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectUseCase
-import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProjectAccessKeyInput
-import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -36,10 +30,16 @@ import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 import org.koin.ktor.ext.inject
 
 /** Регистрирует публичные endpoints проектов и internal endpoint для access-check. */
-fun Application.projectsRoutes(internalApiKey: String?) {
+fun Application.projectsRoutes(internalApiKey: String?, publicEntry: Boolean = false) {
     val createProject by inject<CreateProjectUseCase>()
     val listProjects by inject<ListProjectsUseCase>()
     val getProject by inject<GetProjectUseCase>()
@@ -51,27 +51,28 @@ fun Application.projectsRoutes(internalApiKey: String?) {
     val updateProjectMemberRole by inject<UpdateProjectMemberRoleUseCase>()
     val removeProjectMember by inject<RemoveProjectMemberUseCase>()
     val searchProjectMemberCandidates by inject<SearchProjectMemberCandidatesUseCase>()
-    val createProjectAccessKey by inject<CreateProjectAccessKeyUseCase>()
-    val listProjectAccessKeys by inject<ListProjectAccessKeysUseCase>()
-    val revokeProjectAccessKey by inject<RevokeProjectAccessKeyUseCase>()
-    val verifyProjectAccessKey by inject<VerifyProjectAccessKeyUseCase>()
     val getEffectiveProjectRole by inject<GetEffectiveProjectRoleUseCase>()
 
     routing {
-        get("/health") {
-            call.respond(HttpStatusCode.OK)
-        }
+        val mount = if (publicEntry) projectsPublicEntry() else this
+        mount.route(if (publicEntry) "/api" else "/") {
+            if (!publicEntry) {
+                get("/health") {
+                    call.respond(HttpStatusCode.OK)
+                }
+            }
 
-        projectCrudRoutes(listProjects, createProject, getProject, updateProject, archiveProject, restoreProject)
-        projectMemberRoutes(
-            listProjectMembers,
-            searchProjectMemberCandidates,
-            addProjectMember,
-            updateProjectMemberRole,
-            removeProjectMember,
-        )
-        projectAccessKeyRoutes(createProjectAccessKey, listProjectAccessKeys, revokeProjectAccessKey)
-        internalProjectRoutes(getEffectiveProjectRole, verifyProjectAccessKey, internalApiKey)
+            projectCrudRoutes(listProjects, createProject, getProject, updateProject, archiveProject, restoreProject)
+            projectMemberRoutes(
+                listProjectMembers,
+                searchProjectMemberCandidates,
+                addProjectMember,
+                updateProjectMemberRole,
+                removeProjectMember,
+            )
+
+            if (!publicEntry) internalProjectRoutes(getEffectiveProjectRole, internalApiKey)
+        }
     }
 }
 
@@ -83,7 +84,7 @@ private fun Route.projectCrudRoutes(
     archiveProject: ArchiveProjectUseCase,
     restoreProject: RestoreProjectUseCase,
 ) {
-    route("/projects") {
+    route(projectsRoutePath("/projects")) {
         listProjectsRoute(listProjects)
 
         post {
@@ -147,7 +148,14 @@ private fun Route.listProjectsRoute(listProjects: ListProjectsUseCase) {
         runCatching {
             listProjects.execute(ListProjectsInput(actor = call.requireActor()))
         }.onSuccess { projects ->
-            call.respond(projects.map { it.project.toResponse(it.effectiveRole) })
+            call.respond(
+                projects.map {
+                    JsonObject(
+                        Json.encodeToJsonElement(it.project.toResponse(it.effectiveRole)).jsonObject +
+                            ("designSystemCount" to (it.designSystemCount?.let(::JsonPrimitive) ?: JsonNull)),
+                    )
+                },
+            )
         }.onFailure { call.respondProjectError(it) }
     }
 }
@@ -159,7 +167,7 @@ private fun Route.projectMemberRoutes(
     updateProjectMemberRole: UpdateProjectMemberRoleUseCase,
     removeProjectMember: RemoveProjectMemberUseCase,
 ) {
-    get("/projects/member-candidates") {
+    get(projectsRoutePath("/projects/member-candidates")) {
         runCatching {
             searchProjectMemberCandidates.execute(
                 call.requireActor(),
@@ -170,7 +178,7 @@ private fun Route.projectMemberRoutes(
         }.onFailure { call.respondProjectError(it) }
     }
 
-    route("/projects/{projectId}/members") {
+    route(projectsRoutePath("/projects/{projectId}/members")) {
         get {
             runCatching {
                 listProjectMembers.execute(call.requireActor(), call.parameters["projectId"].orEmpty())
@@ -222,59 +230,8 @@ private fun Route.projectMemberRoutes(
     }
 }
 
-private fun Route.projectAccessKeyRoutes(
-    createProjectAccessKey: CreateProjectAccessKeyUseCase,
-    listProjectAccessKeys: ListProjectAccessKeysUseCase,
-    revokeProjectAccessKey: RevokeProjectAccessKeyUseCase,
-) {
-    route("/projects/{projectId}/access-keys") {
-        get {
-            runCatching {
-                listProjectAccessKeys.execute(call.requireActor(), call.parameters["projectId"].orEmpty())
-            }.onSuccess { keys ->
-                call.respond(keys.map { it.toResponse() })
-            }.onFailure { call.respondProjectError(it) }
-        }
-
-        post {
-            runCatching {
-                val request = call.receive<CreateProjectAccessKeyRequest>()
-                createProjectAccessKey.execute(
-                    CreateProjectAccessKeyInput(
-                        actor = call.requireActor(),
-                        projectId = call.parameters["projectId"].orEmpty(),
-                        name = request.name,
-                        scopes = request.normalizedScopes(),
-                        ttlSeconds = request.ttlSeconds,
-                    ),
-                )
-            }.onSuccess { created ->
-                call.respond(
-                    HttpStatusCode.Created,
-                    CreatedProjectAccessKeyResponse(
-                        key = created.accessKey.toResponse(),
-                        secret = created.token,
-                    ),
-                )
-            }.onFailure { call.respondProjectError(it) }
-        }
-
-        delete("{keyId}") {
-            runCatching {
-                revokeProjectAccessKey.execute(
-                    actor = call.requireActor(),
-                    projectId = call.parameters["projectId"].orEmpty(),
-                    keyId = call.parameters["keyId"].orEmpty(),
-                )
-            }.onSuccess { call.respond(it.toResponse()) }
-                .onFailure { call.respondProjectError(it) }
-        }
-    }
-}
-
 private fun Route.internalProjectRoutes(
     getEffectiveProjectRole: GetEffectiveProjectRoleUseCase,
-    verifyProjectAccessKey: VerifyProjectAccessKeyUseCase,
     internalApiKey: String?,
 ) {
     route("/internal/projects") {
@@ -297,25 +254,6 @@ private fun Route.internalProjectRoutes(
                         ProjectAccessCheckResponse(projectRole = projectRole.name.lowercase()),
                     )
                 }
-            }.onFailure { call.respondProjectError(it) }
-        }
-    }
-
-    route("/internal/access-keys") {
-        post("/verify") {
-            runCatching {
-                call.requireInternalAccess(internalApiKey)
-                val request = call.receive<VerifyProjectAccessKeyRequest>()
-                verifyProjectAccessKey.execute(VerifyProjectAccessKeyInput(request.token))
-            }.onSuccess { verification ->
-                call.respond(
-                    HttpStatusCode.OK,
-                    VerifyProjectAccessKeyResponse(
-                        projectId = verification.projectId,
-                        keyId = verification.keyId,
-                        scopes = verification.scopes.map { it.value }.sorted(),
-                    ),
-                )
             }.onFailure { call.respondProjectError(it) }
         }
     }

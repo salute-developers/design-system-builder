@@ -1,6 +1,10 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.ModelReadItems
+import com.dsbuilder.ds.core.application.ModelReadQuery
+import com.dsbuilder.ds.core.data.InvalidModelReadQueryException
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.tokengroups.NewTokenGroup
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
@@ -23,6 +27,7 @@ class ExposedTokenGroupRepository : TokenGroupRepository {
         ThemeDesignSystemsTable.selectAll()
             .where {
                 (ThemeDesignSystemsTable.id eq designSystemId) and
+                    requestDesignSystemScope(ThemeDesignSystemsTable.id) and
                     (
                         (ThemeDesignSystemsTable.projectId eq projectId.value) or
                             ThemeDesignSystemsTable.projectId.isNull()
@@ -34,13 +39,28 @@ class ExposedTokenGroupRepository : TokenGroupRepository {
     override suspend fun list(designSystemId: UUID, kind: TokenGroupKind): List<TokenGroup> =
         TokenGroupsTable.selectAll()
             .where { (TokenGroupsTable.designSystemId eq designSystemId) and (TokenGroupsTable.kind eq kind) }
-            .orderBy(TokenGroupsTable.position to SortOrder.ASC, TokenGroupsTable.label to SortOrder.ASC)
+            .orderBy(TokenGroupsTable.position to SortOrder.ASC, TokenGroupsTable.id to SortOrder.ASC)
             .map(::group)
             // Сначала группы, затем подгруппы по порядку их групп.
             .let { rows ->
                 val top = rows.filter { it.parentId == null }
                 top + top.flatMap { parent -> rows.filter { it.parentId == parent.id } }
             }
+
+    override suspend fun page(
+        designSystemId: UUID,
+        kind: TokenGroupKind,
+        read: ModelReadQuery,
+    ): ModelReadItems<TokenGroup> {
+        val parent = read.parentId?.let {
+            runCatching { UUID.fromString(it) }.getOrNull()
+                ?: throw InvalidModelReadQueryException()
+        }
+        if (read.limit == null && read.cursor == null) {
+            return pageTokenGroups(list(designSystemId, kind), read, designSystemId, kind, parent)
+        }
+        return sqlPageTokenGroups(designSystemId, kind, read, parent)
+    }
 
     override suspend fun find(designSystemId: UUID, groupId: UUID): TokenGroup? =
         TokenGroupsTable.selectAll()

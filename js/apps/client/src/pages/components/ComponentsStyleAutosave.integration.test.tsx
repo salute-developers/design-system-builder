@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
         getName: () => 'Button',
         getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.currentMeta),
+        getConfigurationId: () => undefined,
+        getConfigurations: () => [],
+        getComponentId: () => undefined,
     },
 }));
 vi.mock('../../api/http', () => ({
@@ -28,17 +31,15 @@ vi.mock('../../api/editorReads', () => ({
     readEditor: (url: string) => mocks.get(url),
     invalidateEditorReads: vi.fn(),
 }));
-vi.mock('../../utils', async (original) => ({
-    ...(await original<typeof import('../../utils')>()),
-    getOldMenuItems: () => ({ groups: [{ data: [{ items: [{ name: 'Button', data: [mocks.config] }] }] }] }),
-}));
 vi.mock('../../layouts', () => ({
-    MenuOld: () => null,
     Workspace: ({ content }: { content: ReactNode }) => <>{content}</>,
 }));
 vi.mock('./features/ComponentEditor', () => ({
-    ComponentEditor: ({ onConfigUpdate }: { onConfigUpdate: () => void }) => (
-        <button onClick={onConfigUpdate}>изменить</button>
+    ComponentEditor: ({ onConfigUpdate, status }: { onConfigUpdate: () => void; status?: ReactNode }) => (
+        <>
+            {status}
+            <button onClick={onConfigUpdate}>изменить</button>
+        </>
     ),
 }));
 
@@ -73,6 +74,7 @@ it('deletes the server style when the user removes its local style during creati
         designSystem: {
             getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
             getComponentDataByName: () => ({ serverBinding: { componentId: 'component', appearanceId: 'appearance' } }),
+            getComponentData: () => ({ serverBinding: { componentId: 'component', appearanceId: 'appearance' } }),
         },
         theme: {},
         components: [mocks.config],

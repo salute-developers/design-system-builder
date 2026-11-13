@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useOutlet } from 'react-router-dom';
-import { designSystemsApi, projectsApi, type ProjectDto } from '../../api';
+import { projectsApi, type ProjectDto } from '../../api';
 import { CardMenu, CatalogPage, EmptyState, sortCatalogByName, State } from '../../components/Catalog/Catalog';
 import { choose, Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
@@ -10,6 +10,17 @@ export const ProjectsPage = () => {
     const state = useLoad(projectsApi.list, [], 'projects');
     const [sort, setSort] = useState('modified');
     const dialog = useOutlet();
+    const createLinkRef = useRef<HTMLAnchorElement>(null);
+    const restoreFocus = useRef(false);
+    const dialogOpen = Boolean(dialog);
+    useEffect(() => {
+        if (dialogOpen) {
+            restoreFocus.current = true;
+        } else if (restoreFocus.current && createLinkRef.current) {
+            createLinkRef.current.focus();
+            restoreFocus.current = false;
+        }
+    }, [dialogOpen, state.data, state.error]);
     if (state.error) return <State text="Не удалось загрузить проекты" retry={state.reload} />;
     if (!state.data) return <State text="Загружаем проекты…" />;
     const activeProjects = sortCatalogByName(
@@ -27,7 +38,7 @@ export const ProjectsPage = () => {
             showSort={state.data.length > 0}
             title="Проекты"
             action={
-                <Link className="primary" to="/projects/new">
+                <Link ref={createLinkRef} className="primary" to="/projects/new">
                     Создать проект
                 </Link>
             }
@@ -62,8 +73,7 @@ export const ProjectsPage = () => {
 };
 
 const ProjectCard = ({ project }: { project: ProjectDto }) => {
-    const systems = useLoad(() => designSystemsApi.list(project.id), [project.id], `systems:${project.id}`);
-    const systemCount = systems.data?.filter((system) => !system.isTechnical).length;
+    const systemCount = project.designSystemCount;
     return (
         <article className="catalog-card clickable-card">
             <Link className="catalog-card-link" to={`/projects/${project.id}`}>
@@ -77,8 +87,8 @@ const ProjectCard = ({ project }: { project: ProjectDto }) => {
                 <div className="catalog-body">
                     <h2>{project.name}</h2>
                     <p className="catalog-meta">
-                        {systemCount === undefined
-                            ? 'Считаем дизайн-системы…'
+                        {systemCount == null
+                            ? 'Количество дизайн-систем недоступно'
                             : `${systemCount} ${systemCount === 1 ? 'дизайн-система' : 'дизайн-систем'}`}
                     </p>
                 </div>

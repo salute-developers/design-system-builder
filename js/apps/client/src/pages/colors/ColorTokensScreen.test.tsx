@@ -1,9 +1,11 @@
 import { useReducer, useState } from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createEvent, act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const tokenReset = vi.hoisted(() => ({ reset: vi.fn(), busy: false, error: null }));
+vi.mock('../../features/versionJournal/tokenReset', () => ({ useTokenReset: () => tokenReset }));
 vi.mock('../../api/index', () => ({ http: { get, put: vi.fn() }, PROJECTS_URL: '/api/projects' }));
 vi.mock('../../api/http', () => ({ http: { get, post } }));
 vi.mock('../../api/editorReads', () => ({
@@ -116,7 +118,7 @@ const reply =
             };
         if (url.endsWith('/design-system-components') || url.endsWith('/components') || url.endsWith('/appearances'))
             return { data: [] };
-        if (url.endsWith('/design-system-versions/by-design-system/ds-1')) return { data: [] };
+        if (url.endsWith('/design-systems/ds-1/versions')) return { data: [] };
         if (url.endsWith('/palette'))
             return { data: { tenantId: 'tenant-1', editRevision: 3, groups: [], tokens: [], template: [], links: [] } };
         throw new Error(`Unexpected URL ${url}`);
@@ -124,13 +126,18 @@ const reply =
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 let tenantSeq = 0;
-const RouteSearch = () => <span data-testid="route-search" hidden>{useLocation().search}</span>;
+const RouteSearch = () => (
+    <span data-testid="route-search" hidden>
+        {useLocation().search}
+    </span>
+);
 
 const repository = {
     create: vi.fn<ColorTokenRepository['create']>(),
     updateValues: vi.fn<ColorTokenRepository['updateValues']>(),
     delete: vi.fn<ColorTokenRepository['delete']>(),
     move: vi.fn<ColorTokenRepository['move']>(),
+    describe: vi.fn<ColorTokenRepository['describe']>(),
 };
 
 /** Группы дизайн-системы в памяти: список и определения отдаются из текущего состояния. */
@@ -167,7 +174,13 @@ const renderScreen = async (
     role = 'maintainer',
     missing: string[] = [],
     components: Config[] = [],
-    options: { palette?: ThemePalette; versionId?: string; cachedGroups?: boolean; entry?: string } = {},
+    options: {
+        palette?: ThemePalette;
+        versionId?: string;
+        cachedGroups?: boolean;
+        entry?: string;
+        changedTokenNames?: Set<string>;
+    } = {},
 ) => {
     get.mockImplementation((url: string) => Promise.resolve(reply(role, missing)(url)));
     const loadContext = { ...context, ...(options.versionId ? { versionId: options.versionId } : {}) };
@@ -207,6 +220,7 @@ const renderScreen = async (
                 updated={{ updated }}
                 rerender={rerender}
                 reload={() => undefined}
+                changedTokenNames={options.changedTokenNames}
             />
         );
     };
@@ -224,6 +238,8 @@ const renderScreen = async (
 };
 
 const inspector = () => document.querySelector('.properties-panel') as HTMLElement;
+/** Имя токена в шапке инспектора: текст, который двойной щелчок делает полем. */
+const inspectorTitle = () => within(inspector()).getByRole('button', { name: 'Имя токена' });
 const commitLight = (value: string) => {
     const field = within(inspector()).getAllByRole('textbox', { name: 'Light' })[0];
     fireEvent.change(field, { target: { value } });
@@ -244,6 +260,7 @@ beforeEach(() => {
     repository.updateValues.mockReset();
     repository.delete.mockReset();
     repository.move.mockReset();
+    repository.describe.mockReset();
     groupRepository.create.mockReset();
     groupRepository.update.mockReset();
     groupRepository.remove.mockReset();
@@ -261,13 +278,9 @@ describe('ColorTokensScreen', () => {
     it('selects the token addressed by the journal and allows choosing another token afterwards', async () => {
         extraTokens = [{ name: 'secondary', groupId: 'g-accent', position: 1 }];
         await renderScreen('owner', [], [], { entry: '/?tokenId=secondary-0' });
-        await waitFor(() =>
-            expect(within(inspector()).getByRole('heading', { name: 'textSecondary' })).toBeInTheDocument(),
-        );
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textSecondary'));
         fireEvent.click(screen.getByTestId('color-token-row-text.accent'));
-        await waitFor(() =>
-            expect(within(inspector()).getByRole('heading', { name: 'textAccent' })).toBeInTheDocument(),
-        );
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
         repository.create.mockImplementation(async (_context, input) => ({
             editRevision: 4,
             value: {
@@ -281,9 +294,7 @@ describe('ColorTokensScreen', () => {
         const field = screen.getByRole('textbox', { name: 'Имя нового токена' });
         fireEvent.change(field, { target: { value: 'Highlight' } });
         fireEvent.keyDown(field, { key: 'Enter' });
-        await waitFor(() =>
-            expect(within(inspector()).getByRole('heading', { name: 'textHighlight' })).toBeInTheDocument(),
-        );
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textHighlight'));
     });
 
     it('использует группы раздела без повторного чтения групп и определений', async () => {
@@ -365,8 +376,10 @@ describe('ColorTokensScreen', () => {
         expect(light('accent-0')?.value).toEqual(['#123456']);
         // OnLight наследует Light: правка уходит в связанную подтему той же операцией.
         expect(light('accent-2')?.value).toEqual(['#123456']);
-        await waitFor(() => expect(screen.getByTestId('color-tokens-save-status')).toHaveTextContent('Сохранено'));
-        expect(designSystem.getParameters()?.editRevision).toBe(4);
+        await waitFor(() => expect(designSystem.getParameters()?.editRevision).toBe(4));
+        // Состояние сохранения — значок в тулбаре приложения; в шапке рабочей области его нет.
+        expect(screen.queryByTestId('color-tokens-save-status')).toBeNull();
+        expect(screen.queryByRole('button', { name: /Палитра/ })).toBeNull();
     });
 
     it('показывает отказ сервера и повторяет отправку по «Повторить»', async () => {
@@ -384,20 +397,26 @@ describe('ColorTokensScreen', () => {
 
         commitLight('#123456');
 
-        const status = screen.getByTestId('color-tokens-save-status');
-        await waitFor(() => expect(status).toHaveTextContent('Не сохранено'));
-        expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent(
-            'Не сохранено: Значение не прошло проверку (По умолчанию · web · Light)',
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toBeInTheDocument());
+        const status = screen.getByTestId('color-tokens-save-error');
+        expect(status).toHaveTextContent('Не сохранено: Значение не прошло проверку (По умолчанию · web · Light)');
+        // Ошибка значения — и под полем, на всю ширину секции.
+        expect(within(inspector()).getByRole('alert')).toHaveTextContent('Значение не прошло проверку');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute(
+            'aria-invalid',
+            'true',
         );
-        expect(within(inspector()).queryByText(/Значение не прошло проверку/)).toBeNull();
-        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute('aria-invalid', 'true');
-        expect(within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0]).toHaveAttribute('aria-invalid', 'false');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0]).toHaveAttribute(
+            'aria-invalid',
+            'false',
+        );
         expect(screen.getByTestId('color-token-row-text.accent')).toHaveTextContent('Не сохранено');
 
         fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
 
-        await waitFor(() => expect(status).toHaveTextContent('Сохранено'));
+        await waitFor(() => expect(screen.queryByTestId('color-tokens-save-error')).toBeNull());
         expect(repository.updateValues).toHaveBeenCalledTimes(2);
+        expect(within(inspector()).queryByRole('alert')).toBeNull();
     });
 
     it('не подсвечивает поле Web при ошибке значения другой платформы', async () => {
@@ -408,9 +427,14 @@ describe('ColorTokensScreen', () => {
 
         commitLight('#123456');
 
-        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Ошибка значения iOS'));
+        await waitFor(() =>
+            expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Ошибка значения iOS'),
+        );
         expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('По умолчанию · ios · Light');
-        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute('aria-invalid', 'false');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute(
+            'aria-invalid',
+            'false',
+        );
     });
 
     it('указывает поле и подтему при ошибке сохранения значения OnDark', async () => {
@@ -425,8 +449,14 @@ describe('ColorTokensScreen', () => {
 
         await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Неверный цвет'));
         expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('OnDark · web · Light');
-        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute('aria-invalid', 'false');
-        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[1]).toHaveAttribute('aria-invalid', 'true');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveAttribute(
+            'aria-invalid',
+            'false',
+        );
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[1]).toHaveAttribute(
+            'aria-invalid',
+            'true',
+        );
     });
 
     it('не теряет неотправленную правку при перезагрузке темы', async () => {
@@ -436,14 +466,15 @@ describe('ColorTokensScreen', () => {
         const { reloadTheme } = await renderScreen();
 
         commitLight('#123456');
-        const status = screen.getByTestId('color-tokens-save-status');
-        await waitFor(() => expect(status).toHaveTextContent('Не сохранено'));
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Не сохранено'));
 
         await reloadTheme();
         expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveValue('123456');
 
-        fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
-        await waitFor(() => expect(status).toHaveTextContent('Сохранено'));
+        fireEvent.click(
+            within(screen.getByTestId('color-tokens-save-error')).getByRole('button', { name: 'Повторить' }),
+        );
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
         const light = repository.updateValues.mock.calls[1][2].members
             .find((member) => member.tokenId === 'accent-0')
             ?.values.find((value) => value.mode === 'light');
@@ -499,7 +530,7 @@ describe('ColorTokensScreen', () => {
         const dark = within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0];
         fireEvent.change(dark, { target: { value: '#123456' } });
         fireEvent.keyDown(dark, { key: 'Enter' });
-        await waitFor(() => expect(screen.getByTestId('color-tokens-save-status')).toHaveTextContent('Не сохранено'));
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-error')).toHaveTextContent('Не сохранено'));
 
         // Light изменён в другой вкладке: новая загрузка темы приносит его значение.
         await reloadTheme((theme) =>
@@ -659,7 +690,7 @@ describe('ColorTokensScreen', () => {
             ),
         );
         await waitFor(() => expect(screen.getByTestId('color-token-row-text.brand')).toHaveTextContent('textBrand'));
-        expect(within(inspector()).getByRole('heading', { level: 1 })).toHaveTextContent('textBrand');
+        expect(inspectorTitle()).toHaveTextContent('textBrand');
     });
 
     it('уход фокуса из строки переименования сохраняет изменённое имя, а без изменений закрывает строку', async () => {
@@ -706,7 +737,7 @@ describe('ColorTokensScreen', () => {
         ).toBeInTheDocument();
 
         fireEvent.keyDown(screen.getByRole('textbox', { name: 'Новое имя textAccent' }), { key: 'Escape' });
-        fireEvent.doubleClick(within(inspector()).getByRole('heading', { level: 1 }));
+        fireEvent.doubleClick(inspectorTitle());
         expect(
             await within(inspector()).findByRole('img', {
                 name: 'Токен опубликован в версии 1.2.0. Новое имя изменит переменную в пакете дизайн-системы',
@@ -933,6 +964,43 @@ describe('ColorTokensScreen', () => {
             );
         });
 
+        it('в режиме «Исходные» нижняя половина последней строки ставит токен в конец её группы', async () => {
+            await renderWithStatus();
+            fireEvent.click(screen.getByRole('button', { name: 'Порядок токенов' }));
+            vi.spyOn(wrap('beta'), 'getBoundingClientRect').mockReturnValue({ top: 100, height: 24 } as DOMRect);
+
+            fireEvent.dragStart(row('accent'), { dataTransfer });
+            // В jsdom нет `DragEvent`, координата задаётся событию напрямую.
+            const over = createEvent.dragOver(wrap('beta'), { dataTransfer });
+            Object.defineProperty(over, 'clientY', { value: 120 });
+            fireEvent(wrap('beta'), over);
+
+            expect(wrap('beta').querySelector('.token-tree-drop')).toHaveClass('is-after');
+
+            fireEvent.drop(wrap('beta'), { dataTransfer });
+            await waitFor(() =>
+                expect(repository.move).toHaveBeenCalledWith(
+                    expect.anything(),
+                    'accent-0',
+                    { groupId: 'g-status', position: 2 },
+                    3,
+                ),
+            );
+        });
+
+        it('в режиме «Исходные» токен, брошенный на свою строку, остаётся на месте', async () => {
+            await renderWithStatus();
+            fireEvent.click(screen.getByRole('button', { name: 'Порядок токенов' }));
+
+            fireEvent.dragStart(row('beta'), { dataTransfer });
+            fireEvent.dragOver(wrap('beta'), { dataTransfer });
+
+            expect(document.querySelector('.token-tree-drop')).toBeNull();
+
+            fireEvent.drop(wrap('beta'), { dataTransfer });
+            expect(repository.move).not.toHaveBeenCalled();
+        });
+
         it('в режиме «А–Я» над своей подгруппой снимает подсказку и не переносит токен', async () => {
             await renderWithStatus();
 
@@ -973,17 +1041,22 @@ describe('ColorTokensScreen', () => {
         });
     });
 
-    it('удаляет пустую подгруппу сразу, а группу с токенами — после подтверждения', async () => {
+    it('удаляет пустую подгруппу и группу с токенами только после подтверждения', async () => {
         groupRepository.remove.mockImplementation(async (_context, groupId) => {
             groupState = groupState.filter((item) => item.id !== groupId && item.parentId !== groupId);
             if (groupId === 'g-text') definitionState = [];
             return { editRevision: 4 };
         });
-        await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')], { entry: '/?tokenId=accent-0' });
+        await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')], {
+            entry: '/?tokenId=accent-0',
+        });
         await screen.findByTestId('token-subgroup-Status');
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить подгруппу Status' }));
-        expect(screen.queryByRole('dialog')).toBeNull();
+        const empty = screen.getByRole('dialog');
+        expect(within(empty).getByTestId('delete-group-tokens')).toHaveTextContent('Группа пустая');
+        expect(groupRepository.remove).not.toHaveBeenCalled();
+        fireEvent.click(within(empty).getByRole('button', { name: 'Удалить группу' }));
         await waitFor(() => expect(screen.queryByTestId('token-subgroup-Status')).toBeNull());
         expect(screen.getByTestId('route-search')).toHaveTextContent('tokenId=accent-0');
 
@@ -998,13 +1071,16 @@ describe('ColorTokensScreen', () => {
         expect(groupRepository.remove).toHaveBeenLastCalledWith(expect.anything(), 'g-text', 4);
     });
 
-    it('удаляет токен без связей с компонентами без подтверждения', async () => {
+    it('удаляет токен без связей с компонентами тоже после подтверждения', async () => {
         repository.delete.mockResolvedValue({ editRevision: 4 });
         await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-0' });
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
 
-        expect(screen.queryByRole('dialog')).toBeNull();
+        const dialog = screen.getByRole('dialog');
+        expect(dialog).toHaveTextContent('Токен не используется в компонентах дизайн-системы.');
+        expect(repository.delete).not.toHaveBeenCalled();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
         await waitFor(() => expect(repository.delete).toHaveBeenCalledWith(expect.anything(), 'accent-0', 3));
         await waitFor(() => expect(screen.queryByTestId('color-token-row-text.accent')).toBeNull());
         await waitFor(() => expect(screen.getByTestId('route-search')).toBeEmptyDOMElement());
@@ -1015,8 +1091,11 @@ describe('ColorTokensScreen', () => {
         await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-0' });
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
+        const dialog = screen.getByRole('dialog');
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
 
-        expect(await screen.findByText('Не удалось удалить токен: Удаление отклонено')).toBeInTheDocument();
+        // Ошибка остаётся в окне подтверждения.
+        expect(await within(dialog).findByText(/Удаление отклонено/)).toBeInTheDocument();
         expect(screen.getByTestId('route-search')).toHaveTextContent('tokenId=accent-0');
     });
 
@@ -1174,8 +1253,10 @@ describe('ColorTokensScreen: градиенты', () => {
         const chip = row.querySelector('.token-color-preview') as HTMLElement;
         expect(chip.style.getPropertyValue('--swatch-color')).toContain('top / 100% 50% no-repeat');
         expect(chip.style.getPropertyValue('--swatch-color')).toContain('linear-gradient(45deg');
-        const card = document.querySelector('[data-token-id="text.accent"] .token-swatch-dark-mode') as HTMLElement;
+        const card = document.querySelector('[data-token-id="text.accent"] .ct-tile-half.is-dark') as HTMLElement;
         expect(card.style.getPropertyValue('--swatch-color')).toContain('linear-gradient(45deg');
+        // Половина плитки заливается градиентом поверх шахматки целиком.
+        expect(card.style.background).toContain('linear-gradient(45deg');
     });
 
     it('редактор меняет тип, геометрию и стопы первого слоя', async () => {
@@ -1278,7 +1359,7 @@ describe('ColorTokensScreen: градиенты', () => {
         fireEvent.click(
             within(screen.getByRole('dialog', { name: 'Цвет стопа 2' })).getByRole('button', { name: 'Библиотека' }),
         );
-        expect(screen.getByRole('heading', { name: 'green' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /^green$/i })).toBeInTheDocument();
         expect(screen.queryByRole('heading', { name: /^color\// })).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Green 400 #4FCB66' }));
 
@@ -1370,19 +1451,16 @@ describe('ColorTokensScreen: градиенты', () => {
         await renderScreen();
         await screen.findByTestId('token-subgroup-Accent');
         expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
-        const heading = within(inspector()).getByRole('heading', { level: 1 });
-
-        fireEvent.doubleClick(heading);
-        const name = within(heading).getByRole('textbox', { name: 'Новое имя textAccent' }) as HTMLInputElement;
+        fireEvent.doubleClick(inspectorTitle());
+        const name = within(inspector()).getByRole('textbox', { name: 'Имя токена' }) as HTMLInputElement;
         expect(name).toHaveValue('textAccent');
-        expect([name.selectionStart, name.selectionEnd]).toEqual([0, 'textAccent'.length]);
         fireEvent.change(name, { target: { value: 'textBrand' } });
         fireEvent.keyDown(name, { key: 'Escape' });
-        expect(within(heading).queryByRole('textbox')).toBeNull();
+        expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
         expect(repository.move).not.toHaveBeenCalled();
 
-        fireEvent.doubleClick(heading);
-        const again = within(heading).getByRole('textbox', { name: 'Новое имя textAccent' });
+        fireEvent.doubleClick(inspectorTitle());
+        const again = within(inspector()).getByRole('textbox', { name: 'Имя токена' });
         fireEvent.change(again, { target: { value: 'textGlow' } });
         fireEvent.keyDown(again, { key: 'Enter' });
 
@@ -1394,9 +1472,7 @@ describe('ColorTokensScreen: градиенты', () => {
                 3,
             ),
         );
-        await waitFor(() =>
-            expect(within(inspector()).getByRole('heading', { level: 1 })).toHaveTextContent('textGlow'),
-        );
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textGlow'));
     });
 
     it('выбор цвета выравнивается по полю и следует за прокруткой панели свойств и изменением окна', async () => {
@@ -1441,5 +1517,114 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(within(inspector()).queryByRole('button', { name: /^Убрать своё значение/ })).toBeNull();
         expect(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark' })[0]).toBeDisabled();
         expect(screen.queryByRole('dialog', { name: /^Color picker/ })).toBeNull();
+    });
+});
+
+describe('ColorTokensScreen: вёрстка по Figma', () => {
+    it('ввод в поиск не меняет выбранный токен, пустой результат — «По вашему запросу ничего не найдено»', async () => {
+        extraTokens = [{ name: 'beta', groupId: 'g-status', position: 0 }];
+        await renderScreen();
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Найти токен' }), { target: { value: 'beta' } });
+        await waitFor(() => expect(screen.queryByTestId('color-token-row-text.accent')).toBeNull());
+        expect(inspectorTitle()).toHaveTextContent('textAccent');
+
+        fireEvent.change(screen.getByRole('textbox', { name: 'Найти токен' }), { target: { value: 'zzzz' } });
+        expect(await screen.findByText('По вашему запросу ничего не найдено')).toBeInTheDocument();
+        expect(screen.queryByTestId('token-group-Text & Icons')).toBeNull();
+        expect(inspectorTitle()).toHaveTextContent('textAccent');
+    });
+
+    it('сохраняет описание во всех определениях семейства и показывает его в инспекторе', async () => {
+        repository.describe.mockResolvedValue(undefined);
+        await renderScreen();
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
+
+        fireEvent.doubleClick(within(inspector()).getByRole('button', { name: 'Описание токена' }));
+        const field = within(inspector()).getByRole('textbox', { name: 'Описание токена' });
+        fireEvent.change(field, { target: { value: 'Акцентный цвет текста' } });
+        fireEvent.keyDown(field, { key: 'Enter' });
+
+        await waitFor(() =>
+            expect(within(inspector()).getByRole('button', { name: 'Описание токена' })).toHaveTextContent(
+                'Акцентный цвет текста',
+            ),
+        );
+        const ids = repository.describe.mock.calls.map(([, id, text]) => [id, text]);
+        expect(ids).toEqual(
+            ['accent-0', 'accent-1', 'accent-2', 'accent-3'].map((id) => [id, 'Акцентный цвет текста']),
+        );
+    });
+
+    it('ошибка сохранения описания остаётся у поля', async () => {
+        repository.describe.mockRejectedValue(new Error('Нет прав'));
+        await renderScreen();
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
+
+        fireEvent.doubleClick(within(inspector()).getByRole('button', { name: 'Описание токена' }));
+        const field = within(inspector()).getByRole('textbox', { name: 'Описание токена' });
+        fireEvent.change(field, { target: { value: 'Новое' } });
+        fireEvent.keyDown(field, { key: 'Enter' });
+
+        expect(await within(inspector()).findByText('Нет прав')).toBeInTheDocument();
+        expect(within(inspector()).getByRole('textbox', { name: 'Описание токена' })).toBeInTheDocument();
+    });
+
+    it('сбрасывает изменения семейства токена: кнопка доступна только у изменённого токена', async () => {
+        await renderScreen();
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
+        expect(within(inspector()).getByRole('button', { name: 'Сбросить изменения токена' })).toBeDisabled();
+        cleanup();
+
+        await renderScreen('maintainer', [], [], { changedTokenNames: new Set(['text.default.accent']) });
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
+        await waitFor(() =>
+            expect(within(inspector()).getByRole('button', { name: 'Сбросить изменения токена' })).toBeEnabled(),
+        );
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Сбросить изменения токена' }));
+        expect(tokenReset.reset).toHaveBeenCalledTimes(1);
+        expect(tokenReset.reset.mock.calls[0][0].size).toBeGreaterThan(0);
+    });
+
+    it('«+» своего значения платформы видна у полей режимов без наведения', async () => {
+        await renderScreen();
+        await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
+        const add = within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0];
+        expect(add).toHaveClass('tw-icon-button');
+        expect(add).toBeVisible();
+    });
+
+    it('выбор цвета без неработающих значков: формат Hex / RGB / HSL и копирование HEX', async () => {
+        const writeText = vi.fn(async () => undefined);
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+        await renderScreen();
+        const picker = openPicker('Light');
+
+        expect(within(picker).queryByRole('button', { name: 'Image' })).toBeNull();
+        expect(picker).not.toHaveTextContent(/[⊕●▥◒]/);
+        expect(within(picker).getByRole('group', { name: 'Fill type' })).toBeInTheDocument();
+
+        fireEvent.click(within(picker).getByRole('button', { name: 'Скопировать HEX' }));
+        expect(writeText).toHaveBeenCalledWith(LIGHT);
+
+        fireEvent.change(within(picker).getByRole('combobox', { name: 'Формат цвета' }), { target: { value: 'rgb' } });
+        expect(within(picker).getByRole('textbox', { name: 'R' })).toHaveValue('17');
+        expect(within(picker).getByRole('textbox', { name: 'G' })).toHaveValue('136');
+        expect(within(picker).getByRole('textbox', { name: 'B' })).toHaveValue('51');
+        expect(within(picker).queryByRole('textbox', { name: 'Hex' })).toBeNull();
+
+        fireEvent.change(within(picker).getByRole('combobox', { name: 'Формат цвета' }), { target: { value: 'hsl' } });
+        expect(within(picker).getByRole('textbox', { name: 'H' })).toBeInTheDocument();
+    });
+
+    it('окно градиента: «Точки градиента», HEX и прозрачность стопа целиком', async () => {
+        darkGradient();
+        await renderScreen();
+        const picker = openPicker('Dark');
+        expect(within(picker).getByText('Точки градиента')).toBeInTheDocument();
+        expect(within(picker).getByRole('textbox', { name: 'Прозрачность стопа 1' })).toHaveValue('100');
+        expect(within(picker).getByRole('button', { name: 'Цвет стопа 2: FFFFFF' })).toHaveTextContent(/^FFFFFF$/);
     });
 });

@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.theme.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.core.workspace.ProjectConfigTenant
 import com.dsbuilder.frontend.feature.theme.application.ListThemeAliasesUseCase
 import com.dsbuilder.frontend.feature.theme.application.SetThemeAliasCommand
@@ -38,8 +39,8 @@ internal class ThemeAliasCliCommand(
  */
 internal class ThemeAliasListCliCommand(
     private val useCase: ListThemeAliasesUseCase,
-) : CliktCommand(name = "list") {
-    override fun run() {
+) : AnalyticsCliCommand(name = "list", operation = "theme alias list") {
+    override fun runOperation() {
         when (val result = useCase.execute()) {
             is ThemeAliasListResult.Failed -> fail(result.message)
             is ThemeAliasListResult.Listed -> echo(formatTenants(result.tenants))
@@ -63,12 +64,12 @@ internal class ThemeAliasListCliCommand(
  */
 internal class ThemeAliasSetCliCommand(
     private val useCase: SetThemeAliasUseCase,
-) : CliktCommand(name = "set") {
+) : AnalyticsCliCommand(name = "set", operation = "theme alias set") {
     private val tenantId: String by option("--tenant-id").required()
 
     private val alias: String by option("--alias").required()
 
-    override fun run() {
+    override fun runOperation() {
         when (
             val result = useCase.execute(
                 SetThemeAliasCommand(
@@ -90,10 +91,10 @@ internal class ThemeAliasSetCliCommand(
  */
 internal class ThemeAliasUnsetCliCommand(
     private val useCase: UnsetThemeAliasUseCase,
-) : CliktCommand(name = "unset") {
+) : AnalyticsCliCommand(name = "unset", operation = "theme alias unset") {
     private val alias: String by argument()
 
-    override fun run() {
+    override fun runOperation() {
         when (val result = useCase.execute(UnsetThemeAliasCommand(alias))) {
             is ThemeAliasMutationResult.Changed -> echo(result.message)
             is ThemeAliasMutationResult.Failed -> fail(result.message)

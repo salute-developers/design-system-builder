@@ -2,11 +2,13 @@ package com.dsbuilder.identity.auth.application.usecase
 
 import com.dsbuilder.identity.auth.application.port.JwtVerificationResult
 import com.dsbuilder.identity.auth.application.port.JwtVerifier
-import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerificationResult
-import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerifier
+import com.dsbuilder.identity.auth.application.port.PersonalAccessTokenResult
+import com.dsbuilder.identity.auth.application.port.PersonalAccessTokenVerifier
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolution
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolver
 import com.dsbuilder.identity.auth.domain.model.ActorType
+import com.dsbuilder.identity.auth.domain.model.AuthenticatedActor
+import com.dsbuilder.identity.auth.domain.model.GlobalRole
 import com.dsbuilder.identity.auth.domain.model.ProjectContext
 import com.dsbuilder.identity.auth.domain.model.ProjectRole
 import com.dsbuilder.identity.auth.domain.model.TrustedHeaders
@@ -14,25 +16,72 @@ import com.dsbuilder.identity.auth.domain.model.TrustedHeaders
 internal class AuthorizeProjectRequestUseCase(
     private val jwtVerifier: JwtVerifier,
     private val projectContextResolver: ProjectContextResolver,
-    private val projectAccessKeyVerifier: ProjectAccessKeyVerifier,
+    private val personalTokens: PersonalAccessTokenVerifier =
+        PersonalAccessTokenVerifier {
+            PersonalAccessTokenResult.Invalid
+        },
 ) {
     suspend fun execute(input: GatewayAuthInput): GatewayAuthDecision {
         val authorizationHeader = input.authorizationHeader
             ?: return GatewayAuthDecision.Unauthorized("Missing authorization header")
 
         val bearerToken = authorizationHeader.extractBearerToken()
+        if (bearerToken?.startsWith("dsb_pat_") == true) return authorizePersonalToken(bearerToken, input.projectId)
         return if (bearerToken != null) {
             when (val verified = jwtVerifier.verify(bearerToken)) {
                 is JwtVerificationResult.Invalid -> verified.reason.toDecision()
                 is JwtVerificationResult.Valid -> authorizeActor(verified.actor, input.projectId)
             }
         } else {
-            authorizeProjectKey(authorizationHeader.extractProjectAccessKeyToken(), input.projectId)
+            GatewayAuthDecision.Unauthorized("Unsupported authorization scheme")
+        }
+    }
+
+    private suspend fun authorizePersonalToken(token: String, projectId: String): GatewayAuthDecision {
+        return when (val verified = personalTokens.verify(token)) {
+            is PersonalAccessTokenResult.Valid -> {
+                val actor = AuthenticatedActor(
+                    ActorType.USER,
+                    verified.userId,
+                    null,
+                    if (verified.systemAdmin) {
+                        setOf(GlobalRole.SYSTEM_ADMIN)
+                    } else {
+                        emptySet()
+                    },
+                )
+                val context = if (verified.systemAdmin) {
+                    ProjectContext(projectId, ProjectRole.OWNER)
+                } else {
+                    when (val resolved = projectContextResolver.resolve(actor, projectId)) {
+                        is ProjectContextResolution.Allowed -> resolved.context
+                        ProjectContextResolution.Denied -> return GatewayAuthDecision.Forbidden("Project access denied")
+                        ProjectContextResolution.Unavailable -> return GatewayAuthDecision.Unavailable(
+                            "Project access unavailable",
+                        )
+                    }
+                }
+                GatewayAuthDecision.Allowed(
+                    TrustedHeaders(
+                        actorType = ActorType.PERSONAL_ACCESS_TOKEN.headerValue,
+                        userId = verified.userId,
+                        projectId = context.projectId,
+                        projectRole = context.projectRole.headerValue,
+                        personalAccessTokenId = verified.tokenId,
+                        projectScopes = verified.scopes.sorted().joinToString(","),
+                        systemAdmin = verified.systemAdmin.toString(),
+                    ),
+                )
+            }
+            PersonalAccessTokenResult.Invalid ->
+                GatewayAuthDecision.Unauthorized("Invalid personal access token")
+            PersonalAccessTokenResult.Unavailable ->
+                GatewayAuthDecision.Unavailable("Identity check unavailable")
         }
     }
 
     private suspend fun authorizeActor(
-        actor: com.dsbuilder.identity.auth.domain.model.AuthenticatedActor,
+        actor: AuthenticatedActor,
         projectId: String,
     ): GatewayAuthDecision {
         val context = if (actor.isSystemAdmin) {
@@ -57,38 +106,6 @@ internal class AuthorizeProjectRequestUseCase(
             ),
         )
     }
-
-    private suspend fun authorizeProjectKey(
-        token: String?,
-        projectId: String,
-    ): GatewayAuthDecision {
-        val accessKeyToken = token ?: return GatewayAuthDecision.Unauthorized("Missing project access key")
-        return when (val verified = projectAccessKeyVerifier.verify(accessKeyToken)) {
-            is ProjectAccessKeyVerificationResult.Valid -> {
-                if (verified.projectId != projectId) {
-                    GatewayAuthDecision.Forbidden("Project access denied")
-                } else {
-                    GatewayAuthDecision.Allowed(
-                        TrustedHeaders(
-                            actorType = ActorType.PROJECT_KEY.headerValue,
-                            userId = verified.keyId,
-                            projectId = verified.projectId,
-                            projectRole = null,
-                            projectKeyId = verified.keyId,
-                            projectScopes = verified.scopes.sorted().joinToString(","),
-                            systemAdmin = false.toString(),
-                        ),
-                    )
-                }
-            }
-            ProjectAccessKeyVerificationResult.Invalid -> {
-                GatewayAuthDecision.Unauthorized("Invalid project access key")
-            }
-            ProjectAccessKeyVerificationResult.Unavailable -> {
-                GatewayAuthDecision.Forbidden("Project access unavailable")
-            }
-        }
-    }
 }
 
 internal data class GatewayAuthInput(
@@ -96,21 +113,23 @@ internal data class GatewayAuthInput(
     val projectId: String,
 )
 
-internal sealed interface GatewayAuthDecision {
-    data class Allowed(val trustedHeaders: TrustedHeaders) : GatewayAuthDecision
-    data class Unauthorized(val reason: String) : GatewayAuthDecision
-    data class Forbidden(val reason: String) : GatewayAuthDecision
-}
+/** Результат проверки учётных данных и проектной границы. */
+sealed interface GatewayAuthDecision {
+    /** Временная недоступность обязательной проверки. */
+    data class Unavailable(/** Безопасная причина недоступности. */ val reason: String) : GatewayAuthDecision
 
-internal fun String.extractProjectAccessKeyToken(): String? {
-    val trimmed = trim()
-    if (trimmed.isBlank()) {
-        return null
-    }
-    val parts = trimmed.split(" ", limit = 2)
-    return when {
-        parts.size == 1 -> parts[0]
-        parts[0].equals("ProjectKey", ignoreCase = true) && parts[1].isNotBlank() -> parts[1]
-        else -> null
-    }
+    /** Разрешение с нормализованным контекстом.
+     * @property trustedHeaders Проверенные поля участника.
+     */
+    data class Allowed(val trustedHeaders: TrustedHeaders) : GatewayAuthDecision
+
+    /** Отсутствующие или недействительные учётные данные.
+     * @property reason Безопасная причина отказа.
+     */
+    data class Unauthorized(val reason: String) : GatewayAuthDecision
+
+    /** Отказ в доступе к запрошенному проекту.
+     * @property reason Безопасная причина отказа.
+     */
+    data class Forbidden(val reason: String) : GatewayAuthDecision
 }

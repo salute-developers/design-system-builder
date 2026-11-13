@@ -29,8 +29,9 @@ internal class AndroidGradleLocator(
         }
 
         var current: String? = workspaceDir
+        val executable = if (workspaceDir.contains('\\')) "gradlew.bat" else GRADLEW_EXECUTABLE
         while (current != null) {
-            val candidate = fileSystem.resolve(current, GRADLEW_EXECUTABLE)
+            val candidate = fileSystem.resolve(current, executable)
             if (fileSystem.exists(candidate)) {
                 return candidate
             }

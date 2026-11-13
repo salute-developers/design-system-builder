@@ -50,7 +50,7 @@ public value class CredentialEnvName(
  * @property value raw API key, который не должен сохраняться в config или output.
  */
 @JvmInline
-public value class ProjectApiKey(
+public value class PersonalAccessToken(
     public val value: String,
 ) {
     init {
@@ -85,6 +85,10 @@ public data class ProjectConfigDraft(
     public val designSystemId: DesignSystemId,
     public val credentialEnvName: CredentialEnvName,
     public val platforms: List<TargetPlatform> = emptyList(),
+    /** Авторизация записываемой конфигурации. */
+    public val credentialSelection: InitCredentialSelection = InitCredentialSelection.Environment(
+        credentialEnvName.value,
+    ),
 )
 
 /**
@@ -122,5 +126,5 @@ public data class ProjectAccessCheck(
     public val projectId: ProjectId,
     public val designSystemId: DesignSystemId,
     public val apiUrl: ProjectApiUrl,
-    public val apiKey: ProjectApiKey,
+    public val apiKey: PersonalAccessToken,
 )

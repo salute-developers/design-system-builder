@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.components
 
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReader
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
@@ -14,20 +15,27 @@ import com.dsbuilder.frontend.feature.components.application.ComponentPackageDir
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageLoader
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
+import com.dsbuilder.frontend.feature.components.application.EditComponentUseCase
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.GenerateComponentsUseCase
+import com.dsbuilder.frontend.feature.components.application.IconCatalogRemoteSource
+import com.dsbuilder.frontend.feature.components.application.IconManifestStore
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaUseCase
 import com.dsbuilder.frontend.feature.components.application.LocalComponentPackageWriter
 import com.dsbuilder.frontend.feature.components.application.PreviewPluginArchiveSource
 import com.dsbuilder.frontend.feature.components.application.PreviewPluginRemoteSource
+import com.dsbuilder.frontend.feature.components.application.PublishIconCatalogUseCase
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
 import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.WebAdapterFileSource
 import com.dsbuilder.frontend.feature.components.application.WebAdapterFileWriter
 import com.dsbuilder.frontend.feature.components.data.DefaultComponentPackageLoader
+import com.dsbuilder.frontend.feature.components.data.FileIconManifestStore
 import com.dsbuilder.frontend.feature.components.data.HttpApiMetaRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigRemoteSource
+import com.dsbuilder.frontend.feature.components.data.HttpComponentEditRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentReadRemoteSource
+import com.dsbuilder.frontend.feature.components.data.HttpIconCatalogRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpPreviewPluginRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpWebAdapterFileSource
 import com.dsbuilder.frontend.feature.components.data.LocalApiMetaFileSource
@@ -48,6 +56,7 @@ import org.koin.dsl.module
  * Создает Koin module для прикладного слоя фичи `components`.
  */
 public fun componentsApplicationModule(): Module = module {
+    single { EditComponentUseCase(RuntimeRequestResolver(get(), get(), get()), HttpComponentEditRemoteSource(get())) }
     single { ConfigCodec() }
     single<ComponentPackageLoader> {
         DefaultComponentPackageLoader(fileSystem = get<WorkspaceFileSystem>())
@@ -56,7 +65,7 @@ public fun componentsApplicationModule(): Module = module {
         HttpComponentConfigRemoteSource(httpClientFactory = get<AuthenticatedHttpClientFactory>())
     }
     single<ComponentReadRemoteSource> { HttpComponentReadRemoteSource(get(), get()) }
-    single { ComponentReadUseCases(get(), get(), get(), get()) }
+    single { ComponentReadUseCases(RuntimeRequestResolver(get(), get(), get()), get()) }
     single {
         PushComponentsUseCase(
             projectContextReader = get<ProjectContextReader>(),
@@ -126,7 +135,20 @@ private fun Module.apiMetaBindings() {
             apiUrlResolver = get<ApiUrlResolver>(),
             archiveSource = get<PreviewPluginArchiveSource>(),
             remoteSource = get<PreviewPluginRemoteSource>(),
-            normalizer = get<ComposeApiMetaNormalizer>(),
+            normalizers = mapOf(
+                TargetPlatform.COMPOSE to get<ComposeApiMetaNormalizer>(),
+                TargetPlatform.REACT to get<WebApiMetaNormalizer>(),
+            ),
+        )
+    }
+    single<IconManifestStore> { FileIconManifestStore(get<WorkspaceFileSystem>()) }
+    single<IconCatalogRemoteSource> { HttpIconCatalogRemoteSource(get<AuthenticatedHttpClientFactory>()) }
+    single {
+        PublishIconCatalogUseCase(
+            credentialProvider = get<CredentialProvider>(),
+            apiUrlResolver = get<ApiUrlResolver>(),
+            manifestStore = get<IconManifestStore>(),
+            remoteSource = get<IconCatalogRemoteSource>(),
         )
     }
 }

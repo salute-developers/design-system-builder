@@ -136,7 +136,7 @@ public class ImportApiMetaUseCase internal constructor(
 
     private fun CredentialResult.Failed.withLoginHint(apiUrl: ResolvedApiUrl): String =
         if (code == AuthErrorCode.AUTH_REQUIRED) {
-            "$message Run `dsbuilder auth login --api-url ${apiUrl.value}` as a system administrator."
+            "$message Run `DSBUILDER_API_URL=${apiUrl.value} dsbuilder auth login` as a system administrator."
         } else {
             message
         }

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { EditorContextKey, TokenDefinitionDto } from '../../api/editorContracts';
+import { reloadWhenDraftAutosaveIsIdle } from '../../api/draftAutosaveActivity';
 import { versionJournalRepository } from '../../api/versionJournalRepository';
 
 /** Автосохранение не публикует токен: отметка живёт до публикации или отмены изменения. */
@@ -10,34 +11,31 @@ export function useChangedTokenNames(
     enabled: boolean,
 ) {
     const key = JSON.stringify(context ?? null);
-    const [state, setState] = useState<{ key: string; names: Set<string> }>();
+    const [state, setState] = useState<{ key: string; ids: Set<string> }>();
     useEffect(() => {
         if (!context || context.versionId || !enabled) return;
         const controller = new AbortController();
-        void versionJournalRepository
-            .listChanges(context, controller.signal)
-            .then((changes) => {
-                if (controller.signal.aborted) return;
-                const ids = new Set(
-                    changes.flatMap((change) => {
-                        if (change.entityType === 'token') return [change.entityId];
-                        if (change.entityType !== 'token-value') return [];
-                        const value = change.currentValue ?? change.previousValue;
-                        const tenantId = value?.tenant_id ?? value?.tenantId;
-                        if (tenantId && tenantId !== context.tenantId) return [];
-                        const id = value?.token_id ?? value?.tokenId;
-                        return typeof id === 'string' ? [id] : [];
-                    }),
-                );
-                setState({
-                    key,
-                    names: new Set(definitions.filter((token) => ids.has(token.id)).map((token) => token.name)),
+        const cancel = reloadWhenDraftAutosaveIsIdle(context, () => {
+            if (controller.signal.aborted) return;
+            void versionJournalRepository
+                .listChangedTokenIds(context, controller.signal)
+                .then((ids) => {
+                    if (!controller.signal.aborted) setState({ key, ids: new Set(ids) });
+                })
+                .catch(() => {
+                    /* Сохраняем последнюю подтверждённую отметку при временной ошибке чтения. */
                 });
-            })
-            .catch(() => {
-                /* Сохраняем последнюю подтверждённую отметку при временной ошибке чтения. */
-            });
-        return () => controller.abort();
-    }, [key, definitions, refreshKey, enabled]);
-    return !context?.versionId && state?.key === key ? state.names : undefined;
+        });
+        return () => {
+            cancel();
+            controller.abort();
+        };
+    }, [key, refreshKey, enabled]);
+    return useMemo(
+        () =>
+            !context?.versionId && state?.key === key
+                ? new Set(definitions.filter((token) => state.ids.has(token.id)).map((token) => token.name))
+                : undefined,
+        [context?.versionId, key, state, definitions],
+    );
 }

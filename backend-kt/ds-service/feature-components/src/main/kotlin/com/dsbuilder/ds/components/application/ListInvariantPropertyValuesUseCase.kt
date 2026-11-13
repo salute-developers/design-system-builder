@@ -15,6 +15,6 @@ class ListInvariantPropertyValuesUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<InvariantPropertyValue>> =
         modelList(policy, transactions, context) {
-            repository.listInvariant(context.projectId, context.principal.systemAdmin)
+            repository.listInvariant(context.projectId, context.principal.globalAdmin)
         }
 }

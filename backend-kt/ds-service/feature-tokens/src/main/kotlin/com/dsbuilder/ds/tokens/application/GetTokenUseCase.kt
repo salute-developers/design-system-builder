@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.tokens.domain.Token
 import java.util.UUID
@@ -19,8 +20,11 @@ class GetTokenUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Token> =
         when (val allowed = policy.require(context, ProjectScope.TOKENS_READ)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly(context) {
-                repository.findAccessible(context.projectId, id)?.let { DsResult.Success(it) }
+            is DsResult.Success -> transactions.readOnly(
+                context,
+                ModelReadTarget(ModelReadTarget.Kind.TOKEN, id),
+            ) { selected ->
+                repository.findAccessible(selected.projectId, id)?.let { DsResult.Success(it) }
                     ?: DsResult.Failure(DsFailure.NotFound)
             }
         }

@@ -11,7 +11,10 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResponse
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.network.HttpMutationRequest
+import com.dsbuilder.frontend.core.network.HttpMutationResult
 import com.dsbuilder.frontend.core.network.MultipartFile
+import com.dsbuilder.frontend.core.network.MutationHttpMethod
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -37,7 +40,7 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
     }
 
     @Test
-    fun forbiddenAndProjectKeyNeverRefresh() = runTest {
+    fun forbiddenAndPatNeverRefresh() = runTest {
         val attempts = mutableListOf<BackendCredential>()
         var refreshes = 0
         val factory = factory(attempts) {
@@ -49,12 +52,37 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
             "https://api.example.com",
             BackendCredential.Bearer("forbidden"),
         ).get("/resource")
-        val keyFailure = factory.create("https://api.example.com", BackendCredential.ProjectKey("key")).get("/resource")
+        val keyFailure = factory.create(
+            "https://api.example.com",
+            BackendCredential.PersonalAccessToken("key"),
+        ).get("/resource")
 
         assertEquals(403, (forbidden as AuthenticatedHttpResult.Failure).statusCode)
         assertEquals(401, (keyFailure as AuthenticatedHttpResult.Failure).statusCode)
         assertEquals(0, refreshes)
         assertEquals(2, attempts.size)
+    }
+
+    @Test
+    fun patFailuresNeverRetryOrDeleteOAuthSessionForAnyRequestBody() = runTest {
+        for (secret in listOf("invalid", "forbidden")) {
+            val attempts = mutableListOf<BackendCredential>()
+            val deleted = mutableListOf<String>()
+            val factory = factory(attempts, deleted) { error("PAT must not refresh OAuth") }
+            val client = factory.create("https://api.example.com", BackendCredential.PersonalAccessToken(secret))
+            val expected = if (secret == "forbidden") 403 else 401
+            assertEquals(expected, (client.get("/resource") as AuthenticatedHttpResult.Failure).statusCode)
+            assertEquals(expected, (client.post("/resource", "{}") as AuthenticatedHttpResult.Failure).statusCode)
+            assertEquals(
+                expected,
+                client.postMultipart(
+                    "/upload",
+                    MultipartFile("f", "f.gz", "application/gzip", byteArrayOf(1)),
+                ).statusCode,
+            )
+            assertEquals(3, attempts.size)
+            assertEquals(emptyList(), deleted)
+        }
     }
 
     @Test
@@ -87,15 +115,43 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
         assertEquals(listOf("https://api.example.com"), deleted)
     }
 
+    @Test
+    fun mutationRefreshKeepsTheOriginalRequestAndIdempotencyKey() = runTest {
+        val attempts = mutableListOf<BackendCredential>()
+        val commands = mutableListOf<HttpMutationRequest>()
+        val factory = factory(attempts, mutations = commands) { BackendCredential.Bearer("new") }
+        val request = HttpMutationRequest(MutationHttpMethod.DELETE, "/resource", "{}", "original-key", 7)
+        val result = factory.create("https://api.example.com", BackendCredential.Bearer("old")).mutate(request)
+        assertEquals(200, (result as HttpMutationResult.Response).statusCode)
+        assertEquals(listOf(request, request), commands)
+        assertEquals(2, attempts.size)
+    }
+
+    @Test
+    fun jsonPostIsRetriedOnceWithARefreshedSession() = runTest {
+        val attempts = mutableListOf<BackendCredential>()
+        val factory = factory(attempts) { BackendCredential.Bearer("new") }
+
+        val response = factory.create("https://api.example.com", BackendCredential.Bearer("old"))
+            .postJson("/api/admin/icons/catalog", "{}")
+
+        assertEquals(200, response.statusCode)
+        assertEquals(
+            listOf<BackendCredential>(BackendCredential.Bearer("old"), BackendCredential.Bearer("new")),
+            attempts,
+        )
+    }
+
     private fun factory(
         attempts: MutableList<BackendCredential>,
         deleted: MutableList<String> = mutableListOf(),
         alwaysUnauthorized: Boolean = false,
+        mutations: MutableList<HttpMutationRequest> = mutableListOf(),
         refresh: () -> BackendCredential.Bearer,
     ): AuthenticatedHttpClientFactory {
         val delegate = object : AuthenticatedHttpClientFactory {
             override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-                create(apiUrl, BackendCredential.ProjectKey(apiKey))
+                create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
 
             override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =
                 object : AuthenticatedHttpClient {
@@ -108,12 +164,37 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
                         }
                     }
 
+                    override suspend fun mutate(request: HttpMutationRequest): HttpMutationResult {
+                        mutations += request
+                        return when (val result = get(request.path)) {
+                            is AuthenticatedHttpResult.Success -> HttpMutationResult.Response(
+                                200,
+                                result.body,
+                                emptyMap(),
+                                true,
+                            )
+                            is AuthenticatedHttpResult.Failure -> HttpMutationResult.Response(
+                                result.statusCode ?: 503,
+                                "",
+                                emptyMap(),
+                                true,
+                            )
+                        }
+                    }
+
                     override suspend fun post(path: String, body: String): AuthenticatedHttpResult = get(path)
+
+                    override suspend fun postJson(path: String, body: String): AuthenticatedHttpResponse =
+                        postMultipart(path, MultipartFile("file", "f", "application/json", ByteArray(0)))
 
                     override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
                         attempts += credential
                         return AuthenticatedHttpResponse(
-                            if (credential == BackendCredential.Bearer("new")) 200 else 401,
+                            when (credential) {
+                                BackendCredential.Bearer("new") -> 200
+                                BackendCredential.PersonalAccessToken("forbidden") -> 403
+                                else -> 401
+                            },
                             "",
                         )
                     }
@@ -146,7 +227,10 @@ class RefreshingAuthenticatedHttpClientFactoryTest {
 
     private fun result(credential: BackendCredential): AuthenticatedHttpResult = when (credential) {
         BackendCredential.Bearer("new") -> AuthenticatedHttpResult.Success("ok")
-        BackendCredential.Bearer("forbidden") -> AuthenticatedHttpResult.Failure("Forbidden", 403)
+        BackendCredential.Bearer(
+            "forbidden",
+        ), BackendCredential.PersonalAccessToken("forbidden"),
+        -> AuthenticatedHttpResult.Failure("Forbidden", 403)
         else -> AuthenticatedHttpResult.Failure("Unauthorized", 401)
     }
 }

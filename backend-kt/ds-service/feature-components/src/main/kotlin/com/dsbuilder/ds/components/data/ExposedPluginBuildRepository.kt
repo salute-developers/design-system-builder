@@ -19,6 +19,9 @@ import java.time.Instant
 /** Реестр билдов плагина поверх Exposed; работает в транзакции вызывающего кода. */
 internal class ExposedPluginBuildRepository : PluginBuildRepository {
     override suspend fun lockPublications() {
+        // The registry lock serializes publications. Each read after waiting must see the winning commit,
+        // before any storage write: a SERIALIZABLE snapshot taken while waiting would still see the old registry.
+        TransactionManager.current().exec("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
         TransactionManager.current().exec(
             "SELECT pg_advisory_xact_lock(?)",
             listOf(LongColumnType() to PUBLICATION_LOCK_KEY),
@@ -48,7 +51,7 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
         PluginBuildsTable.insert {
             it[buildId] = build.buildId
             it[platform] = db
-            it[uikitComposeVersion] = build.uikitComposeVersion
+            it[libraryVersion] = build.libraryVersion
             it[metaSha256] = build.metaSha256
             it[commitSha] = build.commit
             it[protocolVersion] = build.protocolVersion
@@ -89,7 +92,7 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
     private fun ResultRow.toBuild() = PluginBuild(
         buildId = this[PluginBuildsTable.buildId],
         platform = this[PluginBuildsTable.platform].wireValue,
-        uikitComposeVersion = this[PluginBuildsTable.uikitComposeVersion],
+        libraryVersion = this[PluginBuildsTable.libraryVersion],
         metaSha256 = this[PluginBuildsTable.metaSha256],
         commit = this[PluginBuildsTable.commitSha],
         protocolVersion = this[PluginBuildsTable.protocolVersion],

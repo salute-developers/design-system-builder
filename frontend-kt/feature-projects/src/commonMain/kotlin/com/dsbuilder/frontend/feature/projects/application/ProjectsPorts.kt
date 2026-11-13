@@ -22,8 +22,20 @@ public enum class ProjectsReadErrorCode {
     /** Пользовательская сессия отсутствует или невалидна. */
     AUTH_REQUIRED,
 
+    /** PAT отклонён. */
+    PAT_INVALID,
+
     /** Backend недоступен или вернул неожиданный ответ. */
     BACKEND_UNAVAILABLE,
+
+    /** Доступ запрещён. */
+    FORBIDDEN,
+
+    /** Ресурс не найден. */
+    NOT_FOUND,
+
+    /** Формат ответа неверен. */
+    INVALID_BACKEND_RESPONSE,
 }
 
 /**

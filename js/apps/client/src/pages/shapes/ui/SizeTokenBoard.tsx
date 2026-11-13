@@ -1,13 +1,14 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 import {
     boxShadow,
-    shadowSizes,
+    compareTokens,
+    groupLabel,
+    shadowParts,
     sizeLabel,
     shortName,
-    SHADOW_VARIANTS,
-    variantLabel,
     type DimensionToken,
+    type ShadowToken,
     type SizeToken,
     type SizeTokenKind,
 } from '../../../modules/sizeTokens';
@@ -22,11 +23,6 @@ interface BoardProps {
     onSelect: (token: SizeToken) => void;
 }
 
-const tokensLabel = (count: number) => {
-    const tail = count % 100 >= 11 && count % 100 <= 14 ? 5 : count % 10;
-    return `${count} ${tail === 1 ? 'токен' : tail >= 2 && tail <= 4 ? 'токена' : 'токенов'}`;
-};
-
 /** Подпись вычисляемого радиуса: «L − 2». */
 export const derivedLabel = (token: DimensionToken, offsetPx: number) =>
     `${shortName(token)} ${offsetPx < 0 ? '−' : '+'} ${Math.abs(offsetPx)}`;
@@ -34,190 +30,232 @@ export const derivedLabel = (token: DimensionToken, offsetPx: number) =>
 /** Значение вычисляемого радиуса по текущему значению источника, не меньше 0. */
 export const derivedValue = (token: DimensionToken, offsetPx: number) => Math.max(0, (token.valuePx ?? 0) + offsetPx);
 
-const preview = (px: number) => ({ '--radius-preview': `${Math.min(px, 80)}px` }) as CSSProperties;
+/** Заголовок раздела борда: «Семантические радиусы» и пояснение под ним. */
+const Section = ({
+    title,
+    description,
+    note,
+    testId,
+    children,
+}: {
+    title: string;
+    description: string;
+    note?: string;
+    testId?: string;
+    children: ReactNode;
+}) => (
+    <section className="st-board-section tw-board-section" data-testid={testId}>
+        <header className="st-board-section-header tw-board-heading">
+            <strong className="tw-board-title">{title}</strong>
+            <p className="tw-board-description">{description}</p>
+        </header>
+        {children}
+        {note && <p className="st-board-note tw-board-description">{note}</p>}
+    </section>
+);
+
+/** Строка `Workspace/DataRow`: карточка метаданных 114 px и плитки 120×100 в одну строку. */
+const DataRow = ({ title, caption, children }: { title: string; caption: string; children: ReactNode }) => (
+    <div className="st-data-row tw-data-row">
+        <div className="st-data-meta tw-meta">
+            <strong>{title}</strong>
+            <span>{caption}</span>
+        </div>
+        {children}
+    </div>
+);
+
+interface TileProps {
+    name: string;
+    value: string;
+    label: string;
+    title?: string;
+    selected?: boolean;
+    preview: ReactNode;
+    onClick: () => void;
+}
+
+/** Плитка шкалы: подпись «имя значение» в одну строку и превью. */
+const Tile = ({ name, value, label, title, selected = false, preview, onClick }: TileProps) => (
+    <button
+        type="button"
+        className={`st-tile tw-tile ${selected ? 'is-selected' : ''}`}
+        aria-label={label}
+        aria-pressed={selected}
+        title={title}
+        onClick={onClick}
+    >
+        <span className="st-tile-caption">
+            <span>{name}</span>
+            <b>{value}</b>
+        </span>
+        <span className="st-tile-preview" aria-hidden="true">
+            {preview}
+        </span>
+    </button>
+);
+
+/** Контурный квадрат 52×52 со скруглением всех углов; полное скругление — круг. */
+const radiusPreview = (px: number | null) => (
+    <i
+        className="st-radius-preview"
+        style={{ '--radius': px === null ? '50%' : `${Math.min(px, 26)}px` } as CSSProperties}
+    />
+);
+
+/** Два контурных блока с промежутком значения отступа: промежуток больше 80 px показывается как 80. */
+const spacingPreview = (px: number) => (
+    <i className="st-spacing-preview" style={{ '--gap': `${Math.min(Math.max(px, 0), 80)}px` } as CSSProperties}>
+        <b />
+        <b />
+    </i>
+);
+
+const shadowPreview = (token: ShadowToken) => (
+    <i className="st-shadow-preview">
+        <b style={{ boxShadow: boxShadow(token.layers) }} />
+    </i>
+);
+
+const tokenValue = (token: DimensionToken) =>
+    token.fullRounding || token.valuePx === null ? 'Full' : String(token.valuePx);
 
 const RadiusBoard = ({ tokens, selectedId, themeName, onSelect }: BoardProps) => {
     const radii = tokens.filter((token): token is DimensionToken => token.kind === 'radius');
-    const derived = radii.flatMap((token) => token.derived.map((item) => ({ token, item })));
+    const offsets = [...new Set(radii.flatMap((token) => token.derived.map((item) => item.offsetPx)))].sort(
+        (a, b) => a - b,
+    );
+    const components = [
+        ...new Set(
+            radii.flatMap((token) => token.derived.flatMap((item) => item.usages.map((usage) => usage.component))),
+        ),
+    ];
     return (
-        <div className="token-canvas sizing-canvas">
-            <div className="radius-overview-board">
-                <header className="radius-overview-intro">
-                    <strong>Радиусы компонентов</strong>
-                    <p>Шкала скруглений темы {themeName}.</p>
-                </header>
-                <div
-                    className="radius-overview-grid"
-                    style={{ gridTemplateColumns: derived.length ? '1fr 1fr' : '1fr' }}
+        <>
+            <Section title="Радиусы" description={`Шкала скруглений темы ${themeName}`}>
+                <DataRow title="Radius" caption="Семантические">
+                    {radii.map((token) => (
+                        <Tile
+                            key={token.tokenId}
+                            name={shortName(token)}
+                            value={tokenValue(token)}
+                            label={token.name}
+                            selected={selectedId === token.tokenId}
+                            preview={radiusPreview(token.fullRounding ? null : (token.valuePx ?? 0))}
+                            onClick={() => onSelect(token)}
+                        />
+                    ))}
+                </DataRow>
+            </Section>
+            {offsets.length > 0 && (
+                <Section
+                    title="Вычисляемые"
+                    description={`Источник и смещение из компонентов: ${components.join(', ')}`}
+                    note="Только для чтения: смещение задаётся в компоненте, значение следует за источником."
+                    testId="derived-radii"
                 >
-                    <section className="radius-overview-group">
-                        <header className="radius-overview-group-header">
-                            <img src="/catalog/icons/rail-corner-radius.svg" alt="" />
-                            <span>
-                                <strong>Радиусы</strong>
-                                <small>{tokensLabel(radii.length)}</small>
-                            </span>
-                        </header>
-                        <div className="radius-overview-list">
-                            {radii.map((token) => (
-                                <button
-                                    key={token.tokenId}
-                                    type="button"
-                                    className={`radius-overview-row ${selectedId === token.tokenId ? 'is-selected' : ''}`}
-                                    onClick={() => onSelect(token)}
-                                >
-                                    <span className="radius-overview-meta">
-                                        <strong>{shortName(token)}</strong>
-                                        <small>
-                                            {token.fullRounding ? 'Полное скругление' : `${token.valuePx} px`}
-                                        </small>
-                                    </span>
-                                    <span className="radius-overview-preview" aria-hidden="true">
-                                        <i style={preview(token.fullRounding ? 80 : (token.valuePx ?? 0))} />
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </section>
-                    {derived.length > 0 && (
-                        <section className="radius-overview-group" data-testid="derived-radii">
-                            <header className="radius-overview-group-header">
-                                <img src="/catalog/icons/rail-corner-radius.svg" alt="" />
-                                <span>
-                                    <strong>Вычисляемые</strong>
-                                    <small>Источник и смещение из компонентов</small>
-                                </span>
-                            </header>
-                            <div className="radius-overview-list">
-                                {derived.map(({ token, item }) => {
-                                    const value = derivedValue(token, item.offsetPx);
-                                    const components = [...new Set(item.usages.map((usage) => usage.component))];
-                                    return (
-                                        <button
-                                            key={`${token.tokenId}:${item.offsetPx}`}
-                                            type="button"
-                                            className="radius-overview-row"
-                                            onClick={() => onSelect(token)}
-                                        >
-                                            <span className="radius-overview-meta">
-                                                <strong>{derivedLabel(token, item.offsetPx)}</strong>
-                                                <small>
-                                                    {value} px · {components.join(', ')}
-                                                </small>
-                                            </span>
-                                            <span className="radius-overview-preview" aria-hidden="true">
-                                                <i style={preview(value)} />
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <p className="radius-overview-note">
-                                Только для чтения: смещение задаётся в компоненте, значение следует за источником.
-                            </p>
-                        </section>
-                    )}
-                </div>
-            </div>
-        </div>
+                    {offsets.map((offset) => (
+                        <DataRow
+                            key={offset}
+                            title={`Radius ${offset < 0 ? '−' : '+'}${Math.abs(offset)}`}
+                            caption="Вычисляемые"
+                        >
+                            {radii.flatMap((token) =>
+                                token.derived
+                                    .filter((item) => item.offsetPx === offset)
+                                    .map((item) => {
+                                        const value = derivedValue(token, item.offsetPx);
+                                        const used = [...new Set(item.usages.map((usage) => usage.component))];
+                                        const label = derivedLabel(token, item.offsetPx);
+                                        return (
+                                            <Tile
+                                                key={token.tokenId}
+                                                name={label}
+                                                value={String(value)}
+                                                label={`${label}, ${value} px, ${used.join(', ')}`}
+                                                title={`${value} px · ${used.join(', ')}`}
+                                                preview={radiusPreview(value)}
+                                                onClick={() => onSelect(token)}
+                                            />
+                                        );
+                                    }),
+                            )}
+                        </DataRow>
+                    ))}
+                </Section>
+            )}
+        </>
     );
 };
 
 const SpacingBoard = ({ tokens, selectedId, onSelect }: BoardProps) => {
     const spacing = tokens.filter((token): token is DimensionToken => token.kind === 'spacing');
-    const selected = spacing.find((token) => token.tokenId === selectedId);
     return (
-        <div className="token-canvas sizing-canvas spatial-canvas">
-            <div className="spatial-board">
-                <header className="spatial-board-header">
-                    <strong>{selected ? `${selected.name} · ${selected.valuePx} px` : 'Отступы'}</strong>
-                </header>
-                <div className="spatial-scale-list">
-                    <section className="spatial-scale-strip is-gap">
-                        <div className="spatial-scale-label">
-                            <i className="spatial-kind-glyph" aria-hidden="true" />
-                            <strong>Spacing</strong>
-                        </div>
-                        <div className="spatial-scale-items st-scale-items">
-                            {spacing.map((token) => (
-                                <button
-                                    key={token.tokenId}
-                                    type="button"
-                                    className={`spatial-scale-item ${selectedId === token.tokenId ? 'is-selected' : ''}`}
-                                    style={{ '--space': `${token.valuePx ?? 0}px` } as CSSProperties}
-                                    onClick={() => onSelect(token)}
-                                >
-                                    <span className="spatial-scale-name">{shortName(token)}</span>
-                                    <i className="spatial-scale-demo" aria-hidden="true">
-                                        <b />
-                                        <b />
-                                    </i>
-                                    <small>{token.valuePx} px</small>
-                                </button>
-                            ))}
-                        </div>
-                    </section>
-                </div>
-            </div>
-        </div>
+        <Section title="Отступы" description="Шкала отступов темы: Nx = N × 2 px">
+            <DataRow title="Spacing" caption="Промежутки">
+                {spacing.map((token) => (
+                    <Tile
+                        key={token.tokenId}
+                        name={shortName(token)}
+                        value={tokenValue(token)}
+                        label={token.name}
+                        selected={selectedId === token.tokenId}
+                        preview={spacingPreview(token.valuePx ?? 0)}
+                        onClick={() => onSelect(token)}
+                    />
+                ))}
+            </DataRow>
+        </Section>
     );
 };
 
-/** Список теней по размерам: каждая тень на своей плашке, чтобы крупные тени не заходили на соседние. */
+/**
+ * Тени — теми же строками: имя тени произвольное, строка — группа по началу имени (`down.soft` у `down.soft.m`),
+ * плитка — последняя часть имени; тени без точки (`card`) — строка «Без группы».
+ */
 const ShadowBoard = ({ tokens, selectedId, onSelect }: BoardProps) => {
-    const byName = new Map(tokens.map((token) => [token.name, token]));
+    const shadows = tokens.filter((token): token is ShadowToken => token.kind === 'shadow').sort(compareTokens);
+    const groups = [...new Set(shadows.map((token) => shadowParts(token.name).group))];
     return (
-        <div className="token-canvas sizing-canvas">
-            <div className="st-shadow-board">
-                <header>
-                    <strong>Тени</strong>
-                    <p>Направление и жёсткость по размерам. Строка — токен.</p>
-                </header>
-                <div className="st-shadow-list" data-testid="shadow-grid">
-                    {shadowSizes(tokens).map((size) => (
-                        <section key={size} className="st-shadow-size">
-                            <h3>{sizeLabel(size).toUpperCase()}</h3>
-                            {SHADOW_VARIANTS.map((variant) => {
-                                const token = byName.get(`${variant}.${size}`);
-                                if (token?.kind !== 'shadow') return null;
-                                const selected = selectedId === token.tokenId;
-                                return (
-                                    <button
-                                        key={token.tokenId}
-                                        type="button"
-                                        className={`st-shadow-row ${selected ? 'is-selected' : ''}`}
-                                        aria-label={token.name}
-                                        aria-pressed={selected}
-                                        onClick={() => onSelect(token)}
-                                    >
-                                        <span className="st-shadow-meta">
-                                            <strong>{variantLabel(variant)}</strong>
-                                            <small>{token.name}</small>
-                                            <small>{rowValue(token)}</small>
-                                        </span>
-                                        <span className="st-shadow-tile" aria-hidden="true">
-                                            <i
-                                                className="st-shadow-card"
-                                                style={{ boxShadow: boxShadow(token.layers) }}
-                                            />
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </section>
-                    ))}
-                </div>
+        <Section title="Тени" description="Тени темы по группам имён">
+            <div className="st-board-rows tw-board-rows" data-testid="shadow-grid">
+                {groups.map((group) => {
+                    const row = shadows.filter((token) => shadowParts(token.name).group === group);
+                    return (
+                        <DataRow
+                            key={group || '—'}
+                            title={group ? groupLabel(group) : 'Без группы'}
+                            caption={group ? `${group}.*` : 'Тени без точки в имени'}
+                        >
+                            {row.map((token) => (
+                                <Tile
+                                    key={token.tokenId}
+                                    name={group ? sizeLabel(shadowParts(token.name).size) : shortName(token)}
+                                    value={rowValue({ ...token, layers: token.layers.slice(0, 1) })}
+                                    label={token.name}
+                                    title={`${token.name} · ${rowValue(token)}`}
+                                    selected={selectedId === token.tokenId}
+                                    preview={shadowPreview(token)}
+                                    onClick={() => onSelect(token)}
+                                />
+                            ))}
+                        </DataRow>
+                    );
+                })}
             </div>
-        </div>
+        </Section>
     );
 };
 
-/** Борд раздела выбранного токена: шкала радиусов, шкала отступов или сетка теней. */
-export const SizeTokenBoard = (props: BoardProps) =>
-    props.kind === 'shadow' ? (
-        <ShadowBoard {...props} />
-    ) : props.kind === 'spacing' ? (
-        <SpacingBoard {...props} />
-    ) : (
-        <RadiusBoard {...props} />
-    );
+/** Борд раздела выбранного токена: шкала радиусов, шкала отступов или строки теней. */
+export const SizeTokenBoard = (props: BoardProps) => (
+    <div className="st-board tw-board">
+        {props.kind === 'shadow' ? (
+            <ShadowBoard {...props} />
+        ) : props.kind === 'spacing' ? (
+            <SpacingBoard {...props} />
+        ) : (
+            <RadiusBoard {...props} />
+        )}
+    </div>
+);

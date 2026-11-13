@@ -21,8 +21,8 @@ class CreatePropertyUseCase(
         idempotencyKey: String? = null,
     ): DsResult<ComponentPropertySummary> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-property", command,
-        { repository.findProperty(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createProperty(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findProperty(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createProperty(context.projectId, context.principal.globalAdmin, command) },
         ComponentPropertySummary::id,
     )
 }
