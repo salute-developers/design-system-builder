@@ -433,6 +433,10 @@ function inlineThemeIdents(raw: string, aliases: Map<string, string>, base: Map<
 }
 
 const TYPO_SUFFIX = ['FontFamily', 'FontSize', 'FontStyle', 'FontWeight', 'LetterSpacing', 'LineHeight'];
+/** Части токена типографики темы в значениях конфига: `${bodyL.lineHeight}`. */
+const TYPO_PARTS = ['fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight'];
+/** `var(--переменная, ${идентификатор})` — переменная темы plasma с запасным токеном. */
+const VAR_FALLBACK = /^var\((--[\w-]+),\s*\$\{(\w+)\}\)$/;
 function typoGroup(key: string): { group: string; suffix: string } | null {
     for (const suf of TYPO_SUFFIX) {
         if (key.toLowerCase().endsWith(suf.toLowerCase())) {
@@ -475,24 +479,55 @@ const CIRCLE_PX = 500;
 
 type RadiusItem = { variation: string; style: string; px: number; raw: string };
 
+/** Аннотация web-параметра в глобальном слое: тип, свойство (`id`) и часть типографики. */
+type ParamAnnotation = { type: string; id: string; part?: string; single: boolean };
+
+/**
+ * Аннотации web-параметров компонента из `.sdds/web/web-api-meta.json`; `single` — свойство
+ * состоит из одного параметра (`lineHeight` у Skeleton), а не из шрифтовой группы.
+ * Без файла — `null`; без компонента в файле — `null` и находка в отчёте.
+ */
+function readApiMeta(sddsDir: string, component: string): Map<string, ParamAnnotation> | null {
+    const file = path.join(sddsDir, 'web', 'web-api-meta.json');
+    if (!fs.existsSync(file)) return null;
+    const meta = JSON.parse(fs.readFileSync(file, 'utf-8')) as Array<{
+        componentName: string;
+        params: Array<{ paramName: string; type: string; id?: string; part?: string }>;
+    }>;
+    const entry = meta.find((m) => m.componentName === component);
+    if (!entry) {
+        note('decision', `${component}: в ${path.relative(sddsDir, file)} компонента нет; без глобального слоя push отклонит пакет (аннотации токенов ядра)`);
+        return null;
+    }
+    const paramsById = new Map<string, number>();
+    for (const p of entry.params) paramsById.set(p.id ?? p.paramName, (paramsById.get(p.id ?? p.paramName) ?? 0) + 1);
+    return new Map(
+        entry.params.map((p) => {
+            const id = p.id ?? p.paramName;
+            return [p.paramName, { type: p.type, id, part: p.part, single: paramsById.get(id) === 1 }];
+        }),
+    );
+}
+
+/** Части типографики темы для экрана `screen-s`: `body.l.normal` → `{ fontSize: '1.125rem', … }`. */
+function readTypographyValues(themeDir: string): Map<string, Record<string, string>> {
+    const file = path.join(themeDir, 'web', 'web_typography.json');
+    const values = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, Record<string, string>>) : {};
+    const byName = new Map<string, Record<string, string>>();
+    for (const [name, parts] of Object.entries(values)) if (name.startsWith('screen-s.')) byName.set(name.slice('screen-s.'.length), parts);
+    return byName;
+}
+
 /**
  * Сверка типов свойств с глобальным слоем: `.sdds/web/web-api-meta.json` (вывод `generate:api-meta`)
  * хранит аннотированный тип каждого web-параметра. `components push` тип не меняет и пишет значение
  * под типом глобального слоя, поэтому расхождение надо решить до импорта, а не узнать из отчёта push.
  */
-function checkApiMetaTypes(sddsDir: string, component: string, props: Map<string, Prop>) {
-    const file = path.join(sddsDir, 'web', 'web-api-meta.json');
-    if (!fs.existsSync(file)) return;
-    const meta = JSON.parse(fs.readFileSync(file, 'utf-8')) as Array<{ componentName: string; params: Array<{ paramName: string; type: string }> }>;
-    const entry = meta.find((m) => m.componentName === component);
-    if (!entry) {
-        note('decision', `${component}: в ${path.relative(sddsDir, file)} компонента нет; без глобального слоя push отклонит пакет (аннотации токенов ядра)`);
-        return;
-    }
-    const byParam = new Map(entry.params.map((p) => [p.paramName, p.type]));
+function checkApiMetaTypes(props: Map<string, Prop>, annotations: Map<string, ParamAnnotation> | null) {
+    if (!annotations) return;
     for (const p of props.values()) {
         for (const web of p.web) {
-            const annotated = byParam.get(web);
+            const annotated = annotations.get(web)?.type;
             if (!annotated || annotated === p.type) continue;
             const hint = annotated === 'shape' ? `; задайте токен формы через --shape=${p.name}=<round.x>` : '';
             note('decision', `${p.name}: тип ${p.type} расходится с глобальным слоем (${web}: ${annotated}); push запишет значение под типом ${annotated}${hint}`);
@@ -507,6 +542,8 @@ function classify(
     aliases: Map<string, string>,
     shapes: Map<string, number>,
     shapeOverride: Map<string, string> = new Map(),
+    annotations: Map<string, ParamAnnotation> | null = null,
+    typography: Map<string, Record<string, string>> = new Map(),
 ) {
     const props = new Map<string, Prop>();
     const rows: Row[] = [];
@@ -528,10 +565,15 @@ function classify(
     // (`50%` у borderRadius в shape.circled, `100%` у размера), целиком уходит в `value`:
     // строки попадают в CSS как есть, но в панели не редактируются. Иначе одно свойство
     // получило бы два типа, а выкидывать значение нельзя — mergeConfig ядра подменяет стиль целиком.
+    const fallbackToken = (raw: string) => {
+        const m = VAR_FALLBACK.exec(raw);
+        return m ? colorTokenName(m[2], aliases, base) : null;
+    };
     const isPlain = (raw: string) =>
         NUM.test(raw) || raw.split(/\s+/).every((t) => NUM.test(t) || t === 'auto');
     const isModelled = (raw: string) =>
-        isPlain(raw) || raw === 'transparent' || raw === 'inherit' || COLOR_LITERAL.test(raw) || /^\$\{\w+(\.\w+)?\}$/.test(raw) || /^var\(--shadow-/.test(raw);
+        isPlain(raw) || raw === 'transparent' || raw === 'inherit' || COLOR_LITERAL.test(raw) || /^\$\{\w+(\.\w+)?\}$/.test(raw) || /^var\(--shadow-/.test(raw) ||
+        fallbackToken(raw) !== null;
     const forceValue = new Set<string>();
     {
         const rawsByKey = new Map<string, string[]>();
@@ -558,8 +600,28 @@ function classify(
                     rows.push({ variation, style, prop: key, token: null, value: inlineThemeIdents(raw, aliases, base, `${variation}.${style}.${key}`) });
                     continue;
                 }
-                const tg = typoGroup(key);
                 const mTypo = /^\$\{(\w+)\.(\w+)\}$/.exec(raw);
+                // Одна часть типографики (`${bodyL.lineHeight}`) — не шрифтовая группа, если глобальный
+                // слой аннотирует ключ отдельным свойством: typography с этой частью или dimension.
+                const annotation = annotations?.get(key);
+                if (mTypo && annotation?.single && TYPO_PARTS.includes(mTypo[2])) {
+                    const [, ident, part] = mTypo;
+                    const token = typoValue(ident, base);
+                    if (annotation.type === 'typography' && annotation.part === part) {
+                        if (!token) { note('decision', `${variation}.${style}.${key}: типографика ${ident} не найдена в базовой ДС, пропущена`); continue; }
+                        addProp(annotation.id, 'typography', [key], variation);
+                        rows.push({ variation, style, prop: annotation.id, token: null, value: token });
+                        continue;
+                    }
+                    const partValue = token ? typography.get(token)?.[part] : undefined;
+                    if (annotation.type === 'dimension' && partValue && NUM.test(partValue)) {
+                        addProp(key, 'dimension', [key], variation);
+                        rows.push({ variation, style, prop: key, token: null, value: fmt(toPx(partValue)) });
+                        note('approx', `${variation}.${style}.${key}: ${ident}.${part} взят числом ${fmt(toPx(partValue))}px экрана screen-s, в ядре значение зависит от экрана`);
+                        continue;
+                    }
+                }
+                const tg = typoGroup(key);
                 if (tg && mTypo) {
                     const k = `${variation}|${style}|${tg.group}`;
                     if (!typoParts.has(k)) typoParts.set(k, new Map());
@@ -574,6 +636,15 @@ function classify(
                     if (base.get(name) !== 'shadow') { note('decision', `${variation}.${style}.${key}: тень ${name} не найдена в базовой ДС`); continue; }
                     addProp(key, 'shadow', [key], variation);
                     rows.push({ variation, style, prop: key, token: null, value: name });
+                    continue;
+                }
+                // `var(--plasma-colors-skeleton-gradient, ${surfaceSkeletonGradient})`: переопределение
+                // темы plasma с токеном по умолчанию — в модель уходит токен, переменная остаётся в отчёте.
+                const fallback = fallbackToken(raw);
+                if (fallback) {
+                    addProp(key, 'color', [key], variation);
+                    rows.push({ variation, style, prop: key, token: fallback, value: null });
+                    note('info', `${variation}.${style}.${key}: взят запасной токен ${fallback}, переменная ${VAR_FALLBACK.exec(raw)![1]} в сид не переносится`);
                     continue;
                 }
                 const mColor = /^\$\{(\w+)\}$/.exec(raw);
@@ -1150,11 +1221,13 @@ function runComposite(args: Args) {
     const coreKeys = new Set(coreVarByKey.keys());
     const base = readBaseThemeTokens(themeDir);
     const shapes = readShapeTokenPx(themeDir);
+    const typography = readTypographyValues(themeDir);
     const coreDir = path.join(args.plasma, 'packages/plasma-new-hope/src/components', parent);
 
     for (const element of elements) {
         const configs = byElement.get(element)!;
         report.length = 0;
+        const annotations = readApiMeta(args.sdds, element);
         const props = new Map<string, Prop>();
         const appearances: AppearanceInput[] = [];
         const missing: string[] = [];
@@ -1166,7 +1239,7 @@ function runComposite(args: Args) {
             const coreFile = findCoreFile(coreDir, `${cap(name)}${element}`);
             const coreDefaults = coreFile ? parseDefaultsBlock(fs.readFileSync(coreFile, 'utf-8')) : {};
             parsed.defaults = mergeDefaults(parsed.defaults, coreDefaults, parsed.variations);
-            const data = classify(parsed, coreKeys, base, args.aliases, shapes, args.shapeOverride);
+            const data = classify(parsed, coreKeys, base, args.aliases, shapes, args.shapeOverride, annotations, typography);
 
             for (const p of data.props.values()) {
                 const existing = props.get(p.name);
@@ -1179,7 +1252,7 @@ function runComposite(args: Args) {
             }
             appearances.push({ name, parsed, data });
         }
-        checkApiMetaTypes(args.sdds, element, props);
+        checkApiMetaTypes(props, annotations);
         if (missing.length) note('info', `${element}: нет конфига под ${missing.join(', ')}; эти appearance у элемента не заводятся`);
 
         const detected = detectCoreExports(args, element, parent);
@@ -1301,8 +1374,9 @@ function main() {
     }
     const coreDefaults = readCoreDefaults(X, args.plasma);
     parsed.defaults = mergeDefaults(parsed.defaults, coreDefaults, parsed.variations);
-    const data = classify(parsed, coreKeys, base, args.aliases, shapes, args.shapeOverride);
-    checkApiMetaTypes(args.sdds, X, data.props);
+    const annotations = readApiMeta(args.sdds, X);
+    const data = classify(parsed, coreKeys, base, args.aliases, shapes, args.shapeOverride, annotations, readTypographyValues(themeDir));
+    checkApiMetaTypes(data.props, annotations);
 
     const configDir = path.dirname(configFile);
     const stem = path.basename(configFile).replace(/\.config\.tsx?$/, '');

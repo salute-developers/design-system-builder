@@ -67,10 +67,17 @@ class ExposedSizeTokenUsageRepository : SizeTokenUsageRepository {
         if (references.isEmpty()) return emptyMap()
         val params = paramOffsets(designSystemId, references)
         return references.mapNotNull { reference ->
+            val param = params[reference.source to reference.rowId]
+            // Импорт пишет смещение в колонку значения, а поправка параметра с тем же числом остаётся рядом:
+            // имя параметра берётся из неё, чтобы использование не теряло параметр.
             val own = reference.adjustment?.let(::offset)?.let { offset ->
-                RadiusOffset(offset, AdjustedUsage(reference.component, reference.platform, null))
+                RadiusOffset(
+                    offset,
+                    param?.takeIf { it.offset == offset }?.usage(reference)
+                        ?: AdjustedUsage(reference.component, reference.platform, null),
+                )
             }
-            (own ?: params[reference.source to reference.rowId]?.let { RadiusOffset(it.offset, it.usage(reference)) })
+            (own ?: param?.let { RadiusOffset(it.offset, it.usage(reference)) })
                 ?.let { reference.token to it }
         }.groupBy({ it.first }, { it.second })
     }

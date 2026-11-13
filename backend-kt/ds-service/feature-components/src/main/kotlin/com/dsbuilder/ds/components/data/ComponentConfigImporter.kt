@@ -547,7 +547,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 id,
                 ds,
             ) { statement ->
-                val token = token(value.token, context)
+                val token = token(value.token, value.tokenType, context)
                 statement[tokenId] = token
                 statement[InvariantPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
                 statement[alpha] = value.alpha
@@ -692,7 +692,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             id,
             ds,
         ) { statement ->
-            val token = token(value.token, c)
+            val token = token(value.token, value.tokenType, c)
             statement[tokenId] = token
             statement[VariationPropertyValueRevisionsTable.value] = value.value.takeIf { token == null }
             statement[alpha] = value.alpha
@@ -735,7 +735,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         ) { statement ->
             statement[combinationKey] = key
             statement[StyleCombinationRevisionsTable.value] = value.value.orEmpty()
-            statement[tokenId] = token(value.token, c)
+            statement[tokenId] = token(value.token, value.tokenType, c)
             statement[alpha] = value.alpha
             statement[adjustment] = value.adjustment
             statement[position] = value.position
@@ -891,9 +891,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             }
         }
 
-    private fun token(name: String?, context: ComponentConfigImportContext): UUID? = name?.let {
-        context.tokens[it] ?: run {
-            context.report.unresolvedTokens += it
+    /** Токен ссылки по правилам [referenceCandidates]; ненайденное имя, кроме литерала CSS, попадает в отчёт. */
+    private fun token(name: String?, type: String?, context: ComponentConfigImportContext): UUID? = name?.let {
+        referenceCandidates(it, type).firstNotNullOfOrNull(context.tokens::get) ?: run {
+            if (!isLiteralValue(it)) context.report.unresolvedTokens += it
             null
         }
     }
@@ -962,6 +963,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         Expanded(
             p.value.raw(),
             tokenName(p.type, p.value),
+            p.type,
             p.alpha?.raw(),
             p.adjustment?.raw(),
             emptyList(),
@@ -973,6 +975,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 Expanded(
                     state.value.raw(),
                     tokenName(state.type ?: p.type, state.value),
+                    state.type ?: p.type,
                     state.alpha?.raw(),
                     null,
                     it,
@@ -992,6 +995,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     private data class Expanded(
         val value: String?,
         val token: String?,
+        val tokenType: String?,
         val alpha: String?,
         val adjustment: String?,
         val states: List<String>,
