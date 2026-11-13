@@ -1,6 +1,6 @@
 package com.dsbuilder.ds.themes.application
 
-import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
+import com.dsbuilder.ds.themes.application.palette.TenantValuePaletteSnapshot
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
@@ -14,14 +14,13 @@ import com.dsbuilder.ds.themes.domain.sizetokens.SizePlatformValues
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
-import java.util.UUID
 
 /**
  * Форма значений `token-values` для потребителей пакета: ссылки на палитру раскрыты по палитре темы [snapshot] на
  * границе выбранной версии, сплошные значения iOS и Android градиентного семейства — слоем `color`, цвета слоёв
  * тени — `#RRGGBBAA` на своём месте.
  */
-internal class TokenValuePublisher(@Suppress("UNUSED_PARAMETER") tenantId: UUID, snapshot: TenantPaletteSnapshot?) {
+internal class TokenValuePublisher(snapshot: TenantValuePaletteSnapshot?) {
     // Имя тени определяет группу палитры, по которой раскрываются ссылки её слоёв.
     private val resolver = snapshot?.let { TenantPaletteValueResolver(it.state, it.tokens) }
     private val resolvedReferences = mutableMapOf<Pair<String, PaletteReference>, String?>()

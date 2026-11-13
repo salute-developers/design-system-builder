@@ -10,7 +10,6 @@ import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import java.time.Instant
-import java.util.UUID
 
 /**
  * Форма значений общего маршрута `GET /api/design-systems/{designSystemId}/token-values` та же, что у `GET
@@ -32,7 +31,7 @@ class ColorTokenValueReadPolicy(
         if (types.isEmpty()) return values
         val published = values.filter { it.tokenId in types }.groupBy { it.tenantId }.flatMap { (tenantId, items) ->
             val snapshot = tenantId?.let { palette.snapshot(projectId, it) }?.takeIf { it.hasSystemGroups() }
-            val publisher = TokenValuePublisher(tenantId ?: NO_TENANT, snapshot)
+            val publisher = TokenValuePublisher(snapshot?.forValueResolution())
             items.zip(publisher.publish(items.map { it.tenantValue(types[it.tokenId]) }))
         }.associate { (read, value) -> read.id to read.published(value) }
         return values.map { published[it.id] ?: it }
@@ -58,9 +57,4 @@ class ColorTokenValueReadPolicy(
         paletteRef = value.paletteRef,
         sourceValue = value.sourceValueElement(),
     )
-
-    private companion object {
-        /** Тема для значения без темы: палитры у него нет, применяется только форма по типу. */
-        val NO_TENANT: UUID = UUID(0, 0)
-    }
 }

@@ -14,6 +14,7 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.FakeTenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
+import com.dsbuilder.ds.themes.application.palette.TenantValuePaletteSnapshot
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.palette.PaletteGoldenTest
@@ -67,10 +68,10 @@ class GetTenantTokenValuesUseCaseTest {
                 projectId: ProjectId,
                 tenantId: UUID,
                 values: List<TenantTokenValue>,
-            ): TenantPaletteSnapshot {
+            ): TenantValuePaletteSnapshot {
                 assertTrue(transactions.inside)
                 assertEquals(listOf(stored), values)
-                return snapshot
+                return snapshot.forValueResolution()
             }
         }
         val context = DsRequestContext(
@@ -85,7 +86,7 @@ class GetTenantTokenValuesUseCaseTest {
         ).execute(context, tenant)
         val success = assertIs<DsResult.Success<List<TenantTokenValue>>>(result)
         assertTrue(published)
-        assertEquals(TokenValuePublisher(tenant, snapshot).publish(listOf(stored)), success.value)
+        assertEquals(TokenValuePublisher(snapshot.forValueResolution()).publish(listOf(stored)), success.value)
         assertEquals(transactions.readContext, success.readContext)
         assertEquals(transactions.readPage, success.readPage)
         assertEquals("metadata", success.mutationMetadata)
@@ -126,7 +127,7 @@ class GetTenantTokenValuesUseCaseTest {
             repository,
             palette,
         ).execute(context, tenant)
-        assertEquals(TokenValuePublisher(tenant, null).publish(values), assertIs<DsResult.Success<*>>(result).value)
+        assertEquals(TokenValuePublisher(null).publish(values), assertIs<DsResult.Success<*>>(result).value)
         assertEquals(0, palette.snapshotReads)
     }
 

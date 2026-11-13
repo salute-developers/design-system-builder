@@ -193,6 +193,22 @@ describe('чтения редактора', () => {
             '/api/projects/p/design-systems/d/changes/summary',
         ]);
     });
+    it('поднимает приоритет старого фонового чтения при непрерывном потоке основных', async () => {
+        const remote = deferred();
+        mocks.get.mockReturnValue(remote.promise);
+        const first = Array.from({ length: 4 }, (_, i) => readEditor('/occupied/' + i));
+        // Удерживаем все четыре места, пока фон и новые основные чтения ждут.
+        await vi.advanceTimersByTimeAsync(0);
+        const journal = readEditor('/api/projects/p/design-systems/d/changes/summary');
+        const foreground = Array.from({ length: 20 }, (_, i) => readEditor('/foreground/' + i));
+        await vi.advanceTimersByTimeAsync(1_000);
+        mocks.get.mockReturnValue(response);
+        remote.resolve(response);
+        await vi.runAllTimersAsync();
+        await Promise.all([...first, journal, ...foreground]);
+        expect(mocks.get.mock.calls[4][0]).toBe('/api/projects/p/design-systems/d/changes/summary');
+    });
+
     it('сохраняет ограничение постоянного потока после начального запаса', async () => {
         const starts: number[] = [];
         mocks.get.mockImplementation(() => {

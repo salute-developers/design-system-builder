@@ -34,8 +34,8 @@ interface TenantPaletteRepository {
         projectId: ProjectId,
         tenantId: UUID,
         values: List<com.dsbuilder.ds.themes.domain.TenantTokenValue>,
-    ): TenantPaletteSnapshot? =
-        snapshot(projectId, tenantId)
+    ): TenantValuePaletteSnapshot? =
+        snapshot(projectId, tenantId)?.forValueResolution()
 
     /** Записывает только различия [before] и [state], сохраняя соседние конкурентные изменения. */
     suspend fun save(tenantId: UUID, before: TenantPaletteState, state: TenantPaletteState)

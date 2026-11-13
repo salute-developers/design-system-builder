@@ -3,6 +3,7 @@ import { CanceledError } from 'axios';
 type WaitingRead = {
     signal: AbortSignal;
     background: boolean;
+    queuedAt: number;
     start: () => void;
     cancel: () => void;
 };
@@ -21,6 +22,7 @@ export class EditorReadQueue {
             const entry: WaitingRead = {
                 signal,
                 background,
+                queuedAt: Date.now(),
                 start: () => {
                     signal.removeEventListener('abort', entry.cancel);
                     this.active++;
@@ -58,12 +60,12 @@ export class EditorReadQueue {
         clearTimeout(this.timer);
         this.timer = undefined;
         const now = Date.now();
-        // 8 стартов/с после всплеска оставляют запас относительно gateway 10 запросов/с, burst=20.
+        // Клиентский бюджет 8 стартов/с сглаживает поток; наличие rate limit у внешнего прокси не предполагается.
         this.allowance = Math.min(16, this.allowance + Math.max(0, now - this.refilledAt) / 125);
         this.refilledAt = now;
         const available = Math.min(4 - this.active, this.waiting.length, Math.floor(this.allowance));
         for (let started = 0; started < available; started++) {
-            const foreground = this.waiting.findIndex((entry) => !entry.background);
+            const foreground = this.waiting.findIndex((entry) => !entry.background || now - entry.queuedAt >= 1_000);
             const [entry] = this.waiting.splice(Math.max(0, foreground), 1);
             this.allowance--;
             entry.start();

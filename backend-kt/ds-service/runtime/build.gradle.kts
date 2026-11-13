@@ -36,7 +36,6 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.testcontainers.postgresql)
-    testImplementation(libs.ktor.client.cio)
 }
 
 tasks.processResources {
@@ -47,13 +46,19 @@ tasks.processResources {
 
 dependencies { implementation("com.dsbuilder.runtime:runtime-contracts") }
 
-// Длительные измерения запускаются явно, отдельно от функциональных проверок.
-tasks.test { exclude("**/ThemeQueryPerformanceTest.class") }
+// Отдельная компиляция стенда; обычные тесты не зависят от его классов и CIO.
+val performance by sourceSets.creating
+configurations[performance.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[performance.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
+performance.compileClasspath += sourceSets.test.get().output
+performance.runtimeClasspath += sourceSets.test.get().output
+kotlin.target.compilations.getByName("performance").associateWith(kotlin.target.compilations.getByName("test"))
+dependencies { add(performance.implementationConfigurationName, libs.ktor.client.cio) }
 tasks.register<Test>("queryPerformance") {
     description = "Сравнивает HTTP-чтения на репрезентативной изолированной PostgreSQL 17."
     group = "verification"
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
+    testClassesDirs = performance.output.classesDirs
+    classpath = performance.runtimeClasspath
     include("**/ThemeQueryPerformanceTest.class")
     environment("DS_QUERY_PERFORMANCE_STATS", "true")
     systemProperty("ds.performance.output", providers.gradleProperty("performanceOutput")

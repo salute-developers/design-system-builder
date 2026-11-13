@@ -75,7 +75,6 @@ class UpdateColorTokenValuesUseCase(
         val values = tokens.confirmedValues(lock.designSystemId, tenantId, stored.members.values)?.let { values ->
             val typed = values.map { it.copy(tokenType = type) }
             com.dsbuilder.ds.themes.application.TokenValuePublisher(
-                tenantId,
                 palette.valueSnapshot(context.projectId, tenantId, typed),
             ).publish(typed)
         }

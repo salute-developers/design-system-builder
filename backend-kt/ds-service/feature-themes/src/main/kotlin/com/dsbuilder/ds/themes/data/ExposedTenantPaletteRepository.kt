@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteLock
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
+import com.dsbuilder.ds.themes.application.palette.TenantValuePaletteSnapshot
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
@@ -93,55 +94,56 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         projectId: ProjectId,
         tenantId: UUID,
         values: List<TenantTokenValue>,
-    ): TenantPaletteSnapshot? {
+    ): TenantValuePaletteSnapshot? {
         val reusable = values.takeIf { items ->
             items.all { value ->
                 val name = value.tokenName
                 name != null && value.tokenType != null && DefaultPaletteGroups.stripMode(name) == name
             }
-        }
-        return readSnapshot(projectId, tenantId, false, reusable)
+        } ?: return snapshot(projectId, tenantId)?.forValueResolution()
+        currentTenantRows(projectId, tenantId = tenantId).singleOrNull() ?: return null
+        return TenantValuePaletteSnapshot(
+            state = paletteState(tenantId),
+            tokens = reusable.paletteTokens(ColorTokenFamily.TYPES),
+            values = reusable.paletteIdReferences(),
+            layerTokens = reusable.paletteTokens(setOf(ThemeTokenType.SHADOW)),
+        )
     }
 
     private suspend fun readSnapshot(
         projectId: ProjectId,
         tenantId: UUID,
         includeSubjectRevisions: Boolean,
-        knownValues: List<TenantTokenValue>? = null,
     ): TenantPaletteSnapshot? {
         val tenant = currentTenantRows(projectId, tenantId = tenantId).singleOrNull() ?: return null
         val designSystemId = tenant[TenantsTable.designSystemId]
-        val tokens = knownValues?.paletteTokens(ColorTokenFamily.TYPES) ?: colorTokens(designSystemId)
-        val state = TenantPaletteState(
-            editRevision = 0,
-            template = template(tenantId),
-            groups = groups(tenantId),
-            ramps = ramps(tenantId),
-            tokenGroups = TenantPaletteTokenGroupsTable.selectAll()
-                .where { TenantPaletteTokenGroupsTable.tenantId eq tenantId }
-                .associate { row ->
-                    val tokenId = row[TenantPaletteTokenGroupsTable.tokenId].toString()
-                    tokenId to row[TenantPaletteTokenGroupsTable.groupId].toString()
-                },
-        )
-        val values = knownValues?.paletteIdReferences()
-            ?: colorValues(designSystemId, tenantId, tokens.map { UUID.fromString(it.id) })
-        val owned = tenant[ThemeDesignSystemsTable.projectId] == projectId.value
-        val shadows = knownValues?.paletteTokens(setOf(ThemeTokenType.SHADOW)) ?: shadowTokens(designSystemId)
+        val tokens = colorTokens(designSystemId)
+        val state = paletteState(tenantId)
+        val values = colorValues(designSystemId, tenantId, tokens.map { UUID.fromString(it.id) })
+        val shadows = shadowTokens(designSystemId)
         return TenantPaletteSnapshot(
             state,
             tokens,
             values,
-            owned,
+            tenant[ThemeDesignSystemsTable.projectId] == projectId.value,
             if (includeSubjectRevisions) paletteSubjectRevisions(tenantId) else emptyMap(),
             layerTokens = shadows,
-            layerValues = if (knownValues == null) {
-                layerValues(designSystemId, tenantId, shadows.map { UUID.fromString(it.id) })
-            } else {
-                emptyList()
-            },
+            layerValues = layerValues(designSystemId, tenantId, shadows.map { UUID.fromString(it.id) }),
         )
     }
+
+    private suspend fun paletteState(tenantId: UUID): TenantPaletteState = TenantPaletteState(
+        editRevision = 0,
+        template = template(tenantId),
+        groups = groups(tenantId),
+        ramps = ramps(tenantId),
+        tokenGroups = TenantPaletteTokenGroupsTable.selectAll()
+            .where { TenantPaletteTokenGroupsTable.tenantId eq tenantId }
+            .associate { row ->
+                row[TenantPaletteTokenGroupsTable.tokenId].toString() to
+                    row[TenantPaletteTokenGroupsTable.groupId].toString()
+            },
+    )
 
     private fun List<TenantTokenValue>.paletteTokens(types: Set<ThemeTokenType>): List<PaletteTokenRef> =
         filter { it.tokenType in types && it.tokenId != null }.distinctBy { it.tokenId }.map {

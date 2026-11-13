@@ -7,7 +7,7 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
-import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
+import com.dsbuilder.ds.themes.application.palette.TenantValuePaletteSnapshot
 import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
@@ -69,7 +69,7 @@ class GetTenantTokenValuesUseCase(
         return when (prepared) {
             is DsResult.Failure -> prepared
             is DsResult.Success -> DsResult.Success(
-                TokenValuePublisher(id, prepared.value.snapshot).publish(prepared.value.values),
+                TokenValuePublisher(prepared.value.snapshot).publish(prepared.value.values),
                 mutationMetadata = prepared.mutationMetadata,
                 readContext = prepared.readContext,
                 readPage = prepared.readPage,
@@ -79,7 +79,7 @@ class GetTenantTokenValuesUseCase(
 
     private data class PreparedValues(
         val values: List<TenantTokenValue>,
-        val snapshot: TenantPaletteSnapshot?,
+        val snapshot: TenantValuePaletteSnapshot?,
     )
 
     private fun requiresPalette(value: TenantTokenValue): Boolean = when (value.tokenType) {

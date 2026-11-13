@@ -40,15 +40,6 @@ interface DraftChangeHandler {
         describe(designSystemId, sequenceNumber, previousSequenceNumber).chunked(500).forEach(consume)
     }
 
-    /** Ограничивает значения выбранной темой; определения и неизвестные реализации сохраняют общий обход. */
-    fun visitTenant(
-        designSystemId: UUID,
-        sequenceNumber: Long,
-        previousSequenceNumber: Long,
-        tenantId: UUID,
-        consume: (List<DraftSubjectChange>) -> Unit,
-    ) = visit(designSystemId, sequenceNumber, previousSequenceNumber, consume)
-
     /** Описывает одну сущность без вычисления остальных предметных отличий ДС. */
     fun describeEntity(
         designSystemId: UUID,
