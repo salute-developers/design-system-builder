@@ -164,16 +164,62 @@ describe('чтения редактора', () => {
         remote.resolve(response);
         expect((await request).code).toBe('ERR_CANCELED');
     });
-    it('допускает начальный пакет четырёх чтений, затем восемь в секунду', async () => {
+    it('не растягивает начальные 14 чтений на интервалы 125 мс', async () => {
         const starts: number[] = [];
         mocks.get.mockImplementation(() => {
             starts.push(Date.now());
             return response;
         });
-        const requests = Array.from({ length: 16 }, (_, i) => readEditor('/tokens/' + i));
+        const requests = Array.from({ length: 14 }, (_, i) => readEditor('/tokens/' + i));
         await vi.runAllTimersAsync();
         await Promise.all(requests);
-        expect(starts).toEqual(Array.from({ length: 16 }, (_, i) => Math.max(0, i - 3) * 125));
+        expect(starts).toHaveLength(14);
+        expect(Math.max(...starts)).toBeLessThan(125);
+    });
+    it('удерживает максимум четыре чтения и отдаёт свободное место данным раздела', async () => {
+        const remote = deferred();
+        mocks.get.mockReturnValue(remote.promise);
+        const first = Array.from({ length: 4 }, (_, i) => readEditor('/active/' + i));
+        await vi.advanceTimersByTimeAsync(0);
+        const journal = readEditor('/api/projects/p/design-systems/d/changes/summary');
+        const values = readEditor('/api/projects/p/design-systems/d/tenants/t/token-values');
+        await vi.advanceTimersByTimeAsync(10);
+        expect(mocks.get).toHaveBeenCalledTimes(4);
+        remote.resolve(response);
+        await vi.runAllTimersAsync();
+        await Promise.all([...first, journal, values]);
+        expect(mocks.get.mock.calls.slice(4).map((call) => call[0])).toEqual([
+            '/api/projects/p/design-systems/d/tenants/t/token-values',
+            '/api/projects/p/design-systems/d/changes/summary',
+        ]);
+    });
+    it('поднимает приоритет старого фонового чтения при непрерывном потоке основных', async () => {
+        const remote = deferred();
+        mocks.get.mockReturnValue(remote.promise);
+        const first = Array.from({ length: 4 }, (_, i) => readEditor('/occupied/' + i));
+        // Удерживаем все четыре места, пока фон и новые основные чтения ждут.
+        await vi.advanceTimersByTimeAsync(0);
+        const journal = readEditor('/api/projects/p/design-systems/d/changes/summary');
+        const foreground = Array.from({ length: 20 }, (_, i) => readEditor('/foreground/' + i));
+        await vi.advanceTimersByTimeAsync(1_000);
+        mocks.get.mockReturnValue(response);
+        remote.resolve(response);
+        await vi.runAllTimersAsync();
+        await Promise.all([...first, journal, ...foreground]);
+        expect(mocks.get.mock.calls[4][0]).toBe('/api/projects/p/design-systems/d/changes/summary');
+    });
+
+    it('сохраняет ограничение постоянного потока после начального запаса', async () => {
+        const starts: number[] = [];
+        mocks.get.mockImplementation(() => {
+            starts.push(Date.now());
+            return response;
+        });
+        const requests = Array.from({ length: 24 }, (_, i) => readEditor('/stream/' + i));
+        await vi.runAllTimersAsync();
+        await Promise.all(requests);
+        expect(starts[15]).toBeLessThan(125);
+        expect(starts[23]).toBeGreaterThanOrEqual(1000);
     });
     it('отменённый всплеск не оставляет длинную очередь для следующего контекста', async () => {
         const controller = new AbortController();

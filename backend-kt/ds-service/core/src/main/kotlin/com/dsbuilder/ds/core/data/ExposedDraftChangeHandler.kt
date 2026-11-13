@@ -3,6 +3,8 @@ package com.dsbuilder.ds.core.data
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangeSnapshot
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.JournalProjectionHandler
+import com.dsbuilder.ds.core.application.TenantScopedDraftChangeHandler
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -37,8 +39,10 @@ class ExposedDraftChangeHandler(
     private val revisionDeleted: Column<Boolean>,
     private val stableValueColumns: List<Column<*>> = emptyList(),
     private val revisionValueColumns: List<Column<*>> = emptyList(),
-) : DraftChangeHandler {
+    private val stableTenantId: Column<UUID>? = null,
+) : DraftChangeHandler, TenantScopedDraftChangeHandler, JournalProjectionHandler {
     override val supportsAddressedRevert: Boolean = true
+    override val candidateIndex = ExposedDraftCandidateIndex(entityType, revisionTable, revisionSequenceNumber)
 
     override fun describe(
         designSystemId: UUID,
@@ -67,6 +71,31 @@ class ExposedDraftChangeHandler(
 
     override fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =
         differences(designSystemId, sequenceNumber, previousSequenceNumber, limit = 1).isNotEmpty()
+
+    override fun visitTenant(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        tenantId: UUID,
+        consume: (List<DraftSubjectChange>) -> Unit,
+    ) {
+        if (stableTenantId == null) return visit(designSystemId, sequenceNumber, previousSequenceNumber, consume)
+        var afterId: UUID? = null
+        while (true) {
+            val batch = differences(
+                designSystemId,
+                sequenceNumber,
+                previousSequenceNumber,
+                500,
+                afterId = afterId,
+                tenantId = tenantId,
+            )
+            if (batch.isEmpty()) return
+            consume(batch)
+            afterId = batch.last().entityId
+            if (batch.size < 500) return
+        }
+    }
 
     override fun describeEntity(
         designSystemId: UUID,
@@ -117,21 +146,18 @@ class ExposedDraftChangeHandler(
         limit: Int?,
         entityIds: Set<UUID>? = null,
         afterId: UUID? = null,
+        tenantId: UUID? = null,
     ): List<DraftSubjectChange> {
         val previousValue = valueExpression("previous")
         val currentValue = valueExpression("current")
         val previousResolved = resolvedValueExpression("previous", previousValue)
         val currentResolved = resolvedValueExpression("current", currentValue)
         val limitClause = limit?.let { "LIMIT $it" }.orEmpty()
-        val entityClause = entityIds?.joinToString(
-            ",",
-            prefix = "AND entity.${stableId.quotedName()} IN (",
-            postfix = ")",
-        ) {
-            "?"
-        }.orEmpty()
+        val entityPlaceholders = entityIds?.joinToString(",") { "?" }
+        val entityClause = entityPlaceholders?.let { "AND entity.${stableId.quotedName()} IN ($it)" }.orEmpty()
         val candidateJoin = if (entityIds == null) changedEntitiesJoin() else ""
         val afterClause = if (afterId == null) "" else "AND entity.${stableId.quotedName()} > ?"
+        val tenantClause = if (tenantId == null) "" else "AND entity.${requireNotNull(stableTenantId).quotedName()} = ?"
         val sql = """
             SELECT ${stableTable.qualified(stableId)} AS entity_id,
                    previous.${revisionEntityId.quotedName()} AS previous_exists,
@@ -161,6 +187,7 @@ class ExposedDraftChangeHandler(
             WHERE entity.${stableDesignSystemId.quotedName()} = ?
               $entityClause
               $afterClause
+              $tenantClause
               AND ($previousResolved) IS DISTINCT FROM ($currentResolved)
             ORDER BY ${stableTable.qualified(stableId)}
             $limitClause
@@ -172,7 +199,8 @@ class ExposedDraftChangeHandler(
                 LongColumnType() to sequenceNumber,
                 UUIDColumnType() to designSystemId,
             ) + entityIds.orEmpty().map { UUIDColumnType() to it } +
-                listOfNotNull(afterId?.let { UUIDColumnType() to it }),
+                listOfNotNull(afterId?.let { UUIDColumnType() to it }) +
+                listOfNotNull(tenantId?.let { UUIDColumnType() to it }),
         ) { rows -> readDifferences(rows) }.orEmpty()
     }
 

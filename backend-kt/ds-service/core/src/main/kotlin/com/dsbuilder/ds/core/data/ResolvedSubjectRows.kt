@@ -24,6 +24,7 @@ class ResolvedSubjectRows(
     private val revisionEntity: Column<UUID>,
     private val owner: Table? = null,
     private val designSystemId: UUID? = null,
+    private val columns: List<Column<*>>? = null,
 ) {
     /** Читает строки на разрешённых границах текущей транзакции без изменения предметных данных. */
     fun read(predicate: Op<Boolean>): List<ResultRow> {
@@ -45,6 +46,18 @@ class ResolvedSubjectRows(
         return rows
     }
 
+    /** Материализует узкую проекцию непосредственно в модель; JDBC-строки не покидают текущую транзакцию. */
+    fun <T : Any> readProjected(predicate: Op<Boolean>, decode: (java.sql.ResultSet) -> T?): List<T> {
+        val selection = selection(predicate) ?: return emptyList()
+        return TransactionManager.current().exec(
+            selection.builder.toString(),
+            selection.builder.args,
+            explicitStatementType = StatementType.SELECT,
+        ) { result ->
+            buildList { while (result.next()) decode(result)?.let(::add) }
+        }.orEmpty()
+    }
+
     /** Возвращает уже прочитанный точный набор только в readOnly-контексте, не загружая строки при промахе. */
     fun cached(predicate: Op<Boolean>): List<ResultRow>? {
         val transaction = TransactionManager.current()
@@ -56,7 +69,7 @@ class ResolvedSubjectRows(
     private fun selection(predicate: Op<Boolean>): RowSelection? {
         val transaction = TransactionManager.current()
         val tables = listOf(stable, revision, boundary) + listOfNotNull(owner)
-        val fields = tables.flatMap(Table::columns)
+        val fields = columns ?: tables.flatMap(Table::columns)
         val builder = QueryBuilder(true)
         val stableName = transaction.identity(stable)
         val revisionName = transaction.identity(revision)

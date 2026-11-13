@@ -12,6 +12,7 @@ import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.core.presentation.tokenIdFilter
 import com.dsbuilder.ds.themes.application.CreateTenant
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
@@ -98,7 +99,8 @@ fun Route.tenantRoutes(
             if (platformNames != null && platforms.size != platformNames.size) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_platforms"))
             }
-            when (val result = getTokenValues.execute(context, id, types, platforms)) {
+            val tokenIds = call.tokenIdFilter() ?: return@get
+            when (val result = getTokenValues.execute(context, id, types, platforms, tokenIds)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(TenantTokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

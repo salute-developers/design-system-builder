@@ -11,6 +11,9 @@ interface DraftChangeHandler {
     /** Устойчивое имя типа в журнале и технических редакциях. */
     val entityType: String
 
+    /** Необязательный пакетный индекс кандидатов; отсутствие не позволяет пропускать обработчик. */
+    val candidateIndex: DraftChangeCandidateIndex? get() = null
+
     /** Блокирует предметного родителя до общей блокировки сущности при составной отмене. */
     fun prepareRevert(designSystemId: UUID, entityId: UUID): Boolean = true
 

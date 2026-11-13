@@ -20,14 +20,28 @@ class BatchJdbc {
 
     /** Выполняет одну фазу; число SQL-операторов составной фазы указывается явно. */
     fun query(sql: String, vararg args: Any?, operators: Int = 1): List<Map<String, String?>> =
-        read(sql, *args, operators = operators) { row ->
+        readArguments(sql, args.asList(), operators = operators) { row ->
             (1..row.metaData.columnCount).associate { index ->
                 row.metaData.getColumnLabel(index) to row.getString(index)
             }
         }
 
     /** Читает явную SQL-проекцию, не превращая предметные типы в строковую карту. */
-    fun <T> read(sql: String, vararg args: Any?, operators: Int = 1, decode: (ResultSet) -> T): List<T> {
+    fun <T> read(
+        sql: String,
+        vararg args: Any?,
+        operators: Int = 1,
+        decode: (ResultSet) -> T,
+    ): List<T> =
+        readArguments(sql, args.asList(), operators, decode)
+
+    /** Читает подготовленный список параметров без промежуточного массива и spread-копирования. */
+    fun <T> readArguments(
+        sql: String,
+        args: List<Any?>,
+        operators: Int = 1,
+        decode: (ResultSet) -> T,
+    ): List<T> {
         val started = System.nanoTime()
         try {
             return connection.prepareStatement(sql).use { statement ->

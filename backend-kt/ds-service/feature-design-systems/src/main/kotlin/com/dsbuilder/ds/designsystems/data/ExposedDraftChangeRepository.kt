@@ -10,6 +10,7 @@ import com.dsbuilder.ds.core.application.DraftValueBatchRequest
 import com.dsbuilder.ds.core.application.DraftValueBatchReverter
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.JournalCandidateProjection
 import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import com.dsbuilder.ds.core.application.ModelReadItems
 import com.dsbuilder.ds.core.application.ModelReadQuery
@@ -19,6 +20,7 @@ import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
 import com.dsbuilder.ds.core.data.literalValueBatchParticipants
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.modelReadJournalPage
+import com.dsbuilder.ds.core.data.populatedDraftHandlers
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.DraftAddressTarget
 import com.dsbuilder.ds.designsystems.application.DraftChangeBatchRevertResult
@@ -49,6 +51,7 @@ class ExposedDraftChangeRepository(
     private val policies: List<DraftChangePolicy> = emptyList(),
     private val dependencies: List<DraftChangeDependencyValidator> = emptyList(),
     private val valueBatches: List<DraftValueBatchReverter> = emptyList(),
+    private val journalProjections: List<JournalCandidateProjection> = emptyList(),
 ) : DraftChangeRepository {
     @Suppress("ReturnCount") // Отказы проверки адресов и черновика остаются явными защитными условиями.
     override suspend fun revertAddressed(
@@ -200,6 +203,7 @@ class ExposedDraftChangeRepository(
         target.id,
         target.sequenceNumber,
         previousSequence(owner, target.sequenceNumber),
+        journalProjections,
     )
 
     override suspend fun page(
@@ -209,7 +213,6 @@ class ExposedDraftChangeRepository(
         versionId: DesignSystemVersionId?,
         read: ModelReadQuery,
     ): ModelReadItems<DraftChange>? = list(projectId, systemAdmin, designSystemId, versionId)
-        ?.sortedWith(compareBy<DraftChange> { it.entityType }.thenBy { it.entityId.toString() })
         ?.modelReadJournalPage(read, DraftChange::entityType, DraftChange::entityId)
 
     override suspend fun list(
@@ -219,13 +222,17 @@ class ExposedDraftChangeRepository(
         versionId: DesignSystemVersionId?,
     ): List<DraftChange>? {
         val target = boundary(projectId, systemAdmin, designSystemId, versionId) ?: return null
+        return changes(designSystemId, target)
+    }
+
+    private fun changes(designSystemId: DesignSystemId, target: BoundaryRow): List<DraftChange> {
         val previousSequence = previousSequence(designSystemId, target.sequenceNumber)
         val differences = boundedDifferences(target.id, designSystemId.value, target.sequenceNumber, previousSequence)
             ?: throw DraftChangeLimitExceededException()
         val edits = editStates(target.id, differences)
         val changes = differences.map { (subject, difference) ->
             change(subject, difference, designSystemId, target, edits[subject.entityType to difference.entityId])
-        }.sortedWith(compareBy(DraftChange::entityType, DraftChange::entityId))
+        }.sortedWith(compareBy<DraftChange> { it.entityType }.thenBy { it.entityId.toString() })
         return changes
     }
 
@@ -236,11 +243,10 @@ class ExposedDraftChangeRepository(
         versionId: DesignSystemVersionId?,
         read: ModelReadQuery,
     ): com.dsbuilder.ds.designsystems.application.DraftJournalRead? {
-        val changes = list(projectId, systemAdmin, designSystemId, versionId) ?: return null
         val target = boundary(projectId, systemAdmin, designSystemId, versionId) ?: return null
+        val changes = changes(designSystemId, target)
         return com.dsbuilder.ds.designsystems.application.DraftJournalRead(
-            changes.sortedWith(compareBy<DraftChange> { it.entityType }.thenBy { it.entityId.toString() })
-                .modelReadJournalPage(read, DraftChange::entityType, DraftChange::entityId),
+            changes.modelReadJournalPage(read, DraftChange::entityType, DraftChange::entityId),
             compactReader(designSystemId, target).count(changes),
         )
     }
@@ -718,10 +724,11 @@ class ExposedDraftChangeRepository(
         previousSequenceNumber: Long,
     ): List<TypedDifference> {
         val handlersByType = handlers.associateBy(DraftChangeHandler::entityType)
-        val candidates = handlers.flatMap { subject ->
-            subject.describe(designSystemId, sequenceNumber, previousSequenceNumber)
-                .map { difference -> DraftChangeCandidate(subject.entityType, difference) }
-        }
+        val candidates = populatedDraftHandlers(handlers, designSystemId, sequenceNumber, previousSequenceNumber)
+            .flatMap { subject ->
+                subject.describe(designSystemId, sequenceNumber, previousSequenceNumber)
+                    .map { difference -> DraftChangeCandidate(subject.entityType, difference) }
+            }
         return policies.fold(candidates) { visible, policy -> policy.visible(targetVersionId, visible) }
             .mapNotNull { candidate ->
                 handlersByType[candidate.entityType]?.let { TypedDifference(it, candidate.change) }
@@ -735,16 +742,17 @@ class ExposedDraftChangeRepository(
         previousSequenceNumber: Long,
     ): List<TypedDifference>? {
         val handlersByType = handlers.associateBy(DraftChangeHandler::entityType)
-        val candidates = handlers.flatMap { subject ->
-            val described = subject.describe(
-                designSystemId,
-                sequenceNumber,
-                previousSequenceNumber,
-                limit = MAX_JOURNAL_CANDIDATES_PER_TYPE + 1,
-            )
-            if (described.size > MAX_JOURNAL_CANDIDATES_PER_TYPE) return null
-            described.map { difference -> DraftChangeCandidate(subject.entityType, difference) }
-        }
+        val candidates = populatedDraftHandlers(handlers, designSystemId, sequenceNumber, previousSequenceNumber)
+            .flatMap { subject ->
+                val described = subject.describe(
+                    designSystemId,
+                    sequenceNumber,
+                    previousSequenceNumber,
+                    limit = MAX_JOURNAL_CANDIDATES_PER_TYPE + 1,
+                )
+                if (described.size > MAX_JOURNAL_CANDIDATES_PER_TYPE) return null
+                described.map { difference -> DraftChangeCandidate(subject.entityType, difference) }
+            }
         val visible = policies.fold(candidates) { current, policy -> policy.visible(targetVersionId, current) }
         if (visible.size > MAX_JOURNAL_CHANGES) return null
         return visible.mapNotNull { candidate ->

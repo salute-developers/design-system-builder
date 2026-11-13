@@ -30,6 +30,8 @@ internal fun withPaletteRebuildJournal(handlers: List<DraftChangeHandler>): List
     return handlers.map { delegate ->
         when (delegate.entityType) {
             "palette-ramp" -> object : DraftChangeHandler by delegate {
+                // Представление растяжки зависит и от редакций ступеней: одного источника недостаточно.
+                override val candidateIndex: com.dsbuilder.ds.core.application.DraftChangeCandidateIndex? = null
                 override fun canRemoveCreated(versionId: UUID, entityId: UUID): Boolean =
                     projection.canRemoveCreated(versionId, entityId)
 
@@ -62,6 +64,7 @@ internal fun withPaletteRebuildJournal(handlers: List<DraftChangeHandler>): List
                         ?: delegate.revert(versionId, entityId, removeStableEntity)
             }
             "palette-step" -> object : DraftChangeHandler by delegate {
+                override val candidateIndex: com.dsbuilder.ds.core.application.DraftChangeCandidateIndex? = null
                 override fun describeEntity(
                     designSystemId: UUID,
                     sequenceNumber: Long,

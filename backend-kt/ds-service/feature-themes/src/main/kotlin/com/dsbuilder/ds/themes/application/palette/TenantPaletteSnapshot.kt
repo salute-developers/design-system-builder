@@ -23,6 +23,14 @@ data class TenantPaletteSnapshot(
     /** Ссылки цветов слоёв теней темы на ступени палитры: по одной на слой со ссылкой. */
     val layerValues: List<PaletteTokenValue> = emptyList(),
 ) {
+    /** Проекция для раскрытия значений без возможности построить неполную палитру. */
+    fun forValueResolution(): TenantValuePaletteSnapshot = TenantValuePaletteSnapshot(
+        state,
+        tokens,
+        values,
+        layerTokens,
+    )
+
     /** Палитра темы со связями цветовых токенов и слоёв теней. */
     fun palette(tenantId: String, canEdit: Boolean): ThemePalette =
         ThemePaletteBuilder.build(tenantId, canEdit, state, tokens, values, layerTokens, layerValues)

@@ -14,6 +14,27 @@ import kotlin.test.assertTrue
 /** Диагностика публикует только разрешённые поля, без SQL, параметров и предметных значений. */
 class TransactionDiagnosticsTest {
     @Test
+    fun `pool counters distinguish snapshots around acquisition without connection data`() {
+        val logger = LoggerFactory.getLogger(TransactionDiagnostics::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        try {
+            var state = mapOf("active" to 4, "idle" to 0, "pending" to 2, "total" to 4)
+            val diagnostics = TransactionDiagnostics(true, 0) { state }
+            state = mapOf("active" to 5, "idle" to 0, "pending" to 1, "total" to 5)
+            diagnostics.connected()
+            diagnostics.finished(true)
+            val event = Json.parseToJsonElement(appender.list.single().formattedMessage).jsonObject
+            assertEquals("2", event.getValue("poolBefore").jsonObject.getValue("pending").jsonPrimitive.content)
+            assertEquals("5", event.getValue("poolConnected").jsonObject.getValue("total").jsonPrimitive.content)
+            assertEquals(setOf("active", "idle", "pending", "total"), event.getValue("poolBefore").jsonObject.keys)
+        } finally {
+            logger.detachAppender(appender)
+            appender.stop()
+        }
+    }
+
+    @Test
     fun `transaction event contains only bounded timing metadata`() {
         val logger = LoggerFactory.getLogger(TransactionDiagnostics::class.java) as Logger
         val appender = ListAppender<ILoggingEvent>().apply { start() }

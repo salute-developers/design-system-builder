@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { useMemo } from 'react';
 import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
@@ -19,7 +20,7 @@ interface ColorsOutletContextProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
-    refreshChanges?: (changes: DraftRefreshChange[]) => Promise<void>;
+    refreshChanges?: (changes: DraftRefreshChange[], options?: DraftRefreshOptions) => Promise<void>;
     /** Ошибка загрузки раздела: экран показывает «Не удалось загрузить цветовые токены» и «Повторить». */
     sectionError?: unknown;
     /** Раздел ещё загружается: тема в контексте — оболочка без токенов. */

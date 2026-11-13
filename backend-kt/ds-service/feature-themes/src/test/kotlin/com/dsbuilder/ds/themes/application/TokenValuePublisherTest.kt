@@ -22,7 +22,7 @@ class TokenValuePublisherTest {
 
     @Test
     fun `form by type applies without a palette snapshot`() {
-        val publisher = TokenValuePublisher(tenant, null)
+        val publisher = TokenValuePublisher(null)
         val solid = value("ios", """["#123456"]""", ThemeTokenType.GRADIENT)
         val published = publisher.publish(listOf(solid)).single()
         assertEquals("""[{"kind":"color","background":"#123456"}]""", published.valueJson)
@@ -48,7 +48,7 @@ class TokenValuePublisherTest {
         val reference = "[${ramp.key}.${steps.keys.first()}]"
         val stored = value("ios", """["$reference"]""", ThemeTokenType.GRADIENT, tokenId)
 
-        val published = TokenValuePublisher(tenant, snapshot).publish(listOf(stored)).single()
+        val published = TokenValuePublisher(snapshot.forValueResolution()).publish(listOf(stored)).single()
 
         assertEquals(reference, published.paletteRef)
         assertNull(published.sourceValueJson)
@@ -65,7 +65,7 @@ class TokenValuePublisherTest {
             paletteId = null,
             platform = platform,
             mode = "light",
-            valueJson = json,
+            value = Json.parseToJsonElement(json),
             editRevision = 0,
             createdAt = Instant.EPOCH,
             updatedAt = Instant.EPOCH,

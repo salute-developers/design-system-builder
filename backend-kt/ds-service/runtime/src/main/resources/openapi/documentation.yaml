@@ -343,6 +343,7 @@ paths:
       description: Project-scoped authoritative token list. Preserves array response
         shape and supports optional type/query filters.
       parameters:
+        - $ref: '#/components/parameters/TokenIdsFilter'
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/PageLimit'
         - $ref: '#/components/parameters/PageCursor'
@@ -1197,6 +1198,7 @@ paths:
         без него сохраняется полный ответ. Необязательный platforms оставляет значения
         только этих платформ; значения без платформы при нём не отдаются.'
       parameters:
+        - $ref: '#/components/parameters/TokenIdsFilter'
         - name: designSystemId
           in: path
           required: true
@@ -15101,6 +15103,24 @@ components:
       required:
         - deletedTokenIds
   parameters:
+    TokenIdsFilter:
+      name: tokenIds
+      in: query
+      required: false
+      description: >-
+        От 1 до 200 UUID токенов через запятую. Повтор параметра, пустой или неверный UUID
+        возвращает 400 invalid_token_ids. Чужие и отсутствующие токены не включаются в ответ.
+        Без фильтра сохраняется полная выдача; остальные фильтры применяются совместно.
+        HTTP/1.1-конфигурация сервера допускает начальную строку до 16 КиБ.
+      schema:
+        type: array
+        minItems: 1
+        maxItems: 200
+        items:
+          type: string
+          format: uuid
+      style: form
+      explode: false
     ModelVersion:
       name: version
       in: query

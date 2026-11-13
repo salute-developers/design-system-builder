@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { useRef, useState } from 'react';
 import type { DraftChangeDto, EditorContextKey } from '../../api/editorContracts';
 import { waitForDraftAutosaveIdle } from '../../api/draftAutosaveActivity';
@@ -5,17 +6,17 @@ import { versionJournalRepository as repository } from '../../api/versionJournal
 import type { JournalActionViewModel } from './journalPresenter';
 import { errorCode } from './useJournal';
 
-const revertError = (cause: unknown) => {
-    const code = errorCode(cause);
-    if (code === 'DRAFT_CHANGE_STALE') return 'Черновик уже изменился. Журнал обновлён; выберите изменение ещё раз.';
-    if (code === 'REVERT_DEPENDENCY_CONFLICT') return 'Изменение нельзя отменить из-за зависимых изменений. Журнал обновлён.';
-    return 'Не удалось полностью отменить изменение. Журнал обновлён.';
+const revertErrors: Record<string, string> = {
+    DRAFT_CHANGE_STALE: 'Черновик уже изменился. Журнал обновлён; выберите изменение ещё раз.',
+    REVERT_DEPENDENCY_CONFLICT: 'Изменение нельзя отменить из-за зависимых изменений. Журнал обновлён.',
 };
+const revertError = (cause: unknown) =>
+    revertErrors[errorCode(cause) ?? ''] ?? 'Не удалось полностью отменить изменение. Журнал обновлён.';
 
 export const useJournalRevert = (
     context: EditorContextKey | undefined,
     onReload: () => Promise<void>,
-    refreshChanges?: (changes: DraftChangeDto[]) => Promise<void>,
+    refreshChanges?: (changes: DraftChangeDto[], options?: DraftRefreshOptions) => Promise<void>,
 ) => {
     const [operationError, setOperationError] = useState<string>();
     const [reverting, setReverting] = useState<string>();
@@ -23,9 +24,15 @@ export const useJournalRevert = (
     const pendingRefresh = useRef<JournalActionViewModel>();
     const pendingError = useRef<string>();
     const running = useRef(false);
+    const unknownOutcome = useRef(false);
     const refresh = async (action: JournalActionViewModel) => {
         if (context) await waitForDraftAutosaveIdle(context, 10_000);
-        const results = await Promise.allSettled([refreshChanges?.(action.changes), onReload()]);
+        const results = await Promise.allSettled([
+            unknownOutcome.current
+                ? refreshChanges?.(action.changes, { outcome: 'unknown' })
+                : refreshChanges?.(action.changes),
+            onReload(),
+        ]);
         const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
         if (failed) throw failed.reason;
         setRefreshFailed(false);
@@ -44,6 +51,7 @@ export const useJournalRevert = (
         setReverting(action.key);
         setOperationError(undefined);
         pendingError.current = undefined;
+        unknownOutcome.current = false;
         const attempted: DraftChangeDto[] = [];
         try {
             if (!context) throw new Error('Контекст журнала недоступен');
@@ -62,6 +70,7 @@ export const useJournalRevert = (
             }
         } catch (cause) {
             pendingError.current = revertError(cause);
+            unknownOutcome.current = attempted.length > 0;
         }
         pendingRefresh.current = { ...action, changes: attempted };
         try {

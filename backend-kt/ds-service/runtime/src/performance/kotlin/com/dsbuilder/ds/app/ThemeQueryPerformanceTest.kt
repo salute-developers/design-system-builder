@@ -8,7 +8,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
-import io.ktor.server.testing.runTestApplication
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
@@ -35,6 +34,10 @@ import kotlin.test.assertTrue
 class ThemeQueryPerformanceTest {
     @Test
     fun `measure full theme reads and journal on representative data`() {
+        if (System.getProperty("ds.performance.scenario") == "journal-baselines") {
+            measureJournalBaselines()
+            return
+        }
         IsolatedPostgresDatabase.create().use { postgres ->
             val imported = System.getProperty("ds.performance.fixtureImport").orEmpty()
             if (imported.isNotBlank()) {
@@ -43,15 +46,12 @@ class ThemeQueryPerformanceTest {
             DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { statistics ->
                 runBlocking {
                     withTimeout(900_000) {
-                        runTestApplication {
-                            application {
-                                module(
-                                    DsServiceConfiguration(
-                                        0, postgres.jdbcUrl, postgres.username, postgres.password,
-                                        4, 5_000, null, true, false, null,
-                                    ),
-                                )
-                            }
+                        withPerformanceApplication(
+                            DsServiceConfiguration(
+                                0, postgres.jdbcUrl, postgres.username, postgres.password,
+                                4, 5_000, null, true, false, null,
+                            ),
+                        ) { client ->
                             val system: String
                             val tenants = mutableListOf<String>()
                             if (imported.isNotBlank()) {
@@ -105,6 +105,27 @@ class ThemeQueryPerformanceTest {
                                 }
                             }
                             val root = "/api/design-systems/$system"
+                            val editDensity = System.getProperty("ds.performance.editDensity").orEmpty()
+                            if (editDensity.isNotEmpty()) {
+                                check(editDensity in setOf("partial", "full"))
+                                statistics.createStatement().use { statement ->
+                                    val subset = if (editDensity == "partial") " AND value.id::text < '8'" else ""
+                                    statement.executeUpdate(
+                                        "INSERT INTO " +
+                                            "entity_edit_states(design_system_version_id,design_system_id," +
+                                            "entity_type,entity_id,revision,last_actor_id,updated_at) " +
+                                            "SELECT " +
+                                            "boundary.id,boundary.design_system_id,'token-value',value.id," +
+                                            "7,'fixture',now() " +
+                                            "FROM token_values value JOIN design_system_versions boundary " +
+                                            "ON boundary.design_system_id=value.design_system_id " +
+                                            "WHERE boundary.status='draft' AND " +
+                                            "value.tenant_id='${tenants.first()}'$subset " +
+                                            "ON CONFLICT(design_system_version_id,entity_type,entity_id) " +
+                                            "DO UPDATE SET revision=7",
+                                    )
+                                }
+                            }
                             val count = statistics.createStatement().use { statement ->
                                 statement.executeQuery("SELECT count(*) FROM token_values").use {
                                     it.next()
@@ -116,9 +137,46 @@ class ThemeQueryPerformanceTest {
                             val results = linkedMapOf<String, Measurement>()
                             val signatures = linkedMapOf<String, String>()
                             val scenario = System.getProperty("ds.performance.scenario").orEmpty()
+                            if (scenario == "client-server") {
+                                val destination = File(requireNotNull(System.getProperty("ds.performance.output")))
+                                destination.writeText(
+                                    buildJsonObject {
+                                        put(
+                                            "port",
+                                            JsonPrimitive(requireNotNull(System.getProperty("ds.performance.port"))),
+                                        )
+                                        put("system", JsonPrimitive(system))
+                                        put("tenant", JsonPrimitive(tenant))
+                                    }.toString(),
+                                )
+                                while (!File(destination.path + ".stop").exists()) kotlinx.coroutines.delay(100)
+                                return@withPerformanceApplication
+                            }
+                            if (scenario == "addressed-revert") {
+                                PerformanceAddressedRevert(
+                                    { method, path, body, revision -> api(client, method, path, body, revision) },
+                                    { statistics.calls() },
+                                    root,
+                                    tenant,
+                                ).measure()
+                                return@withPerformanceApplication
+                            }
+                            if (scenario == "edit-revisions") {
+                                measureEditRevisionStrategies(statistics, system, tenant)
+                                return@withPerformanceApplication
+                            }
                             val checkValueReads = System.getProperty("ds.performance.legacy") != "true"
                             suspend fun measure(name: String, path: String) {
-                                if (scenario.isNotBlank() && scenario != name) return
+                                if (scenario.isNotBlank() && scenario != name &&
+                                    !(
+                                        scenario == "value-reads" && name in setOf(
+                                            "token-values",
+                                            "color-values", "rare-values",
+                                        )
+                                        )
+                                ) {
+                                    return
+                                }
                                 val beforeValues = if (name == "token-values" && checkValueReads) {
                                     statistics.valueReadCalls()
                                 } else {
@@ -140,23 +198,36 @@ class ThemeQueryPerformanceTest {
                                 repeat(2) { api(client, "GET", path) }
                                 val times = mutableListOf<Double>()
                                 val calls = mutableListOf<Long>()
-                                repeat(20) {
-                                    val before = statistics.calls()
-                                    times += measureNanoTime { api(client, "GET", path) } / 1_000_000.0
-                                    calls += statistics.calls() - before
+                                val http = PerformanceHttpTimings()
+                                try {
+                                    repeat(20) {
+                                        val before = statistics.calls()
+                                        times += measureNanoTime { api(client, "GET", path) } / 1_000_000.0
+                                        calls += statistics.calls() - before
+                                    }
+                                    results[name] = Measurement(
+                                        (times.sorted()[9] + times.sorted()[10]) / 2,
+                                        times.sorted()[18], calls.average(),
+                                        http.median(), times,
+                                    )
+                                } finally {
+                                    http.close()
                                 }
-                                results[name] = Measurement(
-                                    (times.sorted()[9] + times.sorted()[10]) / 2,
-                                    times.sorted()[18], calls.average(),
-                                )
                             }
                             measure("tenant", "$root/tenants/$tenant")
                             measure("tokens", "$root/tokens")
                             measure("token-values", "$root/tenants/$tenant/token-values")
+                            measure("rare-values", "$root/tenants/$tenant/token-values?types=typography,fontFamily")
+                            measure("color-values", "$root/tenants/$tenant/token-values?types=color,gradient")
                             measure("palette", "$root/tenants/$tenant/palette")
+                            measure("palette-links", "$root/tenants/$tenant/palette/links?type=general&shade=gray")
+                            measure("changed-token-ids", "$root/changes/token-ids?tenantId=$tenant")
                             measure("size-tokens", "$root/tenants/$tenant/size-tokens")
                             measure("journal-empty", "$root/changes")
                             measure("summary-empty", "$root/changes/summary")
+                            if (scenario == "color-save") {
+                                results[scenario] = measureColorSaves(client, statistics, root, tenant)
+                            }
                             if (scenario.isBlank()) {
                                 val definitions = api(client, "GET", "$root/tokens").jsonArray
                                 assertTrue(definitions.size >= 1_700)
@@ -195,7 +266,7 @@ class ThemeQueryPerformanceTest {
                                 }
                                 results["revert-command"] = Measurement(
                                     (commandTimes.sorted()[9] + commandTimes.sorted()[10]) / 2,
-                                    commandTimes.sorted()[18], commandCalls.average(),
+                                    commandTimes.sorted()[18], commandCalls.average(), samplesMs = commandTimes,
                                 )
                             }
                             val report = buildJsonObject {
@@ -210,6 +281,8 @@ class ThemeQueryPerformanceTest {
                                             put("medianMs", JsonPrimitive(result.medianMs))
                                             put("p95Ms", JsonPrimitive(result.p95Ms))
                                             put("sqlCalls", JsonPrimitive(result.sqlCalls))
+                                            put("samplesMs", JsonArray(result.samplesMs.map(::JsonPrimitive)))
+                                            result.serverMedianMs?.let { put("serverMedianMs", JsonPrimitive(it)) }
                                         }
                                     }
                                 }
@@ -245,7 +318,7 @@ class ThemeQueryPerformanceTest {
             }
         }
         val text = response.bodyAsText()
-        assertTrue(response.status.value in 200..299, "$method $path: $text")
+        if (response.status.value !in 200..299) error("$method $path: $text")
         return Json.parseToJsonElement(text)
     }
 
@@ -339,6 +412,89 @@ class ThemeQueryPerformanceTest {
         }
     }
 
+    private suspend fun measureColorSaves(
+        client: HttpClient,
+        statistics: Connection,
+        root: String,
+        tenant: String,
+    ): Measurement {
+        val definitions = api(client, "GET", "$root/tokens?type=color").jsonArray
+        val families = definitions.groupBy { token ->
+            com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily.of(
+                com.dsbuilder.ds.themes.domain.ThemeTokenType.COLOR,
+                token.field("name"),
+            )?.let { it.group to it.name }
+        }
+        val members = families.entries.first { it.key != null && it.value.size >= 9 }.value
+            .sortedBy { it.field("name") }.take(9).map { it.field("id") }
+        var confirmed = api(client, "GET", "$root/tenants/$tenant/token-values").jsonArray
+        val addresses = confirmed.filter { value ->
+            val member = members.indexOf(value.field("tokenId"))
+            member >= 0 && (member >= 6 || value.field("mode") == "light")
+        }.map { it.field("id") }.toSet()
+        assertEquals(36, addresses.size)
+        val times = mutableListOf<Double>()
+        val calls = mutableListOf<Long>()
+        repeat(23) { iteration ->
+            val color = "#${(0x110000 + iteration).toString(16).padStart(6, '0')}"
+            val body = buildJsonObject {
+                put("editRevision", JsonPrimitive(0))
+                put(
+                    "members",
+                    JsonArray(
+                        members.map { token ->
+                            buildJsonObject {
+                                put("tokenId", JsonPrimitive(token))
+                                put(
+                                    "values",
+                                    JsonArray(
+                                        confirmed.filter {
+                                            it.field("tokenId") == token && it.field("id") in addresses
+                                        }.map { value ->
+                                            JsonObject(
+                                                mapOf(
+                                                    "platform" to value.jsonObject.getValue("platform"),
+                                                    "mode" to value.jsonObject.getValue("mode"),
+                                                    "value" to JsonArray(listOf(JsonPrimitive(color))),
+                                                    "overridden" to value.jsonObject.getValue("overridden"),
+                                                    "baseRevision" to value.jsonObject.getValue("editRevision"),
+                                                ),
+                                            )
+                                        },
+                                    ),
+                                )
+                            }
+                        },
+                    ),
+                )
+            }
+            val before = statistics.calls()
+            val elapsed = measureNanoTime {
+                val response = api(
+                    client, "PUT",
+                    "$root/tenants/$tenant/color-tokens/${members.first()}/values", body.toString(),
+                )
+                confirmed = response.jsonObject.getValue("confirmedValues").jsonArray
+            } / 1_000_000.0
+            if (iteration >= 3) {
+                times += elapsed
+                calls += statistics.calls() - before
+            }
+        }
+        return Measurement(
+            (times.sorted()[9] + times.sorted()[10]) / 2,
+            times.sorted()[18],
+            calls.average(),
+            samplesMs = times,
+        )
+    }
+
     private fun JsonElement.field(name: String) = jsonObject.getValue(name).jsonPrimitive.content
-    private data class Measurement(val medianMs: Double, val p95Ms: Double, val sqlCalls: Double)
+    private data class Measurement(
+        val medianMs: Double,
+        val p95Ms: Double,
+        val sqlCalls: Double,
+        val serverMedianMs: Double? = null,
+        val samplesMs: List<Double> = emptyList(),
+    )
 }

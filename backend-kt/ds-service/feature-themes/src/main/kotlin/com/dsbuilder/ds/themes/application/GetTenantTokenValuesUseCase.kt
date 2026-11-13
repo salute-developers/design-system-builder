@@ -7,10 +7,13 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
+import com.dsbuilder.ds.themes.application.palette.TenantValuePaletteSnapshot
 import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
+import com.dsbuilder.ds.themes.domain.colortokens.ValuePaletteReferences
+import com.dsbuilder.ds.themes.domain.palette.ShadowLayerColors
 import java.util.UUID
 
 /** Reads token values only for an accessible theme, with colors resolved by the theme palette. */
@@ -35,40 +38,54 @@ class GetTenantTokenValuesUseCase(
         id: UUID,
         types: Set<ThemeTokenType> = emptySet(),
         platforms: Set<ThemeTokenPlatform> = emptySet(),
-    ): DsResult<List<TenantTokenValue>> =
+        tokenIds: Set<UUID> = emptySet(),
+    ): DsResult<List<TenantTokenValue>> {
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
-            is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly(context) {
+            is DsResult.Failure -> return allowed
+            is DsResult.Success -> Unit
+        }
+        val prepared = transactions.readOnly(context) {
+            val stored = if (tokenIds.isEmpty()) {
+                repository.tokenValues(context.projectId, id, types)
+            } else {
+                repository.tokenValuesForTokens(context.projectId, id, types, tokenIds)
+            }
+            if (stored == null && !context.principal.globalAdmin) {
+                DsResult.Failure(DsFailure.NotFound)
+            } else {
+                val values = stored.orEmpty()
                 val wire = platforms.mapTo(hashSetOf(), ThemeTokenPlatform::wireValue)
-                values(context, id, types) { stored ->
-                    val needsPalette = types.isEmpty() || types.any { it in PALETTE_TYPES }
-                    val snapshot = if (needsPalette) {
-                        paletteRepository.snapshot(context.projectId, id)?.takeIf { it.hasSystemGroups() }
-                    } else {
-                        null
-                    }
-                    val selected = if (wire.isEmpty()) stored else stored.filter { it.platform in wire }
-                    TokenValuePublisher(id, snapshot).publish(selected)
+                val selected = if (wire.isEmpty()) values else values.filter { it.platform in wire }
+                val snapshot = if (selected.any(::requiresPalette)) {
+                    paletteRepository.valueSnapshot(context.projectId, id, values)
+                        ?.takeIf { it.hasSystemGroups() }
+                } else {
+                    null
                 }
+                DsResult.Success(PreparedValues(selected, snapshot))
             }
         }
-
-    private suspend fun values(
-        context: DsRequestContext,
-        id: UUID,
-        types: Set<ThemeTokenType>,
-        transform: suspend (List<TenantTokenValue>) -> List<TenantTokenValue>,
-    ): DsResult<List<TenantTokenValue>> =
-        repository.tokenValues(context.projectId, id, types)?.let {
-            DsResult.Success(transform(it))
-        } ?: if (context.principal.globalAdmin) {
-            DsResult.Success(emptyList())
-        } else {
-            DsResult.Failure(DsFailure.NotFound)
+        // Все данные снимка материализованы в одной транзакции; чистое раскрытие уже не удерживает соединение.
+        return when (prepared) {
+            is DsResult.Failure -> prepared
+            is DsResult.Success -> DsResult.Success(
+                TokenValuePublisher(prepared.value.snapshot).publish(prepared.value.values),
+                mutationMetadata = prepared.mutationMetadata,
+                readContext = prepared.readContext,
+                readPage = prepared.readPage,
+            )
         }
+    }
 
-    private companion object {
-        /** Типы, значения которых ссылаются на палитру темы: цвета, градиенты и цвета слоёв теней. */
-        val PALETTE_TYPES = setOf(ThemeTokenType.COLOR, ThemeTokenType.GRADIENT, ThemeTokenType.SHADOW)
+    private data class PreparedValues(
+        val values: List<TenantTokenValue>,
+        val snapshot: TenantValuePaletteSnapshot?,
+    )
+
+    private fun requiresPalette(value: TenantTokenValue): Boolean = when (value.tokenType) {
+        ThemeTokenType.COLOR, ThemeTokenType.GRADIENT ->
+            value.paletteId != null || ValuePaletteReferences.find(value.value).isNotEmpty()
+        ThemeTokenType.SHADOW -> ShadowLayerColors.references(value.value).isNotEmpty()
+        else -> false
     }
 }

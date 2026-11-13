@@ -219,31 +219,36 @@ class ExposedTenantRepository : TenantRepository {
         projectId: ProjectId,
         id: UUID,
         types: Set<ThemeTokenType>,
+    ): List<TenantTokenValue>? = readTokenValues(projectId, id, types)
+
+    override suspend fun tokenValuesForTokens(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<ThemeTokenType>,
+        tokenIds: Set<UUID>,
+    ): List<TenantTokenValue>? = readTokenValues(projectId, id, types, tokenIds)
+
+    private fun readTokenValues(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<ThemeTokenType>,
+        selectedTokens: Set<UUID>? = null,
     ): List<TenantTokenValue>? {
         val tenant = currentTenantRows(projectId = projectId, tenantId = id).singleOrNull() ?: return null
-        val definitions = currentThemeTokenRows(tenant[TenantsTable.designSystemId], types = types)
+        val definitions = currentThemeTokenRows(tenant[TenantsTable.designSystemId], selectedTokens, types = types)
         if (definitions.isEmpty()) return emptyList()
-        val tokenIds = if (types.isEmpty()) null else definitions.mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
-        val rows = currentThemeTokenValueRows(
-            designSystemId = tenant[TenantsTable.designSystemId],
-            tenantIds = setOf(id),
-            tokenIds = tokenIds,
-            knownTokens = definitions,
-        )
-        val revisions = rows.firstOrNull()?.let { row ->
-            entityEditRevisions(
-                row[ThemeVersionBoundariesTable.id],
-                TOKEN_VALUE_ENTITY_TYPE,
-                rows.mapTo(mutableSetOf()) { it[ThemeTokenValuesTable.id] },
-            )
-        }.orEmpty()
-        // Тип на той же выбранной границе версии задаёт форму сплошных значений платформ при чтении.
-        val types = definitions
-            .associate { it[ThemeTokensTable.id] to it[ThemeTokenRevisionsTable.type] }
-        return rows.map { row ->
-            toTokenValue(row, revisions[row[ThemeTokenValuesTable.id]] ?: 0)
-                .copy(tokenType = types[row[ThemeTokenValuesTable.tokenId]])
+        val tokenIds = if (types.isEmpty() && selectedTokens == null) {
+            null
+        } else {
+            definitions.mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
         }
+        return readTenantValueProjection(
+            tenant[TenantsTable.designSystemId],
+            id,
+            definitions,
+            tokenIds,
+            tenant[ThemeVersionBoundariesTable.id],
+        )
     }
 
     @Suppress("ReturnCount")
@@ -393,7 +398,7 @@ class ExposedTenantRepository : TenantRepository {
         paletteId = row[ThemeTokenValueRevisionsTable.paletteId],
         platform = row[ThemeTokenValuesTable.platform]?.wireValue,
         mode = row[ThemeTokenValuesTable.mode]?.wireValue,
-        valueJson = row[ThemeTokenValueRevisionsTable.value]?.toString(),
+        value = row[ThemeTokenValueRevisionsTable.value],
         editRevision = editRevision,
         overridden = row[ThemeTokenValueRevisionsTable.overridden],
         createdAt = row[ThemeTokenValuesTable.createdAt],

@@ -96,6 +96,9 @@ val themesModule = module {
     paletteDraftChangeHandlers().forEach { handler ->
         single<DraftChangeHandler>(named(handler.entityType)) { handler }
     }
+    single<com.dsbuilder.ds.core.application.JournalCandidateProjection> {
+        com.dsbuilder.ds.themes.data.ThemeJournalCandidateProjection()
+    }
     single<DraftChangePolicy>(named("theme-journal")) { themeDraftChangePolicy() }
     single<DraftChangeDependencyValidator>(named("palette-revert")) { PaletteRevertDependencyValidator() }
     single<TenantRepository> { ExposedTenantRepository() }

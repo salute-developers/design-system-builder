@@ -1,8 +1,10 @@
+import { abortableDelay as delay } from './abortableDelay';
 import { CanceledError, isAxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { authService } from './authService';
 import { http } from './http';
 import type { EditorContextKey } from './editorContracts';
 import { API_GATEWAY_URL } from './constants';
+import { EditorReadQueue } from './editorReadQueue';
 
 type Entry = { controller: AbortController; users: number; promise: Promise<AxiosResponse> };
 const pending = new Map<string, Entry>();
@@ -31,55 +33,22 @@ const normalize = (value: unknown): unknown => {
         );
     return value;
 };
-let allowance = 4;
-let refilledAt = Date.now();
+const readQueue = new EditorReadQueue();
 let epoch = 0;
-const INTERVAL_MS = 125;
 
 /** Новое чтение после подтверждённой записи не присоединяется к запросу старого состояния. */
 export const invalidateEditorReads = (context?: Pick<EditorContextKey, 'projectId'>) => {
     epoch++;
     for (const [key, value] of confirmed) {
         const path = new URL(value.url).pathname;
-        if (
-            value.mutable &&
-            /\/design-systems(?:\/|$)/.test(path) &&
-            (!context ||
-                path === `/api/projects/${context.projectId}/design-systems` ||
-                path.startsWith(`/api/projects/${context.projectId}/design-systems/`))
-        )
-            confirmed.delete(key);
-    }
-};
-
-const delay = (milliseconds: number, signal: AbortSignal) =>
-    new Promise<void>((resolve, reject) => {
-        const cancel = () => {
-            clearTimeout(timer);
-            signal.removeEventListener('abort', cancel);
-            reject(new CanceledError());
+        const root = `/api/projects/${context?.projectId}/design-systems`;
+        const scope = {
+            mutable: value.mutable,
+            designSystems: /\/design-systems(?:\/|$)/.test(path),
+            project: !context || path === root || path.startsWith(`${root}/`),
         };
-        const timer = setTimeout(() => {
-            signal.removeEventListener('abort', cancel);
-            resolve();
-        }, milliseconds);
-        signal.addEventListener('abort', cancel, { once: true });
-        if (signal.aborted) cancel();
-    });
-
-const startRead = async (signal: AbortSignal) => {
-    // Отменённые ожидания не резервируют будущие интервалы и не задерживают новую версию.
-    while (!signal.aborted) {
-        const now = Date.now();
-        allowance = Math.min(4, allowance + Math.max(0, now - refilledAt) / INTERVAL_MS);
-        refilledAt = now;
-        if (allowance >= 1) {
-            allowance--;
-            return;
-        }
-        await delay(Math.ceil((1 - allowance) * INTERVAL_MS), signal);
+        if (Object.values(scope).every(Boolean)) confirmed.delete(key);
     }
-    throw new CanceledError();
 };
 
 authService.onSessionReset(() => {
@@ -89,8 +58,7 @@ authService.onSessionReset(() => {
     metadataRevisions.clear();
     metadataSeenAt.clear();
     epoch++;
-    allowance = 4;
-    refilledAt = Date.now();
+    readQueue.reset();
 });
 
 /** Объединяет чтения; явно выбранные справочники допускают ограниченное переиспользование результата. */
@@ -127,10 +95,13 @@ export function readEditor<T>(
         const controller = new AbortController();
         const run = async () => {
             for (let attempt = 0; ; attempt++) {
-                await startRead(controller.signal);
-                await delay(0, controller.signal);
-                if (controller.signal.aborted) throw new CanceledError();
+                const background = /\/changes(?:\/|$)|\/component-templates$/.test(path);
+                const release = await readQueue.acquire(controller.signal, background);
+                let failure: unknown;
                 try {
+                    // Даёт StrictMode возможность присоединить владельца до отправки.
+                    await delay(0, controller.signal);
+                    if (controller.signal.aborted) throw new CanceledError();
                     const response =
                         exportBody === undefined
                             ? await http.get<T>(url, { ...request, signal: controller.signal })
@@ -154,16 +125,20 @@ export function readEditor<T>(
                     }
                     return response;
                 } catch (error) {
-                    if (isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) confirmed.clear();
-                    if (
-                        controller.signal.aborted ||
-                        attempt >= 2 ||
-                        !isAxiosError(error) ||
-                        ![429, 503].includes(error.response?.status ?? 0)
-                    )
-                        throw error;
-                    await delay(500 * (attempt + 1), controller.signal);
+                    failure = error;
+                } finally {
+                    release();
                 }
+                const error = failure;
+                const status = isAxiosError(error) ? error.response?.status : undefined;
+                if ([401, 403].includes(status ?? 0)) confirmed.clear();
+                const retry = {
+                    active: !controller.signal.aborted,
+                    attempts: attempt < 2,
+                    temporary: [429, 503].includes(status ?? 0),
+                };
+                if (!Object.values(retry).every(Boolean)) throw error;
+                await delay(500 * (attempt + 1), controller.signal);
             }
         };
         entry = { controller, users: 0, promise: run() };

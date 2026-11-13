@@ -2,8 +2,10 @@ package com.dsbuilder.ds.tokens.data
 
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.JournalProjectionHandler
 import com.dsbuilder.ds.core.application.LiteralValueBatchContext
 import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
+import com.dsbuilder.ds.core.application.TenantScopedDraftChangeHandler
 import com.dsbuilder.ds.core.application.TokenRevertListener
 import com.dsbuilder.ds.core.data.DraftRevertBatch
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
@@ -138,6 +140,7 @@ private fun tokenValueDraftChangeHandler(listeners: List<TokenRevertListener>): 
     val delegate = ExposedDraftChangeHandler(
         entityType = TOKEN_VALUE_DRAFT_ENTITY_TYPE,
         stableTable = TokenValuesTable,
+        stableTenantId = TokenValuesTable.tenantId,
         stableId = TokenValuesTable.id,
         stableDesignSystemId = TokenValuesTable.designSystemId,
         revisionTable = TokenValueRevisionsTable,
@@ -157,7 +160,11 @@ private fun tokenValueDraftChangeHandler(listeners: List<TokenRevertListener>): 
             TokenValueRevisionsTable.overridden,
         ),
     )
-    return object : DraftChangeHandler by delegate, LiteralValueBatchParticipant {
+    return object :
+        DraftChangeHandler by delegate,
+        TenantScopedDraftChangeHandler by delegate,
+        JournalProjectionHandler,
+        LiteralValueBatchParticipant {
         override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
             literalValueBatchParticipants(listeners)?.all { it.validLiteralBatch(context) } == true
 
