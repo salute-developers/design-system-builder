@@ -13,27 +13,18 @@ import org.jetbrains.exposed.v1.jdbc.select
 import java.util.UUID
 
 /**
- * Значения свойств типа `icon` из разрешённых ревизий `variation_property_values` и `invariant_property_values`
+ * Значения свойств типа `icon` из разрешённых ревизий `variation_property_values`, `invariant_property_values`
  * по всем дизайн-системам. Административная операция: область одной дизайн-системы не задаётся.
  */
 internal class ExposedIconUsageReader : IconUsageReader {
-    override suspend fun usedValues(): Map<String, Int> {
-        val variation =
-            usage(
-                VariationPropertyValuesTable,
-                VariationPropertyValuesTable.value,
-                VariationPropertyValuesTable.propertyId,
-            )
-        val invariant =
-            usage(
-                InvariantPropertyValuesTable,
-                InvariantPropertyValuesTable.value,
-                InvariantPropertyValuesTable.propertyId,
-            )
-        return (variation.keys + invariant.keys).associateWith { (variation[it] ?: 0) + (invariant[it] ?: 0) }
-    }
+    override suspend fun usedValues(): Map<String, Int> =
+        listOf(
+            VariationPropertyValuesTable.let { usage(it, it.value, it.propertyId) },
+            InvariantPropertyValuesTable.let { usage(it, it.value, it.propertyId) },
+            StyleCombinationsTable.let { usage(it, it.value, it.propertyId) },
+        ).flatMap { it.entries }.groupingBy { it.key }.fold(0) { total, entry -> total + entry.value }
 
-    private fun usage(table: Table, value: Column<String?>, propertyId: Column<UUID>): Map<String, Int> {
+    private fun usage(table: Table, value: Column<out String?>, propertyId: Column<UUID>): Map<String, Int> {
         val references = value.count().alias("references")
         return table.join(PropertiesTable, JoinType.INNER, propertyId, PropertiesTable.id)
             .select(value, references)

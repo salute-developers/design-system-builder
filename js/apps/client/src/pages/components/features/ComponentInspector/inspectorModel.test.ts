@@ -32,7 +32,7 @@ describe('sectionOf', () => {
         expect(sectionOf('dimension', 'height')).toBe('Size');
         expect(sectionOf('dimension', 'minWidth')).toBe('Size');
         expect(sectionOf('dimension', 'padding')).toBe('Layout');
-        expect(sectionOf('icon', 'closeIcon')).toBe('Additional');
+        expect(sectionOf('icon', 'closeIcon')).toBe('Icons');
         expect(sectionOf('component_style', 'buttonStyle')).toBe('Additional');
         expect(sectionOf('value', 'width')).toBeUndefined();
     });
@@ -67,7 +67,7 @@ describe('collectSourceProperties', () => {
         );
 
         expect(rows).toEqual([
-            'closeIcon|Инвариант|Additional',
+            'closeIcon|Инвариант|Icons',
             'disabledOpacity|Инвариант|Color',
             'height|size: m|Size',
             'padding|size: m|Layout',
@@ -126,7 +126,7 @@ describe('collectSourceProperties with API', () => {
 
         expect(empty).toEqual([
             'focusColor|Инвариант|Color|',
-            'leftIcon|Инвариант|Additional|',
+            'leftIcon|Инвариант|Icons|',
             'color|view: default|Color|',
         ]);
     });

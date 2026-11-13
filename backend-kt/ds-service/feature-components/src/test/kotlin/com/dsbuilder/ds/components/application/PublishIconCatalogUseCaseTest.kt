@@ -247,6 +247,25 @@ class PublishIconCatalogUseCaseTest {
     }
 
     @Test
+    fun `an interrupted upload is completed again instead of trusting files that are already there`() =
+        runBlocking<Unit> {
+            val command = command(icon("AddOutline"), icon("AddFill"))
+            val interrupted = InMemoryIconStorage()
+            val loadId = (success(command.copy(dryRun = true))).loadId
+            // Одна из заливок завершилась, остальные нет, строки журнала нет.
+            interrupted.put(
+                IconCatalogLoadId(loadId),
+                IconAsset("AddOutline", IconSize.entries.first(), "<svg/>"),
+            )
+            val before = interrupted.puts
+
+            val result = useCase(storage = interrupted).execute(PUBLISHER, command)
+
+            assertTrue(result is DsResult.Success)
+            assertTrue(interrupted.puts - before >= 2, "все файлы должны быть залиты повторно")
+        }
+
+    @Test
     fun `old loads and expired orphans are cleaned and a cleanup failure is ignored`() = runBlocking<Unit> {
         val loads = (1..5).map { index -> success(command(icon("Icon${index}Outline"))).loadId }
         // keepLoads = 3: the active load plus three previous ones stay.

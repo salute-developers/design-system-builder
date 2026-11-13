@@ -324,7 +324,10 @@ describe('ThemeEditorRepository', () => {
         const snapshot = await repository.load(context);
         expect(snapshot.themeData.variations.color.web['dark.surface.default.accent']).toBe('[general.green.500][0.8]');
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#FFFFFF');
-        expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/\/design-systems\/catalog\/palette$/), expect.anything());
+        expect(get).not.toHaveBeenCalledWith(
+            expect.stringMatching(/\/design-systems\/catalog\/palette$/),
+            expect.anything(),
+        );
     });
 });
 
@@ -878,9 +881,7 @@ describe('Editor repositories', () => {
         expect(result).toEqual({ tokenId: 'token-1', editRevision: 4, baseRevision: 7, valueBaseRevisions: {} });
         expect(put).not.toHaveBeenCalled();
         // Справочник токенов кешируется с `freshFor`: после удаления определения он сбрасывается адресно.
-        expect(invalidateEditorResources).toHaveBeenCalledWith([
-            '/api/projects/project-1/design-systems/ds-1/tokens',
-        ]);
+        expect(invalidateEditorResources).toHaveBeenCalledWith(['/api/projects/project-1/design-systems/ds-1/tokens']);
     });
 
     it('writes component edits to the configuration open in the editor', async () => {
@@ -1133,7 +1134,7 @@ describe('Editor repositories', () => {
         );
         expect(patch).toHaveBeenCalledWith(
             expect.stringMatching('/variation-property-values/property-value$'),
-            { value: '48' },
+            { tokenId: null, value: '48', adjustment: null },
             expect.anything(),
         );
         const cleared = structuredClone(edited);
@@ -1263,11 +1264,103 @@ describe('Editor repositories', () => {
         );
         expect(patch).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/variation-property-values/value-1',
-            { value: '48' },
+            { tokenId: null, value: '48', adjustment: null },
             { headers: { 'X-DS-Base-Revision': '4' } },
         );
         expect(revisions['variation-property-value:value-1']).toBe(5);
         expect(post.mock.calls.some(([url]) => String(url).includes('/component-config/import'))).toBe(false);
+    });
+
+    it('keeps saving the other properties of the window when one icon is unknown, then reports it', async () => {
+        const value = (id: string, propertyId: string, text: string) => ({
+            id,
+            propertyId,
+            appearanceId: 'appearance-1',
+            styleId: 'style-1',
+            tokenId: null,
+            value: text,
+            adjustment: null,
+            stateSetId: 'empty-states',
+        });
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/appearance-variations'))
+                return Promise.resolve({
+                    data: [
+                        {
+                            id: 'axis-1',
+                            appearanceId: 'appearance-1',
+                            variationId: 'variation-1',
+                            defaultStyleId: 'style-1',
+                        },
+                    ],
+                });
+            if (url.endsWith('/appearance-variation-values')) return Promise.resolve({ data: [] });
+            if (url.includes('/invariant-property-values/by-component/')) return Promise.resolve({ data: [] });
+            if (url.endsWith('/variation-property-values/by-appearance/appearance-1'))
+                return Promise.resolve({
+                    data: [value('icon-value', 'icon-property', 'add.outline.24'), value('size-value', 'size', '40')],
+                });
+            if (url.endsWith('/states')) return Promise.resolve({ data: [] });
+            if (url.endsWith('/state-sets')) return Promise.resolve({ data: [{ id: 'empty-states', stateIds: [] }] });
+            if (url.endsWith('/design-systems/ds-1/tokens')) return Promise.resolve({ data: [] });
+            throw new Error(`Unexpected GET ${url}`);
+        });
+        const unknownIcon = { isAxiosError: true, response: { status: 400, data: { code: 'unknown_icon' } } };
+        patch.mockImplementation((url: string) =>
+            url.endsWith('/variation-property-values/icon-value')
+                ? Promise.reject(unknownIcon)
+                : Promise.resolve({
+                      data: {},
+                      headers: {
+                          'x-ds-mutation-metadata': JSON.stringify([
+                              { entityType: 'variation-property-value', entityId: 'size-value', revision: 5 },
+                          ]),
+                      },
+                  }),
+        );
+        const before = {
+            defaultVariations: [{ variationID: 'variation-1', styleID: 'style-1' }],
+            invariantProps: [],
+            variations: [
+                {
+                    id: 'variation-1',
+                    styles: [
+                        {
+                            id: 'style-1',
+                            name: 'm',
+                            intersections: null,
+                            props: [
+                                { id: 'icon-property', value: 'add.outline.24' },
+                                { id: 'size', value: 40 },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+        const after = structuredClone(before);
+        after.variations[0].styles[0].props[0].value = 'no.such.icon.16';
+        after.variations[0].styles[0].props[1].value = 48;
+
+        await expect(
+            componentRepository.saveComponentMutation(
+                context,
+                {
+                    name: 'Button',
+                    description: '',
+                    serverBinding: { componentId: 'component-1', appearanceId: 'appearance-1' },
+                    sources: { api: [], variations: [], configs: [] },
+                },
+                { componentName: 'Button', before, after, idempotencyKeys: {} },
+                { 'variation-property-value:icon-value': 1, 'variation-property-value:size-value': 4 },
+            ),
+        ).rejects.toBe(unknownIcon);
+
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/variation-property-values/size-value',
+            { tokenId: null, value: '48', adjustment: null },
+            expect.anything(),
+        );
     });
 
     it('marks the existing editor read-only for a Viewer', async () => {

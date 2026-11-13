@@ -172,15 +172,133 @@
     white-space: nowrap;
 }
 
+/*
+ * Экран «Иконки»: три области раздела редактора (дерево, рабочая область, инспектор), как у остальных экранов токенов.
+ * Раскладка и разделители ширины повторяют «Цвета» и «Типографику»; общие шапки, поля и строки дерева — `tw-*`
+ * из `token-workspace.css`, который подключён глобально.
+ */
+.icons-screen {
+    position: relative;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    font-family: Inter, Arial, sans-serif;
+    line-height: 1.45;
+    color: var(--tw-text-primary);
+    color-scheme: dark;
+    background: var(--tw-surface-workspace);
+}
+.icons-screen *,
+.icons-screen *::before,
+.icons-screen *::after {
+    box-sizing: border-box;
+}
+.icons-screen :where(button, input) {
+    font: inherit;
+}
+.icons-screen :where(button) {
+    cursor: pointer;
+}
+
+/* Колонки 280 / остаток / 320; панели не выше окна, прокручиваются только их тела. */
+.icons-screen .icons-workbench {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: var(--panel-left, 280px) minmax(0, 1fr) var(--panel-right, 320px);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+}
+.icons-screen .token-browser,
+.icons-screen .properties-panel {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    background: var(--tw-surface-card);
+}
+.icons-screen .token-browser {
+    overflow: hidden;
+    border-right: 1px solid var(--tw-outline);
+}
+.icons-screen .properties-panel {
+    border-left: 1px solid var(--tw-outline);
+}
+.icons-screen .preview-canvas {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    background: var(--tw-surface-workspace);
+}
+.icons-screen .icons-load-error {
+    grid-column: 2 / 4;
+    min-height: 0;
+    display: flex;
+    background: var(--tw-surface-workspace);
+}
+.icons-screen .icons-tree-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: var(--tw-space-m);
+}
+.icons-screen .icons-tree-value {
+    color: var(--tw-text-primary);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 12px;
+}
+
+/* Разделители ширины панелей — как в «Цветах» и «Типографике». */
+.icons-screen .panel-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 6;
+    width: 9px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    cursor: col-resize;
+}
+.icons-screen .panel-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 4px;
+    width: 1px;
+    background: transparent;
+    transition: background 0.15s;
+}
+.icons-screen .panel-resizer:hover::after {
+    background: var(--tw-accent);
+}
+.icons-screen .panel-resizer:focus-visible {
+    outline: 2px solid var(--tw-accent);
+    outline-offset: -2px;
+}
+.icons-screen .panel-resizer-left {
+    left: calc(var(--panel-left, 280px) - 4px);
+}
+.icons-screen .panel-resizer-right {
+    right: calc(var(--panel-right, 320px) - 5px);
+}
+
 /* Экран «Иконки»: строка фильтров и сетка в центре, сведения об иконке справа. */
 .icons-screen .icon-board {
     height: 100%;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--tw-space-l);
+    gap: var(--tw-space-xl);
     box-sizing: border-box;
-    padding: var(--tw-space-l);
+    padding: var(--tw-space-xl);
 }
 .icons-screen .icon-board-bar {
     display: flex;
@@ -235,4 +353,15 @@
     color: var(--tw-text-paragraph);
     font-size: 12px;
     line-height: 16px;
+}
+
+/* Страница каталога вне редактора темы: оболочка не ограничивает высоту, поэтому экран получает её явно
+   (окно за вычетом строки пути `builder-hierarchy-bar` высотой 44 px), и сетка прокручивается внутри, а не
+   растягивает страницу. */
+.icons-page-frame {
+    height: calc(100vh - 44px);
+    min-height: 0;
+}
+.icons-page-frame > .icons-screen {
+    height: 100%;
 }

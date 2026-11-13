@@ -36,6 +36,7 @@ import kotlin.test.assertTrue
  * Каталог иконок (change add-icon-catalog): права, запись и откат, защита используемых иконок, чтение с `ETag` и
  * проверка значения `icon` при записи из редактора.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class IconCatalogHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = true }
     private lateinit var postgres: IsolatedPostgresDatabase
@@ -231,6 +232,44 @@ class IconCatalogHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.OK, patch("add.outline.24").status)
         // the stored value is accepted again even after it leaves the catalog
         upload(manifest(add("DisclosureDownFill")), Actor.PUBLISHER, false, allowRemovingUsed = true).ok()
+        assertEquals(HttpStatusCode.OK, patch("add.outline.24").status)
+    }
+
+    @Test
+    fun `values of style combinations are checked, protected and accepted again as stored`() = withService {
+        upload(manifest(add("DisclosureDownFill"), add("AddOutline")), Actor.PUBLISHER, false).ok()
+        val fixture = fixture()
+        val state = id(post("/api/design-systems/catalog/states", """{"name":"icon-state"}""").bodyAsText())
+        val stateSet =
+            id(post("/api/design-systems/catalog/state-sets/resolve", """{"stateIds":["$state"]}""").bodyAsText())
+        suspend fun create(value: String) = post(
+            "/api/design-systems/${fixture.ds}/style-combinations",
+            """{"propertyId":"${fixture.property}","appearanceId":"${fixture.appearance}","combinationKey":"view=default",""" +
+                """"value":"$value","stateSetId":"$stateSet"}""",
+        )
+
+        val rejected = create("legacy.star.24")
+        assertEquals(HttpStatusCode.BadRequest, rejected.status)
+        assertEquals("unknown_icon", json.parseToJsonElement(rejected.bodyAsText()).jsonObject.string("code"))
+        val created = create("add.outline.24")
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        val combinationId = id(created.bodyAsText())
+
+        // an icon used only in a combination is protected from removal
+        val refused = upload(manifest(add("DisclosureDownFill")), Actor.PUBLISHER, false)
+        assertEquals(HttpStatusCode.Conflict, refused.status)
+        assertEquals("icons_in_use", json.parseToJsonElement(refused.bodyAsText()).jsonObject.string("code"))
+
+        suspend fun patch(value: String) = builder.client.patch(
+            "/api/design-systems/${fixture.ds}/style-combinations/$combinationId",
+        ) {
+            actor(Actor.ADMIN)
+            contentType(ContentType.Application.Json)
+            setBody("""{"value":"$value"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, patch("info.circle.outline.16").status)
+        upload(manifest(add("DisclosureDownFill")), Actor.PUBLISHER, false, allowRemovingUsed = true).ok()
+        // the stored value is accepted again even after it leaves the catalog
         assertEquals(HttpStatusCode.OK, patch("add.outline.24").status)
     }
 

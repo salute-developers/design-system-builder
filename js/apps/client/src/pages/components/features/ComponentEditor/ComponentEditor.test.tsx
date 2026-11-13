@@ -213,8 +213,9 @@ describe('ComponentEditor', () => {
     it('shows an icon through the catalog picker and keeps the generic clear button off it', () => {
         renderEditor();
 
-        const group = screen.getByRole('region', { name: 'Behaviour' });
-        fireEvent.click(within(group).getByRole('button', { name: 'Behaviour' }));
+        // Иконки в своей секции, развёрнутой по умолчанию: поля видны без раскрытия группы.
+        expect(screen.getByRole('region', { name: 'Icons' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Behaviour' })).not.toBeInTheDocument();
 
         // Каталога в тесте нет: пикер показывает значение строкой, как до выбора из каталога.
         expect(within(property('closeIcon')).getByText('close.16')).not.toBeNull();

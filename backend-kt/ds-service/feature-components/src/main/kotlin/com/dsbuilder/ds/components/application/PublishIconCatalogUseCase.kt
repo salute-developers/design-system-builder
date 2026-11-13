@@ -38,7 +38,7 @@ class PublishIconCatalogUseCase(
             is DsResult.Success -> result.value
         }
         if (command.dryRun) return transactions.readOnly { DsResult.Success(preview(prepared)) }
-        if (!storage.hasFiles(prepared.loadId) && !upload(prepared)) {
+        if (!isStored(prepared.loadId) && !upload(prepared)) {
             return DsResult.Failure(DsFailure.DependencyUnavailable(STORAGE_DEPENDENCY))
         }
         val written = transactions.required {
@@ -49,8 +49,15 @@ class PublishIconCatalogUseCase(
         return written
     }
 
-    private suspend fun IconAssetStorage.hasFiles(loadId: IconCatalogLoadId) =
-        listLoads().any { it.loadId == loadId.value }
+    /**
+     * Загрузка полностью лежит в хранилище, только если у неё есть строка журнала: строка пишется после заливки всех
+     * файлов. Наличие хотя бы одного файла ничего не значит: заливка могла прерваться на середине, и такие файлы
+     * дозаливаются повторно (ключи неизменяемы, `put` идемпотентен).
+     */
+    private suspend fun isStored(loadId: IconCatalogLoadId) =
+        transactions.readOnly { DsResult.Success(catalog.loadsByRecency().any { it.loadId == loadId }) }.let {
+            (it as DsResult.Success).value
+        }
 
     private suspend fun preview(prepared: PreparedIconCatalog): PublishIconCatalogResult {
         val old = catalog.entries()

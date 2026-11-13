@@ -28,7 +28,6 @@ import { IconFilters } from './IconFilters';
 import { IconGrid } from './IconGrid';
 import { IconMask } from './IconMask';
 import { useIconFilter } from './useIconFilter';
-import '../../../styles/size-tokens.css';
 import './icons.css';
 
 const CONFIRM_MS = 1200;
@@ -117,12 +116,12 @@ const Details = ({ catalog, icon, size, confirmed, manual, onCopy }: DetailsProp
 const Placeholder = ({ failed = false, onRetry }: { failed?: boolean; onRetry?: () => void }) => {
     const { left, right } = readWidths(ICONS_PANELS_KEY);
     return (
-        <div className="size-tokens-screen st-shell icons-screen" data-testid="icons-loading" aria-busy={!failed}>
+        <div className="icons-screen" data-testid="icons-loading" aria-busy={!failed}>
             <section
-                className="st-workbench is-placeholder"
+                className="icons-workbench is-placeholder"
                 style={{ '--panel-left': `${left}px`, '--panel-right': `${right}px` } as CSSProperties}
             >
-                <aside className="token-browser st-tree">
+                <aside className="token-browser">
                     <TreeHeader
                         title="Иконки"
                         searching={false}
@@ -130,10 +129,10 @@ const Placeholder = ({ failed = false, onRetry }: { failed?: boolean; onRetry?: 
                         onQuery={() => undefined}
                         onSearchOpen={() => undefined}
                     />
-                    <div className="st-tree-body">{!failed && <PanelSkeleton part="tree" />}</div>
+                    <div className="icons-tree-body">{!failed && <PanelSkeleton part="tree" />}</div>
                 </aside>
                 {failed ? (
-                    <div className="st-load-error">
+                    <div className="icons-load-error">
                         <WorkspaceLoadError title="Не удалось загрузить каталог иконок" onRetry={onRetry} />
                     </div>
                 ) : (
@@ -176,32 +175,28 @@ const Screen = ({ catalog }: { catalog: IconCatalog }) => {
     };
 
     const categoryRow = (name: string | null, count: number) => (
-        <div key={name ?? 'all'} className="st-tree-row-wrap tw-tree-row">
+        <div key={name ?? 'all'} className="tw-tree-row">
             <button
                 type="button"
-                className={`st-tree-row tw-tree-item ${filter.category === name ? 'is-selected' : ''}`}
+                className={`tw-tree-item ${filter.category === name ? 'is-selected' : ''}`}
                 aria-current={filter.category === name ? 'true' : undefined}
                 onClick={() => filter.setCategory(name)}
             >
                 <span className="tw-tree-item-label">{name ?? 'Все'}</span>
-                <b className="tw-tree-item-value st-tree-row-value">{count}</b>
+                <b className="tw-tree-item-value icons-tree-value">{count}</b>
             </button>
         </div>
     );
 
     return (
-        <div
-            className="size-tokens-screen st-shell icons-screen"
-            data-testid="icons-screen"
-            data-editor-section="icons"
-        >
+        <div className="icons-screen" data-testid="icons-screen" data-editor-section="icons">
             <section
-                className="st-workbench"
+                className="icons-workbench"
                 style={{ '--panel-left': `${panels.left}px`, '--panel-right': `${panels.right}px` } as CSSProperties}
             >
                 <button type="button" className="panel-resizer panel-resizer-left" {...separator('left')} />
                 <button type="button" className="panel-resizer panel-resizer-right" {...separator('right')} />
-                <aside className="token-browser st-tree">
+                <aside className="token-browser">
                     <TreeHeader
                         title="Иконки"
                         placeholder="Найти иконку"
@@ -211,7 +206,7 @@ const Screen = ({ catalog }: { catalog: IconCatalog }) => {
                         onQuery={filter.setQuery}
                         onSearchOpen={setSearchOpen}
                     />
-                    <nav className="st-tree-body" aria-label="Категории">
+                    <nav className="icons-tree-body" aria-label="Категории">
                         {categoryRow(null, catalog.icons.length)}
                         {filter.categories.map((item) => categoryRow(item.name, item.count))}
                     </nav>
@@ -317,7 +312,7 @@ export const IconsPage = ({ embedded = false }: { embedded?: boolean }) => {
             projectId={projectId}
             embedded={embedded}
         >
-            {body}
+            <div className="icons-page-frame">{body}</div>
         </BuilderShell>
     );
 };

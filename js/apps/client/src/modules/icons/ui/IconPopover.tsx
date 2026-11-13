@@ -56,6 +56,7 @@ export const IconPopover = ({ catalog, initialSize, selectedName, onSelect }: Ic
                         selectedName={selectedName}
                         onSelect={(icon) => onSelect(icon, filter.size)}
                         onHover={setHovered}
+                        revealName={selectedName}
                     />
                 )}
             </div>

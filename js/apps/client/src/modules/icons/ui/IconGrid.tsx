@@ -13,6 +13,10 @@ const CARDS = {
     compact: { width: 48, height: 40 },
 } as const;
 
+/** Смещение прокрутки, при котором иконка с номером [index] оказывается в середине окна высотой [viewportHeight]. */
+export const revealScrollTop = (index: number, columns: number, cardHeight: number, viewportHeight: number) =>
+    Math.max(0, Math.floor(index / Math.max(1, columns)) * cardHeight - (viewportHeight - cardHeight) / 2);
+
 export interface IconGridProps {
     catalog: IconCatalog;
     icons: IconEntry[];
@@ -25,6 +29,8 @@ export interface IconGridProps {
     onSelect: (icon: IconEntry) => void;
     /** Иконка под курсором или фокусом: пикер показывает её имя внизу. */
     onHover?: (icon: IconEntry | undefined) => void;
+    /** Иконка, к которой сетка прокручивается один раз при открытии (выбранная в пикере); без неё — с начала. */
+    revealName?: string;
     height?: number;
 }
 
@@ -38,6 +44,7 @@ export const IconGrid = ({
     variant = 'board',
     onSelect,
     onHover,
+    revealName,
     height,
 }: IconGridProps) => {
     const card = CARDS[variant];
@@ -56,10 +63,28 @@ export const IconGrid = ({
         return () => observer.disconnect();
     }, []);
 
+    // Выбранная иконка выводится в середину окна один раз, когда известна ширина (число колонок); при смене
+    // фильтров сетка, как и раньше, возвращается к началу.
+    const revealed = useRef(false);
+    const lastIcons = useRef<IconEntry[]>();
     useEffect(() => {
-        ref.current?.scrollTo?.({ top: 0 });
-        setScrollTop(0);
-    }, [icons]);
+        const changed = lastIcons.current !== icons;
+        lastIcons.current = icons;
+        if (!revealed.current && revealName && box.width > 0) {
+            revealed.current = true;
+            const index = icons.findIndex((icon) => icon.name === revealName);
+            if (index >= 0) {
+                const top = revealScrollTop(index, Math.floor(box.width / card.width), card.height, box.height);
+                ref.current?.scrollTo?.({ top });
+                setScrollTop(top);
+                return;
+            }
+        }
+        if (changed) {
+            ref.current?.scrollTo?.({ top: 0 });
+            setScrollTop(0);
+        }
+    }, [icons, revealName, box.width, box.height, card.width, card.height]);
 
     const columns = box.width > 0 ? Math.max(1, Math.floor(box.width / card.width)) : FALLBACK_COLUMNS;
     const viewportHeight = box.height > 0 ? box.height : (height ?? FALLBACK_HEIGHT);
