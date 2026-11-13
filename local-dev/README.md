@@ -16,10 +16,10 @@ Compose- и web-плагины с API-метаданными. Пакеты те�
 Происхождение текущих файлов:
 
 <!-- provenance:start -->
-- Plugin archive: build `cf0b127f6dcf` (commit `cf0b127f6dcf2a96bee03fa0fca2b5e73432d849`), uikit-compose `0.57.0`, protocol 1, sha256 `c132e676dce7cfd0b3f6d40341766b7ef4b2271734f4521342991796c2ddb3a9`.
+- Plugin archive: build `0dc782c1cfa3` (commit `0dc782c1cfa35302d71fb53ded20eb9282d388f9`), uikit-compose `0.57.0`, protocol 1, sha256 `c23a741b5c434ffcd690087dbc1fa211a7d31c8b1031a4c2af712e4b18762ef6`.
 - Theme (Android values): `sdds_serv` `0.9.0` from theme-converter.
 - Component package: `sdds_serv` `0.18.0`, 144 configurations, from theme-converter.
-- plasma-android commit of the refresh: `cf0b127f6dcf2a96bee03fa0fca2b5e73432d849`.
+- plasma-android commit of the refresh: `0dc782c1cfa35302d71fb53ded20eb9282d388f9`.
 <!-- provenance:end -->
 
 <!-- web-provenance:start -->

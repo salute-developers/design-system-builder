@@ -11,8 +11,10 @@ import {
     collectSourceProperties,
     compareProperties,
     hasUnlinkedStyleSource,
+    isSetOnlySection,
     sourceKey,
     type InspectorProperty,
+    type InspectorSection,
     type Selection,
 } from './inspectorModel';
 
@@ -103,24 +105,27 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
                 additional={additional}
                 actions={
                     <>
-                        {onLinkProperty && !additional && !combination && (
-                            <button
-                                type="button"
-                                className={`component-property-filter-button ${showAll ? 'is-on' : ''}`}
-                                aria-pressed={showAll}
-                                title={
-                                    showAll
-                                        ? 'Скрыть свойства, не привязанные к вариации'
-                                        : forced
-                                          ? 'Новой вариации видны все свойства; показать их и у остальных стилей'
-                                          : 'Показать все свойства'
-                                }
-                                aria-label={`Показать все свойства ${title}`}
-                                onClick={() => setShowAll(!showAll)}
-                            >
-                                <TyGlyph name="add" />
-                            </button>
-                        )}
+                        {onLinkProperty &&
+                            !additional &&
+                            !combination &&
+                            !isSetOnlySection(title as InspectorSection) && (
+                                <button
+                                    type="button"
+                                    className={`component-property-filter-button ${showAll ? 'is-on' : ''}`}
+                                    aria-pressed={showAll}
+                                    title={
+                                        showAll
+                                            ? 'Скрыть свойства, не привязанные к вариации'
+                                            : forced
+                                              ? 'Новой вариации видны все свойства; показать их и у остальных стилей'
+                                              : 'Показать все свойства'
+                                    }
+                                    aria-label={`Показать все свойства ${title}`}
+                                    onClick={() => setShowAll(!showAll)}
+                                >
+                                    <TyGlyph name="add" />
+                                </button>
+                            )}
                         <FilterButton
                             title={title}
                             on={filtered}

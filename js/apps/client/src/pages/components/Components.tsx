@@ -14,7 +14,7 @@ import type { ComponentRoute, ComposePreviewComponentGroup } from '../../compose
 import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
 import { usePanelWidth } from '../../hooks';
 import { getComponentGroup, getComponentGroups, isEditableComponent } from '../../utils';
-import { DesignSystem, Theme, Config } from '../../controllers';
+import { DesignSystem, Theme, Config, toStyleReferenceInput } from '../../controllers';
 import { Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
 import {
@@ -480,18 +480,28 @@ export const Components = () => {
                 const pending = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
                 if (pending?.generation === operation.generation) persistStoredJson(requestKey, operation);
                 return repository
-                    .saveComponentMutation(editorContext, meta, currentOperation, readRevisions(), (revisions) => {
-                        persistStoredJson(revisionKey, revisions);
-                        styleAliases = { ...styleAliases, ...currentOperation.styleAliases };
-                        persistStoredJson(aliasesKey, styleAliases);
-                        const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
-                        if (!stored) return;
-                        if (stored.generation === operation.generation) {
-                            persistStoredJson(requestKey, currentOperation);
-                        } else if (stored.predecessor?.generation === operation.generation) {
-                            persistStoredJson(requestKey, { ...stored, predecessor: currentOperation });
-                        }
-                    })
+                    .saveComponentMutation(
+                        editorContext,
+                        meta,
+                        currentOperation,
+                        readRevisions(),
+                        (revisions) => {
+                            persistStoredJson(revisionKey, revisions);
+                            styleAliases = { ...styleAliases, ...currentOperation.styleAliases };
+                            persistStoredJson(aliasesKey, styleAliases);
+                            const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+                            if (!stored) return;
+                            if (stored.generation === operation.generation) {
+                                persistStoredJson(requestKey, currentOperation);
+                            } else if (stored.predecessor?.generation === operation.generation) {
+                                persistStoredJson(requestKey, { ...stored, predecessor: currentOperation });
+                            }
+                        },
+                        (value) => {
+                            const resolved = designSystem.resolveComposeStyleReference(value);
+                            return resolved && toStyleReferenceInput(resolved);
+                        },
+                    )
                     .catch((error: unknown) => {
                         if (!isUnknownIconError(error)) throw error;
                         // Иконки нет в каталоге: возвращаем прежнее значение и сообщаем об этом.
@@ -812,6 +822,7 @@ export const Components = () => {
                                     onConfigUpdate={onConfigUpdate}
                                     onConfigurationSelect={onConfigurationSelect}
                                     structure={designSystemReadOnly ? undefined : structure}
+                                    onLoadComponent={loadComponent}
                                 />
                             )}
                         </>

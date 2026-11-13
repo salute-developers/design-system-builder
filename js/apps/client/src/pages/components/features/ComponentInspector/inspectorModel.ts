@@ -26,9 +26,13 @@ export const INSPECTOR_SECTIONS = [
     'Appearance',
     'Effects',
     'Icons',
+    'Nested styles',
 ] as const;
 
 export type InspectorSection = (typeof INSPECTOR_SECTIONS)[number] | 'Additional';
+
+/** Секции, чьи свойства показываются только заданными: пустые строки им не строятся. */
+export const isSetOnlySection = (section: InspectorSection) => section === 'Additional' || section === 'Nested styles';
 
 export interface InspectorProperty {
     prop: PropUnion;
@@ -50,6 +54,8 @@ export const sectionOf = (type: PropType | undefined, name: string): InspectorSe
     if (type === 'value' || type === undefined) return undefined;
     // Иконки — отдельная секция, развёрнутая по умолчанию: в свёрнутой группе Behaviour поля легко не заметить.
     if (type === 'icon') return 'Icons';
+    // Стиль вложенного компонента: ссылка на оформление другого компонента, отдельная секция.
+    if (type === 'component_style') return 'Nested styles';
     if (type === 'shadow' || /(shadow|blur)/i.test(name)) return 'Effects';
     if (type === 'shape' || /radius/i.test(name)) return 'Appearance';
     if (/(border|outline|stroke)/i.test(name)) return 'Border';
@@ -164,7 +170,7 @@ export const collectSourceProperties = (
         const empty = candidates.flatMap((item): InspectorProperty[] => {
             const section = sectionOf(item.type, item.name);
             // Ссылки на стили показываются только заданными; незаданную иконку можно выбрать из каталога.
-            if (!section || section === 'Additional' || props?.getProp(item.id)) return [];
+            if (!section || isSetOnlySection(section) || props?.getProp(item.id)) return [];
             const prop = emptyProp(item, api);
             return prop ? [{ prop, source, section, isSet: false, linked: linkedIds.has(item.id) }] : [];
         });
@@ -276,7 +282,7 @@ export const collectCombinationProperties = (
         .filter((item) => styleProps.has(item.id) || item.variations?.some((key) => variationKeys.includes(key)))
         .flatMap((item): InspectorProperty[] => {
             const section = sectionOf(item.type, item.name);
-            if (!section || section === 'Additional' || props?.getProp(item.id)) return [];
+            if (!section || isSetOnlySection(section) || props?.getProp(item.id)) return [];
             const prop = emptyProp(item, api);
             return prop ? [{ prop, source, section, isSet: false, linked: true }] : [];
         });

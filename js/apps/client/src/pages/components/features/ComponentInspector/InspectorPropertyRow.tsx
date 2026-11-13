@@ -18,6 +18,7 @@ import {
 import { TyGlyph } from '../../../../components/TyGlyph';
 import { IconPicker, useIconCatalog } from '../../../../modules/icons';
 
+import { InspectorStyleReference } from './InspectorStyleReference';
 import { humanizeName, sourceArgs, sourceLabel, type PropertySource } from './inspectorModel';
 
 /** Списки токенов темы для контролов строки; строятся один раз на инспектор. */
@@ -55,8 +56,9 @@ const stateLabel = (state: readonly string[]) =>
 
 const isOpacity = (prop: PropUnion) => /(opacity|alpha)/i.test(prop.getName());
 
-/** Иконки и ссылки на стили (только у Compose) пока не задать заново: редактора нет, поэтому и очистки нет. */
-const isReadOnlyType = (type: string | undefined) => type === 'component_style';
+/** Ссылку на стиль редактирует выбор, но только у Compose; у других платформ она только читается, без очистки. */
+const isReadOnlyType = (type: string | undefined, platform: string | undefined) =>
+    type === 'component_style' && platform !== 'compose';
 
 /** Иконка: выбор из каталога билдера; значение сохраняется строкой старого формата (`disclosure.down.fill.16`). */
 const IconControl = ({
@@ -134,7 +136,9 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
 
     // У иконки своя кнопка «Очистить» в пикере.
     const clear =
-        isSet && !isReadOnlyType(type) && type !== 'icon' ? <ClearButton label={label} onClear={removeValue} /> : null;
+        isSet && !isReadOnlyType(type, config.getPlatform()) && type !== 'icon' ? (
+            <ClearButton label={label} onClear={removeValue} />
+        ) : null;
 
     const colorControl = (
         current: string,
@@ -225,7 +229,10 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                 <IconControl label={label} value={text} onChange={update} onClear={isSet ? removeValue : undefined} />
             );
         }
-        // Ссылки на стили только читаются.
+        // Стиль вложенного компонента выбирается только у Compose; у других платформ ссылка только читается.
+        if (type === 'component_style' && config.getPlatform() === 'compose') {
+            return <InspectorStyleReference config={config} label={label} value={text} onChange={update} />;
+        }
         return (
             <div className="component-number-control is-raw">
                 <input aria-label={label} readOnly value={text} />
