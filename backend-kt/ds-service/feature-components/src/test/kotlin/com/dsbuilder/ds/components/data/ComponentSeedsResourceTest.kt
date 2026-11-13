@@ -19,7 +19,7 @@ class ComponentSeedsResourceTest {
         val root = Json.parseToJsonElement(bytes.decodeToString()).jsonObject
         val components = root.getValue("components").jsonArray
 
-        assertEquals("857c316cb6e2b6f894f7680694c5660f3d32b376b2c4098eacbc4103b821bdfb", bytes.sha256())
+        assertEquals("0c38e384d7ee7c2bc8d1649d074c777bbe73198f52a1d70f31c0b04f6c654c25", bytes.sha256())
         assertEquals(90, components.size)
         assertEquals(38, root.getValue("dependencies").jsonArray.size)
         assertEquals(104, components.sumOf { it.jsonObject.getValue("appearances").jsonArray.size })
@@ -96,6 +96,29 @@ class ComponentSeedsResourceTest {
             val json = components.getValue(component).toString()
             names.forEach { name -> assertFalse("\"$name\"" in json, "$component.$name") }
         }
+    }
+
+    @Test
+    fun `style names of a variation differ not only by case`() {
+        val text = requireNotNull(javaClass.getResourceAsStream("/dsbuilder/ds/seeds/component-seeds.json")).use {
+            it.readBytes()
+        }
+            .decodeToString()
+        // Импорт сравнивает имена стилей без учёта регистра: `Accent` и `accent` склеились бы в один стиль.
+        val clashes = Json.parseToJsonElement(text).jsonObject.getValue("components").jsonArray.flatMap { component ->
+            val name = component.jsonObject.getValue("name").jsonPrimitive.content
+            component.jsonObject.getValue("variations").jsonArray.flatMap { variation ->
+                variation.jsonObject.getValue("styles").jsonArray
+                    .map { it.jsonObject.getValue("name").jsonPrimitive.content }
+                    .groupBy(String::lowercase).filterValues { it.size > 1 }
+                    .map { (_, styles) ->
+                        "$name.${variation.jsonObject.getValue(
+                            "name",
+                        ).jsonPrimitive.content}: $styles"
+                    }
+            }
+        }
+        assertEquals(emptyList(), clashes)
     }
 
     private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
