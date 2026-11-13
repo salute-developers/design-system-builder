@@ -10,6 +10,7 @@ import com.dsbuilder.ds.core.application.DraftValueBatchRequest
 import com.dsbuilder.ds.core.application.DraftValueBatchReverter
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.JournalCandidateProjection
 import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import com.dsbuilder.ds.core.application.ModelReadItems
 import com.dsbuilder.ds.core.application.ModelReadQuery
@@ -50,6 +51,7 @@ class ExposedDraftChangeRepository(
     private val policies: List<DraftChangePolicy> = emptyList(),
     private val dependencies: List<DraftChangeDependencyValidator> = emptyList(),
     private val valueBatches: List<DraftValueBatchReverter> = emptyList(),
+    private val journalProjections: List<JournalCandidateProjection> = emptyList(),
 ) : DraftChangeRepository {
     @Suppress("ReturnCount") // Отказы проверки адресов и черновика остаются явными защитными условиями.
     override suspend fun revertAddressed(
@@ -201,6 +203,7 @@ class ExposedDraftChangeRepository(
         target.id,
         target.sequenceNumber,
         previousSequence(owner, target.sequenceNumber),
+        journalProjections,
     )
 
     override suspend fun page(

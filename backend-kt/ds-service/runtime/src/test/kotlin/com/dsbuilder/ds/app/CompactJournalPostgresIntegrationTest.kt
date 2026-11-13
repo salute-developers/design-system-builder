@@ -5,6 +5,7 @@ import com.dsbuilder.ds.designsystems.application.DraftChangeLimitExceededExcept
 import com.dsbuilder.ds.designsystems.data.ExposedDraftChangeRepository
 import com.dsbuilder.ds.designsystems.data.designSystemDraftChangeHandler
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
+import com.dsbuilder.ds.themes.data.ThemeJournalCandidateProjection
 import com.dsbuilder.ds.themes.data.themeDraftChangeHandlers
 import com.dsbuilder.ds.themes.data.themeDraftChangePolicy
 import com.dsbuilder.ds.tokens.data.tokenDraftChangeHandlers
@@ -81,6 +82,7 @@ class CompactJournalPostgresIntegrationTest {
             val journal = ExposedDraftChangeRepository(
                 listOf(designSystemDraftChangeHandler()) + themeDraftChangeHandlers() + tokenDraftChangeHandlers(),
                 listOf(themeDraftChangePolicy()),
+                journalProjections = listOf(ThemeJournalCandidateProjection()),
             )
             transaction(db = database) {
                 runBlocking {

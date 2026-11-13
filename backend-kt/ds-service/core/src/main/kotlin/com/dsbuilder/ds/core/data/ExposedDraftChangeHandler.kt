@@ -3,6 +3,7 @@ package com.dsbuilder.ds.core.data
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangeSnapshot
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.JournalProjectionHandler
 import com.dsbuilder.ds.core.application.TenantScopedDraftChangeHandler
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -39,7 +40,7 @@ class ExposedDraftChangeHandler(
     private val stableValueColumns: List<Column<*>> = emptyList(),
     private val revisionValueColumns: List<Column<*>> = emptyList(),
     private val stableTenantId: Column<UUID>? = null,
-) : DraftChangeHandler, TenantScopedDraftChangeHandler {
+) : DraftChangeHandler, TenantScopedDraftChangeHandler, JournalProjectionHandler {
     override val supportsAddressedRevert: Boolean = true
     override val candidateIndex = ExposedDraftCandidateIndex(entityType, revisionTable, revisionSequenceNumber)
 

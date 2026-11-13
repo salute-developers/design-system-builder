@@ -4,6 +4,9 @@ import com.dsbuilder.ds.core.application.DraftChangeCandidate
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.JournalCandidateProjection
+import com.dsbuilder.ds.core.application.JournalProjectionHandler
+import com.dsbuilder.ds.core.application.JournalProjectionScope
 import com.dsbuilder.ds.core.application.visitTenant
 import com.dsbuilder.ds.core.data.populatedDraftHandlers
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
@@ -24,6 +27,7 @@ internal class CompactJournalReader(
     private val versionId: UUID,
     private val sequence: Long,
     private val previous: Long,
+    private val projections: List<JournalCandidateProjection> = emptyList(),
 ) {
     fun count(changes: List<DraftChange>): Int {
         val ids = changes.filter { it.entityType == "token-value" }
@@ -103,8 +107,13 @@ internal class CompactJournalReader(
     ) {
         val tenantHandler = handlers.firstOrNull { it.entityType == "tenant" }
         val parentContext = mutableMapOf<UUID, DraftChangeCandidate?>()
-        val selected = handlers.filter { selectedTypes == null || it.entityType in selectedTypes }
-        for (handler in populatedDraftHandlers(selected, owner.value, sequence, previous)) {
+        val prerequisites = projections.flatMap { it.requiredChangedTypes }.toSet()
+        val indexed = handlers.filter {
+            selectedTypes == null || it.entityType in selectedTypes || it.entityType in prerequisites
+        }
+        val populated = populatedDraftHandlers(indexed, owner.value, sequence, previous)
+        val changedTypes = populated.mapTo(hashSetOf()) { it.entityType }
+        for (handler in populated.filter { selectedTypes == null || it.entityType in selectedTypes }) {
             val consumeBatch: (List<DraftSubjectChange>) -> Unit = { batch ->
                 // Новые темы — контекст политики, не дополнительные строки обрабатываемой порции.
                 val parentIds = batch.filter { it.previousValue == null }.mapNotNull {
@@ -123,7 +132,15 @@ internal class CompactJournalReader(
                 val matching = visible.filter { it.entityType == handler.entityType && it.change.entityId in keys }
                 consume(handler, matching.map { it.change })
             }
-            if (tenantId == null || handler.entityType != "token-value") {
+            val projection = projections.singleOrNull {
+                handler is JournalProjectionHandler && it.entityType == handler.entityType &&
+                    changedTypes.containsAll(it.requiredChangedTypes) && it.supports(policies)
+            }
+            if (projection != null) {
+                projection.visit(JournalProjectionScope(owner.value, versionId, sequence, previous, tenantId)) { ids ->
+                    consumeBatch(handler.describeEntities(owner.value, sequence, previous, ids.toSet()))
+                }
+            } else if (tenantId == null || handler.entityType != "token-value") {
                 handler.visit(owner.value, sequence, previous, consumeBatch)
             } else {
                 handler.visitTenant(owner.value, sequence, previous, tenantId, consumeBatch)

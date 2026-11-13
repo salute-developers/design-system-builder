@@ -34,6 +34,10 @@ import kotlin.test.assertTrue
 class ThemeQueryPerformanceTest {
     @Test
     fun `measure full theme reads and journal on representative data`() {
+        if (System.getProperty("ds.performance.scenario") == "journal-baselines") {
+            measureJournalBaselines()
+            return
+        }
         IsolatedPostgresDatabase.create().use { postgres ->
             val imported = System.getProperty("ds.performance.fixtureImport").orEmpty()
             if (imported.isNotBlank()) {

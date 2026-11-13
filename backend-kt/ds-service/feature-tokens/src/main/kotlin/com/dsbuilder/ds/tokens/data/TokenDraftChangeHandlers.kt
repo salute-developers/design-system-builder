@@ -2,6 +2,7 @@ package com.dsbuilder.ds.tokens.data
 
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.JournalProjectionHandler
 import com.dsbuilder.ds.core.application.LiteralValueBatchContext
 import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import com.dsbuilder.ds.core.application.TenantScopedDraftChangeHandler
@@ -162,6 +163,7 @@ private fun tokenValueDraftChangeHandler(listeners: List<TokenRevertListener>): 
     return object :
         DraftChangeHandler by delegate,
         TenantScopedDraftChangeHandler by delegate,
+        JournalProjectionHandler,
         LiteralValueBatchParticipant {
         override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
             literalValueBatchParticipants(listeners)?.all { it.validLiteralBatch(context) } == true
