@@ -9,6 +9,11 @@
 - **WHEN** у свойства задана ссылка `basic-button.xxs.default`
 - **THEN** редактор MUST показать выбранным оформление `basic-button` и стили `xxs` и `default` в соответствующих осях
 
+#### Scenario: Общие контролы инспектора
+
+- **WHEN** инспектор показывает выбор оформления и стилей осей
+- **THEN** выбор MUST строиться на общих контролах инспектора (`component-token-field` с `component-token-picker`), как у остальных полей и выбора иконки
+
 #### Scenario: Смена оформления
 
 - **WHEN** пользователь выбирает другое оформление целевого компонента
@@ -25,6 +30,11 @@
 - **WHEN** у сочетания стилей есть заданные свойства типа `component_style`
 - **THEN** инспектор MUST показать их в отдельной группе `Nested styles` после группы `Icons`, а не в группе `Behaviour`
 - **THEN** группа MUST показывать только заданные свойства, без пустых строк
+
+#### Scenario: Свойство без значения
+
+- **WHEN** у свойства `component_style` в текущем сочетании стилей значения нет
+- **THEN** инспектор MUST NOT показывать для него строку и MUST NOT предлагать выбрать стиль; создание ссылки с нуля вне этого изменения
 
 #### Scenario: Исключение собственного оформления
 
@@ -69,7 +79,7 @@
 #### Scenario: Сохранение выбора
 
 - **WHEN** пользователь выбрал оформление и стили, и правка сохраняется
-- **THEN** клиент MUST вызвать `PUT /api/ds/appearances/{id}/property-values` с `reference.targetAppearanceId` и `reference.styleIds`
+- **THEN** клиент MUST вызвать `PUT /api/projects/{projectId}/design-systems/{designSystemId}/appearances/{id}/property-values` с `reference.targetAppearanceId` и `reference.styleIds`
 - **THEN** клиент MUST NOT записывать значение этого свойства как токен или произвольную строку
 
 #### Scenario: Значение области стиля

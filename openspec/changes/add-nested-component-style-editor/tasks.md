@@ -8,7 +8,7 @@
 ## 2. Запись правок
 
 - [x] 2.1 Передавать в `saveComponentMutation` функцию разворачивания строки значения в `reference`
-- [x] 2.2 Вызывать в `componentRepository` `PUT /api/ds/appearances/{id}/property-values` для изменений со ссылкой
+- [x] 2.2 Вызывать в `componentRepository` `PUT /api/projects/{projectId}/design-systems/{designSystemId}/appearances/{id}/property-values` для изменений со ссылкой
 - [x] 2.3 Сопоставить коды `reference_*` с сообщениями об ошибке автосохранения
 - [x] 2.4 Тесты: тело запроса, область стиля, очистка, ответ `422`
 
