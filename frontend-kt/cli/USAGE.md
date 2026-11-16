@@ -29,13 +29,25 @@ npm. Без Node.js, без сети
 
 ## Установка последнего стабильного CLI
 
-Адреса `install.sh` и `install.ps1` остаются прежними в S3. Скачайте установщик
-по существующей ссылке и запустите `sh install.sh` либо `./install.ps1`.
+Скачайте установщик из GitHub Releases:
+
+```sh
+curl -fsSL https://github.com/salute-developers/design-system-builder/releases/latest/download/install.sh -o install-dsbuilder.sh && sh install-dsbuilder.sh
+```
+
+```powershell
+Invoke-WebRequest https://github.com/salute-developers/design-system-builder/releases/latest/download/install.ps1 -OutFile install-dsbuilder.ps1
+./install-dsbuilder.ps1
+```
+
+Для скачивания скрипта конкретного тега используйте `/releases/download/cli-vX.Y.Z/`
+вместо `/releases/latest/download/`.
 Он выбирает GitHub Latest, закрепляет версию и скачивает архив с проверкой SHA-256.
 macOS автоматически получает arm64/x64, Windows — x64, Linux — JVM (нужна Java 17+).
 На macOS под Rosetta выбирается arm64. Windows arm64 и 32-bit не поддерживаются.
 
-Конкретная версия: `sh install.sh --version 1.2.3` или `./install.ps1 -Version 1.2.3`.
+Конкретная версия CLI: `sh install-dsbuilder.sh --version 1.2.3` или
+`./install-dsbuilder.ps1 -Version 1.2.3`.
 Флаги `--without-ios`, `--without-web` и `-WithoutWeb` сохраняются; явная JVM-установка
 на macOS/Linux доступна через `--target jvm`. Архивы и контрольные суммы находятся
 в GitHub Releases, отдельного `stable.json` нет. gh, jq и Python установщику не нужны.

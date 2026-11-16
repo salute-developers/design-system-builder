@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 import zipfile
 
 TARGETS = ('macos-arm64', 'macos-x64', 'windows-x64', 'jvm')
+INSTALLERS = ('install.sh', 'install.ps1')
 VERSION = re.compile(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)')
 IOS_TAG = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]*')
 
@@ -108,7 +109,6 @@ def github_repository():
 
 def prepare(directory, release_version, bootstrap):
     version(release_version)
-    release_base = 'https://github.com/' + github_repository()
     artifacts = {}
     checksums = []
     ios_tag = None
@@ -125,11 +125,20 @@ def prepare(directory, release_version, bootstrap):
         'schemaVersion': 1, 'version': release_version, 'iosCliReleaseTag': ios_tag, 'artifacts': artifacts,
     }))
     (directory / 'SHA256SUMS').write_text(''.join(checksums))
-    for name in ('install.sh', 'install.ps1'):
+    for name, data in rendered_installers(bootstrap).items():
+        (directory / name).write_bytes(data)
+
+
+def rendered_installers(bootstrap=None):
+    bootstrap = bootstrap or Path(__file__).parent / 'bootstrap'
+    release_base = 'https://github.com/' + github_repository()
+    result = {}
+    for name in INSTALLERS:
         template = (bootstrap / name).read_text()
         if template.count('@CLI_RELEASE_BASE_URL@') != 1:
             raise ValueError('Expected one download URL placeholder')
-        (directory / name).write_text(template.replace('@CLI_RELEASE_BASE_URL@', release_base))
+        result[name] = template.replace('@CLI_RELEASE_BASE_URL@', release_base).encode('utf-8')
+    return result
 
 
 class S3Store:
@@ -201,11 +210,11 @@ class S3Store:
 
 def release_files(directory):
     return {name: (directory / name).read_bytes() for name in [
-        *(f'dsbuilder-cli-{target}.zip' for target in TARGETS), 'SHA256SUMS', 'release.json',
+        *(f'dsbuilder-cli-{target}.zip' for target in TARGETS), 'SHA256SUMS', 'release.json', *INSTALLERS,
     ]}
 
 
-def verified_remote_release(store, release_version):
+def verified_remote_release(store, release_version, require_installers=True):
     prefix = ''
     version(release_version)
     manifest_data = store.get(prefix + 'release.json')
@@ -239,6 +248,10 @@ def verified_remote_release(store, release_version):
         checksums.append(f'{sha}  {name}\n')
     if store.get(prefix + 'SHA256SUMS') != ''.join(checksums).encode():
         raise ValueError('Release SHA256SUMS mismatch')
+    if require_installers:
+        for name, expected in rendered_installers().items():
+            if store.get(name) != expected:
+                raise ValueError('Release installer mismatch: ' + name)
 
 
 def unique_object(pairs):
@@ -298,9 +311,10 @@ class GitHubRelease:
             self.run('release', 'download', self.tag, '--repo', self.repo, '--pattern', key, '--dir', temporary)
             return (Path(temporary) / key).read_bytes()
 
-    def upload(self, directory):
-        self.run('release', 'upload', self.tag, '--repo', self.repo, '--clobber',
-                 *(str(directory / name) for name in release_files(directory)))
+    def upload(self, directory, names=None, overwrite=True):
+        self.run('release', 'upload', self.tag, '--repo', self.repo,
+                 *(['--clobber'] if overwrite else []),
+                 *(str(directory / name) for name in (names if names is not None else release_files(directory))))
 
     def publish(self, latest):
         self.run('release', 'edit', self.tag, '--repo', self.repo, '--draft=false',
@@ -325,6 +339,14 @@ def prepare_github(remote, directory):
         if info is None:
             remote.create()
         remote.upload(directory)
+    else:
+        # Legacy published releases may lack the two bootstrap installers.
+        # Verify immutable archives before adding only the missing assets.
+        verified_remote_release(remote, tag_version(remote.tag), require_installers=False)
+        existing = {asset['name'] for asset in info['assets']}
+        missing = [name for name in INSTALLERS if name not in existing]
+        if missing:
+            remote.upload(directory, names=missing, overwrite=False)
     verified_remote_release(remote, tag_version(remote.tag))
     return published
 
