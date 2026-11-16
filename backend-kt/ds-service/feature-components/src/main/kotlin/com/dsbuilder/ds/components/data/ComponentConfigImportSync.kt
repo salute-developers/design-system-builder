@@ -95,6 +95,8 @@ internal class ComponentConfigImportSync {
     fun flush() {
         batches.values.forEach { it.flush() }
         buffered.clear()
+        // Записанные строки больше не новые: их редакция уже в базе, и повторная запись должна её заменить.
+        fresh.clear()
         flushRevisions(replacements, deleted = false)
         flushRevisions(removals, deleted = true)
     }
@@ -187,6 +189,12 @@ internal class ComponentConfigImportSync {
 
     private val scopes = mutableMapOf<Pair<Table, UUID>, Scope>()
 
+    /**
+     * Адреса строк, созданных этим импортом в представлениях без снимка: их редакция может ещё ждать записи, и запрос
+     * к базе её не увидит.
+     */
+    private val unscoped = mutableMapOf<Table, Scope>()
+
     /** Адрес, по которому последний поиск ничего не нашёл: следующая запись создаёт именно эту строку. */
     private var lastMiss: Triple<Table, Scope, List<Any?>>? = null
 
@@ -204,16 +212,23 @@ internal class ComponentConfigImportSync {
     @Suppress("UNCHECKED_CAST")
     fun id(view: Table, id: Column<UUID>, vararg address: Pair<Column<*>, Any?>): UUID? {
         lastMiss = null
-        val scope = scopeOf(view, address)
-        if (scope != null) {
-            val key = address.map { it.second }
-            scope.created[key]?.let { return it }
-            val found = scope.rows.filter { row ->
+        val snapshot = scopeOf(view, address)
+        val scope = snapshot ?: unscoped.getOrPut(view) { Scope(emptyList(), mutableMapOf()) }
+        val key = address.map { it.second }
+        val found = scope.created[key] ?: if (snapshot != null) {
+            snapshot.rows.filter { row ->
                 address.all { (column, value) -> row[column as Column<Any?>] == value }
             }.singleOrNull()?.get(id)
-            if (found == null) lastMiss = Triple(view, scope, key)
-            return found
+        } else {
+            stored(view, id, address)
         }
+        if (found == null) lastMiss = Triple(view, scope, key)
+        return found
+    }
+
+    /** Строка представления без снимка по адресу: запрос к базе. */
+    @Suppress("UNCHECKED_CAST")
+    private fun stored(view: Table, id: Column<UUID>, address: Array<out Pair<Column<*>, Any?>>): UUID? {
         val predicate = address.fold<_, Op<Boolean>>(Op.TRUE) { predicate, (column, value) ->
             predicate and ((column as Column<Any?>) eq value)
         }
@@ -245,7 +260,6 @@ internal class ComponentConfigImportSync {
             }
             // Повторная запись новой сущности: сначала записать очередь, затем заменить редакцию обычным путём.
             flush()
-            fresh -= entityId
         }
         if ((table to entityId) in replacements) {
             // Повторная запись сущности, замена которой уже ждёт записи: побеждает последнее значение.

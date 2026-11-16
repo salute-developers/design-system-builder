@@ -156,6 +156,54 @@ class ComponentConfigImportEquivalenceIntegrationTest {
         assertEquals(0, rows("appearance_variation_values"), "no axis value of the failed package may remain")
     }
 
+    /**
+     * Две пары состояний, совпавших после нормализации, у одного свойства: повтор второй сущности приходит после
+     * сброса очереди, вызванного повтором первой.
+     */
+    @Test
+    fun `two pairs of states equal after normalization are imported and reimported`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        fun entry(base: Int) =
+            """{"componentName":"card","styleName":"pairs","config":{"invariants":{"gap":{"type":"value","value":1,""" +
+                """"states":[{"state":["hovered"],"value":$base},{"state":["pressed"],"value":${base + 1}},""" +
+                """{"state":["HOVERED"],"value":${base + 2}},{"state":["PRESSED"],"value":${base + 3}}]}}}}"""
+
+        importPackage(system, listOf(entry(10)))
+        importPackage(system, listOf(entry(20)))
+        assertEquals(3, rows("invariant_property_values"), "the base value and one value per state set")
+    }
+
+    /** Сочетание стилей с состояниями, совпавшими после нормализации: участники сочетания не должны дублироваться. */
+    @Test
+    fun `a style combination with states equal after normalization is imported and reimported`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        fun entry(base: Int) =
+            """{"componentName":"button","styleName":"combo","config":{"variations":[""" +
+                """{"id":"size","name":"size","values":[{"name":"l"}]},""" +
+                """{"id":"view","name":"view","values":[{"name":"default",""" +
+                """"targets":[{"properties":[{"id":"size","value":"l"}]}],"properties":{"gap":{"type":"value","value":1,""" +
+                """"states":[{"state":["hovered"],"value":$base},{"state":["HOVERED"],"value":${base + 1}}]}}}]}]}}"""
+
+        importPackage(system, listOf(entry(10)))
+        importPackage(system, listOf(entry(20)))
+    }
+
+    /** Ссылка на стиль компонента у состояний, совпавших после нормализации: одна ссылка на значение. */
+    @Test
+    fun `a component style reference with states equal after normalization is imported and reimported`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        fun entry(first: String, second: String) =
+            """{"componentName":"button","styleName":"refs","config":{"invariants":{"content":{"type":"component_style",""" +
+                """"value":"icon.small","states":[{"state":["hovered"],"value":"icon.$first"},""" +
+                """{"state":["HOVERED"],"value":"icon.$second"}]}}}}"""
+
+        importPackage(system, listOf(icon, entry("small", "large")))
+        importPackage(system, listOf(icon, entry("large", "small")))
+    }
+
     // ── corpus ─────────────────────────────────────────────────────────────────────────────────────
 
     private fun property(values: String) =
