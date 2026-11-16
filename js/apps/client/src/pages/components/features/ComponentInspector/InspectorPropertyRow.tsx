@@ -164,6 +164,9 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         );
     };
 
+    // Стиль вложенного компонента выбирается только у Compose; у других платформ ссылка только читается.
+    const isStyleReference = type === 'component_style' && config.getPlatform() === 'compose';
+
     const control = (() => {
         if (type === 'color') {
             // У свойств фокуса состояний нет, как у `supportsInspectorColorStates` прототипа; у пересечения — тоже.
@@ -229,10 +232,6 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                 <IconControl label={label} value={text} onChange={update} onClear={isSet ? removeValue : undefined} />
             );
         }
-        // Стиль вложенного компонента выбирается только у Compose; у других платформ ссылка только читается.
-        if (type === 'component_style' && config.getPlatform() === 'compose') {
-            return <InspectorStyleReference config={config} label={label} value={text} onChange={update} />;
-        }
         return (
             <div className="component-number-control is-raw">
                 <input aria-label={label} readOnly value={text} />
@@ -240,7 +239,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         );
     })();
 
-    return (
+    const layout = (controlNode: ReactNode, rows?: ReactNode) => (
         <div
             className="component-variation-property-group-row"
             data-property={prop.getName()}
@@ -251,10 +250,11 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                     <b title={`${label} · ${sourceLabel(source)}`}>{label}</b>
                 </span>
                 <div className="component-variation-property-value">
-                    {control}
+                    {controlNode}
                     {type !== 'color' && <span className="component-property-clear-slot">{clear}</span>}
                 </div>
             </div>
+            {rows}
             {type === 'color' &&
                 !isCombination &&
                 states.map((state) => {
@@ -288,4 +288,13 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             )}
         </div>
     );
+
+    if (isStyleReference) {
+        return (
+            <InspectorStyleReference config={config} label={label} value={text} onChange={update}>
+                {({ target, variations }) => layout(target, variations)}
+            </InspectorStyleReference>
+        );
+    }
+    return layout(control);
 };

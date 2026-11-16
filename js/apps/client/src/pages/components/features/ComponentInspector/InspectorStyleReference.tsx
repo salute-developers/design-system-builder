@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import {
     buildStyleReferenceValue,
@@ -19,6 +19,11 @@ interface InspectorStyleReferenceProps {
     /** Текущее значение: `оформление.стиль1.стиль2`. */
     value: string;
     onChange: (value: string) => void;
+    /**
+     * Раскладка частей: выбор оформления и строки стилей вариаций. Без неё обе части идут одним блоком; строка свойства
+     * выносит строки вариаций на свой уровень, чтобы дерево начиналось от названия свойства.
+     */
+    children?: (parts: { target: ReactNode; variations: ReactNode }) => ReactNode;
 }
 
 const targetKey = (target: Pick<StyleReferenceTarget, 'componentName' | 'appearanceName'>) =>
@@ -28,7 +33,7 @@ const targetKey = (target: Pick<StyleReferenceTarget, 'componentName' | 'appeara
  * Выбор стиля вложенного Compose-компонента: оформление цели, затем стиль каждой её вариации. Конфигурацию цели,
  * которой ещё нет в редакторе, догружает по выбору; пока она грузится, показывается состояние загрузки.
  */
-export const InspectorStyleReference = ({ config, label, value, onChange }: InspectorStyleReferenceProps) => {
+export const InspectorStyleReference = ({ config, label, value, onChange, children }: InspectorStyleReferenceProps) => {
     const access = useStyleReferenceAccess();
     const [pending, setPending] = useState<StyleReferenceTarget>();
     const [error, setError] = useState<string>();
@@ -103,7 +108,7 @@ export const InspectorStyleReference = ({ config, label, value, onChange }: Insp
 
     const current = pending ? targetKey(pending) : selected ? targetKey(selected) : undefined;
 
-    return (
+    const target = (
         <div className="component-style-reference" data-testid="style-reference">
             <TokenField
                 label={label}
@@ -123,23 +128,32 @@ export const InspectorStyleReference = ({ config, label, value, onChange }: Insp
                     {error}
                 </p>
             )}
-            {!pending &&
-                resolved?.config.getVariations().map((variation) => (
-                    <div key={variation.getID()} className="component-variation-state-row">
-                        <span>{variation.getName()}</span>
-                        <TokenField
-                            label={`${label}: ${variation.getName()}`}
-                            value={resolved.selections[variation.getID()]}
-                            options={(variation.getStyles() ?? []).map((style) => ({
-                                value: style.getID(),
-                                label: style.getName(),
-                            }))}
-                            searchPlaceholder="Найти стиль"
-                            emptyText="Стили не найдены"
-                            onChange={(styleID) => selectStyle(variation.getID(), styleID)}
-                        />
-                    </div>
-                ))}
         </div>
+    );
+    const variations =
+        !pending &&
+        resolved?.config.getVariations().map((variation) => (
+            <div key={variation.getID()} className="component-variation-state-row is-style-reference">
+                <span>{variation.getName()}</span>
+                <TokenField
+                    label={`${label}: ${variation.getName()}`}
+                    value={resolved.selections[variation.getID()]}
+                    options={(variation.getStyles() ?? []).map((style) => ({
+                        value: style.getID(),
+                        label: style.getName(),
+                    }))}
+                    searchPlaceholder="Найти стиль"
+                    emptyText="Стили не найдены"
+                    onChange={(styleID) => selectStyle(variation.getID(), styleID)}
+                />
+            </div>
+        ));
+
+    if (children) return <>{children({ target, variations })}</>;
+    return (
+        <>
+            {target}
+            {variations}
+        </>
     );
 };

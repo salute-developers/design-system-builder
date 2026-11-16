@@ -7,8 +7,20 @@ import { buttonMeta, groupMeta } from '../../../../composePreview/nestedStyleFix
 import { InspectorPropertyRow, type InspectorTokenLists } from './InspectorPropertyRow';
 import { StyleReferenceContext } from './StyleReferenceContext';
 
-const tokens: InspectorTokenLists = { colors: [], shapes: [], shadows: [], typography: [], resolveColor: () => undefined };
-const source = { kind: 'style', variationID: 'size', variationName: 'size', styleID: 'group-xxs', styleName: 'xxs' } as const;
+const tokens: InspectorTokenLists = {
+    colors: [],
+    shapes: [],
+    shadows: [],
+    typography: [],
+    resolveColor: () => undefined,
+};
+const source = {
+    kind: 'style',
+    variationID: 'size',
+    variationName: 'size',
+    styleID: 'group-xxs',
+    styleName: 'xxs',
+} as const;
 
 const renderRow = (platform: 'compose' | 'web') => {
     const group: Meta = { ...groupMeta(), platform };
@@ -43,6 +55,15 @@ describe('InspectorPropertyRow: ссылка на стиль', () => {
 
         expect(screen.getByTestId('style-reference')).toBeTruthy();
         expect(screen.getByRole('button', { name: /Очистить значение/ })).toBeTruthy();
+    });
+
+    it('выносит строки стилей вариаций на уровень строки свойства, а не в ячейку значения', () => {
+        const { container } = renderRow('compose');
+
+        const group = container.querySelector('.component-variation-property-group-row')!;
+        const rows = [...group.querySelectorAll(':scope > .component-variation-state-row.is-style-reference')];
+        expect(rows.map((row) => row.querySelector('span')?.textContent)).toEqual(['size', 'view']);
+        expect(group.querySelector('.component-variation-property-value .component-variation-state-row')).toBeNull();
     });
 
     it('у других платформ оставляет поле только для чтения без очистки', () => {
