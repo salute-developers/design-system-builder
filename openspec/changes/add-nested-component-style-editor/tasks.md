@@ -20,5 +20,5 @@
 ## 4. Проверки
 
 - [x] 4.1 `cd js && npm run build` и тесты клиента
-- [ ] 4.2 `tools/verify fast --change add-nested-component-style-editor`
+- [x] 4.2 `tools/verify fast --change add-nested-component-style-editor`
 - [x] 4.3 [внешняя проверка] В запущенном клиенте выбрать стиль вложенного компонента, убедиться, что превью изменилось, значение сохранилось после перезагрузки, а ссылка на собственное оформление недоступна
