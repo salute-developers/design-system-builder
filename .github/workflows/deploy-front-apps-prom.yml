@@ -62,6 +62,7 @@ jobs:
           --bucket-location ${{ secrets.AWS_REGION }}
           --signature-v2
           --delete-removed
+          --exclude 'cli/*'
           --no-mime-magic
           sync
           ./s3_build/client/
