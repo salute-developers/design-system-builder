@@ -19,7 +19,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
 
 /** Общая HTTP-фикстура узких тестов и отдельного измерительного стенда журнала. */
-internal class JournalHttpFixture(private val client: HttpClient) {
+internal class JournalHttpFixture(
+    private val client: HttpClient,
+    private val defaultProject: String = "performance-project",
+) {
     suspend fun get(path: String): JsonElement = call("GET", path)
 
     suspend fun seed(changes: Int = 9): JsonObject {
@@ -60,7 +63,7 @@ internal class JournalHttpFixture(private val client: HttpClient) {
         method: String,
         path: String,
         body: String? = null,
-        project: String = "performance-project",
+        project: String = defaultProject,
         role: String = "owner",
     ): io.ktor.client.statement.HttpResponse = client.request(path) {
         this.method = HttpMethod.parse(method)
