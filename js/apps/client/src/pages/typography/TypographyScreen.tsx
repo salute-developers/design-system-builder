@@ -96,9 +96,8 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         setScreen(target.screen);
         setSelectedKey(target.key);
     }, [addressed.requestedTokenName, addressed.tokenId, styles]);
-    /** Выбор стиля сохраняет адрес в маршруте, если раздел открыт по адресу. */
+    /** Выбор стиля сохраняет адрес в маршруте: переключатель тем открывает тот же стиль в другой теме. */
     const address = (nextScreen: Screen, key: string) => {
-        if (!addressed.tokenId) return;
         appliedAddress.current = null;
         addressed.selectTokenName(`${nextScreen}.${key}.normal`);
     };

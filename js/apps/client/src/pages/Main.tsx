@@ -8,6 +8,9 @@ import { useDesignSystem, useForceRerender } from '../hooks';
 import { Debug } from './Debug';
 import { EditorBody, EditorCanvas, MainItems, Root, Separator, StyledIconButton } from './Main.styles';
 import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
+import { ThemeSwitcher } from '../components/BuilderShell/ThemeSwitcher';
+import { can } from '../features/projectPermissions';
+import type { ProjectRole } from '../modules/projects/domain/project';
 import { Visible } from '../components/rendering';
 import { IconColorSwatchOutline } from '../icons';
 import { StyledSpinner as EditorLoadingSpinner } from '../components/EditorLoading/EditorLoading.styles';
@@ -329,6 +332,21 @@ export const Main = () => {
                                 {
                                     label: theme?.getName() ?? 'Тема',
                                     to: `${themeEditorPath}${themeEditorSearch}`,
+                                    render: editorContext && (
+                                        <ThemeSwitcher
+                                            context={editorContext}
+                                            currentName={theme?.getName() ?? 'Тема'}
+                                            canCreate={
+                                                !editorVersionId &&
+                                                designSystem?.getParameters()?.readOnly === false &&
+                                                can(
+                                                    (designSystem.getParameters()?.effectiveRole ??
+                                                        'viewer') as ProjectRole,
+                                                    'tenants:write',
+                                                )
+                                            }
+                                        />
+                                    ),
                                 },
                             ]}
                             action={

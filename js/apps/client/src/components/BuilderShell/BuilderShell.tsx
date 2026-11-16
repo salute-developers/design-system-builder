@@ -12,7 +12,8 @@ import railBrandItemIcon from '../../assets/catalog/icons/rail-brand-item.svg';
 import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg';
 
 export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление' | 'Personal Access Token';
-export type BreadcrumbSegment = { label: string; to: string };
+/** `render` заменяет ссылку сегмента своим элементом, например переключателем тем. */
+export type BreadcrumbSegment = { label: string; to: string; render?: ReactNode };
 export const settingsSectionIds: Record<SettingsSection, string> = {
     Основное: 'general',
     'Personal Access Token': 'personal-access-token',
@@ -203,9 +204,11 @@ export const BuilderHierarchyBar = ({
                             : [])
                     ).map((segment, index) => (
                         <span className="hierarchy-linked-segment" key={`${segment.to}:${segment.label}`}>
-                            <Link aria-label={index === 0 ? `Проект ${segment.label}` : undefined} to={segment.to}>
-                                {segment.label}
-                            </Link>
+                            {segment.render ?? (
+                                <Link aria-label={index === 0 ? `Проект ${segment.label}` : undefined} to={segment.to}>
+                                    {segment.label}
+                                </Link>
+                            )}
                             <span className="hierarchy-separator">/</span>
                         </span>
                     ))}

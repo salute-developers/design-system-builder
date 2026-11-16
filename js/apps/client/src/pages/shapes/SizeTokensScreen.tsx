@@ -167,7 +167,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         setSelectedId(token.tokenId);
         setPicked(true);
         setScrollTo(token.tokenId);
-        // Выбор сохраняет адрес в маршруте, если раздел открыт по адресу.
+        // Выбор сохраняет адрес в маршруте: переключатель тем открывает тот же токен в другой теме.
         appliedAddress.current = null;
         addressed.selectTokenName(token.name);
     };

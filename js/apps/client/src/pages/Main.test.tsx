@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Suspense, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useOutletContext } from 'react-router-dom';
@@ -155,7 +155,7 @@ describe('Theme editor shell', () => {
         ['components/Button', 'Компоненты'],
         ['changes', 'Журнал изменений'],
         ['versions', 'Версии'],
-    ])('shows the section for %s and preserves the version in the theme breadcrumb', (section, label) => {
+    ])('shows the section for %s and the theme switcher in the theme breadcrumb', (section, label) => {
         render(
             <MemoryRouter
                 initialEntries={[
@@ -174,9 +174,10 @@ describe('Theme editor shell', () => {
         );
         const breadcrumbs = screen.getByRole('navigation', { name: 'Навигация темы' });
         expect(breadcrumbs.querySelector('[aria-current="page"]')).toHaveTextContent(label);
-        expect(screen.getByRole('link', { name: 'Brand' })).toHaveAttribute(
-            'href',
-            '/projects/project-1/design-systems/ds-1/themes/theme-1/colors?versionId=published-1',
+        // Крошка темы — переключатель тем: версию и раздел сохраняет переход (см. ThemeSwitcher.test.tsx).
+        expect(within(breadcrumbs).getByRole('button', { name: 'Тема Brand. Переключить тему' })).toHaveAttribute(
+            'aria-haspopup',
+            'listbox',
         );
     });
 

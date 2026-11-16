@@ -273,8 +273,9 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
 
     const select = (view: ColorTokenView) => {
         setSelectedId(view.id);
-        if (requestedTokenId) {
-            const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === view.id);
+        // Выбор сохраняет адрес в маршруте: переключатель тем открывает тот же токен в другой теме.
+        const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === view.id);
+        if (definition?.id !== (requestedTokenId ?? undefined)) {
             const next = new URLSearchParams(searchParams);
             if (definition) next.set('tokenId', definition.id);
             else next.delete('tokenId');

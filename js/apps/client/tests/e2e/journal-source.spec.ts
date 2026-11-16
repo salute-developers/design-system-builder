@@ -42,7 +42,8 @@ test(
         await expect(colors.light).toHaveValue('3366CC');
         await journal.navigationButton.click();
         await expect(journal.list).toBeVisible();
-        await colors.breadcrumb.getByRole('link', { name: initialTheme.name, exact: true }).click();
+        // Крошка темы открывает переключатель тем; в цвета возвращает рейл.
+        await colors.navigationButton.click();
         await expect(page).toHaveURL(editorURL);
         await expect(colors.breadcrumb.getByText(createdSystem.name, { exact: true })).toBeVisible();
         await expect(colors.breadcrumb.getByText(initialTheme.name, { exact: true })).toBeVisible();

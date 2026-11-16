@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import type { EditorContextKey, TokenDefinitionDto } from '../api/editorContracts';
@@ -38,15 +38,30 @@ export const useAddressedToken = (context?: EditorContextKey, isAvailable?: (nam
     const unavailable = Boolean(
         tokenId && loadedTokenId === tokenId && (!requested || (isAvailable && !isAvailable(requested.name))),
     );
+    // Последний выбор: ответ определений для более раннего выбора не перезаписывает адрес.
+    const latestName = useRef<string>();
+    /** Выбор токена всегда пишется в адрес: переключатель тем переносит `tokenId` в другую тему. */
     const selectTokenName = (name: string) => {
-        if (!tokenId) return;
-        const nextId = (
-            tokens.find((token) => token.name === name) ?? tokens.find((token) => matchesEditorName(name, token.name))
-        )?.id;
-        if (!nextId) return;
-        const next = new URLSearchParams(searchParams);
-        next.set('tokenId', nextId);
-        setSearchParams(next, { replace: true });
+        latestName.current = name;
+        const write = (definitions: TokenDefinitionDto[]) => {
+            if (latestName.current !== name) return;
+            const nextId = (
+                definitions.find((token) => token.name === name) ??
+                definitions.find((token) => matchesEditorName(name, token.name))
+            )?.id;
+            if (!nextId) return;
+            setSearchParams(
+                (current) => {
+                    if (current.get('tokenId') === nextId) return current;
+                    const next = new URLSearchParams(current);
+                    next.set('tokenId', nextId);
+                    return next;
+                },
+                { replace: true },
+            );
+        };
+        if (tokens.length) write(tokens);
+        else if (context) void repository.listDefinitions(context).then(write, () => undefined);
     };
 
     return { tokenId, requestedTokenName: requested?.name, unavailable, selectTokenName };

@@ -40,6 +40,24 @@ it('обновляет tokenId при выборе редакторского и
     expect(result.current.query).toContain('versionId=published');
 });
 
+it('пишет tokenId при выборе, даже если экран открыт без адреса', async () => {
+    const context = { projectId: 'project', designSystemId: 'ds', tenantId: 'theme' };
+    const wrapper = ({ children }: PropsWithChildren) =>
+        createElement(MemoryRouter, { initialEntries: ['/?versionId=published'] }, children);
+    const { result } = renderHook(
+        () => {
+            const addressed = useAddressedToken(context);
+            const [params] = useSearchParams();
+            return { ...addressed, query: params.toString() };
+        },
+        { wrapper },
+    );
+    expect(result.current.tokenId).toBeUndefined();
+    act(() => result.current.selectTokenName('surface.second'));
+    await waitFor(() => expect(result.current.tokenId).toBe('second'));
+    expect(result.current.query).toContain('versionId=published');
+});
+
 describe('locateLegacyToken', () => {
     it('показывает недоступность существующего определения, отсутствующего в меню редактора', async () => {
         const context = { projectId: 'project', designSystemId: 'ds', tenantId: 'theme' };
