@@ -1,22 +1,34 @@
 import type { CSSProperties, FormEvent } from 'react';
-import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { designSystemsApi, projectsApi } from '../../api';
 import { BuilderShell } from '../../components/BuilderShell/BuilderShell';
 import { State } from '../../components/Catalog/Catalog';
 import { any, choose, Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
 import { createTheme } from '../../modules/themes/application/createTheme';
-import type { PreviewPalette, ThemePreviewMode, ThemeProfile } from '../../modules/themes/domain/theme';
+import { themesApi } from '../../modules/themes/data/themesApi';
+import type { PreviewPalette, ThemePreviewMode, ThemeProfile, ThemeTenant } from '../../modules/themes/domain/theme';
 import {
     customThemePresets,
     themeProfileLabels,
     themeProfilePreviews,
     themeProfileSwatches,
+    normalizeThemeName,
     validateCustomThemePalette,
 } from '../../modules/themes/domain/themeProfiles';
 import { isAccessDenied, useLoad } from '../../shared/data/useLoad';
 import { getCreateThemeError } from './createThemeError';
+
+/** Превью исходной темы в форме создания: фон, текст, акцент и цвет на акценте. */
+const sourcePreview = (theme: ThemeTenant, mode: ThemePreviewMode): PreviewPalette =>
+    mode === 'light'
+        ? [theme.preview.surfaceLight, '#171717', theme.preview.accentLight, theme.preview.onAccentLight]
+        : // У тёмного превью темы нет своего цвета на акценте: белый читается на акцентах всех профилей.
+          [theme.preview.surfaceDark, '#F5F5F5', theme.preview.accentDark, '#FFFFFF'];
+
+const profileLabel = (theme: ThemeTenant) =>
+    themeProfileLabels[theme.colorConfig.profile as ThemeProfile] ?? 'Custom';
 
 export const CreateThemePage = () => {
     const { projectId = '', designSystemId = '' } = useParams();
@@ -27,13 +39,35 @@ export const CreateThemePage = () => {
         [projectId, designSystemId],
         `system:${projectId}:${designSystemId}`,
     );
+    const [searchParams] = useSearchParams();
+    const themes = useLoad(
+        (signal) => themesApi.list(projectId, designSystemId, signal),
+        [projectId, designSystemId],
+        `themes:${projectId}:${designSystemId}`,
+    );
+    // Когда в дизайн-системе уже есть темы, новая тема по умолчанию — копия существующей.
+    const [chosenMethod, setMethod] = useState<'copy' | 'profile'>();
+    const method = chosenMethod ?? (themes.data?.length ? 'copy' : 'profile');
+    const [chosenSource, setSource] = useState<string>();
+    const source =
+        themes.data?.find((theme) => theme.id === (chosenSource ?? searchParams.get('from'))) ?? themes.data?.[0];
+    const copying = method === 'copy' && Boolean(source);
+    // Без списка тем неизвестно, есть ли что копировать: создание ждёт загрузки или успешного повтора.
+    const themesPending = !themes.data;
+    // Исходная тема из адреса может оказаться ниже видимой части списка.
+    useEffect(() => {
+        if (!copying) return;
+        document
+            .querySelector('.create-theme-sources [aria-checked="true"]')
+            ?.scrollIntoView?.({ block: 'nearest' });
+    }, [copying, themes.data]);
     const [profile, setProfile] = useState<ThemeProfile>('malachite');
     const [palette, setPalette] = useState(customThemePresets.Neutral);
     const [mode, setMode] = useState<ThemePreviewMode>('light');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [name, setName] = useState('');
-    const customPaletteError = profile === 'custom' ? validateCustomThemePalette(palette) : '';
+    const customPaletteError = !copying && profile === 'custom' ? validateCustomThemePalette(palette) : '';
     if ([project.error, system.error].some(isAccessDenied))
         return (
             <State
@@ -91,6 +125,13 @@ export const CreateThemePage = () => {
         const rawName = String(new FormData(event.currentTarget).get('name'));
         setBusy(true);
         try {
+            if (copying && source) {
+                const normalized = normalizeThemeName(rawName);
+                if (!normalized) throw new Error('Введите название Theme.');
+                const copy = await themesApi.duplicate(projectId, designSystemId, source.id, normalized);
+                navigate(`/projects/${projectId}/design-systems/${designSystemId}/themes/${copy.id}/overview`);
+                return;
+            }
             const theme = await createTheme(designSystemsApi, {
                 projectId,
                 designSystemId,
@@ -109,7 +150,11 @@ export const CreateThemePage = () => {
         ['#171717', '#F5F5F5', palette[0], palette[1]],
         [palette[2], palette[3], palette[0], palette[1]],
     );
-    const preview = { ...themeProfilePreviews, custom: { light: customPreview, dark: customPreview } }[profile][mode];
+    const preview =
+        copying && source
+            ? sourcePreview(source, mode)
+            : { ...themeProfilePreviews, custom: { light: customPreview, dark: customPreview } }[profile][mode];
+    const previewLabel = copying && source ? profileLabel(source) : themeProfileLabels[profile];
     return (
         <BuilderShell
             title="Создать Theme"
@@ -145,6 +190,70 @@ export const CreateThemePage = () => {
                                 {error}
                             </p>
                         </Visible>
+                        <Visible when={Boolean(themes.error)}>
+                            <p className="form-error" role="alert">
+                                Не удалось загрузить темы дизайн-системы, поэтому копия недоступна.{' '}
+                                <button type="button" className="form-error-retry" onClick={themes.reload}>
+                                    Повторить
+                                </button>
+                            </p>
+                        </Visible>
+                        <Visible when={Boolean(themes.data?.length)}>
+                            <>
+                                <h2>Способ</h2>
+                                <div className="create-theme-mode create-theme-method" role="group" aria-label="Способ создания">
+                                    <button
+                                        type="button"
+                                        className={choose(method === 'copy', '', 'is-active')}
+                                        aria-pressed={method === 'copy'}
+                                        onClick={() => setMethod('copy')}
+                                    >
+                                        Копия темы
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={choose(method === 'profile', '', 'is-active')}
+                                        aria-pressed={method === 'profile'}
+                                        onClick={() => setMethod('profile')}
+                                    >
+                                        Из профиля
+                                    </button>
+                                </div>
+                            </>
+                        </Visible>
+                        <Visible when={copying}>
+                            <>
+                                <h2>Исходная тема</h2>
+                                <div className="theme-options create-theme-sources" role="radiogroup" aria-label="Исходная тема">
+                                    {(themes.data ?? []).map((theme) => (
+                                        <button
+                                            className={`theme-option ${choose(theme.id === source?.id, '', 'selected')}`}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={theme.id === source?.id}
+                                            onClick={() => setSource(theme.id)}
+                                            key={theme.id}
+                                        >
+                                            <span className="theme-switcher-swatch" aria-hidden="true">
+                                                <span style={{ background: theme.preview.surfaceLight }}>
+                                                    <i style={{ background: theme.preview.accentLight }} />
+                                                </span>
+                                                <span style={{ background: theme.preview.surfaceDark }}>
+                                                    <i style={{ background: theme.preview.accentDark }} />
+                                                </span>
+                                            </span>
+                                            <span>{theme.name}</span>
+                                            <span className="create-theme-source-profile">{profileLabel(theme)}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="catalog-meta">
+                                    Копия получит значения всех токенов, палитру и профиль выбранной темы.
+                                </p>
+                            </>
+                        </Visible>
+                        <Visible when={!copying}>
+                        <>
                         <h2>Стартовая палитра</h2>
                         <div className="theme-options">
                             {(['sber', 'malachite', 'b2b', 'custom'] as ThemeProfile[]).map((item) => (
@@ -222,6 +331,8 @@ export const CreateThemePage = () => {
                                 <p className="catalog-meta">Проверьте соответствие цветов требованиям вашего бренда.</p>
                             </>
                         </Visible>
+                        </>
+                        </Visible>
                     </div>
                     <footer className="create-theme-footer">
                         <Link className="builder-button" to={`/projects/${projectId}/design-systems/${designSystemId}`}>
@@ -229,9 +340,10 @@ export const CreateThemePage = () => {
                         </Link>
                         <button
                             className="builder-button primary"
-                            disabled={busy || !name.trim() || Boolean(customPaletteError)}
+                            // Пока список тем не загружен (или не загрузился), способ создания ещё не определён.
+                            disabled={busy || !name.trim() || Boolean(customPaletteError) || themesPending}
                         >
-                            {choose(busy, 'Создать и открыть Theme', 'Создаём…')}
+                            {choose(busy, copying ? 'Создать копию и открыть' : 'Создать и открыть Theme', 'Создаём…')}
                         </button>
                     </footer>
                 </section>
@@ -253,9 +365,9 @@ export const CreateThemePage = () => {
                     <div className="create-theme-preview-main">
                         <header>
                             <div>
-                                <strong>{name.trim() || themeProfileLabels[profile]}</strong>
+                                <strong>{name.trim() || previewLabel}</strong>
                                 <span>
-                                    {themeProfileLabels[profile]} · {mode === 'light' ? 'Light' : 'Dark'} · Inter · 10
+                                    {previewLabel} · {mode === 'light' ? 'Light' : 'Dark'} · Inter · 10
                                 </span>
                             </div>
                             <div className="create-theme-mode" role="group" aria-label="Режим превью">

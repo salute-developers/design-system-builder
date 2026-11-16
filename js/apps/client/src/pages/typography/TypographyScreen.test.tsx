@@ -29,7 +29,10 @@ vi.mock('../../api/tokenRepository', () => ({
                         name: `${screenId}.body.m.${variant}`,
                     })),
                 ),
-                { id: 'id:screen-l.header.h1.normal', name: 'screen-l.header.h1.normal' },
+                ...['normal', 'medium', 'bold'].map((variant) => ({
+                    id: `id:screen-l.header.h1.${variant}`,
+                    name: `screen-l.header.h1.${variant}`,
+                })),
                 { id: 'id:text.default.primary', name: 'text.default.primary' },
             ];
         },
@@ -399,12 +402,14 @@ describe('экран «Типографика»', () => {
         const options = within(inspector().getByRole('listbox', { name: 'Семейства' })).getAllByRole('option');
         expect(options.map((option) => option.textContent)).toEqual(['Display SB Sans Display', 'Body SB Sans Text']);
         fireEvent.click(options[0]);
-        fireEvent.click(inspector().getByLabelText('Начертание'));
-        const variants = within(inspector().getByRole('listbox', { name: 'Начертание' })).getAllByRole('option');
-        expect(variants.map((option) => option.textContent)).toEqual(['Regular', 'Medium', 'Bold']);
+        const variants = within(inspector().getByRole('tablist', { name: 'Начертание' })).getAllByRole('tab');
+        expect(variants.map((tab) => tab.textContent)).toEqual(['Regular', 'Medium', 'Bold']);
+        expect(variants[0].getAttribute('aria-selected')).toBe('true');
+        expect(inspector().getByText('screen-l.body.m.normal')).toBeTruthy();
         expect(inspector().getByLabelText('Weight Regular').textContent).toBe('400');
         fireEvent.click(variants[2]);
-        expect(inspector().queryByRole('listbox', { name: 'Начертание' })).toBeNull();
+        expect(variants[2].getAttribute('aria-selected')).toBe('true');
+        expect(inspector().getByText('screen-l.body.m.bold')).toBeTruthy();
         expect(inspector().getByLabelText('Weight Bold').textContent).toBe('600');
         // Образцы борда рисуются весом выбранного начертания.
         const sample = document.querySelector(
@@ -561,10 +566,9 @@ describe('экран «Типографика»', () => {
         expect((inspector().getByLabelText('Size') as HTMLInputElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Семейство шрифта') as HTMLButtonElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Weight Regular') as HTMLButtonElement).disabled).toBe(true);
-        // В режиме просмотра ничего нельзя менять, в том числе начертание.
-        expect((inspector().getByLabelText('Начертание') as HTMLButtonElement).disabled).toBe(true);
-        fireEvent.click(inspector().getByLabelText('Начертание'));
-        expect(inspector().queryByRole('listbox', { name: 'Начертание' })).toBeNull();
+        // Табы начертаний — просмотр, а не правка: в режиме просмотра они переключаются, вес остаётся недоступным.
+        fireEvent.click(within(inspector().getByRole('tablist', { name: 'Начертание' })).getByRole('tab', { name: 'Bold' }));
+        expect((inspector().getByLabelText('Weight Bold') as HTMLButtonElement).disabled).toBe(true);
         fireEvent.click(screen.getByRole('tab', { name: 'Мелкие' }));
         fireEvent.click(tree().getByText('M'));
         expect(screen.getByText('Body / M', { selector: TITLE })).toBeTruthy();
@@ -619,7 +623,7 @@ describe('экран «Типографика»', () => {
         fireEvent.click(screen.getByRole('tab', { name: 'Крупные' }));
         fireEvent.click(tree().getByText('H1'));
         await waitFor(() =>
-            expect(screen.getByTestId('location').textContent).toContain('tokenId=id%3Ascreen-l.header.h1.normal'),
+            expect(screen.getByTestId('location').textContent).toContain('tokenId=id%3Ascreen-l.header.h1.bold'),
         );
         expect(screen.getByTestId('location').textContent).toContain('versionId=v1');
         expect(screen.getByText('Header / H1', { selector: TITLE })).toBeTruthy();

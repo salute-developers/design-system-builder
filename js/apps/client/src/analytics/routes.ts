@@ -23,7 +23,7 @@ const routes: ReadonlyArray<readonly [string, string]> = [
         'components/:componentName?': 'Компоненты',
         changes: 'Изменения',
         versions: 'Версии',
-        settings: 'Настройки темы',
+        settings: 'Настройки дизайн-системы',
     }).map(([section, title]) => [`${theme}/${section}`, title] as const),
 ];
 

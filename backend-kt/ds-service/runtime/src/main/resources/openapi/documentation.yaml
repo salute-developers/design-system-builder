@@ -1178,6 +1178,68 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:delete
+  "/api/design-systems/{designSystemId}/tenants/{id}/duplicates":
+    post:
+      tags:
+        - Tenants
+      summary: Duplicate tenant
+      description: >-
+        Создаёт тему копией темы {id} активного черновика: описание и colorConfig, значения всех токенов всех платформ и
+        режимов с признаком своего значения платформы, палитра темы (шаблон, группы, растяжки, ступени и привязки
+        токенов к группам) с новыми идентификаторами. Копия создаётся в одной транзакции; в журнале черновика —
+        создание темы без изменений значений, части палитры могут показываться отдельными записями создания. Название
+        нормализуется, занятое название — 409 TENANT_NAME_CONFLICT, пустое или длиннее 80 символов — 400.
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Название копии.
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          description: Invalid name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Source tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Name conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
   "/api/design-systems/{designSystemId}/tenants/{id}/token-values":
     get:
       tags:
@@ -3894,6 +3956,21 @@ paths:
             type: string
             format: uuid
         - $ref: '#/components/parameters/VersionId'
+        - name: tokenIds
+          in: query
+          required: false
+          description: >-
+            Идентификаторы токенов через запятую, от одного до двадцати: ответ содержит значения только этих токенов во
+            всех темах дизайн-системы. Нечисловые или лишние идентификаторы отклоняются с 400 invalid_token_ids. Без
+            параметра ответ прежний — значения всех токенов.
+          schema:
+            type: array
+            maxItems: 20
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: false
       responses:
         '200':
           description: List of items

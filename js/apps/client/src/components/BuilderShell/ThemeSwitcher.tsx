@@ -18,6 +18,32 @@ export const THEME_SEARCH_THRESHOLD = 7;
 export const themeSwitchPath = (pathname: string, tenantId: string, nextTenantId: string) =>
     pathname.replace(`/themes/${tenantId}`, `/themes/${nextTenantId}`);
 
+/** Ключ кэша списка тем: у опубликованной версии свой список. */
+export const themesCacheKey = ({ projectId, designSystemId, versionId }: EditorContextKey) =>
+    versionId ? `themes:${projectId}:${designSystemId}:${versionId}` : `themes:${projectId}:${designSystemId}`;
+
+export const THEME_SWITCH_BLOCKED = 'Есть несохранённые изменения. Дождитесь сохранения и повторите выбор темы.';
+
+/**
+ * Переход редактора в ту же секцию другой темы с параметрами адреса [search]. Незавершённое автосохранение прежней
+ * темы дожидается конца, как при смене версии; если оно не закончилось, перехода нет и возвращается `false`.
+ */
+export const switchTheme = async (
+    context: EditorContextKey,
+    navigate: (to: { pathname: string; search: string }) => void,
+    pathname: string,
+    search: string,
+    nextTenantId: string,
+) => {
+    try {
+        if (!context.versionId) await waitForDraftAutosaveIdle(context, 10_000);
+    } catch {
+        return false;
+    }
+    navigate({ pathname: themeSwitchPath(pathname, context.tenantId, nextTenantId), search });
+    return true;
+};
+
 const matches = (theme: ThemeTenant, query: string) =>
     theme.name.toLocaleLowerCase('ru-RU').includes(normalizeThemeName(query).toLocaleLowerCase('ru-RU'));
 
@@ -57,10 +83,11 @@ export const ThemeSwitcher = ({
     const searchRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const { popoverRef, style } = useAnchoredPopover(open, triggerRef, 280);
+    // В опубликованной версии список — темы этой версии: в черновике могут быть темы, которых в ней нет.
     const themes = useLoad(
-        (signal) => themesApi.list(projectId, designSystemId, signal),
-        [projectId, designSystemId],
-        `themes:${projectId}:${designSystemId}`,
+        (signal) => themesApi.list(projectId, designSystemId, signal, context.versionId),
+        [projectId, designSystemId, context.versionId],
+        themesCacheKey(context),
     );
     const all = themes.data ?? [];
     const searchable = all.length > THEME_SEARCH_THRESHOLD;
@@ -117,14 +144,9 @@ export const ThemeSwitcher = ({
         close(true);
         if (theme.id === tenantId) return;
         setError(undefined);
-        try {
-            // Незавершённое автосохранение прежней темы дожидается конца, как при смене версии.
-            if (!context.versionId) await waitForDraftAutosaveIdle(context, 10_000);
-        } catch {
-            setError('Есть несохранённые изменения. Дождитесь сохранения и повторите выбор темы.');
-            return;
+        if (!(await switchTheme(context, navigate, location.pathname, location.search, theme.id))) {
+            setError(THEME_SWITCH_BLOCKED);
         }
-        navigate({ pathname: themeSwitchPath(location.pathname, tenantId, theme.id), search: location.search });
     };
 
     const onKeyDown = (event: KeyboardEvent) => {

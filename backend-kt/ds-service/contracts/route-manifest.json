@@ -47,6 +47,7 @@
       "operations": [
         ["GET", "/{designSystemId}/tenants/{id}", null, "Tenant", 200, "tenants:read", null],
         ["POST", "/{designSystemId}/tenants", "CreateTenantRequest", "Tenant", 201, "tenants:write", null],
+        ["POST", "/{designSystemId}/tenants/{id}/duplicates", "DuplicateTenantRequest", "Tenant", 201, "tenants:write", null],
         ["PATCH", "/{designSystemId}/tenants/{id}", "UpdateTenantRequest", "Tenant", 200, "tenants:write", null],
         ["DELETE", "/{designSystemId}/tenants/{id}", null, "OkResponse", 200, "tenants:delete", null],
         ["GET", "/{designSystemId}/tenants/{id}/token-values", null, "TokenValue[]", 200, "tenants:read", null],

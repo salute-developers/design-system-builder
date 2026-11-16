@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+    OtherThemesSection,
+    webValue,
+} from '../../components/tokenWorkspace/OtherThemesSection';
 
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
 
@@ -8,7 +12,7 @@ import { PanelSkeleton, usePanelWidths, WorkspaceLoadError } from '../../compone
 import '../../styles/color-tokens.css';
 
 import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
-import type { DraftRefreshChange } from '../../api/editorContracts';
+import type { DraftRefreshChange, EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
 import type { Config, DesignSystem, Theme } from '../../controllers';
 import {
     buildTree,
@@ -159,6 +163,55 @@ export const ColorTokensState = ({ error = false, onRetry }: { error?: boolean; 
         </section>
     </div>
 );
+
+/** HEX для сравнения тем: верхний регистр, непрозрачная альфа отбрасывается. */
+const comparableHex = (value: unknown) => {
+    const text = (Array.isArray(value) ? value[0] : value) as unknown;
+    if (typeof text !== 'string') return '';
+    const hex = text.toUpperCase();
+    return /^#[0-9A-F]{8}$/.test(hex) && hex.endsWith('FF') ? hex.slice(0, 7) : hex;
+};
+
+const swatchCell = (hex: string) => (
+    <span className="other-themes-color">
+        <i style={{ background: hex || 'transparent' }} />
+        {hex.replace('#', '') || '—'}
+    </span>
+);
+
+/** Блок «В других темах» цветового токена: Light и Dark основного значения в каждой теме. */
+const ColorOtherThemes = ({
+    context,
+    view,
+    family,
+}: {
+    context: EditorContextKey;
+    view: ColorTokenView;
+    family: Array<[string, { id: string }]>;
+}) => {
+    const main = family.find(([name]) => name.includes('.default.'))?.[1] ?? family[0]?.[1];
+    const ids = family.map(([, definition]) => definition.id);
+    const describe = useCallback(
+        (values: TenantTokenValueDto[]) => {
+            const light = comparableHex(webValue(values, main?.id ?? '', 'light'));
+            const dark = comparableHex(webValue(values, main?.id ?? '', 'dark'));
+            return { cells: [swatchCell(light), swatchCell(dark)], key: `${light}|${dark}` };
+        },
+        [main?.id, ids.join(',')],
+    );
+    if (!main) return null;
+    const currentKey = `${comparableHex(view.modes.light.resolved)}|${comparableHex(view.modes.dark.resolved)}`;
+    return (
+        <OtherThemesSection
+            context={context}
+            tokenIds={[main.id]}
+            addressTokenId={main.id}
+            columns={['Light', 'Dark']}
+            currentKey={currentKey}
+            describe={describe}
+        />
+    );
+};
 
 /** Экран Color Tokens темы по ветке `editorTab === 'colors'` функции `editor` прототипа. */
 export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
@@ -724,6 +777,9 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             }
                             addressLabel={addressLabel}
                         />
+                    )}
+                    {selected && !selected.incomplete && (
+                        <ColorOtherThemes context={context} view={selected} family={editor.family(selected)} />
                     )}
                 </aside>
                 <main className="preview-canvas">

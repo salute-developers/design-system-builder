@@ -28,11 +28,12 @@ const changed = async (projectId: string, operation: () => Promise<{ data: Theme
 };
 
 export const themesApi = {
-    list: (projectId: string, designSystemId: string, signal?: AbortSignal) =>
+    /** Темы активного черновика или, с [versionId], опубликованной версии. */
+    list: (projectId: string, designSystemId: string, signal?: AbortSignal, versionId?: string) =>
         apiRequest<ThemeTenant[]>(() =>
             readEditor<ThemeTenant[]>(
                 dsPath(projectId, designSystemId, "/tenants"),
-                { signal },
+                versionId ? { signal, params: { versionId } } : { signal },
                 undefined,
                 30_000,
             ),
@@ -41,6 +42,9 @@ export const themesApi = {
         const { designSystemId, ...data } = body;
         return changed(projectId, () => http.post(dsPath(projectId, designSystemId, '/tenants'), data));
     },
+    /** Копия темы `sourceId`: значения всех токенов, палитра и профиль; название нормализует сервер. */
+    duplicate: (projectId: string, designSystemId: string, sourceId: string, name: string) =>
+        changed(projectId, () => http.post(dsPath(projectId, designSystemId, `/tenants/${sourceId}/duplicates`), { name })),
     update: (projectId: string, id: string, body: { name: string }, designSystemId: string) =>
         changed(projectId, () => http.patch(dsPath(projectId, designSystemId, `/tenants/${id}`), body)),
     remove: async (projectId: string, id: string, designSystemId: string) => {

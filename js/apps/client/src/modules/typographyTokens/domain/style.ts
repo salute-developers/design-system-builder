@@ -118,6 +118,9 @@ export const styleSizeRequest = (
 ): { size: string } | { error: string } => {
     const size = normalizeStyleSize(input);
     if (!size) return { error: 'Имя стиля — латиница, цифры и дефис, например xl или promo-title.' };
+    // Каждый стиль создаёт три начертания: «m normal» дал бы токены m-normal.normal, m-normal.medium и m-normal.bold.
+    if (/(^|-)(normal|regular|medium|bold)$/.test(size))
+        return { error: 'Начертание указывать не нужно: у стиля всегда есть Regular, Medium и Bold.' };
     const key = styleKey({ group, size });
     if (key !== except && styles.some((style) => styleKey(style) === key))
         return { error: `Стиль ${styleTitle({ group, size })} уже есть в теме.` };
@@ -307,10 +310,24 @@ export const styleValueRevisions = (styles: TypographyStyles) =>
     );
 
 /** Экран и стиль токена `<экран>.<группа>.<размер>.<начертание>` или `null` вне правила стиля. */
-export const parseStyleTokenName = (name: string): { screen: TypographyScreen; key: string } | null => {
+export const parseStyleTokenName = (
+    name: string,
+): { screen: TypographyScreen; key: string; variant: TypographyVariant } | null => {
     const match = /^(screen-[sml])\.([a-z]+)\.([a-z0-9]+(?:-[a-z0-9]+)*)\.(normal|medium|bold)$/.exec(name);
-    return match ? { screen: match[1] as TypographyScreen, key: `${match[2]}.${match[3]}` } : null;
+    return match
+        ? {
+              screen: match[1] as TypographyScreen,
+              key: `${match[2]}.${match[3]}`,
+              variant: match[4] as TypographyVariant,
+          }
+        : null;
 };
+
+/** Полное имя токена начертания стиля: `<экран>.<группа>.<размер>.<начертание>`. */
+export const styleTokenName = (
+    style: Pick<TypographyStyle, 'screen' | 'group' | 'size'>,
+    variant: TypographyVariant,
+) => `${style.screen}.${style.group}.${style.size}.${variant}`;
 
 /** Число без лишних знаков для поля ввода. */
 export const formatNumber = (value: number) => String(Number(value.toFixed(4)));

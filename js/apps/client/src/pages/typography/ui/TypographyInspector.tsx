@@ -27,6 +27,7 @@ import {
     parseNumber,
     screenLabel,
     styleLabel,
+    styleTokenName,
     styleVariant,
     type TypographyField,
     type TypographyOverridePlatform,
@@ -38,6 +39,8 @@ import {
 
 interface TypographyInspectorProps {
     style: TypographyStyle;
+    /** Блок «В других темах» под разделом «Стиль». */
+    otherThemes?: ReactNode;
     families: TypographyFamily[];
     themeCount: number;
     editable: boolean;
@@ -499,6 +502,40 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
             <section className="typography-section tw-section">
                 <SectionHeader title="Стиль" />
                 <div className="typography-section-body tw-field-stack">
+                    <div className="typography-variant-tabs" role="tablist" aria-label="Начертание">
+                        {TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map(({ id, label }) => (
+                            <button
+                                key={id}
+                                type="button"
+                                role="tab"
+                                aria-selected={id === variant}
+                                className={id === variant ? 'is-active' : undefined}
+                                onClick={() => props.onVariantChange(id)}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="typography-variant-token" title="Токен открытого начертания">
+                        {styleTokenName(style, variant)}
+                    </div>
+                    <div className="typography-field-row">
+                        {overridable(
+                            'weight',
+                            <SelectField
+                                icon="weight"
+                                label={`Weight ${variantLabel}`}
+                                value={String(weight ?? '')}
+                                display={weight === undefined ? undefined : String(weight)}
+                                disabled={disabled || weight === undefined}
+                                tone={toneOf('weight')}
+                                options={weightOptions(weight)}
+                                onChange={(value) => onChange({ weights: { [variant]: Number(value) } })}
+                            />,
+                        )}
+                    </div>
+                    <RowMessages messages={messagesOf('weight')} />
+                    <p className="typography-shared-note">Общие для Regular, Medium и Bold</p>
                     <SelectField
                         icon="family"
                         label="Семейство шрифта"
@@ -522,38 +559,13 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         onChange={(fontFamily) => onChange({ fontFamily })}
                     />
                     {familyError && <FieldMessage>{familyError}</FieldMessage>}
-                    <SelectField
-                        icon="variant"
-                        label="Начертание"
-                        value={variant}
-                        disabled={disabled}
-                        tone={null}
-                        options={TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map(({ id, label }) => ({
-                            value: id,
-                            label,
-                        }))}
-                        onChange={(value) => props.onVariantChange(value as TypographyVariant)}
-                    />
                     <div className="typography-field-row">
-                        {overridable(
-                            'weight',
-                            <SelectField
-                                icon="weight"
-                                label={`Weight ${variantLabel}`}
-                                value={String(weight ?? '')}
-                                display={weight === undefined ? undefined : String(weight)}
-                                disabled={disabled || weight === undefined}
-                                tone={toneOf('weight')}
-                                options={weightOptions(weight)}
-                                onChange={(value) => onChange({ weights: { [variant]: Number(value) } })}
-                            />,
-                        )}
                         {overridable(
                             'size',
                             numberField('size', (size) => onChange({ size })),
                         )}
                     </div>
-                    <RowMessages messages={[...messagesOf('weight'), ...messagesOf('size')]} />
+                    <RowMessages messages={messagesOf('size')} />
                     <div className="typography-field-row">
                         {overridable(
                             'lineHeight',
@@ -567,6 +579,7 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                     <RowMessages messages={[...messagesOf('lineHeight'), ...messagesOf('letterSpacing')]} />
                 </div>
             </section>
+            {props.otherThemes}
             <section className="typography-section tw-section">
                 <SectionHeader title="Влияние" />
                 <div className="typography-impact-row tw-list-row">

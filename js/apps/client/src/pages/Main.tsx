@@ -42,7 +42,7 @@ const editorSectionLabels: Record<string, string> = {
     components: 'Компоненты',
     changes: 'Журнал изменений',
     versions: 'Версии',
-    settings: 'Настройки темы',
+    settings: 'Настройки дизайн-системы',
 };
 export const Main = () => {
     const navigate = useNavigate();
@@ -299,8 +299,8 @@ export const Main = () => {
                                         selected={currentPath.includes('settings')}
                                         onClick={() => onClickPanelButton('settings')}
                                         disabled={Boolean(editorContext?.versionId)}
-                                        aria-label="Настройки темы"
-                                        title="Настройки темы"
+                                        aria-label="Настройки дизайн-системы"
+                                        title="Настройки дизайн-системы"
                                     >
                                         <IconSettingsOutline size="xs" color="inherit" />
                                     </StyledIconButton>

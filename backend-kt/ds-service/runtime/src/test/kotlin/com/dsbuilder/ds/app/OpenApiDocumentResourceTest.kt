@@ -274,7 +274,8 @@ class OpenApiDocumentResourceTest {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
         // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора и группы типографии.
-        assertEquals(199, operationCount)
+        assertEquals(200, operationCount)
+        assertTrue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates" in paths)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)
         assertTrue("/api/design-systems/catalog/web-preview/plugin" in paths)
@@ -282,6 +283,23 @@ class OpenApiDocumentResourceTest {
         assertTrue("/api/design-systems/{designSystemId}/component-config/import" in paths)
         assertTrue("/api/design-systems/{designSystemId}/component-config/web-adapter" in paths)
         assertFalse("/api/design-systems/{designSystemId}/component-configurations" in paths)
+    }
+
+    @Test
+    fun `theme duplicate and token values by token document their contracts`() {
+        val duplicate = paths.getValue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates").jsonObject
+            .getValue("post").jsonObject
+        assertEquals("tenants:write", duplicate.getValue("x-permission").jsonPrimitive.content)
+        assertEquals(
+            setOf("201", "400", "404", "409"),
+            duplicate.getValue("responses").jsonObject.keys,
+        )
+        val list = paths.getValue("/api/design-systems/{designSystemId}/token-values").jsonObject
+            .getValue("get").jsonObject
+        val tokenIds = list.getValue("parameters").jsonArray.map { it.jsonObject }
+            .single { it["name"]?.jsonPrimitive?.content == "tokenIds" }
+        assertEquals("query", tokenIds.getValue("in").jsonPrimitive.content)
+        assertEquals("20", tokenIds.getValue("schema").jsonObject.getValue("maxItems").jsonPrimitive.content)
     }
 
     /** Операции групп манифеста с `origin: ds-service` есть в документе с тем же методом и правом. */

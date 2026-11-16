@@ -135,7 +135,7 @@ describe('Theme editor shell', () => {
             </MemoryRouter>,
         );
         const rail = screen.getByTestId('editor-rail');
-        fireEvent.click(screen.getByRole('button', { name: 'Настройки темы' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Настройки дизайн-системы' }));
         expect(screen.queryByTestId('previous-section')).not.toBeInTheDocument();
         expect(screen.getByRole('status', { name: 'Открываем раздел' })).toBeInTheDocument();
         expect(screen.getByTestId('editor-rail')).toBe(rail);
@@ -208,14 +208,14 @@ describe('Theme editor shell', () => {
         expect(breadcrumbs.querySelector('a[href="/projects/project-1/design-systems/ds-1"]')).toHaveTextContent(
             'System',
         );
-        expect(screen.getByRole('button', { name: 'Настройки темы' })).toHaveClass('builder-rail-button');
+        expect(screen.getByRole('button', { name: 'Настройки дизайн-системы' })).toHaveClass('builder-rail-button');
         expect(screen.getByTestId('editor-nav-colors')).toBeInTheDocument();
         expect(view.container.querySelector('[data-testid="editor-nav-overview"]')).not.toBeInTheDocument();
         expect(screen.getAllByText('Цветовые токены').length).toBeGreaterThan(0);
         const rail = screen.getByTestId('editor-rail');
-        fireEvent.click(screen.getByRole('button', { name: 'Настройки темы' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Настройки дизайн-системы' }));
         expect(screen.getByTestId('editor-rail')).toBe(rail);
-        expect(breadcrumbs.textContent).toBe('Platform/System/Brand/Настройки темы');
+        expect(breadcrumbs.textContent).toBe('Platform/System/Brand/Настройки дизайн-системы');
         expect(screen.getByText('Параметры темы')).toBeInTheDocument();
     });
 
@@ -240,7 +240,7 @@ describe('Theme editor shell', () => {
         expect(loading.closest('header')).toBeNull();
         expect(screen.queryByRole('navigation', { name: 'Навигация темы' })).not.toBeInTheDocument();
         expect(screen.queryByText(/Загружаем Theme/)).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Настройки темы' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Настройки дизайн-системы' })).toBeInTheDocument();
     });
 
     it.each(['colors', 'palette'])(

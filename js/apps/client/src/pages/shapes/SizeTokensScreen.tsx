@@ -1,4 +1,11 @@
-import { useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
+import type { EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
+import type { DimensionToken } from '../../modules/sizeTokens/domain/types';
+import {
+    OtherThemesSection,
+    cssPx,
+    webValue,
+} from '../../components/tokenWorkspace/OtherThemesSection';
 import { useNavigate } from 'react-router-dom';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
 
@@ -78,6 +85,31 @@ const writeCollapsed = (value: Partial<Record<SizeTokenKind, boolean>>) => {
     } catch {
         // Хранилище браузера недоступно: состояние разделов просто не запомнится.
     }
+};
+
+/** Значение размера для сравнения тем: px веба или «Full» у полного скругления. */
+const sizeLabel = (px: number | null) => (px === null ? 'Full' : `${px} px`);
+
+/** Блок «В других темах» размера: значение веба в px. */
+const SizeOtherThemes = ({ context, token }: { context: EditorContextKey; token: DimensionToken }) => {
+    const describe = useCallback(
+        (values: TenantTokenValueDto[]) => {
+            const raw = webValue(values, token.tokenId, null);
+            const label = sizeLabel(cssPx(Array.isArray(raw) ? raw[0] : raw));
+            return { cells: [label], key: label };
+        },
+        [token.tokenId],
+    );
+    return (
+        <OtherThemesSection
+            context={context}
+            tokenIds={[token.tokenId]}
+            addressTokenId={token.tokenId}
+            columns={['Значение']}
+            currentKey={sizeLabel(token.fullRounding ? null : token.valuePx)}
+            describe={describe}
+        />
+    );
 };
 
 /** Выбранный токен темы: экран размонтируется на время перезагрузки темы и должен вернуть выбор. */
@@ -312,6 +344,9 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     )}
                     {selected && saved && (
                         <SizeTokenInspector
+                            otherThemes={
+                                saved.kind !== 'shadow' ? <SizeOtherThemes context={context} token={saved} /> : undefined
+                            }
                             key={selected.tokenId}
                             token={selected}
                             saved={saved}

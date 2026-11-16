@@ -39,7 +39,6 @@ import {
     ProjectPage,
     ProjectSettingsPage,
     ProjectsPage,
-    ThemeSettingsPage,
 } from './pages/workflowPages';
 
 const ProtectedRoute = () => {
@@ -132,7 +131,7 @@ function App() {
                         <Route path="components/:componentName?" element={<ComponentsRoute />} />
                         <Route path="changes" element={<DesignSystemChangesPage />} />
                         <Route path="versions" element={<DesignSystemVersionsPage />} />
-                        <Route path="settings" element={<ThemeSettingsPage embedded />} />
+                        <Route path="settings" element={<DesignSystemSettingsPage embedded />} />
                     </Route>
                     <Route path="/" element={<Main />}>
                         <Route index element={<Navigate to="/projects" replace />} />

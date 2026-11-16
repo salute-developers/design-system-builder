@@ -2,10 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
+import * as autosave from '../../api/draftAutosaveActivity';
 import { themesApi } from '../../modules/themes/data/themesApi';
 import type { ThemeTenant } from '../../modules/themes/domain/theme';
 import { resetQueryCache } from '../../shared/data/useLoad';
-import { THEME_SEARCH_THRESHOLD, ThemeSwitcher, themeSwitchPath } from './ThemeSwitcher';
+import { THEME_SEARCH_THRESHOLD, THEME_SWITCH_BLOCKED, ThemeSwitcher, themeSwitchPath } from './ThemeSwitcher';
 
 const theme = (id: string, name: string): ThemeTenant => ({
     id,
@@ -27,8 +28,9 @@ const Location = () => {
     return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
 };
 
-const renderAt = (path: string, canCreate = true) =>
-    render(
+const renderAt = (path: string, canCreate = true) => {
+    const versionId = new URLSearchParams(path.split('?')[1]).get('versionId') ?? undefined;
+    return render(
         <MemoryRouter initialEntries={[path]}>
             <Routes>
                 <Route
@@ -36,7 +38,7 @@ const renderAt = (path: string, canCreate = true) =>
                     element={
                         <>
                             <ThemeSwitcher
-                                context={{ projectId: 'p', designSystemId: 'ds', tenantId: 'light' }}
+                                context={{ projectId: 'p', designSystemId: 'ds', tenantId: 'light', versionId }}
                                 currentName="Light brand"
                                 canCreate={canCreate}
                             />
@@ -47,6 +49,7 @@ const renderAt = (path: string, canCreate = true) =>
             </Routes>
         </MemoryRouter>,
     );
+};
 
 beforeEach(() => {
     vi.restoreAllMocks();
@@ -70,6 +73,19 @@ describe('ThemeSwitcher', () => {
             ),
         );
         expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+        expect(themesApi.list).toHaveBeenCalledWith('p', 'ds', expect.anything(), 'v1');
+    });
+
+    it('не уходит из темы, пока автосохранение черновика не закончилось', async () => {
+        vi.spyOn(themesApi, 'list').mockResolvedValue([theme('light', 'Light brand'), theme('dark', 'Dark brand')]);
+        vi.spyOn(autosave, 'waitForDraftAutosaveIdle').mockRejectedValue(new Error('busy'));
+        renderAt('/projects/p/design-systems/ds/themes/light/colors?tokenId=t1');
+
+        fireEvent.click(screen.getByRole('button', { name: /Переключить тему/ }));
+        fireEvent.click(within(await screen.findByRole('listbox', { name: 'Темы' })).getByRole('option', { name: /Dark/ }));
+
+        expect(await screen.findByText(THEME_SWITCH_BLOCKED)).toBeInTheDocument();
+        expect(screen.getByTestId('location')).toHaveTextContent('/projects/p/design-systems/ds/themes/light/colors?tokenId=t1');
     });
 
     it('выбирает тему стрелками и Enter, Escape закрывает список', async () => {

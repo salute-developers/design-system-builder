@@ -15,6 +15,7 @@ import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.or
@@ -26,7 +27,10 @@ import java.util.UUID
 
 /** Exposed token-value repository scoped through its token and design system. */
 class ExposedTokenValueRepository : TokenValueRepository {
-    override suspend fun listAccessible(projectId: ProjectId): List<TokenValue> = currentRows(projectId = projectId)
+    override suspend fun listAccessible(projectId: ProjectId, tokenIds: Set<UUID>): List<TokenValue> = currentRows(
+        projectId = projectId,
+        tokenIds = tokenIds,
+    )
         .map(TokenValueRowMapper::map)
 
     override suspend fun findAccessible(projectId: ProjectId, id: UUID): TokenValue? = currentRows(
@@ -185,7 +189,8 @@ class ExposedTokenValueRepository : TokenValueRepository {
     private fun currentRows(
         projectId: ProjectId? = null,
         id: UUID? = null,
-    ): List<ResultRow> = resolvedRows(projectId, id).filter { !it[TokenValueRevisionsTable.deleted] }
+        tokenIds: Set<UUID> = emptySet(),
+    ): List<ResultRow> = resolvedRows(projectId, id, tokenIds).filter { !it[TokenValueRevisionsTable.deleted] }
         .let { rows ->
             val designSystemIds = rows.mapTo(hashSetOf()) { it[TokenValuesTable.designSystemId] }
             val tokenIds = designSystemIds.flatMap { currentTokenRows(designSystemId = it) }
@@ -199,6 +204,7 @@ class ExposedTokenValueRepository : TokenValueRepository {
     private fun resolvedRows(
         projectId: ProjectId? = null,
         id: UUID? = null,
+        tokenIds: Set<UUID> = emptySet(),
     ): List<ResultRow> = TokenValuesTable
         .join(TokenValueRevisionsTable, JoinType.INNER, TokenValuesTable.id, TokenValueRevisionsTable.tokenValueId)
         .join(TokensTable, JoinType.INNER, TokenValuesTable.tokenId, TokensTable.id)
@@ -216,6 +222,7 @@ class ExposedTokenValueRepository : TokenValueRepository {
                 latestRevision("token_value_revisions", "token_value_id")
             projectId?.let { predicate = predicate and (TokenDesignSystemsTable.projectId eq it.value) }
             id?.let { predicate = predicate and (TokenValuesTable.id eq it) }
+            if (tokenIds.isNotEmpty()) predicate = predicate and (TokenValuesTable.tokenId inList tokenIds)
             predicate
         }
         .toList()

@@ -11,7 +11,14 @@ import { ChevronLeftOutline, ChevronRightOutline } from '@salutejs/sdds-icons/16
 import railBrandItemIcon from '../../assets/catalog/icons/rail-brand-item.svg';
 import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg';
 
-export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление' | 'Personal Access Token';
+export type SettingsSection =
+    | 'Основное'
+    | 'Темы'
+    | 'Участники и роли'
+    | 'Администрирование'
+    | 'Удаление'
+    | 'Опасная зона'
+    | 'Personal Access Token';
 /** `render` заменяет ссылку сегмента своим элементом, например переключателем тем. */
 export type BreadcrumbSegment = { label: string; to: string; render?: ReactNode };
 export const settingsSectionIds: Record<SettingsSection, string> = {
@@ -20,6 +27,9 @@ export const settingsSectionIds: Record<SettingsSection, string> = {
     'Участники и роли': 'members',
     Администрирование: 'lifecycle',
     Удаление: 'delete',
+    Темы: 'themes',
+    // Удаление дизайн-системы: `delete` в настройках, открытых из темы, означает удаление этой темы.
+    'Опасная зона': 'danger',
 };
 const railEntityInitials = (name: string, fallback = 'PR') => {
     const words = name.trim().split(/\s+/).filter(Boolean);

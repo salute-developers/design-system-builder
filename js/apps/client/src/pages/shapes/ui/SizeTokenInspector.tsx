@@ -33,6 +33,8 @@ const PLATFORM_ORDER: readonly NativePlatform[] = ['ios', 'android'];
 interface InspectorProps {
     /** Токен с несохранёнными правками. */
     token: SizeToken;
+    /** Блок «В других темах» перед разделом «Влияние». */
+    otherThemes?: import('react').ReactNode;
     /** Последнее сохранённое значение токена. */
     saved: SizeToken;
     editable: boolean;
@@ -531,6 +533,7 @@ export const SizeTokenInspector = (props: InspectorProps) => {
                         onChange={props.onChange}
                     />
                 ) : null}
+                {props.otherThemes}
                 <Impact token={token} onOpenComponent={props.onOpenComponent} />
             </div>
         </>

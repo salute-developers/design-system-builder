@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import type { EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
+import {
+    OtherThemesSection,
+    cssPx,
+    webValue,
+} from '../../components/tokenWorkspace/OtherThemesSection';
 import { useNavigate } from 'react-router-dom';
 
 import '../../styles/typography.css';
@@ -12,6 +18,7 @@ import {
     parseStyleTokenName,
     sampleText,
     screenStyles,
+    TYPOGRAPHY_VARIANTS,
     styleKey,
     styleTitle,
     type TypographyContext,
@@ -56,6 +63,43 @@ const writeStorage = (key: string, value: unknown) => {
     }
 };
 
+const typographyLabel = (size: number | null, lineHeight: number | null, weight: unknown) =>
+    `${size ?? '—'}/${lineHeight ?? '—'} · ${weight ?? '—'}`;
+
+/** Блок «В других темах» стиля: размер, высота строки и вес открытого начертания. */
+const TypographyOtherThemes = ({
+    context,
+    style,
+    variant,
+}: {
+    context: EditorContextKey;
+    style: TypographyStyle;
+    variant: TypographyVariant;
+}) => {
+    const ids = Object.values(style.variants).flatMap((item) => (item ? [item.tokenId] : []));
+    const open = style.variants[variant] ?? Object.values(style.variants).find(Boolean);
+    const describe = useCallback(
+        (values: TenantTokenValueDto[]) => {
+            const raw = webValue(values, open?.tokenId ?? '', null);
+            const value = (Array.isArray(raw) ? raw[0] : raw) as Record<string, unknown> | undefined;
+            const label = typographyLabel(cssPx(value?.fontSize), cssPx(value?.lineHeight), value?.fontWeight);
+            return { cells: [label], key: label };
+        },
+        [open?.tokenId, ids.join(',')],
+    );
+    if (!open) return null;
+    return (
+        <OtherThemesSection
+            context={context}
+            tokenIds={ids}
+            addressTokenId={open.tokenId}
+            columns={[TYPOGRAPHY_VARIANTS.find(({ id }) => id === variant)?.label ?? variant]}
+            currentKey={typographyLabel(style.sizePx, style.lineHeightPx, open.weight)}
+            describe={describe}
+        />
+    );
+};
+
 /** Экран «Типографика» темы: дерево стилей, борд и инспектор по Figma (`06 · Typography · Handoff`). */
 export const TypographyScreen = (props: TypographyScreenProps) => {
     const { context, designSystem, theme, rerender, changedTokenNames } = props;
@@ -95,11 +139,17 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         appliedAddress.current = addressed.tokenId ?? null;
         setScreen(target.screen);
         setSelectedKey(target.key);
+        setVariant(target.variant);
     }, [addressed.requestedTokenName, addressed.tokenId, styles]);
     /** Выбор стиля сохраняет адрес в маршруте: переключатель тем открывает тот же стиль в другой теме. */
-    const address = (nextScreen: Screen, key: string) => {
+    const address = (nextScreen: Screen, key: string, nextVariant: TypographyVariant = variant) => {
         appliedAddress.current = null;
-        addressed.selectTokenName(`${nextScreen}.${key}.normal`);
+        addressed.selectTokenName(`${nextScreen}.${key}.${nextVariant}`);
+    };
+    /** Таб начертания: адрес хранит токен открытого начертания, переключатель тем переносит таб. */
+    const selectVariant = (next: TypographyVariant) => {
+        setVariant(next);
+        address(screen, selectedKey, next);
     };
     const selectStyle = (key: string) => {
         setSelectedKey(key);
@@ -308,6 +358,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                                 editable={!readOnly}
                                 banners={banners}
                                 variant={variant}
+                                otherThemes={<TypographyOtherThemes context={context} style={selected} variant={variant} />}
                                 description={editor.description(selected)}
                                 descriptionPlaceholder={sampleText(selected.group)}
                                 onDescribe={(text) => editor.describe(selected, text)}
@@ -319,7 +370,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                                     readOnly ? undefined : () => void tokenReset.reset(editor.styleTokenIds(selected))
                                 }
                                 resetDisabled={tokenReset.busy || !changedStyles.has(styleKey(selected))}
-                                onVariantChange={setVariant}
+                                onVariantChange={selectVariant}
                                 error={(field, platform) => editor.fieldError(selected, field, platform)}
                                 onChange={(change) => editor.edit(selected, change)}
                                 onOpenComponent={(name) =>

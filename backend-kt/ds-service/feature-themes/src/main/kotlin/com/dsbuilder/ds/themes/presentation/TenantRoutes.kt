@@ -15,6 +15,8 @@ import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.CreateTenant
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
+import com.dsbuilder.ds.themes.application.DuplicateTenant
+import com.dsbuilder.ds.themes.application.DuplicateTenantUseCase
 import com.dsbuilder.ds.themes.application.GetTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
@@ -49,6 +51,7 @@ fun Route.tenantRoutes(
     list: ListTenantsUseCase,
     get: GetTenantUseCase,
     create: CreateTenantUseCase,
+    duplicate: DuplicateTenantUseCase,
     update: UpdateTenantUseCase,
     delete: DeleteTenantUseCase,
     getTokenValues: GetTenantTokenValuesUseCase,
@@ -168,6 +171,36 @@ fun Route.tenantRoutes(
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
+        post("/{id}/duplicates") {
+            val context = TrustedDsRequestContextMapper.map(
+                call.dsTrustedHeaders(),
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
+                ?: return@post call.respondFailure(DsFailure.Forbidden)
+            val designSystemId = context.designSystemId
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            val id = call.parameters["id"]?.toUuid()
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+            val request = runCatching { call.receive<DuplicateTenantRequest>() }.getOrNull()
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            val name = request.name.trim().replace(Regex("\\s+"), " ")
+            if (name.length > MAX_TENANT_NAME_LENGTH) {
+                return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            }
+            val command = DuplicateTenant(designSystemId, id, name)
+            val duplicateContext = context.withIdempotentResponse<Tenant> {
+                json.encodeToString(TenantResponse.serializer(), TenantResponse.from(it))
+            }
+            when (val result = duplicate.execute(duplicateContext, command, call.request.headers["Idempotency-Key"])) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    HttpStatusCode.Created,
+                    TenantResponse.from(result.value),
+                )
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
+        }
         patch("/{id}") {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),
@@ -216,6 +249,9 @@ fun Route.tenantRoutes(
         }
     }
 }
+
+/** Предел названия темы из `theme-lifecycle`; создание и правка пока допускают 255 символов. */
+private const val MAX_TENANT_NAME_LENGTH = 80
 
 private fun CreateTenantRequest.valid() = name.trim().isNotEmpty() && name.trim().length <= 255 &&
     (description?.trim()?.length ?: 0) <= 1000

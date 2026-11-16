@@ -90,7 +90,9 @@ flowchart LR
 - `palette_id` значений ссылается на общую таблицу `palette`, поэтому копируется как есть; пересчитываются только
   идентификаторы групп, шкал и шагов палитры темы.
 - Значения пишутся тем же писателем начальных значений, что и при создании темы (`InitialTenantValueWriter`), с
-  базовой линией создания. Поэтому журнал черновика показывает одну запись «создание темы», как для темы из профиля.
+  базовой линией создания. Поэтому изменений значений копии в журнале нет, как у темы из профиля. Пользовательские
+  группы палитры и привязки токенов к ним базовой линии не имеют и видны в журнале отдельными записями создания;
+  системные группы журнал скрывает, как при создании из профиля.
 - Название нормализуется и проверяется на уникальность под той же блокировкой имени, что и в `CreateTenantUseCase`.
 - Идемпотентность — как у создания темы: ключ `Idempotency-Key` хеширует исходный `id` и название.
 
@@ -100,9 +102,11 @@ flowchart LR
 `settings` редактора показывает настройки дизайн-системы. Отдельный маршрут
 `projects/:projectId/design-systems/:designSystemId/settings` остаётся для входа с обзора.
 
-`ThemeSettingsPage` удаляется. Маршрут `.../themes/:tenantId/settings` перенаправляет в
-`.../design-systems/:designSystemId/settings?section=themes&theme=<tenantId>` и переносит `section=delete` в
-подтверждение удаления этой темы, чтобы старые ссылки из меню и закладок продолжали работать.
+`ThemeSettingsPage` удаляется. Маршрут `.../themes/:tenantId/settings` теперь показывает настройки дизайн-системы:
+это тот же адрес, что у шестерёнки, поэтому без параметров открывается «Основное». Прежняя ссылка «Удалить» карточки
+темы (`?section=delete`) переписывается в `section=themes&theme=<tenantId>&confirm=delete` и открывает удаление этой
+темы. Удаление самой дизайн-системы поэтому получает отдельный раздел `danger`: иначе прежняя ссылка темы вела бы к
+удалению всей дизайн-системы.
 
 Переименование — прямо в строке списка: тем мало полей, отдельная страница ради одного названия не нужна.
 Удаление сохраняет подтверждение вводом названия, как сейчас.
@@ -118,8 +122,9 @@ flowchart LR
 - читать значения клиентом через `GET /tenants/{id}/token-values` каждой темы: N запросов, и каждый возвращает все
   токены раздела. На 9 темах это девять ответов по несколько сотен значений ради одного токена.
 
-Поэтому новый маршрут уровня дизайн-системы `GET /token-values?tokenIds=…`: один запрос, только нужные токены,
-цвета разрешаются по палитре каждой темы тем же `TokenValuePublisher`, что и в чтении одной темы. Список токенов, а
+Поэтому чтение значений дизайн-системы `GET /token-values` получает фильтр `tokenIds`: один запрос, только нужные
+токены. Этот маршрут уже отдаёт значения всех тем с цветами, разрешёнными по палитре темы значения, поэтому отдельный
+маршрут не нужен: он перекрыл бы существующий. Название темы клиент берёт из списка тем. Список токенов, а
 не один `tokenId`, нужен типографике: сравнение открытого таба требует токена начертания, а смена таба не должна
 давать новый запрос, поэтому клиент запрашивает сразу три токена стиля. Блок загружается только при раскрытии и
 кэшируется в `readEditor` по адресу запроса; после правки текущей темы пересчитываются только отметки «≠».
@@ -162,20 +167,10 @@ interface TenantTokenValueCopier {
 // TenantPaletteRepository: новый метод
 suspend fun copy(sourceTenantId: UUID, targetTenantId: UUID)
 
-// Значения токенов по всем темам
-class GetTokenValuesByTenantUseCase(
-    private val policy: DsAccessPolicy,
-    private val transactions: TransactionRunner,
-    private val repository: TenantRepository,
-    private val paletteRepository: TenantPaletteRepository,
-) {
-    suspend fun execute(
-        context: DsRequestContext,
-        tokenIds: Set<UUID>,
-    ): DsResult<List<TenantTokenValues>>
+// feature-tokens: фильтр значений дизайн-системы по токенам
+class ListTokenValuesUseCase(/* … */) {
+    suspend fun execute(context: DsRequestContext, tokenIds: Set<UUID> = emptySet()): DsResult<List<TokenValue>>
 }
-
-data class TenantTokenValues(val tenant: Tenant, val values: List<TenantTokenValue>)
 ```
 
 ```ts
@@ -190,7 +185,7 @@ type ThemeSwitcherProps = {
 };
 
 // js/apps/client/src/api/tokenRepository.ts
-loadValuesByTenant(context: EditorContextKey, tokenIds: string[], signal?: AbortSignal): Promise<TenantTokenValuesDto[]>;
+loadValuesByTenant(context: EditorContextKey, tokenIds: string[], signal?: AbortSignal): Promise<Map<string, TenantTokenValueDto[]>>;
 
 // js/apps/client/src/components/tokenWorkspace/OtherThemesSection.tsx
 type OtherThemesSectionProps<T> = {

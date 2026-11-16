@@ -206,6 +206,7 @@ import com.dsbuilder.ds.designsystems.presentation.designSystemVersionRoutes
 import com.dsbuilder.ds.designsystems.presentation.draftInvalidationRoutes
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
+import com.dsbuilder.ds.themes.application.DuplicateTenantUseCase
 import com.dsbuilder.ds.themes.application.GetTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
@@ -736,6 +737,7 @@ private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Ko
         koin.get<ListTenantsUseCase>(),
         koin.get<GetTenantUseCase>(),
         koin.get<CreateTenantUseCase>(),
+        koin.get<DuplicateTenantUseCase>(),
         koin.get<UpdateTenantUseCase>(),
         koin.get<DeleteTenantUseCase>(),
         koin.get<GetTenantTokenValuesUseCase>(),
