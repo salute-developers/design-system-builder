@@ -270,7 +270,17 @@ class GitHubRelease:
             raise RuntimeError('GitHub release request failed') from error
 
     def view(self):
-        return self.info('tags/' + self.tag)
+        # The by-tag endpoint does not find drafts. Include every page so an
+        # interrupted release can be resumed even after newer releases appear.
+        try:
+            pages = json.loads(self.run('api', '--paginate', '--slurp',
+                                        f'repos/{self.repo}/releases?per_page=100').stdout)
+        except subprocess.CalledProcessError as error:
+            raise RuntimeError('GitHub release request failed') from error
+        matches = [item for page in pages for item in page if item['tag_name'] == self.tag]
+        if len(matches) > 1:
+            raise RuntimeError('Multiple GitHub releases for tag: ' + self.tag)
+        return matches[0] if matches else None
 
     def latest(self):
         return self.info('latest')

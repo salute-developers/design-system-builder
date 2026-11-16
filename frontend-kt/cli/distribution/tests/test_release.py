@@ -3,6 +3,7 @@ from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -231,6 +232,49 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual([], remote.promotions)
 
 
+class GitHubReleaseLookupTest(unittest.TestCase):
+    def lookup(self, pages):
+        remote = release.GitHubRelease('cli-v1.2.3')
+        result = SimpleNamespace(stdout=json.dumps(pages).encode())
+        with patch.object(remote, 'run', return_value=result) as run:
+            info = remote.view()
+        run.assert_called_once_with('api', '--paginate', '--slurp',
+                                    f'repos/{remote.repo}/releases?per_page=100')
+        return info
+
+    def test_finds_draft_on_later_page_and_keeps_assets(self):
+        draft = {'id': 42, 'tag_name': 'cli-v1.2.3', 'draft': True,
+                 'assets': [{'name': 'release.json'}]}
+        self.assertEqual(draft, self.lookup([
+            [{'id': 43, 'tag_name': 'cli-v1.2.4', 'draft': False}], [draft],
+        ]))
+
+    def test_finds_published_release(self):
+        published = {'id': 42, 'tag_name': 'cli-v1.2.3', 'draft': False}
+        self.assertEqual(published, self.lookup([[published]]))
+
+    def test_missing_release(self):
+        self.assertIsNone(self.lookup([[]]))
+
+    def test_duplicate_tag_is_rejected(self):
+        draft = {'id': 42, 'tag_name': 'cli-v1.2.3', 'draft': True}
+        with self.assertRaisesRegex(RuntimeError, 'Multiple GitHub releases'):
+            self.lookup([[draft], [dict(draft, id=43)]])
+
+    def test_prepare_reuses_existing_draft_on_retry(self):
+        remote = release.GitHubRelease('cli-v1.2.3')
+        draft = {'id': 42, 'tag_name': remote.tag, 'draft': True}
+        result = SimpleNamespace(stdout=json.dumps([[draft]]).encode())
+        directory = Path('distributions')
+        with patch.object(remote, 'run', return_value=result), patch.object(remote, 'create') as create, \
+                patch.object(remote, 'upload') as upload, patch.object(release, 'verified_remote_release') as verify:
+            for _ in range(2):
+                self.assertFalse(release.prepare_github(remote, directory))
+            create.assert_not_called()
+            self.assertEqual(2, upload.call_count)
+            verify.assert_called_with(remote, '1.2.3')
+
+
 class FakeGitHub(MemoryStore):
     def __init__(self, tag):
         super().__init__()
@@ -264,10 +308,21 @@ class GitHubAdapterTest(unittest.TestCase):
         for stderr in (b'gh: Not Found (HTTP 404)', b'gh: Forbidden (HTTP 403)', b'network failure'):
             with patch.object(remote, 'run', side_effect=subprocess.CalledProcessError(1, ['gh'], stderr=stderr)):
                 if b'404' in stderr:
-                    self.assertIsNone(remote.view())
+                    self.assertIsNone(remote.latest())
                 else:
                     with self.assertRaises(RuntimeError):
-                        remote.view()
+                        remote.latest()
+
+    def test_listing_errors_do_not_create_another_draft(self):
+        import subprocess
+        remote = release.GitHubRelease('cli-v1.2.3')
+        for stderr in (b'gh: Not Found (HTTP 404)', b'gh: Forbidden (HTTP 403)', b'network failure'):
+            with self.subTest(stderr=stderr), patch.object(
+                remote, 'run', side_effect=subprocess.CalledProcessError(1, ['gh'], stderr=stderr)
+            ), patch.object(remote, 'create') as create:
+                with self.assertRaisesRegex(RuntimeError, 'GitHub release request failed'):
+                    release.prepare_github(remote, Path('unused'))
+                create.assert_not_called()
 
     def test_draft_and_promotion_commands_are_explicit(self):
         remote = release.GitHubRelease('cli-v1.2.3')
