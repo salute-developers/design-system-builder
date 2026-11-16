@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.components.data
 
+import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.InternalApi
 import org.jetbrains.exposed.v1.core.Op
@@ -7,8 +8,13 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.statements.InsertStatement
+import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import java.time.Instant
 import java.util.UUID
 
 /** Согласует импорт по предметным адресам, сохраняя UUID и не переписывая одинаковые редакции. */
@@ -71,10 +77,101 @@ internal class ComponentConfigImportSync {
         markChanged()
     }
 
-    /** Записывает накопленные пакеты: сначала устойчивые строки, затем редакции, группами по таблице. */
+    /** Замена или удаление редакции существующей сущности, отложенные до [flush]. */
+    private class PendingRevision(
+        val entityColumn: Column<UUID>,
+        val entityId: UUID,
+        val owner: UUID,
+        val values: Map<Column<*>, Any?>,
+    )
+
+    private val replacements = linkedMapOf<Pair<ComponentRevisionTable, UUID>, PendingRevision>()
+    private val removals = linkedMapOf<Pair<ComponentRevisionTable, UUID>, PendingRevision>()
+
+    /**
+     * Записывает накопленное: сначала новые устойчивые строки и редакции (группами по таблице), затем замены и
+     * удаления редакций существующих сущностей, тоже группами по таблице.
+     */
     fun flush() {
         batches.values.forEach { it.flush() }
         buffered.clear()
+        flushRevisions(replacements, deleted = false)
+        flushRevisions(removals, deleted = true)
+    }
+
+    /**
+     * Заменяет редакции черновика пакетно: прежние редакции сущностей удаляются списком, новые вставляются пакетами.
+     * Удаления выполняются с путём `/deleted`, как и при построчной замене.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun flushRevisions(
+        pending: MutableMap<Pair<ComponentRevisionTable, UUID>, PendingRevision>,
+        deleted: Boolean,
+    ) {
+        pending.entries.groupBy({ it.key.first }, { it.value }).forEach { (table, group) ->
+            group.groupBy { it.owner }.forEach { (owner, rows) ->
+                val boundary = draft(owner)
+                rows.chunked(REVISION_BATCH).forEach { writeChunk(table, it, owner, boundary, deleted) }
+            }
+        }
+        pending.clear()
+    }
+
+    /** Одна пачка: прежние редакции сущностей удаляются списком, затем вставляются новые или редакции-удаления. */
+    private fun writeChunk(
+        table: ComponentRevisionTable,
+        chunk: List<PendingRevision>,
+        owner: UUID,
+        boundary: ResultRow,
+        deleted: Boolean,
+    ) {
+        table.deleteWhere {
+            (chunk.first().entityColumn inList chunk.map { it.entityId }) and
+                (table.designSystemVersionId eq boundary[ComponentVersionBoundariesTable.id])
+        }
+        if (deleted) {
+            SubjectMutationPaths.with(setOf("/deleted")) { insertDeleted(table, chunk, owner, boundary) }
+        } else {
+            replace(table, chunk, owner, boundary)
+        }
+    }
+
+    /** Вставляет новые редакции замены одним пакетом: у них заполнены все столбцы значения. */
+    @Suppress("UNCHECKED_CAST")
+    private fun replace(table: ComponentRevisionTable, rows: List<PendingRevision>, owner: UUID, boundary: ResultRow) {
+        table.batchInsert(rows, shouldReturnGeneratedValues = false) { row ->
+            this[table.id] = UUID.randomUUID()
+            this[row.entityColumn] = row.entityId
+            this[table.designSystemId] = owner
+            this[table.designSystemVersionId] = boundary[ComponentVersionBoundariesTable.id]
+            this[table.versionSequenceNumber] = boundary[ComponentVersionBoundariesTable.sequenceNumber]
+            this[table.deleted] = false
+            this[table.updatedAt] = Instant.now()
+            row.values.forEach { (column, value) -> this[column as Column<Any?>] = value }
+        }
+    }
+
+    /**
+     * Вставляет редакции-удаления по одной: у них нет значений, а пакетная вставка требует заполнить все столбцы без
+     * значения по умолчанию. Удаление и контекст пути общие на пачку.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun insertDeleted(
+        table: ComponentRevisionTable,
+        rows: List<PendingRevision>,
+        owner: UUID,
+        boundary: ResultRow,
+    ) {
+        rows.forEach { row ->
+            table.insert { statement ->
+                statement[row.entityColumn] = row.entityId
+                statement[table.designSystemId] = owner
+                statement[table.designSystemVersionId] = boundary[ComponentVersionBoundariesTable.id]
+                statement[table.versionSequenceNumber] = boundary[ComponentVersionBoundariesTable.sequenceNumber]
+                statement[table.deleted] = true
+                row.values.forEach { (column, value) -> statement[column as Column<Any?>] = value }
+            }
+        }
     }
 
     fun retained(table: ComponentRevisionTable, id: UUID): Boolean = id in retained[table].orEmpty()
@@ -137,6 +234,9 @@ internal class ComponentConfigImportSync {
         val desired = InsertStatement<Number>(table).also { table.body(it) }.values.toMap()
         if (entityId in fresh) {
             markChanged()
+            // Адрес новой строки регистрируется до раннего выхода: тот же адрес в этом оформлении (например, состояния,
+            // совпавшие после нормализации) должен найти её, а не создать вторую.
+            registerMiss(view, entityId)
             if (buffered.add(table to entityId)) {
                 batch(owner).revision(table, entityColumn, entityId) { statement ->
                     desired.forEach { (column, value) -> statement[column as Column<Any?>] = value }
@@ -146,6 +246,11 @@ internal class ComponentConfigImportSync {
             // Повторная запись новой сущности: сначала записать очередь, затем заменить редакцию обычным путём.
             flush()
             fresh -= entityId
+        }
+        if ((table to entityId) in replacements) {
+            // Повторная запись сущности, замена которой уже ждёт записи: побеждает последнее значение.
+            replacements[table to entityId] = PendingRevision(entityColumn, entityId, owner, desired)
+            return
         }
         val idColumn = view.columns.single { it.name == "id" } as Column<UUID>
         val current = currentRow(view, idColumn, entityId)
@@ -157,20 +262,22 @@ internal class ComponentConfigImportSync {
             return
         }
         markChanged()
-        table.replaceRevision(entityColumn, entityId, owner, draft = draft(owner)) { statement ->
-            desired.forEach { (column, value) -> statement[column as Column<Any?>] = value }
-        }
+        replacements[table to entityId] = PendingRevision(entityColumn, entityId, owner, desired)
+    }
+
+    /** Запоминает адрес последнего пустого поиска за только что созданной сущностью [entityId]. */
+    private fun registerMiss(view: Table, entityId: UUID): Boolean {
+        val miss = lastMiss
+        lastMiss = null
+        if (miss == null || miss.first !== view) return false
+        miss.second.created[miss.third] = entityId
+        return true
     }
 
     /** Текущая строка сущности: из снимка оформления, а для сущности, найденной поиском впустую, — отсутствующая. */
     private fun currentRow(view: Table, idColumn: Column<UUID>, entityId: UUID): ResultRow? {
-        val miss = lastMiss
-        lastMiss = null
-        if (miss != null && miss.first === view) {
-            // Строку только что создал вызывающий по результату пустого поиска: редакции у неё ещё нет.
-            miss.second.created[miss.third] = entityId
-            return null
-        }
+        // Строку только что создал вызывающий по результату пустого поиска: редакции у неё ещё нет.
+        if (registerMiss(view, entityId)) return null
         scopes.entries.firstOrNull { it.key.first === view && entityId in it.value.byId }?.let { entry ->
             val row = entry.value.byId[entityId]
             // После записи строка снимка устарела; повторная запись той же сущности прочитает её из базы.
@@ -180,6 +287,7 @@ internal class ComponentConfigImportSync {
         return view.selectAll().where { idColumn eq entityId }.singleOrNull()
     }
 
+    @OptIn(InternalApi::class)
     fun <T : ComponentRevisionTable> remove(
         table: T,
         entityColumn: Column<UUID>,
@@ -189,11 +297,15 @@ internal class ComponentConfigImportSync {
     ) {
         if (!retained(table, id)) {
             markChanged()
-            table.replaceRevision(entityColumn, id, owner, deleted = true, draft = draft(owner), body = body)
+            val values = InsertStatement<Number>(table).also { table.body(it) }.values.toMap()
+            removals[table to id] = PendingRevision(entityColumn, id, owner, values)
         }
     }
 
     private companion object {
+        /** Размер пакета замены редакций: как в остальной пакетной записи. */
+        const val REVISION_BATCH = 250
+
         /** Представления значений, в которых адрес всегда содержит оформление: их строки читаются по оформлению. */
         val SNAPSHOT_SCOPES: Map<Table, Column<*>> = mapOf(
             VariationPropertyValuesTable to VariationPropertyValuesTable.appearanceId,

@@ -31,11 +31,13 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             context.sync.flush()
         }
         resolveReferences(command.designSystemId, context)
+        context.sync.flush()
         // Всё, что записано в оформление, созданное этим импортом, удерживается им же: очищать нечего.
         context.appearances.filterNot { it in context.newAppearances }.forEach {
             context.sync.appearance = it
             clear(it, context.sync)
         }
+        context.sync.flush()
         context.completed.forEach { it() }
         ComponentConfigRepository.ImportAttempt.Success(
             context.report.toDomain(context.paintTypes.mapValues { it.value.toSet() }),
@@ -216,12 +218,16 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         return null
     }
 
-    private fun component(name: String, context: ComponentConfigImportContext): ResultRow? {
-        val key = name.canonical()
-        if (context.componentRows.containsKey(key)) return context.componentRows[key]
-        return ComponentsTable.selectAll().where { ComponentsTable.platform eq context.platform }
-            .firstOrNull { it[ComponentsTable.name].canonical() == key }.also { context.componentRows[key] = it }
-    }
+    /** Компонент платформы по имени; каталог платформы читается один раз, при совпадении имён берётся первая строка. */
+    private fun component(name: String, context: ComponentConfigImportContext): ResultRow? =
+        platformComponents(context)[name.canonical()]
+
+    private fun platformComponents(context: ComponentConfigImportContext): Map<String, ResultRow> =
+        context.platformComponents ?: linkedMapOf<String, ResultRow>().also { index ->
+            ComponentsTable.selectAll().where { ComponentsTable.platform eq context.platform }
+                .forEach { index.putIfAbsent(it[ComponentsTable.name].canonical(), it) }
+            context.platformComponents = index
+        }
 
     private fun link(ds: UUID, component: UUID, context: ComponentConfigImportContext) {
         if (context.linkedComponents.add(component)) restoreDesignSystemComponentLink(ds, component)

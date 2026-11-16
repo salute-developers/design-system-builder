@@ -19,8 +19,8 @@ internal class ComponentConfigImportContext(
     val stateSets = linkedMapOf<List<UUID>, UUID>()
     val pendingReferences = mutableListOf<PendingComponentStyleReference>()
 
-    /** Компоненты платформы по каноническому имени; `null` — такого компонента нет (поиск не повторяется). */
-    val componentRows = linkedMapOf<String, org.jetbrains.exposed.v1.core.ResultRow?>()
+    /** Каталог компонентов платформы по каноническому имени: читается один раз на импорт. */
+    var platformComponents: Map<String, org.jetbrains.exposed.v1.core.ResultRow>? = null
 
     /** Свойства компонента по каноническому имени: читаются один раз на компонент, а не на каждое имя в конфигурации. */
     val propertyRows = hashMapOf<UUID, Map<String, org.jetbrains.exposed.v1.core.ResultRow>>()
