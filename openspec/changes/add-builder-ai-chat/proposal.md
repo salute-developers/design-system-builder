@@ -30,20 +30,22 @@
 ### Изменённые возможности
 
 - `frontend-mcp-server` — ядро MCP пригодно для встраивания в сервер: учётные данные из контекста вызова, публичная схема инструментов без служебных полей. Требование «Backend authorization остается серверной ответственностью» допускает отбор инструментов встраивающим сервером по серверным разрешениям.
+- `multi-user-design-system-editing` — запись может передать ожидаемый черновик в `X-DS-Expected-Draft`; если DS опубликовали и черновик сменился, запись отклоняется с `409 draft_changed`. Так подтверждённая в чате операция не попадёт в следующий черновик.
 - `backend-monolith-runtime` — монолит подключает подсистему ИИ-ассистента с выключателем `AI_ENABLED`. Требование «Независимость поведения от транспорта» получает исключение для обратных вызовов инструментов чата.
 
 ## Влияние
 
 - **backend-kt.**
+  - ds-service: необязательный заголовок `X-DS-Expected-Draft` в `DsRequestContext`, проверка в общей инфраструктуре записи, ошибка `409 draft_changed`, обновление OpenAPI.
   - Новая сборка `backend-kt/ai-assistant` (`runtime` и `feature-chat`) подключается в `backend-kt/app` и в корневую сборку `backend-kt` как включаемая сборка.
   - Префикс `/api/projects/` уже публичный, граница не меняется.
   - JVM-артефакт ядра берётся из локального репозитория, который публикует `frontend-kt`. `app/Dockerfile` и `.dockerignore` пропускают `frontend-kt` для этой публикации.
   - OpenAPI — `ai-assistant/runtime/src/main/resources/openapi/documentation.yaml`; при сборке `processResources` переносит ресурсы в `dsbuilder/ai/...`, как у документации. В каталог `backend-kt/api-reference/src/catalog.mjs` добавляется запись.
-  - Новые переменные окружения: `AI_ENABLED`, `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, `AI_EXTRA_BODY`, `AI_RETRY_ERROR_CODES`, `AI_GIGACHAT_AUTH_KEY`, `AI_GIGACHAT_SCOPE`, `AI_GIGACHAT_OAUTH_URL`, `AI_GIGACHAT_BASE_URL`, `AI_GIGACHAT_CA_PATH`, `AI_MAX_STEPS`, `AI_MAX_WRITES`, `AI_TURN_TIMEOUT_SECONDS`, `AI_HISTORY_MAX_CHARS`, `AI_MESSAGE_MAX_CHARS`. Их нужно прописать в `docker-compose.prod.yml`, `backend-kt/docker-compose.local.yml` и `backend-kt/app/README.md`.
+  - Новые переменные окружения: `AI_ENABLED`, `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, `AI_EXTRA_BODY`, `AI_RETRY_ERROR_CODES`, `AI_GIGACHAT_AUTH_KEY`, `AI_GIGACHAT_SCOPE`, `AI_GIGACHAT_OAUTH_URL`, `AI_GIGACHAT_BASE_URL`, `AI_GIGACHAT_CA_PATH`, `AI_MAX_STEPS`, `AI_MAX_WRITES`, `AI_TURN_TIMEOUT_SECONDS`, `AI_HISTORY_MAX_CHARS`, `AI_MESSAGE_MAX_CHARS`, `AI_TOOL_RESULT_MAX_CHARS`. Их нужно прописать в `docker-compose.prod.yml`, `backend-kt/docker-compose.local.yml` и `backend-kt/app/README.md`.
   - Отдельного контейнера, порта или проверки готовности нет: подсистема работает в процессе `backend` и использует его `/ready`.
 - **frontend-kt.**
   - `core-application` получает `CallScopedCredentialProvider`.
-  - `mcp-server-core` получает `mcpServerFilledFields` и `inputJsonSchema`.
+  - `mcp-server-core` получает `mcpServerFilledFields` и `inputJsonSchema`; инструменты записи получают необязательное служебное поле `expectedDraftId`, которое `core-network` передаёт заголовком `X-DS-Expected-Draft`.
   - Сборка получает подмножество `dsbuilder.serverSubset` и задачу публикации JVM-артефактов для `backend-kt`.
   - Поведение CLI и `dsbuilder-mcp` не меняется.
 - **CI.** `validate-backend-kt.yml` срабатывает и на `frontend-kt/**`, в его матрицы добавляется `ai-assistant`.

@@ -50,11 +50,16 @@ MCP server SHALL передавать выбранный credential в DS Builde
 
 ### Requirement: Схема инструмента для встраивающей стороны
 
-`:mcp-server-core` SHALL публиковать набор `mcpServerFilledFields` с полями `designSystem`, `version` и `idempotencyKey` и функцию `McpToolDefinition.inputJsonSchema(hidden)`, которая строит JSON Schema тем же переводом, что и MCP, без скрытых полей в `properties` и `required`. Набор MUST использоваться только для схемы. Разбор команд записи MUST по-прежнему отделять служебные поля, включая `baseRevision`, до строгой десериализации тела.
+`:mcp-server-core` SHALL публиковать набор `mcpServerFilledFields` с полями `designSystem`, `version`, `idempotencyKey` и `expectedDraftId` и функцию `McpToolDefinition.inputJsonSchema(hidden)`, которая строит JSON Schema тем же переводом, что и MCP, без скрытых полей в `properties` и `required`. Набор MUST использоваться только для схемы. Разбор команд записи MUST по-прежнему отделять служебные поля, включая `baseRevision`, до строгой десериализации тела.
 
 #### Scenario: Скрытие полей
 - **WHEN** схема строится с `hidden = mcpServerFilledFields`
 - **THEN** скрытые поля MUST отсутствовать и в `properties`, и в `required`, а остальные поля MUST совпадать со схемой MCP
+
+#### Scenario: Привязка записи к черновику
+- **WHEN** инструмент записи вызван с необязательным `expectedDraftId`
+- **THEN** ядро MUST передать его в заголовке `X-DS-Expected-Draft` и MUST NOT включать в тело команды
+- **THEN** ответ `409 draft_changed` MUST возвращаться как ошибка инструмента с этим кодом
 
 #### Scenario: Вызов с базовой ревизией
 - **WHEN** инструмент записи вызван с `baseRevision`
