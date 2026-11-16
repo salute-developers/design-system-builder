@@ -2453,5 +2453,609 @@
             ],
             "underivedTypes": []
         }
+    },
+    "normalized-states": {
+        "report": {
+            "created": 1,
+            "updated": 0,
+            "unchanged": 0,
+            "rejected": [],
+            "unresolvedTokens": [],
+            "unresolvedComponentStyles": [],
+            "unknownProperties": [],
+            "unknownStates": [],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
+            "underivableVariationIds": []
+        },
+        "export": {
+            "meta": {
+                "name": "equivalence",
+                "version": "draft"
+            },
+            "components": [
+                {
+                    "componentName": "button",
+                    "styleName": "accent",
+                    "config": {
+                        "rootVariationId": "size",
+                        "colorSchemeVariationId": null,
+                        "invariants": {
+                            "gap": {
+                                "type": "value",
+                                "value": "[3]",
+                                "states": [
+                                    {
+                                        "state": [
+                                            "hovered"
+                                        ],
+                                        "value": "3"
+                                    },
+                                    {
+                                        "state": [
+                                            "pressed"
+                                        ],
+                                        "value": "4"
+                                    }
+                                ]
+                            }
+                        },
+                        "defaults": [],
+                        "variations": [
+                            {
+                                "id": "size",
+                                "name": "size",
+                                "values": [
+                                    {
+                                        "name": "s",
+                                        "properties": {
+                                            "gap": {
+                                                "type": "value",
+                                                "value": "[4]",
+                                                "states": [
+                                                    {
+                                                        "state": [
+                                                            "hovered"
+                                                        ],
+                                                        "value": "3"
+                                                    },
+                                                    {
+                                                        "state": [
+                                                            "pressed"
+                                                        ],
+                                                        "value": "4"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "componentName": "button",
+                    "styleName": "default",
+                    "config": {
+                        "rootVariationId": "size",
+                        "colorSchemeVariationId": null,
+                        "invariants": {
+                            "content": {
+                                "type": "component_style",
+                                "value": "icon.small"
+                            },
+                            "fill": {
+                                "type": "color",
+                                "default": "missing.token"
+                            },
+                            "gap": {
+                                "type": "value",
+                                "value": "[9, 10]",
+                                "states": [
+                                    {
+                                        "state": [
+                                            "hovered"
+                                        ],
+                                        "value": "30"
+                                    },
+                                    {
+                                        "state": [
+                                            "pressed"
+                                        ],
+                                        "value": "4"
+                                    }
+                                ]
+                            },
+                            "ghost": {
+                                "type": "value",
+                                "value": "1"
+                            }
+                        },
+                        "defaults": [],
+                        "variations": [
+                            {
+                                "id": "size",
+                                "name": "size",
+                                "values": [
+                                    {
+                                        "name": "l",
+                                        "properties": {
+                                            "gap": {
+                                                "type": "value",
+                                                "value": "[9, 10]",
+                                                "states": [
+                                                    {
+                                                        "state": [
+                                                            "hovered"
+                                                        ],
+                                                        "value": "30"
+                                                    },
+                                                    {
+                                                        "state": [
+                                                            "pressed"
+                                                        ],
+                                                        "value": "4"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "plain",
+                                        "properties": {
+                                            "gap": {
+                                                "type": "value",
+                                                "value": "[2]",
+                                                "states": [
+                                                    {
+                                                        "state": [
+                                                            "hovered"
+                                                        ],
+                                                        "value": "30"
+                                                    },
+                                                    {
+                                                        "state": [
+                                                            "pressed"
+                                                        ],
+                                                        "value": "4"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    },
+                                    {
+                                        "name": "default",
+                                        "targets": [
+                                            {
+                                                "properties": [
+                                                    {
+                                                        "id": "size",
+                                                        "value": "l"
+                                                    }
+                                                ]
+                                            }
+                                        ],
+                                        "properties": {
+                                            "gap": {
+                                                "type": "value",
+                                                "value": "[9, 10]",
+                                                "states": [
+                                                    {
+                                                        "state": [
+                                                            "hovered"
+                                                        ],
+                                                        "value": "30"
+                                                    },
+                                                    {
+                                                        "state": [
+                                                            "pressed"
+                                                        ],
+                                                        "value": "4"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "componentName": "card",
+                    "styleName": "card",
+                    "config": {
+                        "rootVariationId": null,
+                        "colorSchemeVariationId": null,
+                        "invariants": {
+                            "gap": {
+                                "type": "value",
+                                "value": "[1]",
+                                "states": [
+                                    {
+                                        "state": [
+                                            "hovered"
+                                        ],
+                                        "value": "3"
+                                    },
+                                    {
+                                        "state": [
+                                            "pressed"
+                                        ],
+                                        "value": "4"
+                                    }
+                                ]
+                            }
+                        },
+                        "defaults": [],
+                        "variations": []
+                    }
+                },
+                {
+                    "componentName": "card",
+                    "styleName": "normalized",
+                    "config": {
+                        "rootVariationId": null,
+                        "colorSchemeVariationId": null,
+                        "invariants": {
+                            "gap": {
+                                "type": "value",
+                                "value": "1",
+                                "states": [
+                                    {
+                                        "state": [
+                                            "hovered"
+                                        ],
+                                        "value": "6"
+                                    }
+                                ]
+                            }
+                        },
+                        "defaults": [],
+                        "variations": []
+                    }
+                },
+                {
+                    "componentName": "icon",
+                    "styleName": "icon",
+                    "config": {
+                        "rootVariationId": "size",
+                        "colorSchemeVariationId": null,
+                        "invariants": {},
+                        "defaults": [],
+                        "variations": [
+                            {
+                                "id": "size",
+                                "name": "size",
+                                "values": [
+                                    {
+                                        "name": "small",
+                                        "properties": {}
+                                    },
+                                    {
+                                        "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ],
+            "underivedTypes": []
+        }
+    },
+    "normalized-states-update": {
+        "report": {
+            "created": 0,
+            "updated": 1,
+            "unchanged": 0,
+            "rejected": [],
+            "unresolvedTokens": [],
+            "unresolvedComponentStyles": [],
+            "unknownProperties": [],
+            "unknownStates": [],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
+            "underivableVariationIds": []
+        },
+        "export": {
+            "meta": {
+                "name": "equivalence",
+                "version": "draft"
+            },
+            "components": [
+                {
+                    "componentName": "button",
+                    "styleName": "accent",
+                    "config": {
+                        "rootVariationId": "size",
+                        "colorSchemeVariationId": null,
+                        "invariants": {
+                            "gap": {
+                                "type": "value",
+                                "value": "[3]",
+                                "states": [
+                                    {
+                                        "state": [
+                                            "hovered"
+                                        ],
+                                        "value": "3"
+                                    },
+                                    {
+                                        "state": [
+                                            "pressed"
+                                        ],
+                                        "value": "4"
+                                    }
+                                ]
+                            }
+                        },
+                        "defaults": [],
+                        "variations": [
+                            {
+                                "id": "size",
+                                "name": "size",
+                                "values": [
+                                    {
+                                        "name": "s",
+                                        "properties": {
+                                            "gap": {
+                                                "type": "value",
+                                                "value": "[4]",
+                                                "states": [
+                                                    {
+                                                        "state": [
+                                                            "hovered"
+                                                        ],
+                                                        "value": "3"
+                                                    },
+                                                    {
+                                                        "state": [
+                                                            "pressed"
+                                                        ],
+                                                        "value": "4"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "componentName": "button",
+                    "styleName": "default",
+                    "config": {
+                        "rootVariationId": "size",
+                        "colorSchemeVariationId": null,
+                        "invariants": {
+                            "content": {
+                                "type": "component_style",
+                                "value": "icon.small"
+                            },
+                            "fill": {
+                                "type": "color",
+                                "default": "missing.token"
+                            },
+                            "gap": {
+                                "type": "value",
+                                "value": "[9, 10]",
+                                "states": [
+                                    {
+                                        "state": [
+                                            "hovered"
+                                        ],
+                                        "value": "30"
+                                    },
+                                    {
+                                        "state": [
+                                            "pressed"
+                                        ],
+                                        "value": "4"
+                                    }
+                                ]
+                            },
+                            "ghost": {
+                                "type": "value",
+                                "value": "1"
+                            }
+                        },
+                        "defaults": [],
+                        "variations": [
+                            {
+                                "id": "size",
+                                "name": "size",
+                                "values": [
+                                    {
+                                        "name": "l",
+                                        "properties": {
+                                            "gap": {
+                                                "type": "value",
+                                                "value": "[9, 10]",
+                                                "states": [
+                                                    {
+                                                        "state": [
+                                                            "hovered"
+                                                        ],
+                                                        "value": "30"
+                                                    },
+                                                    {
+                                                        "state": [
+                                                            "pressed"
+                                                        ],
+                                                        "value": "4"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "plain",
+                                        "properties": {
+                                            "gap": {
+                                                "type": "value",
+                                                "value": "[2]",
+                                                "states": [
+                                                    {
+                                                        "state": [
+                                                            "hovered"
+                                                        ],
+                                                        "value": "30"
+                                                    },
+                                                    {
+                                                        "state": [
+                                                            "pressed"
+                                                        ],
+                                                        "value": "4"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    },
+                                    {
+                                        "name": "default",
+                                        "targets": [
+                                            {
+                                                "properties": [
+                                                    {
+                                                        "id": "size",
+                                                        "value": "l"
+                                                    }
+                                                ]
+                                            }
+                                        ],
+                                        "properties": {
+                                            "gap": {
+                                                "type": "value",
+                                                "value": "[9, 10]",
+                                                "states": [
+                                                    {
+                                                        "state": [
+                                                            "hovered"
+                                                        ],
+                                                        "value": "30"
+                                                    },
+                                                    {
+                                                        "state": [
+                                                            "pressed"
+                                                        ],
+                                                        "value": "4"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                {
+                    "componentName": "card",
+                    "styleName": "card",
+                    "config": {
+                        "rootVariationId": null,
+                        "colorSchemeVariationId": null,
+                        "invariants": {
+                            "gap": {
+                                "type": "value",
+                                "value": "[1]",
+                                "states": [
+                                    {
+                                        "state": [
+                                            "hovered"
+                                        ],
+                                        "value": "3"
+                                    },
+                                    {
+                                        "state": [
+                                            "pressed"
+                                        ],
+                                        "value": "4"
+                                    }
+                                ]
+                            }
+                        },
+                        "defaults": [],
+                        "variations": []
+                    }
+                },
+                {
+                    "componentName": "card",
+                    "styleName": "normalized",
+                    "config": {
+                        "rootVariationId": null,
+                        "colorSchemeVariationId": null,
+                        "invariants": {
+                            "gap": {
+                                "type": "value",
+                                "value": "1",
+                                "states": [
+                                    {
+                                        "state": [
+                                            "hovered"
+                                        ],
+                                        "value": "8"
+                                    }
+                                ]
+                            }
+                        },
+                        "defaults": [],
+                        "variations": []
+                    }
+                },
+                {
+                    "componentName": "icon",
+                    "styleName": "icon",
+                    "config": {
+                        "rootVariationId": "size",
+                        "colorSchemeVariationId": null,
+                        "invariants": {},
+                        "defaults": [],
+                        "variations": [
+                            {
+                                "id": "size",
+                                "name": "size",
+                                "values": [
+                                    {
+                                        "name": "small",
+                                        "properties": {}
+                                    },
+                                    {
+                                        "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ],
+            "underivedTypes": []
+        }
     }
 }

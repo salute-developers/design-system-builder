@@ -97,6 +97,11 @@ class ComponentConfigImportEquivalenceIntegrationTest {
             ),
         )
 
+        // Состояния, совпавшие после нормализации (`hovered` и `HOVERED`), дают один набор состояний: последнее значение
+        // побеждает и у нового оформления, и у существующего.
+        step("normalized-states", listOf(cardNormalized(first = 5, second = 6)))
+        step("normalized-states-update", listOf(cardNormalized(first = 7, second = 8)))
+
         val actual = JsonObject(steps)
         val golden = File("src/test/resources/component-config-import/golden.json")
         if (System.getenv("DS_GOLDEN_UPDATE") == "true") {
@@ -200,6 +205,10 @@ class ComponentConfigImportEquivalenceIntegrationTest {
 
     private val card =
         """{"componentName":"card","styleName":"card","config":{"invariants":{"gap":${property("[1]")}}}}"""
+
+    private fun cardNormalized(first: Int, second: Int) =
+        """{"componentName":"card","styleName":"normalized","config":{"invariants":{"gap":{"type":"value","value":1,""" +
+            """"states":[{"state":["hovered"],"value":$first},{"state":["HOVERED"],"value":$second}]}}}}"""
 
     private val missingComponent =
         """{"componentName":"nowhere","styleName":"nowhere","config":{"invariants":{"gap":${property("[1]")}}}}"""

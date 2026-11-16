@@ -52,6 +52,11 @@ class ComponentConfigImportCostIntegrationTest {
         assertEquals(configurations, repeat.report.getValue("unchanged").jsonPrimitive.int, repeat.report.toString())
         print("repeat", repeat)
 
+        // Обновление: те же оформления, у всех другие значения. Существующие редакции заменяются пакетно.
+        val update = measured { importPackage(system, importBody(appearances, offset = UPDATE_OFFSET)) }
+        assertEquals(configurations, update.report.getValue("updated").jsonPrimitive.int, update.report.toString())
+        print("update", update)
+
         // Тот же состав, вдвое больше оформлений, в другой дизайн-системе: стоимость растёт не быстрее объёма.
         val other = designSystem("cost-doubled")
         val twice = measured { importPackage(other, importBody(appearances * 2)) }
@@ -68,6 +73,15 @@ class ComponentConfigImportCostIntegrationTest {
         assertTrue(
             repeat.counted.executions <= REPEAT_PER_CONFIGURATION * configurations + FIXED,
             "unchanged repeat: ${repeat.counted.executions} calls for $configurations configurations",
+        )
+        assertTrue(
+            update.counted.executions <= FRESH_PER_CONFIGURATION * configurations + FIXED,
+            "update of existing configurations: ${update.counted.executions} calls for $configurations configurations",
+        )
+        // Каталог компонентов платформы читается один раз на импорт, сколько бы разных компонентов в пакете ни было.
+        assertTrue(
+            (fresh.counted.byKind["SELECT components"] ?: 0L) <= 1L,
+            "platform catalog was read ${fresh.counted.byKind["SELECT components"]} times",
         )
         assertTrue(
             twice.counted.executions <= 2 * fresh.counted.executions,
@@ -144,11 +158,11 @@ class ComponentConfigImportCostIntegrationTest {
             """{"id":"size","name":"size","values":[$sizes]},{"id":"view","name":"view","values":[$views]}]}"""
     }
 
-    private fun importBody(appearancesPerComponent: Int): String {
+    private fun importBody(appearancesPerComponent: Int, offset: Int = 0): String {
         val entries = (0 until components).flatMap { component ->
             (0 until appearancesPerComponent).map { appearance ->
                 """{"componentName":"${componentName(component)}","styleName":"${styleName(component, appearance)}",""" +
-                    """"config":${config(component * 100 + appearance)}}"""
+                    """"config":${config(component * 100 + appearance + offset)}}"""
             }
         }
         return """{"platform":"compose","meta":{"name":"cost","source":"kotlin-test"},"dryRun":false,""" +
@@ -224,6 +238,7 @@ class ComponentConfigImportCostIntegrationTest {
         const val FRESH_PER_CONFIGURATION = 150
         const val REPEAT_PER_CONFIGURATION = 40
         const val FIXED = 200
+        const val UPDATE_OFFSET = 1_000
         const val NANOS_PER_MS = 1_000_000L
     }
 }
