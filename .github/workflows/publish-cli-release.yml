@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           python3 frontend-kt/cli/distribution/release.py version --tag "$CLI_RELEASE_TAG"
-          git fetch origin "refs/tags/$CLI_RELEASE_TAG:refs/tags/$CLI_RELEASE_TAG"
+          git fetch origin "+refs/tags/$CLI_RELEASE_TAG:refs/tags/$CLI_RELEASE_TAG"
           git checkout --detach "refs/tags/$CLI_RELEASE_TAG"
       - uses: actions/setup-java@v4
         with:
