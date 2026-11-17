@@ -59,7 +59,7 @@ MCP server SHALL передавать выбранный credential в DS Builde
 #### Scenario: Привязка записи к черновику
 - **WHEN** инструмент записи вызван с необязательным `expectedDraftId`
 - **THEN** ядро MUST передать его в заголовке `X-DS-Expected-Draft` и MUST NOT включать в тело команды
-- **THEN** ответ `409 draft_changed` MUST возвращаться как ошибка инструмента с этим кодом
+- **THEN** ответ `409 draft_changed` MUST возвращаться как ошибка инструмента категории `CONFLICT` с `backendCode: "draft_changed"` в деталях
 
 #### Scenario: Вызов с базовой ревизией
 - **WHEN** инструмент записи вызван с `baseRevision`

@@ -20,7 +20,7 @@
 
 - Удалённый MCP по HTTP/SSE, хранение разговоров на сервере, учёт расхода токенов и квоты по проектам.
 - Изменение каталога компонентов, публикация версий, управление участниками.
-- Отмена хода чата и поиск по документации (решения 5 и 7).
+- Отмена хода чата и поиск по документации (решения 7 и 9).
 - Составные «умные» инструменты под слабые модели. Они добавляются отдельным изменением по итогам эталонных сценариев.
 
 ## Архитектура
@@ -99,33 +99,105 @@ flowchart LR
 - `.dockerignore` пропускает `frontend-kt` без `build`, `.gradle`, `node_modules`, `kotlin-js-store`.
 - `validate-backend-kt.yml` срабатывает и на `frontend-kt/**`, в его матрицы и в корневой `backend-kt/settings.gradle.kts` добавляется `ai-assistant`.
 
-Критерий готовности задачи 1.3: стадия сборки образа не скачивает IntelliJ Platform и не собирает Kotlin/Native-цели. Если отключение нативных целей свойством не получится, ядро собирается в CI заранее и передаётся в образ готовым артефактом.
+Критерий готовности задач 1.3 и 1.4: стадия сборки образа не скачивает IntelliJ Platform и не собирает Kotlin/Native-цели. Если отключение нативных целей свойством не получится, ядро собирается в CI заранее и передаётся в образ готовым артефактом.
 
 ### 3. Учётные данные из контекста корутины
 
-В `core-application` появляется `CallScopedCredentialProvider`. Он реализует существующий публичный порт `CredentialProvider` и возвращает Bearer из элемента контекста корутины `CallScopedCredentials`. Граф ядра создаётся один раз при запуске, а каждый ход чата выполняется внутри `withContext(CallScopedCredentials(bearer))`. Так один экземпляр ядра обслуживает параллельных пользователей без общего изменяемого состояния. `toString()` элемента маскирует токен.
+В `core-application` появляется `CallScopedCredentialProvider`. Он реализует существующий публичный порт `CredentialProvider` и возвращает Bearer из элемента контекста корутины `CallScopedCredentials`. Граф ядра создаётся один раз при запуске, а каждый ход чата выполняется в области подсистемы внутри `withContext(CallScopedCredentials(bearer))` с Bearer из запроса, начавшего ход. Так один экземпляр ядра обслуживает параллельных пользователей без общего изменяемого состояния. `toString()` элемента маскирует токен.
 
 - Если элемента в контексте нет, возвращается `AUTH_REQUIRED`. Подставлять «чужой» или служебный токен нельзя.
 - При запросе с `forceRefresh = true` (так делает `RefreshingAuthenticatedHttpClientFactory` после ответа 401) провайдер возвращает `AUTH_REQUIRED`, а не тот же токен. Обновить токен пользователя сервер не может, и повторять запрос с ним бессмысленно.
 
-**Срок жизни JWT.** Ход длится до `AI_TURN_TIMEOUT_SECONDS`, а каждый обратный вызов заново проверяет JWT. Чтобы токен не истёк посреди хода:
+**Срок жизни JWT.** Ход длится до `AI_TURN_TIMEOUT_SECONDS + AI_TOOL_CALL_TIMEOUT_SECONDS`, а каждый обратный вызов заново проверяет JWT. Чтобы токен не истёк посреди хода:
 
-- клиент перед `POST /ai/chat` получает токен с запасом не меньше `AI_TURN_TIMEOUT_SECONDS + 30` секунд и при меньшем остатке обновляет его принудительно. Запас клиент берёт из `ai/status` (`minTokenLifetimeSeconds`);
-- если обратный вызов всё же получил 401, ход завершается событием `error` с `auth_expired`, затем `state` и `done`. Клиент обновляет токен и предлагает повторить запрос;
-- `AI_TURN_TIMEOUT_SECONDS` должен быть меньше срока жизни токена доступа Keycloak. Срок в репозитории не переопределён, значит действует значение Keycloak по умолчанию, 300 секунд. Это сверяется с настройками realm в задаче 6.2.
+- клиент перед `POST /ai/chat` получает токен с остатком срока не меньше `minTokenLifetimeSeconds` из `ai/status` (`AI_TURN_TIMEOUT_SECONDS + AI_TOOL_CALL_TIMEOUT_SECONDS + 30`, по умолчанию 180) и при меньшем остатке обновляет его принудительно. Если и после обновления остаток меньше, клиент не отправляет ход и сообщает, что срок сессии слишком короткий для чата;
+- если обратный вызов всё же получил 401, ход завершается событием `error` с `auth_expired`, затем `state` и `done`. Клиент обновляет токен и предлагает отправить сообщение заново новым ходом;
+- `minTokenLifetimeSeconds` должен быть меньше срока жизни токена доступа Keycloak. Срок в репозитории не переопределён, значит действует значение Keycloak по умолчанию, 300 секунд. Это сверяется с настройками realm в задаче 7.2.
 
 Рассмотренный вариант — создавать граф Koin на каждый запрос. Отклонён: это дорого и требует закрывать HTTP-клиенты на каждый ход.
 
-### 4. Сервер без состояния, история хранится у клиента
+### 4. Фоновый ход и возобновляемый поток
 
-Каждый запрос содержит всю историю разговора в нейтральном формате (раздел «Модель данных и контракты»). Сервер не хранит разговор между запросами. Клиент держит историю только в памяти вкладки, а не в `localStorage`. Подделанная клиентом история влияет только на ответ модели: каждый вызов инструмента всё равно выполняется с правами пользователя.
+Ход чата не привязан к HTTP-запросу, который его начал. Так отключение клиента не обрывает запись на середине, а клиент может безопасно переподключиться и дочитать события.
 
-**Проверки до открытия потока.** Маршрут выполняет синхронный шаг `ValidateChatTurnUseCase` до того, как начать ответ `text/event-stream`. Ошибки этого шага возвращаются обычным JSON:
+```mermaid
+sequenceDiagram
+    participant C as Клиент
+    participant P as POST /ai/chat
+    participant S as TurnStore
+    participant W as Ход (область подсистемы)
+    participant G as GET /ai/turns/{id}/events
+    C->>P: история, подтверждения, Idempotency-Key
+    P->>S: проверки, поиск по ключу и токену, регистрация
+    P->>W: запуск в области подсистемы
+    P-->>C: 202 { turnId }
+    W->>S: событие 1, 2, … (сначала в хранилище)
+    C->>G: подписка
+    G-->>C: события из хранилища + : heartbeat
+    Note over C,G: обрыв
+    C->>G: ?after=7
+    G-->>C: события после 7, затем done
+```
 
-- разбор тела и ограничение `AI_MESSAGE_MAX_CHARS`;
-- принадлежность `designSystemId` проекту маршрута через существующий адаптер `InProcessDesignSystemOwnership`, тот же, что использует документация;
-- проверка `confirmationToken`;
-- ограничение «один активный ход на пользователя» (решение 4а).
+**Запуск хода — `POST /api/projects/{projectId}/ai/chat`.** Тело: `designSystemId`, `messages` (вся история) и необязательные `confirmations`. Заголовок `Idempotency-Key` обязателен: клиент создаёт его на одно действие пользователя — новое сообщение или решение по подтверждению. Порядок обработки:
+
+1. Проверки формы запроса. Разбор тела и наличие `Idempotency-Key` проверяет маршрут (`400 invalid_request`). `ValidateChatTurnUseCase` проверяет пустые `messages`, последнюю реплику не от пользователя без `confirmations` (`400 invalid_request`) и `AI_MESSAGE_MAX_CHARS` (`400 message_too_long`). Ошибки — обычный JSON.
+2. Поиск уже принятого запроса (`StartChatTurnUseCase` → `TurnStore.find`) — до проверки принадлежности DS, как у ds-service, чтобы повтор принятого хода получал прежний `turnId`:
+   - тот же пользователь, проект и `Idempotency-Key`: с тем же отпечатком тела — `202` с прежним `turnId`, с другим — `409 IDEMPOTENCY_KEY_REUSED`, как у ds-service;
+   - тот же хеш `confirmationToken`: если пользователь, проект и DS совпадают с теми, что сохранены вместе со связью, — `202` с `turnId` хода, запущенного этим подтверждением; иначе — `400 confirmation_invalid` (`ConfirmationScopeMismatch`).
+3. Для нового запроса — принадлежность `designSystemId` проекту маршрута через порт `DesignSystemOwnership` с принципалом из проверенного контекста: `NOT_FOUND` — `404 design_system_not_found`, `FORBIDDEN` — `403 design_system_forbidden`, `UNAVAILABLE` — `503 dependency_unavailable`.
+4. Проверка подписи токена — только если запрос новый. Поэтому повтор принятого подтверждения получает прежний `turnId`, даже если токен уже истёк.
+5. Атомарная регистрация (`TurnStore.register`): повторная сверка ключа и хеша, слот «один активный ход на пользователя» (`429 ai_busy`), предел памяти (`503 ai_overloaded`), запись хода.
+6. Запуск хода в области подсистемы — до ответа клиенту, под той же блокировкой, под которой подсистема принимает ходы. Если область уже не активна (монолит останавливается), регистрация отменяется, и клиент получает `503 ai_unavailable`. Ответ `202 { "turnId": "…" }` отправляется последним.
+
+Повтор POST безопасен: клиент повторяет его автоматически с тем же ключом, если не получил ответа.
+
+**Связи с ходом.** Связи `Idempotency-Key → turnId` и `хеш токена → turnId` хранятся отдельно от событий хода и по объёму не вытесняются. Ключ живёт до 10 минут после `done` хода, хеш токена — до истечения токена, но не меньше срока ключа. Если события хода вытеснены, повтор POST всё равно получает прежний `turnId`, а `GET` событий отвечает `404 turn_unknown`. Повторного выполнения не будет.
+
+**Выполнение.** Ход выполняется в области корутин подсистемы (`SupervisorJob`), а не в корутине HTTP-запроса, внутри `CallScopedCredentials` с Bearer из POST.
+
+- Каждое событие сначала записывается в `TurnStore` с порядковым номером, начиная с 1 в каждом ходе, и только потом становится доступно подписчикам.
+- Вызов инструмента выполняется в `withContext(NonCancellable)`, а весь `callTool` целиком — внутри `withTimeout(AI_TOOL_CALL_TIMEOUT_SECONDS)` (по умолчанию 30), включая несколько HTTP-запросов инструмента и запрос учётных данных после 401. Срабатывание таймаута даёт `tool_result` с `isError: true` и `code: "OUTCOME_UNKNOWN"` для инструментов записи и `code: "BACKEND_UNAVAILABLE"` для чтения. Ни остановка, ни таймаут хода не прерывают начатую запись, её результат всегда попадает в события.
+- Остановка (`DELETE`) и таймаут хода проверяются перед каждым обращением к модели, в том числе перед первым, и перед каждым вызовом инструмента, в том числе внутри одного ответа модели с несколькими вызовами. Они прерывают только ожидание модели. Невыполненные вызовы из ответа модели убираются из `toolCalls` сообщения ассистента в `state`, чтобы у каждого оставшегося вызова был результат.
+- Подтверждённая операция выполняется всегда, даже если `DELETE` пришёл до старта хода: пользователь уже подтвердил её, а токен связан с этим ходом. Остановка действует после неё.
+- Ход всегда завершается событиями `state` и `done`, в том числе после ошибки, остановки и таймаута. `complete()` хода и освобождение слота выполняются в `finally` без отмены.
+- Продолжительность хода ограничена `AI_TURN_TIMEOUT_SECONDS + AI_TOOL_CALL_TIMEOUT_SECONDS`.
+
+**Чтение — `GET /api/projects/{projectId}/ai/turns/{turnId}/events?after=N`.**
+
+- Поток `text/event-stream`: каждое событие с полем `id`, между событиями — `: heartbeat` каждые 15 секунд. `heartbeat` не сохраняется.
+- Курсор передаётся параметром `after`, а не заголовком `Last-Event-ID`: клиент работает с другого домена, и нестандартный заголовок потребовал бы правки CORS монолита. Без `after` отдаются все события хода. Нецелое или отрицательное `after` — `400 invalid_request`; `after` больше последнего номера — у идущего хода поток ждёт новых событий, у завершённого закрывается сразу.
+- Выдача без пропусков и повторов: снимок сохранённых событий после `after` и подписка на новые берутся под одной блокировкой хода. Если ход завершён, поток отдаёт оставшиеся события и закрывается после `done`.
+- Ход доступен только пользователю, который его начал, и только в проекте маршрута. Иначе — `404 turn_unknown`.
+- Не больше трёх одновременных потоков событий на пользователя; лишний — `429 too_many_streams`.
+- Переподключение автоматическое: это только чтение, поэтому клиент после обрыва сам переподключается с `after`. Отключение клиента на ход не влияет.
+
+**Остановка — `DELETE /api/projects/{projectId}/ai/turns/{turnId}`** → `204`. Идущий ход завершается перед следующим шагом с `error: stopped`, затем `state` и `done`. Завершённый ход — `204` без новых событий. Чужой или неизвестный — `404 turn_unknown`.
+
+**Хранение событий.** `TurnStore` живёт в памяти процесса:
+
+- события хода хранятся во время выполнения и 10 минут после `done`;
+- `state` с итоговой историей отправляется один раз, в конце хода. Во время хода панель показывает шаги по `tool_started` и `tool_result`, но собрать из них историю нельзя: в них нет полных аргументов и результатов. Если ход потерян, его история теряется, и остаётся только пометка `interrupted`;
+- объём считается в байтах UTF-8 сериализованных событий и входной истории хода. Лимит `AI_TURN_STORE_MAX_MB` (по умолчанию 64) мягкий: при превышении вытесняются самые старые завершённые ходы, идущие ходы не вытесняются и могут временно превысить лимит. Если места не освободить, новый POST получает `503 ai_overloaded`;
+- решение рассчитано на один экземпляр процесса `backend`, как и весь монолит. При переключении на новый контейнер во время выкатки идущие ходы и их итоги теряются и считаются прерванными.
+
+**Прерванный ход.** Если клиент потерял связь с ходом — POST без ответа или поток без `done` — и не может её восстановить, исход записей неизвестен.
+
+- Клиент сразу при потере связи добавляет в историю сообщение `{ "role": "interrupted" }` и убирает его, если дочитал ход до `done`.
+- Если такое сообщение есть в истории, сервер добавляет в системный промпт требование перечитать данные перед любой записью, а адаптер провайдера передаёт пометку модели служебной репликой пользователя «Предыдущий ход прерван, исход изменений неизвестен».
+- Сервер убирает пометки из итогового `state`, только если в ходе было хотя бы одно успешное обращение к модели: тогда модель уже получила требование. Если ход завершился до этого (например, `llm_unavailable` или `stopped` до первого шага), пометка остаётся для следующего хода.
+
+**Ожидающий вызов.** Вызов, остановленный на подтверждении, входит в итоговый `state` как вызов без результата. Если следующий POST не содержит решения по нему, сервер перед обращением к модели добавляет синтетический результат с `isError: true` и `code: "not_confirmed"`. Иначе API формата OpenAI отклонит вызов инструмента без ответа.
+
+**Отзыв доступа.** JWT проверяется локально, поэтому выход пользователя не отзывает Bearer, захваченный ходом. Клиент при выходе и сбросе сессии вызывает `DELETE` активного хода. Отзыв PAT и смена роли действуют с ближайшего обратного вызова: каждый из них заново проходит проверку на границе.
+
+**Остановка процесса.** Подсистема подписывается на `ApplicationStopPreparing` до запуска остальных подсистем. По этому событию она перестаёт принимать POST (`503 ai_unavailable`), отменяет область ходов и ждёт завершения начатых вызовов инструментов не дольше `AI_TOOL_CALL_TIMEOUT_SECONDS`. В Ktor 3.3 это событие поднимается синхронно до закрытия каналов, поэтому обратные вызовы на `127.0.0.1` ещё принимаются, а подсистема DS закрывается позже, на `ApplicationStopped`. Чтобы docker не убил процесс раньше, `stop_grace_period` контейнера `backend` задаётся не меньше `AI_TOOL_CALL_TIMEOUT_SECONDS` + `BACKEND_SHUTDOWN_TIMEOUT_MS` + 10 секунд. Итоги ходов в памяти теряются.
+
+**История у клиента.** Сервер не хранит разговор между ходами: только события и итог хода до 10 минут после завершения, для переподключения. Клиент держит историю в памяти вкладки, а не в `localStorage` и `sessionStorage`, и присылает её целиком при каждом новом ходе. Подделанная клиентом история влияет только на ответ модели: каждый вызов инструмента всё равно выполняется с правами пользователя.
+
+Рассмотренный вариант — синхронный ход в одном POST с повтором по `turnId` и флагу `retry`. Отклонён: ход отменяется вместе с HTTP-запросом, повтор после завершённого хода воспроизводит старую ошибку, а гонки между повтором, `410` и `429` требуют отдельных правил на каждый случай.
+
+### 5. Подтверждение и история для модели
 
 **Подтверждение** на историю не опирается: история приходит от клиента, и по ней сервер не может проверить, что пользователю показали именно эту операцию. Поэтому, когда агент останавливается на операции с подтверждением, сервер:
 
@@ -134,9 +206,9 @@ flowchart LR
 - выпускает `confirmationToken`. Это подпись HMAC-SHA256 над идентификатором ключа (`kid`), `userId`, `projectId`, `designSystemId`, `draftId`, именем инструмента, каноническим JSON итоговых аргументов, `idempotencyKey` и сроком действия (10 минут). Bearer в токен не входит;
 - отдаёт клиенту в событии `confirmation_required` описание операции, её аргументы без служебных полей и токен.
 
-Подтверждение — это `confirmations: [{ confirmationToken, approved }]`. Сервер проверяет подпись, срок и совпадение пользователя, проекта и DS с текущим запросом. Затем он выполняет ровно ту операцию, что записана в токене, с её `idempotencyKey` и ожидаемым черновиком `expectedDraftId = draftId`. Аргументы ожидающего вызова в присланной истории игнорируются. В историю записывается вызов с аргументами из токена. Повторная отправка того же подтверждения идёт с тем же ключом, и ds-service воспроизводит сохранённый ответ без второй записи.
+Подтверждение — новый POST с `confirmations: [{ confirmationToken, approved }]` и новым `Idempotency-Key`. Сервер проверяет подпись, срок и совпадение пользователя, проекта и DS с текущим запросом. Затем ход выполняет ровно ту операцию, что записана в токене, с её `idempotencyKey` и ожидаемым черновиком `expectedDraftId = draftId`. Аргументы ожидающего вызова в присланной истории игнорируются, в историю записывается вызов с аргументами из токена. Решение `approved` не входит в связь токена с ходом: первое отправленное решение по токену окончательное.
 
-**Привязка к черновику.** `version=draft` означает черновик, активный в момент записи. Если между показом операции и подтверждением DS опубликуют, без привязки операция применилась бы к следующему черновику. Поэтому ds-service получает необязательный заголовок `X-DS-Expected-Draft`. Он попадает в `DsRequestContext.expectedDraftId` и сверяется в той же транзакции и под той же блокировкой, где запись получает `DraftBoundaryRef` активного черновика (`ExposedEditingInfrastructure`). При расхождении запись не выполняется и возвращается `409 draft_changed`. Ядро MCP передаёт заголовок из необязательного служебного поля `expectedDraftId` инструментов записи. Для модели поле скрыто, а сервер заполняет его только у подтверждённой операции. Остальные записи чата, как и ручные правки, идут в текущий активный черновик. Результат `draft_changed` возвращается модели и в `tool_result`, панель предлагает запросить операцию заново.
+**Привязка к черновику.** `version=draft` означает черновик, активный в момент записи. Если между показом операции и подтверждением DS опубликуют, без привязки операция применилась бы к следующему черновику. Поэтому ds-service получает необязательный заголовок `X-DS-Expected-Draft`. Он попадает в `DsRequestContext.expectedDraftId` и сверяется в той же транзакции и под той же блокировкой, где запись получает `DraftBoundaryRef` активного черновика (`ExposedEditingInfrastructure`). При расхождении запись не выполняется и возвращается `409 draft_changed`. Ядро MCP передаёт заголовок из необязательного служебного поля `expectedDraftId` инструментов записи. Для модели поле скрыто, а сервер заполняет его только у подтверждённой операции. Остальные записи чата, как и ручные правки, идут в текущий активный черновик. Результат возвращается модели и в `tool_result` (`code: "CONFLICT"`, `backendCode: "draft_changed"`), панель предлагает запросить операцию заново.
 
 Рассмотренный вариант — сверять `draftId` чтением прямо перед выполнением, без изменения ds-service. Отклонён: между проверкой и записью остаётся окно, в которое может попасть публикация.
 
@@ -148,20 +220,14 @@ flowchart LR
 - Сначала сокращается текст старых результатов инструментов, затем старые реплики. Сообщение `tool` при сокращении не удаляется, а получает текст «[результат сокращён]». Иначе API формата OpenAI отклонит вызов инструмента без ответа.
 - Системный промпт и последнее сообщение пользователя не сокращаются. Одно сообщение пользователя ограничено `AI_MESSAGE_MAX_CHARS` (по умолчанию 8000); более длинное отклоняется ответом `400 message_too_long`.
 - При старте проверяется, что лимит вмещает системный промпт со схемами инструментов, сообщение предельной длины и запас на один обмен «вызов + результат»: `AI_TOOL_RESULT_MAX_CHARS` плюс 2000 символов на вызов. Иначе конфигурация считается ошибочной.
-- Если после всех сокращений история всё равно не помещается (например, в ходе много вызовов подряд), ход завершается событием `error` с `context_overflow`, затем `state` и `done`. Выполненные шаги остаются в `state`.
+- Если после всех сокращений история всё равно не помещается (например, в ходе много вызовов подряд), ход завершается событием `error` с `context_overflow`, затем `state` и `done`.
 
-### 4б. Повтор и обрыв потока
+### 6. Защита от перерасхода и массовых записей
 
-- **`state` после каждого шага.** Событие `state` с актуальной историей отправляется после каждого `tool_result` и в конце хода. При любом обрыве у клиента есть история с фактически выполненными шагами, и следующий запрос продолжает с неё, а не повторяет записи.
-- **Ход, запущенный подтверждением, выполняется один раз.** Сервер хранит в памяти итог такого хода по хешу `confirmationToken` до истечения срока токена (`ConfirmedTurnStore`). Повтор того же подтверждения не запускает ход заново: пока ход идёт — `429 ai_busy`, после завершения — те же события из хранилища, без вызова модели и инструментов. После перезапуска процесса хранилище пусто, но и токен уже недействителен из-за смены `kid`, поэтому повторного выполнения не будет.
-- Обычный запрос без подтверждения не воспроизводится. Его повтор — это новый ход по присланной истории, а благодаря `state` после каждого шага история уже содержит выполненные записи.
-
-### 4а. Защита от перерасхода и массовых записей
-
-- **Один активный ход на пользователя.** Счётчик в памяти процесса; второй одновременный запрос получает `429 ai_busy`. Это ограничивает расход ключа провайдера одним участником и снимает гонку двух ходов одного пользователя по одной DS.
+- **Один активный ход на пользователя.** Слот занимается при регистрации хода и освобождается в `finally` по его завершению. Второй POST, пока ход идёт, получает `429 ai_busy` с `activeTurnId`, `projectId` и `designSystemId` идущего хода. Вкладка той же DS может подключиться к этому ходу, вкладка другой DS показывает «Идёт запрос в другой вкладке» и кнопку «Остановить». Это ограничивает расход ключа провайдера и снимает гонку двух ходов одного пользователя.
 - **Лимит записей за ход** `AI_MAX_WRITES` (по умолчанию 10). Запись сверх лимита требует подтверждения, как удаляющая операция. Так внедрённая через данные DS инструкция не может молча переписать много значений, а отмены хода в первой версии нет.
 
-### 5. Набор инструментов задаёт сервер
+### 7. Набор инструментов задаёт сервер
 
 `ChatToolPolicy` — список разрешённых инструментов в коде подсистемы. Разрешения сверены с use case ds-service:
 
@@ -186,30 +252,31 @@ flowchart LR
 - Поля `designSystem`, `version`, `idempotencyKey` и `expectedDraftId` убираются из схемы для модели и из её списка `required`. Сервер подставляет их только тем инструментам, в схеме которых они есть: ссылку `dsbuilder://projects/{projectId}/design-systems/{designSystemId}?version=draft`, `version=draft`, новый UUID на каждый вызов записи и `expectedDraftId` только у подтверждённой операции. Набор полей ядро публикует как `mcpServerFilledFields`, а схему для модели строит публичная функция ядра `McpToolDefinition.inputJsonSchema(hidden)`. Она использует тот же внутренний перевод в JSON Schema, что и MCP, включая `type = "json"` и `nullable`. Закрытый `editorOptionFields`, который при разборе команды отделяет служебные поля, включая `baseRevision`, не меняется.
 - Поля ревизий `baseRevision` и `editRevision` остаются видимыми. Модель берёт их из предшествующего чтения. При конфликте ревизии сервер не повторяет вызов сам: ошибка возвращается модели, и та может перечитать данные и попробовать снова новым вызовом с новым ключом. Это соответствует требованию «Ревизии и повторяемость мутаций».
 
-### 6. Нейтральная модель и адаптеры провайдеров
+### 8. Нейтральная модель и адаптеры провайдеров
 
 Цикл агента работает только с типами `ChatMessage`, `ToolCall`, `ToolResult`, `ToolSpec`. `LlmClient` выполняет один шаг: принимает системный промпт, историю и инструменты, возвращает либо текст, либо вызовы инструментов.
 
+- Соответствие ошибок провайдера кодам: ответ 429 и коды из `AI_RETRY_ERROR_CODES` после исчерпания повторов — `LlmFailure.RateLimited` и `llm_rate_limited`; 5xx, сетевые ошибки и таймаут запроса — `LlmFailure.Unavailable` и `llm_unavailable`; неразбираемый ответ — `LlmFailure.InvalidResponse` и `llm_unavailable`.
 - `OpenAiCompatibleClient` использует формат `chat/completions` с `tools`/`tool_calls`. Отличия провайдеров задаются конфигурацией: `AI_EXTRA_BODY` подмешивается в тело запроса как есть, `AI_RETRY_ERROR_CODES` дополняет 429 и 5xx. Повтор — до трёх раз с экспоненциальной задержкой.
 - `GigaChatClient` получает токен доступа по `AI_GIGACHAT_AUTH_KEY` и `AI_GIGACHAT_SCOPE` (заголовок `RqUID`), кеширует его до истечения минус минута и обновляет при 401. Инструменты передаются как `functions`, ответ — `function_call`, результат — сообщение `role: function`. Значения по умолчанию: `AI_GIGACHAT_OAUTH_URL=https://ngw.devices.sberbank.ru:9443/api/v2/oauth`, `AI_GIGACHAT_BASE_URL=https://gigachat.devices.sberbank.ru/api/v1`, `AI_GIGACHAT_SCOPE=GIGACHAT_API_PERS`. Доверенный корень берётся из файла `AI_GIGACHAT_CA_PATH`, смонтированного в контейнер томом только для чтения. Его добавляют к системным корням, а не заменяют ими. Значения по умолчанию, имена полей и совместимость наших JSON Schema (`enum` с `null`, вложенные объекты) с `functions` сверяются с актуальной документацией GigaChat при реализации.
-- Цикл агента рассчитан на один вызов за шаг. Если OpenAI-совместимая модель вернула несколько `tool_calls`, они выполняются последовательно в порядке ответа. Если в этом наборе есть вызов, требующий подтверждения, вызовы до него выполняются, а сам вызов и все последующие уходят в `confirmation_required`. В историю записываются только выполненные вызовы.
+- Цикл агента рассчитан на один вызов за шаг. Если OpenAI-совместимая модель вернула несколько `tool_calls`, они выполняются последовательно в порядке ответа. Если в этом наборе есть вызов, требующий подтверждения, вызовы до него выполняются, этот вызов уходит в `confirmation_required` и остаётся в `state` как ожидающий, а последующие не выполняются и убираются из `toolCalls`.
 
 Рассмотренный вариант — Koog или LangChain4j. Отклонён для первого шага: цикл должен управлять подтверждениями, подстановкой полей и событиями интерфейса, а адаптер формата OpenAI занимает несколько сотен строк. Решение пересматривается, если провайдеров станет больше трёх.
 
-### 7. События хода и обновление интерфейса
+### 9. События хода и обновление интерфейса
 
-Ответ на `POST /ai/chat` — поток `text/event-stream`. Браузерный `EventSource` не поддерживает POST, поэтому клиент читает поток через `fetch` и `ReadableStream`. Пока ход ждёт модель, сервер каждые 15 секунд пишет комментарий `: heartbeat`, как поток черновика (`DraftInvalidationRoutes.kt`). Так обрыв соединения клиентом обнаруживается и ход отменяется, а прокси не закрывает молчащее соединение. Сжатие монолита потока не касается: оно применяется только к JSON.
+События хода читаются через `GET /ai/turns/{turnId}/events?after=N` (решение 4). Браузерный `EventSource` не умеет передавать заголовок `Authorization`, поэтому клиент читает поток через `fetch` и `ReadableStream` и сам передаёт `after` при переподключении. На 401 клиент обновляет токен и переподключается, как поток черновика (`draftInvalidationStream.ts`). `: heartbeat` каждые 15 секунд, как в потоке черновика (`DraftInvalidationRoutes.kt`), не даёт прокси закрыть молчащее соединение и помогает клиенту заметить обрыв. Сжатие монолита потока не касается: оно применяется только к JSON.
 
 Изменения в интерфейсе появляются через существующий поток инвалидации черновика.
 
 Кнопки «Отменить ход» в первой версии нет. Существующий откат журнала возвращает сущность к предыдущему опубликованному состоянию (ADR-0007, раздел «Откат»). Если пользователь вручную изменил значение, а чат затем изменил его же, откат журнала сотрёт и ручную правку. Правильная отмена хода — компенсирующие записи прежних значений с проверкой ревизии. Она делается отдельным изменением. Панель не предлагает откат журнала как отмену хода.
 
-### 8. Выключатель и настройка
+### 10. Выключатель и настройка
 
 По умолчанию провайдер — ZAI: `AI_PROVIDER=openai-compatible`, `AI_BASE_URL=https://api.z.ai/api/paas/v4`, `AI_MODEL=glm-4.5-flash`, `AI_EXTRA_BODY={"thinking":{"type":"disabled"}}`, `AI_RETRY_ERROR_CODES=1234,1305`. Чтобы включить чат на стенде, достаточно задать `AI_ENABLED=true` и `AI_API_KEY`.
 
-- `AI_ENABLED=false` по умолчанию. Тогда остальные `AI_*` не читаются, `GET /ai/status` возвращает `{ "enabled": false }`, а `POST /ai/chat` — `503 ai_unavailable`.
-- При `AI_ENABLED=true` неполная или недопустимая конфигурация — нет ключа, неразбираемое число или JSON, `AI_HISTORY_MAX_CHARS` не вмещает системный промпт и сообщение предельной длины — обрабатывается как любая ошибочная конфигурация монолита. Приложение не открывает готовность и сообщает понятную ошибку с именем переменной, без значений секретов. Это действующее требование «Независимость конфигурации от способа запуска», сценарий «Ошибочная конфигурация»; исключение для ИИ не вводится. Включение чата — осознанное действие, и ошибка должна быть видна сразу, а не в виде молча выключенной функции.
+- `AI_ENABLED=false` по умолчанию. Тогда остальные `AI_*` не читаются, `GET /ai/status` возвращает `{ "enabled": false }`, а маршруты хода — `503 ai_unavailable`.
+- При `AI_ENABLED=true` неполная или недопустимая конфигурация — нет ключа, неразбираемое число или JSON, несовместимые лимиты истории — обрабатывается как любая ошибочная конфигурация монолита. Приложение не открывает готовность и сообщает понятную ошибку с именем переменной, без значений секретов. Это действующее требование «Независимость конфигурации от способа запуска», сценарий «Ошибочная конфигурация»; исключение для ИИ не вводится. Включение чата — осознанное действие, и ошибка должна быть видна сразу, а не в виде молча выключенной функции.
 - Клиент показывает панель, только если `VITE_AI_CHAT_ENABLED=true` и `status.enabled`.
 
 ## Программное проектирование
@@ -234,8 +301,6 @@ public class CallScopedCredentialProvider : CredentialProvider {
 /** Поля, которые встраивающий сервер заполняет сам и скрывает от модели. */
 public val mcpServerFilledFields: Set<String> // designSystem, version, idempotencyKey, expectedDraftId
 
-// mcpServerFilledFields дополняется полем expectedDraftId — необязательной привязкой записи к черновику.
-
 /** JSON Schema входа инструмента без [hidden] полей в properties и required; тот же перевод, что для MCP. */
 public fun McpToolDefinition.inputJsonSchema(hidden: Set<String> = emptySet()): JsonObject
 ```
@@ -243,9 +308,16 @@ public fun McpToolDefinition.inputJsonSchema(hidden: Set<String> = emptySet()): 
 `backend-kt/ai-assistant/feature-chat` — слои domain и application:
 
 ```kotlin
-public enum class ChatRole { USER, ASSISTANT, TOOL }
+public enum class ChatRole { USER, ASSISTANT, TOOL, INTERRUPTED }
 public data class ToolCall(val id: String, val name: String, val arguments: JsonObject)
-public data class ToolResult(val callId: String, val name: String, val content: String, val isError: Boolean)
+public data class ToolResult(
+    val callId: String,
+    val name: String,
+    val content: String,
+    val isError: Boolean,
+    val code: String?, // код верхнего уровня результата ядра либо код агента
+    val backendCode: String?, // код ds-service из поля code ответа, если он есть
+)
 public data class ChatMessage(val role: ChatRole, val text: String?, val toolCalls: List<ToolCall>, val toolResult: ToolResult?)
 public data class ToolSpec(val name: String, val description: String, val parameters: JsonObject)
 
@@ -266,7 +338,7 @@ public interface AgentToolbox {
     public fun specs(access: ChatAccess): List<ToolSpec>
     public fun requiresConfirmation(name: String, writesInTurn: Int): Boolean
     public fun prepare(call: ToolCall, scope: ChatScope): ToolCall // подставляет служебные поля и ключ
-    public suspend fun execute(prepared: ToolCall): ToolResult
+    public suspend fun execute(prepared: ToolCall): ToolResult // вызывается в NonCancellable
 }
 
 /** Область хода без учётных данных: безопасна для журнала и подписи. */
@@ -284,13 +356,15 @@ public data class AgentLimits(
     val historyMaxChars: Int,
     val messageMaxChars: Int,
     val toolResultMaxChars: Int,
+    val toolCallTimeout: Duration,
+    val turnStoreMaxBytes: Long,
 )
 
-public data class ChatTurnCommand(
-    val scope: ChatScope,
-    val access: ChatAccess,
+public data class ChatTurnRequest(
+    val idempotencyKey: String,
+    val designSystemId: String,
     val messages: List<ChatMessage>,
-    val confirmed: ConfirmedOperation?, // результат проверки подтверждения до потока
+    val confirmations: List<ToolConfirmation>,
 )
 public data class ToolConfirmation(val confirmationToken: String, val approved: Boolean)
 
@@ -318,71 +392,134 @@ public interface ConfirmationSigner {
     public fun verify(token: String, scope: ChatScope): ConfirmationCheck
 }
 
-/** Итог хода, запущенного подтверждением: хранится в памяти до истечения токена для точного повтора. */
-public interface ConfirmedTurnStore {
-    public fun begin(tokenHash: String): ConfirmedTurnSlot // NEW, IN_PROGRESS или COMPLETED с событиями
-    public fun complete(tokenHash: String, events: List<ChatEvent>)
+/** Событие хода с порядковым номером с 1 в каждом ходе; heartbeat событием не является. */
+public data class StoredEvent(val id: Long, val event: ChatEvent)
+
+/** Владелец хода: только он читает и останавливает ход, и только в своём проекте. */
+public data class TurnOwner(val userId: String, val projectId: String)
+
+public sealed interface TurnLookup {
+    public data class Existing(val turnId: String) : TurnLookup // тот же ключ с тем же отпечатком либо тот же токен
+    public data object KeyReused : TurnLookup // тот же ключ с другим отпечатком
+    public data object ConfirmationScopeMismatch : TurnLookup // принятый токен из другой области → 400 confirmation_invalid
+    public data object NotFound : TurnLookup
 }
 
-/** Синхронные проверки до открытия потока. */
-public class ValidateChatTurnUseCase internal constructor(
+public sealed interface TurnRegistration {
+    public data class Started(val turnId: String) : TurnRegistration
+    public data class Existing(val turnId: String) : TurnRegistration // ключ или токен заняли между find и register
+    public data class Busy(val activeTurnId: String, val projectId: String, val designSystemId: String) : TurnRegistration
+    public data object KeyReused : TurnRegistration // параллельный запрос с тем же ключом и другим телом
+    public data object ConfirmationScopeMismatch : TurnRegistration // гонка с токеном из другой области
+    public data object Overloaded : TurnRegistration // память занята идущими ходами
+}
+
+public enum class StopResult { STOPPED, ALREADY_COMPLETED, UNKNOWN }
+
+public sealed interface EventsResult {
+    public data class Stream(val flow: Flow<StoredEvent>) : EventsResult
+    public data object Unknown : EventsResult // ход неизвестен, вытеснен или чужой
+    public data object TooManyStreams : EventsResult
+}
+
+/**
+ * Ходы в памяти процесса. Связи ключа и хеша токена с ходом хранятся отдельно от событий и по объёму не вытесняются.
+ * Объём — байты UTF-8 сериализованных событий и входной истории.
+ */
+public interface TurnStore {
+    public fun find(
+        owner: TurnOwner,
+        designSystemId: String,
+        idempotencyKey: String,
+        fingerprint: String,
+        confirmationTokenHash: String?,
+    ): TurnLookup
+    /** Атомарно: повторная сверка ключа и хеша, слот пользователя, предел памяти, запись хода. */
+    public fun register(
+        owner: TurnOwner,
+        designSystemId: String,
+        idempotencyKey: String,
+        fingerprint: String,
+        confirmationTokenHash: String?,
+        inputBytes: Long,
+    ): TurnRegistration
+    public fun cancelRegistration(turnId: String) // освобождает слот, удаляет ход и связи ключа и хеша токена
+    public fun append(turnId: String, event: ChatEvent): StoredEvent // сначала сохранить, потом отдать подписчикам
+    public fun complete(turnId: String) // в finally без отмены; освобождает слот пользователя
+    /** Снимок после [afterId] и подписка на новые события под одной блокировкой хода. */
+    public fun events(turnId: String, owner: TurnOwner, afterId: Long?): EventsResult // Stream(flow) | Unknown | TooManyStreams
+    public fun stop(turnId: String, owner: TurnOwner): StopResult
+}
+
+/** Порт проверки принадлежности DS проекту; в монолите реализуется существующим InProcessDesignSystemOwnership. */
+public enum class OwnershipCheck { OWNED, NOT_FOUND, FORBIDDEN, UNAVAILABLE }
+public fun interface DesignSystemOwnership {
+    public suspend fun check(principal: ProjectPrincipal, designSystemId: String): OwnershipCheck
+}
+
+public sealed interface ChatTurnValidation {
+    public data class Valid(val request: ChatTurnRequest) : ChatTurnValidation
+    public data class Rejected(val status: Int, val code: String) : ChatTurnValidation
+}
+
+/** Проверки формы POST: тело, ключ, длина сообщения. */
+public class ValidateChatTurnUseCase internal constructor(limits: AgentLimits) {
+    public fun validate(request: ChatTurnRequest): ChatTurnValidation
+}
+
+/** Поиск принятого запроса, проверка токена для нового, регистрация и запуск хода до ответа клиенту. */
+public class StartChatTurnUseCase internal constructor(
+    turns: TurnStore,
     ownership: DesignSystemOwnership,
     signer: ConfirmationSigner,
-    activeTurns: ActiveTurnRegistry,
-    confirmedTurns: ConfirmedTurnStore,
-    limits: AgentLimits,
+    runner: RunChatTurnUseCase,
+    scope: CoroutineScope, // область подсистемы с SupervisorJob
 ) {
-    public suspend fun validate(request: ChatTurnRequest, scope: ChatScope, access: ChatAccess): ChatTurnValidation
+    /** Bearer живёт только в CallScopedCredentials хода. */
+    public suspend fun start(
+        request: ChatTurnRequest,
+        chatScope: ChatScope,
+        principal: ProjectPrincipal,
+        access: ChatAccess,
+        bearer: String,
+    ): StartResult
 }
 
-/** Один ход: шаги модели и инструментов до текста, паузы на подтверждение или лимита. */
+public sealed interface StartResult {
+    public data class Accepted(val turnId: String) : StartResult
+    public data class Rejected(val status: Int, val code: String, val details: JsonObject = JsonObject(emptyMap())) : StartResult
+}
+
+public data class ChatTurnCommand(
+    val turnId: String,
+    val scope: ChatScope,
+    val access: ChatAccess,
+    val messages: List<ChatMessage>,
+    val confirmed: ConfirmedOperation?,
+)
+
+/** Один ход: шаги модели и инструментов до текста, паузы на подтверждение, остановки или лимита. */
 public class RunChatTurnUseCase internal constructor(
     llm: LlmClient,
     toolbox: AgentToolbox,
     signer: ConfirmationSigner,
+    turns: TurnStore,
     limits: AgentLimits,
 ) {
-    public fun run(command: ChatTurnCommand): Flow<ChatEvent>
+    /** Выполняется в области подсистемы; каждое событие пишет через [TurnStore.append]. */
+    public suspend fun run(command: ChatTurnCommand)
 }
 ```
 
-- `data`: `OpenAiCompatibleClient`, `GigaChatClient`, `GigaChatTokenCache`, `McpAgentToolbox(core: DsBuilderMcpServerCore, policy: ChatToolPolicy)`, `HmacConfirmationSigner`, `InMemoryActiveTurnRegistry`, `InMemoryConfirmedTurnStore`.
-- `presentation`: `aiChatRoutes(prefix, contextOf)` — маршруты, DTO, проверка до потока и кодирование событий SSE с `: heartbeat`.
-- `di`: `aiAssistantModule(configuration)` выбирает `LlmClient` по `AI_PROVIDER` и собирает изолированный граф ядра MCP.
-- `runtime`: `createAiAssistantRuntime(configuration, ownership)` и `AiAssistantConfiguration.fromEnvironment()`.
-
-```mermaid
-sequenceDiagram
-    participant C as Клиент
-    participant R as aiChatRoutes
-    participant V as ValidateChatTurnUseCase
-    participant U as RunChatTurnUseCase
-    participant L as LlmClient
-    participant T as McpAgentToolbox
-    participant K as DsBuilderMcpServerCore
-    C->>R: POST /ai/chat {messages, confirmations}
-    R->>V: validate (тело, длина, DS, токен, занятость)
-    V-->>R: ошибка → JSON 400/404/410/429
-    R->>U: run(command) в withContext(CallScopedCredentials)
-    loop пока не текст, не пауза и не лимит шагов
-        U->>L: complete(system, history, specs)
-        L-->>U: ToolCalls
-        alt требует подтверждения
-            U-->>C: confirmation_required (токен), state, done
-        else
-            U-->>C: tool_started
-            U->>T: prepare + execute
-            T->>K: callTool(name, args + служебные поля)
-            K-->>T: McpToolResult
-            U-->>C: tool_result
-        end
-    end
-    U-->>C: message, state, done
-```
+- `ChatEvent` — запечатанный тип событий из таблицы «События хода».
+- `data`: `OpenAiCompatibleClient`, `GigaChatClient`, `GigaChatTokenCache`, `McpAgentToolbox(core: DsBuilderMcpServerCore, policy: ChatToolPolicy)`, `HmacConfirmationSigner`, `InMemoryTurnStore`, адаптер `DesignSystemOwnership` поверх `InProcessDesignSystemOwnership`.
+- `presentation`: `aiChatRoutes(prefix, contextOf)` — маршруты POST, GET событий, DELETE и `status`, DTO, кодирование SSE с `id` и `: heartbeat`.
+- `di`: `aiAssistantModule(configuration)` выбирает `LlmClient` по `AI_PROVIDER`, собирает изолированный граф ядра MCP и область корутин подсистемы.
+- `runtime`: `createAiAssistantRuntime(configuration, ownership: DesignSystemOwnership)` и `AiAssistantConfiguration.fromEnvironment()`. На `ApplicationStopPreparing` подсистема перестаёт принимать POST, отменяет область ходов и ждёт начатые вызовы инструментов (решение 4).
 
 ## Модель данных и контракты
 
-`POST /api/projects/{projectId}/ai/chat`:
+`POST /api/projects/{projectId}/ai/chat`, заголовок `Idempotency-Key`:
 
 ```json
 {
@@ -390,46 +527,70 @@ sequenceDiagram
   "messages": [
     { "role": "user", "text": "Перекрась кнопку в красный" },
     { "role": "assistant", "toolCalls": [{ "id": "c1", "name": "components_list", "arguments": { "name": "Button" } }] },
-    { "role": "tool", "toolResult": { "callId": "c1", "name": "components_list", "content": "{…}", "isError": false } }
+    { "role": "tool", "toolResult": { "callId": "c1", "name": "components_list", "content": "{…}", "isError": false } },
+    { "role": "interrupted" },
+    { "role": "user", "text": "Проверь, получилось ли" }
   ],
   "confirmations": [{ "confirmationToken": "…", "approved": true }]
 }
 ```
 
-События потока. Каждое событие — строка `event:` с типом и строка `data:` с JSON. Между событиями возможны комментарии `: heartbeat`.
+Ответ: `202 { "turnId": "…" }`.
+
+`GET /api/projects/{projectId}/ai/turns/{turnId}/events?after=N` (параметр необязателен) → `text/event-stream`. Каждое событие — строки `id:`, `event:` и `data:` с JSON. Между событиями — комментарии `: heartbeat`.
+
+`DELETE /api/projects/{projectId}/ai/turns/{turnId}` → `204` для идущего и завершённого хода.
+
+События хода:
 
 | Событие | Данные |
 |---|---|
 | `tool_started` | `callId`, `tool`, `arguments` без служебных полей |
-| `tool_result` | `callId`, `tool`, `isError`, `summary` (до 500 символов) |
+| `tool_result` | `callId`, `tool`, `isError`, `code` и `backendCode` (при `isError`), `summary` (до 500 символов) |
 | `confirmation_required` | `callId`, `tool`, `arguments` без служебных полей, `reason` (`destructive` или `write_limit`), `confirmationToken`, `expiresAt` |
 | `message` | `text` — итоговый ответ модели |
-| `state` | `messages` — обновлённая история после каждого шага и в конце хода; клиент хранит последнюю и присылает её в следующем запросе |
-| `error` | `code` (`llm_unavailable`, `llm_rate_limited`, `step_limit_reached`, `turn_timeout`, `auth_expired`, `context_overflow`), `message` |
+| `state` | `messages` — итоговая история хода; клиент присылает её в следующем POST |
+| `error` | `code` (`llm_unavailable`, `llm_rate_limited`, `step_limit_reached`, `turn_timeout`, `auth_expired`, `context_overflow`, `stopped`), `message` |
 | `done` | пусто |
 
-Событие `state` отправляется после каждого выполненного шага и перед `done` при любом завершении хода, кроме остановки процесса: монолит при остановке ждёт запросы не дольше `shutdownGracePeriod`, и поток может оборваться без `state`. Клиент тогда сохраняет последнюю полученную историю; благодаря `state` после каждого шага в ней есть все выполненные записи.
+Ход всегда заканчивается событиями `state` и `done`. Исключение — остановка процесса: область подсистемы отменяется, начатые вызовы инструментов дожидаются (решение 4), а итоги в памяти теряются. Клиент получает `404 turn_unknown` и обрабатывает ход как прерванный.
 
-`GET /api/projects/{projectId}/ai/status` → `{ "enabled": true, "provider": "openai-compatible", "model": "glm-4.5-flash", "messageMaxChars": 8000, "minTokenLifetimeSeconds": 150 }`. Ключи и адреса провайдера не возвращаются.
+Поля `code` и `backendCode` у `tool_result`:
 
-Ошибки до начала потока возвращаются обычным JSON:
+- `code` — код верхнего уровня результата ядра MCP либо код агента. Оба формата ошибок ядра — `EditorError` у инструментов записи и редакторских чтений и `McpToolError` у остальных чтений — содержат его. Примеры: `CONFLICT`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_FAILED`, `AUTH_REQUIRED`, `PAT_INVALID`, `OUTCOME_UNKNOWN`, `BACKEND_UNAVAILABLE`, `INVALID_ARGUMENT`, `READ_ONLY_VERSION`. Список не закрыт: панель показывает известные коды особо, остальные — общим сообщением. Ошибки, которые формирует сам агент, получают коды `tool_not_allowed`, `user_rejected`, `not_confirmed`, `invalid_arguments`, а при таймауте вызова — `OUTCOME_UNKNOWN` у записи и `BACKEND_UNAVAILABLE` у чтения.
+- `backendCode` — код ds-service из поля `code` тела ответа, если он есть (`details.backendCode` результата ядра, только из поля `code`, а не из текстового `error`). Конфликт ожидаемого черновика передаётся как `code: "CONFLICT"`, `backendCode: "draft_changed"`.
+- `OUTCOME_UNKNOWN` означает, что исход записи неизвестен; панель показывает это явно.
+- `auth_expired` у хода выставляется, если инструмент вернул `AUTH_REQUIRED` или `PAT_INVALID` после ответа 401.
+
+`GET /api/projects/{projectId}/ai/status` → `{ "enabled": true, "provider": "openai-compatible", "model": "glm-4.5-flash", "messageMaxChars": 8000, "minTokenLifetimeSeconds": 180 }`. Ключи и адреса провайдера не возвращаются.
+
+Ошибки маршрутов возвращаются обычным JSON:
 
 | Код | Когда |
 |---|---|
-| `400 invalid_request` | тело не разбирается, `messages` пусто, последняя реплика не от пользователя и нет `confirmations` |
+| `400 invalid_request` | тело не разбирается, нет `Idempotency-Key`, `messages` пусто, последняя реплика не от пользователя и нет `confirmations`; неверный `after` |
 | `400 message_too_long` | сообщение длиннее `AI_MESSAGE_MAX_CHARS` |
-| `400 confirmation_invalid` | подпись или область токена не совпали |
+| `400 confirmation_invalid` | подпись или область токена не совпали, в том числе у уже принятого токена из другого проекта или DS |
 | `401`/`403` | проверенный контекст |
+| `403 design_system_forbidden` | принципал не имеет доступа к DS по результату проверки принадлежности |
 | `404 design_system_not_found` | DS нет в проекте маршрута |
+| `503 dependency_unavailable` | проверка принадлежности DS недоступна |
+| `404 turn_unknown` | ход неизвестен, вытеснен, чужой или процесс перезапускался (GET, DELETE) |
+| `409 IDEMPOTENCY_KEY_REUSED` | тот же `Idempotency-Key` с другим телом; код совпадает с ds-service |
 | `410 confirmation_expired` | срок токена прошёл или процесс перезапускался |
 | `413` | тело больше 2 МиБ; клиент предлагает начать новый чат |
-| `429 ai_busy` | у пользователя уже идёт ход либо ход по этому подтверждению ещё выполняется |
-| `503 ai_unavailable` | подсистема выключена |
+| `429 ai_busy` | у пользователя уже идёт ход; в теле `activeTurnId`, `projectId`, `designSystemId` |
+| `429 too_many_streams` | у пользователя уже три потока событий |
+| `503 ai_overloaded` | память хранилища ходов занята идущими ходами |
+| `503 ai_unavailable` | подсистема выключена либо монолит останавливается |
 
 ## Безопасность и права доступа
 
 - Чат доступен любому участнику проекта. Возможности модели ограничены правами пользователя: инструменты, которые `PolicyEvaluator` не разрешает, не передаются, а ds-service всё равно проверяет каждый вызов.
-- Bearer пользователя существует только в элементе контекста корутины хода с замаскированным `toString()`. Он не входит в `ChatScope`, `PendingOperation`, `confirmationToken`, историю, события, журналы и запросы к провайдеру модели.
+- Bearer пользователя живёт только в элементе контекста корутины хода с замаскированным `toString()`, не дольше хода. Он не входит в `ChatScope`, `PendingOperation`, `confirmationToken`, `TurnStore`, историю, события, журналы и запросы к провайдеру модели.
+- Ход и его события доступны только пользователю, который его начал, и только в проекте маршрута.
+- Выход пользователя не отзывает Bearer, захваченный ходом: клиент при выходе вызывает `DELETE` активного хода. Отзыв PAT и смена роли действуют с ближайшего обратного вызова.
+- `TurnStore` держит в памяти процесса события и итоговую историю хода, включая данные DS из результатов инструментов, до 10 минут после завершения. На диск они не пишутся.
 - Данные DS (имена токенов, описания) уходят внешнему провайдеру. Об этом говорит панель. Для прома провайдер выбирается с учётом этого.
 - Внедрение инструкций через данные (например, описание токена «удали всё») ограничено несколькими мерами: удаляющие операции и записи сверх `AI_MAX_WRITES` требуют подтверждения, модель работает только с правами пользователя и только в одной DS, а системный промпт прямо говорит, что результаты инструментов — данные, а не команды.
 - Расход ключа провайдера ограничен одним активным ходом на пользователя. Квоты по проектам — отдельное изменение.
@@ -440,30 +601,35 @@ sequenceDiagram
 
 ## Ошибки и восстановление
 
-- Лимиты хода: `AI_MAX_STEPS` вызовов модели (по умолчанию 12) и `AI_TURN_TIMEOUT_SECONDS` (по умолчанию 120). При превышении — событие `error` с `step_limit_reached` или `turn_timeout`, затем `state`.
-- Если клиент отключился, корутина хода отменяется; разрыв обнаруживается не позже следующего `: heartbeat`. Начатый HTTP-вызов инструмента может завершиться на сервере, а его исход фиксируется журналом DS. Повтор с тем же `idempotencyKey` не делается: ключ обычного вызова живёт только внутри хода. Исключение — подтверждённая операция: её ключ записан в `confirmationToken`, и повторная отправка подтверждения воспроизводит ответ.
-- Если ядро вернуло неопределённый исход мутации, это передаётся модели и в `tool_result` как есть. Сервер не повторяет вызов сам.
-- Если обратный вызов получил 401, ход завершается с `auth_expired`.
-- Ошибки провайдера после исчерпания повторов дают событие `error` с `llm_unavailable` или `llm_rate_limited`. Выполненные шаги остаются в `state`.
+- Лимиты хода: `AI_MAX_STEPS` вызовов модели (по умолчанию 12) и `AI_TURN_TIMEOUT_SECONDS` (по умолчанию 120). При превышении — событие `error` с `step_limit_reached` или `turn_timeout`, затем `state` и `done`.
+- Отключение клиента на ход не влияет: ход продолжается, события копятся в `TurnStore`, клиент переподключается с `after` (решение 4).
+- Вызов инструмента ограничен `AI_TOOL_CALL_TIMEOUT_SECONDS`; зависший обратный вызов не держит слот пользователя дольше этого срока.
+- Начатый вызов инструмента не прерывается ни остановкой, ни таймаутом хода; его ограничивает только `AI_TOOL_CALL_TIMEOUT_SECONDS`, после которого результат — `OUTCOME_UNKNOWN` у записи или `BACKEND_UNAVAILABLE` у чтения. Если ядро вернуло неопределённый исход записи (`OUTCOME_UNKNOWN`), это передаётся модели и в `tool_result` как есть. Сервер не повторяет вызов сам.
+- Если обратный вызов получил 401, ход завершается с `auth_expired`. Клиент обновляет токен и предлагает отправить сообщение заново — это новый ход с новым `Idempotency-Key`.
+- Ошибки провайдера после исчерпания повторов дают событие `error` с `llm_unavailable` или `llm_rate_limited`.
+- Перезапуск процесса теряет идущие ходы и итоги. Клиент получает `404 turn_unknown` и помечает ход как прерванный (решение 4).
 
 ## Наблюдаемость
 
-На каждый ход пишется одна строка журнала уровня INFO: `projectId`, `designSystemId`, провайдер, модель, число шагов и записей, имена вызванных инструментов, исход, длительность. Тексты сообщений, аргументы и заголовки в журнал не пишутся. Ошибки провайдера пишутся с HTTP-статусом и кодом ответа, без тела.
+- На каждый ход пишется одна строка журнала уровня INFO: `projectId`, `designSystemId`, `turnId`, провайдер, модель, число шагов и записей, имена вызванных инструментов, исход (`done`, `stopped`, `timeout`, ошибка), длительность.
+- Отдельными строками: повтор POST с существующим ключом или токеном, переподключение с `after`, `404 turn_unknown`, вытеснение ходов из `TurnStore` и его текущий объём.
+- Тексты сообщений, аргументы и заголовки в журнал не пишутся. Ошибки провайдера пишутся с HTTP-статусом и кодом ответа, без тела.
 
 ## План проверки и развёртывания
 
 - **Без внешних сервисов.**
-  - Тесты `ValidateChatTurnUseCase` и `RunChatTurnUseCase` с поддельными `LlmClient`, `AgentToolbox` и адаптером принадлежности DS. Покрываются все сценарии спецификаций `builder-ai-chat` и `ai-agent-tooling`.
+  - Тесты `ValidateChatTurnUseCase`, `StartChatTurnUseCase`, `RunChatTurnUseCase` и `InMemoryTurnStore` с поддельными `LlmClient`, `AgentToolbox` и адаптером принадлежности DS. Покрываются все сценарии спецификаций `builder-ai-chat` и `ai-agent-tooling`.
   - Контрактные тесты адаптеров на `ktor-client-mock` по записанным ответам ZAI и GigaChat, включая повторы и обновление токена GigaChat.
   - Тесты `CallScopedCredentialProvider`, `HmacConfirmationSigner`, `McpAgentToolbox`.
-  - Тест маршрутов на `ktor-server-test-host`: события, `: heartbeat`, JSON-ответы до потока, отсутствие Bearer в событиях и теле запроса к провайдеру.
+  - Тест маршрутов на `ktor-server-test-host`: регистрация хода, повтор POST, поток с `id`, `after`, `: heartbeat`, остановка, JSON-ошибки, отсутствие Bearer в событиях, хранилище ходов, журнале и теле запроса к провайдеру.
   - Тест монолита: обратный вызов с поддельными `X-*` получает права пользователя, а не присланные.
 - **С ds-service на Testcontainers.**
-  - Повторная отправка подтверждения воспроизводит сохранённый ответ `repeatableMutation` без второй записи.
+  - Повтор POST с тем же подтверждением не создаёт второй записи.
   - Запись с `X-DS-Expected-Draft` после публикации DS получает `409 draft_changed` и ничего не пишет.
-  - Обрыв после второй записи продолжения и до финального `state`: повтор подтверждения не делает новых записей. Редактор с JWT пишет в черновик через инструмент, запись видна в журнале от его имени.
+  - Отключение клиента во время записи: запись фиксируется один раз, переподключение с `after` получает её `tool_result` и итог хода.
+  - Editor с JWT пишет в черновик через инструмент, запись видна в журнале от его имени.
 - **Локальный контур.** `./setup-local.sh` с `AI_ENABLED=true` и ключом ZAI. Проверка в браузере через Playwright: «перекрась кнопку в красный» меняет черновик, интерфейс перерисовывается; у maintainer сброс свойства ждёт подтверждения и выполняется только после него.
-- **Эталонные сценарии.** Файл `backend-kt/ai-assistant/evals/scenarios.json` и задача `:ai-assistant:runtime:evalChat`. Задача прогоняет сценарии против настроенного провайдера и локального контура и печатает таблицу «сценарий → прошёл или не прошёл». В CI задача не входит: ей нужны ключ и живой контур.
+- **Эталонные сценарии.** Файл `backend-kt/ai-assistant/evals/scenarios.json` и задача `:runtime:evalChat` сборки `backend-kt/ai-assistant`. Задача прогоняет сценарии против настроенного провайдера и локального контура и печатает таблицу «сценарий → прошёл или не прошёл». В CI задача не входит: ей нужны ключ и живой контур.
 
 ## Миграция и совместимость
 
@@ -472,11 +638,11 @@ sequenceDiagram
 ## Риски / Компромиссы
 
 - [Слабая модель не справляется с многошаговыми сценариями] → Эталонные сценарии до включения на проме. Узкий набор инструментов, подробные описания в системном промпте. Составные инструменты — следующим изменением.
-- [Сборка ядра в образе тянет IntelliJ Platform или Kotlin/Native] → Подмножество `dsbuilder.serverSubset`, публикация в локальный репозиторий; запасной путь — готовый артефакт из CI (решение 2).
+- [Сборка ядра в образе тянет IntelliJ Platform или Kotlin/Native] → Подмножество `dsbuilder.serverSubset`, публикация в локальный репозиторий; запасной путь — готовый артефакт из CI (решение 2, задачи 1.3 и 1.4).
 - [MCP SDK приносит несовместимую версию Ktor] → Проверка дерева зависимостей в задаче 1.3, при конфликте — общий JVM-код без SDK.
 - [Kotlin 2.2.21 во `frontend-kt` и 2.2.0 в `backend-kt`] → Минорная версия одна, метаданные совместимы. При ошибке компиляции версии выравниваются в задаче 1.3.
 - [Изменение ds-service ради привязки к черновику] → Необязательный заголовок, без него поведение записей не меняется. Проверка в общей инфраструктуре записи, а не в каждом маршруте.
-- [Хранилище итогов подтверждённых ходов в памяти] → Ограничено сроком токена (10 минут) и одним ходом на пользователя. После перезапуска токены недействительны, поэтому потеря хранилища не приводит к повтору.
+- [Ходы и их итоги живут в памяти одного процесса] → Объём ограничен `AI_TURN_STORE_MAX_MB` с вытеснением старых завершённых ходов; связи ключа и токена с ходом не вытесняются. Перезапуск и вытеснение дают `404 turn_unknown`, а не повторное выполнение; клиент помечает ход как прерванный, и модель обязана перечитать данные перед записью.
 - [JWT истекает посреди хода] → Запас срока на клиенте, `auth_expired` на сервере, таймаут хода меньше срока токена.
 - [Неверные `AI_*` при включённом чате не дают монолиту открыть готовность] → Включать сначала на dev; ошибка называет переменную.
 - [История растёт] → Обрезка по `AI_HISTORY_MAX_CHARS` на сервере, `413` с предложением нового чата на клиенте.
