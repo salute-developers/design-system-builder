@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
         getComponentId: () => undefined,
     },
     saveComponentMutation: vi.fn(async () => ({ style: 1 })),
+    // Правка, сделанная редактором в коммите, где сменился снимок дизайн-системы (как выбор догруженной цели).
+    editOnSnapshotChange: false,
 }));
 
 vi.mock('../../layouts', () => ({
@@ -31,14 +33,27 @@ vi.mock('../../layouts', () => ({
 
 vi.mock('./features/ComponentEditor', () => ({
     // Индикатор автосохранения редактор показывает в панели окружения превью.
-    ComponentEditor: ({ onConfigUpdate, status }: { onConfigUpdate: () => void; status?: ReactNode }) => (
-        <>
-            {status}
-            <button type="button" onClick={onConfigUpdate}>
-                изменить
-            </button>
-        </>
-    ),
+    ComponentEditor: ({
+        onConfigUpdate,
+        status,
+        designSystem,
+    }: {
+        onConfigUpdate: () => void;
+        status?: ReactNode;
+        designSystem?: unknown;
+    }) => {
+        useEffect(() => {
+            if (mocks.editOnSnapshotChange) onConfigUpdate();
+        }, [designSystem]);
+        return (
+            <>
+                {status}
+                <button type="button" onClick={onConfigUpdate}>
+                    изменить
+                </button>
+            </>
+        );
+    },
 }));
 
 vi.mock('../../api/componentRepository', () => ({
@@ -88,6 +103,57 @@ const renderEditor = () => {
 };
 
 describe('Components autosave', () => {
+    afterEach(() => {
+        mocks.editOnSnapshotChange = false;
+    });
+
+    it('правка в коммите смены снимка дизайн-системы уходит с исходной базой, а не считается сохранённой', async () => {
+        mocks.currentMeta = { enabled: true };
+        const makeContext = () => ({
+            designSystem: {
+                getParameters: () => editorContext,
+                getComponentDataByName: () => ({}),
+                getComponentData: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        });
+        const Parent = () => {
+            const [context, setContext] = useState(makeContext);
+            return (
+                <>
+                    <button type="button" onClick={() => setContext(makeContext())}>
+                        снимок
+                    </button>
+                    <Outlet context={context} />
+                </>
+            );
+        };
+        render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+        await screen.findByRole('button', { name: 'изменить' });
+
+        // Догрузка цели меняет снимок; правка попадает в конфигурацию в том же коммите.
+        mocks.currentMeta = { enabled: false };
+        mocks.editOnSnapshotChange = true;
+        fireEvent.click(screen.getByRole('button', { name: 'снимок' }));
+
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalled());
+        const operation = mocks.saveComponentMutation.mock.calls.at(-1)![2];
+        expect(operation.before).toEqual({ enabled: true });
+        expect(operation.after).toEqual({ enabled: false });
+    });
+
     it('успешное восстановление после 429 освобождает неработающую старую очередь', async () => {
         mocks.saveComponentMutation.mockRejectedValueOnce({ isAxiosError: true, response: { status: 429 } });
         renderEditor();

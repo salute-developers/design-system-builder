@@ -448,13 +448,20 @@ export const Components = () => {
         if (!config || !storagePrefix || !editorContext || !designSystem || parameters?.readOnly) return;
         // Ключ правок — компонент и открытая конфигурация: у каждой конфигурации своя очередь и своё «до».
         const editorKey = componentEditorKey(config);
-        confirmedConfig.current = { componentName: editorKey, value: structuredClone(config.getMeta()) };
+        const requestKey = `${storagePrefix}:${editorKey}:request`;
+        // Очередь пересоздаётся при каждой смене снимка, в том числе из-за догрузки другого компонента. Пока у этой
+        // конфигурации есть несохранённая правка, основа сравнения не сбрасывается: иначе правка, уже лежащая в
+        // `config`, стала бы «уже сохранённой» и на сервер не ушла бы.
+        const hasUnsaved =
+            confirmedConfig.current?.componentName === editorKey && readStoredJson(requestKey, null) !== null;
+        if (!hasUnsaved) {
+            confirmedConfig.current = { componentName: editorKey, value: structuredClone(config.getMeta()) };
+        }
         let mounted = true;
         const componentName = config.getName();
         const activitySource = `component:${toComponentRoute(config.getPlatform(), componentName)}`;
         const setActivity = registerDraftAutosaveSource(editorContext, activitySource);
         let latestActivityStatus: AutosaveStatus = 'saved';
-        const requestKey = `${storagePrefix}:${editorKey}:request`;
         const revisionKey = `${storagePrefix}:${componentName}:revisions`;
         const aliasesKey = `${storagePrefix}:${componentName}:style-aliases`;
         let styleAliases = readStoredJson<Record<string, string>>(aliasesKey, {});
