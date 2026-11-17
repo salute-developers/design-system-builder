@@ -195,8 +195,11 @@ internal class ComponentConfigImportSync {
      */
     private val unscoped = mutableMapOf<Table, Scope>()
 
-    /** Адрес, по которому последний поиск ничего не нашёл: следующая запись создаёт именно эту строку. */
-    private var lastMiss: Triple<Table, Scope, List<Any?>>? = null
+    /**
+     * Идентификаторы строк, созданных этим импортом через [idOrCreate]: у них нет редакции в снимке оформления, поэтому
+     * при записи текущей редакции нет, а замену прежней редакции выполняет удаление по сущности.
+     */
+    private val createdIds = hashSetOf<UUID>()
 
     @Suppress("UNCHECKED_CAST")
     private fun scopeOf(view: Table, address: Array<out Pair<Column<*>, Any?>>): Scope? {
@@ -209,9 +212,18 @@ internal class ComponentConfigImportSync {
         }
     }
 
+    /**
+     * Идентификатор сущности по адресу в представлении; если её нет, её создаёт [create], и адрес запоминается сразу, в
+     * том же вызове: повторный поиск того же адреса (например, состояния, совпавшие после нормализации) найдёт её, даже
+     * если редакция ещё ждёт записи и запрос к базе её не увидит.
+     */
     @Suppress("UNCHECKED_CAST")
-    fun id(view: Table, id: Column<UUID>, vararg address: Pair<Column<*>, Any?>): UUID? {
-        lastMiss = null
+    fun idOrCreate(
+        view: Table,
+        id: Column<UUID>,
+        vararg address: Pair<Column<*>, Any?>,
+        create: () -> UUID,
+    ): UUID {
         val snapshot = scopeOf(view, address)
         val scope = snapshot ?: unscoped.getOrPut(view) { Scope(emptyList(), mutableMapOf()) }
         val key = address.map { it.second }
@@ -222,8 +234,11 @@ internal class ComponentConfigImportSync {
         } else {
             stored(view, id, address)
         }
-        if (found == null) lastMiss = Triple(view, scope, key)
-        return found
+        if (found != null) return found
+        return create().also {
+            scope.created[key] = it
+            createdIds += it
+        }
     }
 
     /** Строка представления без снимка по адресу: запрос к базе. */
@@ -249,9 +264,6 @@ internal class ComponentConfigImportSync {
         val desired = InsertStatement<Number>(table).also { table.body(it) }.values.toMap()
         if (entityId in fresh) {
             markChanged()
-            // Адрес новой строки регистрируется до раннего выхода: тот же адрес в этом оформлении (например, состояния,
-            // совпавшие после нормализации) должен найти её, а не создать вторую.
-            registerMiss(view, entityId)
             if (buffered.add(table to entityId)) {
                 batch(owner).revision(table, entityColumn, entityId) { statement ->
                     desired.forEach { (column, value) -> statement[column as Column<Any?>] = value }
@@ -279,19 +291,10 @@ internal class ComponentConfigImportSync {
         replacements[table to entityId] = PendingRevision(entityColumn, entityId, owner, desired)
     }
 
-    /** Запоминает адрес последнего пустого поиска за только что созданной сущностью [entityId]. */
-    private fun registerMiss(view: Table, entityId: UUID): Boolean {
-        val miss = lastMiss
-        lastMiss = null
-        if (miss == null || miss.first !== view) return false
-        miss.second.created[miss.third] = entityId
-        return true
-    }
-
-    /** Текущая строка сущности: из снимка оформления, а для сущности, найденной поиском впустую, — отсутствующая. */
+    /** Текущая строка сущности: из снимка оформления; для сущности, созданной этим импортом, — отсутствующая. */
     private fun currentRow(view: Table, idColumn: Column<UUID>, entityId: UUID): ResultRow? {
-        // Строку только что создал вызывающий по результату пустого поиска: редакции у неё ещё нет.
-        if (registerMiss(view, entityId)) return null
+        // Строку создал этот импорт: редакции у неё ещё нет в снимке, текущей строки нет.
+        if (entityId in createdIds) return null
         scopes.entries.firstOrNull { it.key.first === view && entityId in it.value.byId }?.let { entry ->
             val row = entry.value.byId[entityId]
             // После записи строка снимка устарела; повторная запись той же сущности прочитает её из базы.

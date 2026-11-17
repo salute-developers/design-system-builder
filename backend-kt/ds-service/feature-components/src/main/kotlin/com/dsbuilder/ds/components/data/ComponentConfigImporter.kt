@@ -509,18 +509,21 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             val ordered = declared?.values?.map { it.name }.orEmpty() + values[axisId].orEmpty()
             ordered.distinct().forEachIndexed { valuePosition, value ->
                 val style = styles.getValue(styleKey(axisId, value))
-                val valueId = context.sync.id(
-                    AppearanceVariationValuesTable, AppearanceVariationValuesTable.id,
+                val valueId = context.sync.idOrCreate(
+                    AppearanceVariationValuesTable,
+                    AppearanceVariationValuesTable.id,
                     AppearanceVariationValuesTable.appearanceVariationId to row,
                     AppearanceVariationValuesTable.styleId to style,
-                ) ?: context.sync.stable(
-                    ds,
-                    StableAppearanceVariationValuesTable,
-                    StableAppearanceVariationValuesTable.id,
-                    StableAppearanceVariationValuesTable.createdAt,
-                ) { statement ->
-                    statement[appearanceVariationId] = row
-                    statement[designSystemId] = ds
+                ) {
+                    context.sync.stable(
+                        ds,
+                        StableAppearanceVariationValuesTable,
+                        StableAppearanceVariationValuesTable.id,
+                        StableAppearanceVariationValuesTable.createdAt,
+                    ) { statement ->
+                        statement[appearanceVariationId] = row
+                        statement[designSystemId] = ds
+                    }
                 }
                 context.sync.write(
                     AppearanceVariationValueRevisionsTable,
@@ -611,21 +614,24 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         val propertyId = properties[name] ?: return@forEach
         expand(property).forEach { value ->
             val states = stateSet(value.states, context) ?: return@forEach
-            val id = context.sync.id(
-                InvariantPropertyValuesTable, InvariantPropertyValuesTable.id,
+            val id = context.sync.idOrCreate(
+                InvariantPropertyValuesTable,
+                InvariantPropertyValuesTable.id,
                 InvariantPropertyValuesTable.appearanceId to appearance,
                 InvariantPropertyValuesTable.propertyId to propertyId,
                 InvariantPropertyValuesTable.stateSetId to states,
-            ) ?: context.sync.stable(
-                ds,
-                StableInvariantPropertyValuesTable,
-                StableInvariantPropertyValuesTable.id,
-                StableInvariantPropertyValuesTable.createdAt,
-            ) { statement ->
-                statement[StableInvariantPropertyValuesTable.propertyId] = propertyId
-                statement[designSystemId] = ds
-                statement[componentId] = component
-                statement[appearanceId] = appearance
+            ) {
+                context.sync.stable(
+                    ds,
+                    StableInvariantPropertyValuesTable,
+                    StableInvariantPropertyValuesTable.id,
+                    StableInvariantPropertyValuesTable.createdAt,
+                ) { statement ->
+                    statement[StableInvariantPropertyValuesTable.propertyId] = propertyId
+                    statement[designSystemId] = ds
+                    statement[componentId] = component
+                    statement[appearanceId] = appearance
+                }
             }
             context.sync.write(
                 InvariantPropertyValueRevisionsTable,
@@ -688,14 +694,17 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         ordered.forEachIndexed { position, (members, authored) ->
             val ds = context.designSystemId
             val key = members.joinToString(",")
-            val id = context.sync.id(
-                AppearanceCombinationsTable, AppearanceCombinationsTable.id,
+            val id = context.sync.idOrCreate(
+                AppearanceCombinationsTable,
+                AppearanceCombinationsTable.id,
                 AppearanceCombinationsTable.appearanceId to appearance,
                 AppearanceCombinationsTable.combinationKey to key,
-            ) ?: StableAppearanceCombinationsTable.insertReturning {
-                it[appearanceId] = appearance
-                it[designSystemId] = ds
-            }.single()[StableAppearanceCombinationsTable.id]
+            ) {
+                StableAppearanceCombinationsTable.insertReturning {
+                    it[appearanceId] = appearance
+                    it[designSystemId] = ds
+                }.single()[StableAppearanceCombinationsTable.id]
+            }
             context.sync.write(
                 AppearanceCombinationRevisionsTable,
                 AppearanceCombinationsTable,
@@ -708,14 +717,17 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 statement[authoredId] = authored
             }
             members.forEachIndexed { index, style ->
-                val memberId = context.sync.id(
-                    AppearanceCombinationMembersTable, AppearanceCombinationMembersTable.id,
+                val memberId = context.sync.idOrCreate(
+                    AppearanceCombinationMembersTable,
+                    AppearanceCombinationMembersTable.id,
                     AppearanceCombinationMembersTable.appearanceCombinationId to id,
                     AppearanceCombinationMembersTable.styleId to style,
-                ) ?: StableAppearanceCombinationMembersTable.insertReturning {
-                    it[appearanceCombinationId] = id
-                    it[designSystemId] = ds
-                }.single()[StableAppearanceCombinationMembersTable.id]
+                ) {
+                    StableAppearanceCombinationMembersTable.insertReturning {
+                        it[appearanceCombinationId] = id
+                        it[designSystemId] = ds
+                    }.single()[StableAppearanceCombinationMembersTable.id]
+                }
                 context.sync.write(
                     AppearanceCombinationMemberRevisionsTable,
                     AppearanceCombinationMembersTable,
@@ -758,22 +770,25 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         c: ComponentConfigImportContext,
     ) {
         val ds = c.designSystemId
-        val id = c.sync.id(
-            VariationPropertyValuesTable, VariationPropertyValuesTable.id,
+        val id = c.sync.idOrCreate(
+            VariationPropertyValuesTable,
+            VariationPropertyValuesTable.id,
             VariationPropertyValuesTable.appearanceId to a,
             VariationPropertyValuesTable.propertyId to p,
             VariationPropertyValuesTable.styleId to s,
             VariationPropertyValuesTable.stateSetId to states,
-        ) ?: c.sync.stable(
-            ds,
-            StableVariationPropertyValuesTable,
-            StableVariationPropertyValuesTable.id,
-            StableVariationPropertyValuesTable.createdAt,
-        ) { statement ->
-            statement[propertyId] = p
-            statement[styleId] = s
-            statement[appearanceId] = a
-            statement[designSystemId] = ds
+        ) {
+            c.sync.stable(
+                ds,
+                StableVariationPropertyValuesTable,
+                StableVariationPropertyValuesTable.id,
+                StableVariationPropertyValuesTable.createdAt,
+            ) { statement ->
+                statement[propertyId] = p
+                statement[styleId] = s
+                statement[appearanceId] = a
+                statement[designSystemId] = ds
+            }
         }
         c.sync.write(
             VariationPropertyValueRevisionsTable,
@@ -804,17 +819,20 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     ) {
         val ds = c.designSystemId
         val key = members.joinToString(",")
-        val id = c.sync.id(
-            StyleCombinationsTable, StyleCombinationsTable.id,
+        val id = c.sync.idOrCreate(
+            StyleCombinationsTable,
+            StyleCombinationsTable.id,
             StyleCombinationsTable.appearanceId to a,
             StyleCombinationsTable.propertyId to p,
             StyleCombinationsTable.combinationKey to key,
             StyleCombinationsTable.stateSetId to states,
-        ) ?: StableStyleCombinationsTable.insertReturning {
-            it[propertyId] = p
-            it[appearanceId] = a
-            it[designSystemId] = ds
-        }.single()[StableStyleCombinationsTable.id]
+        ) {
+            StableStyleCombinationsTable.insertReturning {
+                it[propertyId] = p
+                it[appearanceId] = a
+                it[designSystemId] = ds
+            }.single()[StableStyleCombinationsTable.id]
+        }
         c.sync.write(
             StyleCombinationRevisionsTable,
             StyleCombinationsTable,
@@ -831,14 +849,17 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             statement[stateSetId] = states
         }
         members.forEach { style ->
-            val memberId = c.sync.id(
-                StyleCombinationMembersTable, StyleCombinationMembersTable.id,
+            val memberId = c.sync.idOrCreate(
+                StyleCombinationMembersTable,
+                StyleCombinationMembersTable.id,
                 StyleCombinationMembersTable.combinationId to id,
                 StyleCombinationMembersTable.styleId to style,
-            ) ?: StableStyleCombinationMembersTable.insertReturning {
-                it[combinationId] = id
-                it[designSystemId] = ds
-            }.single()[StableStyleCombinationMembersTable.id]
+            ) {
+                StableStyleCombinationMembersTable.insertReturning {
+                    it[combinationId] = id
+                    it[designSystemId] = ds
+                }.single()[StableStyleCombinationMembersTable.id]
+            }
             c.sync.write(
                 StyleCombinationMemberRevisionsTable,
                 StyleCombinationMembersTable,
@@ -913,49 +934,66 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             if (target == null || targetStyles.size != parts.size - 1) {
                 context.report.unresolvedComponentStyles += pending.reference
             } else {
-                val id = context.sync.id(
-                    ComponentStyleReferencesTable, ComponentStyleReferencesTable.id,
-                    ComponentStyleReferencesTable.invariantPropertyValueId to
-                        (pending.source as? ComponentStyleSource.Invariant)?.id,
-                    ComponentStyleReferencesTable.variationPropertyValueId to
-                        (pending.source as? ComponentStyleSource.Variation)?.id,
-                    ComponentStyleReferencesTable.styleCombinationId to
-                        (pending.source as? ComponentStyleSource.Combination)?.id,
-                ) ?: StableComponentStyleReferencesTable.insertReturning {
-                    it[designSystemId] = ds
-                }.single()[StableComponentStyleReferencesTable.id]
-                context.sync.write(
-                    ComponentStyleReferenceRevisionsTable,
-                    ComponentStyleReferencesTable,
-                    ComponentStyleReferenceRevisionsTable.entityId,
-                    id,
-                    ds,
-                ) { statement ->
-                    statement[invariantPropertyValueId] = (pending.source as? ComponentStyleSource.Invariant)?.id
-                    statement[variationPropertyValueId] = (pending.source as? ComponentStyleSource.Variation)?.id
-                    statement[styleCombinationId] = (pending.source as? ComponentStyleSource.Combination)?.id
-                    statement[targetAppearanceId] = target[ComponentAppearancesTable.id]
-                    statement[reference] = pending.reference
-                }
-                targetStyles.distinct().forEach { style ->
-                    val styleId = context.sync.id(
-                        ComponentStyleReferenceStylesTable, ComponentStyleReferenceStylesTable.id,
-                        ComponentStyleReferenceStylesTable.referenceId to id,
-                        ComponentStyleReferenceStylesTable.styleId to style,
-                    ) ?: StableComponentStyleReferenceStylesTable.insertReturning {
-                        it[referenceId] = id
-                        it[designSystemId] = ds
-                    }.single()[StableComponentStyleReferenceStylesTable.id]
-                    context.sync.write(
-                        ComponentStyleReferenceStyleRevisionsTable,
-                        ComponentStyleReferenceStylesTable,
-                        ComponentStyleReferenceStyleRevisionsTable.entityId,
-                        styleId,
-                        ds,
-                    ) { statement -> statement[ComponentStyleReferenceStyleRevisionsTable.styleId] = style }
-                }
+                writeReference(ds, pending, target, targetStyles, context)
             }
         }
+
+    /** Записывает ссылку на стиль и её целевые стили: ссылка создаётся по адресу значения-источника. */
+    private fun writeReference(
+        ds: UUID,
+        pending: PendingComponentStyleReference,
+        target: ResultRow,
+        targetStyles: List<UUID>,
+        context: ComponentConfigImportContext,
+    ) {
+        val id = context.sync.idOrCreate(
+            ComponentStyleReferencesTable,
+            ComponentStyleReferencesTable.id,
+            ComponentStyleReferencesTable.invariantPropertyValueId to
+                (pending.source as? ComponentStyleSource.Invariant)?.id,
+            ComponentStyleReferencesTable.variationPropertyValueId to
+                (pending.source as? ComponentStyleSource.Variation)?.id,
+            ComponentStyleReferencesTable.styleCombinationId to
+                (pending.source as? ComponentStyleSource.Combination)?.id,
+        ) {
+            StableComponentStyleReferencesTable.insertReturning {
+                it[designSystemId] = ds
+            }.single()[StableComponentStyleReferencesTable.id]
+        }
+        context.sync.write(
+            ComponentStyleReferenceRevisionsTable,
+            ComponentStyleReferencesTable,
+            ComponentStyleReferenceRevisionsTable.entityId,
+            id,
+            ds,
+        ) { statement ->
+            statement[invariantPropertyValueId] = (pending.source as? ComponentStyleSource.Invariant)?.id
+            statement[variationPropertyValueId] = (pending.source as? ComponentStyleSource.Variation)?.id
+            statement[styleCombinationId] = (pending.source as? ComponentStyleSource.Combination)?.id
+            statement[targetAppearanceId] = target[ComponentAppearancesTable.id]
+            statement[reference] = pending.reference
+        }
+        targetStyles.distinct().forEach { style ->
+            val styleId = context.sync.idOrCreate(
+                ComponentStyleReferenceStylesTable,
+                ComponentStyleReferenceStylesTable.id,
+                ComponentStyleReferenceStylesTable.referenceId to id,
+                ComponentStyleReferenceStylesTable.styleId to style,
+            ) {
+                StableComponentStyleReferenceStylesTable.insertReturning {
+                    it[referenceId] = id
+                    it[designSystemId] = ds
+                }.single()[StableComponentStyleReferenceStylesTable.id]
+            }
+            context.sync.write(
+                ComponentStyleReferenceStyleRevisionsTable,
+                ComponentStyleReferenceStylesTable,
+                ComponentStyleReferenceStyleRevisionsTable.entityId,
+                styleId,
+                ds,
+            ) { statement -> statement[ComponentStyleReferenceStyleRevisionsTable.styleId] = style }
+        }
+    }
 
     /** Цель ссылки и её стили читаются один раз: ссылок на одно оформление в пакете много. */
     private fun referenceTarget(
