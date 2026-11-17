@@ -9,11 +9,16 @@ import { EditorSectionData } from '../features/themeEditor/EditorSectionData';
 import { sectionTokenTypes, type EditorSection } from '../features/themeEditor/editorSections';
 import { notifyEditorDataInvalidated } from '../api/draftInvalidationStream';
 import { invalidateEditorReads } from '../api/editorReads';
-import type { EditorContextKey, ThemeEditorSnapshot, DraftRefreshChange, TokenDefinitionDto } from '../api/editorContracts';
+import type {
+    EditorContextKey,
+    ThemeEditorSnapshot,
+    DraftRefreshChange,
+    TokenDefinitionDto,
+} from '../api/editorContracts';
 import type { AutosaveStatus } from '../api/tokenAutosaveQueue';
 import { ThemeEditorSession, type ComponentsScope } from '../features/themeEditor/ThemeEditorSession';
 import { preservePendingComponents } from '../features/themeEditor/preservePendingComponents';
-import { keepLoadedComponents } from '../features/themeEditor/keepLoadedComponents';
+import { keepLoadedComponents, keepUnchangedComponents } from '../features/themeEditor/keepLoadedComponents';
 import type { ThemePalette } from '../modules/palette';
 import { getActivePalette, setActivePalette } from '../palette/activePalette';
 import { paletteRepository, setPaletteSession } from '../palette/paletteSession';
@@ -244,7 +249,9 @@ export const useDesignSystem = (
                             preservePendingComponents(
                                 designSystemProjectId,
                                 current,
-                                componentsScope === 'index' ? keepLoadedComponents(current, next) : next,
+                                componentsScope === 'index'
+                                    ? keepLoadedComponents(current, next)
+                                    : keepUnchangedComponents(current, next),
                             );
                         setComponents((current) => merge(current, nextDesignSystem.createAllComponentInstances()));
                         setComposeComponents((current) =>
