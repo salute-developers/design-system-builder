@@ -11,6 +11,7 @@ includeBuild("project-publisher")
 includeBuild("identity-gateway")
 includeBuild("projects-service")
 includeBuild("documentation-service")
+includeBuild("ai-assistant")
 includeBuild("ds-service")
 include(":architecture-tests")
 
