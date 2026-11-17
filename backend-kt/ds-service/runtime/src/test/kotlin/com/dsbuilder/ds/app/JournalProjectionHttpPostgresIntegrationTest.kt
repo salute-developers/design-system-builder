@@ -31,7 +31,16 @@ import kotlin.test.assertTrue
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class JournalProjectionHttpPostgresIntegrationTest {
     @Test
-    fun `compact HTTP matches legacy across new and published themes and keeps access checks`() {
+    fun `compact HTTP matches legacy for a new theme and keeps access checks`() {
+        assertThemeJournal("new")
+    }
+
+    @Test
+    fun `compact HTTP matches legacy for a published theme and keeps access checks`() {
+        assertThemeJournal("published")
+    }
+
+    private fun assertThemeJournal(kind: String) {
         IsolatedPostgresDatabase.create().use { postgres ->
             val db = Database.connect(postgres.jdbcUrl, user = postgres.username, password = postgres.password)
             lateinit var legacy: ExposedDraftChangeRepository
@@ -55,103 +64,102 @@ class JournalProjectionHttpPostgresIntegrationTest {
                 }
                 val api = JournalHttpFixture(client)
                 val fixture = api.seed(0)
-                for ((_, item) in fixture) {
-                    val owner = UUID.fromString(item.jsonObject.getValue("system").jsonPrimitive.content)
-                    val tenant = UUID.fromString(item.jsonObject.getValue("tenant").jsonPrimitive.content)
-                    val root = "/api/design-systems/$owner"
-                    val summaryPath = "$root/changes/summary"
-                    val marksPath = "$root/changes/token-ids?tenantId=$tenant"
-                    val values = api.get("$root/tenants/$tenant/token-values?types=color").jsonArray.take(9)
-                    val initialSummary = api.get(summaryPath)
-                    val initialMarks = api.get(marksPath)
-                    val version = item.jsonObject["versionId"]?.jsonPrimitive?.content
-                    val historicalSummary = version?.let { api.get("$summaryPath?versionId=$it") }
-                    val historicalMarks = version?.let { api.get("$marksPath&versionId=$it") }
-                    var applied = 0
-                    for (count in listOf(0, 1, 9)) {
-                        for (value in values.drop(applied).take(count - applied)) {
-                            val id = value.jsonObject.getValue("id").jsonPrimitive.content
-                            api.call("PATCH", "$root/token-values/$id", """{"value":["#123456"]}""")
-                        }
-                        applied = count
-                        assertEquivalent(api, db, legacy, owner, tenant)
+                val item = fixture.getValue(kind)
+                val owner = UUID.fromString(item.jsonObject.getValue("system").jsonPrimitive.content)
+                val tenant = UUID.fromString(item.jsonObject.getValue("tenant").jsonPrimitive.content)
+                val root = "/api/design-systems/$owner"
+                val summaryPath = "$root/changes/summary"
+                val marksPath = "$root/changes/token-ids?tenantId=$tenant"
+                val values = api.get("$root/tenants/$tenant/token-values?types=color").jsonArray.take(9)
+                val initialSummary = api.get(summaryPath)
+                val initialMarks = api.get(marksPath)
+                val version = item.jsonObject["versionId"]?.jsonPrimitive?.content
+                val historicalSummary = version?.let { api.get("$summaryPath?versionId=$it") }
+                val historicalMarks = version?.let { api.get("$marksPath&versionId=$it") }
+                var applied = 0
+                for (count in listOf(0, 1, 9)) {
+                    for (value in values.drop(applied).take(count - applied)) {
+                        val id = value.jsonObject.getValue("id").jsonPrimitive.content
+                        api.call("PATCH", "$root/token-values/$id", """{"value":["#123456"]}""")
                     }
-                    val rows = api.get("$root/changes").jsonArray
-                        .map { it.jsonObject }
-                        .filter { it.getValue("entityType").jsonPrimitive.content == "token-value" }
-                    val targets = JsonArray(
-                        rows.map { row ->
-                            JsonObject(
-                                mapOf(
-                                    "entityType" to row.getValue("entityType"),
-                                    "entityId" to row.getValue("entityId"),
-                                    "expectedRevision" to row.getValue("editRevision"),
-                                ),
-                            )
-                        },
-                    )
-                    val draft = api.get(root).jsonObject.getValue("draftId")
-                    api.call("POST", "$root/changes/revert-by-address", """{"draftId":$draft,"targets":$targets}""")
-                    assertEquals(initialSummary, api.get(summaryPath))
-                    assertEquals(initialMarks, api.get(marksPath))
-                    val token = values.first().jsonObject.getValue("tokenId").jsonPrimitive.content
-                    val gradient = "linear-gradient(90deg, #123456 0%, #FFFFFF 100%)"
-                    api.call(
-                        "PUT",
-                        "$root/tenants/$tenant/color-tokens/$token/values",
-                        """{"editRevision":0,"members":[{"tokenId":"$token","values":[
-                            {"platform":"web","mode":"dark","value":["$gradient"]}]}]}""",
-                    )
-                    assertEquals(
-                        "gradient",
-                        api.get("$root/tokens/$token").jsonObject.getValue("type").jsonPrimitive.content,
-                    )
+                    applied = count
                     assertEquivalent(api, db, legacy, owner, tenant)
-                    api.call(
-                        "PATCH",
-                        "$root/tokens/$token",
-                        """{"displayName":"Changed","description":"Journal test"}""",
-                    )
-                    assertEquivalent(api, db, legacy, owner, tenant)
-                    val valueId = values.first().jsonObject.getValue("id").jsonPrimitive.content
-                    api.call("DELETE", "$root/token-values/$valueId")
-                    assertEquivalent(api, db, legacy, owner, tenant)
-                    val component = client.post("/api/design-systems/catalog/components") {
-                        header("X-Actor-Type", "user")
-                        header("X-User-Id", "journal-admin")
-                        header("X-Project-Id", "global")
-                        header("X-System-Admin", "true")
-                        contentType(ContentType.Application.Json)
-                        setBody("""{"name":"Journal $owner","platform":"web"}""")
-                    }
-                    assertEquals(HttpStatusCode.Created, component.status)
-                    val componentId = Json.parseToJsonElement(component.bodyAsText()).jsonObject.getValue("id")
-                    api.call("POST", "$root/design-system-components", """{"componentId":$componentId}""")
-                    assertEquivalent(api, db, legacy, owner, tenant)
-                    val foreignTenant = fixture.values.map { it.jsonObject }.first {
-                        it.getValue("system").jsonPrimitive.content != owner.toString()
-                    }.getValue("tenant").jsonPrimitive.content
-                    assertEquals(
-                        HttpStatusCode.NotFound,
-                        api.request("GET", "$root/changes/token-ids?tenantId=$foreignTenant").status,
-                    )
+                }
+                val rows = api.get("$root/changes").jsonArray
+                    .map { it.jsonObject }
+                    .filter { it.getValue("entityType").jsonPrimitive.content == "token-value" }
+                val targets = JsonArray(
+                    rows.map { row ->
+                        JsonObject(
+                            mapOf(
+                                "entityType" to row.getValue("entityType"),
+                                "entityId" to row.getValue("entityId"),
+                                "expectedRevision" to row.getValue("editRevision"),
+                            ),
+                        )
+                    },
+                )
+                val draft = api.get(root).jsonObject.getValue("draftId")
+                api.call("POST", "$root/changes/revert-by-address", """{"draftId":$draft,"targets":$targets}""")
+                assertEquals(initialSummary, api.get(summaryPath))
+                assertEquals(initialMarks, api.get(marksPath))
+                val token = values.first().jsonObject.getValue("tokenId").jsonPrimitive.content
+                val gradient = "linear-gradient(90deg, #123456 0%, #FFFFFF 100%)"
+                api.call(
+                    "PUT",
+                    "$root/tenants/$tenant/color-tokens/$token/values",
+                    """{"editRevision":0,"members":[{"tokenId":"$token","values":[
+                        {"platform":"web","mode":"dark","value":["$gradient"]}]}]}""",
+                )
+                assertEquals(
+                    "gradient",
+                    api.get("$root/tokens/$token").jsonObject.getValue("type").jsonPrimitive.content,
+                )
+                assertEquivalent(api, db, legacy, owner, tenant)
+                api.call(
+                    "PATCH",
+                    "$root/tokens/$token",
+                    """{"displayName":"Changed","description":"Journal test"}""",
+                )
+                assertEquivalent(api, db, legacy, owner, tenant)
+                val valueId = values.first().jsonObject.getValue("id").jsonPrimitive.content
+                api.call("DELETE", "$root/token-values/$valueId")
+                assertEquivalent(api, db, legacy, owner, tenant)
+                val component = client.post("/api/design-systems/catalog/components") {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "journal-admin")
+                    header("X-Project-Id", "global")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"Journal $owner","platform":"web"}""")
+                }
+                assertEquals(HttpStatusCode.Created, component.status)
+                val componentId = Json.parseToJsonElement(component.bodyAsText()).jsonObject.getValue("id")
+                api.call("POST", "$root/design-system-components", """{"componentId":$componentId}""")
+                assertEquivalent(api, db, legacy, owner, tenant)
+                val foreignTenant = fixture.values.map { it.jsonObject }.first {
+                    it.getValue("system").jsonPrimitive.content != owner.toString()
+                }.getValue("tenant").jsonPrimitive.content
+                assertEquals(
+                    HttpStatusCode.NotFound,
+                    api.request("GET", "$root/changes/token-ids?tenantId=$foreignTenant").status,
+                )
 
-                    for (path in listOf(summaryPath, marksPath)) {
-                        assertNotNull(api.request("GET", path).headers["X-DS-Read-Context"])
-                        assertEquals(HttpStatusCode.Forbidden, api.request("GET", path, role = "none").status)
-                        assertEquals(HttpStatusCode.NotFound, api.request("GET", path, project = "other").status)
-                    }
-                    assertEquals(
-                        HttpStatusCode.NotFound,
-                        api.request(
-                            "GET",
-                            "$root/changes/token-ids?tenantId=${UUID.randomUUID()}",
-                        ).status,
-                    )
-                    if (version != null) {
-                        assertEquals(historicalSummary, api.get("$summaryPath?versionId=$version"))
-                        assertEquals(historicalMarks, api.get("$marksPath&versionId=$version"))
-                    }
+                for (path in listOf(summaryPath, marksPath)) {
+                    assertNotNull(api.request("GET", path).headers["X-DS-Read-Context"])
+                    assertEquals(HttpStatusCode.Forbidden, api.request("GET", path, role = "none").status)
+                    assertEquals(HttpStatusCode.NotFound, api.request("GET", path, project = "other").status)
+                }
+                assertEquals(
+                    HttpStatusCode.NotFound,
+                    api.request(
+                        "GET",
+                        "$root/changes/token-ids?tenantId=${UUID.randomUUID()}",
+                    ).status,
+                )
+                if (version != null) {
+                    assertEquals(historicalSummary, api.get("$summaryPath?versionId=$version"))
+                    assertEquals(historicalMarks, api.get("$marksPath&versionId=$version"))
                 }
             }
         }
