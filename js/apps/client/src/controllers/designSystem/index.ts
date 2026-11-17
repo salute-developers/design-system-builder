@@ -154,6 +154,10 @@ export class DesignSystem {
         return this.composeComponentsData.map((item) => new Config(item));
     }
 
+    public getComposeComponentsData() {
+        return this.composeComponentsData;
+    }
+
     /** Разворачивает ссылку на стиль Compose-компонента (`basic-button.xxs.default`). */
     public resolveComposeStyleReference(reference: string) {
         return resolveStyleReference(this.composeComponentsData, reference);

@@ -33,7 +33,7 @@ describe('sectionOf', () => {
         expect(sectionOf('dimension', 'minWidth')).toBe('Size');
         expect(sectionOf('dimension', 'padding')).toBe('Layout');
         expect(sectionOf('icon', 'closeIcon')).toBe('Icons');
-        expect(sectionOf('component_style', 'buttonStyle')).toBe('Additional');
+        expect(sectionOf('component_style', 'buttonStyle')).toBe('Nested styles');
         expect(sectionOf('value', 'width')).toBeUndefined();
     });
 });

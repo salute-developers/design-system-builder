@@ -18,6 +18,7 @@ import {
 import { TyGlyph } from '../../../../components/TyGlyph';
 import { IconPicker, useIconCatalog } from '../../../../modules/icons';
 
+import { InspectorStyleReference } from './InspectorStyleReference';
 import { humanizeName, sourceArgs, sourceLabel, type PropertySource } from './inspectorModel';
 
 /** Списки токенов темы для контролов строки; строятся один раз на инспектор. */
@@ -55,8 +56,12 @@ const stateLabel = (state: readonly string[]) =>
 
 const isOpacity = (prop: PropUnion) => /(opacity|alpha)/i.test(prop.getName());
 
-/** Иконки и ссылки на стили (только у Compose) пока не задать заново: редактора нет, поэтому и очистки нет. */
-const isReadOnlyType = (type: string | undefined) => type === 'component_style';
+/**
+ * Ссылку на стиль редактирует выбор, но только у Compose и только у стилей вариаций и инвариантов. У других платформ и
+ * у сочетаний она только читается, без очистки: сочетание пишет значение строкой, а ссылке нужна запись с `reference`.
+ */
+const isReadOnlyType = (type: string | undefined, platform: string | undefined, isCombination: boolean) =>
+    type === 'component_style' && (platform !== 'compose' || isCombination);
 
 /** Иконка: выбор из каталога билдера; значение сохраняется строкой старого формата (`disclosure.down.fill.16`). */
 const IconControl = ({
@@ -134,7 +139,9 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
 
     // У иконки своя кнопка «Очистить» в пикере.
     const clear =
-        isSet && !isReadOnlyType(type) && type !== 'icon' ? <ClearButton label={label} onClear={removeValue} /> : null;
+        isSet && !isReadOnlyType(type, config.getPlatform(), isCombination) && type !== 'icon' ? (
+            <ClearButton label={label} onClear={removeValue} />
+        ) : null;
 
     const colorControl = (
         current: string,
@@ -159,6 +166,9 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             />
         );
     };
+
+    // Стиль вложенного компонента выбирается только у Compose и не у сочетаний; иначе ссылка только читается.
+    const isStyleReference = type === 'component_style' && config.getPlatform() === 'compose' && !isCombination;
 
     const control = (() => {
         if (type === 'color') {
@@ -225,7 +235,6 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                 <IconControl label={label} value={text} onChange={update} onClear={isSet ? removeValue : undefined} />
             );
         }
-        // Ссылки на стили только читаются.
         return (
             <div className="component-number-control is-raw">
                 <input aria-label={label} readOnly value={text} />
@@ -233,7 +242,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         );
     })();
 
-    return (
+    const layout = (controlNode: ReactNode, rows?: ReactNode) => (
         <div
             className="component-variation-property-group-row"
             data-property={prop.getName()}
@@ -244,10 +253,11 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                     <b title={`${label} · ${sourceLabel(source)}`}>{label}</b>
                 </span>
                 <div className="component-variation-property-value">
-                    {control}
+                    {controlNode}
                     {type !== 'color' && <span className="component-property-clear-slot">{clear}</span>}
                 </div>
             </div>
+            {rows}
             {type === 'color' &&
                 !isCombination &&
                 states.map((state) => {
@@ -281,4 +291,13 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             )}
         </div>
     );
+
+    if (isStyleReference) {
+        return (
+            <InspectorStyleReference config={config} label={label} value={text} onChange={update}>
+                {({ target, variations }) => layout(target, variations)}
+            </InspectorStyleReference>
+        );
+    }
+    return layout(control);
 };

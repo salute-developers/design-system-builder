@@ -25,11 +25,13 @@ interface ComponentEditorProps {
     onConfigurationSelect?: (configurationId: string | undefined) => void;
     /** Структурные операции вкладки «Структура»; без них вкладки нет. */
     structure?: StructureAccess;
+    /** Догрузка компонента по маршруту: нужна выбору стиля вложенного компонента. */
+    onLoadComponent?: (route: string) => Promise<void>;
 }
 
 export const ComponentEditor = (props: ComponentEditorProps) => {
     const { designSystem, theme, configs, updated, platforms, onPlatformSelect, onConfigUpdate } = props;
-    const { onConfigurationSelect, structure } = props;
+    const { onConfigurationSelect, structure, onLoadComponent } = props;
 
     const config = configs?.[0];
 
@@ -107,6 +109,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 storyArgs={storyArgs}
                 onConfigurationSelect={onConfigurationSelect}
                 structure={structure}
+                onLoadComponent={onLoadComponent}
             />
         </Root>
     );

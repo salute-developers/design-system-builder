@@ -1,6 +1,8 @@
+import { isAxiosError } from 'axios';
 import { http } from './http';
 import { readEditor, invalidateEditorReads } from './editorReads';
 import type { Meta } from '../controllers/componentBuilder/type';
+import { styleReferenceErrorMessage, type StyleReferenceInput } from '../controllers/componentBuilder/styleReference';
 import { componentChanges, type ComponentChange } from './componentAutosave';
 import type {
     EditorContextKey,
@@ -597,6 +599,7 @@ export const componentRepository = {
         mutation: PendingComponentMutation,
         baseRevisions: Record<string, number>,
         onPendingUpdate?: (revisions: Record<string, number>) => void,
+        resolveReference?: (value: string) => StyleReferenceInput | undefined,
     ): Promise<Record<string, number>> {
         // Правка пишется в конфигурацию, открытую в редакторе; старые операции без неё — в основную.
         const binding = meta.serverBinding && {
@@ -805,6 +808,36 @@ export const componentRepository = {
                     const resolvedStyleId = change.styleId ? actualStyleId(change.styleId) : undefined;
                     const actual = { ...change, styleId: resolvedStyleId };
                     const existing = valueByKey.get(propertyKey(actual));
+                    // Ссылка на стиль вложенного компонента пишется операцией оформления с `reference`, а не значением.
+                    if (
+                        resolveReference &&
+                        change.value != null &&
+                        meta.sources.api.find((property) => property.id === change.propertyId)?.type ===
+                            'component_style'
+                    ) {
+                        const reference = resolveReference(String(change.value));
+                        if (!reference) throw new Error('COMPONENT_STYLE_REFERENCE_NOT_RESOLVED');
+                        const operationKey = `property:${propertyKey(actual)}`;
+                        try {
+                            const response = await http.put(
+                                `${root}/appearances/${stableBinding.appearanceId}/property-values`,
+                                {
+                                    propertyId: change.propertyId,
+                                    styleIds: resolvedStyleId ? [resolvedStyleId] : [],
+                                    states: change.stateNames,
+                                    reference,
+                                },
+                                { headers: { 'Idempotency-Key': idempotency(operationKey) } },
+                            );
+                            acceptMetadata(response.headers);
+                        } catch (error) {
+                            const message = isAxiosError(error)
+                                ? styleReferenceErrorMessage(error.response?.data?.code)
+                                : undefined;
+                            throw message ? Object.assign(error as Error, { message }) : error;
+                        }
+                        return;
+                    }
                     const rawValue = change.value == null ? null : String(change.value).replace(/^\[|\]$/g, '');
                     const tokenName = rawValue?.replace(/^(light|dark)\./, '') ?? '';
                     const tokenId = tokenIdByName.get(tokenName) ?? null;

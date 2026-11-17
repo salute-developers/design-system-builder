@@ -15,6 +15,7 @@ import {
     type ThemeMode,
 } from './inspectorTokens';
 import { InspectorVariants } from './InspectorVariants';
+import { StyleReferenceContext } from './StyleReferenceContext';
 import { ComponentStructurePanel, type StructureAccess } from '../ComponentStructure';
 import { componentStructureRepository } from '../../../../api/componentStructureRepository';
 import { combinationLabel, type Selection } from './inspectorModel';
@@ -37,6 +38,8 @@ interface ComponentInspectorProps {
     onConfigurationSelect?: (configurationId: string | undefined) => void;
     /** Структурные операции; без них (только чтение) вкладки «Структура» нет. */
     structure?: StructureAccess;
+    /** Догрузка компонента по маршруту для выбора стиля вложенного компонента. */
+    onLoadComponent?: (route: string) => Promise<void>;
 }
 
 type InspectorTab = 'style' | 'tree';
@@ -61,7 +64,11 @@ const readTab = (): InspectorTab => {
 export const ComponentInspector = (props: ComponentInspectorProps) => {
     const { config, designSystem, theme, updated, selection, themeMode, onSelectionChange, onConfigUpdate, storyArgs } =
         props;
-    const { structure, onConfigurationSelect } = props;
+    const { structure, onConfigurationSelect, onLoadComponent } = props;
+    const styleReferenceAccess = useMemo(
+        () => ({ designSystem, loadComponent: onLoadComponent }),
+        [designSystem, onLoadComponent],
+    );
     // Выбранная вкладка запоминается между открытиями редактора; без структурных операций есть только «Стилизация».
     const [storedTab, setStoredTab] = useState<InspectorTab>(readTab);
     const tabs = structure ? TABS : TABS.slice(0, 1);
@@ -217,17 +224,19 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                             {combinationError}
                         </p>
                     )}
-                    <InspectorSections
-                        config={config}
-                        api={api}
-                        selection={selection}
-                        tokens={tokens}
-                        updated={updated}
-                        onConfigUpdate={onConfigUpdate}
-                        onLinkProperty={linkProperty}
-                        combination={combination}
-                        onCombinationChange={changeCombination}
-                    />
+                    <StyleReferenceContext.Provider value={styleReferenceAccess}>
+                        <InspectorSections
+                            config={config}
+                            api={api}
+                            selection={selection}
+                            tokens={tokens}
+                            updated={updated}
+                            onConfigUpdate={onConfigUpdate}
+                            onLinkProperty={linkProperty}
+                            combination={combination}
+                            onCombinationChange={changeCombination}
+                        />
+                    </StyleReferenceContext.Provider>
                 </section>
             )}
         </aside>

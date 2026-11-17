@@ -13,11 +13,24 @@ interface TokenFieldProps {
     /** Метка пунктов списка: `↔` для форм, значок тени для теней. */
     mark?: ReactNode;
     disabled?: boolean;
+    /** Подсказка строки поиска во всплывающем списке; по умолчанию — для токенов. */
+    searchPlaceholder?: string;
+    /** Текст пустого списка; по умолчанию — для токенов. */
+    emptyText?: string;
     onChange: (value: string) => void;
 }
 
 /** Поле выбора токена (`component-token-field.is-no-swatch` прототипа) с всплывающим `TokenPicker`. */
-export const TokenField = ({ label, value, options, mark, disabled, onChange }: TokenFieldProps) => {
+export const TokenField = ({
+    label,
+    value,
+    options,
+    mark,
+    disabled,
+    searchPlaceholder,
+    emptyText,
+    onChange,
+}: TokenFieldProps) => {
     const [open, setOpen] = useState(false);
     const root = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -44,6 +57,8 @@ export const TokenField = ({ label, value, options, mark, disabled, onChange }: 
                 <TokenPicker
                     options={options}
                     value={value}
+                    placeholder={searchPlaceholder}
+                    emptyText={emptyText}
                     mark={mark ? () => <i className="component-property-token-mark">{mark}</i> : undefined}
                     onSelect={(option) => {
                         setOpen(false);
