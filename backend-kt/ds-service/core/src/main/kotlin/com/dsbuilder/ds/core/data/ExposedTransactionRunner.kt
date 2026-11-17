@@ -71,6 +71,8 @@ class ExposedTransactionRunner(
                 // Пустая команда без ключа тоже проверяет систему. Удаление уже проверено до записи,
                 // а сохранённые идемпотентные ответы выходят через IdempotentReplayException раньше.
                 verifyRequestMutationScope(context.designSystemId)
+                // Команда, не взявшая блокировку записи, всё равно не должна подтвердиться в чужом черновике.
+                context.designSystemId?.takeIf { context.expectedDraftId != null }?.let(::lockDesignSystemMutation)
                 if (request != null) saveMutationResponse(context, request, requireNotNull(result.value))
                 result.copy(mutationMetadata = mutationMetadata())
             }
@@ -186,6 +188,12 @@ class ExposedTransactionRunner(
         clearResolvedSubjectReads()
         TransactionManager.current().putUserData(DIAGNOSTIC_CORRELATION, context.correlationId)
         TransactionManager.current().putUserData(requestMutationScopeChecked, false)
+        val expectedDraftId = context.expectedDraftId
+        if (expectedDraftId != null) {
+            TransactionManager.current().putUserData(expectedDraftKey, expectedDraftId)
+        } else {
+            TransactionManager.current().removeUserData(expectedDraftKey)
+        }
         TransactionManager.current().exec(
             "SELECT set_config('ds.design_system_id', ?, true)",
             listOf(TextColumnType() to context.designSystemId?.toString().orEmpty()),
@@ -273,6 +281,8 @@ class ExposedTransactionRunner(
                 throw cancelled
             } catch (_: InaccessibleDesignSystemException) {
                 return DsResult.Failure(DsFailure.NotFound)
+            } catch (_: DraftChangedException) {
+                return DsResult.Failure(DsFailure.Conflict("draft_changed"))
             } catch (_: InvalidModelReadQueryException) {
                 return DsResult.Failure(DsFailure.InvalidRequest("INVALID_QUERY"))
             } catch (failure: ExposedSQLException) {
