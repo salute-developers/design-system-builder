@@ -1,7 +1,13 @@
 package com.dsbuilder.app
 
+import com.dsbuilder.ai.chat.di.AiAssistant
+import com.dsbuilder.ai.chat.di.AiAssistantConfiguration
+import com.dsbuilder.ai.chat.di.createAiAssistant
+import com.dsbuilder.ai.chat.presentation.aiChatRoutes
+import com.dsbuilder.app.data.InProcessChatOwnership
 import com.dsbuilder.app.data.InProcessDesignSystemOwnership
 import com.dsbuilder.app.data.KeycloakProxy
+import com.dsbuilder.app.data.aitools.inProcessChatTools
 import com.dsbuilder.app.di.installBackendDependencies
 import com.dsbuilder.app.presentation.RequestBodyLimit
 import com.dsbuilder.app.presentation.cacheDsJsonBody
@@ -34,6 +40,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.ApplicationStopPreparing
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.engine.connector
@@ -58,6 +65,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.koin.core.Koin
 import org.koin.ktor.ext.getKoin
 
 /** Единственная прикладная точка запуска backend. */
@@ -95,6 +103,37 @@ private fun sharedPolicyEvaluator(): PolicyEvaluator {
     return PolicyEvaluator(AuthorizationPolicyLoader.load(policyPaths.singleOrNull()))
 }
 
+/** Собирает ИИ-ассистента, если он включён; инструменты чата вызывают use case DS внутри процесса. */
+private fun createAiAssistantOrNull(koin: Koin, ownership: InProcessDesignSystemOwnership): AiAssistant? {
+    val aiConfiguration = AiAssistantConfiguration.fromEnvironment(System::getenv)
+    if (!aiConfiguration.enabled) return null
+    return createAiAssistant(aiConfiguration, InProcessChatOwnership(ownership), inProcessChatTools(koin))
+}
+
+/**
+ * Регистрирует маршруты ИИ-ассистента и, если он включён, собирает его и подписывает на начало остановки. Подписка
+ * идёт раньше остальных подсистем, поэтому ожидание начатых вызовов инструментов заканчивается до закрытия их ресурсов.
+ */
+private fun Application.installAiAssistant(
+    koin: Koin,
+    ownership: InProcessDesignSystemOwnership,
+    evaluator: PolicyEvaluator,
+): AiAssistant? {
+    val assistant = createAiAssistantOrNull(koin, ownership)
+    routing {
+        route("/api/projects/{projectId}/ai") {
+            aiChatRoutes(assistant, evaluator, trustedHeaders = { it.verifiedRequestHeaders() })
+        }
+    }
+    if (assistant == null) return null
+    monitor.subscribe(ApplicationStopPreparing) {
+        kotlinx.coroutines.runBlocking {
+            assistant.shutdown(requireNotNull(assistant.configuration.limits).toolCallTimeout)
+        }
+    }
+    return assistant
+}
+
 /** Соединяет подсистемы с одним сервером и закрывает ресурсы при ошибке инициализации. */
 @Suppress("TooGenericExceptionCaught")
 fun Application.monolith(configuration: GatewayConfiguration = GatewayConfiguration.fromEnvironment()) {
@@ -116,7 +155,9 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
         ).also { owned += it }
         routing { consentRoutes(consent.history) }
 
-        val documentation = createDocumentationRuntime(evaluator, InProcessDesignSystemOwnership(koin.get()))
+        val ownership = InProcessDesignSystemOwnership(koin.get())
+        val ai = installAiAssistant(koin, ownership, evaluator)?.also { owned += it }
+        val documentation = createDocumentationRuntime(evaluator, ownership)
         owned += documentation
         val proxy = KeycloakProxy(configuration)
         owned += proxy

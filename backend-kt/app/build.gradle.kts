@@ -13,6 +13,7 @@ group = "com.dsbuilder.app"
 version = "1.0.0"
 application { mainClass = "com.dsbuilder.app.ApplicationKt" }
 dependencies {
+    implementation("com.dsbuilder.ai:runtime:1.0.0")
     implementation("com.dsbuilder.settings:feature-user-settings:1.0.0")
     implementation("com.dsbuilder.consent:consent-history:1.0.0")
     implementation("com.dsbuilder.identity:runtime:1.0.0")
@@ -25,6 +26,9 @@ dependencies {
     implementation("com.dsbuilder.projects:feature-projects:1.0.0")
     implementation("com.dsbuilder.projects:core:1.0.0")
     implementation("com.dsbuilder.ds:feature-design-systems:1.0.0")
+    implementation("com.dsbuilder.ds:feature-tokens:1.0.0")
+    implementation("com.dsbuilder.ds:feature-themes:1.0.0")
+    implementation("com.dsbuilder.ds:feature-components:1.0.0")
     implementation("com.dsbuilder.ds:core:1.0.0")
     implementation("com.dsbuilder.documentation:feature-ingestion:1.0.0")
     implementation("com.dsbuilder.documentation:feature-publication:1.0.0")

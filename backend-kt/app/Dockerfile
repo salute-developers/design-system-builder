@@ -14,6 +14,7 @@ COPY backend-kt/ds-service backend-kt/ds-service
 COPY backend-kt/documentation-service backend-kt/documentation-service
 COPY backend-kt/consent-history backend-kt/consent-history
 COPY backend-kt/app backend-kt/app
+COPY backend-kt/ai-assistant backend-kt/ai-assistant
 RUN --mount=type=cache,target=/home/gradle/.gradle GRADLE_USER_HOME=/home/gradle/.gradle gradle -p backend-kt/app shadowJar --no-daemon --build-cache --max-workers=1 \
     -Dorg.gradle.jvmargs="-Xmx2g -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process \
     --project-cache-dir /workspace/.gradle-project-cache
