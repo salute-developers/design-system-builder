@@ -26,6 +26,9 @@ interface InspectorStyleReferenceProps {
     children?: (parts: { target: ReactNode; variations: ReactNode }) => ReactNode;
 }
 
+/** Сколько ждать снимок с конфигурациями цели после завершения загрузки, прежде чем показать ошибку. */
+const TARGET_SETTLE_MS = 300;
+
 const targetKey = (target: Pick<StyleReferenceTarget, 'componentName' | 'appearanceName'>) =>
     `${target.componentName}/${target.appearanceName}`;
 
@@ -63,11 +66,15 @@ export const InspectorStyleReference = ({ config, label, value, onChange, childr
         if (!pending || !components) return;
         const meta = components.find((item) => item.name === pending.componentName);
         if (!meta || meta.sources.configs.length === 0) {
-            if (requested === pending) {
+            if (requested !== pending) return;
+            // Загрузка завершилась, а конфигураций у цели нет. Снимок с ними применяется отдельно от завершения
+            // загрузки и может прийти чуть позже; если же компонент уже был помечен загруженным, он не придёт вовсе.
+            // Поэтому ошибка показывается после короткого ожидания, а пришедший снимок его отменяет.
+            const timer = window.setTimeout(() => {
                 setPending(undefined);
                 setError('Не удалось загрузить вложенный компонент');
-            }
-            return;
+            }, TARGET_SETTLE_MS);
+            return () => window.clearTimeout(timer);
         }
         setPending(undefined);
         const loaded = resolveStyleReference(components, pending.appearanceName);

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Config, DesignSystem, type Meta } from '../../../../controllers';
@@ -21,9 +21,15 @@ const chipMeta = (loaded: boolean): Meta => {
     else copy.sources.configs[0] = { ...copy.sources.configs[0], id: 'chip-config', name: 'chip' };
     return copy;
 };
-const system = (compose: Meta[]) => DesignSystem.fromSnapshot({ name: 'ds', componentsData: [], composeComponentsData: compose });
+const system = (compose: Meta[]) =>
+    DesignSystem.fromSnapshot({ name: 'ds', componentsData: [], composeComponentsData: compose });
 
-const renderControl = (compose: Meta[], value: string, onChange = vi.fn(), loadComponent = vi.fn(async () => undefined)) => {
+const renderControl = (
+    compose: Meta[],
+    value: string,
+    onChange = vi.fn(),
+    loadComponent = vi.fn(async () => undefined),
+) => {
     const config = new Config(groupMeta());
     const ui = (designSystem: DesignSystem) => (
         <StyleReferenceContext.Provider value={{ designSystem, loadComponent }}>
@@ -127,18 +133,45 @@ describe('InspectorStyleReference', () => {
         open('Button style');
         await act(async () => pick('chip'));
 
+        expect(await screen.findByRole('alert')).toBeTruthy();
         expect(screen.getByRole('alert').textContent).toContain('Не удалось загрузить');
         expect(screen.queryByRole('status')).toBeNull();
     });
 
+    it('снимок, пришедший чуть позже завершения загрузки, не даёт ложной ошибки', async () => {
+        const { onChange, rerender } = renderControl(
+            [groupMeta(), buttonMeta(), chipMeta(false)],
+            'basic-button.xxs.default',
+        );
+
+        open('Button style');
+        await act(async () => pick('chip'));
+        // Загрузка завершилась, снимок с конфигурациями цели ещё не применён: ошибки пока нет.
+        expect(screen.queryByRole('alert')).toBeNull();
+
+        await act(async () => rerender([groupMeta(), buttonMeta(), chipMeta(true)]));
+
+        await waitFor(() => expect(onChange).toHaveBeenCalledWith('chip.xxs.default'));
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('ошибка устаревшего выбора не сбрасывает загрузку нового', async () => {
-        const other = { ...chipMeta(false), name: 'Tag', serverBinding: { componentId: 'tag', appearanceId: '', appearanceNames: ['tag'] } } as Meta;
+        const other = {
+            ...chipMeta(false),
+            name: 'Tag',
+            serverBinding: { componentId: 'tag', appearanceId: '', appearanceNames: ['tag'] },
+        } as Meta;
         let failFirst: (error: Error) => void = () => undefined;
         const loadComponent = vi
             .fn<(route: string) => Promise<void>>()
             .mockImplementationOnce(() => new Promise<void>((_, reject) => (failFirst = reject)))
             .mockImplementationOnce(() => new Promise<void>(() => undefined));
-        renderControl([groupMeta(), buttonMeta(), chipMeta(false), other], 'basic-button.xxs.default', vi.fn(), loadComponent);
+        renderControl(
+            [groupMeta(), buttonMeta(), chipMeta(false), other],
+            'basic-button.xxs.default',
+            vi.fn(),
+            loadComponent,
+        );
 
         open('Button style');
         pick('chip');

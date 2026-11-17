@@ -1,5 +1,5 @@
 import { Config } from './config';
-import type { Meta } from './type';
+import type { ComponentAPI, ComponentConfig, Meta } from './type';
 
 /** Стили целевого компонента, выбранные ссылкой на стиль: `variationID -> styleID`. */
 export interface ResolvedStyleReference {
@@ -27,7 +27,10 @@ export const resolveStyleReference = (components: Meta[], reference: string): Re
         const unmatched: string[] = [];
 
         styleNames.forEach((name, index) => {
-            const styleID = variations[index]?.getStyles()?.find((style) => style.getName() === name)?.getID();
+            const styleID = variations[index]
+                ?.getStyles()
+                ?.find((style) => style.getName() === name)
+                ?.getID();
             if (styleID) selections[variations[index].getID()] = styleID;
             else unmatched.push(name);
         });
@@ -35,7 +38,10 @@ export const resolveStyleReference = (components: Meta[], reference: string): Re
             const variation = variations.find(
                 (item) => !selections[item.getID()] && item.getStyles()?.some((style) => style.getName() === name),
             );
-            const styleID = variation?.getStyles()?.find((style) => style.getName() === name)?.getID();
+            const styleID = variation
+                ?.getStyles()
+                ?.find((style) => style.getName() === name)
+                ?.getID();
             if (variation && styleID) selections[variation.getID()] = styleID;
         }
         for (const item of config.getDefaults()) {
@@ -110,7 +116,10 @@ export const parseStyleReference = (reference: string) => {
 export const buildStyleReferenceValue = (config: Config, selections: Record<string, string>): string => {
     const styleNames = config.getVariations().flatMap((variation) => {
         const styleID = selections[variation.getID()];
-        const name = variation.getStyles()?.find((style) => style.getID() === styleID)?.getName();
+        const name = variation
+            .getStyles()
+            ?.find((style) => style.getID() === styleID)
+            ?.getName();
 
         return name ? [name] : [];
     });
@@ -141,3 +150,38 @@ const REFERENCE_ERRORS: Record<string, string> = {
 /** Сообщение для кода отказа проверки ссылки; для других кодов — `undefined`. */
 export const styleReferenceErrorMessage = (code: unknown): string | undefined =>
     typeof code === 'string' ? REFERENCE_ERRORS[code] : undefined;
+
+/**
+ * Значения свойств `component_style` в конфигурации: инварианты, стили вариаций и сочетания. Нужны, чтобы перед
+ * повтором отложенной правки догрузить оформления, на которые она ссылается.
+ */
+export const collectStyleReferenceValues = (config: ComponentConfig, api: ComponentAPI[]): string[] => {
+    const ids = new Set(api.filter((property) => property.type === 'component_style').map((property) => property.id));
+    if (ids.size === 0) return [];
+    const props = [
+        ...(config.invariantProps ?? []),
+        ...(config.variations ?? []).flatMap((variation) =>
+            (variation.styles ?? []).flatMap((style) => style.props ?? []),
+        ),
+        ...(config.combinations ?? []).flatMap((combination) => combination.props ?? []),
+    ];
+
+    return [
+        ...new Set(
+            props.flatMap((prop) =>
+                ids.has(prop.id) && typeof prop.value === 'string' && prop.value !== '' ? [prop.value] : [],
+            ),
+        ),
+    ];
+};
+
+/**
+ * Имя Compose-компонента, чьё оформление названо в ссылке, если конфигурации этого компонента ещё не загружены;
+ * `undefined`, когда ссылка уже разворачивается или оформление неизвестно.
+ */
+export const findUnloadedStyleReferenceTarget = (components: Meta[], reference: string): string | undefined => {
+    if (resolveStyleReference(components, reference)) return undefined;
+    const { appearanceName } = parseStyleReference(reference);
+
+    return components.find((meta) => meta.serverBinding?.appearanceNames?.includes(appearanceName))?.name;
+};

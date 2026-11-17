@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { buttonMeta, groupMeta } from '../../composePreview/nestedStyleFixture';
+import type { Meta } from './type';
 import {
     buildStyleReferenceValue,
+    collectStyleReferenceValues,
+    findUnloadedStyleReferenceTarget,
     listStyleReferenceTargets,
     parseStyleReference,
     resolveStyleReference,
@@ -123,5 +126,53 @@ describe('сообщения об отказе проверки ссылки', (
         expect(styleReferenceErrorMessage('reference_cycle')).toContain('цикл');
         expect(styleReferenceErrorMessage('reference_too_deep')).toBeTruthy();
         expect(styleReferenceErrorMessage('other')).toBeUndefined();
+    });
+});
+
+describe('collectStyleReferenceValues', () => {
+    const group = groupMeta();
+    const config = group.sources.configs[0].config;
+
+    it('собирает значения component_style у стилей вариаций, инвариантов и сочетаний без повторов', () => {
+        const withMore = structuredClone(config);
+        withMore.invariantProps.push({ id: 'buttonStyle', value: 'chip.s' });
+        withMore.combinations = [{ styleIDs: ['group-xxs'], props: [{ id: 'buttonStyle', value: 'tag.m' }] }];
+
+        const values = collectStyleReferenceValues(withMore, group.sources.api);
+
+        expect(values).toEqual(expect.arrayContaining(['basic-button.xxs.default', 'chip.s', 'tag.m']));
+        expect(new Set(values).size).toBe(values.length);
+    });
+
+    it('пропускает другие типы свойств и пустые значения', () => {
+        const other = structuredClone(config);
+        other.invariantProps.push({ id: 'spacing', value: '8' }, { id: 'buttonStyle', value: '' });
+
+        expect(collectStyleReferenceValues(other, group.sources.api)).not.toContain('8');
+        expect(collectStyleReferenceValues(other, group.sources.api)).not.toContain('');
+    });
+
+    it('без свойств component_style в API ничего не собирает', () => {
+        expect(collectStyleReferenceValues(config, [])).toEqual([]);
+    });
+});
+
+describe('findUnloadedStyleReferenceTarget', () => {
+    const unloaded = (): Meta => ({
+        ...structuredClone(buttonMeta()),
+        name: 'Chip',
+        sources: { api: [], variations: [], configs: [] },
+        serverBinding: { componentId: 'chip', appearanceId: '', appearanceNames: ['chip'] },
+    });
+
+    it('называет компонент оформления, чьи конфигурации не загружены', () => {
+        expect(findUnloadedStyleReferenceTarget([groupMeta(), unloaded()], 'chip.s.default')).toBe('Chip');
+    });
+
+    it('возвращает undefined, если ссылка уже разворачивается или оформление неизвестно', () => {
+        expect(
+            findUnloadedStyleReferenceTarget([groupMeta(), buttonMeta()], 'basic-button.xxs.default'),
+        ).toBeUndefined();
+        expect(findUnloadedStyleReferenceTarget([groupMeta(), unloaded()], 'nothing.s')).toBeUndefined();
     });
 });

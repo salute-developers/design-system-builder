@@ -64,6 +64,7 @@ vi.mock('../../api/componentRepository', () => ({
     },
 }));
 
+import { buttonMeta } from '../../composePreview/nestedStyleFixture';
 import { Components } from './Components';
 import { getDraftAutosaveStatus, waitForDraftAutosaveIdle } from '../../api/draftAutosaveActivity';
 
@@ -105,6 +106,78 @@ const renderEditor = () => {
 describe('Components autosave', () => {
     afterEach(() => {
         mocks.editOnSnapshotChange = false;
+    });
+
+    it('перед повтором отложенной правки догружает оформление, на которое она ссылается', async () => {
+        const key = 'ds_pending_component:project:ds:tenant:Button:request';
+        localStorage.setItem(
+            key,
+            JSON.stringify({
+                componentName: 'Button',
+                before: { defaultVariations: [], invariantProps: [], variations: [] },
+                after: {
+                    defaultVariations: [],
+                    invariantProps: [{ id: 'style', value: 'chip.xxs.default' }],
+                    variations: [],
+                },
+                idempotencyKeys: {},
+                requestBodies: {},
+                tokenKey: 'Button',
+                operationKey: 'Button',
+                generation: 'g1',
+                retryCount: 0,
+                metadataKey: key,
+            }),
+        );
+        let loaded = false;
+        const chip = (withConfigs: boolean) => {
+            const meta = structuredClone(buttonMeta());
+            meta.name = 'Chip';
+            meta.serverBinding = { componentId: 'chip', appearanceId: '', appearanceNames: ['chip'] };
+            if (!withConfigs) meta.sources = { api: [], variations: [], configs: [] };
+            else meta.sources.configs[0] = { ...meta.sources.configs[0], name: 'chip' };
+            return meta;
+        };
+        let finishLoad!: () => void;
+        const loadComponent = vi.fn(
+            () =>
+                new Promise<void>((resolve) => {
+                    finishLoad = () => {
+                        loaded = true;
+                        resolve();
+                    };
+                }),
+        );
+        const context = {
+            designSystem: {
+                getParameters: () => editorContext,
+                getComponentDataByName: () => ({ sources: { api: [{ id: 'style', type: 'component_style' }] } }),
+                getComponentData: () => ({ sources: { api: [{ id: 'style', type: 'component_style' }] } }),
+                getComposeComponentsData: () => [chip(loaded)],
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+            loadComponent,
+        };
+        render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Outlet context={context} />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        await waitFor(() => expect(loadComponent).toHaveBeenCalledWith('compose-Chip'));
+        // Пока цель не загружена, правка не уходит: иначе запись упала бы с COMPONENT_STYLE_REFERENCE_NOT_RESOLVED.
+        expect(mocks.saveComponentMutation).not.toHaveBeenCalled();
+
+        await act(async () => finishLoad());
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
     });
 
     it('правка в коммите смены снимка дизайн-системы уходит с исходной базой, а не считается сохранённой', async () => {

@@ -56,9 +56,12 @@ const stateLabel = (state: readonly string[]) =>
 
 const isOpacity = (prop: PropUnion) => /(opacity|alpha)/i.test(prop.getName());
 
-/** Ссылку на стиль редактирует выбор, но только у Compose; у других платформ она только читается, без очистки. */
-const isReadOnlyType = (type: string | undefined, platform: string | undefined) =>
-    type === 'component_style' && platform !== 'compose';
+/**
+ * Ссылку на стиль редактирует выбор, но только у Compose и только у стилей вариаций и инвариантов. У других платформ и
+ * у сочетаний она только читается, без очистки: сочетание пишет значение строкой, а ссылке нужна запись с `reference`.
+ */
+const isReadOnlyType = (type: string | undefined, platform: string | undefined, isCombination: boolean) =>
+    type === 'component_style' && (platform !== 'compose' || isCombination);
 
 /** Иконка: выбор из каталога билдера; значение сохраняется строкой старого формата (`disclosure.down.fill.16`). */
 const IconControl = ({
@@ -136,7 +139,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
 
     // У иконки своя кнопка «Очистить» в пикере.
     const clear =
-        isSet && !isReadOnlyType(type, config.getPlatform()) && type !== 'icon' ? (
+        isSet && !isReadOnlyType(type, config.getPlatform(), isCombination) && type !== 'icon' ? (
             <ClearButton label={label} onClear={removeValue} />
         ) : null;
 
@@ -164,8 +167,8 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         );
     };
 
-    // Стиль вложенного компонента выбирается только у Compose; у других платформ ссылка только читается.
-    const isStyleReference = type === 'component_style' && config.getPlatform() === 'compose';
+    // Стиль вложенного компонента выбирается только у Compose и не у сочетаний; иначе ссылка только читается.
+    const isStyleReference = type === 'component_style' && config.getPlatform() === 'compose' && !isCombination;
 
     const control = (() => {
         if (type === 'color') {

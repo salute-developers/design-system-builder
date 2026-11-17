@@ -14,7 +14,14 @@ import type { ComponentRoute, ComposePreviewComponentGroup } from '../../compose
 import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
 import { usePanelWidth } from '../../hooks';
 import { getComponentGroup, getComponentGroups, isEditableComponent } from '../../utils';
-import { DesignSystem, Theme, Config, toStyleReferenceInput } from '../../controllers';
+import {
+    DesignSystem,
+    Theme,
+    Config,
+    collectStyleReferenceValues,
+    findUnloadedStyleReferenceTarget,
+    toStyleReferenceInput,
+} from '../../controllers';
 import { Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
 import {
@@ -248,6 +255,9 @@ export const Components = () => {
         value: PendingComponentMutation['before'];
     }>();
     const autosaveQueue = useRef<TokenAutosaveQueue<PendingComponentSave, Record<string, number>> | null>(null);
+    // Догрузка цели при повторе правки не должна пересоздавать очередь сама по себе: функция читается из ссылки.
+    const loadComponentRef = useRef(loadComponent);
+    loadComponentRef.current = loadComponent;
 
     // Если компонент не задан в URL или его нет в меню (например, он скрыт) — переходим на первый доступный.
     useEffect(() => {
@@ -550,7 +560,8 @@ export const Components = () => {
             requestKey,
             null,
         );
-        if (stored) {
+        const replayStored = () => {
+            if (!stored) return;
             try {
                 const operation: PendingComponentSave = {
                     ...stored,
@@ -578,6 +589,18 @@ export const Components = () => {
             } catch {
                 removeStoredValue(requestKey);
             }
+        };
+        // Отложенная правка может ссылаться на оформление ещё не загруженного компонента (выбор цели и сразу
+        // перезагрузка): без его конфигурации ссылка не разворачивается и запись повторялась бы с ошибкой. Поэтому
+        // цели сначала догружаются. Догрузка меняет снимок и пересоздаёт этот эффект: тогда повтор выполнит новый.
+        const unloadedTargets = stored ? unloadedStyleReferenceTargets(designSystem, stored, config) : [];
+        if (unloadedTargets.length === 0) replayStored();
+        else {
+            void Promise.allSettled(
+                unloadedTargets.map((name) => loadComponentRef.current?.(toComponentRoute('compose', name))),
+            ).then(() => {
+                if (mounted) replayStored();
+            });
         }
         return () => {
             mounted = false;
@@ -869,6 +892,26 @@ const AUTOSAVE_WAIT_MS = 15_000;
 
 /** Параметр адреса с ID открытой конфигурации компонента; без него открыта конфигурация по умолчанию. */
 const CONFIGURATION_PARAM = 'configuration';
+
+/**
+ * Compose-компоненты, на чьи оформления ссылается отложенная правка и чьи конфигурации ещё не загружены: без них
+ * ссылка не разворачивается в `reference`.
+ */
+const unloadedStyleReferenceTargets = (
+    designSystem: DesignSystem,
+    stored: Pick<PendingComponentSave, 'after' | 'predecessor'>,
+    config: Config,
+): string[] => {
+    const meta = designSystem.getComponentData(config) ?? designSystem.getComponentDataByName(config.getName());
+    const api = meta?.sources?.api ?? [];
+    const values = [stored.after, stored.predecessor?.after].flatMap((item) =>
+        item ? collectStyleReferenceValues(item, api) : [],
+    );
+    if (values.length === 0) return [];
+    const components = designSystem.getComposeComponentsData();
+
+    return [...new Set(values.flatMap((value) => findUnloadedStyleReferenceTarget(components, value) ?? []))];
+};
 
 /**
  * Ключ очереди автосохранения: компонент, а для конфигурации не по умолчанию — ещё и её ID. У конфигурации по

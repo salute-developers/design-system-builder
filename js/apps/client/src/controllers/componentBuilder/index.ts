@@ -6,6 +6,8 @@ export { Config } from './config';
 export type { Combination } from './config';
 export {
     buildStyleReferenceValue,
+    collectStyleReferenceValues,
+    findUnloadedStyleReferenceTarget,
     listStyleReferenceTargets,
     parseStyleReference,
     resolveStyleReference,
