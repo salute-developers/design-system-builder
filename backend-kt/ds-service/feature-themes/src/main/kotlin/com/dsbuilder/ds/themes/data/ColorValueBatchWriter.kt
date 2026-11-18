@@ -53,7 +53,8 @@ internal fun replaceColorValues(tenant: UUID, values: Map<UUID, List<ColorTokenV
     } ?: throw InaccessibleDesignSystemException()
     val before = currentThemeTokenValueRows(owner, setOf(tenant), values.keys)
         .associateBy { it[ThemeTokenValuesTable.id] }
-    val changes = addressed.mapNotNull { (id, item) ->
+    val changes = addressed.mapNotNull { (id, sent) ->
+        val item = sent.keepingDetached(before[id])
         val paths = changedPaths(before[id], item)
         if (paths.isEmpty()) null else ColorValueChange(id, item, paths)
     }.sortedBy { it.id }
@@ -82,7 +83,7 @@ private fun writeColorChanges(owner: UUID, draft: ResultRow, changes: List<Color
                     this[ThemeTokenValueRevisionsTable.paletteId] = change.item.paletteId
                     this[ThemeTokenValueRevisionsTable.value] = change.item.value
                     this[ThemeTokenValueRevisionsTable.overridden] = change.item.overridden
-                    this[ThemeTokenValueRevisionsTable.detached] = change.item.detached
+                    this[ThemeTokenValueRevisionsTable.detached] = change.item.detached == true
                     this[ThemeTokenValueRevisionsTable.deleted] = false
                     this[ThemeTokenValueRevisionsTable.updatedAt] = Instant.now()
                 }
@@ -90,6 +91,10 @@ private fun writeColorChanges(owner: UUID, draft: ResultRow, changes: List<Color
         }
     }
 }
+
+/** Признак отвязанной подтемы, не присланный клиентом, остаётся прежним; у нового значения он `false`. */
+internal fun ColorTokenValue.keepingDetached(before: ResultRow?): ColorTokenValue =
+    if (detached != null) this else copy(detached = before?.get(ThemeTokenValueRevisionsTable.detached) ?: false)
 
 private data class ColorValueChange(val id: UUID, val item: ColorTokenValue, val paths: Set<String>)
 

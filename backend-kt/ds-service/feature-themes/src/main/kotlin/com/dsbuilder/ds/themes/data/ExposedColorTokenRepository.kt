@@ -348,7 +348,8 @@ class ExposedColorTokenRepository(
                 }
             }
             val before = existing.firstOrNull { it[ThemeTokenValuesTable.id] == entity }
-            val paths = changedValuePaths(before, item)
+            val kept = item.keepingDetached(before)
+            val paths = changedValuePaths(before, kept)
             if (paths.isNotEmpty()) {
                 writeThemeValueRevision(
                     entity,
@@ -356,7 +357,7 @@ class ExposedColorTokenRepository(
                     item.paletteId,
                     item.value,
                     item.overridden,
-                    detached = item.detached,
+                    detached = kept.detached == true,
                     paths = paths,
                     baseRevision = item.baseRevision,
                 )

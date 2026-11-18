@@ -205,6 +205,8 @@ export const ColorTokenInspector = (props: InspectorProps) => {
         const platform = props.platform;
         const own = platform === 'web' ? undefined : value.platforms[platform];
         const fromWeb = platform !== 'web' && !own;
+        // Построенное из Web поле показывает ошибки значения Web: его правят на Web.
+        const shown = fromWeb ? 'web' : platform;
         const target = { field: id, platform };
         const platformName = platform === 'web' ? name : `${name}, ${PLATFORM_LABELS[platform]}`;
         return (
@@ -215,8 +217,8 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                 value={own ?? value}
                 editable={editable && !fromWeb}
                 pickerOpen={openPicker?.field === id && openPicker.platform === platform}
-                invalid={props.invalidField?.field === id && props.invalidField.platform === platform}
-                message={message(id, platform)}
+                invalid={props.invalidField?.field === id && props.invalidField.platform === shown}
+                message={message(id, shown)}
                 pickerAnchor={props.pickerAnchor}
                 onOpenPicker={() => props.onOpenPicker(target)}
                 onCommit={(next) => props.onCommit(target, next)}

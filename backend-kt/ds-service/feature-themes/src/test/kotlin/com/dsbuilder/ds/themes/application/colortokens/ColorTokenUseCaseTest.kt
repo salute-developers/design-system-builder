@@ -405,8 +405,8 @@ class ColorTokenUseCaseTest {
         success(update.execute(context("editor"), current, base, UpdateColorTokenValues(0, mapOf(base to values))))
 
         val stored = tokens.values.getValue(current to base)
-        assertTrue(stored.filter { it.mode == ThemeTokenMode.LIGHT }.all { it.detached })
-        assertTrue(stored.filter { it.mode == ThemeTokenMode.DARK }.none { it.detached })
+        assertTrue(stored.filter { it.mode == ThemeTokenMode.LIGHT }.all { it.detached == true })
+        assertTrue(stored.filter { it.mode == ThemeTokenMode.DARK }.none { it.detached == true })
         val ios = stored.single { it.platform == ThemeTokenPlatform.IOS && it.mode == ThemeTokenMode.LIGHT }
         assertEquals(JsonArray(listOf(JsonPrimitive("#1A9E32FF"))), ios.value)
     }

@@ -821,6 +821,18 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 val detachChange = api.journal(system).single { it.text("entityId") == sourceLight.text("id") }
                 assertEquals(listOf("/detached"), detachChange.array("changedPaths").map { it.jsonPrimitive.content })
 
+                // Старый клиент или MCP шлёт значения цветового токена без поля: признак остаётся прежним.
+                val omittedRevision = api.revisions(system, tenant, base).getValue("web:light")
+                val omitted = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    """{"editRevision":0,"members":[{"tokenId":"$base","values":[{"platform":"web",""" +
+                        """"mode":"light","value":["#FEFEFE"],"baseRevision":$omittedRevision}]}]}""",
+                )
+                assertEquals(HttpStatusCode.OK, omitted.status, omitted.bodyAsText())
+                assertTrue(light(tenant).detached(), "PUT color-tokens без detached сохраняет признак")
+
                 // Правка значения общим маршрутом и пакетным сохранением темы признак не снимает.
                 val patched = api.call(
                     "PATCH",

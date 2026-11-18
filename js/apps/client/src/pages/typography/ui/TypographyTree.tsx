@@ -204,39 +204,39 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                 </div>
             );
         // Удаление стиля одно на стиль — у первой строки: начертания удаляются вместе со стилем.
-        // Фильтр «Скрыть отключённые токены» убирает строки отключённых начертаний.
         const disabled = (id: TypographyVariant) => Boolean(props.isDisabled?.(style, id));
-        return TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id] && !(props.hideDisabled && disabled(id))).map(
-            (variant, index) => (
-                <StyleRow
-                    key={`${key}.${variant.id}`}
-                    style={style}
-                    variant={variant}
-                    selected={key === selectedKey && variant.id === props.variant}
-                    changed={props.changedStyles.has(key)}
-                    disabled={disabled(variant.id)}
-                    onSelect={props.onSelect}
-                    onRename={
-                        props.editable && props.onRename
-                            ? () => setRenaming({ key, busy: false, error: null })
-                            : undefined
-                    }
-                    onDelete={
-                        index === 0 && props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined
-                    }
-                />
-            ),
-        );
+        return shownVariants(style).map((variant, index) => (
+            <StyleRow
+                key={`${key}.${variant.id}`}
+                style={style}
+                variant={variant}
+                selected={key === selectedKey && variant.id === props.variant}
+                changed={props.changedStyles.has(key)}
+                disabled={disabled(variant.id)}
+                onSelect={props.onSelect}
+                onRename={
+                    props.editable && props.onRename ? () => setRenaming({ key, busy: false, error: null }) : undefined
+                }
+                onDelete={index === 0 && props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined}
+            />
+        ));
     };
+    /** Строки стиля: фильтр «Скрыть отключённые токены» убирает отключённые начертания. */
+    const shownVariants = (style: TypographyStyle) =>
+        TYPOGRAPHY_VARIANTS.filter(
+            ({ id }) => style.variants[id] && !(props.hideDisabled && props.isDisabled?.(style, id)),
+        );
     const body = () => {
         if (!styles) return props.loading ? <PanelSkeleton part="tree" /> : null;
         if (!styles.length) return <TreeEmpty>{SECTION_EMPTY_TEXT}</TreeEmpty>;
+        // Стиль без видимых строк скрыт целиком, чтобы не оставлять пустых групп.
+        const shown = styles.filter((style) => shownVariants(style).length);
         // Результат поиска — плоский список совпавших стилей без заголовков групп, как в Figma.
         if (search) {
-            const found = groupStyles(styles, search).flatMap((group) => group.styles);
+            const found = groupStyles(shown, search).flatMap((group) => group.styles);
             return found.length ? found.map(row) : <TreeEmpty />;
         }
-        const groups = screenGroups(styles);
+        const groups = screenGroups(shown);
         const pending = props.pendingGroup;
         if (pending && !groups.some((group) => group.id === pending))
             groups.push({ id: pending, label: groupLabel(pending), styles: [] });

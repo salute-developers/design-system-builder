@@ -310,7 +310,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     }, [requested, requestedTokenId, requestedDefinition?.type, views]);
 
     useEffect(() => writeStorage(COLLAPSED_KEY, collapsed), [collapsed]);
-    useEffect(() => setPicker(null), [selected?.id]);
+    useEffect(() => setPicker(null), [selected?.id, platform]);
 
     const refreshPalette = useCallback(async () => {
         if (!setPalette) return;

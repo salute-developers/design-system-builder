@@ -756,6 +756,28 @@ describe('экран «Типографика»', () => {
             .forEach((button) => expect(button.classList.contains('tw-icon-button')).toBe(true));
     });
 
+    it('фильтр «Скрыть отключённые токены» убирает отключённые начертания и группу без строк', async () => {
+        const names = ['normal', 'medium', 'bold'].map((variant) => `screen-l.body.m.${variant}`);
+        mount(typographyStyles(), { disabled: new Set(names.slice(0, 1)) });
+        await screen.findByText('Body / M Regular', { selector: TITLE });
+        const filter = screen.getByRole('button', { name: 'Скрыть отключённые токены' });
+
+        fireEvent.click(filter);
+        expect(styleRow('body.m', 'normal')).toBeNull();
+        expect(styleRow('body.m', 'bold')).not.toBeNull();
+        fireEvent.click(filter);
+        cleanup();
+
+        // Все начертания Body отключены: группа без строк показывает заглушку пустой группы, а не голый заголовок.
+        mount(typographyStyles(), { disabled: new Set(names) });
+        await screen.findByText('Body / M Regular', { selector: TITLE });
+        fireEvent.click(screen.getByRole('button', { name: 'Скрыть отключённые токены' }));
+        const body = screen.getByTestId('typography-group-body');
+        expect(body.querySelector('.typography-unconfigured')).not.toBeNull();
+        expect(styleRow('body.m', 'bold')).toBeNull();
+        localStorage.removeItem('dsb.tokens.hide-disabled');
+    });
+
     it('отключает начертание стиля на всех экранах и отмечает только его строку дерева', async () => {
         saveEnabled.mockClear();
         mount(typographyStyles(), { disabled: new Set() });
