@@ -150,6 +150,45 @@ class CatalogAgentToolboxTest {
     }
 
     @Test
+    fun finishedAbandonedCallIsReleasedWithoutAnotherCall() = runBlocking<Unit> {
+        val gate = CompletableDeferred<Unit>()
+        val box = toolbox(RecordingExecutor(gate = gate), timeout = 50.milliseconds)
+
+        box.execute(ToolCall("c1", "thing_set", JsonObject(emptyMap())), context)
+        assertEquals(1, box.abandonedCalls)
+        gate.complete(Unit)
+        box.drain(5.seconds)
+
+        assertEquals(0, box.abandonedCalls, "A finished call must not stay in memory with its result")
+    }
+
+    @Test
+    fun blockingDraftReadIsBoundedLikeToolCalls() = runBlocking<Unit> {
+        val release = java.util.concurrent.CountDownLatch(1)
+        val blocking = object : ChatToolExecutor {
+            override val supportedTools = setOf("things_list", "thing_set", "thing_reset")
+            override suspend fun execute(name: String, arguments: JsonObject, context: ChatToolContext) =
+                ToolResult("", name, "{}", isError = false)
+            override suspend fun activeDraftId(principal: ProjectPrincipal, designSystemId: String): String {
+                // Блокирующий JDBC: отмена корутины его не прерывает.
+                release.await()
+                return "draft-1"
+            }
+        }
+        val box = toolbox(blocking, timeout = 50.milliseconds)
+
+        val started = System.nanoTime()
+        assertNull(box.activeDraftId(principal, "ds-1"))
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 1_000, "The turn must not wait for the blocked read")
+        assertEquals(1, box.abandonedCalls)
+
+        release.countDown()
+        box.drain(5.seconds)
+        assertEquals(0, box.abandonedCalls)
+        assertEquals("draft-1", box.activeDraftId(principal, "ds-1"))
+    }
+
+    @Test
     fun catalogWithoutHandlerFailsAssemblyWithTheToolName() {
         val failure = assertFailsWith<IllegalStateException> {
             toolbox(RecordingExecutor(supportedTools = setOf("things_list", "thing_set")))

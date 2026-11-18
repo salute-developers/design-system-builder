@@ -39,8 +39,8 @@ internal class CatalogAgentToolbox(
 ) : AgentToolbox {
     private val definitions = catalog.associateBy { it.name }
     private val calls = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val inFlight = ConcurrentHashMap.newKeySet<Deferred<ToolResult>>()
-    private val abandoned = ConcurrentHashMap<String, Deferred<ToolResult>>()
+    private val inFlight = ConcurrentHashMap.newKeySet<Deferred<*>>()
+    private val abandoned = ConcurrentHashMap<String, Deferred<*>>()
 
     init {
         val missing = definitions.keys - executor.supportedTools
@@ -69,28 +69,52 @@ internal class CatalogAgentToolbox(
         if (abandoned[user]?.isActive == true) {
             return failure(prepared, BACKEND_UNAVAILABLE, "A previous tool call of this user is still running.")
         }
-        abandoned.remove(user)
-        val call = calls.async { run(prepared, context) }
-        inFlight += call
-        call.invokeOnCompletion { inFlight -= call }
-        val result = withTimeoutOrNull(callTimeout) { call.await() }
+        val result = bounded(user) { run(prepared, context) }
         if (result != null) return result
-        abandoned[user] = call
         log.warn("ai tool call abandoned after timeout tool={} correlation={}", prepared.name, context.correlationId)
         return failure(prepared, unknownOutcomeCode(prepared.name), "Tool call timed out.")
+    }
+
+    /**
+     * Запускает блокирующую работу отдельной задачей и ждёт её не дольше [callTimeout]. Не уложившаяся задача
+     * дорабатывает сама и считается брошенной, пока не завершится; по завершении она убирается из учёта вместе
+     * с результатом.
+     */
+    private suspend fun <T> bounded(user: String, work: suspend () -> T): T? {
+        val task = calls.async { work() }
+        inFlight += task
+        task.invokeOnCompletion {
+            inFlight -= task
+            abandoned.remove(user, task)
+        }
+        val result = withTimeoutOrNull(callTimeout) { task.await() }
+        if (result == null && task.isActive) {
+            abandoned[user] = task
+            // Задача могла завершиться между проверкой и записью: тогда invokeOnCompletion уже отработал.
+            if (!task.isActive) abandoned.remove(user, task)
+        }
+        return result
     }
 
     override fun visibleArguments(arguments: JsonObject): JsonObject =
         JsonObject(arguments.filterKeys { it !in SERVER_FIELDS })
 
-    override suspend fun activeDraftId(principal: ProjectPrincipal, designSystemId: String): String? = try {
-        withTimeoutOrNull(callTimeout) { executor.activeDraftId(principal, designSystemId) }
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
-        log.warn("ai active draft read failed: {}", failure::class.simpleName)
-        null
+    override suspend fun activeDraftId(principal: ProjectPrincipal, designSystemId: String): String? {
+        if (abandoned[principal.actorId]?.isActive == true) return null
+        return bounded(principal.actorId) {
+            try {
+                executor.activeDraftId(principal, designSystemId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+                log.warn("ai active draft read failed: {}", failure::class.simpleName)
+                null
+            }
+        }
     }
+
+    /** Число брошенных по таймауту вызовов, которые ещё не завершились. */
+    internal val abandonedCalls: Int get() = abandoned.size
 
     /** Ждёт вызовы, которые ещё идут, не дольше [grace]; используется при остановке процесса. */
     suspend fun drain(grace: Duration) {
