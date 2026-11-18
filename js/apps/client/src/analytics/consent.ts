@@ -163,6 +163,26 @@ export const createAnalyticsConsent = (
             publish({ policy: response.policy });
         });
     };
+    const start = () => {
+        if (startup) return startup;
+        const ticket = generation;
+        startup = perform(
+            ticket,
+            async () => {
+                const saved = await load();
+                if (ticket !== generation) return;
+                publish({ choice: saved.decision });
+                if (saved.pending) {
+                    await sync(saved, ticket);
+                    return;
+                }
+                if (['denied', 'withdrawn'].includes(saved.decision ?? '')) return;
+                await apply(saved, await fetchState(saved), ticket, false);
+            },
+            false,
+        );
+        return startup;
+    };
     return {
         subscribe(listener: () => void) {
             listeners.add(listener);
@@ -171,26 +191,7 @@ export const createAnalyticsConsent = (
             };
         },
         getSnapshot: () => state,
-        start() {
-            if (startup) return startup;
-            const ticket = generation;
-            startup = perform(
-                ticket,
-                async () => {
-                    const saved = await load();
-                    if (ticket !== generation) return;
-                    publish({ choice: saved.decision });
-                    if (saved.pending) {
-                        await sync(saved, ticket);
-                        return;
-                    }
-                    if (['denied', 'withdrawn'].includes(saved.decision ?? '')) return;
-                    await apply(saved, await fetchState(saved), ticket, false);
-                },
-                false,
-            );
-            return startup;
-        },
+        start,
         async choose(decision: Decision) {
             const ticket = ++generation;
             const displayed = state.policy;
@@ -235,8 +236,9 @@ export const createAnalyticsConsent = (
             });
         },
         async review() {
-            if (state.policy) return;
             const ticket = generation;
+            await start();
+            if (ticket !== generation || state.policy || state.saving) return;
             publish({ busy: true, error: false });
             await perform(ticket, () => review(ticket));
         },

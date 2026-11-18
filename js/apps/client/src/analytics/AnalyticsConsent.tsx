@@ -86,7 +86,7 @@ const SettingRow = styled.div`
         height: 1rem;
         box-sizing: border-box;
         border: 2px solid var(--outline-transparent-primary);
-        border-top-color: #2b8ced;
+        border-top-color: var(--surface-accent-primary);
         border-radius: 50%;
         animation: analytics-setting-spin 0.8s linear infinite;
     }
@@ -118,7 +118,7 @@ const SettingRow = styled.div`
     }
     && button[role='switch'][aria-checked='true'],
     && button[role='switch'][aria-checked='true']:hover:not(:disabled) {
-        background: #2b8ced;
+        background: var(--surface-accent-primary);
     }
     button[role='switch']::after {
         content: '';
@@ -126,7 +126,7 @@ const SettingRow = styled.div`
         width: 1rem;
         height: 1rem;
         border-radius: 50%;
-        background: #fff;
+        background: var(--on-dark-text-primary);
         transition: transform 150ms;
     }
     button[role='switch'][aria-checked='true']::after {
@@ -160,7 +160,7 @@ const ConsentContent = () => {
                 <button
                     type="button"
                     className="ps-button ps-button-primary"
-                    disabled={!state.policy || granting}
+                    disabled={!state.policy || Boolean(state.saving)}
                     aria-busy={granting}
                     onClick={() => void analyticsConsent.choose('granted')}
                 >
@@ -184,20 +184,12 @@ const ConsentContent = () => {
     );
 };
 
-export const AnalyticsConsentSettings = () => {
+export const AnalyticsConsentSettings = ({ active = true }: { active?: boolean }) => {
     const state = useConsent();
-    const checked = state.choice === 'granted';
+    const checked = state.allowed || state.saving === 'granted';
     useEffect(() => {
-        let active = true;
-        if (analyticsConsentEnabled)
-            void analyticsConsent.start().then(() => {
-                if (active && authService.isAuthenticated()) void analyticsConsent.review();
-            });
-        return () => {
-            active = false;
-        };
-    }, []);
-    if (!analyticsConsentEnabled) return <p>Аналитика отключена в этом окружении.</p>;
+        if (active) void analyticsConsent.review();
+    }, [active]);
     return (
         <SettingRow>
             <div className="analytics-setting-description">

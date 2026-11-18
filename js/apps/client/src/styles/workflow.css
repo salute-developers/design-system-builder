@@ -547,6 +547,7 @@
 }
 .settings-content[data-active-section='general'] #settings-general,
 .ps-content[data-active-section='general'] #settings-general,
+.ps-content[data-active-section='user-general'] #settings-user-general,
 .settings-content[data-active-section='members'] #settings-members,
 .ps-content[data-active-section='members'] #settings-members,
 .settings-content[data-active-section='lifecycle'] #settings-lifecycle,
@@ -4294,7 +4295,7 @@ button:disabled {
 }
 
 
-.project-settings #settings-general.ps-user-general {
+.project-settings #settings-user-general.ps-user-general {
     width: 100%;
     max-width: none;
 }

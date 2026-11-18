@@ -107,10 +107,12 @@ it.each(['/settings', '/settings/', '/SETTINGS/'])('does not duplicate the banne
     expect(screen.getByRole('switch', { name: 'Аналитика' })).toBeVisible();
 });
 
-it('shows saving on the rejection rather than grant in the banner', () => {
+it('blocks grant while a rejection is saving and shows progress only on rejection', () => {
     fixture.state = { ...fixture.state, choice: 'denied', busy: true, saving: 'denied' };
     renderBanner();
-    expect(screen.getByRole('button', { name: 'Разрешить', exact: true })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Разрешить', exact: true })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Разрешить', exact: true }));
+    expect(fixture.choose).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Сохраняем отказ…' })).toHaveAttribute('aria-busy', 'true');
 });
 
@@ -152,4 +154,22 @@ it('does not show a saving indicator while only loading a notice for a remembere
     render(<AnalyticsConsentSettings />);
     expect(screen.getByRole('switch', { name: 'Аналитика' })).toHaveAttribute('aria-busy', 'false');
     expect(screen.queryByText('Сохраняем отказ…')).toBeNull();
+});
+
+it.each(['startup', 'failed grant'])('keeps an unconfirmed grant off during %s', (phase) => {
+    fixture.state = { ...fixture.state, choice: 'granted', allowed: false, error: phase === 'failed grant' };
+    render(<AnalyticsConsentSettings />);
+    const toggle = screen.getByRole('switch', { name: 'Аналитика' });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(fixture.choose).toHaveBeenCalledWith('granted');
+});
+
+it('loads settings only while their section is active without starting the session from the component', () => {
+    const view = render(<AnalyticsConsentSettings active={false} />);
+    expect(fixture.start).not.toHaveBeenCalled();
+    expect(fixture.review).not.toHaveBeenCalled();
+    view.rerender(<AnalyticsConsentSettings active />);
+    expect(fixture.review).toHaveBeenCalledOnce();
+    expect(fixture.start).not.toHaveBeenCalled();
 });

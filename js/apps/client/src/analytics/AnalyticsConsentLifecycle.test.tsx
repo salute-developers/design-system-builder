@@ -152,3 +152,57 @@ it('blocks a late granted POST after logout and checks the preserved choice on n
     expect(ym).not.toHaveBeenCalled();
     delete window.ym;
 });
+
+it('turns a failed grant off and retries the same grant instead of withdrawing on the next click', async () => {
+    request
+        .mockResolvedValueOnce(ok(response()))
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce(ok(response(true, 1)));
+    render(
+        <MemoryRouter initialEntries={['/settings']}>
+            <AnalyticsConsent>
+                <AnalyticsConsentSettings />
+            </AnalyticsConsent>
+        </MemoryRouter>,
+    );
+    await screen.findByText(policy.text);
+    const toggle = screen.getByRole('switch', { name: 'Аналитика' });
+    fireEvent.click(toggle);
+    await screen.findByText('Не удалось подтвердить выбор. Аналитика отключена.');
+    await vi.waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).not.toBeChecked();
+    expect(analyticsConsent.getSnapshot()).toMatchObject({ choice: 'granted', allowed: false, error: true });
+    fireEvent.click(toggle);
+    await vi.waitFor(() => expect(toggle).toBeEnabled());
+    await vi.waitFor(() => expect(toggle).toBeChecked());
+    const first = JSON.parse(request.mock.calls[1][1].body);
+    const retry = JSON.parse(request.mock.calls[2][1].body);
+    expect(first.decision).toBe('granted');
+    expect(retry).toEqual(first);
+});
+
+it('does not enable a saved grant until the startup GET confirms it', async () => {
+    localStorage.setItem('lifecycle', JSON.stringify({ key: 'b'.repeat(64), revision: 1, decision: 'granted' }));
+    let finish!: (response: Response) => void;
+    request.mockImplementationOnce(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
+    render(
+        <MemoryRouter initialEntries={['/settings']}>
+            <AnalyticsConsent>
+                <AnalyticsConsentSettings />
+            </AnalyticsConsent>
+        </MemoryRouter>,
+    );
+    await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+    expect(analyticsConsent.getSnapshot().choice).toBe('granted');
+    expect(screen.getByRole('switch', { name: 'Аналитика' })).not.toBeChecked();
+    await act(async () => {
+        finish(ok(response(true, 1)));
+    });
+    expect(screen.getByRole('switch', { name: 'Аналитика' })).toBeChecked();
+    expect(request).toHaveBeenCalledOnce();
+});

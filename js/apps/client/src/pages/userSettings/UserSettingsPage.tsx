@@ -1,17 +1,21 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { AnalyticsConsentSettings } from '../../analytics/AnalyticsConsent';
 import { analyticsConsentEnabled } from '../../analytics/consent';
 import { authService } from '../../api';
-import { SettingsFrame } from '../../components/BuilderShell/BuilderShell';
+import {
+    SettingsFrame,
+    useActiveSettingsSection,
+    type SettingsSection,
+} from '../../components/BuilderShell/BuilderShell';
 import { PersonalAccessTokensPanel, type PersonalAccessTokenCounts } from './PersonalAccessTokensPanel';
+
+const sections: SettingsSection[] = ['Общее', 'Personal Access Token'];
 
 export const UserSettingsPage = () => {
     const user = authService.getCurrentUser();
-    const [searchParams] = useSearchParams();
+    const active = useActiveSettingsSection(sections);
     const [counts, setCounts] = useState<PersonalAccessTokenCounts>({ total: 0, active: 0, expired: 0 });
     const userId = user?.id ?? '';
-    const generalSelected = searchParams.get('section') !== 'personal-access-token';
     return (
         <SettingsFrame
             title="Настройки пользователя"
@@ -19,11 +23,11 @@ export const UserSettingsPage = () => {
             back="/projects"
             projectName=""
             breadcrumbSegments={[]}
-            sections={['Общее', 'Personal Access Token']}
+            sections={sections}
             saveForm={false}
-            sectionActions={{ 'personal-access-token': false, general: false }}
+            sectionActions={{ 'personal-access-token': false, 'user-general': false }}
             aside={
-                !generalSelected && (
+                active === 'Personal Access Token' && (
                     <div className="ps-aside-section-block">
                         <p className="ps-aside-section">Personal Access Token</p>
                         <div className="ps-aside-row">
@@ -45,11 +49,9 @@ export const UserSettingsPage = () => {
             <section id="settings-personal-access-token" className="settings-section">
                 <PersonalAccessTokensPanel key={userId} userId={userId} onCountsChange={setCounts} />
             </section>
-            {generalSelected && (
-                <section id="settings-general" className="settings-section ps-user-general">
-                    {analyticsConsentEnabled && <AnalyticsConsentSettings />}
-                </section>
-            )}
+            <section id="settings-user-general" className="settings-section ps-user-general">
+                {analyticsConsentEnabled && <AnalyticsConsentSettings active={active === 'Общее'} />}
+            </section>
         </SettingsFrame>
     );
 };
