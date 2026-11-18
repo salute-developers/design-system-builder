@@ -16,6 +16,7 @@ export interface ConfirmedTokenValues {
         value: unknown;
         mode?: 'light' | 'dark' | null;
         overridden?: boolean;
+        detached?: boolean;
     }>;
 }
 export type ConfirmedColorStructure =

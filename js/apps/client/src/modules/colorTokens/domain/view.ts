@@ -25,6 +25,8 @@ export interface ThemeTokenSource {
     android?: unknown;
     /** Свои значения платформ: `true` — значение задано отдельно, а не построено из web. */
     overridden?: Partial<Record<NativePlatform, boolean>>;
+    /** Связь подтемы с режимом явно разорвана: такая подтема не связана, даже если значения совпадают. */
+    detached?: boolean;
 }
 
 export interface ViewDeps {
@@ -83,8 +85,10 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
                 const values = Object.fromEntries(
                     COLOR_MODES.map((mode) => [mode, field(mode, subgroup) ?? modes[inheritedMode(context, mode)]]),
                 ) as Record<ColorMode, ColorFieldValue>;
-                const linked = COLOR_MODES.every((mode) =>
-                    sameValue(values[mode], modes[inheritedMode(context, mode)]),
+                const linked = COLOR_MODES.every(
+                    (mode) =>
+                        !byName.get(`${mode}.${key.group}.${subgroup}.${key.name}`)?.detached &&
+                        sameValue(values[mode], modes[inheritedMode(context, mode)]),
                 );
                 return [context, { linked, values }];
             }),

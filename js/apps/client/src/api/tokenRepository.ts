@@ -212,6 +212,11 @@ export const tokenRepository = {
                     .filter((value) => value.overridden === true)
                     .map((value) => [tokenValueKey(value.tokenId, value.platform, value.mode), true]),
             ),
+            tokenValueDetachedByKey: Object.fromEntries(
+                values.data
+                    .filter((value) => value.detached === true)
+                    .map((value) => [tokenValueKey(value.tokenId, value.platform, value.mode), true]),
+            ),
         };
     },
 

@@ -40,9 +40,9 @@ const CONTEXT_LABELS: Record<ColorContext, string> = { ondark: 'OnDark', onlight
 export const PLATFORM_LABELS: Record<PaintPlatform, string> = { web: 'Web', ios: 'iOS', android: 'Android' };
 
 const LINKED_TIP =
-    'Контексты наследуют значения из Modes. Ручное изменение отключает связь. Нажмите на иконку связи, чтобы восстановить наследование и сбросить значения к дефолтным.';
+    'Связь с Modes включена: подтема наследует значения режимов. Нажмите, чтобы разорвать связь и задать свои значения.';
 const UNLINKED_TIP =
-    'Связь отключена. Используются ручные значения. Нажмите на иконку связи, чтобы вернуть наследование из Modes и сбросить изменения.';
+    'Связь отключена: используются свои значения. Нажмите, чтобы вернуть наследование из Modes и сбросить значения подтемы.';
 
 /** Открытый выбор цвета: поле и платформа строки (web — верхнее поле). */
 export interface PickerTarget {
@@ -67,6 +67,8 @@ interface InspectorProps {
     /** «×» у строки платформы: значение снова строится из web. */
     onRemovePlatform: (field: FieldId, platform: NativePlatform) => void;
     onRelink: (context: ColorContext) => void;
+    /** Разрыв связи подтемы: значения остаются, но перестают меняться вслед за режимами. */
+    onUnlink: (context: ColorContext) => void;
     onResetContexts: () => void;
     onDelete: () => void;
     onFill: () => void;
@@ -365,7 +367,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                                             aria-label={linked ? 'Связь с Modes включена' : 'Связь с Modes отключена'}
                                             aria-pressed={linked}
                                             disabled={!editable}
-                                            onClick={() => !linked && props.onRelink(context)}
+                                            onClick={() => (linked ? props.onUnlink : props.onRelink)(context)}
                                         >
                                             {linked ? <LinkOutline /> : <LinkBrokenChainOutline />}
                                         </button>

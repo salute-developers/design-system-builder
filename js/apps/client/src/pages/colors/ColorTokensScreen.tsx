@@ -773,6 +773,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                                 edit(() => editor.removePlatform(selected, field, platform));
                             }}
                             onRelink={(context: ColorContext) => edit(() => editor.relink(selected, context))}
+                            onUnlink={(context: ColorContext) => edit(() => editor.unlink(selected, context))}
                             onResetContexts={() => edit(() => editor.resetContexts(selected))}
                             onDelete={() => requestDelete(selected)}
                             onFill={() => edit(() => editor.fill(selected, groupDefaults(selected.key.group)))}

@@ -1730,3 +1730,35 @@ describe('ColorTokensScreen: вёрстка по Figma', () => {
         expect(within(picker).getByRole('button', { name: 'Цвет стопа 2: FFFFFF' })).toHaveTextContent(/^FFFFFF$/);
     });
 });
+
+describe('ColorTokensScreen: связь подтем', () => {
+    it('связь разрывается кнопкой без смены значений и восстанавливается обратно', async () => {
+        repository.updateValues.mockResolvedValue({ editRevision: 1, type: 'color' });
+        await renderScreen();
+        openSubthemes();
+
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Связь с Modes включена' })[0]);
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
+        expect(lastUpdate()('accent-1', 'web', 'light')).toMatchObject({ detached: true });
+        expect(lastUpdate()('accent-1', 'web', 'dark')).toMatchObject({ detached: true });
+        await waitFor(() =>
+            expect(within(inspector()).getAllByRole('button', { name: 'Связь с Modes отключена' })).toHaveLength(1),
+        );
+
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Связь с Modes отключена' }));
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
+        expect(lastUpdate()('accent-1', 'web', 'light')).toMatchObject({ detached: false });
+        await waitFor(() =>
+            expect(within(inspector()).getAllByRole('button', { name: 'Связь с Modes включена' })).toHaveLength(3),
+        );
+    });
+
+    it('подтема с признаком detached отвязана, даже если значения совпадают с режимами', async () => {
+        storedValue = (name) => (name === 'text.on-dark.accent' ? { detached: true } : undefined);
+        await renderScreen();
+        openSubthemes();
+
+        expect(within(inspector()).getAllByRole('button', { name: 'Связь с Modes отключена' })).toHaveLength(1);
+        expect(within(inspector()).getAllByRole('button', { name: 'Связь с Modes включена' })).toHaveLength(2);
+    });
+});

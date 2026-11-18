@@ -1,6 +1,12 @@
 import type { ColorTokenStructure } from '../../modules/colorTokens/application/colorTokenRepository';
 import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
-import { acceptTokenValueOverridden, observeSubjectAddresses, tokenValueOverridden } from '../../api/subjectRevisions';
+import {
+    acceptTokenValueDetached,
+    acceptTokenValueOverridden,
+    observeSubjectAddresses,
+    tokenValueDetached,
+    tokenValueOverridden,
+} from '../../api/subjectRevisions';
 import { authService } from '../../api/authService';
 import { saveTokenEnabled } from '../../api/tokenEnabled';
 import { getAdditionalColorValues } from '../../actions/colors';
@@ -143,6 +149,8 @@ export interface ColorTokenSession {
      * режимом>:<платформа>` → признак. Подтверждённые признаки берутся из прочитанного состояния.
      */
     overrides: Map<string, boolean>;
+    /** Несохранённые признаки разорванной связи подтем по имени определения в теме. */
+    detachments: Map<string, boolean>;
     /** Группы и подгруппы токенов дизайн-системы. */
     groups: TokenGroupDto[];
     /** Место определения (имя без режима) в группах и признак публикации. */
@@ -189,6 +197,15 @@ export const isOverridden = (session: ColorTokenSession, themeName: string, plat
     const [mode, ...member] = themeName.split('.');
     const definition = session.definitions.get(member.join('.'));
     return definition ? tokenValueOverridden(session.context, definition.id, platform, mode) : false;
+};
+
+/** Связь подтемы явно разорвана: несохранённый выбор сессии или признак `detached` прочитанного значения web. */
+export const isDetached = (session: ColorTokenSession, themeName: string) => {
+    const local = session.detachments.get(themeName);
+    if (local !== undefined) return local;
+    const [mode, ...member] = themeName.split('.');
+    const definition = session.definitions.get(member.join('.'));
+    return definition ? tokenValueDetached(session.context, definition.id, 'web', mode) : false;
 };
 
 /** Значения платформ определения в классе своего типа: при смене типа семейства определение переносится. */
@@ -238,6 +255,7 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
         loadedNames: new Set(),
         edited: new Map(),
         overrides: new Map(),
+        detachments: new Map(),
         groups: [],
         placements: new Map(),
         reload: () => undefined,
@@ -273,6 +291,10 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
                 member.values.forEach((value) => {
                     const name = names.get(member.tokenId);
                     if (name) confirmed.set(`${value.mode}.${name}:${value.platform}`, JSON.stringify(value.value));
+                    const detached = value.detached === true;
+                    acceptTokenValueDetached(context, member.tokenId, value.platform, value.mode, detached);
+                    if (name && session.detachments.get(`${value.mode}.${name}`) === detached)
+                        session.detachments.delete(`${value.mode}.${name}`);
                     if (value.platform === 'web') return;
                     const overridden = value.overridden === true;
                     acceptTokenValueOverridden(context, member.tokenId, value.platform, value.mode, overridden);
@@ -487,8 +509,12 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
     const schedule = (key: ColorTokenKey, restoreLegacy = false) =>
         session.autosave.schedule(tokenId(key), () => {
             if (!session.theme || session.context.versionId) return null;
-            const payload = familyUpdate(session.theme, key, session.definitions, (name, platform) =>
-                isOverridden(session, name, platform),
+            const payload = familyUpdate(
+                session.theme,
+                key,
+                session.definitions,
+                (name, platform) => isOverridden(session, name, platform),
+                (name) => isDetached(session, name),
             );
             if (!payload) return null;
             const names = new Map([...session.definitions].map(([name, definition]) => [definition.id, name]));
@@ -504,12 +530,24 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                                 JSON.stringify(value.value) ||
                             (value.platform !== 'web' &&
                                 (value.overridden === true) !==
-                                    tokenValueOverridden(session.context, member.tokenId, value.platform, value.mode)),
+                                    tokenValueOverridden(
+                                        session.context,
+                                        member.tokenId,
+                                        value.platform,
+                                        value.mode,
+                                    )) ||
+                            (value.detached === true) !==
+                                tokenValueDetached(session.context, member.tokenId, value.platform, value.mode),
                     ),
                 }))
                 .filter((member) => member.values.length > 0);
             return members.length ? { tokenId: payload.tokenId, update: { members } } : null;
         });
+
+    const detach = (key: ColorTokenKey, mode: ColorMode, context: ColorContext) => {
+        const member = memberToken(key, mode, context);
+        if (member) session.detachments.set(member.getName(), true);
+    };
 
     const memberToken = (key: ColorTokenKey, mode: ColorMode, context: ColorContext | null) => {
         const subgroup = context ? contextSubgroup(key.group, context) : 'default';
@@ -604,6 +642,8 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             const { web, own } = paintOf(token);
             const next = platform === 'web' ? { web: value, own } : { web, own: { ...own, [platform]: value } };
             writeField(view.key, mode, token, next);
+            // Ручная правка подтемы разрывает её связь с режимами явно, даже если значение совпало.
+            if (context) for (const item of COLOR_MODES) detach(view.key, item, context);
             if (!context)
                 for (const target of fieldsInheritingFrom(mode)) {
                     if (view.contexts[target.context].linked)
@@ -656,8 +696,16 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         },
 
         /** Восстанавливает наследование подтемы от значений режимов вместе со своими значениями платформ. */
+        /** Разрывает связь подтемы: значения остаются прежними, но дальше не меняются вслед за режимами. */
+        unlink(view: ColorTokenView, context: ColorContext) {
+            for (const mode of COLOR_MODES) detach(view.key, mode, context);
+            schedule(view.key);
+        },
+
         relink(view: ColorTokenView, context: ColorContext) {
             for (const mode of COLOR_MODES) {
+                const member = memberToken(view.key, mode, context);
+                if (member) session.detachments.set(member.getName(), false);
                 const source = memberToken(view.key, inheritedMode(context, mode), null);
                 if (source) writeField(view.key, mode, memberToken(view.key, mode, context), paintOf(source));
             }

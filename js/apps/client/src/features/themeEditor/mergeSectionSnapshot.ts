@@ -48,6 +48,10 @@ export function mergeSectionTokens(
             ...retainAddresses(previous.tokenValueOverriddenByKey ?? {}),
             ...next.tokenValueOverriddenByKey,
         },
+        tokenValueDetachedByKey: {
+            ...retainAddresses(previous.tokenValueDetachedByKey ?? {}),
+            ...next.tokenValueDetachedByKey,
+        },
         tokenValueEntityIdsByKey: {
             ...retainAddresses(previous.tokenValueEntityIdsByKey ?? {}),
             ...next.tokenValueEntityIdsByKey,
