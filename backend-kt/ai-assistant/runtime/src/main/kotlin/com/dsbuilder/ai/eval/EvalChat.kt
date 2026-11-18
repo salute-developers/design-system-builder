@@ -1,5 +1,7 @@
 package com.dsbuilder.ai.eval
 
+import com.dsbuilder.ai.chat.application.ChatToolKind
+import com.dsbuilder.ai.chat.data.tools.ChatToolCatalog
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.request.get
@@ -105,9 +107,7 @@ private suspend fun runScenario(http: HttpClient, settings: EvalSettings, scenar
     val turnId = Json.parseToJsonElement(start.bodyAsText()).jsonObject.text("turnId")
     val events = http.get("${settings.ai}/turns/$turnId/events") { bearer(token) }.bodyAsText()
         .split("\n\n").mapNotNull(::parseEvent)
-    val writes = events.filter { (type, data) ->
-        type == "tool_result" && (data["isError"] as? JsonPrimitive)?.booleanOrNull == false
-    }.map { it.second.text("tool") }
+    val writes = successfulWrites(events)
     val confirmation = events.firstOrNull { it.first == "confirmation_required" }?.second?.text("tool")
     val error = events.firstOrNull { it.first == "error" }?.second?.text("code")
     val journalAfter = journal(http, settings, token)
@@ -116,8 +116,18 @@ private suspend fun runScenario(http: HttpClient, settings: EvalSettings, scenar
     return EvalResult(id, problems.isEmpty(), problems.joinToString("; ").ifEmpty { "ок" })
 }
 
+/** Инструменты записи каталога; чтения записями не считаются. */
+private val writeTools: Set<String> =
+    ChatToolCatalog.tools.filter { it.kind != ChatToolKind.READ }.map { it.name }.toSet()
+
+/** Успешные вызовы инструментов записи из событий хода. */
+internal fun successfulWrites(events: List<Pair<String, JsonObject>>): List<String> = events
+    .filter { (type, data) -> type == "tool_result" && (data["isError"] as? JsonPrimitive)?.booleanOrNull == false }
+    .map { it.second.text("tool") }
+    .filter { it in writeTools }
+
 /** Наблюдаемый итог хода для сверки с ожиданиями сценария. */
-private data class TurnOutcome(
+internal data class TurnOutcome(
     val writes: List<String>,
     val confirmation: String?,
     val error: String?,
@@ -126,7 +136,7 @@ private data class TurnOutcome(
 )
 
 /** Расхождения итога хода с ожиданиями сценария. */
-private fun problems(expect: JsonObject, outcome: TurnOutcome): List<String> = buildList {
+internal fun problems(expect: JsonObject, outcome: TurnOutcome): List<String> = buildList {
     val writes = outcome.writes
     val confirmation = outcome.confirmation
     val journalBefore = outcome.journalBefore
