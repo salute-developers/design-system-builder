@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import styled from 'styled-components';
+
+import { setIconFailed, useFailedIconUrls } from '../application/iconLoadFailures';
 
 const Box = styled.span<{ $size: number }>`
     display: inline-block;
@@ -22,22 +24,33 @@ const Placeholder = styled(Box)`
 `;
 
 /**
- * Рисует иконку из SVG билдера цветом текста (CSS-маска). Если файл не загрузился, показывает нейтральную заглушку.
+ * Рисует иконку из SVG билдера цветом текста (CSS-маска). Если файл не загрузился, показывает нейтральную заглушку
+ * с названием и помечает адрес недоступным (`iconLoadFailures`), чтобы пикер и панель сведений могли сообщить причину.
  * Загрузку проверяет скрытое изображение: маска сама об ошибке не сообщает.
  */
 export const IconMask = ({ url, size }: { url: string; size: number }) => {
-    const [failed, setFailed] = useState(false);
+    const failed = useFailedIconUrls().has(url);
 
     useEffect(() => {
-        setFailed(false);
         const image = new Image();
-        image.onerror = () => setFailed(true);
+        image.onerror = () => setIconFailed(url, true);
+        image.onload = () => setIconFailed(url, false);
         image.src = url;
         return () => {
             image.onerror = null;
+            image.onload = null;
         };
     }, [url]);
 
-    if (failed) return <Placeholder $size={size} data-testid="icon-placeholder" aria-hidden="true" />;
+    if (failed) {
+        return (
+            <Placeholder
+                $size={size}
+                data-testid="icon-placeholder"
+                role="img"
+                aria-label="Не удалось загрузить иконку"
+            />
+        );
+    }
     return <Mask $size={size} $url={url} data-testid="icon-mask" aria-hidden="true" />;
 };

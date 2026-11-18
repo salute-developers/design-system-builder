@@ -26,6 +26,7 @@ import {
 } from '../domain/iconCatalog';
 import { IconFilters } from './IconFilters';
 import { IconGrid } from './IconGrid';
+import { useFailedIconUrls } from '../application/iconLoadFailures';
 import { IconMask } from './IconMask';
 import { useIconFilter } from './useIconFilter';
 import './icons.css';
@@ -59,6 +60,23 @@ interface DetailsProps {
     onCopy: (text: string) => void;
 }
 
+/** Превью выбранной иконки; если файл не загрузился, под заглушкой показывает причину. */
+const Preview = ({ url, size }: { url: string; size: IconSize }) => {
+    const failed = useFailedIconUrls().has(url);
+    return (
+        <>
+            <div className="icon-preview">
+                <IconMask url={url} size={size} />
+            </div>
+            {failed && (
+                <p className="icon-note icon-load-notice" role="status">
+                    Не удалось загрузить файл иконки из хранилища.
+                </p>
+            )}
+        </>
+    );
+};
+
 /** Правая панель: сведения о выбранной иконке и копирование имени и значения; без выбора — об источнике каталога. */
 const Details = ({ catalog, icon, size, confirmed, manual, onCopy }: DetailsProps) => {
     if (!icon) {
@@ -82,9 +100,7 @@ const Details = ({ catalog, icon, size, confirmed, manual, onCopy }: DetailsProp
     return (
         <>
             <InspectorHeader title={icon.name} description={icon.category ?? ''} />
-            <div className="icon-preview">
-                <IconMask url={iconAssetUrl(catalog, icon.name, size)} size={size} />
-            </div>
+            <Preview url={iconAssetUrl(catalog, icon.name, size)} size={size} />
             <div className="tw-section">
                 <SectionHeader title="Сведения" />
                 <Row label="Значение">{value}</Row>

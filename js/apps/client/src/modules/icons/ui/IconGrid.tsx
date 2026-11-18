@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
+import { useFailedIconUrls } from '../application/iconLoadFailures';
 import { iconAssetUrl, type IconCatalog, type IconEntry, type IconSize } from '../domain/iconCatalog';
 import { IconMask } from './IconMask';
 
@@ -86,6 +87,7 @@ export const IconGrid = ({
         }
     }, [icons, revealName, box.width, box.height, card.width, card.height]);
 
+    const failedUrls = useFailedIconUrls();
     const columns = box.width > 0 ? Math.max(1, Math.floor(box.width / card.width)) : FALLBACK_COLUMNS;
     const viewportHeight = box.height > 0 ? box.height : (height ?? FALLBACK_HEIGHT);
     const rowCount = Math.ceil(icons.length / columns);
@@ -97,32 +99,32 @@ export const IconGrid = ({
         const items = icons.slice(row * columns, (row + 1) * columns);
         rows.push(
             <div key={row} className="icon-grid-row" style={{ top: row * card.height, height: card.height }}>
-                {items.map((icon) => (
-                    <button
-                        key={icon.name}
-                        type="button"
-                        className={`icon-card is-${variant} ${icon.name === selectedName ? 'is-selected' : ''}`}
-                        style={{ width: card.width }}
-                        title={icon.name}
-                        aria-label={icon.name}
-                        aria-pressed={icon.name === selectedName}
-                        onClick={() => onSelect(icon)}
-                        onMouseEnter={() => onHover?.(icon)}
-                        onMouseLeave={() => onHover?.(undefined)}
-                        onFocus={() => onHover?.(icon)}
-                        onBlur={() => onHover?.(undefined)}
-                    >
-                        <IconMask
-                            url={iconAssetUrl(catalog, icon.name, size)}
-                            size={variant === 'compact' ? 16 : size}
-                        />
-                        {variant === 'board' && (
-                            <span className="icon-card-name">
-                                {icon.name === confirmedName ? 'Скопировано' : icon.name}
-                            </span>
-                        )}
-                    </button>
-                ))}
+                {items.map((icon) => {
+                    const url = iconAssetUrl(catalog, icon.name, size);
+                    return (
+                        <button
+                            key={icon.name}
+                            type="button"
+                            className={`icon-card is-${variant} ${icon.name === selectedName ? 'is-selected' : ''}`}
+                            style={{ width: card.width }}
+                            title={icon.name}
+                            aria-label={failedUrls.has(url) ? `${icon.name}: не удалось загрузить иконку` : icon.name}
+                            aria-pressed={icon.name === selectedName}
+                            onClick={() => onSelect(icon)}
+                            onMouseEnter={() => onHover?.(icon)}
+                            onMouseLeave={() => onHover?.(undefined)}
+                            onFocus={() => onHover?.(icon)}
+                            onBlur={() => onHover?.(undefined)}
+                        >
+                            <IconMask url={url} size={variant === 'compact' ? 16 : size} />
+                            {variant === 'board' && (
+                                <span className="icon-card-name">
+                                    {icon.name === confirmedName ? 'Скопировано' : icon.name}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>,
         );
     }
