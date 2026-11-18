@@ -138,9 +138,9 @@ data class AiAssistantConfiguration(
                 maxSteps = reader.positive("AI_MAX_STEPS", 12),
                 maxWrites = reader.positive("AI_MAX_WRITES", 10),
                 turnTimeout = reader.positive("AI_TURN_TIMEOUT_SECONDS", 120).seconds,
-                historyMaxChars = reader.positive("AI_HISTORY_MAX_CHARS", 60_000),
+                historyMaxChars = reader.positive("AI_HISTORY_MAX_CHARS", 200_000),
                 messageMaxChars = reader.positive("AI_MESSAGE_MAX_CHARS", 8_000),
-                toolResultMaxChars = reader.positive("AI_TOOL_RESULT_MAX_CHARS", 6_000),
+                toolResultMaxChars = reader.positive("AI_TOOL_RESULT_MAX_CHARS", 20_000),
                 toolCallTimeout = reader.positive("AI_TOOL_CALL_TIMEOUT_SECONDS", 30).seconds,
                 turnStoreMaxBytes = reader.positive("AI_TURN_STORE_MAX_MB", 64).toLong() * BYTES_IN_MB,
             )

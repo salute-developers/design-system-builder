@@ -52,6 +52,25 @@ class HistoryBudgetTest {
     }
 
     @Test
+    fun manyCallsInOneTurnTrimEarlierResultsButKeepTheLastOne() {
+        val calls = (1..10).flatMap { index ->
+            listOf(
+                ChatMessage(ChatRole.ASSISTANT, toolCalls = listOf(ToolCall("c$index", "tokens_list", args()))),
+                ChatMessage(ChatRole.TOOL, toolResult = ToolResult("c$index", "tokens_list", "x".repeat(900), false)),
+            )
+        }
+        val history = listOf(user("сделай её красной")) + calls
+
+        val fitted = assertNotNull(HistoryBudget(4_000, 1_000).fit(history, 0))
+
+        val results = fitted.mapNotNull { it.toolResult }
+        assertEquals(10, results.size, "Every call keeps its result message")
+        assertEquals("x".repeat(900), results.last().content)
+        assertEquals(HistoryBudget.TRIMMED, results.first().content)
+        assertEquals("сделай её красной", fitted.first().text)
+    }
+
+    @Test
     fun impossibleBudgetReturnsNull() {
         assertNull(HistoryBudget(10, 6_000).fit(listOf(user("слишком длинное сообщение")), 0))
     }

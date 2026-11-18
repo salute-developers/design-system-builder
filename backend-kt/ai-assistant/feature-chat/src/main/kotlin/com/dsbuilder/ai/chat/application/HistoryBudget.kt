@@ -9,9 +9,10 @@ import kotlinx.serialization.json.JsonElement
 /**
  * Укладывает историю в лимит модели.
  *
- * Порядок: результат каждого инструмента ограничивается [toolResultMaxChars]; затем сокращается текст старых
- * результатов (сообщение `tool` остаётся с пометкой, иначе API формата OpenAI отклонит вызов без ответа);
- * затем удаляются старые обмены целиком. Последнее сообщение пользователя и всё после него не трогаются.
+ * Порядок: результат каждого инструмента ограничивается [toolResultMaxChars]; затем сокращается текст результатов
+ * прошлых ходов (сообщение `tool` остаётся с пометкой, иначе API формата OpenAI отклонит вызов без ответа); затем
+ * ранние результаты текущего хода, от старых к новым, кроме последнего; затем удаляются старые обмены целиком.
+ * Системный промпт и последнее сообщение пользователя не сокращаются.
  */
 internal class HistoryBudget(private val historyMaxChars: Int, private val toolResultMaxChars: Int) {
     /** Возвращает историю не длиннее лимита либо null, если уложиться нельзя. */
@@ -25,6 +26,15 @@ internal class HistoryBudget(private val historyMaxChars: Int, private val toolR
                 message.copy(toolResult = message.toolResult.copy(content = TRIMMED))
             } else {
                 message
+            }
+        }
+        // Много вызовов в одном ходе: сокращаем ранние результаты текущего хода, последний оставляем целым.
+        val turnResults = current.indices.filter { it > lastUser && current[it].toolResult != null }.dropLast(1)
+        for (index in turnResults) {
+            if (size(current) <= budget) break
+            val message = current[index]
+            current = current.toMutableList().also {
+                it[index] = message.copy(toolResult = message.toolResult!!.copy(content = TRIMMED))
             }
         }
         while (size(current) > budget) {
