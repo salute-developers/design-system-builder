@@ -17,6 +17,12 @@ data class VerifiedPersonalAccessToken(
 interface PersonalAccessTokens {
     /** Проверяет секрет, отзыв, срок и актуальные права владельца. */
     suspend fun verify(secret: String): PersonalAccessTokenVerification
+
+    /**
+     * Перепроверяет уже проверенный токен [tokenId] владельца [userId] без секрета: отзыв, срок и актуальные права
+     * владельца. Нужен для долгих операций, начатых по этому токену; время использования не обновляет.
+     */
+    suspend fun recheck(tokenId: String, userId: String): PersonalAccessTokenVerification
 }
 
 /** Проверка отделяет неверные данные от недоступности проверки личности. */
