@@ -37,7 +37,7 @@ class StartChatTurnUseCaseTest {
         val store = InMemoryTurnStore(64L * 1024 * 1024)
         val signer = HmacConfirmationSigner(clock, "kid", ByteArray(32))
         val turnScope = ChatTurnScope(Dispatchers.Default)
-        val runner = RunChatTurnUseCase(llm, toolbox, signer, store, limits(), clock)
+        val runner = RunChatTurnUseCase(llm, toolbox, signer, store, limits(), clock = clock)
         val useCase = StartChatTurnUseCase(store, { _, _ -> ownership }, signer, runner, turnScope)
 
         suspend fun start(request: ChatTurnRequest) = useCase.start(request, scope, principal, allowAll)
@@ -104,6 +104,32 @@ class StartChatTurnUseCaseTest {
         assertEquals(scope.designSystemId, busy.rejection.details["designSystemId"])
         gate.complete(Unit)
         harness.events(first.turnId)
+    }
+
+    @Test
+    fun rejectedConfirmationCannotBeReplayedWithAnotherEncoding() = runBlocking<Unit> {
+        val reset = ToolCall("c3", "component_property_reset", args("appearanceId" to "a1"))
+        val harness = Harness(llm = ScriptedLlm({ LlmResponse.ToolCalls(listOf(reset)) }, { LlmResponse.Text("ok") }))
+        val paused = harness.start(request()) as StartResult.Accepted
+        val events = harness.events(paused.turnId)
+        val token = events.filterIsInstance<ChatEvent.ConfirmationRequired>().single().confirmationToken
+        val history = events.filterIsInstance<ChatEvent.State>().last().messages
+        val rejected = harness.start(
+            request(key = "k2", confirmations = listOf(ToolConfirmation(token, false)), messages = history),
+        ) as StartResult.Accepted
+        harness.events(rejected.turnId)
+
+        listOf("$token=", token.replaceFirst(".", "=.")).forEach { variant ->
+            val replay = harness.start(
+                request(
+                    key = "k-$variant",
+                    confirmations = listOf(ToolConfirmation(variant, true)),
+                    messages = history,
+                ),
+            )
+            assertEquals("confirmation_invalid", replay.code(), variant)
+        }
+        assertTrue(harness.toolbox.executed.isEmpty(), "The rejected operation must never run")
     }
 
     @Test

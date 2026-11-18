@@ -57,6 +57,11 @@ internal class HmacConfirmationSigner(
         if (parts.size != 2) return ConfirmationCheck.Invalid
         val payloadBytes = runCatching { decoder.decode(parts[0]) }.getOrNull() ?: return ConfirmationCheck.Invalid
         val signature = runCatching { decoder.decode(parts[1]) }.getOrNull() ?: return ConfirmationCheck.Invalid
+        // Только каноническое кодирование: иначе тот же подписанный токен получил бы другой хеш и обошёл бы
+        // правило «первое решение по подтверждению окончательное».
+        if (encoder.encodeToString(payloadBytes) != parts[0] || encoder.encodeToString(signature) != parts[1]) {
+            return ConfirmationCheck.Invalid
+        }
         val payload = runCatching { Json.parseToJsonElement(payloadBytes.decodeToString()).jsonObject }.getOrNull()
             ?: return ConfirmationCheck.Invalid
         if (payload.text("kid") != keyId) return ConfirmationCheck.Expired
