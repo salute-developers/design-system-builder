@@ -408,6 +408,26 @@
     flex: 1 1 0;
 }
 
+/* Стили вариаций вложенного компонента: дерево начинается на уровне названия свойства, поля — в колонке значений. */
+.component-variation-state-row.is-style-reference > .component-token-field {
+    width: 0;
+    /* Слот «Очистить значение» (24px) и зазор значения (4px): правый край, как у поля оформления. */
+    margin-right: 28px;
+    flex: 1 1 0;
+}
+/* Выбор оформления занимает колонку значений целиком, как строки стилей вариаций. */
+.component-style-reference {
+    min-width: 0;
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 4px;
+}
+/* Линия идёт непрерывно от ответвления предыдущей строки, а первая начинается под названием свойства. */
+.component-variation-state-row.is-style-reference + .component-variation-state-row.is-style-reference::before {
+    top: -16px;
+}
+
 /* Список токенов (`component-variation-token-picker`). */
 .component-token-picker {
     position: absolute;

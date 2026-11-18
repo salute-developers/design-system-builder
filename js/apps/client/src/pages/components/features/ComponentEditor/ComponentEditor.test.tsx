@@ -210,14 +210,17 @@ describe('ComponentEditor', () => {
         );
     });
 
-    it('does not clear icons and style links: they cannot be set again yet', () => {
+    it('shows an icon through the catalog picker and keeps the generic clear button off it', () => {
         renderEditor();
 
-        const group = screen.getByRole('region', { name: 'Behaviour' });
-        fireEvent.click(within(group).getByRole('button', { name: 'Behaviour' }));
+        // Иконки в своей секции, развёрнутой по умолчанию: поля видны без раскрытия группы.
+        expect(screen.getByRole('region', { name: 'Icons' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Behaviour' })).not.toBeInTheDocument();
 
-        expect(within(property('closeIcon')).getByRole('textbox', { name: 'Close icon' })).toHaveValue('close.16');
+        // Каталога в тесте нет: пикер показывает значение строкой, как до выбора из каталога.
+        expect(within(property('closeIcon')).getByText('close.16')).not.toBeNull();
         expect(within(property('closeIcon')).queryByRole('button', { name: /Очистить значение/ })).toBeNull();
+        expect(within(property('closeIcon')).getByRole('button', { name: /Очистить/ })).not.toBeNull();
     });
 
     it('hides unset rows of a group with its filter', () => {

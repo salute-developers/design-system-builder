@@ -13,6 +13,7 @@ import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.core.presentation.tokenIdFilter
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystem
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemUseCase
@@ -149,6 +150,7 @@ fun Route.designSystemRoutes(
         }
         get("/{designSystemId}/tokens") {
             val context = call.modelReadContext(evaluator) ?: return@get
+            val tokenIds = call.tokenIdFilter() ?: return@get
             val id = call.dsPathDesignSystemId()?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             val type = call.request.queryParameters["type"]
@@ -157,7 +159,7 @@ fun Route.designSystemRoutes(
             }
             when (
                 val result = listTokens.execute(
-                    context,
+                    context.copy(readQuery = context.readQuery.copy(tokenIds = tokenIds)),
                     DesignSystemId(id),
                     type,
                     call.request.queryParameters["query"],

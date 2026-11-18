@@ -266,6 +266,11 @@ export interface DraftChangeDto {
 /** Минимальный адрес данных, которые нужно обновить после отмены. */
 export type DraftRefreshChange = Pick<DraftChangeDto, 'entityType' | 'entityId'>;
 
+/** Потерянный ответ команды требует общей сверки; повторяется только чтение. */
+export interface DraftRefreshOptions {
+    outcome: 'confirmed' | 'unknown';
+}
+
 export interface DraftAddressTarget extends DraftRefreshChange {
     expectedRevision: number;
 }

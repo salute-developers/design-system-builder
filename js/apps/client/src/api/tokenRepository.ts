@@ -45,6 +45,7 @@ export const tokenRepository = {
         knownPublicationVersion?: string,
         types?: TokenDefinitionDto['type'][],
         knownPalette?: ThemeEditorTokenSnapshot['palette'],
+        tokenIds?: string[],
     ): Promise<ThemeEditorTokenSnapshot> {
         const root = apiRoot(context.projectId, context.designSystemId);
         const request = readRequest(context, signal);
@@ -64,26 +65,32 @@ export const tokenRepository = {
               : Promise.resolve({ palette: undefined, paletteError: undefined });
         const [tenant, tokens, values, versions] = await Promise.all([
             readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
-            types
-                ? Promise.all(
-                      types.map((type) =>
-                          readEditor<TokenDefinitionDto[]>(`${root}/tokens`, {
-                              ...request,
-                              params: { ...request.params, type },
-                          }),
-                      ),
-                  ).then((responses) => ({ data: responses.flatMap((response) => response.data) }))
-                : readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
-            readEditor<TenantTokenValueDto[]>(
-                `${root}/tenants/${context.tenantId}/token-values`,
-                types ? { ...request, params: { ...request.params, types: types.join(',') } } : request,
-            ),
+            tokenIds
+                ? readEditor<TokenDefinitionDto[]>(`${root}/tokens`, {
+                      ...request,
+                      params: { ...request.params, tokenIds: tokenIds.join(',') },
+                  })
+                : types
+                  ? Promise.all(
+                        types.map((type) =>
+                            readEditor<TokenDefinitionDto[]>(`${root}/tokens`, {
+                                ...request,
+                                params: { ...request.params, type },
+                            }),
+                        ),
+                    ).then((responses) => ({ data: responses.flatMap((response) => response.data) }))
+                  : readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
+            readEditor<TenantTokenValueDto[]>(`${root}/tenants/${context.tenantId}/token-values`, {
+                ...request,
+                params: {
+                    ...request.params,
+                    ...(types ? { types: types.join(',') } : {}),
+                    ...(tokenIds ? { tokenIds: tokenIds.join(',') } : {}),
+                },
+            }),
             context.versionId || knownPublicationVersion
                 ? Promise.resolve({ data: [] as DesignSystemVersionDto[] })
-                : readEditor<DesignSystemVersionDto[]>(
-                      `${root}/versions`,
-                      { signal },
-                  ),
+                : readEditor<DesignSystemVersionDto[]>(`${root}/versions`, { signal }),
         ]);
         if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
         const palette = values.data.some((value) => value.paletteId)
@@ -277,7 +284,6 @@ export const tokenRepository = {
             const created = await http.post<TokenDefinitionDto>(
                 `${root}/tokens`,
                 {
-
                     name: tokenName,
                     type: mutation.change.type,
                     displayName: mutation.change.meta?.displayName ?? tokenName,

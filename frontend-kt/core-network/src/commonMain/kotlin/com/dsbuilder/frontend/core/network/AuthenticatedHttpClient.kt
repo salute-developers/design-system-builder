@@ -118,6 +118,13 @@ public interface AuthenticatedHttpClient {
     public suspend fun mutate(request: HttpMutationRequest): HttpMutationResult =
         error("Mutations are not supported by this client.")
 
+    /**
+     * Выполняет POST с JSON-телом и возвращает статус и тело ответа как есть: вызывающий сам отображает коды
+     * предметных отказов (например `409`). Параметры запроса задаются в [path].
+     */
+    public suspend fun postJson(path: String, body: String): AuthenticatedHttpResponse =
+        error("JSON POST with a raw response is not supported by this client.")
+
     /** Выполняет multipart POST с project API key. */
     public suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
         postMultipart(path, listOf(file))
@@ -179,6 +186,15 @@ public class KtorAuthenticatedHttpClient(
 
     override suspend fun mutate(request: HttpMutationRequest): HttpMutationResult =
         executeMutation(httpClient, url(request.path), credential, request)
+
+    override suspend fun postJson(path: String, body: String): AuthenticatedHttpResponse {
+        val response = httpClient.post(url(path)) {
+            authorizationHeader()
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        return AuthenticatedHttpResponse(response.status.value, response.bodyAsText())
+    }
 
     override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
         postMultipart(path, listOf(file))

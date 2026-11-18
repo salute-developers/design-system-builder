@@ -64,6 +64,7 @@ internal class GatewayRequestHandler(
             path == "/api/privacy/analytics/consent" -> 4096L
             policy.documentation -> configuration.documentationMaxBytes
             path in pluginPublishPaths -> 64L * 1024 * 1024
+            path == ICON_CATALOG_UPLOAD_PATH -> 32L * 1024 * 1024
             policy.ds || path == "/api/admin/component-config/import-api-meta" -> 16L * 1024 * 1024
             else -> 2L * 1024 * 1024
         }
@@ -86,7 +87,7 @@ internal class GatewayRequestHandler(
         val userRoute = path.startsWith("/api/settings/personal-access-tokens") ||
             path in pluginPublishPaths || path in setOf(
                 "/api/projects", "/api/projects/member-candidates",
-                "/api/admin/component-config/import-api-meta",
+                "/api/admin/component-config/import-api-meta", ICON_CATALOG_UPLOAD_PATH,
             )
         val ds = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/design-systems")
         val documentation = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/documentation")

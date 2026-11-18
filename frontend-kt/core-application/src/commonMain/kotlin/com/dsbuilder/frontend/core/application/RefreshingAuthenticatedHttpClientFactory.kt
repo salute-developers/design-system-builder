@@ -57,6 +57,9 @@ internal class RefreshingAuthenticatedHttpClientFactory(
             }
         }
 
+        override suspend fun postJson(path: String, body: String): AuthenticatedHttpResponse =
+            retryMultipart { it.postJson(path, body) }
+
         override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
             retryMultipart { it.postMultipart(path, file) }
 

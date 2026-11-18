@@ -3,6 +3,7 @@ from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -80,6 +81,86 @@ class ReleaseTest(unittest.TestCase):
             self.assertEqual(release.digest((self.directory / artifact['file']).read_bytes()), artifact['sha256'])
         self.assertIn('https://github.com/' + release.github_repository(), (self.directory / 'install.sh').read_text())
         self.assertNotIn('@CLI_RELEASE_BASE_URL@', (self.directory / 'install.ps1').read_text())
+
+    def test_release_includes_both_rendered_installers(self):
+        files = release.release_files(self.directory)
+        self.assertEqual(8, len(files))
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        for name in release.INSTALLERS:
+            self.assertEqual((self.directory / name).read_bytes(), remote.data[name])
+
+    def test_legacy_published_release_gets_only_missing_installers(self):
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        remote.publish(True)
+        for name in release.INSTALLERS:
+            remote.data.pop(name)
+        previous = dict(remote.data)
+        remote.writes.clear()
+        make_archive(self.directory, 'jvm', binary=b'different rebuild')
+        self.assertTrue(release.prepare_github(remote, self.directory))
+        self.assertEqual(list(release.INSTALLERS), remote.writes)
+        self.assertEqual(previous, {name: remote.data[name] for name in previous})
+        self.assertEqual([True], remote.promotions)
+
+    def test_partial_legacy_installer_upload_can_resume(self):
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        remote.publish(True)
+        for name in release.INSTALLERS:
+            remote.data.pop(name)
+        remote.fail = 'install.ps1'
+        with self.assertRaises(RuntimeError):
+            release.prepare_github(remote, self.directory)
+        shell = remote.data['install.sh']
+        remote.fail = None
+        remote.writes.clear()
+        release.prepare_github(remote, self.directory)
+        self.assertEqual(['install.ps1'], remote.writes)
+        self.assertEqual(shell, remote.data['install.sh'])
+        self.assertEqual([True], remote.promotions)
+
+    def test_broken_legacy_archives_prevent_installer_upload(self):
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        remote.publish(True)
+        for name in release.INSTALLERS:
+            remote.data.pop(name)
+        remote.data['dsbuilder-cli-jvm.zip'] = b'broken'
+        remote.writes.clear()
+        with self.assertRaises(ValueError):
+            release.prepare_github(remote, self.directory)
+        self.assertEqual([], remote.writes)
+
+    def test_changed_published_installer_is_rejected_without_replacement(self):
+        for name in release.INSTALLERS:
+            with self.subTest(name=name):
+                remote = self.remote()
+                release.prepare_github(remote, self.directory)
+                remote.publish(True)
+                remote.data[name] = b'changed script'
+                remote.writes.clear()
+                with self.assertRaisesRegex(ValueError, 'Release installer mismatch'):
+                    release.prepare_github(remote, self.directory)
+                with self.assertRaisesRegex(ValueError, 'Release installer mismatch'):
+                    release.promote_github(remote)
+                self.assertEqual([], remote.writes)
+                self.assertEqual(b'changed script', remote.data[name])
+                self.assertEqual([True], remote.promotions)
+
+    def test_draft_installer_upload_and_verification_must_finish_before_publish(self):
+        remote = self.remote()
+        remote.fail = 'install.ps1'
+        with self.assertRaises(RuntimeError):
+            release.prepare_github(remote, self.directory)
+        self.assertTrue(remote.view()['draft'])
+        with self.assertRaises(ValueError):
+            release.promote_github(remote)
+        remote.fail = None
+        release.prepare_github(remote, self.directory)
+        release.promote_github(remote)
+        self.assertEqual([True], remote.promotions)
 
     def test_missing_archive_prevents_preparation(self):
         (self.directory / 'dsbuilder-cli-jvm.zip').unlink()
@@ -231,6 +312,49 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual([], remote.promotions)
 
 
+class GitHubReleaseLookupTest(unittest.TestCase):
+    def lookup(self, pages):
+        remote = release.GitHubRelease('cli-v1.2.3')
+        result = SimpleNamespace(stdout=json.dumps(pages).encode())
+        with patch.object(remote, 'run', return_value=result) as run:
+            info = remote.view()
+        run.assert_called_once_with('api', '--paginate', '--slurp',
+                                    f'repos/{remote.repo}/releases?per_page=100')
+        return info
+
+    def test_finds_draft_on_later_page_and_keeps_assets(self):
+        draft = {'id': 42, 'tag_name': 'cli-v1.2.3', 'draft': True,
+                 'assets': [{'name': 'release.json'}]}
+        self.assertEqual(draft, self.lookup([
+            [{'id': 43, 'tag_name': 'cli-v1.2.4', 'draft': False}], [draft],
+        ]))
+
+    def test_finds_published_release(self):
+        published = {'id': 42, 'tag_name': 'cli-v1.2.3', 'draft': False}
+        self.assertEqual(published, self.lookup([[published]]))
+
+    def test_missing_release(self):
+        self.assertIsNone(self.lookup([[]]))
+
+    def test_duplicate_tag_is_rejected(self):
+        draft = {'id': 42, 'tag_name': 'cli-v1.2.3', 'draft': True}
+        with self.assertRaisesRegex(RuntimeError, 'Multiple GitHub releases'):
+            self.lookup([[draft], [dict(draft, id=43)]])
+
+    def test_prepare_reuses_existing_draft_on_retry(self):
+        remote = release.GitHubRelease('cli-v1.2.3')
+        draft = {'id': 42, 'tag_name': remote.tag, 'draft': True}
+        result = SimpleNamespace(stdout=json.dumps([[draft]]).encode())
+        directory = Path('distributions')
+        with patch.object(remote, 'run', return_value=result), patch.object(remote, 'create') as create, \
+                patch.object(remote, 'upload') as upload, patch.object(release, 'verified_remote_release') as verify:
+            for _ in range(2):
+                self.assertFalse(release.prepare_github(remote, directory))
+            create.assert_not_called()
+            self.assertEqual(2, upload.call_count)
+            verify.assert_called_with(remote, '1.2.3')
+
+
 class FakeGitHub(MemoryStore):
     def __init__(self, tag):
         super().__init__()
@@ -240,7 +364,7 @@ class FakeGitHub(MemoryStore):
         self.promotions = []
 
     def view(self):
-        return self.metadata
+        return dict(self.metadata, assets=[{'name': name} for name in self.data]) if self.metadata else None
 
     def create(self):
         self.metadata = {'tag_name': self.tag, 'draft': True, 'prerelease': False}
@@ -248,9 +372,11 @@ class FakeGitHub(MemoryStore):
     def latest(self):
         return self.current_latest
 
-    def upload(self, directory):
-        for key, data in release.release_files(directory).items():
-            self.put(key, data)
+    def upload(self, directory, names=None, overwrite=True):
+        for key in names if names is not None else release.release_files(directory):
+            if not overwrite and key in self.data:
+                raise RuntimeError('Asset already exists: ' + key)
+            self.put(key, (directory / key).read_bytes())
 
     def publish(self, latest):
         self.metadata['draft'] = False
@@ -258,16 +384,34 @@ class FakeGitHub(MemoryStore):
 
 
 class GitHubAdapterTest(unittest.TestCase):
+    def test_adding_missing_installers_does_not_clobber_assets(self):
+        remote = release.GitHubRelease('cli-v1.2.3')
+        with patch.object(remote, 'run') as run:
+            remote.upload(Path('distributions'), names=['install.sh'], overwrite=False)
+            run.assert_called_once_with('release', 'upload', 'cli-v1.2.3', '--repo', remote.repo,
+                                        str(Path('distributions') / 'install.sh'))
+
     def test_only_404_is_missing_and_other_errors_fail(self):
         import subprocess
         remote = release.GitHubRelease('cli-v1.2.3')
         for stderr in (b'gh: Not Found (HTTP 404)', b'gh: Forbidden (HTTP 403)', b'network failure'):
             with patch.object(remote, 'run', side_effect=subprocess.CalledProcessError(1, ['gh'], stderr=stderr)):
                 if b'404' in stderr:
-                    self.assertIsNone(remote.view())
+                    self.assertIsNone(remote.latest())
                 else:
                     with self.assertRaises(RuntimeError):
-                        remote.view()
+                        remote.latest()
+
+    def test_listing_errors_do_not_create_another_draft(self):
+        import subprocess
+        remote = release.GitHubRelease('cli-v1.2.3')
+        for stderr in (b'gh: Not Found (HTTP 404)', b'gh: Forbidden (HTTP 403)', b'network failure'):
+            with self.subTest(stderr=stderr), patch.object(
+                remote, 'run', side_effect=subprocess.CalledProcessError(1, ['gh'], stderr=stderr)
+            ), patch.object(remote, 'create') as create:
+                with self.assertRaisesRegex(RuntimeError, 'GitHub release request failed'):
+                    release.prepare_github(remote, Path('unused'))
+                create.assert_not_called()
 
     def test_draft_and_promotion_commands_are_explicit(self):
         remote = release.GitHubRelease('cli-v1.2.3')

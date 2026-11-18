@@ -29,13 +29,25 @@ npm. Без Node.js, без сети
 
 ## Установка последнего стабильного CLI
 
-Адреса `install.sh` и `install.ps1` остаются прежними в S3. Скачайте установщик
-по существующей ссылке и запустите `sh install.sh` либо `./install.ps1`.
+Скачайте установщик из GitHub Releases:
+
+```sh
+curl -fsSL https://github.com/salute-developers/design-system-builder/releases/latest/download/install.sh -o install-dsbuilder.sh && sh install-dsbuilder.sh
+```
+
+```powershell
+Invoke-WebRequest https://github.com/salute-developers/design-system-builder/releases/latest/download/install.ps1 -OutFile install-dsbuilder.ps1
+./install-dsbuilder.ps1
+```
+
+Для скачивания скрипта конкретного тега используйте `/releases/download/cli-vX.Y.Z/`
+вместо `/releases/latest/download/`.
 Он выбирает GitHub Latest, закрепляет версию и скачивает архив с проверкой SHA-256.
 macOS автоматически получает arm64/x64, Windows — x64, Linux — JVM (нужна Java 17+).
 На macOS под Rosetta выбирается arm64. Windows arm64 и 32-bit не поддерживаются.
 
-Конкретная версия: `sh install.sh --version 1.2.3` или `./install.ps1 -Version 1.2.3`.
+Конкретная версия CLI: `sh install-dsbuilder.sh --version 1.2.3` или
+`./install-dsbuilder.ps1 -Version 1.2.3`.
 Флаги `--without-ios`, `--without-web` и `-WithoutWeb` сохраняются; явная JVM-установка
 на macOS/Linux доступна через `--target jvm`. Архивы и контрольные суммы находятся
 в GitHub Releases, отдельного `stable.json` нет. gh, jq и Python установщику не нужны.
@@ -611,6 +623,72 @@ CLI получает короткоживущий токен (`client_credential
 
 Релиз `cli-vX.Y.Z` репозитория содержит `dsbuilder-cli-jvm.zip`: распакуйте архив и запустите
 `cli-jvm/bin/dsbuilder` с Java 17. Закрепите версию релиза в workflow.
+
+## Загрузка каталога иконок
+
+Команда отправляет каталог иконок на бэкенд. Источник — пакет `@salutejs/sdds-icons` (в репозитории `plasma` это
+`packages/sdds-icons`) с каталогами `svg/16`, `svg/24`, `svg/36`. Бэкенд за один шаг кладёт SVG в хранилище, заменяет
+каталог и делает его активным; редактор и страница иконок берут каталог и изображения у бэкенда. Значения иконок в
+конфигурациях компонентов не меняются.
+
+```bash
+# Пробная отправка: бэкенд считает различия с активным каталогом и ничего не записывает.
+dsbuilder icons publish --from-dir packages/sdds-icons --api-url https://api.example.com
+
+# Запись каталога.
+dsbuilder icons publish --from-dir packages/sdds-icons --api-url https://api.example.com --apply
+```
+
+Параметры:
+
+- `--from-dir <каталог>` — корень пакета; имя файла `*.svg` без расширения — каноническое имя иконки, подкаталог —
+  размер. Категория и синонимы читаются из элемента `<metadata>` каждого SVG (размер `24`, иначе первый найденный).
+  Иконки без части размеров или без метаданных попадают в каталог с предупреждением. Файл больше 64 КиБ или каталог
+  без SVG — ошибка до обращения к сети.
+- `--from <icons-manifest.json>` — готовый манифест вместо каталога (ровно один из `--from-dir` и `--from`).
+- `--api-url` — адрес бэкенда, обязателен: команда пишет на бэкенд.
+- `--package-version <версия>` — версия пакета; без неё берётся `version` из `package.json` каталога, иначе `unknown`.
+- `--write-manifest <файл>` — дополнительно записать собранный манифест (только с `--from-dir`).
+- `--allow-removing-used` — разрешить удаление иконок, на которые ссылаются конфигурации компонентов.
+- `--apply` — записать каталог; без него выполняется пробная отправка.
+
+Формат манифеста (`schemaVersion` 1; в `sizes` лежит содержимое SVG):
+
+```json
+{
+  "schemaVersion": 1,
+  "source": { "package": "@salutejs/sdds-icons", "version": "0.14.0" },
+  "icons": [
+    {
+      "name": "AddOutline",
+      "category": "Actions & Feedback",
+      "aliases": ["add", "добавить"],
+      "sizes": { "16": "<svg …>", "24": "<svg …>", "36": "<svg …>" }
+    }
+  ]
+}
+```
+
+Итог: `published` (новый каталог записан и активен), `activated` (ранее загруженный каталог снова активен: откат
+повторной загрузкой прежнего содержимого) или `unchanged` (такой каталог уже активен). Отчёт содержит число
+добавленных, удалённых, изменённых и неизменных иконок, первые имена, используемые иконки, которые удаляет
+загрузка, и сверку значений `icon` из конфигураций с каталогом. Если загрузка удаляет иконку, на которую есть
+ссылки, бэкенд отвечает `409 icons_in_use`: команда завершается ошибкой, перечисляет иконки и число ссылок, а
+запись возможна только с `--allow-removing-used`.
+
+Авторизация та же, что у `preview-plugin publish`: служебная учётка из `DSBUILDER_CLIENT_ID` и
+`DSBUILDER_CLIENT_SECRET` (нужны обе, секрет только через окружение), иначе сохранённая сессия системного
+администратора. Загрузка доступна системному администратору и служебной учётке с ролью публикации; личный токен
+(PAT) не принимается.
+
+Пример шага CI после релиза `@salutejs/sdds-icons` (CLI закрепляется релизом `cli-vX.Y.Z`, как в публикации плагина):
+
+```bash
+export DSBUILDER_CLIENT_ID=dsbuilder-preview-publisher
+export DSBUILDER_CLIENT_SECRET=...   # секрет окружения CI
+dsbuilder icons publish --from-dir packages/sdds-icons \
+  --package-version "$VERSION" --api-url "$DSB_API_URL" --apply
+```
 
 ## Выгрузка конфигов компонентов
 

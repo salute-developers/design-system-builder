@@ -146,6 +146,9 @@ services:
       DS_PLUGIN_S3_PATH_STYLE: 'true'
       DS_PLUGIN_S3_PREFIX: "${DS_PLUGIN_S3_PREFIX:-}"
       DS_PLUGIN_PUBLIC_BASE_URL: "${DS_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/compose-preview}"
+      # Иконки по умолчанию лежат под `icons/` Compose-плагина; пара ниже переносит их в отдельный префикс.
+      DS_ICON_S3_PREFIX: "${DS_ICON_S3_PREFIX:-}"
+      DS_ICON_PUBLIC_BASE_URL: "${DS_ICON_PUBLIC_BASE_URL:-}"
       DS_WEB_PLUGIN_S3_BUCKET: web-preview
       DS_WEB_PLUGIN_S3_PREFIX: "${DS_WEB_PLUGIN_S3_PREFIX:-}"
       DS_WEB_PLUGIN_PUBLIC_BASE_URL: "${DS_WEB_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/web-preview}"

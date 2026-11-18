@@ -74,6 +74,7 @@ it('deletes the server style when the user removes its local style during creati
         designSystem: {
             getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
             getComponentDataByName: () => ({ serverBinding: { componentId: 'component', appearanceId: 'appearance' } }),
+            getComponentData: () => ({ serverBinding: { componentId: 'component', appearanceId: 'appearance' } }),
         },
         theme: {},
         components: [mocks.config],

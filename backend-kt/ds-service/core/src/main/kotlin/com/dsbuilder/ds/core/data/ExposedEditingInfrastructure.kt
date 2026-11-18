@@ -16,6 +16,7 @@ import org.jetbrains.exposed.v1.javatime.timestamp
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.update
@@ -268,7 +269,7 @@ fun entityEditRevisions(
     entityIds: Set<UUID>,
 ): Map<UUID, Long> {
     if (entityIds.isEmpty()) return emptyMap()
-    return EntityEditStatesTable.selectAll().where {
+    return EntityEditStatesTable.select(EntityEditStatesTable.entityId, EntityEditStatesTable.revision).where {
         (EntityEditStatesTable.designSystemVersionId eq versionId) and
             (EntityEditStatesTable.entityType eq entityType) and
             (EntityEditStatesTable.entityId inList entityIds)

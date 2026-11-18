@@ -265,6 +265,11 @@ const assemble = (draft: ComponentPreviewDraft): AssemblyResult => {
         }
     }
 
+    // SVG иконок идут в payload без ссылок: плагин находит их по значению свойства (`icon:<значение>`).
+    for (const asset of draft.assets) {
+        if (asset.type === 'SVG' && asset.id.startsWith('icon:')) assets.set(asset.id, asset);
+    }
+
     const tokenIndex = new Map(draft.themeTokens.map((token) => [token.id, token]));
     // Compose-конфигурации пишут `surface.on-dark.solid.default`, а в теме токен называется `solid-default`:
     // имя без учёта разделителей находит единственный токен. Неоднозначное имя токеном не считается.

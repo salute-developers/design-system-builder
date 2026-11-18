@@ -205,6 +205,28 @@ class PublicGatewayTest {
     }
 
     @Test
+    fun `icon catalog upload requires a user token and accepts a manifest above the default limit`() =
+        testApplication {
+            application {
+                installPublicGateway(configuration, authorizer)
+                routing { post("/api/admin/icons/catalog") { call.respondText(call.receiveText().length.toString()) } }
+            }
+            assertEquals(HttpStatusCode.Unauthorized, client.post("/api/admin/icons/catalog") { setBody("{}") }.status)
+            val manifest = "x".repeat(5 * 1024 * 1024)
+            val accepted = client.post("/api/admin/icons/catalog") {
+                header("Authorization", "Bearer valid")
+                setBody(manifest)
+            }
+            assertEquals(HttpStatusCode.OK, accepted.status)
+            assertEquals(manifest.length.toString(), accepted.bodyAsText())
+            val tooLarge = client.post("/api/admin/icons/catalog") {
+                header("Authorization", "Bearer valid")
+                setBody("x".repeat(33 * 1024 * 1024))
+            }
+            assertEquals(HttpStatusCode.PayloadTooLarge, tooLarge.status)
+        }
+
+    @Test
     fun `plugin publication waits after upload and cancels a stalled handler`() = testApplication {
         val stopped = AtomicBoolean()
         application {

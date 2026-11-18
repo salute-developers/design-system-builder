@@ -73,7 +73,8 @@ class OpenApiDocumentResourceTest {
         val parameters = appearance.getValue("parameters").jsonArray
         assertFalse(
             parameters.any {
-                it.jsonObject["name"]?.jsonPrimitive?.content == "designSystemId" && it.jsonObject["in"]?.jsonPrimitive?.content == "query"
+                it.jsonObject["name"]?.jsonPrimitive?.content == "designSystemId" &&
+                    it.jsonObject["in"]?.jsonPrimitive?.content == "query"
             },
         )
         assertTrue("404" in appearance.getValue("responses").jsonObject)
@@ -86,6 +87,25 @@ class OpenApiDocumentResourceTest {
                 name,
             )
         }
+    }
+
+    @Test
+    fun `addressed token reads share a bounded UUID filter without changing response arrays`() {
+        for (path in listOf(
+            "/api/design-systems/{designSystemId}/tokens",
+            "/api/design-systems/{designSystemId}/tenants/{id}/token-values",
+        )) {
+            val operation = paths.getValue(path).jsonObject.getValue("get").jsonObject
+            assertTrue(
+                operation.getValue("parameters").jsonArray.any {
+                    it.jsonObject["\$ref"]?.jsonPrimitive?.content == "#/components/parameters/TokenIdsFilter"
+                },
+            )
+        }
+        val filter = document.getValue("components").jsonObject.getValue("parameters").jsonObject
+            .getValue("TokenIdsFilter").jsonObject
+        assertEquals("200", filter.getValue("schema").jsonObject.getValue("maxItems").jsonPrimitive.content)
+        assertEquals("false", filter.getValue("explode").jsonPrimitive.content)
     }
 
     @Test
@@ -175,7 +195,8 @@ class OpenApiDocumentResourceTest {
         assertTrue("ColorTokenValues" in response)
         val tenantValue = schemas.getValue("TenantTokenValue").toString()
         assertTrue("overridden" in tenantValue && "#/components/schemas/TokenValue" in tenantValue)
-        // sourceValue и paletteRef — в общей схеме: общий GET /api/design-systems/{designSystemId}/token-values отдаёт ту же форму, что чтение темы.
+        // sourceValue и paletteRef — в общей схеме: общий GET /api/design-systems/{designSystemId}/token-values
+        // отдаёт ту же форму, что чтение темы.
         val tokenValue = schemas.getValue("TokenValue").jsonObject.getValue("properties").jsonObject
         assertTrue("sourceValue" in tokenValue && "paletteRef" in tokenValue)
         val list = paths.getValue(
@@ -273,8 +294,9 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора и группы типографии.
-        assertEquals(200, operationCount)
+        // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора, группы типографии,
+        // каталог иконок и дублирование темы.
+        assertEquals(201, operationCount)
         assertTrue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates" in paths)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)
@@ -319,7 +341,13 @@ class OpenApiDocumentResourceTest {
                 )
             }
         assertTrue(
-            expected.any { (_, path) -> path == "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens" },
+            expected.any { (
+                _,
+                path,
+            ),
+                ->
+                path == "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens"
+            },
         )
         expected.forEach { (method, path, permission) ->
             val operation = paths[path]?.jsonObject?.get(method)?.jsonObject

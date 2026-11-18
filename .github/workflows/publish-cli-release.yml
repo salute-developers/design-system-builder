@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           python3 frontend-kt/cli/distribution/release.py version --tag "$CLI_RELEASE_TAG"
-          git fetch origin "refs/tags/$CLI_RELEASE_TAG:refs/tags/$CLI_RELEASE_TAG"
+          git fetch origin "+refs/tags/$CLI_RELEASE_TAG:refs/tags/$CLI_RELEASE_TAG"
           git checkout --detach "refs/tags/$CLI_RELEASE_TAG"
       - uses: actions/setup-java@v4
         with:
@@ -184,19 +184,9 @@ jobs:
         with:
           name: cli-release-tools
           path: release-tools
-      - run: python3 -m pip install s3cmd==2.4.0
       - name: Prepare and verify GitHub draft or existing release
         run: |
           python3 release-tools/release.py prepare --tag "$CLI_RELEASE_TAG" --directory distributions
           python3 release-tools/release.py upload --tag "$CLI_RELEASE_TAG" --directory distributions
-      - name: Overwrite and verify the two S3 installers
-        env:
-          AWS_ENDPOINT: ${{ secrets.AWS_ENDPOINT }}
-          AWS_S3_BUCKET_2: ${{ secrets.AWS_S3_BUCKET_2 }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          CLI_S3_PREFIX: ${{ vars.CLI_S3_PREFIX }}
-        run: python3 release-tools/release.py upload-installers --tag "$CLI_RELEASE_TAG" --directory distributions
       - name: Publish the verified release and advance Latest when newer
         run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions

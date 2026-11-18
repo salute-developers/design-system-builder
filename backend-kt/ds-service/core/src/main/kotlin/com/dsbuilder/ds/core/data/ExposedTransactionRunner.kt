@@ -31,6 +31,7 @@ import java.sql.SQLException
 class ExposedTransactionRunner(
     private val database: Database,
     private val failureMapper: TransactionFailureMapper,
+    private val poolState: (() -> Map<String, Int>)? = null,
 ) : TransactionRunner {
     override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = false) {
         clearDesignSystemScope()
@@ -234,7 +235,7 @@ class ExposedTransactionRunner(
         attempt: Int,
         block: suspend () -> DsResult<T>,
     ): DsResult<T> = withContext(Dispatchers.IO) {
-        val diagnostics = TransactionDiagnostics.start(readOnly, attempt)
+        val diagnostics = TransactionDiagnostics.start(readOnly, attempt, poolState)
         var succeeded = false
         try {
             transaction(db = database) {

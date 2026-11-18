@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../api/editorContracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { observeTokenValueRevisions, observeSubjectAddresses } from '../api/subjectRevisions';
@@ -9,11 +10,16 @@ import { EditorSectionData } from '../features/themeEditor/EditorSectionData';
 import { sectionTokenTypes, type EditorSection } from '../features/themeEditor/editorSections';
 import { notifyEditorDataInvalidated } from '../api/draftInvalidationStream';
 import { invalidateEditorReads } from '../api/editorReads';
-import type { EditorContextKey, ThemeEditorSnapshot, DraftRefreshChange, TokenDefinitionDto } from '../api/editorContracts';
+import type {
+    EditorContextKey,
+    ThemeEditorSnapshot,
+    DraftRefreshChange,
+    TokenDefinitionDto,
+} from '../api/editorContracts';
 import type { AutosaveStatus } from '../api/tokenAutosaveQueue';
 import { ThemeEditorSession, type ComponentsScope } from '../features/themeEditor/ThemeEditorSession';
 import { preservePendingComponents } from '../features/themeEditor/preservePendingComponents';
-import { keepLoadedComponents } from '../features/themeEditor/keepLoadedComponents';
+import { keepLoadedComponents, keepUnchangedComponents } from '../features/themeEditor/keepLoadedComponents';
 import type { ThemePalette } from '../modules/palette';
 import { getActivePalette, setActivePalette } from '../palette/activePalette';
 import { paletteRepository, setPaletteSession } from '../palette/paletteSession';
@@ -244,7 +250,9 @@ export const useDesignSystem = (
                             preservePendingComponents(
                                 designSystemProjectId,
                                 current,
-                                componentsScope === 'index' ? keepLoadedComponents(current, next) : next,
+                                componentsScope === 'index'
+                                    ? keepLoadedComponents(current, next)
+                                    : keepUnchangedComponents(current, next),
                             );
                         setComponents((current) => merge(current, nextDesignSystem.createAllComponentInstances()));
                         setComposeComponents((current) =>
@@ -397,11 +405,11 @@ export const useDesignSystem = (
         (name?: string, force?: boolean) => autosaveSession.current?.loadComponent(name, force) ?? Promise.resolve(),
         [],
     );
-    const refreshChanges = useCallback(async (changes: DraftRefreshChange[]) => {
+    const refreshChanges = useCallback(async (changes: DraftRefreshChange[], options?: DraftRefreshOptions) => {
         const session = autosaveSession.current;
         if (!session) return Promise.reject(new Error('Редактор черновика недоступен'));
         try {
-            await session.refreshChanges(changes);
+            await session.refreshChanges(changes, options);
         } finally {
             // Локальная отмена не проходит через автосохранение и может не получить SSE-эхо.
             setRefreshRevision((revision) => revision + 1);

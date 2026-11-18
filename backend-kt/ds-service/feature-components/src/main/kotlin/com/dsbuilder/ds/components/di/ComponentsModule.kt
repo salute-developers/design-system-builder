@@ -26,6 +26,9 @@ import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
+import com.dsbuilder.ds.components.application.GetIconCatalogUseCase
+import com.dsbuilder.ds.components.application.IconCatalogRepository
+import com.dsbuilder.ds.components.application.IconUsageReader
 import com.dsbuilder.ds.components.application.ImportApiMetaUseCase
 import com.dsbuilder.ds.components.application.ImportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.ListComponentDependenciesUseCase
@@ -38,6 +41,7 @@ import com.dsbuilder.ds.components.application.ListComponentsUseCase
 import com.dsbuilder.ds.components.application.ListDependenciesByComponentUseCase
 import com.dsbuilder.ds.components.application.ListDesignSystemComponentsUseCase
 import com.dsbuilder.ds.components.application.PluginBuildRepository
+import com.dsbuilder.ds.components.application.PublishIconCatalogUseCase
 import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentReuseConfigUseCase
@@ -50,6 +54,8 @@ import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentTemplateRepository
 import com.dsbuilder.ds.components.data.ExposedComponentWebAdapterRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
+import com.dsbuilder.ds.components.data.ExposedIconCatalogRepository
+import com.dsbuilder.ds.components.data.ExposedIconUsageReader
 import com.dsbuilder.ds.components.data.ExposedPluginBuildRepository
 import com.dsbuilder.ds.components.data.GeneratedDesignSystemComponentInitializer
 import com.dsbuilder.ds.components.data.componentDraftChangeHandlers
@@ -70,6 +76,10 @@ val componentsModule = module {
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
     single<ApiMetaRepository> { ExposedApiMetaRepository() }
     single<PluginBuildRepository> { ExposedPluginBuildRepository() }
+    single<IconCatalogRepository> { ExposedIconCatalogRepository() }
+    single<IconUsageReader> { ExposedIconUsageReader() }
+    factory { PublishIconCatalogUseCase(get(), get(), get(), get(), get()) }
+    factory { GetIconCatalogUseCase(get(), get(), get(), get()) }
     factory { PublishPluginBuildUseCase(get(), get(), get(), get()) }
     factory { GetActivePluginBuildUseCase(get(), get(), get(), get()) }
     single<ComponentWebAdapterRepository> { ExposedComponentWebAdapterRepository() }

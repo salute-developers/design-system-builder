@@ -15,7 +15,7 @@ object ValuePaletteReferences {
 
     /** Все ссылки значения [value] в порядке записи, с повторами. */
     fun find(value: JsonElement?): List<PaletteReference> = when (value) {
-        is JsonPrimitive -> value.text()?.let { text ->
+        is JsonPrimitive -> value.text()?.takeIf { '[' in it }?.let { text ->
             REFERENCE.findAll(text).mapNotNull { PaletteReference.parse(it.value) }.toList()
         }.orEmpty()
         is JsonArray -> value.flatMap(::find)
@@ -28,7 +28,7 @@ object ValuePaletteReferences {
      * как есть. Остальной текст, позиции, угол и центр не меняются.
      */
     fun rewrite(value: JsonElement, transform: (PaletteReference) -> String?): JsonElement = when (value) {
-        is JsonPrimitive -> value.text()?.let { text ->
+        is JsonPrimitive -> value.text()?.takeIf { '[' in it }?.let { text ->
             JsonPrimitive(
                 REFERENCE.replace(text) { match ->
                     PaletteReference.parse(match.value)?.let(transform) ?: match.value

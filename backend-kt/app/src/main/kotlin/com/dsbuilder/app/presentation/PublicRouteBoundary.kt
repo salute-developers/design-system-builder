@@ -13,12 +13,16 @@ internal val pluginPublishPaths = setOf(
     "/api/admin/web-preview/plugin-builds",
 )
 
+/** Загрузка каталога иконок: манифест с SVG до 32 МиБ, доступна токену пользователя или служебной учётки. */
+internal const val ICON_CATALOG_UPLOAD_PATH = "/api/admin/icons/catalog"
+
 /** Проверяет публичную границу до авторизации и выполнения предметного маршрута. */
 internal fun publicGatewayPath(path: String): Boolean =
     path.startsWith("/api/settings/personal-access-tokens") ||
         path in setOf("/health", "/ready", "/admin", "/api/projects", "/api/projects/") ||
         path == "/api/privacy/analytics/consent" ||
         path == "/api/admin/component-config/import-api-meta" || path in pluginPublishPaths ||
+        path == ICON_CATALOG_UPLOAD_PATH ||
         listOf("/api/projects/", "/auth/", "/realms/", "/resources/", "/admin/").any(path::startsWith)
 
 /** Перебирает зарегистрированные конечные маршруты и запрещает случайную публикацию внутренних API. */

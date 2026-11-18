@@ -343,6 +343,7 @@ paths:
       description: Project-scoped authoritative token list. Preserves array response
         shape and supports optional type/query filters.
       parameters:
+        - $ref: '#/components/parameters/TokenIdsFilter'
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/PageLimit'
         - $ref: '#/components/parameters/PageCursor'
@@ -1259,6 +1260,7 @@ paths:
         без него сохраняется полный ответ. Необязательный platforms оставляет значения
         только этих платформ; значения без платформы при нём не отдаются.'
       parameters:
+        - $ref: '#/components/parameters/TokenIdsFilter'
         - name: designSystemId
           in: path
           required: true
@@ -4388,6 +4390,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
+      parameters: []
+  "/api/design-systems/catalog/icons":
+    get:
+      tags:
+        - Icons
+      summary: Get the active icon catalog
+      description: Returns the icon catalog of this environment with the source package
+        and the base address of the SVG files. The answer does not depend on the selected
+        design system version and carries an ETag equal to the load identifier.
+        An environment without a loaded catalog answers with an empty list and no source.
+      responses:
+        '200':
+          description: Active icon catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IconCatalog'
+        '304':
+          description: The catalog has not changed since the ETag in If-None-Match
         '500':
           description: Server error
           content:
@@ -10430,6 +10458,78 @@ components:
         - version
         - changelog
         - publishedAt
+    IconCatalog:
+      type: object
+      required:
+        - source
+        - assetsBaseUrl
+        - icons
+      properties:
+        source:
+          type: object
+          nullable: true
+          description: Package the active load was built from; null without a catalog
+          required:
+            - package
+            - version
+            - loadedAt
+            - loadId
+          properties:
+            package:
+              type: string
+            version:
+              type: string
+            loadedAt:
+              type: string
+              format: date-time
+            loadId:
+              type: string
+        assetsBaseUrl:
+          type: string
+          nullable: true
+          description: SVG files are served at assetsBaseUrl/size/name.svg
+        icons:
+          type: array
+          items:
+            $ref: '#/components/schemas/Icon'
+    Icon:
+      type: object
+      required:
+        - name
+        - style
+        - sizes
+        - legacyKey
+        - category
+        - aliases
+      properties:
+        name:
+          type: string
+          description: Canonical name, for example DisclosureDownFill
+        style:
+          type: string
+          enum:
+            - outline
+            - outline-bold
+            - fill
+            - none
+        sizes:
+          type: array
+          items:
+            type: integer
+            enum:
+              - 16
+              - 24
+              - 36
+        legacyKey:
+          type: string
+          description: Key of the stored value format without the size, for example disclosure.down.fill
+        category:
+          type: string
+          nullable: true
+        aliases:
+          type: array
+          items:
+            type: string
     ActivePluginBuild:
       type: object
       required:
@@ -15080,6 +15180,24 @@ components:
       required:
         - deletedTokenIds
   parameters:
+    TokenIdsFilter:
+      name: tokenIds
+      in: query
+      required: false
+      description: >-
+        От 1 до 200 UUID токенов через запятую. Повтор параметра, пустой или неверный UUID
+        возвращает 400 invalid_token_ids. Чужие и отсутствующие токены не включаются в ответ.
+        Без фильтра сохраняется полная выдача; остальные фильтры применяются совместно.
+        HTTP/1.1-конфигурация сервера допускает начальную строку до 16 КиБ.
+      schema:
+        type: array
+        minItems: 1
+        maxItems: 200
+        items:
+          type: string
+          format: uuid
+      style: form
+      explode: false
     ModelVersion:
       name: version
       in: query
