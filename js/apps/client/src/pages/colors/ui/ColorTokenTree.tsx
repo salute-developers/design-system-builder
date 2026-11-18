@@ -19,7 +19,13 @@ import {
     type TreeSort,
     type TreeSubgroup,
 } from '../../../modules/colorTokens';
-import { DisabledFlag, SEARCH_EMPTY_TEXT, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
+import {
+    DisabledFlag,
+    HideDisabledButton,
+    SEARCH_EMPTY_TEXT,
+    TreeEmpty,
+    TreeHeader,
+} from '../../../components/tokenWorkspace';
 import { InlineRename } from './InlineRename';
 import { alphaSwatchStyle, rowPreview } from './swatch';
 
@@ -148,6 +154,9 @@ interface TreeProps {
     query: string;
     searchOpen: boolean;
     issuesOnly: boolean;
+    /** Фильтр «Скрыть отключённые токены». */
+    hideDisabled: boolean;
+    onHideDisabled: () => void;
     collapsed: Record<string, boolean>;
     editable: boolean;
     canDelete: boolean;
@@ -628,6 +637,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                         >
                             <SettingsFilterOutline />
                         </button>
+                        <HideDisabledButton pressed={props.hideDisabled} onToggle={props.onHideDisabled} />
                         {editable && !searching && (
                             <button
                                 type="button"

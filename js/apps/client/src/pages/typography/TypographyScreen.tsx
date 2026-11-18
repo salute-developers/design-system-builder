@@ -31,7 +31,7 @@ import { TypographyBoard, TypographyBoardSkeleton } from './ui/TypographyBoard';
 import { TypographyInspector } from './ui/TypographyInspector';
 import { TypographyTree, type CreatingStyle } from './ui/TypographyTree';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
-import { usePanelWidths } from '../../components/tokenWorkspace';
+import { useHideDisabled, usePanelWidths } from '../../components/tokenWorkspace';
 
 export interface TypographyScreenProps {
     context: TypographyContext;
@@ -160,7 +160,9 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         await editor.reload();
         rerender();
     });
-    const current = screenStyles(styles, screen);
+    const [hideDisabled, setHideDisabled] = useHideDisabled();
+    const allCurrent = screenStyles(styles, screen);
+    const current = hideDisabled ? allCurrent.filter((style) => editor.enabled(style)) : allCurrent;
     const changedStyles = new Set(
         [...(changedTokenNames ?? [])]
             .map(parseStyleTokenName)
@@ -309,6 +311,8 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     onRename={rename}
                     onDelete={(style) => requestDelete({ kind: 'style', style })}
                     isDisabled={(style) => !editor.enabled(style)}
+                    hideDisabled={hideDisabled}
+                    onHideDisabled={() => setHideDisabled(!hideDisabled)}
                     onCreateGroup={createGroup}
                     onRenameGroup={renameGroup}
                     onDeleteGroup={(group) => requestDelete(groupDeleteTarget(group))}

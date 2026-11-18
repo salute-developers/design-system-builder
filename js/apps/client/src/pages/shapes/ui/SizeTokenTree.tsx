@@ -1,7 +1,7 @@
 import { DisclosureDownOutline, DisclosureRightOutline, PlusOutline, TrashOutline } from '@salutejs/sdds-icons/16';
 import { useRef, useState } from 'react';
 
-import { DisabledFlag, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
+import { DisabledFlag, HideDisabledButton, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
 import {
     boxShadow,
     editableName,
@@ -56,6 +56,9 @@ interface SizeTokenTreeProps {
     onRename?: (token: SizeToken, name: string) => Promise<void>;
     /** Токен отключён (`enabled = false`): строка приглушена и отмечена «Отключён». */
     isDisabled?: (token: SizeToken) => boolean;
+    /** Фильтр «Скрыть отключённые токены». */
+    hideDisabled?: boolean;
+    onHideDisabled?: () => void;
 }
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -226,6 +229,11 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
                 query={query}
                 onQuery={props.onQuery}
                 onSearchOpen={props.onSearchOpen}
+                actions={
+                    props.onHideDisabled && (
+                        <HideDisabledButton pressed={Boolean(props.hideDisabled)} onToggle={props.onHideDisabled} />
+                    )
+                }
             />
             <div className="st-tree-body">
                 {searching ? (

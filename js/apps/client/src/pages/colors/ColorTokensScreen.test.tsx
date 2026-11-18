@@ -375,8 +375,8 @@ describe('ColorTokensScreen', () => {
 
         const row = screen.getByTestId('color-token-row-text.accent');
         expect(row).toHaveClass('is-disabled');
-        expect(row).toHaveTextContent('Отключён');
-        expect(within(inspector()).getByText(/Токен отключён/)).toBeInTheDocument();
+        expect(within(row).getByRole('img', { name: 'Отключён' })).toBeInTheDocument();
+        expect(within(inspector()).getByRole('button', { name: 'Включить токен' })).toBeInTheDocument();
         expect(within(inspector()).queryByRole('button', { name: 'Отключить токен' })).not.toBeInTheDocument();
     });
 
@@ -400,13 +400,19 @@ describe('ColorTokensScreen', () => {
                 ['color', 'gradient'],
             ),
         );
-        await waitFor(() => expect(screen.getByTestId('color-token-row-text.accent')).toHaveTextContent('Отключён'));
-        fireEvent.click(within(inspector()).getByRole('button', { name: 'Включить' }));
+        await waitFor(() =>
+            expect(
+                within(screen.getByTestId('color-token-row-text.accent')).getByRole('img', { name: 'Отключён' }),
+            ).toBeInTheDocument(),
+        );
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Включить токен' }));
         await waitFor(() =>
             expect(save).toHaveBeenLastCalledWith(expect.anything(), expect.any(Array), true, ['color', 'gradient']),
         );
         await waitFor(() =>
-            expect(screen.getByTestId('color-token-row-text.accent')).not.toHaveTextContent('Отключён'),
+            expect(
+                within(screen.getByTestId('color-token-row-text.accent')).queryByRole('img', { name: 'Отключён' }),
+            ).toBeNull(),
         );
     });
 

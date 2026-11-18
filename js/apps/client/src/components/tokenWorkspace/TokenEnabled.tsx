@@ -1,12 +1,33 @@
 import { useState } from 'react';
-import { EyeClosedOutline } from '@salutejs/sdds-icons/16';
+import { EyeClosedOutline, EyeOutline } from '@salutejs/sdds-icons/16';
 
-import { ConfirmDeleteDialog } from './TokenWorkspace';
+import { ConfirmDeleteDialog, usePersistedOpen } from './TokenWorkspace';
 
 export const DISABLED_TOKEN_TEXT = 'Токен отключён: его нет в пакете и в экспорте в Figma';
 
-/** Отметка отключённого токена в строке дерева. */
-export const DisabledFlag = () => <b className="tw-disabled-flag">Отключён</b>;
+/** Отметка отключённого токена в строке дерева: перечёркнутый глаз, как у переключателя в инспекторе. */
+export const DisabledFlag = () => (
+    <span className="tw-disabled-flag" role="img" aria-label="Отключён" title={DISABLED_TOKEN_TEXT}>
+        <EyeClosedOutline />
+    </span>
+);
+
+/** Фильтр дерева «Скрыть отключённые токены»: один на три экрана токенов и запоминается в браузере. */
+export const useHideDisabled = () => usePersistedOpen('dsb.tokens.hide-disabled');
+
+/** Кнопка фильтра «Скрыть отключённые токены» в шапке дерева. */
+export const HideDisabledButton = ({ pressed, onToggle }: { pressed: boolean; onToggle: () => void }) => (
+    <button
+        type="button"
+        className="tw-icon-button"
+        aria-label="Скрыть отключённые токены"
+        aria-pressed={pressed}
+        title="Скрыть отключённые токены"
+        onClick={onToggle}
+    >
+        <EyeClosedOutline />
+    </button>
+);
 
 export interface TokenEnabledToggle {
     enabled: boolean;
@@ -69,34 +90,31 @@ export const useTokenEnabled = (options: {
     };
 };
 
-/** Кнопка «Отключить токен» в шапке инспектора: только у включённого токена и с правом правки. */
-export const TokenEnabledButton = ({ toggle }: { toggle: TokenEnabledToggle }) =>
-    toggle.enabled && toggle.editable ? (
+/**
+ * Переключатель-глаз в шапке инспектора для обоих состояний: открытый глаз — токен включён, перечёркнутый — отключён.
+ * Без права правки остаётся только отметка отключённого токена.
+ */
+export const TokenEnabledButton = ({ toggle }: { toggle: TokenEnabledToggle }) => {
+    if (!toggle.editable) return toggle.enabled ? null : <DisabledFlag />;
+    const label = toggle.enabled ? 'Отключить токен' : 'Включить токен';
+    return (
         <button
             type="button"
             className="tw-icon-button"
-            title="Отключить токен"
-            aria-label="Отключить токен"
+            title={toggle.enabled ? label : `${DISABLED_TOKEN_TEXT}. ${label}`}
+            aria-label={label}
+            aria-pressed={!toggle.enabled}
             disabled={toggle.busy}
-            onClick={() => toggle.request(false)}
+            onClick={() => toggle.request(!toggle.enabled)}
         >
-            <EyeClosedOutline />
+            {toggle.enabled ? <EyeOutline /> : <EyeClosedOutline />}
         </button>
-    ) : null;
+    );
+};
 
-/** Сообщение об отключённом токене, ошибка изменения признака и подтверждение отключения используемого токена. */
+/** Ошибка изменения признака и подтверждение отключения используемого токена. */
 export const TokenEnabledNotice = ({ toggle, name }: { toggle: TokenEnabledToggle; name: string }) => (
     <>
-        {!toggle.enabled && (
-            <div className="tw-notice" role="status">
-                <span>{DISABLED_TOKEN_TEXT}</span>
-                {toggle.editable && (
-                    <button type="button" disabled={toggle.busy} onClick={() => toggle.request(true)}>
-                        Включить
-                    </button>
-                )}
-            </div>
-        )}
         {toggle.failed && (
             <div className="tw-notice is-error" role="alert">
                 <span>Не удалось изменить признак токена.</span>

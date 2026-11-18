@@ -951,11 +951,20 @@
 }
 
 .tw-disabled-flag {
+    display: inline-flex;
     flex: none;
     margin-left: auto;
-    color: var(--tw-text-paragraph);
-    font-size: 11px;
-    font-weight: 400;
+    color: var(--tw-text-secondary);
+}
+
+.tw-disabled-flag > svg {
+    width: var(--tw-icon-size);
+    height: var(--tw-icon-size);
+}
+
+/* Как значение строки, отметка уступает место действиям строки при наведении. */
+.tw-tree-row:is(:hover, :focus-within):has(> .tw-tree-row-actions) .tw-disabled-flag {
+    visibility: hidden;
 }
 
 .tw-disabled-flag + .tw-tree-item-value,

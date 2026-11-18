@@ -310,7 +310,6 @@ export const Main = () => {
                                         className={`builder-rail-button ${currentPath.includes('settings') ? 'is-active' : ''}`}
                                         selected={currentPath.includes('settings')}
                                         onClick={() => onClickPanelButton('settings')}
-                                        disabled={Boolean(editorContext?.versionId)}
                                         aria-label="Настройки дизайн-системы"
                                         title="Настройки дизайн-системы"
                                     >

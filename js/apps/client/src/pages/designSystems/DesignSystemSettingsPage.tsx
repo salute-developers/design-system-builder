@@ -7,6 +7,7 @@ import { Field, State } from '../../components/Catalog/Catalog';
 import { any, Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
 import { formatThemeCount } from '../../modules/designSystems/domain/designSystem';
+import { themesCacheKey } from '../../components/BuilderShell/ThemeSwitcher';
 import { isAccessDenied, useLoad } from '../../shared/data/useLoad';
 import { ThemesSettingsSection } from './ThemesSettingsSection';
 
@@ -18,6 +19,8 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
     const { projectId = '', designSystemId = '', tenantId } = useParams();
     const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
+    // Настройки из опубликованной версии: темы этой версии и только чтение.
+    const versionId = params.get('versionId') ?? undefined;
     const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
     const system = useLoad(
         (signal) => designSystemsApi.get(projectId, designSystemId, signal),
@@ -25,9 +28,9 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
         `system:${projectId}:${designSystemId}`,
     );
     const themes = useLoad(
-        (signal) => designSystemsApi.tenants(projectId, designSystemId, signal),
-        [projectId, designSystemId],
-        `themes:${projectId}:${designSystemId}`,
+        (signal) => designSystemsApi.tenants(projectId, designSystemId, signal, versionId),
+        [projectId, designSystemId, versionId],
+        themesCacheKey({ projectId, designSystemId, tenantId: tenantId ?? '', versionId }),
     );
     const [message, setMessage] = useState('');
     const [confirmation, setConfirmation] = useState('');
@@ -43,7 +46,8 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
     }, [embedded, tenantId, params, setParams]);
 
     const overview = `/projects/${projectId}/design-systems/${designSystemId}`;
-    const back = embedded && tenantId ? `${overview}/themes/${tenantId}/colors` : overview;
+    const versionQuery = versionId ? `?${new URLSearchParams({ versionId })}` : '';
+    const back = embedded && tenantId ? `${overview}/themes/${tenantId}/colors${versionQuery}` : overview;
     if ([project.error, system.error, themes.error].some(isAccessDenied))
         return (
             <State
@@ -98,7 +102,7 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
             />
         );
     const role = project.data.effectiveRole;
-    const active = project.data.status === 'active' && !params.get('versionId');
+    const active = project.data.status === 'active' && !versionId;
     const canWriteSystem = active && can(role, 'designSystems:write');
     const canDeleteSystem = active && can(role, 'designSystems:delete');
     const themeCount = themes.data.length;

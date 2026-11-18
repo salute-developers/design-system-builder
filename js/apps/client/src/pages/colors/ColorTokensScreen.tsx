@@ -1,14 +1,11 @@
 import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import {
-    OtherThemesSection,
-    webValue,
-} from '../../components/tokenWorkspace/OtherThemesSection';
+import { OtherThemesSection, webValue } from '../../components/tokenWorkspace/OtherThemesSection';
 
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
 
-import { PanelSkeleton, usePanelWidths, WorkspaceLoadError } from '../../components/tokenWorkspace';
+import { PanelSkeleton, useHideDisabled, usePanelWidths, WorkspaceLoadError } from '../../components/tokenWorkspace';
 
 import '../../styles/color-tokens.css';
 
@@ -212,6 +209,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [query, setQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
     const [issuesOnly, setIssuesOnly] = useState(false);
+    const [hideDisabled, setHideDisabled] = useHideDisabled();
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readStorage(COLLAPSED_KEY, {}));
     const { panels, separator } = usePanelWidths(PANELS_KEY);
     const [workspace, setWorkspace] = useState<'overview' | 'accessibility'>('overview');
@@ -244,8 +242,9 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [notice, setNotice] = useState<string | null>(null);
 
     const tree = useMemo(
-        () => buildTree(groups, views, { query, sort, issuesOnly }),
-        [groups, views, query, sort, issuesOnly],
+        () =>
+            buildTree(groups, hideDisabled ? views.filter((view) => view.enabled) : views, { query, sort, issuesOnly }),
+        [groups, views, query, sort, issuesOnly, hideDisabled],
     );
     const board = useMemo(
         () => buildTree(groups, views, { query: '', sort: 'source', issuesOnly: false }),
@@ -307,6 +306,21 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         action();
         rerender();
     };
+
+    const [addressPending, setAddressPending] = useState<string | null>(null);
+    useEffect(() => {
+        const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === addressPending);
+        if (!definition) return;
+        setAddressPending(null);
+        setSearchParams(
+            (current) => {
+                const next = new URLSearchParams(current);
+                next.set('tokenId', definition.id);
+                return next;
+            },
+            { replace: true },
+        );
+    }, [addressPending, props.tokenDefinitions]);
 
     const select = (view: ColorTokenView) => {
         setSelectedId(view.id);
@@ -371,6 +385,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             throw operationError(error, parsed.name);
         }
         setSelectedId(tokenId(key));
+        // Адрес нового токена появится, когда придут его определения: переключатель тем откроет его же.
+        setAddressPending(tokenId(key));
         if (requestedTokenId) {
             const next = new URLSearchParams(searchParams);
             next.delete('tokenId');
@@ -585,6 +601,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     query={query}
                     searchOpen={searchOpen}
                     issuesOnly={issuesOnly}
+                    hideDisabled={hideDisabled}
+                    onHideDisabled={() => setHideDisabled(!hideDisabled)}
                     collapsed={collapsed}
                     editable={!readOnly}
                     canDelete={canDelete}

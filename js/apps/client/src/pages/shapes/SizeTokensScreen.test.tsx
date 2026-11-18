@@ -1008,14 +1008,13 @@ describe('SizeTokensScreen', () => {
         saveEnabled.mockClear();
 
         expect(row('round.m')).toHaveClass('is-disabled');
-        expect(row('round.m')).toHaveTextContent('Отключён');
-        expect(within(inspector()).getByText(/Токен отключён/)).toBeInTheDocument();
-        fireEvent.click(within(inspector()).getByRole('button', { name: 'Включить' }));
+        expect(within(row('round.m')).getByRole('img', { name: 'Отключён' })).toBeInTheDocument();
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Включить токен' }));
 
         await waitFor(() =>
             expect(saveEnabled).toHaveBeenCalledWith(context, ['id-round.m'], true, ['shape', 'spacing', 'shadow']),
         );
-        await waitFor(() => expect(row('round.m')).not.toHaveTextContent('Отключён'));
+        await waitFor(() => expect(within(row('round.m')).queryByRole('img', { name: 'Отключён' })).toBeNull());
         disabledSizeTokens = [];
     });
 
@@ -1037,13 +1036,29 @@ describe('SizeTokensScreen', () => {
         expect(rerender).toHaveBeenCalled();
     });
 
+    it('фильтр «Скрыть отключённые токены» убирает их из дерева и запоминается', async () => {
+        disabledSizeTokens = ['round.m'];
+        await renderScreen();
+        const filter = within(tree()).getByRole('button', { name: 'Скрыть отключённые токены' });
+
+        fireEvent.click(filter);
+        expect(filter).toHaveAttribute('aria-pressed', 'true');
+        expect(row('round.m')).toBeNull();
+        expect(row('round.l')).not.toBeNull();
+        expect(localStorage.getItem('dsb.tokens.hide-disabled')).toBe('true');
+        fireEvent.click(filter);
+        expect(row('round.m')).not.toBeNull();
+        disabledSizeTokens = [];
+        localStorage.removeItem('dsb.tokens.hide-disabled');
+    });
+
     it('в режиме просмотра показывает отключённый токен без кнопок включения и отключения', async () => {
         disabledSizeTokens = ['round.m'];
         await renderScreen({ readOnly: true });
 
-        expect(row('round.m')).toHaveTextContent('Отключён');
-        expect(within(inspector()).getByText(/Токен отключён/)).toBeInTheDocument();
-        expect(within(inspector()).queryByRole('button', { name: 'Включить' })).toBeNull();
+        expect(within(row('round.m')).getByRole('img', { name: 'Отключён' })).toBeInTheDocument();
+        expect(within(inspector()).getByRole('img', { name: 'Отключён' })).toBeInTheDocument();
+        expect(within(inspector()).queryByRole('button', { name: 'Включить токен' })).toBeNull();
         expect(within(inspector()).queryByRole('button', { name: 'Отключить токен' })).toBeNull();
         disabledSizeTokens = [];
     });
@@ -1060,7 +1075,7 @@ describe('SizeTokensScreen', () => {
         await waitFor(() =>
             expect(saveEnabled).toHaveBeenCalledWith(expect.anything(), ['id-round.m'], false, expect.any(Array)),
         );
-        await waitFor(() => expect(row('round.m')).toHaveTextContent('Отключён'));
+        await waitFor(() => expect(within(row('round.m')).getByRole('img', { name: 'Отключён' })).toBeInTheDocument());
     });
 
     it('не даёт править описание в режиме просмотра', async () => {

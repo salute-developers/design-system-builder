@@ -54,7 +54,7 @@ import { DeleteSizeTokenDialog } from './ui/SizeTokenDialogs';
 import { SizeTokenInspector } from './ui/SizeTokenInspector';
 import { SizeTokensPlaceholder, SIZES_PANELS_KEY } from './ui/SizeTokensPlaceholder';
 import { SizeTokenTree, type CreatingRow } from './ui/SizeTokenTree';
-import { usePanelWidths } from '../../components/tokenWorkspace';
+import { useHideDisabled, usePanelWidths } from '../../components/tokenWorkspace';
 
 export interface SizeTokensScreenProps {
     context: SizeTokenContext;
@@ -161,7 +161,11 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const savedTokens = data?.tokens ?? [];
     const tokens = editor.tokens();
     const shown = editor.shownTokens();
-    const sections = buildSections(shown, query);
+    /** Признак `enabled` определения токена: из модели темы, как описание. */
+    const tokenEnabled = (token: SizeToken) =>
+        props.theme.getToken?.(token.name, THEME_TOKEN_TYPE[token.kind])?.getEnabled?.() ?? true;
+    const [hideDisabled, setHideDisabled] = useHideDisabled();
+    const sections = buildSections(hideDisabled ? shown.filter(tokenEnabled) : shown, query);
 
     // Адрес из журнала: `?tokenId` выбирает токен раздела; токена нет на выбранной границе — источник недоступен.
     const addressed = useAddressedToken(context, (name) =>
@@ -222,6 +226,9 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
             if (first) {
                 setSelectedId(first.tokenId);
                 setPicked(true);
+                // Новый токен попадает в адрес, как при выборе: переключатель тем откроет его же.
+                appliedAddress.current = null;
+                addressed.selectTokenName(first.name);
             }
             setCreating(null);
         } catch (error) {
@@ -281,8 +288,6 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         props.rerender();
     };
 
-    /** Признак `enabled` определения токена: из модели темы, как описание. */
-    const tokenEnabled = (token: SizeToken) => themeToken(token)?.getEnabled?.() ?? true;
     const setEnabled = async (token: SizeToken, enabled: boolean) => {
         await saveTokenEnabled(context, [token.tokenId], enabled, ['shape', 'spacing', 'shadow']);
         // Тема могла пересоздаться, пока шёл запрос: признак пишется в текущую, а не в тему момента щелчка.
@@ -334,6 +339,8 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     onCancelCreate={() => setCreating(null)}
                     onRename={readOnly ? undefined : (token, name) => editor.rename(token, name)}
                     isDisabled={(token) => !tokenEnabled(token)}
+                    hideDisabled={hideDisabled}
+                    onHideDisabled={() => setHideDisabled(!hideDisabled)}
                 />
                 <main className="preview-canvas">
                     <SizeTokenBoard

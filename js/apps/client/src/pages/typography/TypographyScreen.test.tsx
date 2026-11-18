@@ -716,8 +716,14 @@ describe('экран «Типографика»', () => {
         const [, ids, enabled] = saveEnabled.mock.calls[0] as unknown as [unknown, string[], boolean];
         expect(ids).toHaveLength(9);
         expect(enabled).toBe(false);
-        await waitFor(() => expect(document.querySelector('[data-style-key="body.m"]')).toHaveTextContent('Отключён'));
-        expect(inspector().getByText(/Токен отключён/)).toBeInTheDocument();
+        await waitFor(() =>
+            expect(
+                within(document.querySelector('[data-style-key="body.m"]') as HTMLElement).getByRole('img', {
+                    name: 'Отключён',
+                }),
+            ).toBeInTheDocument(),
+        );
+        expect(inspector().getByRole('button', { name: 'Включить токен' })).toBeInTheDocument();
     });
 
     it('меняет описание стиля во всех его токенах и показывает экран в описании', async () => {

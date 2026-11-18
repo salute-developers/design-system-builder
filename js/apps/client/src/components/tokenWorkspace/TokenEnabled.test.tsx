@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DISABLED_TOKEN_TEXT, TokenEnabledButton, TokenEnabledNotice, useTokenEnabled } from './TokenEnabled';
+import { TokenEnabledButton, TokenEnabledNotice, useTokenEnabled } from './TokenEnabled';
 
 afterEach(cleanup);
 
@@ -54,13 +54,14 @@ describe('useTokenEnabled', () => {
         await waitFor(() => expect(save).toHaveBeenCalledWith(false));
     });
 
-    it('отключённый токен показывает сообщение и включается без подтверждения', async () => {
+    it('отключённый токен показывает перечёркнутый глаз и включается без подтверждения', async () => {
         const save = vi.fn().mockResolvedValue(undefined);
         render(<Harness enabled={false} components={['Button']} save={save} />);
 
-        expect(screen.getByRole('status')).toHaveTextContent(DISABLED_TOKEN_TEXT);
-        expect(screen.queryByRole('button', { name: 'Отключить токен' })).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: 'Включить' }));
+        const toggle = screen.getByRole('button', { name: 'Включить токен' });
+        expect(toggle).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        fireEvent.click(toggle);
 
         await waitFor(() => expect(save).toHaveBeenCalledWith(true));
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -83,10 +84,10 @@ describe('useTokenEnabled', () => {
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
-    it('без права правки показывает сообщение без кнопок', () => {
+    it('без права правки показывает отметку без кнопок', () => {
         render(<Harness enabled={false} editable={false} save={vi.fn()} />);
 
-        expect(screen.getByRole('status')).toHaveTextContent(DISABLED_TOKEN_TEXT);
+        expect(screen.getByRole('img', { name: 'Отключён' })).toBeInTheDocument();
         expect(screen.queryByRole('button')).not.toBeInTheDocument();
     });
 });

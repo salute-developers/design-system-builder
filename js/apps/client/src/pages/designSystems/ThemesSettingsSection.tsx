@@ -32,6 +32,7 @@ const ThemeRow = ({
     onDuplicate: () => void;
     onDeleted: () => void;
 }) => {
+    const [params] = useSearchParams();
     const [name, setName] = useState(theme.name);
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
@@ -82,7 +83,11 @@ const ThemeRow = ({
         }
     };
 
-    const editorPath = `/projects/${projectId}/design-systems/${theme.designSystemId}/themes/${theme.id}/colors`;
+    // Из опубликованной версии тема открывается в той же версии.
+    const versionId = params.get('versionId');
+    const editorPath = `/projects/${projectId}/design-systems/${theme.designSystemId}/themes/${theme.id}/colors${
+        versionId ? `?${new URLSearchParams({ versionId })}` : ''
+    }`;
     return (
         <div ref={rowRef} className={`ds-theme-row ${highlighted ? 'is-highlighted' : ''}`} data-theme-id={theme.id}>
             <div className="ds-theme-main">

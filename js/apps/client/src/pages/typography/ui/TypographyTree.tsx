@@ -7,7 +7,13 @@ import {
 } from '@salutejs/sdds-icons/16';
 import { useRef, useState } from 'react';
 
-import { DisabledFlag, PanelSkeleton, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
+import {
+    DisabledFlag,
+    HideDisabledButton,
+    PanelSkeleton,
+    TreeEmpty,
+    TreeHeader,
+} from '../../../components/tokenWorkspace';
 import {
     TYPOGRAPHY_SCREENS,
     formatNumber,
@@ -60,6 +66,9 @@ interface TypographyTreeProps {
     onDelete?: (style: TypographyStyle) => void;
     /** Стиль отключён (`enabled = false`): строка приглушена и отмечена «Отключён». */
     isDisabled?: (style: TypographyStyle) => boolean;
+    /** Фильтр «Скрыть отключённые токены». */
+    hideDisabled?: boolean;
+    onHideDisabled?: () => void;
     /** Новая группа из ввода; ошибка ввода бросается с текстом для поля. */
     onCreateGroup?: (name: string) => void;
     onRenameGroup?: (group: string, name: string) => Promise<void>;
@@ -315,19 +324,22 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                 onQuery={props.onQuery}
                 onSearchOpen={props.onSearchOpen}
                 actions={
-                    props.editable &&
-                    props.onCreateGroup &&
-                    !searching && (
-                        <button
-                            type="button"
-                            className="tw-icon-button"
-                            aria-label="Добавить группу"
-                            title="Добавить группу"
-                            onClick={() => setNewGroup({ error: null })}
-                        >
-                            <PlusOutline />
-                        </button>
-                    )
+                    <>
+                        {props.onHideDisabled && (
+                            <HideDisabledButton pressed={Boolean(props.hideDisabled)} onToggle={props.onHideDisabled} />
+                        )}
+                        {props.editable && props.onCreateGroup && !searching && (
+                            <button
+                                type="button"
+                                className="tw-icon-button"
+                                aria-label="Добавить группу"
+                                title="Добавить группу"
+                                onClick={() => setNewGroup({ error: null })}
+                            >
+                                <PlusOutline />
+                            </button>
+                        )}
+                    </>
                 }
             />
             <div className="typography-screen-control" role="tablist" aria-label="Размер экрана">

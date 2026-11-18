@@ -23,12 +23,26 @@ describe('saveTokenEnabled', () => {
         expect(saved.mock.calls[0]).toContainEqual(['shape']);
     });
 
+    it('после частичного сбоя перечитывает раздел, чтобы показать фактические флаги', async () => {
+        vi.spyOn(http, 'patch')
+            .mockResolvedValueOnce({ data: {} } as never)
+            .mockRejectedValueOnce(new Error('network'));
+        const saved = vi.spyOn(draftActivity, 'recordDraftSave');
+
+        await expect(
+            saveTokenEnabled({ projectId: 'p', designSystemId: 'ds', tenantId: 't' }, ['a', 'b'], false, ['color']),
+        ).rejects.toThrow();
+        expect(saved).toHaveBeenCalledWith(expect.anything(), ['color']);
+    });
+
     it('останавливается на первом сбое', async () => {
         const patch = vi.spyOn(http, 'patch').mockRejectedValueOnce(new Error('network'));
+        vi.spyOn(draftActivity, 'recordDraftSave');
 
         await expect(
             saveTokenEnabled({ projectId: 'p', designSystemId: 'ds', tenantId: 't' }, ['a', 'b'], true, ['color']),
         ).rejects.toThrow();
         expect(patch).toHaveBeenCalledTimes(1);
+        expect(draftActivity.recordDraftSave).not.toHaveBeenCalled();
     });
 });
