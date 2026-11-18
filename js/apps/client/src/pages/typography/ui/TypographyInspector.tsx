@@ -19,6 +19,7 @@ import {
     TokenEnabledNotice,
     fieldClass,
     useTokenEnabled,
+    type TokenPlatform,
 } from '../../../components/tokenWorkspace';
 import {
     TYPOGRAPHY_OVERRIDE_PLATFORMS,
@@ -67,6 +68,8 @@ interface TypographyInspectorProps {
     error: (field: TypographyField, platform?: TypographyOverridePlatform) => string | null;
     onChange: (change: TypographyStyleChange) => void;
     onOpenComponent: (name: string) => void;
+    /** Платформа предпросмотра: поля показывают и правят значения этой платформы. */
+    platform: TokenPlatform;
 }
 
 /** Значки полей `Inspector/TypographyPropertyIcon`: буквы «Tt», «B», «Aa» и знаки размеров из прототипа. */
@@ -395,19 +398,31 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
 
     /** Поле с «+» и строками своих значений iOS и Android под ним. */
     const overridable = (field: OverridableField, base: ReactNode) => {
-        const rows = platformsWith(field);
-        const addable = TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(({ id }) => !rows.some((row) => row.id === id));
+        // Поле платформы предпросмотра: у Web — значение стиля; у iOS и Android — своё значение платформы, а без него
+        // значение Web, из которого платформа строится (не правится, «+» делает его своим).
+        const platform = props.platform;
+        const rows = platformsWith(field).filter(({ id }) => id === platform);
+        const fromWeb = platform !== 'web' && !rows.length;
+        const addable = TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(({ id }) => id === platform);
         return (
             <div className="typography-overridable">
-                <div className="typography-value-line">
-                    {base}
-                    {!disabled && (
-                        <OverrideAdd
-                            platforms={addable}
-                            onAdd={(platform) => setAdded((keys) => [...keys, `${field}:${platform}`])}
-                        />
-                    )}
-                </div>
+                {!rows.length && (
+                    <div className="typography-value-line">
+                        {fromWeb ? (
+                            <fieldset className="typography-from-web" disabled>
+                                {base}
+                            </fieldset>
+                        ) : (
+                            base
+                        )}
+                        {fromWeb && !disabled && (
+                            <OverrideAdd
+                                platforms={addable}
+                                onAdd={(next) => setAdded((keys) => [...keys, `${field}:${next}`])}
+                            />
+                        )}
+                    </div>
+                )}
                 {rows.map(({ id, label }) => {
                     const lead = <span className="typography-override-label">↳ {label}</span>;
                     const remove = !disabled && (

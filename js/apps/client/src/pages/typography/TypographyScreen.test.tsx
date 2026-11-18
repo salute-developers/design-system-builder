@@ -182,6 +182,12 @@ const mount = (styles: TypographyStyles, options: MountOptions = {}) => {
 
 /** Заголовок инспектора `InspectorHeader`. */
 const TITLE = '.tw-inspector-title';
+/** Платформа предпросмотра выбирается меню в шапке «Предпросмотр». */
+const choosePlatform = (label: 'Web' | 'iOS' | 'Android') => {
+    fireEvent.click(screen.getByRole('button', { name: /^Платформа: / }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: label }));
+};
+
 const tree = () => within(document.querySelector('.typography-tree-body') as HTMLElement);
 const groupHeading = (label: string) =>
     tree().getByText(label, { selector: '.typography-group-heading span' }).closest('button') as HTMLButtonElement;
@@ -477,17 +483,26 @@ describe('экран «Типографика»', () => {
         });
     });
 
-    it('задаёт и снимает своё значение платформы у поля', async () => {
+    it('платформа iOS: значение Web не правится, «+» делает его своим, правка уходит iOS', async () => {
         const { repository } = setup();
         await screen.findByText('Body / M Regular', { selector: TITLE });
-        // «+» есть у веса, размера, высоты строки и трекинга.
+        // На Web у полей нет «+»: свои значения задаются на платформе.
+        expect(inspector().queryAllByRole('button', { name: 'Своё значение платформы' })).toHaveLength(0);
+        choosePlatform('iOS');
+        // «+» есть у веса, размера, высоты строки и трекинга; значения Web показываются и не правятся.
         const add = inspector().getAllByRole('button', { name: 'Своё значение платформы' });
         expect(add).toHaveLength(4);
+        expect(inspector().getByLabelText('Size')).toBeDisabled();
         fireEvent.click(add[1]);
+        expect(
+            inspector()
+                .getAllByRole('menuitem')
+                .map((item) => item.textContent),
+        ).toEqual(['iOS']);
         fireEvent.click(inspector().getByRole('menuitem', { name: 'iOS' }));
         const ios = inspector().getByLabelText('Size iOS') as HTMLInputElement;
         expect(ios.value).toBe('16');
-        expect(inspector().getByText('↳ iOS')).toBeTruthy();
+        expect(inspector().queryByLabelText('Size')).toBeNull();
         fireEvent.change(ios, { target: { value: '17' } });
         fireEvent.blur(ios);
         await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
@@ -495,13 +510,7 @@ describe('экран «Типографика»', () => {
             'screen-l.body.m.normal',
             { platform: 'ios', size: 17 },
         ]);
-        // У размера осталась одна платформа для «+»: Android.
-        fireEvent.click(inspector().getAllByRole('button', { name: 'Своё значение платформы' })[1]);
-        expect(
-            inspector()
-                .getAllByRole('menuitem')
-                .map((item) => item.textContent),
-        ).toEqual(['Android']);
+        expect(localStorage.getItem('dsb.tokens.platform')).toBe('ios');
     });
 
     it('снимает сохранённое своё значение платформы значением веба', async () => {
@@ -510,6 +519,7 @@ describe('экран «Типографика»', () => {
         body.overrides = { android: { lineHeightPx: 22 } };
         const { repository } = setup(styles);
         await screen.findByText('Body / M Regular', { selector: TITLE });
+        choosePlatform('Android');
         expect((inspector().getByLabelText('Line Height Android') as HTMLInputElement).value).toBe('22');
         fireEvent.click(inspector().getByRole('button', { name: 'Убрать своё значение Android' }));
         await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
@@ -740,6 +750,7 @@ describe('экран «Типографика»', () => {
     it('показывает «+» своего значения всегда кнопкой-иконкой', async () => {
         setup();
         await screen.findByText('Body / M Regular', { selector: TITLE });
+        choosePlatform('iOS');
         inspector()
             .getAllByRole('button', { name: 'Своё значение платформы' })
             .forEach((button) => expect(button.classList.contains('tw-icon-button')).toBe(true));

@@ -1307,3 +1307,10 @@
 .size-tokens-screen .cp-format-row select {
     width: max-content;
 }
+
+/* Шапка предпросмотра «Размеров» с переключателем платформы, как у «Цветов». */
+.st-preview-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--tw-space-m) var(--tw-space-l) 0;
+}

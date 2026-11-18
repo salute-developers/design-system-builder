@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
 import type { EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
 import type { DimensionToken } from '../../modules/sizeTokens/domain/types';
-import {
-    OtherThemesSection,
-    cssPx,
-    webValue,
-} from '../../components/tokenWorkspace/OtherThemesSection';
+import { OtherThemesSection, cssPx, webValue } from '../../components/tokenWorkspace/OtherThemesSection';
 import { useNavigate } from 'react-router-dom';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
 import { saveTokenEnabled } from '../../api/tokenEnabled';
@@ -54,7 +50,13 @@ import { DeleteSizeTokenDialog } from './ui/SizeTokenDialogs';
 import { SizeTokenInspector } from './ui/SizeTokenInspector';
 import { SizeTokensPlaceholder, SIZES_PANELS_KEY } from './ui/SizeTokensPlaceholder';
 import { SizeTokenTree, type CreatingRow } from './ui/SizeTokenTree';
-import { useHideDisabled, usePanelWidths } from '../../components/tokenWorkspace';
+import {
+    TokenPlatformMenu,
+    useHideDisabled,
+    usePanelWidths,
+    useTokenPlatform,
+    type TokenPlatform,
+} from '../../components/tokenWorkspace';
 
 export interface SizeTokensScreenProps {
     context: SizeTokenContext;
@@ -110,6 +112,17 @@ const SizeOtherThemes = ({ context, token }: { context: EditorContextKey; token:
             describe={describe}
         />
     );
+};
+
+/** Токен с числами платформы предпросмотра для борда: своё или текущее значение iOS и Android, иначе Web. */
+const sizeTokenForPlatform = (token: SizeToken, platform: TokenPlatform): SizeToken => {
+    if (platform === 'web') return token;
+    if (token.kind === 'shadow') {
+        const native = token.platforms[platform] ?? token.native[platform];
+        return native ? { ...token, layers: native.layers } : token;
+    }
+    const native = token.platforms[platform] ?? token.native[platform];
+    return native === null || native === undefined || token.fullRounding ? token : { ...token, valuePx: native };
 };
 
 /** Выбранный токен темы: экран размонтируется на время перезагрузки темы и должен вернуть выбор. */
@@ -197,7 +210,11 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         : (savedTokens.find((token) => token.tokenId === selectedId) ?? defaultToken(savedTokens));
     const selected = saved ? (tokens.find((token) => token.tokenId === saved.tokenId) ?? saved) : null;
     const boardKind = selected?.kind ?? 'radius';
-    const board = buildSections(shown).find((section) => section.kind === boardKind)?.tokens ?? [];
+    const [platform, setPlatform] = useTokenPlatform();
+    // Борд показывает значения платформы предпросмотра: свои или построенные из Web числа iOS и Android.
+    const board = (buildSections(shown).find((section) => section.kind === boardKind)?.tokens ?? []).map((token) =>
+        sizeTokenForPlatform(token, platform),
+    );
 
     const select = (token: SizeToken) => {
         setSelectedId(token.tokenId);
@@ -343,6 +360,9 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     onHideDisabled={() => setHideDisabled(!hideDisabled)}
                 />
                 <main className="preview-canvas">
+                    <div className="st-preview-toolbar">
+                        <TokenPlatformMenu platform={platform} onSelect={setPlatform} />
+                    </div>
                     <SizeTokenBoard
                         kind={boardKind}
                         tokens={board}
@@ -365,9 +385,12 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     {selected && saved && (
                         <SizeTokenInspector
                             otherThemes={
-                                saved.kind !== 'shadow' ? <SizeOtherThemes context={context} token={saved} /> : undefined
+                                saved.kind !== 'shadow' ? (
+                                    <SizeOtherThemes context={context} token={saved} />
+                                ) : undefined
                             }
                             key={selected.tokenId}
+                            platform={platform}
                             token={selected}
                             saved={saved}
                             editable={!readOnly}

@@ -346,6 +346,13 @@ const commit = (field: HTMLElement, value: string) => {
 };
 const valueField = () => within(inspector()).getByRole('textbox', { name: 'Значение, px' });
 const saveStatus = () => screen.getByTestId('size-tokens-save-status');
+/** Выбирает платформу предпросмотра в меню над бордом. */
+const choosePlatform = (label: 'Web' | 'iOS' | 'Android') => {
+    fireEvent.click(screen.getByRole('button', { name: /^Платформа: / }));
+    fireEvent.click(
+        within(screen.getByRole('menu', { name: 'Платформа' })).getByRole('menuitemradio', { name: label }),
+    );
+};
 
 beforeEach(() => {
     localStorage.clear();
@@ -456,29 +463,51 @@ describe('SizeTokensScreen', () => {
     it('добавляет и убирает своё значение платформы', async () => {
         await renderScreen();
         fireEvent.click(row('round.l'));
+        // На вебе «+» нет: свои значения задаются на своей платформе.
+        expect(within(inspector()).queryByRole('button', { name: 'Своё значение платформы' })).toBeNull();
+        choosePlatform('Android');
+        // Без своего значения Android строится из веба: поле веба недоступно, «+» предлагает только Android.
+        expect(valueField()).toHaveValue('16');
+        expect(valueField()).toBeDisabled();
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Своё значение платформы' }));
+        expect(within(inspector()).queryByRole('menuitem', { name: 'iOS' })).toBeNull();
         fireEvent.click(within(inspector()).getByRole('menuitem', { name: 'Android' }));
         const android = within(inspector()).getByRole('textbox', { name: 'Значение Android, px' });
         expect(android).toHaveValue('16');
         expect(screen.getByTestId('override-android')).toHaveTextContent('↳ Android');
+        expect(within(inspector()).queryByRole('textbox', { name: 'Значение, px' })).toBeNull();
+        expect(within(inspector()).queryByRole('button', { name: 'Своё значение платформы' })).toBeNull();
         commit(android, '18');
         await waitFor(() => expect(updates()).toHaveLength(1));
         expect(updates()[0]).toMatchObject({ valuePx: 16, platforms: { android: 18 } });
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
 
         // Правка веба оставляет своё значение Android.
+        choosePlatform('Web');
+        expect(screen.queryByTestId('override-android')).toBeNull();
         commit(valueField(), '20');
         await waitFor(() => expect(updates()).toHaveLength(2));
         expect(updates()[1]).toMatchObject({ valuePx: 20, platforms: { android: 18 } });
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
+        choosePlatform('Android');
         expect(screen.getByRole('textbox', { name: 'Значение Android, px' })).toHaveValue('18');
 
+        choosePlatform('iOS');
+        expect(valueField()).toHaveValue('20');
+        expect(valueField()).toBeDisabled();
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Своё значение платформы' }));
+        expect(within(inspector()).queryByRole('menuitem', { name: 'Android' })).toBeNull();
         fireEvent.click(within(inspector()).getByRole('menuitem', { name: 'iOS' }));
-        expect(within(inspector()).getByRole('button', { name: 'Своё значение платформы' })).toBeDisabled();
+        expect(within(inspector()).getByRole('textbox', { name: 'Значение iOS, px' })).toHaveValue('20');
+        expect(within(inspector()).queryByRole('button', { name: 'Своё значение платформы' })).toBeNull();
 
+        choosePlatform('Android');
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Убрать своё значение Android' }));
         expect(screen.queryByTestId('override-android')).toBeNull();
+        // Без своего значения снова видно значение веба и «+».
+        expect(valueField()).toHaveValue('20');
+        expect(valueField()).toBeDisabled();
+        expect(within(inspector()).getByRole('button', { name: 'Своё значение платформы' })).toBeEnabled();
         await waitFor(() => expect(updates()).toHaveLength(3));
         expect(updates()[2]).toMatchObject({ valuePx: 20, platforms: { ios: 20 } });
         expect(updates()[2].platforms).not.toHaveProperty('android');
@@ -491,11 +520,17 @@ describe('SizeTokensScreen', () => {
             'Сейчас iOS 40 px, Android 40 px, на вебе 32 px. Значения платформ строятся из веба: правка выровняет их.',
         );
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Оставить как свои значения iOS и Android' }));
-        expect(screen.getByTestId('override-ios')).toBeInTheDocument();
-        expect(screen.getByTestId('override-android')).toBeInTheDocument();
         expect(screen.queryByTestId('platforms-differ')).toBeNull();
         await waitFor(() => expect(updates()).toHaveLength(1));
         expect(updates()[0]).toMatchObject({ valuePx: 32, platforms: { ios: 40, android: 40 } });
+        // Инспектор показывает своё значение выбранной платформы.
+        expect(screen.queryByTestId('override-ios')).toBeNull();
+        choosePlatform('iOS');
+        expect(within(screen.getByTestId('override-ios')).getByRole('textbox')).toHaveValue('40');
+        expect(screen.queryByTestId('override-android')).toBeNull();
+        choosePlatform('Android');
+        expect(within(screen.getByTestId('override-android')).getByRole('textbox')).toHaveValue('40');
+        expect(screen.queryByTestId('override-ios')).toBeNull();
     });
 
     it('показывает вычисляемые радиусы на борде и в инспекторе и пересчитывает их', async () => {
@@ -635,24 +670,36 @@ describe('SizeTokensScreen', () => {
         commit(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, Blur' }), '-1');
         expect(inspector()).toHaveTextContent('Blur: Значение должно быть в диапазоне 0–200 px.');
 
+        // На вебе «+» своих слоёв нет; на iOS без своих слоёв видны недоступные слои веба.
+        expect(within(inspector()).queryByRole('button', { name: 'Свои слои платформы' })).toBeNull();
+        choosePlatform('iOS');
+        expect(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, Y' })).toBeDisabled();
+        expect(within(inspector()).queryByRole('button', { name: '+ Добавить слой' })).toBeNull();
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Свои слои платформы' }));
+        expect(within(inspector()).queryByRole('menuitem', { name: 'Android' })).toBeNull();
         fireEvent.click(within(inspector()).getByRole('menuitem', { name: 'iOS' }));
         const own = screen.getByTestId('override-layers-ios');
         expect(own).toHaveTextContent('↳ iOS · свои слои');
+        expect(within(inspector()).queryByRole('textbox', { name: 'Веб, слой 1, Y' })).toBeNull();
         commit(within(own).getByRole('textbox', { name: 'iOS, слой 1, X' }), '3');
         await waitFor(() => expect(updates()).toHaveLength(3));
         const ios = updates()[2].platforms.ios as { layers: ShadowLayer[] };
         expect(ios.layers[0].offsetX).toBe(3);
         expect(updates()[2].layers?.[0].offsetX).toBe(0);
 
-        fireEvent.click(within(inspector()).getAllByRole('button', { name: '+ Добавить слой' })[0]);
+        choosePlatform('Web');
+        expect(screen.queryByTestId('override-layers-ios')).toBeNull();
+        fireEvent.click(within(inspector()).getByRole('button', { name: '+ Добавить слой' }));
         expect(within(inspector()).getAllByRole('button', { name: 'Удалить слой 2' })).toHaveLength(1);
         commit(within(inspector()).getByRole('textbox', { name: 'Запасная высота Android' }), '6');
         await waitFor(() => expect(updates()).toHaveLength(4));
         expect(updates()[3].layers).toHaveLength(2);
         expect(updates()[3].fallbackElevation).toBe(6);
 
-        fireEvent.click(within(own).getByRole('button', { name: 'Убрать свои слои iOS' }));
+        choosePlatform('iOS');
+        fireEvent.click(
+            within(screen.getByTestId('override-layers-ios')).getByRole('button', { name: 'Убрать свои слои iOS' }),
+        );
         await waitFor(() => expect(updates()).toHaveLength(5));
         expect(updates()[4].platforms).toEqual({});
     });
@@ -873,8 +920,15 @@ describe('SizeTokensScreen', () => {
         expect(within(inspector()).queryByRole('button', { name: 'Удалить токен' })).toBeNull();
         expect(within(inspector()).queryByRole('button', { name: 'Своё значение платформы' })).toBeNull();
         fireEvent.click(row('round.l'));
-        expect(screen.getByTestId('override-ios')).toBeInTheDocument();
+        // Платформу предпросмотра можно выбрать и в режиме просмотра.
+        choosePlatform('iOS');
+        expect(
+            within(screen.getByTestId('override-ios')).getByRole('textbox', { name: 'Значение iOS, px' }),
+        ).toBeDisabled();
         expect(within(inspector()).queryByRole('button', { name: 'Убрать своё значение iOS' })).toBeNull();
+        fireEvent.click(row('round.m'));
+        expect(valueField()).toBeDisabled();
+        expect(within(inspector()).queryByRole('button', { name: 'Своё значение платформы' })).toBeNull();
         fireEvent.click(row('round.xxl'));
         expect(within(inspector()).queryByRole('button', { name: /Оставить как свои значения/ })).toBeNull();
         fireEvent.click(row('down.soft.s'));
@@ -1096,9 +1150,47 @@ describe('SizeTokensScreen', () => {
 
     it('показывает «+» своего значения платформы всегда, кнопкой-иконкой', async () => {
         await renderScreen();
+        choosePlatform('Android');
         const add = within(inspector()).getByRole('button', { name: 'Своё значение платформы' });
         expect(add).toHaveClass('tw-icon-button');
         expect(add.querySelector('svg')).not.toBeNull();
+    });
+
+    it('показывает значения выбранной платформы в инспекторе и на борде и запоминает выбор', async () => {
+        state = {
+            ...state,
+            tokens: state.tokens.map((token) =>
+                token.name === 'round.l'
+                    ? { ...token, platforms: { ios: 18 }, native: { ios: 18, android: 16 } }
+                    : token,
+            ) as SizeToken[],
+        };
+        await renderScreen();
+        const tile = () => within(board()).getByRole('button', { name: 'round.l' });
+        expect(screen.getByRole('button', { name: 'Платформа: Web' })).toBeInTheDocument();
+        expect(tile()).toHaveTextContent('L16');
+
+        choosePlatform('iOS');
+        expect(screen.getByRole('button', { name: 'Платформа: iOS' })).toBeInTheDocument();
+        expect(localStorage.getItem('dsb.tokens.platform')).toBe('ios');
+        // round.m без своего значения iOS: значение веба недоступно, «+» делает его своим.
+        expect(valueField()).toHaveValue('12');
+        expect(valueField()).toBeDisabled();
+        expect(within(inspector()).getByRole('button', { name: 'Своё значение платформы' })).toBeEnabled();
+        expect(screen.queryByTestId('override-ios')).toBeNull();
+        // Борд показывает число iOS: своё у round.l, у остальных — из веба.
+        expect(tile()).toHaveTextContent('L18');
+        expect(within(board()).getByRole('button', { name: 'round.m' })).toHaveTextContent('M12');
+        fireEvent.click(tile());
+        expect(within(inspector()).getByRole('textbox', { name: 'Значение iOS, px' })).toHaveValue('18');
+        expect(within(inspector()).queryByRole('textbox', { name: 'Значение, px' })).toBeNull();
+        expect(repository.send).not.toHaveBeenCalled();
+
+        // Выбор сохраняется после повторного открытия раздела.
+        cleanup();
+        await renderScreen();
+        expect(screen.getByRole('button', { name: 'Платформа: iOS' })).toBeInTheDocument();
+        expect(within(board()).getByRole('button', { name: 'round.l' })).toHaveTextContent('L18');
     });
 
     it('меняет и запоминает ширины дерева и инспектора в пределах Figma', async () => {

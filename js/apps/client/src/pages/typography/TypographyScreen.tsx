@@ -27,7 +27,7 @@ import { TypographyBoard, TypographyBoardSkeleton } from './ui/TypographyBoard';
 import { TypographyInspector } from './ui/TypographyInspector';
 import { TypographyTree, type CreatingStyle } from './ui/TypographyTree';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
-import { useHideDisabled, usePanelWidths } from '../../components/tokenWorkspace';
+import { TokenPlatformMenu, useHideDisabled, usePanelWidths, useTokenPlatform } from '../../components/tokenWorkspace';
 
 export interface TypographyScreenProps {
     context: TypographyContext;
@@ -95,6 +95,25 @@ const TypographyOtherThemes = ({
     );
 };
 
+/** Стиль с числами платформы предпросмотра для борда: свои значения iOS и Android поверх значений Web. */
+const styleForPlatform = (style: TypographyStyle, platform: 'ios' | 'android'): TypographyStyle => {
+    const own = style.overrides?.[platform];
+    if (!own) return style;
+    const variants = { ...style.variants };
+    for (const id of ['normal', 'medium', 'bold'] as const) {
+        const weight = own.weights?.[id];
+        const view = variants[id];
+        if (weight !== undefined && view) variants[id] = { ...view, weight };
+    }
+    return {
+        ...style,
+        sizePx: own.sizePx ?? style.sizePx,
+        lineHeightPx: own.lineHeightPx ?? style.lineHeightPx,
+        letterSpacingEm: own.letterSpacingEm ?? style.letterSpacingEm,
+        variants,
+    };
+};
+
 /** Экран «Типографика» темы: дерево стилей, борд и инспектор по Figma (`06 · Typography · Handoff`). */
 export const TypographyScreen = (props: TypographyScreenProps) => {
     const { context, designSystem, theme, rerender, changedTokenNames } = props;
@@ -158,6 +177,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         rerender();
     });
     const [hideDisabled, setHideDisabled] = useHideDisabled();
+    const [platform, setPlatform] = useTokenPlatform();
     const allCurrent = screenStyles(styles, screen);
     // Скрытые начертания убираются из стиля; стиль без начертаний не показывается.
     const current = hideDisabled
@@ -325,11 +345,14 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                 />
                 <header className="typography-editor-header">
                     <strong>Предпросмотр</strong>
+                    <TokenPlatformMenu platform={platform} onSelect={setPlatform} />
                 </header>
                 <main className="typography-canvas">
                     {styles && (
                         <TypographyBoard
-                            styles={current}
+                            styles={
+                                platform === 'web' ? current : current.map((style) => styleForPlatform(style, platform))
+                            }
                             families={styles.families}
                             selectedKey={selected ? styleKey(selected) : selectedKey}
                             variant={variant}
@@ -363,6 +386,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                         {selected && styles && (
                             <TypographyInspector
                                 style={selected}
+                                platform={platform}
                                 families={styles.families}
                                 themeCount={styles.themeCount}
                                 editable={!readOnly}
