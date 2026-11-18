@@ -26,6 +26,7 @@ import {
     type TypographyOverridePlatform,
     type TypographyScreen,
     type TypographyStyle,
+    type TypographyVariant,
     type TypographyStyleChange,
     type TypographyStyleRepository,
     type TypographyStyles,
@@ -352,15 +353,13 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         notify(session);
     };
 
-    /** Признак `enabled` стиля — признак токена его первого начертания на экране стиля, как у описания. */
-    const enabled = (style: TypographyStyle) => {
-        const [variant] = definedEntries(style.variants).map(([id]) => id);
-        return theme.getToken(tokenName(style, variant ?? 'normal'), 'typography')?.getEnabled?.() ?? true;
-    };
+    /** Признак `enabled` токена начертания [variant] на экране стиля. */
+    const enabled = (style: TypographyStyle, variant: TypographyVariant) =>
+        theme.getToken(tokenName(style, variant), 'typography')?.getEnabled?.() ?? true;
 
-    /** Стиль включается и отключается целиком: все начертания на всех экранах, как описание. */
-    const setEnabled = async (style: TypographyStyle, value: boolean) => {
-        const tokens = styleTokens(style);
+    /** Начертание включается и отключается как самостоятельный токен: его определения на всех экранах. */
+    const setEnabled = async (style: TypographyStyle, variant: TypographyVariant, value: boolean) => {
+        const tokens = styleTokens(style).filter(({ name }) => name.endsWith(`.${variant}`));
         await saveTokenEnabled(
             session.context,
             tokens.map(({ tokenId }) => tokenId),

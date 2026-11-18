@@ -1277,6 +1277,12 @@ const lastUpdate = () => {
             ?.values.find((value) => value.platform === platform && value.mode === mode);
 };
 
+/** Платформа предпросмотра выбирается меню в шапке рабочей области. */
+const choosePlatform = (label: 'Web' | 'iOS' | 'Android') => {
+    fireEvent.click(screen.getByRole('button', { name: /^Платформа: / }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: label }));
+};
+
 const openPicker = (name: string) => {
     fireEvent.click(within(inspector()).getAllByRole('button', { name: `Выбор цвета: ${name}` })[0]);
     return screen.getByRole('dialog', { name: /^Color picker/ });
@@ -1473,57 +1479,50 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(field('Dark')).toHaveValue('Линейный · 45°');
     });
 
-    it('строка iOS: «+» добавляет своё значение, правка web её не перестраивает, «×» убирает', async () => {
+    it('платформа iOS: «+» делает значение своим, правка Web его не перестраивает, «×» возвращает к Web', async () => {
         repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'color' });
         await renderScreen();
         openSubthemes();
+        choosePlatform('iOS');
 
+        // Без своего значения iOS поле показывает значение Web и не правится, «+» делает его своим.
+        expect(field('Light, iOS')).toHaveValue('118833');
+        expect(within(inspector()).queryByRole('button', { name: 'Убрать своё значение iOS: Light' })).toBeNull();
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0]);
         fireEvent.click(screen.getByRole('menuitem', { name: 'iOS' }));
-
-        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(0);
-        expect(field('Light, iOS')).toHaveValue('118833');
-        // Добавление строки не открывает выбор цвета: он открывается щелчком по строке платформы.
+        // Добавление своего значения не открывает выбор цвета.
         expect(screen.queryByRole('dialog', { name: /^Color picker:/ })).toBeNull();
-        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Light, iOS' })[0]);
-        const picker = screen.getByRole('dialog', { name: /^Color picker: .*, iOS$/ });
-        expect(within(picker).getByText('своё значение: правки меняют только iOS')).toBeInTheDocument();
         await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
         expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#118833'], overridden: true });
         expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
-        // OnLight наследует Light вместе со строкой платформы; у подтем «+» нет, строка в них только унаследована.
+        // OnLight наследует Light вместе со своим значением платформы; у связанной подтемы нет ни «+», ни «×».
         expect(lastUpdate()('accent-2', 'ios', 'light')).toMatchObject({ overridden: true });
-        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(1);
-        expect(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })).toHaveLength(1);
-        expect(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Dark' })).toHaveLength(1);
-        // Связанные подтемы показывают унаследованную строку без «×»: убрать её можно только у режима.
         expect(within(inspector()).getAllByRole('button', { name: 'Убрать своё значение iOS: Light' })).toHaveLength(1);
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Light, iOS' })[0]);
+        const picker = screen.getByRole('dialog', { name: /^Color picker: .*, iOS$/ });
+        expect(within(picker).getByText('своё значение: правки меняют только iOS')).toBeInTheDocument();
 
         fireEvent.change(field('Light, iOS'), { target: { value: '#445566' } });
         fireEvent.keyDown(field('Light, iOS'), { key: 'Enter' });
         await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
         expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#445566'], overridden: true });
         expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
-        expect(field('Light')).toHaveValue('118833');
 
+        choosePlatform('Web');
+        expect(field('Light')).toHaveValue('118833');
         commitLight('#123456');
         await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(3));
         expect(lastUpdate()('accent-0', 'web', 'light')?.value).toEqual(['#123456']);
         expect(lastUpdate()('accent-0', 'android', 'light')).toMatchObject({ value: ['#123456'], overridden: false });
         expect(lastUpdate()('accent-0', 'ios', 'light')).toBeUndefined();
+
+        choosePlatform('iOS');
         expect(field('Light, iOS')).toHaveValue('445566');
-
-        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0]);
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Android' }));
-        expect(
-            within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0],
-        ).toBeDisabled();
-
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Убрать своё значение iOS: Light' })[0]);
-        expect(within(inspector()).queryAllByRole('textbox', { name: 'Light, iOS' })).toHaveLength(0);
         await waitFor(() =>
             expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#123456'], overridden: false }),
         );
+        expect(field('Light, iOS')).toHaveValue('123456');
     });
 
     it('своё значение Android у Conic — без начального угла', async () => {
@@ -1533,6 +1532,7 @@ describe('ColorTokensScreen: градиенты', () => {
                 ? { value: ['conic-gradient(from 30deg at 50% 50%, #1A9E32 0%, #FFFFFF 100%)'] }
                 : undefined;
         await renderScreen();
+        choosePlatform('Android');
 
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Dark' })[0]);
         fireEvent.click(screen.getByRole('menuitem', { name: 'Android' }));
@@ -1603,7 +1603,7 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(picker.style.top).toBe('8px');
     });
 
-    it('в опубликованной версии показывает градиент и строки платформ без «+», «×» и выбора цвета', async () => {
+    it('в опубликованной версии показывает градиент и значения платформы без «+», «×» и выбора цвета', async () => {
         darkGradient();
         const gradientStored = storedValue;
         storedValue = (name, platform, mode) =>
@@ -1613,11 +1613,11 @@ describe('ColorTokensScreen: градиенты', () => {
         await renderScreen('maintainer', [], [], { versionId: 'version-1' });
 
         expect(field('Dark')).toHaveValue('Линейный · 45°');
+        choosePlatform('iOS');
         expect(field('Light, iOS')).toHaveValue('445566');
-        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(0);
         expect(within(inspector()).queryByRole('button', { name: /^Своё значение платформы/ })).toBeNull();
         expect(within(inspector()).queryByRole('button', { name: /^Убрать своё значение/ })).toBeNull();
-        expect(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark' })[0]).toBeDisabled();
+        expect(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark, iOS' })[0]).toBeDisabled();
         expect(screen.queryByRole('dialog', { name: /^Color picker/ })).toBeNull();
     });
 });
@@ -1690,9 +1690,10 @@ describe('ColorTokensScreen: вёрстка по Figma', () => {
         expect(tokenReset.reset.mock.calls[0][0].size).toBeGreaterThan(0);
     });
 
-    it('«+» своего значения платформы видна у полей режимов без наведения', async () => {
+    it('«+» своего значения выбранной платформы видна у полей режимов без наведения', async () => {
         await renderScreen();
         await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
+        choosePlatform('iOS');
         const add = within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0];
         expect(add).toHaveClass('tw-icon-button');
         expect(add).toBeVisible();

@@ -134,3 +134,24 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
         return view;
     });
 };
+
+/**
+ * Строка токена для платформы предпросмотра: поля режимов и подтем берут своё значение iOS или Android, а без него
+ * остаются значением Web, из которого платформа строится.
+ */
+export const viewForPlatform = (view: ColorTokenView, platform: NativePlatform): ColorTokenView => {
+    const at = (field: ColorFieldValue): ColorFieldValue => {
+        const own = field.platforms[platform];
+        return own ? { ...own, platforms: field.platforms } : field;
+    };
+    return {
+        ...view,
+        modes: { light: at(view.modes.light), dark: at(view.modes.dark) },
+        contexts: Object.fromEntries(
+            Object.entries(view.contexts).map(([context, item]) => [
+                context,
+                { ...item, values: { light: at(item.values.light), dark: at(item.values.dark) } },
+            ]),
+        ) as ColorTokenView['contexts'],
+    };
+};

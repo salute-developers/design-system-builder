@@ -64,7 +64,6 @@ interface TypographyInspectorProps {
     /** Сброс изменений стиля в черновике: кнопку подключает экран, когда действие задано. */
     onReset?: () => void;
     resetDisabled?: boolean;
-    onVariantChange: (variant: TypographyVariant) => void;
     error: (field: TypographyField, platform?: TypographyOverridePlatform) => string | null;
     onChange: (change: TypographyStyleChange) => void;
     onOpenComponent: (name: string) => void;
@@ -474,7 +473,7 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
     const familyError = error('fontFamily');
     const instances = style.components.reduce((sum, component) => sum + component.count, 0);
     const enabledToggle = useTokenEnabled({
-        subject: `${style.group}.${style.size}`,
+        subject: `${style.group}.${style.size}.${variant}`,
         enabled: props.enabled,
         editable,
         components: style.components.map((component) => component.name),
@@ -488,7 +487,7 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                 style={{ '--ty-screen-prefix': `"${screenLabel(style.screen)} экраны · "` } as CSSProperties}
             >
                 <InspectorHeader
-                    title={`${groupLabel(style.group)} / ${styleLabel(style)}`}
+                    title={`${groupLabel(style.group)} / ${styleLabel(style)} ${variantLabel}`}
                     description={props.description}
                     descriptionPlaceholder={props.descriptionPlaceholder}
                     onDescribe={editable ? props.onDescribe : undefined}
@@ -514,25 +513,14 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                     }
                 />
             </div>
-            <TokenEnabledNotice toggle={enabledToggle} name={`${groupLabel(style.group)} / ${styleLabel(style)}`} />
+            <TokenEnabledNotice
+                toggle={enabledToggle}
+                name={`${groupLabel(style.group)} / ${styleLabel(style)} ${variantLabel}`}
+            />
             {props.banners}
             <section className="typography-section tw-section">
                 <SectionHeader title="Стиль" />
                 <div className="typography-section-body tw-field-stack">
-                    <div className="typography-variant-tabs" role="tablist" aria-label="Начертание">
-                        {TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map(({ id, label }) => (
-                            <button
-                                key={id}
-                                type="button"
-                                role="tab"
-                                aria-selected={id === variant}
-                                className={id === variant ? 'is-active' : undefined}
-                                onClick={() => props.onVariantChange(id)}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </div>
                     <div className="typography-variant-token" title="Токен открытого начертания">
                         {styleTokenName(style, variant)}
                     </div>

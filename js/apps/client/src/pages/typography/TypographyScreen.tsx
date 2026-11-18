@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
-import {
-    OtherThemesSection,
-    cssPx,
-    webValue,
-} from '../../components/tokenWorkspace/OtherThemesSection';
+import { OtherThemesSection, cssPx, webValue } from '../../components/tokenWorkspace/OtherThemesSection';
 import { useNavigate } from 'react-router-dom';
 
 import '../../styles/typography.css';
@@ -145,14 +141,15 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         appliedAddress.current = null;
         addressed.selectTokenName(`${nextScreen}.${key}.${nextVariant}`);
     };
-    /** Таб начертания: адрес хранит токен открытого начертания, переключатель тем переносит таб. */
-    const selectVariant = (next: TypographyVariant) => {
-        setVariant(next);
-        address(screen, selectedKey, next);
-    };
     const selectStyle = (key: string) => {
         setSelectedKey(key);
         address(screen, key);
+    };
+    /** Строка начертания в дереве или на борде: каждое начертание стиля — самостоятельный токен. */
+    const selectToken = (key: string, next: TypographyVariant) => {
+        setSelectedKey(key);
+        setVariant(next);
+        address(screen, key, next);
     };
 
     const tokenReset = useTokenReset(context, async () => {
@@ -162,7 +159,15 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
     });
     const [hideDisabled, setHideDisabled] = useHideDisabled();
     const allCurrent = screenStyles(styles, screen);
-    const current = hideDisabled ? allCurrent.filter((style) => editor.enabled(style)) : allCurrent;
+    // Скрытые начертания убираются из стиля; стиль без начертаний не показывается.
+    const current = hideDisabled
+        ? allCurrent.flatMap((style) => {
+              const variants: TypographyStyle['variants'] = {};
+              for (const id of ['normal', 'medium', 'bold'] as const)
+                  if (style.variants[id] && editor.enabled(style, id)) variants[id] = style.variants[id];
+              return Object.keys(variants).length ? [{ ...style, variants }] : [];
+          })
+        : allCurrent;
     const changedStyles = new Set(
         [...(changedTokenNames ?? [])]
             .map(parseStyleTokenName)
@@ -294,7 +299,8 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     searchOpen={searchOpen}
                     collapsed={collapsed}
                     onScreen={changeScreen}
-                    onSelect={selectStyle}
+                    variant={variant}
+                    onSelect={selectToken}
                     onQuery={setQuery}
                     onSearchOpen={setSearchOpen}
                     onToggle={(group) => setCollapsed((value) => ({ ...value, [group]: !value[group] }))}
@@ -310,7 +316,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     onCancelCreate={cancelCreate}
                     onRename={rename}
                     onDelete={(style) => requestDelete({ kind: 'style', style })}
-                    isDisabled={(style) => !editor.enabled(style)}
+                    isDisabled={(style, item) => !editor.enabled(style, item)}
                     hideDisabled={hideDisabled}
                     onHideDisabled={() => setHideDisabled(!hideDisabled)}
                     onCreateGroup={createGroup}
@@ -327,7 +333,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                             families={styles.families}
                             selectedKey={selected ? styleKey(selected) : selectedKey}
                             variant={variant}
-                            onSelect={selectStyle}
+                            onSelect={selectToken}
                         />
                     )}
                     {loading && <TypographyBoardSkeleton />}
@@ -362,12 +368,14 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                                 editable={!readOnly}
                                 banners={banners}
                                 variant={variant}
-                                otherThemes={<TypographyOtherThemes context={context} style={selected} variant={variant} />}
+                                otherThemes={
+                                    <TypographyOtherThemes context={context} style={selected} variant={variant} />
+                                }
                                 description={editor.description(selected)}
                                 descriptionPlaceholder={sampleText(selected.group)}
                                 onDescribe={(text) => editor.describe(selected, text)}
-                                enabled={editor.enabled(selected)}
-                                onToggleEnabled={(enabled) => editor.setEnabled(selected, enabled)}
+                                enabled={editor.enabled(selected, variant)}
+                                onToggleEnabled={(enabled) => editor.setEnabled(selected, variant, enabled)}
                                 onRename={(size) => rename(selected, size)}
                                 onDelete={
                                     canDelete ? () => requestDelete({ kind: 'style', style: selected }) : undefined
@@ -376,7 +384,6 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                                     readOnly ? undefined : () => void tokenReset.reset(editor.styleTokenIds(selected))
                                 }
                                 resetDisabled={tokenReset.busy || !changedStyles.has(styleKey(selected))}
-                                onVariantChange={selectVariant}
                                 error={(field, platform) => editor.fieldError(selected, field, platform)}
                                 onChange={(change) => editor.edit(selected, change)}
                                 onOpenComponent={(name) =>

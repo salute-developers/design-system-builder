@@ -24,8 +24,10 @@ import {
     styleKey,
     styleLabel,
     styleTitle,
+    TYPOGRAPHY_VARIANTS,
     type TypographyScreen,
     type TypographyStyle,
+    type TypographyVariant,
 } from '../../../modules/typographyTokens';
 import { InlineInput } from '../../colors/ui/ColorTokenTree';
 import { InlineRename } from '../../colors/ui/InlineRename';
@@ -43,11 +45,13 @@ interface TypographyTreeProps {
     changedStyles: Set<string>;
     screen: TypographyScreen;
     selectedKey: string;
+    /** Открытое начертание: каждое начертание стиля — своя строка дерева. */
+    variant: TypographyVariant;
     query: string;
     searchOpen: boolean;
     collapsed: Record<string, boolean>;
     onScreen: (screen: TypographyScreen) => void;
-    onSelect: (key: string) => void;
+    onSelect: (key: string, variant: TypographyVariant) => void;
     onQuery: (query: string) => void;
     onSearchOpen: (open: boolean) => void;
     onToggle: (group: string) => void;
@@ -65,7 +69,7 @@ interface TypographyTreeProps {
     onRename?: (style: TypographyStyle, size: string) => Promise<void>;
     onDelete?: (style: TypographyStyle) => void;
     /** Стиль отключён (`enabled = false`): строка приглушена и отмечена «Отключён». */
-    isDisabled?: (style: TypographyStyle) => boolean;
+    isDisabled?: (style: TypographyStyle, variant: TypographyVariant) => boolean;
     /** Фильтр «Скрыть отключённые токены». */
     hideDisabled?: boolean;
     onHideDisabled?: () => void;
@@ -84,9 +88,13 @@ export interface CreatingStyle {
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-/** Строка стиля `Builder/ListItem`: значок «Aa», название и «размер/высота строки». */
+/**
+ * Строка токена начертания `Builder/ListItem`: значок «Aa», «размер начертание» и «размер/высота строки · вес».
+ * Переименование и удаление относятся ко всему стилю: размер и высота строки у начертаний общие.
+ */
 const StyleRow = ({
     style,
+    variant,
     selected,
     changed,
     disabled,
@@ -95,10 +103,11 @@ const StyleRow = ({
     onDelete,
 }: {
     style: TypographyStyle;
+    variant: { id: TypographyVariant; label: string };
     selected: boolean;
     changed: boolean;
     disabled: boolean;
-    onSelect: (key: string) => void;
+    onSelect: (key: string, variant: TypographyVariant) => void;
     onRename?: () => void;
     onDelete?: () => void;
 }) => (
@@ -108,15 +117,18 @@ const StyleRow = ({
             className={`typography-token-row tw-tree-item ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''}`}
             aria-current={selected || undefined}
             data-style-key={styleKey(style)}
-            onClick={() => onSelect(styleKey(style))}
+            data-variant={variant.id}
+            onClick={() => onSelect(styleKey(style), variant.id)}
             onDoubleClick={onRename}
         >
             <TypographyOutline />
-            <span className="tw-tree-item-label">{styleLabel(style)}</span>
+            <span className="tw-tree-item-label">
+                {styleLabel(style)} {variant.label}
+            </span>
             {changed && <i className="tw-changed-indicator" aria-label="Есть изменения" />}
             {disabled && <DisabledFlag />}
             <b className="tw-tree-item-value typography-row-value">
-                {formatNumber(style.sizePx)}/{formatNumber(style.lineHeightPx)}
+                {formatNumber(style.sizePx)}/{formatNumber(style.lineHeightPx)} · {style.variants[variant.id]?.weight}
             </b>
         </button>
         {onDelete && (
@@ -191,20 +203,22 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                     )}
                 </div>
             );
-        return (
+        // Удаление стиля одно на стиль — у первой строки: начертания удаляются вместе со стилем.
+        return TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map((variant, index) => (
             <StyleRow
-                key={key}
+                key={`${key}.${variant.id}`}
                 style={style}
-                selected={key === selectedKey}
+                variant={variant}
+                selected={key === selectedKey && variant.id === props.variant}
                 changed={props.changedStyles.has(key)}
-                disabled={Boolean(props.isDisabled?.(style))}
+                disabled={Boolean(props.isDisabled?.(style, variant.id))}
                 onSelect={props.onSelect}
                 onRename={
                     props.editable && props.onRename ? () => setRenaming({ key, busy: false, error: null }) : undefined
                 }
-                onDelete={props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined}
+                onDelete={index === 0 && props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined}
             />
-        );
+        ));
     };
     const body = () => {
         if (!styles) return props.loading ? <PanelSkeleton part="tree" /> : null;

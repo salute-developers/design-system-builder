@@ -5,7 +5,14 @@ import { OtherThemesSection, webValue } from '../../components/tokenWorkspace/Ot
 
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
 
-import { PanelSkeleton, useHideDisabled, usePanelWidths, WorkspaceLoadError } from '../../components/tokenWorkspace';
+import {
+    PanelSkeleton,
+    TokenPlatformMenu,
+    useHideDisabled,
+    usePanelWidths,
+    useTokenPlatform,
+    WorkspaceLoadError,
+} from '../../components/tokenWorkspace';
 
 import '../../styles/color-tokens.css';
 
@@ -24,6 +31,7 @@ import {
     legacyDraftFamilies,
     componentStyleSources,
     componentsUsingToken,
+    viewForPlatform,
     contextSubgroup,
     parseMemberName,
     tokenId,
@@ -210,6 +218,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [searchOpen, setSearchOpen] = useState(false);
     const [issuesOnly, setIssuesOnly] = useState(false);
     const [hideDisabled, setHideDisabled] = useHideDisabled();
+    const [platform, setPlatform] = useTokenPlatform();
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readStorage(COLLAPSED_KEY, {}));
     const { panels, separator } = usePanelWidths(PANELS_KEY);
     const [workspace, setWorkspace] = useState<'overview' | 'accessibility'>('overview');
@@ -246,9 +255,15 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             buildTree(groups, hideDisabled ? views.filter((view) => view.enabled) : views, { query, sort, issuesOnly }),
         [groups, views, query, sort, issuesOnly, hideDisabled],
     );
+    // Борд показывает значения платформы предпросмотра: своё значение iOS или Android, иначе значение Web.
     const board = useMemo(
-        () => buildTree(groups, views, { query: '', sort: 'source', issuesOnly: false }),
-        [groups, views],
+        () =>
+            buildTree(groups, platform === 'web' ? views : views.map((view) => viewForPlatform(view, platform)), {
+                query: '',
+                sort: 'source',
+                issuesOnly: false,
+            }),
+        [groups, views, platform],
     );
     // Без явного выбора — первый токен дерева без поиска и фильтра: ввод в поиск не меняет выбранный токен.
     const firstToken = useMemo(
@@ -647,6 +662,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                                 </button>
                             )}
                         </div>
+                        <TokenPlatformMenu platform={platform} onSelect={setPlatform} />
                     </div>
                     {(saveError || session.conflict) && (
                         <div className="ct-toolbar-error" role="alert" data-testid="color-tokens-save-error">
@@ -772,6 +788,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                                 if (picker?.field === field && picker.platform === platform) setPicker(null);
                                 edit(() => editor.removePlatform(selected, field, platform));
                             }}
+                            platform={platform}
                             onRelink={(context: ColorContext) => edit(() => editor.relink(selected, context))}
                             onUnlink={(context: ColorContext) => edit(() => editor.unlink(selected, context))}
                             onResetContexts={() => edit(() => editor.resetContexts(selected))}

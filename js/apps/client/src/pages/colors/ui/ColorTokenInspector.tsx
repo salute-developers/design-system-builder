@@ -66,6 +66,8 @@ interface InspectorProps {
     onAddPlatform: (field: FieldId, platform: NativePlatform) => void;
     /** «×» у строки платформы: значение снова строится из web. */
     onRemovePlatform: (field: FieldId, platform: NativePlatform) => void;
+    /** Платформа предпросмотра: поля показывают и правят значения этой платформы. */
+    platform: PaintPlatform;
     onRelink: (context: ColorContext) => void;
     /** Разрыв связи подтемы: значения остаются, но перестают меняться вслед за режимами. */
     onUnlink: (context: ColorContext) => void;
@@ -187,9 +189,10 @@ export const ColorTokenInspector = (props: InspectorProps) => {
     };
 
     /**
-     * Поле значения Light или Dark и под ним строки своих значений платформ. «+» есть только у полей режимов.
-     * Связанная подтема только показывает унаследованные строки, без «+» и «×»: их убирают у режима.
-     * В отвязанной подтеме значения свои, поэтому строку можно убрать «×».
+     * Поле значения Light или Dark выбранной в предпросмотре платформы. У Web и у своего значения iOS или Android
+     * поле правится; значение iOS или Android, построенное из Web, только показывается, а «+» делает его своим.
+     * «+» есть только у полей режимов: связанная подтема наследует значения платформ режима. В отвязанной подтеме
+     * своё значение платформы можно убрать «×».
      */
     const field = (
         id: FieldId,
@@ -199,69 +202,49 @@ export const ColorTokenInspector = (props: InspectorProps) => {
         canAdd = true,
         canRemove = true,
     ) => {
-        const own = NATIVE_PLATFORMS.filter((platform) => value.platforms[platform]);
-        const free = NATIVE_PLATFORMS.filter((platform) => !value.platforms[platform]);
-        const web = { field: id, platform: 'web' as const };
+        const platform = props.platform;
+        const own = platform === 'web' ? undefined : value.platforms[platform];
+        const fromWeb = platform !== 'web' && !own;
+        const target = { field: id, platform };
+        const platformName = platform === 'web' ? name : `${name}, ${PLATFORM_LABELS[platform]}`;
         return (
-            <Fragment key={id}>
-                <ColorField
-                    label={label}
-                    name={name}
-                    value={value}
-                    editable={editable}
-                    pickerOpen={openPicker?.field === id && openPicker.platform === 'web'}
-                    invalid={props.invalidField?.field === id && props.invalidField.platform === 'web'}
-                    message={message(id, 'web')}
-                    pickerAnchor={props.pickerAnchor}
-                    onOpenPicker={() => props.onOpenPicker(web)}
-                    onCommit={(next) => props.onCommit(web, next)}
-                    onOpacity={(percent) => props.onOpacity(web, percent)}
-                    trailing={
-                        editable &&
-                        canAdd && (
-                            <PlatformAdd
-                                name={name}
-                                platforms={free}
-                                onAdd={(platform) => props.onAddPlatform(id, platform)}
-                            />
-                        )
-                    }
-                />
-                {own.map((platform) => {
-                    const target = { field: id, platform };
-                    return (
-                        <ColorField
-                            key={platform}
-                            label={`↳ ${PLATFORM_LABELS[platform]}`}
-                            name={`${name}, ${PLATFORM_LABELS[platform]}`}
-                            platformRow
-                            value={value.platforms[platform]!}
-                            editable={editable}
-                            pickerOpen={openPicker?.field === id && openPicker.platform === platform}
-                            invalid={props.invalidField?.field === id && props.invalidField.platform === platform}
-                            message={message(id, platform)}
-                            pickerAnchor={props.pickerAnchor}
-                            onOpenPicker={() => props.onOpenPicker(target)}
-                            onCommit={(next) => props.onCommit(target, next)}
-                            onOpacity={(percent) => props.onOpacity(target, percent)}
-                            trailing={
-                                editable &&
-                                canRemove && (
-                                    <button
-                                        type="button"
-                                        className="tw-icon-button ct-platform-button"
-                                        aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}: ${name}`}
-                                        title={`Убрать своё значение ${PLATFORM_LABELS[platform]}: снова строится из Web`}
-                                        onClick={() => props.onRemovePlatform(id, platform)}
-                                    >
-                                        <CloseOutline />
-                                    </button>
-                                )
-                            }
-                        />
-                    );
-                })}
-            </Fragment>
+            <ColorField
+                key={id}
+                label={label}
+                name={platformName}
+                value={own ?? value}
+                editable={editable && !fromWeb}
+                pickerOpen={openPicker?.field === id && openPicker.platform === platform}
+                invalid={props.invalidField?.field === id && props.invalidField.platform === platform}
+                message={message(id, platform)}
+                pickerAnchor={props.pickerAnchor}
+                onOpenPicker={() => props.onOpenPicker(target)}
+                onCommit={(next) => props.onCommit(target, next)}
+                onOpacity={(percent) => props.onOpacity(target, percent)}
+                trailing={
+                    editable &&
+                    platform !== 'web' &&
+                    (own
+                        ? canRemove && (
+                              <button
+                                  type="button"
+                                  className="tw-icon-button ct-platform-button"
+                                  aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}: ${name}`}
+                                  title={`Убрать своё значение ${PLATFORM_LABELS[platform]}: снова строится из Web`}
+                                  onClick={() => props.onRemovePlatform(id, platform)}
+                              >
+                                  <CloseOutline />
+                              </button>
+                          )
+                        : canAdd && (
+                              <PlatformAdd
+                                  name={name}
+                                  platforms={[platform]}
+                                  onAdd={(next) => props.onAddPlatform(id, next)}
+                              />
+                          ))
+                }
+            />
         );
     };
     return (
