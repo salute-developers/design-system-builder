@@ -252,8 +252,9 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
         deleted: Boolean,
     ) {
         // Повторная запись существующего значения сохраняет признаки своего значения платформы и отвязанной подтемы.
-        val overridden = latestThemeValueOverridden(row[ThemeTokenValuesTable.id])
-        val detached = latestThemeValueDetached(row[ThemeTokenValuesTable.id])
+        val latest = latestThemeValueRevision(row[ThemeTokenValuesTable.id])
+        val overridden = latest?.get(ThemeTokenValueRevisionsTable.overridden) ?: false
+        val detached = latest?.get(ThemeTokenValueRevisionsTable.detached) ?: false
         ThemeTokenValueRevisionsTable.deleteWhere {
             (ThemeTokenValueRevisionsTable.tokenValueId eq row[ThemeTokenValuesTable.id]) and
                 (ThemeTokenValueRevisionsTable.designSystemVersionId eq draft[ThemeVersionBoundariesTable.id])
