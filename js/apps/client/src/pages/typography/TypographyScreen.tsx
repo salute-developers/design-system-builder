@@ -27,7 +27,13 @@ import { TypographyBoard, TypographyBoardSkeleton } from './ui/TypographyBoard';
 import { TypographyInspector } from './ui/TypographyInspector';
 import { TypographyTree, type CreatingStyle } from './ui/TypographyTree';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
-import { TokenPlatformMenu, useHideDisabled, usePanelWidths, useTokenPlatform } from '../../components/tokenWorkspace';
+import {
+    TokenPlatformMenu,
+    useHideDisabled,
+    usePanelWidths,
+    useTokenPlatform,
+    type TokenPlatform,
+} from '../../components/tokenWorkspace';
 
 export interface TypographyScreenProps {
     context: TypographyContext;
@@ -96,8 +102,9 @@ const TypographyOtherThemes = ({
 };
 
 /** Стиль с числами платформы предпросмотра для борда: свои значения iOS и Android поверх значений Web. */
-const styleForPlatform = (style: TypographyStyle, platform: 'ios' | 'android'): TypographyStyle => {
-    const own = style.overrides?.[platform];
+const styleForPlatform = (style: TypographyStyle, platform: TokenPlatform): TypographyStyle => {
+    // У Web своих значений нет: стиль остаётся значением Web.
+    const own = style.overrides?.[platform as 'ios' | 'android'];
     if (!own) return style;
     const variants = { ...style.variants };
     for (const id of ['normal', 'medium', 'bold'] as const) {
@@ -178,16 +185,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
     });
     const [hideDisabled, setHideDisabled] = useHideDisabled();
     const [platform, setPlatform] = useTokenPlatform();
-    const allCurrent = screenStyles(styles, screen);
-    // Скрытые начертания убираются из стиля; стиль без начертаний не показывается.
-    const current = hideDisabled
-        ? allCurrent.flatMap((style) => {
-              const variants: TypographyStyle['variants'] = {};
-              for (const id of ['normal', 'medium', 'bold'] as const)
-                  if (style.variants[id] && editor.enabled(style, id)) variants[id] = style.variants[id];
-              return Object.keys(variants).length ? [{ ...style, variants }] : [];
-          })
-        : allCurrent;
+    const current = screenStyles(styles, screen);
     const changedStyles = new Set(
         [...(changedTokenNames ?? [])]
             .map(parseStyleTokenName)
@@ -350,9 +348,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                 <main className="typography-canvas">
                     {styles && (
                         <TypographyBoard
-                            styles={
-                                platform === 'web' ? current : current.map((style) => styleForPlatform(style, platform))
-                            }
+                            styles={current.map((style) => styleForPlatform(style, platform))}
                             families={styles.families}
                             selectedKey={selected ? styleKey(selected) : selectedKey}
                             variant={variant}

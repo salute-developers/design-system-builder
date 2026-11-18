@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
 import type { EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
-import type { DimensionToken } from '../../modules/sizeTokens/domain/types';
+import type { DimensionToken, NativePlatform } from '../../modules/sizeTokens/domain/types';
 import { OtherThemesSection, cssPx, webValue } from '../../components/tokenWorkspace/OtherThemesSection';
 import { useNavigate } from 'react-router-dom';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
@@ -116,13 +116,12 @@ const SizeOtherThemes = ({ context, token }: { context: EditorContextKey; token:
 
 /** Токен с числами платформы предпросмотра для борда: своё или текущее значение iOS и Android, иначе Web. */
 const sizeTokenForPlatform = (token: SizeToken, platform: TokenPlatform): SizeToken => {
-    if (platform === 'web') return token;
-    if (token.kind === 'shadow') {
-        const native = token.platforms[platform] ?? token.native[platform];
-        return native ? { ...token, layers: native.layers } : token;
-    }
-    const native = token.platforms[platform] ?? token.native[platform];
-    return native === null || native === undefined || token.fullRounding ? token : { ...token, valuePx: native };
+    // У Web нет своих и построенных значений платформы: остаётся значение Web.
+    const key = platform as NativePlatform;
+    if (token.kind === 'shadow')
+        return { ...token, layers: (token.platforms[key] ?? token.native[key] ?? token).layers };
+    const native = token.fullRounding ? null : (token.platforms[key] ?? token.native[key]);
+    return { ...token, valuePx: native ?? token.valuePx };
 };
 
 /** Выбранный токен темы: экран размонтируется на время перезагрузки темы и должен вернуть выбор. */

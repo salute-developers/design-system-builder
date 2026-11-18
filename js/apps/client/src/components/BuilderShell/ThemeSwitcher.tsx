@@ -59,6 +59,9 @@ const hasTabStop = (panel: HTMLElement, from: Element, back: boolean) => {
 /** Стрелки и Enter управляют списком только с крошки, списка, темы и поля поиска: у кнопок и ссылки панели свой Enter. */
 const LIST_KEY_TARGETS = '.theme-switcher-trigger, [role="listbox"], [role="option"], input';
 
+/** Шаг выделения по стрелкам списка. */
+const ARROW_STEPS: Record<string, number | undefined> = { ArrowDown: 1, ArrowUp: -1 };
+
 const matches = (theme: ThemeTenant, query: string) =>
     theme.name.toLocaleLowerCase('ru-RU').includes(normalizeThemeName(query).toLocaleLowerCase('ru-RU'));
 
@@ -199,9 +202,9 @@ export const ThemeSwitcher = ({
             return;
         }
         if (!shown.length || !target.matches(LIST_KEY_TARGETS)) return;
-        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        const step = ARROW_STEPS[event.key];
+        if (step) {
             event.preventDefault();
-            const step = event.key === 'ArrowDown' ? 1 : -1;
             setActive((current) => (current + step + shown.length) % shown.length);
             return;
         }

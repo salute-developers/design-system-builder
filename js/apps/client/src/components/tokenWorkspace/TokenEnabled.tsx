@@ -96,18 +96,20 @@ export const useTokenEnabled = (options: {
  */
 export const TokenEnabledButton = ({ toggle }: { toggle: TokenEnabledToggle }) => {
     if (!toggle.editable) return toggle.enabled ? null : <DisabledFlag />;
-    const label = toggle.enabled ? 'Отключить токен' : 'Включить токен';
+    const state = toggle.enabled
+        ? { label: 'Отключить токен', title: 'Отключить токен', icon: <EyeOutline /> }
+        : { label: 'Включить токен', title: `${DISABLED_TOKEN_TEXT}. Включить токен`, icon: <EyeClosedOutline /> };
     return (
         <button
             type="button"
             className="tw-icon-button"
-            title={toggle.enabled ? label : `${DISABLED_TOKEN_TEXT}. ${label}`}
-            aria-label={label}
+            title={state.title}
+            aria-label={state.label}
             aria-pressed={!toggle.enabled}
             disabled={toggle.busy}
             onClick={() => toggle.request(!toggle.enabled)}
         >
-            {toggle.enabled ? <EyeOutline /> : <EyeClosedOutline />}
+            {state.icon}
         </button>
     );
 };

@@ -214,7 +214,9 @@ const DimensionBody = ({
     // Поле показывает значение платформы предпросмотра: Web, своё значение iOS или Android или значение Web, из
     // которого платформа строится (оно не правится, «+» делает его своим).
     const overridden = platformsOf(token.platforms).filter((item) => item === platform);
-    const fromWeb = platform !== 'web' && !overridden.length;
+    // Без своего значения поле показывает Web: на Web — правится, на iOS и Android — только показывается.
+    const showWeb = !overridden.length;
+    const fromWeb = showWeb && platform !== 'web';
     const setDimension = (change: (value: Extract<SizeTokenValue, { kind: 'dimension' }>) => SizeTokenValue) =>
         onChange((value) => (value.kind === 'dimension' ? change(value) : value));
     const valueError = errors.valuePx ?? serverError('valuePx');
@@ -223,12 +225,12 @@ const DimensionBody = ({
             <section className="st-section tw-section">
                 <SectionHeader title={token.kind === 'radius' ? 'Радиус' : 'Отступ'} />
                 <div className="st-field-block tw-field-block">
-                    {(platform === 'web' || fromWeb) && (
+                    {showWeb && (
                         <label className="st-field-label tw-field-label" htmlFor={`size-value-${token.tokenId}`}>
                             Значение, px
                         </label>
                     )}
-                    {(platform === 'web' || fromWeb) && (
+                    {showWeb && (
                         <div className="st-field-row tw-field-line">
                             {token.fullRounding ? (
                                 <input
@@ -390,7 +392,8 @@ const ShadowBody = ({
     const serverError = serverErrorOf(save);
     // Слои платформы предпросмотра: свои слои iOS или Android или слои Web, из которых платформа строится.
     const overridden = platformsOf(token.platforms).filter((item) => item === platform);
-    const fromWeb = platform !== 'web' && !overridden.length;
+    const showWeb = !overridden.length;
+    const fromWeb = showWeb && platform !== 'web';
     const setShadow = (change: (value: Extract<SizeTokenValue, { kind: 'shadow' }>) => SizeTokenValue) =>
         onChange((value) => (value.kind === 'shadow' ? change(value) : value));
     const setPlatformLayers = (platform: NativePlatform, layers: ShadowLayer[] | null) =>
@@ -422,7 +425,7 @@ const ShadowBody = ({
                         )
                     }
                 />
-                {(platform === 'web' || fromWeb) && (
+                {showWeb && (
                     <ShadowLayers
                         layers={token.layers}
                         editable={editable && !fromWeb}

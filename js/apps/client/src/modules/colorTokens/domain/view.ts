@@ -139,9 +139,10 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
  * Строка токена для платформы предпросмотра: поля режимов и подтем берут своё значение iOS или Android, а без него
  * остаются значением Web, из которого платформа строится.
  */
-export const viewForPlatform = (view: ColorTokenView, platform: NativePlatform): ColorTokenView => {
+export const viewForPlatform = (view: ColorTokenView, platform: NativePlatform | 'web'): ColorTokenView => {
     const at = (field: ColorFieldValue): ColorFieldValue => {
-        const own = field.platforms[platform];
+        // У Web своих значений нет: поле остаётся значением Web.
+        const own = field.platforms[platform as NativePlatform];
         return own ? { ...own, platforms: field.platforms } : field;
     };
     return {

@@ -204,21 +204,29 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                 </div>
             );
         // Удаление стиля одно на стиль — у первой строки: начертания удаляются вместе со стилем.
-        return TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map((variant, index) => (
-            <StyleRow
-                key={`${key}.${variant.id}`}
-                style={style}
-                variant={variant}
-                selected={key === selectedKey && variant.id === props.variant}
-                changed={props.changedStyles.has(key)}
-                disabled={Boolean(props.isDisabled?.(style, variant.id))}
-                onSelect={props.onSelect}
-                onRename={
-                    props.editable && props.onRename ? () => setRenaming({ key, busy: false, error: null }) : undefined
-                }
-                onDelete={index === 0 && props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined}
-            />
-        ));
+        // Фильтр «Скрыть отключённые токены» убирает строки отключённых начертаний.
+        const disabled = (id: TypographyVariant) => Boolean(props.isDisabled?.(style, id));
+        return TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id] && !(props.hideDisabled && disabled(id))).map(
+            (variant, index) => (
+                <StyleRow
+                    key={`${key}.${variant.id}`}
+                    style={style}
+                    variant={variant}
+                    selected={key === selectedKey && variant.id === props.variant}
+                    changed={props.changedStyles.has(key)}
+                    disabled={disabled(variant.id)}
+                    onSelect={props.onSelect}
+                    onRename={
+                        props.editable && props.onRename
+                            ? () => setRenaming({ key, busy: false, error: null })
+                            : undefined
+                    }
+                    onDelete={
+                        index === 0 && props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined
+                    }
+                />
+            ),
+        );
     };
     const body = () => {
         if (!styles) return props.loading ? <PanelSkeleton part="tree" /> : null;

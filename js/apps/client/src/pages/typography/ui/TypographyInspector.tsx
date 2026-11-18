@@ -408,13 +408,9 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
             <div className="typography-overridable">
                 {!rows.length && (
                     <div className="typography-value-line">
-                        {fromWeb ? (
-                            <fieldset className="typography-from-web" disabled>
-                                {base}
-                            </fieldset>
-                        ) : (
-                            base
-                        )}
+                        <fieldset className="typography-from-web" disabled={fromWeb}>
+                            {base}
+                        </fieldset>
                         {fromWeb && !disabled && (
                             <OverrideAdd
                                 platforms={addable}

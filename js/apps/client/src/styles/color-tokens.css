@@ -1785,10 +1785,6 @@
     border-left: 1px solid var(--tw-outline);
 }
 
-.color-tokens-screen .ct-inspector-section .ct-platform-label {
-    color: var(--tw-text-paragraph);
-}
-
 /* Поле значения `ValueField` 24 px: свотч 16, текст 12/14, прозрачность справа. */
 .color-tokens-screen .properties-panel .figma-value-control.tw-field {
     display: flex;

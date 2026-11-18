@@ -258,11 +258,15 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     // Борд показывает значения платформы предпросмотра: своё значение iOS или Android, иначе значение Web.
     const board = useMemo(
         () =>
-            buildTree(groups, platform === 'web' ? views : views.map((view) => viewForPlatform(view, platform)), {
-                query: '',
-                sort: 'source',
-                issuesOnly: false,
-            }),
+            buildTree(
+                groups,
+                views.map((view) => viewForPlatform(view, platform)),
+                {
+                    query: '',
+                    sort: 'source',
+                    issuesOnly: false,
+                },
+            ),
         [groups, views, platform],
     );
     // Без явного выбора — первый токен дерева без поиска и фильтра: ввод в поиск не меняет выбранный токен.

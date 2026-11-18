@@ -191,22 +191,32 @@ const notify = (session: ColorTokenSession) => session.listeners.forEach((listen
  * Своё ли значение у платформы определения темы [themeName]: неподтверждённый признак экрана, иначе признак из
  * прочитанного или подтверждённого состояния.
  */
-export const isOverridden = (session: ColorTokenSession, themeName: string, platform: NativePlatform) => {
-    const local = session.overrides.get(`${themeName}:${platform}`);
+/**
+ * Признак значения определения в теме [themeName] (`dark.text.default.accent`): несохранённый выбор сессии [local],
+ * иначе признак прочитанного или подтверждённого значения [confirmed].
+ */
+const valueFlag = (
+    session: ColorTokenSession,
+    themeName: string,
+    local: boolean | undefined,
+    confirmed: (tokenId: string, mode: string) => boolean,
+) => {
     if (local !== undefined) return local;
     const [mode, ...member] = themeName.split('.');
     const definition = session.definitions.get(member.join('.'));
-    return definition ? tokenValueOverridden(session.context, definition.id, platform, mode) : false;
+    return definition ? confirmed(definition.id, mode) : false;
 };
 
+export const isOverridden = (session: ColorTokenSession, themeName: string, platform: NativePlatform) =>
+    valueFlag(session, themeName, session.overrides.get(`${themeName}:${platform}`), (id, mode) =>
+        tokenValueOverridden(session.context, id, platform, mode),
+    );
+
 /** Связь подтемы явно разорвана: несохранённый выбор сессии или признак `detached` прочитанного значения web. */
-export const isDetached = (session: ColorTokenSession, themeName: string) => {
-    const local = session.detachments.get(themeName);
-    if (local !== undefined) return local;
-    const [mode, ...member] = themeName.split('.');
-    const definition = session.definitions.get(member.join('.'));
-    return definition ? tokenValueDetached(session.context, definition.id, 'web', mode) : false;
-};
+export const isDetached = (session: ColorTokenSession, themeName: string) =>
+    valueFlag(session, themeName, session.detachments.get(themeName), (id, mode) =>
+        tokenValueDetached(session.context, id, 'web', mode),
+    );
 
 /** Значения платформ определения в классе своего типа: при смене типа семейства определение переносится. */
 const retyped = (token: Token, type: ColorTokenType): Token => {
