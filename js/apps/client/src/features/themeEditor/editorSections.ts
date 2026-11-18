@@ -11,9 +11,12 @@ export type EditorSection =
     | 'icons'
     | 'settings';
 
+/** Типы цветового раздела используются совместно чтением и защитой неподтверждённого ввода. */
+export const colorTokenTypes: TokenDefinitionDto['type'][] = ['color', 'gradient'];
+
 /** Раздел — целая единица чтения, без отдельных жизненных циклов платформ и параметров. */
 export const sectionTokenTypes: Partial<Record<EditorSection, TokenDefinitionDto['type'][]>> = {
-    colors: ['color', 'gradient'],
+    colors: colorTokenTypes,
     typography: ['typography', 'fontFamily'],
     shapes: ['shape', 'spacing', 'shadow'],
 };

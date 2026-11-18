@@ -35,6 +35,7 @@ class ModelReadPagesTest {
             read.copy(scope = "project/other/draft"),
             read.copy(scope = "project/ds/new-draft"),
             read.copy(name = "other"),
+            read.copy(tokenIds = setOf(UUID.randomUUID())),
         ).forEach { changed ->
             assertFailsWith<InvalidModelReadQueryException> {
                 items.modelReadJournalPage(changed.copy(cursor = cursor), { it.first }, { it.second })

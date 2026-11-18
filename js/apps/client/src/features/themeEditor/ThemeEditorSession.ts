@@ -1,3 +1,5 @@
+import { colorReadRevision } from './colorReadRevision';
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import type { ConfirmedTokenValues } from '../../api/draftAutosaveActivity';
 import { loadThemeEditor, loadDesignSystemCursor } from '../../api/themeEditorRepository';
 import { tokenRepository } from '../../api/tokenRepository';
@@ -481,13 +483,27 @@ export class ThemeEditorSession {
     }
 
     /** Перечитывает подтверждённые предметные данные после локальной отмены, даже без SSE-эха. */
-    refreshChanges(changes: DraftRefreshChange[]) {
+    async refreshChanges(changes: DraftRefreshChange[], options?: DraftRefreshOptions) {
+        if (options?.outcome === 'unknown') return this.refreshSnapshot(new Set(['all']));
+        const sections = this.options.sections;
+        if (sections && changes.length && changes.every((change) => change.entityType === 'token-value')) {
+            invalidateEditorReads(this.context);
+            const pending = (type: TokenDefinitionDto['type']) =>
+                this.queue.hasPendingWhere((operation) => operation.change.type === type);
+            const revision = getDraftAutosaveRevision(this.context);
+            if (
+                (await sections.refreshAddressedColors(changes, pending)) &&
+                revision === colorReadRevision(this.context, this.signal, pending)
+            ) {
+                notifyEditorDataInvalidated(this.context, new Set(['theme-tokens']));
+                this.applyRemoteSnapshot(sections.currentSnapshot, true, false, ['color', 'gradient']);
+                return;
+            }
+        }
         const scopes = new Set<DraftInvalidationScope>();
         for (const change of changes) {
             if (
-                change.entityType === 'token' ||
-                change.entityType === 'token-value' ||
-                change.entityType === 'token-group' ||
+                ['token', 'token-value', 'token-group'].includes(change.entityType) ||
                 change.entityType.startsWith('palette-')
             )
                 scopes.add('theme-tokens');
@@ -497,7 +513,11 @@ export class ThemeEditorSession {
         return this.refreshSnapshot(scopes, undefined, changes);
     }
 
-    private refreshSnapshot(scopes: Set<DraftInvalidationScope>, event?: DraftInvalidationEvent, changes?: DraftRefreshChange[]) {
+    private refreshSnapshot(
+        scopes: Set<DraftInvalidationScope>,
+        event?: DraftInvalidationEvent,
+        changes?: DraftRefreshChange[],
+    ) {
         notifyEditorDataInvalidated(this.context, scopes);
         if (this.options.sections) {
             if (event) {
@@ -636,34 +656,37 @@ export class ThemeEditorSession {
 
     private confirmed(operation: PendingTokenSave, result: TokenSaveResult) {
         if (!this.mounted || this.signal.aborted) return;
-        const values: ConfirmedTokenValues[] | undefined =
-            operation.kind === 'update' &&
-            !Object.keys(operation.request?.definitionPatch ?? {}).length &&
-            result.values?.length
-                ? [
-                      {
-                          tokenId: result.tokenId,
-                          type: operation.change.type,
-                          values: result.values
-                              .filter((value) => value.platform !== null)
-                              .map((value) => ({
-                                  platform: value.platform!,
-                                  mode: value.mode,
-                                  value: value.sourceValue ?? value.value,
-                                  overridden: value.overridden,
-                              })),
-                      },
-                  ]
-                : undefined;
+        const confirmedValues = result.values ?? [];
+        const valueConfirmation = {
+            update: operation.kind === 'update',
+            unchangedDefinition: !Object.keys(operation.request?.definitionPatch ?? {}).length,
+            values: confirmedValues.length > 0,
+        };
+        const values: ConfirmedTokenValues[] | undefined = Object.values(valueConfirmation).every(Boolean)
+            ? [
+                  {
+                      tokenId: result.tokenId,
+                      type: operation.change.type,
+                      values: confirmedValues
+                          .filter((value) => value.platform !== null)
+                          .map((value) => ({
+                              platform: value.platform!,
+                              mode: value.mode,
+                              value: value.sourceValue ?? value.value,
+                              overridden: value.overridden,
+                          })),
+                  },
+              ]
+            : undefined;
         if (!values || !this.options.sections?.acceptConfirmedValues(values))
             this.options.sections?.invalidateTokenTypes([operation.change.type]);
         notifyEditorDataInvalidated(this.context, new Set(['theme-tokens']), [operation.change.type]);
         if (this.mounted) this.options.onSaved([operation.change.type], values);
         const baseName = operation.tokenName.replace(/^(light|dark)\./, '');
         const previousBaseName = operation.previousTokenName?.replace(/^(light|dark)\./, '');
-        if ([previousBaseName, previousBaseName !== baseName].every(Boolean)) delete this.tokenIds[previousBaseName!];
         const affectsCurrentName = operation.kind !== 'delete' || this.tokenIds[baseName] === result.tokenId;
         if ([previousBaseName, previousBaseName !== baseName].every(Boolean)) {
+            delete this.tokenIds[previousBaseName!];
             this.logicalKeyByName.delete(previousBaseName!);
             this.renamedAwayNames.delete(previousBaseName!);
         }

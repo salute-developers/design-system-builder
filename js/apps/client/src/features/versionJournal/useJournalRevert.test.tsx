@@ -3,7 +3,11 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { DraftChangeDto } from '../../api/editorContracts';
 import type { JournalActionViewModel } from './journalPresenter';
 
-const operations = vi.hoisted(() => ({ revertChange: vi.fn(), revertChanges: vi.fn(), waitForDraftAutosaveIdle: vi.fn() }));
+const operations = vi.hoisted(() => ({
+    revertChange: vi.fn(),
+    revertChanges: vi.fn(),
+    waitForDraftAutosaveIdle: vi.fn(),
+}));
 vi.mock('../../api/versionJournalRepository', () => ({ versionJournalRepository: operations }));
 vi.mock('../../api/draftAutosaveActivity', () => operations);
 
@@ -23,23 +27,23 @@ beforeEach(() => {
 });
 
 it('сверяет успешную и неизвестную части после ошибки, не отправляя оставшуюся отмену', async () => {
-    const many = Array.from({length:401}, (_, i) => ({...changes[0],entityId:String(i)}));
-    const batchAction = {...action,changes:many};
+    const many = Array.from({ length: 401 }, (_, i) => ({ ...changes[0], entityId: String(i) }));
+    const batchAction = { ...action, changes: many };
     operations.revertChanges.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('response lost'));
     const reload = vi.fn().mockResolvedValue(undefined);
     const refresh = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useJournalRevert(context, reload, refresh));
     await act(() => result.current.revert(batchAction));
     expect(operations.revertChanges).toHaveBeenCalledTimes(2);
-    expect(refresh).toHaveBeenCalledWith(many.slice(0, 400));
+    expect(refresh).toHaveBeenCalledWith(many.slice(0, 400), { outcome: 'unknown' });
     expect(reload).toHaveBeenCalledTimes(1);
     expect(result.current.operationError).toContain('Не удалось полностью отменить');
     expect(result.current.refreshFailed).toBe(false);
 });
 
 it('после сбоя сверки повторяет только чтения и сохраняет сообщение о частичной отмене', async () => {
-    const many = Array.from({length:401}, (_, i) => ({...changes[0],entityId:String(i)}));
-    const batchAction = {...action,changes:many};
+    const many = Array.from({ length: 401 }, (_, i) => ({ ...changes[0], entityId: String(i) }));
+    const batchAction = { ...action, changes: many };
     operations.revertChanges.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline'));
     const refresh = vi.fn().mockRejectedValueOnce(new Error('refresh failed')).mockResolvedValue(undefined);
     const { result } = renderHook(() => useJournalRevert(context, vi.fn().mockResolvedValue(undefined), refresh));
@@ -50,6 +54,7 @@ it('после сбоя сверки повторяет только чтени�
     await act(() => result.current.retryRefresh());
     expect(operations.revertChanges).toHaveBeenCalledTimes(2);
     expect(refresh).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenLastCalledWith(many.slice(0, 400), { outcome: 'unknown' });
     expect(result.current.refreshFailed).toBe(false);
     expect(result.current.operationError).toContain('Не удалось полностью отменить');
 });
@@ -59,7 +64,7 @@ it('перечитывает неизвестный результат уже п
     const refresh = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useJournalRevert(context, vi.fn().mockResolvedValue(undefined), refresh));
     await act(() => result.current.revert(action));
-    expect(refresh).toHaveBeenCalledWith(changes);
+    expect(refresh).toHaveBeenCalledWith(changes, { outcome: 'unknown' });
     expect(operations.revertChanges).toHaveBeenCalledTimes(1);
 });
 

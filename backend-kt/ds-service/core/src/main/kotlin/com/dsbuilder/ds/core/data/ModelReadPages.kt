@@ -68,7 +68,8 @@ private fun pageBinding(read: ModelReadQuery, list: String): String {
         read.scope, list, "name,id:asc", read.name, read.query, read.platform,
         read.groupId, read.parentId, read.type, read.shade, read.version,
     )
-    val encoded = Json.encodeToString(ListSerializer(String.serializer().nullable), values)
+    val bound = if (read.tokenIds.isEmpty()) values else values + read.tokenIds.sorted().joinToString(",")
+    val encoded = Json.encodeToString(ListSerializer(String.serializer().nullable), bound)
     return MessageDigest.getInstance("SHA-256").digest(encoded.toByteArray())
         .joinToString("") { "%02x".format(it) }
 }

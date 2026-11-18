@@ -328,6 +328,7 @@ fun dsDependencyModules(
             ExposedTransactionRunner(
                 runtime.database,
                 PostgresTransactionFailureMapper(),
+                runtime.databasePool::diagnosticState,
             )
         }
         single<PublicationTransactionRunner> {

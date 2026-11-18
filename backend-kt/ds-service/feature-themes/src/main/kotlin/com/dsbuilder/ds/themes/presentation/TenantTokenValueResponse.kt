@@ -4,7 +4,6 @@ import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
 /** External token value returned by the nested tenant lookup. */
@@ -50,13 +49,13 @@ data class TenantTokenValueResponse(
             value.paletteId?.toString(),
             value.platform,
             value.mode,
-            value.valueJson?.let(Json::parseToJsonElement),
+            value.valueElement(),
             value.editRevision,
             value.createdAt.toString(),
             value.updatedAt.toString(),
             value.paletteRef,
             value.overridden,
-            value.sourceValueJson?.let(Json::parseToJsonElement),
+            value.sourceValueElement(),
         )
     }
 }
