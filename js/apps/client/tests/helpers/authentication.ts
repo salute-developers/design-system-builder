@@ -2,6 +2,8 @@ import { expect } from '@playwright/test';
 import type { BrowserContextOptions } from '@playwright/test';
 import type { Environment } from '../config/environment.ts';
 
+export type ReadPolicy = Readonly<{ timeoutMs: number; attempts: 1 | 2 }>;
+
 type TrackWrite = (send: () => Promise<Response>) => Promise<Response>;
 
 export type Session = Readonly<{
@@ -49,9 +51,10 @@ async function httpRequest(
     allowed: readonly number[],
     timeout: number,
     trackWrite?: TrackWrite,
+    readAttempts: 1 | 2 = 2,
 ): Promise<Response> {
     const isRead = options.method === 'GET';
-    const maxAttempts = isRead ? 2 : 1;
+    const maxAttempts = isRead ? readAttempts : 1;
     const deadline = performance.now() + timeout * maxAttempts;
     const label = options.method + ' ' + new URL(url).pathname;
     for (let attempt = 1; ; attempt += 1) {
@@ -87,7 +90,9 @@ async function httpRequest(
         }
         if (!allowed.includes(response.status)) {
             await response.body?.cancel();
-            throw new Error(label + ': HTTP ' + response.status + '.');
+            throw new Error(
+                label + ': HTTP ' + response.status + '; ' + Math.round(performance.now() - started) + ' ms.',
+            );
         }
         if (attempt > 1) {
             console.info(
@@ -106,13 +111,21 @@ export function authenticatedRequest(
     allowed: readonly number[],
     data?: unknown,
     idempotencyKey?: string,
+    readPolicy?: ReadPolicy,
 ): Promise<Response> {
     const headers = new Headers({ Authorization: 'Bearer ' + session.accessToken, 'Cache-Control': 'no-store' });
     if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
     const body = JSON.stringify(data);
     if (body !== undefined) headers.set('Content-Type', 'application/json');
     const trackWrite = method === 'GET' ? undefined : session.trackWrite;
-    return httpRequest(url, { method, headers, body }, allowed, method === 'GET' ? 10000 : 30000, trackWrite);
+    return httpRequest(
+        url,
+        { method, headers, body },
+        allowed,
+        method === 'GET' ? (readPolicy?.timeoutMs ?? 10000) : 30000,
+        trackWrite,
+        readPolicy?.attempts ?? 2,
+    );
 }
 
 export async function authenticate(environment: Environment): Promise<Session> {

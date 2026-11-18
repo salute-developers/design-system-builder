@@ -9,8 +9,8 @@ import { DesignSystemSettingsPage } from '../pages/design-system-settings.page.t
 
 type Fixtures = {
     createdSystem: DesignSystem;
-    pendingMutation: PendingMutation;
     setupSession: Session;
+    pendingMutation: PendingMutation;
     systemSettings: DesignSystemSettingsPage;
 };
 

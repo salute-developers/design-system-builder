@@ -4,7 +4,16 @@ test(
     'PLASMABLDR-T791: VER-UI-001 Журнал и точный переход к источнику',
     { annotation: { type: 'zephyr', description: 'PLASMABLDR-T791' } },
     async ({ page, colors, changedColor, journal, createdSystem, initialTheme, editorURL }) => {
-        await journal.open();
+        await test.step('Дождаться исходного редактора цветов перед открытием журнала', async () => {
+            await colors.open();
+            await expect(colors.token('textAccent')).toBeVisible();
+            await expect(colors.tokenName).toHaveText('textAccent');
+            await expect(colors.light).toHaveValue('3366CC');
+        });
+        await test.step('Открыть журнал из готового редактора', async () => {
+            await journal.navigationButton.click();
+            await expect(journal.list).toBeVisible();
+        });
         await expect(colors.breadcrumb.getByText(createdSystem.name, { exact: true })).toBeVisible();
         await expect(colors.breadcrumb.getByText(initialTheme.name, { exact: true })).toBeVisible();
         const filters = page.getByRole('complementary', { name: 'Фильтры журнала', exact: true });

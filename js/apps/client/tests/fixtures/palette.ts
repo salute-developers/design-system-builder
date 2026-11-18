@@ -12,8 +12,16 @@ type Fixtures = {
 };
 
 export const test = base.extend<Fixtures>({
-    paletteApi: async ({ environment, systemsApi, initialTheme, setupSession }, use) => {
-        await use(new PaletteApi(environment.gatewayBaseURL, systemsApi.projectId, initialTheme.id, setupSession));
+    paletteApi: async ({ environment, systemsApi, createdSystem, initialTheme, setupSession }, use) => {
+        await use(
+            new PaletteApi(
+                environment.gatewayBaseURL,
+                systemsApi.projectId,
+                createdSystem.id,
+                initialTheme.id,
+                setupSession,
+            ),
+        );
     },
     paletteData: async ({ paletteApi }, use) => {
         await use(await test.step('Подготовить точные слоты PAL-BASE через API', () => paletteApi.prepare()));
