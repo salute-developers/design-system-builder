@@ -42,7 +42,6 @@ sealed interface ProviderSettings {
      * @property authKey ключ авторизации.
      * @property scope область доступа.
      * @property model модель.
-     * @property caPath путь к дополнительному корневому сертификату.
      */
     data class GigaChat(
         val oauthUrl: String,
@@ -50,10 +49,9 @@ sealed interface ProviderSettings {
         val authKey: String,
         val scope: String,
         val model: String,
-        val caPath: String?,
     ) : ProviderSettings {
         override fun toString() =
-            "GigaChat(oauthUrl=$oauthUrl, baseUrl=$baseUrl, scope=$scope, model=$model, caPath=$caPath, authKey=***)"
+            "GigaChat(oauthUrl=$oauthUrl, baseUrl=$baseUrl, scope=$scope, model=$model, authKey=***)"
     }
 }
 
@@ -67,12 +65,14 @@ sealed interface ProviderSettings {
  * @property provider провайдер модели.
  * @property providerSettings настройки провайдера.
  * @property limits ограничения хода.
+ * @property caPath файл дополнительных корней TLS для HTTP-клиента провайдера (`AI_CA_PATH`).
  */
 data class AiAssistantConfiguration(
     val enabled: Boolean,
     val provider: AiProvider?,
     val providerSettings: ProviderSettings?,
     val limits: AgentLimits?,
+    val caPath: String? = null,
 ) {
     /** Модель для `ai/status`. */
     val model: String? get() = when (val settings = providerSettings) {
@@ -132,7 +132,6 @@ data class AiAssistantConfiguration(
                     authKey = reader.secret("AI_GIGACHAT_AUTH_KEY"),
                     scope = reader.text("AI_GIGACHAT_SCOPE", "GIGACHAT_API_PERS"),
                     model = reader.text("AI_MODEL", "GigaChat-2-Max"),
-                    caPath = env("AI_GIGACHAT_CA_PATH")?.trim()?.takeIf(String::isNotEmpty),
                 )
             }
             val limits = AgentLimits(
@@ -145,7 +144,8 @@ data class AiAssistantConfiguration(
                 toolCallTimeout = reader.positive("AI_TOOL_CALL_TIMEOUT_SECONDS", 30).seconds,
                 turnStoreMaxBytes = reader.positive("AI_TURN_STORE_MAX_MB", 64).toLong() * BYTES_IN_MB,
             )
-            return AiAssistantConfiguration(true, provider, settings, limits)
+            val caPath = env("AI_CA_PATH")?.trim()?.takeIf(String::isNotEmpty)
+            return AiAssistantConfiguration(true, provider, settings, limits, caPath)
         }
 
         private const val BYTES_IN_MB = 1024L * 1024L

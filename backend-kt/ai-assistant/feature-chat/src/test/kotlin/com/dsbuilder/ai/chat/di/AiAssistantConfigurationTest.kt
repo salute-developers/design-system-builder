@@ -83,6 +83,18 @@ class AiAssistantConfigurationTest {
     }
 
     @Test
+    fun caPathAppliesToTheOpenAiCompatibleProviderAndEmptyFileFailsWithItsName() {
+        val empty = kotlin.io.path.createTempFile(suffix = ".pem").toFile().apply { deleteOnExit() }
+        val configuration = read("AI_ENABLED" to "true", "AI_API_KEY" to "k", "AI_CA_PATH" to empty.path)
+
+        assertEquals(empty.path, configuration.caPath)
+        val failure = assertFailsWith<IllegalStateException> {
+            createAiAssistant(configuration, { _, _ -> OwnershipCheck.OWNED }, AllTools)
+        }
+        assertTrue("AI_CA_PATH" in failure.message.orEmpty())
+    }
+
+    @Test
     fun defaultLimitsAssemble() {
         val configuration = read("AI_ENABLED" to "true", "AI_API_KEY" to "k")
         createAiAssistant(configuration, { _, _ -> OwnershipCheck.OWNED }, AllTools).close()

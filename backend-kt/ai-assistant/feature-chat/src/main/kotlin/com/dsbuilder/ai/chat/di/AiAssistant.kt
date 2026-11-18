@@ -70,7 +70,7 @@ fun createAiAssistant(
 ): AiAssistant {
     val settings = requireNotNull(configuration.providerSettings) { "AI assistant is disabled" }
     val limits = requireNotNull(configuration.limits)
-    val providerHttp = providerHttpClient(settings)
+    val providerHttp = providerHttpClient(configuration.caPath)
     val toolbox = CatalogAgentToolbox(ChatToolCatalog.tools, tools, limits.toolCallTimeout)
     checkHistoryBudget(toolbox, limits.historyMaxChars, limits.messageMaxChars, limits.toolResultMaxChars)
     val llm = llmOverride ?: llmClient(providerHttp, settings)
@@ -127,16 +127,15 @@ private fun checkHistoryBudget(toolbox: AgentToolbox, historyMax: Int, messageMa
 
 /**
  * HTTP-клиент провайдера. Время запроса ограничивает [LlmRetry]; собственный таймаут движка CIO (15 секунд по
- * умолчанию) отключён, иначе он обрывает медленные ответы модели раньше. Для GigaChat к системным корням добавляется
- * корень из `AI_GIGACHAT_CA_PATH`, а не заменяет их.
+ * умолчанию) отключён, иначе он обрывает медленные ответы модели раньше. Корни из `AI_CA_PATH` добавляются к
+ * системным, а не заменяют их, для любого провайдера.
  */
-private fun providerHttpClient(settings: ProviderSettings): HttpClient {
-    val caPath = (settings as? ProviderSettings.GigaChat)?.caPath
-        ?: return HttpClient(CIO) { engine { requestTimeout = 0 } }
+private fun providerHttpClient(caPath: String?): HttpClient {
+    caPath ?: return HttpClient(CIO) { engine { requestTimeout = 0 } }
     val extra = File(caPath).inputStream().use { input ->
         CertificateFactory.getInstance("X.509").generateCertificates(input).filterIsInstance<X509Certificate>()
     }
-    check(extra.isNotEmpty()) { "Invalid AI configuration: AI_GIGACHAT_CA_PATH contains no certificates" }
+    check(extra.isNotEmpty()) { "Invalid AI configuration: AI_CA_PATH contains no certificates" }
     val trust = CompositeTrustManager(systemTrustManager(null), systemTrustManager(extra))
     return HttpClient(CIO) {
         engine {

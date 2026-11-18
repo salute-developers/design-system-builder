@@ -31,8 +31,8 @@ COPY --from=builder --chown=dsbuilder:dsbuilder /workspace/authorization /app/au
 COPY --from=builder --chown=dsbuilder:dsbuilder /workspace/backend-kt/app/certs /app/certs
 ENV AUTHORIZATION_POLICY_PATH=/app/authorization/policy.json
 ENV PROJECT_AUTHORIZATION_POLICY_PATH=/app/authorization/policy.json
-# Корень НУЦ Минцифры для GigaChat: добавляется к системным корням, если AI_PROVIDER=gigachat.
-ENV AI_GIGACHAT_CA_PATH=/app/certs/russian_trusted_root_ca.pem
+# Корень НУЦ Минцифры для API на инфраструктуре GigaChat: добавляется к системным корням любого провайдера.
+ENV AI_CA_PATH=/app/certs/russian_trusted_root_ca.pem
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60.0"
 USER dsbuilder
 EXPOSE 8080
