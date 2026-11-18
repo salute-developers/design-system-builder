@@ -229,7 +229,14 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
                         ValuePaletteReferences.rewrite(value) { rewrite.rewrite(it, resolveHex) }.takeIf { it != value }
                     }
                 }
-                next?.let { ThemeValuePayload(null, it, row[ThemeTokenValueRevisionsTable.overridden]) }
+                next?.let {
+                    ThemeValuePayload(
+                        null,
+                        it,
+                        row[ThemeTokenValueRevisionsTable.overridden],
+                        row[ThemeTokenValueRevisionsTable.detached],
+                    )
+                }
             }
             payload?.let { row[ThemeTokenValuesTable.id] to it }
         }.toMap()
@@ -258,6 +265,7 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
             row[ThemeTokenValueRevisionsTable.paletteId],
             next,
             row[ThemeTokenValueRevisionsTable.overridden],
+            row[ThemeTokenValueRevisionsTable.detached],
         )
     }
 

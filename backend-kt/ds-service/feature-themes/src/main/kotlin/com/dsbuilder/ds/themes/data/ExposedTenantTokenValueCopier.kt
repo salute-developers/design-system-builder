@@ -26,6 +26,7 @@ internal class ExposedTenantTokenValueCopier : TenantTokenValueCopier {
                 row[ThemeTokenValueRevisionsTable.paletteId],
                 row[ThemeTokenValueRevisionsTable.value],
                 row[ThemeTokenValueRevisionsTable.overridden],
+                row[ThemeTokenValueRevisionsTable.detached],
             )
         }
         SubjectMutationPaths.withoutBaseComparison {

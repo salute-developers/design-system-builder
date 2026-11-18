@@ -182,6 +182,8 @@ class OpenApiDocumentResourceTest {
         val item = schemas.getValue("ColorTokenValueItem").jsonObject
         assertTrue("overridden" in item.getValue("properties").jsonObject)
         assertFalse(item.getValue("required").jsonArray.any { it.jsonPrimitive.content == "overridden" })
+        assertTrue("detached" in item.getValue("properties").jsonObject)
+        assertFalse(item.getValue("required").jsonArray.any { it.jsonPrimitive.content == "detached" })
         assertTrue("NativeColorLayer" in item.getValue("properties").jsonObject.getValue("value").toString())
         val values = schemas.getValue("ColorTokenValues").jsonObject
         assertEquals(
@@ -195,6 +197,7 @@ class OpenApiDocumentResourceTest {
         assertTrue("ColorTokenValues" in response)
         val tenantValue = schemas.getValue("TenantTokenValue").toString()
         assertTrue("overridden" in tenantValue && "#/components/schemas/TokenValue" in tenantValue)
+        assertTrue("detached" in tenantValue)
         // sourceValue и paletteRef — в общей схеме: общий GET /api/design-systems/{designSystemId}/token-values
         // отдаёт ту же форму, что чтение темы.
         val tokenValue = schemas.getValue("TokenValue").jsonObject.getValue("properties").jsonObject

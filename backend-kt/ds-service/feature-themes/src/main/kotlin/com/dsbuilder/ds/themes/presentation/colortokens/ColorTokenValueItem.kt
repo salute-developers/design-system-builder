@@ -18,4 +18,6 @@ data class ColorTokenValueItem(
     val baseRevision: Long? = null,
     /** Своё значение iOS или Android, а не построенное из web; у web допустимо только `false`. */
     val overridden: Boolean = false,
+    /** Значение подтемы (OnDark, OnLight, Inverse), отвязанное пользователем от значений режимов. */
+    val detached: Boolean = false,
 )

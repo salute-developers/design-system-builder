@@ -138,6 +138,7 @@ class ExposedTokenValueRepository : TokenValueRepository {
                 }
                 it[value] = if (command.valuePresent) command.value else current[TokenValueRevisionsTable.value]
                 it[overridden] = current[TokenValueRevisionsTable.overridden]
+                it[detached] = current[TokenValueRevisionsTable.detached]
                 it[deleted] = false
             }
         }
@@ -164,6 +165,7 @@ class ExposedTokenValueRepository : TokenValueRepository {
                 it[paletteId] = current[TokenValueRevisionsTable.paletteId]
                 it[value] = current[TokenValueRevisionsTable.value]
                 it[overridden] = current[TokenValueRevisionsTable.overridden]
+                it[detached] = current[TokenValueRevisionsTable.detached]
                 it[deleted] = true
             }
         }

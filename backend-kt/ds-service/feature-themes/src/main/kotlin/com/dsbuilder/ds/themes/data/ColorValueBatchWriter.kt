@@ -82,6 +82,7 @@ private fun writeColorChanges(owner: UUID, draft: ResultRow, changes: List<Color
                     this[ThemeTokenValueRevisionsTable.paletteId] = change.item.paletteId
                     this[ThemeTokenValueRevisionsTable.value] = change.item.value
                     this[ThemeTokenValueRevisionsTable.overridden] = change.item.overridden
+                    this[ThemeTokenValueRevisionsTable.detached] = change.item.detached
                     this[ThemeTokenValueRevisionsTable.deleted] = false
                     this[ThemeTokenValueRevisionsTable.updatedAt] = Instant.now()
                 }
@@ -99,4 +100,5 @@ private fun changedPaths(before: ResultRow?, item: ColorTokenValue): Set<String>
         addAll(listOf("/palette_id", "/value"))
     }
     if (before == null || before[ThemeTokenValueRevisionsTable.overridden] != item.overridden) add("/overridden")
+    if (before == null || before[ThemeTokenValueRevisionsTable.detached] != item.detached) add("/detached")
 }

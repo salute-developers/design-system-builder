@@ -770,6 +770,131 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
         }
     }
 
+    /**
+     * Признак отвязанной подтемы `detached`: хранится путём `/detached`, сохраняется правками значения другими
+     * маршрутами, переносится копией темы, сравнивается журналом с основой создания и восстанавливается откатом.
+     */
+    @Test
+    @Suppress("LongMethod")
+    fun `detached flag round-trips, survives other routes, is copied and restored by revert`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"detach","projectName":"detach"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val base = api.body(created).jsonObject.getValue("value").jsonObject.array("members")
+                    .single { it.text("name") == "text.default.highlight" }.text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                fun detachBody(tokenId: String, color: String, revision: Long, detached: Boolean) =
+                    """{"editRevision":0,"members":[{"tokenId":"$tokenId","values":[{"platform":"web",""" +
+                        """"mode":"light","value":["$color"],"baseRevision":$revision,"detached":$detached}]}]}"""
+                fun colorPath(tenantId: String) =
+                    "/api/design-systems/$system/tenants/$tenantId/color-tokens/$base/values"
+                suspend fun light(tenantId: String) = value(api.values(system, tenantId), base, "web", "light")
+                fun JsonObject.detached() = getValue("detached").jsonPrimitive.boolean
+                fun solid(color: String) = JsonArray(listOf(JsonPrimitive(color)))
+
+                // Отвязка без смены значения: новая редакция только с путём /detached.
+                val detach = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    detachBody(base, "#FFFFFF", api.revisions(system, tenant, base).getValue("web:light"), true),
+                )
+                assertEquals(HttpStatusCode.OK, detach.status, detach.bodyAsText())
+                val confirmed = api.body(detach).jsonObject.getValue("confirmedValues").jsonArray.map { it.jsonObject }
+                assertTrue(value(JsonArray(confirmed), base, "web", "light").detached())
+                val values = api.values(system, tenant)
+                assertTrue(values.all { "detached" in it.jsonObject }, "признак отдаётся у каждого значения")
+                val sourceLight = value(values, base, "web", "light")
+                assertTrue(sourceLight.detached())
+                assertFalse(value(values, base, "web", "dark").detached())
+                assertFalse(value(values, base, "ios", "light").detached())
+                val detachChange = api.journal(system).single { it.text("entityId") == sourceLight.text("id") }
+                assertEquals(listOf("/detached"), detachChange.array("changedPaths").map { it.jsonPrimitive.content })
+
+                // Правка значения общим маршрутом и пакетным сохранением темы признак не снимает.
+                val patched = api.call(
+                    "PATCH",
+                    "/api/design-systems/$system/token-values/${sourceLight.text("id")}",
+                    EDITOR,
+                    """{"value":["#123456"]}""",
+                )
+                assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
+                assertEquals(solid("#123456"), light(tenant).getValue("value"))
+                assertTrue(light(tenant).detached(), "PATCH token-values сохраняет detached")
+                val batch = api.call(
+                    "PUT",
+                    "/api/design-systems/$system/tenants/$tenant/token-values",
+                    EDITOR,
+                    """{"editRevision":0,"values":[{"tokenId":"$base","platform":"web","mode":"light",""" +
+                        """"value":["#654321"]}]}""",
+                )
+                assertEquals(HttpStatusCode.OK, batch.status, batch.bodyAsText())
+                assertTrue(api.body(batch).array("values").single().jsonObject.detached())
+                assertEquals(solid("#654321"), light(tenant).getValue("value"))
+                assertTrue(light(tenant).detached(), "PUT tenants/{id}/token-values сохраняет detached")
+
+                // Копия темы переносит признак; её значения совпадают с основой создания и не видны в журнале.
+                val copy = api.create(
+                    "/api/design-systems/$system/tenants/$tenant/duplicates",
+                    EDITOR,
+                    """{"name":"copy"}""",
+                )
+                val copyLight = light(copy)
+                assertTrue(copyLight.detached())
+                assertEquals(solid("#654321"), copyLight.getValue("value"))
+                val copyIds = api.values(system, copy).map { it.text("id") }.toSet()
+                assertTrue(api.journal(system).none { it.text("entityId") in copyIds })
+
+                // Связь в копии восстановлена: журнал показывает /detached относительно основы создания, откат
+                // возвращает отвязку из основы.
+                val relinkCopy = api.call(
+                    "PUT",
+                    colorPath(copy),
+                    EDITOR,
+                    detachBody(base, "#654321", api.revisions(system, copy, base).getValue("web:light"), false),
+                )
+                assertEquals(HttpStatusCode.OK, relinkCopy.status, relinkCopy.bodyAsText())
+                assertFalse(light(copy).detached())
+                val copyChange = api.journal(system).single { it.text("entityId") == copyLight.text("id") }
+                assertEquals(listOf("/detached"), copyChange.array("changedPaths").map { it.jsonPrimitive.content })
+                assertEquals(HttpStatusCode.OK, api.revert(system, copyChange).status)
+                assertTrue(light(copy).detached(), "откат к основе создания возвращает detached")
+                assertTrue(api.journal(system).none { it.text("entityId") in copyIds })
+
+                // Опубликованная отвязка: связь в новом черновике восстанавливается, откат правки возвращает
+                // значение и признак опубликованной версии.
+                api.publish(postgres, system, "2.0.0")
+                val relink = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    detachBody(base, "#FFFFFF", api.revisions(system, tenant, base).getValue("web:light"), false),
+                )
+                assertEquals(HttpStatusCode.OK, relink.status, relink.bodyAsText())
+                assertFalse(light(tenant).detached())
+                val relinkChange = api.journal(system).single { it.text("entityId") == sourceLight.text("id") }
+                assertEquals(
+                    setOf("/detached", "/value"),
+                    relinkChange.array("changedPaths").map { it.jsonPrimitive.content }.toSet(),
+                )
+                assertEquals(HttpStatusCode.OK, api.revert(system, relinkChange).status)
+                val restored = light(tenant)
+                assertTrue(restored.detached(), "откат возвращает detached опубликованной версии")
+                assertEquals(solid("#654321"), restored.getValue("value"))
+            }
+        }
+    }
+
     @Test
     @Suppress("LongMethod")
     fun `gradient in one mode of one theme derives the family type`() {

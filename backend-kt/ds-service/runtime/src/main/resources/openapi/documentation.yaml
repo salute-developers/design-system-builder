@@ -1254,7 +1254,8 @@ paths:
         <HEX> }], типа color — строкой. Ссылки цветов слоёв тени заменены #RRGGBBAA
         на своём месте. Если value отличается от хранимого значения, хранимое значение
         — в sourceValue; при ссылке на всё значение (paletteRef) sourceValue не отдаётся.
-        overridden — своё значение платформы. Ссылка, которую палитра темы не раскрывает,
+        overridden — своё значение платформы, detached — значение подтемы (OnDark,
+        OnLight, Inverse), отвязанное пользователем от значений режимов. Ссылка, которую палитра темы не раскрывает,
         остаётся в значении без paletteRef; форма значения по типу токена применяется
         всегда. Необязательный types ограничивает чтение типами текущего раздела;
         без него сохраняется полный ответ. Необязательный platforms оставляет значения
@@ -13648,6 +13649,13 @@ components:
           description: >-
             Своё значение ios или android, а не построенное клиентом из web; хранится путём /overridden редакции
             значения. Для web допустимо только false, иначе 400 INVALID_TOKEN_VALUE.
+        detached:
+          type: boolean
+          default: false
+          description: >-
+            Значение подтемы (OnDark, OnLight, Inverse), связь которого со значениями режимов явно разорвана
+            пользователем; хранится путём /detached редакции значения. Правки значения другими маршрутами признак
+            сохраняют.
       required:
         - platform
         - mode
@@ -14230,9 +14238,13 @@ components:
             overridden:
               type: boolean
               description: Своё значение ios или android, а не построенное клиентом из web.
+            detached:
+              type: boolean
+              description: Значение подтемы (OnDark, OnLight, Inverse), отвязанное пользователем от значений режимов.
           required:
             - editRevision
             - overridden
+            - detached
     DraftChange:
       type: object
       properties:

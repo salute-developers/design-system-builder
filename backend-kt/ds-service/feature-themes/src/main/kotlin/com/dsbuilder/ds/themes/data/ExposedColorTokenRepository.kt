@@ -136,6 +136,7 @@ class ExposedColorTokenRepository(
                 value = row[ThemeTokenValueRevisionsTable.value],
                 editRevision = revisions[row[ThemeTokenValuesTable.id]] ?: 0,
                 overridden = row[ThemeTokenValueRevisionsTable.overridden],
+                detached = row[ThemeTokenValueRevisionsTable.detached],
                 createdAt = row[ThemeTokenValuesTable.createdAt],
                 updatedAt = row[ThemeTokenValueRevisionsTable.updatedAt],
                 tokenName = definitions[row[ThemeTokenValuesTable.tokenId]]?.get(ThemeTokenRevisionsTable.name),
@@ -355,6 +356,7 @@ class ExposedColorTokenRepository(
                     item.paletteId,
                     item.value,
                     item.overridden,
+                    detached = item.detached,
                     paths = paths,
                     baseRevision = item.baseRevision,
                 )
@@ -362,12 +364,13 @@ class ExposedColorTokenRepository(
         }
     }
 
-    /** Изменённые пути значения: `/palette_id` и `/value` вместе, как прежде, и `/overridden` отдельно. */
+    /** Изменённые пути значения: `/palette_id` и `/value` вместе, как прежде, `/overridden` и `/detached` отдельно. */
     private fun changedValuePaths(before: ResultRow?, item: ColorTokenValue): Set<String> = buildSet {
         val valueChanged = before == null || before[ThemeTokenValueRevisionsTable.paletteId] != item.paletteId ||
             before[ThemeTokenValueRevisionsTable.value] != item.value
         if (valueChanged) addAll(listOf("/palette_id", "/value"))
         if (before == null || before[ThemeTokenValueRevisionsTable.overridden] != item.overridden) add("/overridden")
+        if (before == null || before[ThemeTokenValueRevisionsTable.detached] != item.detached) add("/detached")
     }
 
     private companion object {
