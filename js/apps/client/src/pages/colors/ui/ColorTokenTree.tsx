@@ -19,7 +19,7 @@ import {
     type TreeSort,
     type TreeSubgroup,
 } from '../../../modules/colorTokens';
-import { SEARCH_EMPTY_TEXT, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
+import { DisabledFlag, SEARCH_EMPTY_TEXT, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
 import { InlineRename } from './InlineRename';
 import { alphaSwatchStyle, rowPreview } from './swatch';
 
@@ -452,7 +452,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                 {dropHint(token.id)}
                 <button
                     type="button"
-                    className={`token-row tw-tree-item ${selectedId === token.id ? 'is-selected' : ''}`}
+                    className={`token-row tw-tree-item ${selectedId === token.id ? 'is-selected' : ''} ${token.enabled ? '' : 'is-disabled'}`}
                     data-testid={`color-token-row-${token.id}`}
                     draggable={editable && !found}
                     onDragStart={(event) => {
@@ -466,6 +466,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                     {swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved), severity)}
                     <span className="tw-tree-item-label">{token.displayName}</span>
                     {token.incomplete && <b className="ct-row-flag">Нет значений</b>}
+                    {!token.enabled && <DisabledFlag />}
                     {save.state === 'error' && <b className="ct-row-flag is-error">Не сохранено</b>}
                 </button>
                 {canDelete && (
@@ -651,7 +652,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                           return (
                               <div
                                   key={node.group.id}
-                                  className={`token-tree-group ${closed ? 'is-collapsed' : 'is-open'}`}
+                                  className={`token-tree-group tw-tree-branch ${closed ? 'is-collapsed' : 'is-open'}`}
                                   data-testid={`token-group-${node.group.label}`}
                               >
                                   {heading(node, 'group')}

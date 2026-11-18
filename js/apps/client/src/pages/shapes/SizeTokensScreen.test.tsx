@@ -26,6 +26,8 @@ import { SizeTokensScreen } from './SizeTokensScreen';
 
 const describeToken = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('../../modules/sizeTokens/data/tokenDescription', () => ({ saveSizeTokenDescription: describeToken }));
+const saveEnabled = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock('../../api/tokenEnabled', () => ({ saveTokenEnabled: saveEnabled }));
 
 const tokenReset = vi.hoisted(() => ({ reset: vi.fn(), busy: false, error: null }));
 vi.mock('../../features/versionJournal/tokenReset', () => ({ useTokenReset: () => tokenReset }));
@@ -246,16 +248,22 @@ const respond = async (_: SizeTokenContext, command: SizeTokenCommand): Promise<
     return { type: 'create', created };
 };
 
+/** Отключённые токены модели темы на время теста. */
+let disabledSizeTokens: string[] = [];
+
 /** Модель темы: значения платформ по имени токена. */
 const themeModel = () => {
     const values = new Map<string, Record<string, unknown>>();
     const descriptions = new Map<string, string | undefined>([['round.m', 'Базовый радиус компонентов.']]);
+    const disabled = new Set<string>(disabledSizeTokens);
     const token = (name: string) => ({
         setValue: (platform: string, value: unknown) =>
             values.set(name, { ...(values.get(name) ?? {}), [platform]: value }),
         getValue: (platform: string) => values.get(name)?.[platform],
         getDescription: () => descriptions.get(name),
         setDescription: (value?: string) => descriptions.set(name, value),
+        getEnabled: () => !disabled.has(name),
+        setEnabled: (value: boolean) => (value ? disabled.delete(name) : disabled.add(name)),
     });
     const theme = {
         getName: () => 'base_default',
@@ -994,6 +1002,23 @@ describe('SizeTokensScreen', () => {
         expect(sent('rename')[1].body).toEqual({ name: 'medium' });
     });
 
+    it('отключённый токен отмечен в дереве, «Включить» включает его', async () => {
+        disabledSizeTokens = ['round.m'];
+        const { context } = await renderScreen();
+        saveEnabled.mockClear();
+
+        expect(row('round.m')).toHaveClass('is-disabled');
+        expect(row('round.m')).toHaveTextContent('Отключён');
+        expect(within(inspector()).getByText(/Токен отключён/)).toBeInTheDocument();
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Включить' }));
+
+        await waitFor(() =>
+            expect(saveEnabled).toHaveBeenCalledWith(context, ['id-round.m'], true, ['shape', 'spacing', 'shadow']),
+        );
+        await waitFor(() => expect(row('round.m')).not.toHaveTextContent('Отключён'));
+        disabledSizeTokens = [];
+    });
+
     it('сохраняет описание токена из шапки инспектора', async () => {
         const { context, rerender } = await renderScreen();
         describeToken.mockClear();
@@ -1010,6 +1035,32 @@ describe('SizeTokensScreen', () => {
         );
         expect(describeToken).toHaveBeenCalledWith(context, 'id-round.m', 'Радиус карточек.');
         expect(rerender).toHaveBeenCalled();
+    });
+
+    it('в режиме просмотра показывает отключённый токен без кнопок включения и отключения', async () => {
+        disabledSizeTokens = ['round.m'];
+        await renderScreen({ readOnly: true });
+
+        expect(row('round.m')).toHaveTextContent('Отключён');
+        expect(within(inspector()).getByText(/Токен отключён/)).toBeInTheDocument();
+        expect(within(inspector()).queryByRole('button', { name: 'Включить' })).toBeNull();
+        expect(within(inspector()).queryByRole('button', { name: 'Отключить токен' })).toBeNull();
+        disabledSizeTokens = [];
+    });
+
+    it('отключение используемого размера спрашивает подтверждение со списком компонентов', async () => {
+        await renderScreen();
+        saveEnabled.mockClear();
+
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Отключить токен' }));
+        // `round.m` используют Slider и EmptyState: список приходит в ответе раздела.
+        expect(screen.getByRole('dialog', { name: 'Отключить токен?' })).toHaveTextContent('Slider, EmptyState');
+        expect(saveEnabled).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Отключить' }));
+        await waitFor(() =>
+            expect(saveEnabled).toHaveBeenCalledWith(expect.anything(), ['id-round.m'], false, expect.any(Array)),
+        );
+        await waitFor(() => expect(row('round.m')).toHaveTextContent('Отключён'));
     });
 
     it('не даёт править описание в режиме просмотра', async () => {

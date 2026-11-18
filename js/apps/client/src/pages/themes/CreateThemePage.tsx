@@ -45,15 +45,15 @@ export const CreateThemePage = () => {
         [projectId, designSystemId],
         `themes:${projectId}:${designSystemId}`,
     );
-    // Когда в дизайн-системе уже есть темы, новая тема по умолчанию — копия существующей.
-    const [chosenMethod, setMethod] = useState<'copy' | 'profile'>();
-    const method = chosenMethod ?? (themes.data?.length ? 'copy' : 'profile');
+    // Первая тема создаётся из профиля, следующие — только копией: тема из профиля не получила бы токенов, добавленных
+    // в дизайн-систему после первой темы.
     const [chosenSource, setSource] = useState<string>();
     const source =
         themes.data?.find((theme) => theme.id === (chosenSource ?? searchParams.get('from'))) ?? themes.data?.[0];
-    const copying = method === 'copy' && Boolean(source);
-    // Без списка тем неизвестно, есть ли что копировать: создание ждёт загрузки или успешного повтора.
-    const themesPending = !themes.data;
+    const copying = Boolean(source);
+    // Без списка тем неизвестно, копировать или брать профиль: создание ждёт загрузки или успешного повтора. Ошибка
+    // повторной загрузки тоже блокирует создание: сохранённый список мог устареть.
+    const themesPending = !themes.data || Boolean(themes.error);
     // Исходная тема из адреса может оказаться ниже видимой части списка.
     useEffect(() => {
         if (!copying) return;
@@ -63,7 +63,8 @@ export const CreateThemePage = () => {
     }, [copying, themes.data]);
     const [profile, setProfile] = useState<ThemeProfile>('malachite');
     const [palette, setPalette] = useState(customThemePresets.Neutral);
-    const [mode, setMode] = useState<ThemePreviewMode>('light');
+    // Интерфейс конструктора тёмный: светлое превью по умолчанию на нём слепит.
+    const [mode, setMode] = useState<ThemePreviewMode>('dark');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [name, setName] = useState('');
@@ -192,34 +193,14 @@ export const CreateThemePage = () => {
                         </Visible>
                         <Visible when={Boolean(themes.error)}>
                             <p className="form-error" role="alert">
-                                Не удалось загрузить темы дизайн-системы, поэтому копия недоступна.{' '}
+                                Не удалось загрузить темы дизайн-системы, поэтому создать тему пока нельзя.{' '}
                                 <button type="button" className="form-error-retry" onClick={themes.reload}>
                                     Повторить
                                 </button>
                             </p>
                         </Visible>
-                        <Visible when={Boolean(themes.data?.length)}>
-                            <>
-                                <h2>Способ</h2>
-                                <div className="create-theme-mode create-theme-method" role="group" aria-label="Способ создания">
-                                    <button
-                                        type="button"
-                                        className={choose(method === 'copy', '', 'is-active')}
-                                        aria-pressed={method === 'copy'}
-                                        onClick={() => setMethod('copy')}
-                                    >
-                                        Копия темы
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={choose(method === 'profile', '', 'is-active')}
-                                        aria-pressed={method === 'profile'}
-                                        onClick={() => setMethod('profile')}
-                                    >
-                                        Из профиля
-                                    </button>
-                                </div>
-                            </>
+                        <Visible when={themesPending && !themes.error}>
+                            <p className="catalog-meta">Загружаем темы дизайн-системы…</p>
                         </Visible>
                         <Visible when={copying}>
                             <>
@@ -252,7 +233,7 @@ export const CreateThemePage = () => {
                                 </p>
                             </>
                         </Visible>
-                        <Visible when={!copying}>
+                        <Visible when={!themesPending && !copying}>
                         <>
                         <h2>Стартовая палитра</h2>
                         <div className="theme-options">

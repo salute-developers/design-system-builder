@@ -39,6 +39,7 @@ import {
     type TreeSort,
 } from '../../modules/colorTokens';
 import { ColorTokenOperationError } from '../../modules/colorTokens';
+import { otherThemeColorCell } from './ui/otherThemeColorCell';
 import { groupRampName, resolveTokenGroupId, type ThemePalette } from '../../modules/palette';
 import { restorePaletteColor } from '../../palette/activePalette';
 import { paletteRepository } from '../../palette/paletteSession';
@@ -164,50 +165,32 @@ export const ColorTokensState = ({ error = false, onRetry }: { error?: boolean; 
     </div>
 );
 
-/** HEX для сравнения тем: верхний регистр, непрозрачная альфа отбрасывается. */
-const comparableHex = (value: unknown) => {
-    const text = (Array.isArray(value) ? value[0] : value) as unknown;
-    if (typeof text !== 'string') return '';
-    const hex = text.toUpperCase();
-    return /^#[0-9A-F]{8}$/.test(hex) && hex.endsWith('FF') ? hex.slice(0, 7) : hex;
-};
-
-const swatchCell = (hex: string) => (
-    <span className="other-themes-color">
-        <i style={{ background: hex || 'transparent' }} />
-        {hex.replace('#', '') || '—'}
-    </span>
-);
-
 /** Блок «В других темах» цветового токена: Light и Dark основного значения в каждой теме. */
 const ColorOtherThemes = ({
     context,
-    view,
     family,
 }: {
     context: EditorContextKey;
-    view: ColorTokenView;
     family: Array<[string, { id: string }]>;
 }) => {
     const main = family.find(([name]) => name.includes('.default.'))?.[1] ?? family[0]?.[1];
     const ids = family.map(([, definition]) => definition.id);
     const describe = useCallback(
         (values: TenantTokenValueDto[]) => {
-            const light = comparableHex(webValue(values, main?.id ?? '', 'light'));
-            const dark = comparableHex(webValue(values, main?.id ?? '', 'dark'));
-            return { cells: [swatchCell(light), swatchCell(dark)], key: `${light}|${dark}` };
+            return [
+                otherThemeColorCell(webValue(values, main?.id ?? '', 'light')),
+                otherThemeColorCell(webValue(values, main?.id ?? '', 'dark')),
+            ];
         },
         [main?.id, ids.join(',')],
     );
     if (!main) return null;
-    const currentKey = `${comparableHex(view.modes.light.resolved)}|${comparableHex(view.modes.dark.resolved)}`;
     return (
         <OtherThemesSection
             context={context}
             tokenIds={[main.id]}
             addressTokenId={main.id}
             columns={['Light', 'Dark']}
-            currentKey={currentKey}
             describe={describe}
         />
     );
@@ -763,6 +746,13 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             onRetry={() => editor.retry(selected.id)}
                             onRename={(label) => renameToken(selected, label)}
                             onDescribe={(description) => describeToken(selected, description)}
+                            // Конфигурации компонентов в «Цветах» загружены не все: полного списка использований
+                            // нет, поэтому отключение всегда спрашивает подтверждение.
+                            components={null}
+                            onToggleEnabled={async (enabled) => {
+                                await editor.setEnabled(selected, enabled);
+                                rerender();
+                            }}
                             onReset={
                                 readOnly
                                     ? undefined
@@ -779,7 +769,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                         />
                     )}
                     {selected && !selected.incomplete && (
-                        <ColorOtherThemes context={context} view={selected} family={editor.family(selected)} />
+                        <ColorOtherThemes context={context} family={editor.family(selected)} />
                     )}
                 </aside>
                 <main className="preview-canvas">

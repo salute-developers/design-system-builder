@@ -10,8 +10,9 @@ import type { ThemeProfile, ThemeTenant } from '../../modules/themes/domain/them
 import { normalizeThemeName, themeProfileLabels } from '../../modules/themes/domain/themeProfiles';
 import { useLoad } from '../../shared/data/useLoad';
 import { useAnchoredPopover } from '../Overlay/Overlay';
+import { TreeHeader } from '../tokenWorkspace/TokenWorkspace';
 
-/** Больше стольких тем список получает поиск по названию. */
+/** Больше стольких тем список получает кнопку поиска по названию. */
 export const THEME_SEARCH_THRESHOLD = 7;
 
 /** Путь той же секции в другой теме: меняется только сегмент `themes/:tenantId`. */
@@ -43,6 +44,20 @@ export const switchTheme = async (
     navigate({ pathname: themeSwitchPath(pathname, context.tenantId, nextTenantId), search });
     return true;
 };
+
+/**
+ * Есть ли в [panel] место для Tab после [from] (или перед ним при [back]). Темы списка в обход Tab не входят: по ним
+ * ходят стрелки.
+ */
+const hasTabStop = (panel: HTMLElement, from: Element, back: boolean) => {
+    const side = back ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
+    return [...panel.querySelectorAll<HTMLElement>('a[href], button, input')].some(
+        (node) => node.tabIndex >= 0 && Boolean(from.compareDocumentPosition(node) & side),
+    );
+};
+
+/** Стрелки и Enter управляют списком только с крошки, списка, темы и поля поиска: у кнопок и ссылки панели свой Enter. */
+const LIST_KEY_TARGETS = '.theme-switcher-trigger, [role="listbox"], [role="option"], input';
 
 const matches = (theme: ThemeTenant, query: string) =>
     theme.name.toLocaleLowerCase('ru-RU').includes(normalizeThemeName(query).toLocaleLowerCase('ru-RU'));
@@ -76,11 +91,11 @@ export const ThemeSwitcher = ({
     const location = useLocation();
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
+    const [searching, setSearching] = useState(false);
     const [active, setActive] = useState(0);
     const [error, setError] = useState<string>();
     const rootRef = useRef<HTMLSpanElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
-    const searchRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const { popoverRef, style } = useAnchoredPopover(open, triggerRef, 280);
     // В опубликованной версии список — темы этой версии: в черновике могут быть темы, которых в ней нет.
@@ -92,13 +107,15 @@ export const ThemeSwitcher = ({
     const all = themes.data ?? [];
     const searchable = all.length > THEME_SEARCH_THRESHOLD;
     const shown = useMemo(
-        () => (searchable && query ? all.filter((theme) => matches(theme, query)) : all),
-        [all, query, searchable],
+        // Строка пуста, пока поиск закрыт: «Закрыть поиск» и Escape очищают её.
+        () => (query ? all.filter((theme) => matches(theme, query)) : all),
+        [all, query],
     );
 
     const close = (focusTrigger: boolean) => {
         setOpen(false);
         setQuery('');
+        setSearching(false);
         if (focusTrigger) requestAnimationFrame(() => triggerRef.current?.focus());
     };
 
@@ -118,11 +135,22 @@ export const ThemeSwitcher = ({
             shown.findIndex((theme) => theme.id === tenantId),
         );
         setActive(current);
-        if (searchable) searchRef.current?.focus();
-        else listRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[current]?.focus();
+        listRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[current]?.focus();
     }, [open, themes.data, visible]);
 
-    useEffect(() => setActive(0), [query]);
+    // Новая строка выделяет первую найденную тему, пустая (поиск закрыт) — снова текущую.
+    useEffect(
+        () =>
+            setActive(
+                query
+                    ? 0
+                    : Math.max(
+                          0,
+                          all.findIndex((theme) => theme.id === tenantId),
+                      ),
+            ),
+        [query],
+    );
 
     useEffect(() => {
         if (!open) return;
@@ -135,10 +163,12 @@ export const ThemeSwitcher = ({
         return () => document.removeEventListener('mousedown', outside);
     }, [open, popoverRef]);
 
+    // Пока открыт поиск, фокус остаётся в поле, а выделение показывает `aria-activedescendant`. После закрытия поиска
+    // фокус возвращается на выделенную тему, иначе клавиши перестали бы доходить до списка.
     useEffect(() => {
-        if (!open || searchable) return;
+        if (!open || searching) return;
         listRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[active]?.focus();
-    }, [active, open, searchable]);
+    }, [active, open, searching]);
 
     const choose = async (theme: ThemeTenant) => {
         close(true);
@@ -156,11 +186,19 @@ export const ThemeSwitcher = ({
             close(true);
             return;
         }
+        const target = event.target as HTMLElement;
         if (event.key === 'Tab') {
-            close(false);
+            // С крошки Tab уходит дальше по странице и закрывает список. Внутри панели Tab ходит по поиску и «Создать
+            // тему»; у её края список закрывается и фокус возвращается на крошку: портал стоит в конце страницы, и
+            // следующий Tab увёл бы фокус из документа.
+            const panel = popoverRef.current;
+            if (!panel?.contains(target)) return close(false);
+            if (hasTabStop(panel, target, event.shiftKey)) return;
+            event.preventDefault();
+            close(true);
             return;
         }
-        if (!shown.length) return;
+        if (!shown.length || !target.matches(LIST_KEY_TARGETS)) return;
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -209,16 +247,21 @@ export const ThemeSwitcher = ({
                 createPortal(
                     <div className="theme-switcher-popover" ref={popoverRef} style={style}>
                         {searchable && (
-                            <input
-                                ref={searchRef}
-                                className="theme-switcher-search"
-                                type="search"
+                            <TreeHeader
+                                className="theme-switcher-header"
+                                title="Темы"
+                                searching={searching}
+                                query={query}
                                 placeholder="Найти тему"
-                                aria-label="Найти тему"
-                                aria-controls={listId}
-                                aria-activedescendant={shown[active] ? `${listId}-${shown[active].id}` : undefined}
-                                value={query}
-                                onChange={(event) => setQuery(event.target.value)}
+                                searchLabel="Найти тему"
+                                searchInputProps={{
+                                    'aria-controls': listId,
+                                    'aria-activedescendant': shown[active]
+                                        ? `${listId}-${shown[active].id}`
+                                        : undefined,
+                                }}
+                                onQuery={setQuery}
+                                onSearchOpen={setSearching}
                             />
                         )}
                         <div className="theme-switcher-list" role="listbox" id={listId} aria-label="Темы" ref={listRef}>

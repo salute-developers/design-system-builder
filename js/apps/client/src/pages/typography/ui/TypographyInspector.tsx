@@ -15,7 +15,10 @@ import {
     InspectorHeader,
     instancesLabel,
     SectionHeader,
+    TokenEnabledButton,
+    TokenEnabledNotice,
     fieldClass,
+    useTokenEnabled,
 } from '../../../components/tokenWorkspace';
 import {
     TYPOGRAPHY_OVERRIDE_PLATFORMS,
@@ -51,6 +54,9 @@ interface TypographyInspectorProps {
     /** Подсказка пустого описания — образец текста группы. */
     descriptionPlaceholder?: string;
     onDescribe?: (description: string) => Promise<void>;
+    /** Признак `enabled` стиля и его смена для всех начертаний на всех экранах. */
+    enabled: boolean;
+    onToggleEnabled: (enabled: boolean) => Promise<void>;
     /** Переименование двойным щелчком по имени: правится размер стиля, группа не меняется. */
     onRename?: (size: string) => Promise<void>;
     /** Удаление стиля на всех экранах; без него кнопки нет. */
@@ -467,6 +473,13 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
     const family = families.find((item) => item.name === style.fontFamily);
     const familyError = error('fontFamily');
     const instances = style.components.reduce((sum, component) => sum + component.count, 0);
+    const enabledToggle = useTokenEnabled({
+        subject: `${style.group}.${style.size}`,
+        enabled: props.enabled,
+        editable,
+        components: style.components.map((component) => component.name),
+        save: props.onToggleEnabled,
+    });
 
     return (
         <>
@@ -484,20 +497,24 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                     onReset={props.onReset}
                     resetDisabled={props.resetDisabled || disabled}
                     actions={
-                        props.onDelete && (
-                            <button
-                                type="button"
-                                className="tw-icon-button"
-                                title="Удалить стиль"
-                                aria-label="Удалить стиль"
-                                onClick={props.onDelete}
-                            >
-                                <TrashOutline />
-                            </button>
-                        )
+                        <>
+                            <TokenEnabledButton toggle={enabledToggle} />
+                            {props.onDelete && (
+                                <button
+                                    type="button"
+                                    className="tw-icon-button"
+                                    title="Удалить стиль"
+                                    aria-label="Удалить стиль"
+                                    onClick={props.onDelete}
+                                >
+                                    <TrashOutline />
+                                </button>
+                            )}
+                        </>
                     }
                 />
             </div>
+            <TokenEnabledNotice toggle={enabledToggle} name={`${groupLabel(style.group)} / ${styleLabel(style)}`} />
             {props.banners}
             <section className="typography-section tw-section">
                 <SectionHeader title="Стиль" />

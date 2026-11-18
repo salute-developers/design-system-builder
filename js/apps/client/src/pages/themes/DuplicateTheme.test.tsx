@@ -127,15 +127,16 @@ describe('дублирование темы', () => {
         const view = renderAt('/projects/project-1/design-systems/ds-1/themes/new', <CreateThemePage />);
 
         expect(await screen.findByText(/Не удалось загрузить темы дизайн-системы/)).toBeInTheDocument();
+        expect(screen.queryByText('Стартовая палитра')).not.toBeInTheDocument();
         fireEvent.change(screen.getByPlaceholderText('Например, Light Theme'), { target: { value: 'New' } });
         expect(view.container.querySelector('.create-theme-footer button')).toBeDisabled();
 
         fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
-        expect(await screen.findByRole('group', { name: 'Способ создания' })).toBeInTheDocument();
+        expect(await screen.findByRole('radiogroup', { name: 'Исходная тема' })).toBeInTheDocument();
         expect(list).toHaveBeenCalledTimes(2);
     });
 
-    it('форма создания при существующих темах предлагает копию с исходной темой из адреса', async () => {
+    it('при существующих темах форма создаёт только копию с исходной темой из адреса', async () => {
         vi.spyOn(themesApi, 'list').mockResolvedValue([
             theme('theme-1', 'Malachite'),
             theme('theme-2', 'Sber', 'sber'),
@@ -144,10 +145,9 @@ describe('дублирование темы', () => {
         const create = vi.spyOn(designSystemsApi, 'createTenant');
         renderAt('/projects/project-1/design-systems/ds-1/themes/new?from=theme-2', <CreateThemePage />);
 
-        const method = await screen.findByRole('group', { name: 'Способ создания' });
-        expect(within(method).getByRole('button', { name: 'Копия темы' })).toHaveAttribute('aria-pressed', 'true');
-        const sources = screen.getByRole('radiogroup', { name: 'Исходная тема' });
+        const sources = await screen.findByRole('radiogroup', { name: 'Исходная тема' });
         expect(within(sources).getByRole('radio', { name: /Sber/ })).toHaveAttribute('aria-checked', 'true');
+        expect(screen.queryByRole('button', { name: 'Из профиля' })).not.toBeInTheDocument();
         expect(screen.queryByText('Стартовая палитра')).not.toBeInTheDocument();
 
         fireEvent.change(screen.getByPlaceholderText('Например, Light Theme'), { target: { value: 'Sber Promo' } });
@@ -157,13 +157,14 @@ describe('дублирование темы', () => {
         expect(create).not.toHaveBeenCalled();
     });
 
-    it('способ «Из профиля» возвращает прежнюю форму профилей', async () => {
+    it('превью формы по умолчанию в режиме Dark', async () => {
         vi.spyOn(themesApi, 'list').mockResolvedValue([theme('theme-1', 'Malachite')]);
-        renderAt('/projects/project-1/design-systems/ds-1/themes/new', <CreateThemePage />);
+        const view = renderAt('/projects/project-1/design-systems/ds-1/themes/new', <CreateThemePage />);
 
-        fireEvent.click(await screen.findByRole('button', { name: 'Из профиля' }));
-        expect(screen.getByText('Стартовая палитра')).toBeInTheDocument();
-        expect(screen.queryByRole('radiogroup', { name: 'Исходная тема' })).not.toBeInTheDocument();
+        await screen.findByRole('radiogroup', { name: 'Исходная тема' });
+        expect(view.container.querySelector('.create-theme-preview')).toHaveClass('is-dark');
+        const mode = screen.getByRole('group', { name: 'Режим превью' });
+        expect(within(mode).getByRole('button', { name: 'Dark' })).toHaveClass('is-active');
     });
 
     it('в дизайн-системе без тем форма открывается сразу с профилями', async () => {
@@ -171,6 +172,6 @@ describe('дублирование темы', () => {
         renderAt('/projects/project-1/design-systems/ds-1/themes/new', <CreateThemePage />);
 
         expect(await screen.findByText('Стартовая палитра')).toBeInTheDocument();
-        expect(screen.queryByRole('group', { name: 'Способ создания' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('radiogroup', { name: 'Исходная тема' })).not.toBeInTheDocument();
     });
 });

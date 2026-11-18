@@ -7,7 +7,7 @@ import {
 } from '@salutejs/sdds-icons/16';
 import { useRef, useState } from 'react';
 
-import { PanelSkeleton, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
+import { DisabledFlag, PanelSkeleton, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
 import {
     TYPOGRAPHY_SCREENS,
     formatNumber,
@@ -58,6 +58,8 @@ interface TypographyTreeProps {
     onCancelCreate?: () => void;
     onRename?: (style: TypographyStyle, size: string) => Promise<void>;
     onDelete?: (style: TypographyStyle) => void;
+    /** Стиль отключён (`enabled = false`): строка приглушена и отмечена «Отключён». */
+    isDisabled?: (style: TypographyStyle) => boolean;
     /** Новая группа из ввода; ошибка ввода бросается с текстом для поля. */
     onCreateGroup?: (name: string) => void;
     onRenameGroup?: (group: string, name: string) => Promise<void>;
@@ -78,6 +80,7 @@ const StyleRow = ({
     style,
     selected,
     changed,
+    disabled,
     onSelect,
     onRename,
     onDelete,
@@ -85,6 +88,7 @@ const StyleRow = ({
     style: TypographyStyle;
     selected: boolean;
     changed: boolean;
+    disabled: boolean;
     onSelect: (key: string) => void;
     onRename?: () => void;
     onDelete?: () => void;
@@ -92,7 +96,7 @@ const StyleRow = ({
     <div className="tw-tree-row">
         <button
             type="button"
-            className={`typography-token-row tw-tree-item ${selected ? 'is-selected' : ''}`}
+            className={`typography-token-row tw-tree-item ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''}`}
             aria-current={selected || undefined}
             data-style-key={styleKey(style)}
             onClick={() => onSelect(styleKey(style))}
@@ -101,6 +105,7 @@ const StyleRow = ({
             <TypographyOutline />
             <span className="tw-tree-item-label">{styleLabel(style)}</span>
             {changed && <i className="tw-changed-indicator" aria-label="Есть изменения" />}
+            {disabled && <DisabledFlag />}
             <b className="tw-tree-item-value typography-row-value">
                 {formatNumber(style.sizePx)}/{formatNumber(style.lineHeightPx)}
             </b>
@@ -183,6 +188,7 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                 style={style}
                 selected={key === selectedKey}
                 changed={props.changedStyles.has(key)}
+                disabled={Boolean(props.isDisabled?.(style))}
                 onSelect={props.onSelect}
                 onRename={
                     props.editable && props.onRename ? () => setRenaming({ key, busy: false, error: null }) : undefined
@@ -208,7 +214,11 @@ export const TypographyTree = (props: TypographyTreeProps) => {
             const own = !isSystemGroup(group.id) && group.id !== pending;
             const renameKey = `group:${group.id}`;
             return (
-                <div key={group.id} className="typography-token-group" data-testid={`typography-group-${group.id}`}>
+                <div
+                    key={group.id}
+                    className="typography-token-group tw-tree-branch"
+                    data-testid={`typography-group-${group.id}`}
+                >
                     {renaming?.key === renameKey ? (
                         <div className="tw-tree-row">
                             <div className="typography-group-heading tw-tree-group is-renaming">

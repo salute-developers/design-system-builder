@@ -83,7 +83,7 @@ const TypographyOtherThemes = ({
             const raw = webValue(values, open?.tokenId ?? '', null);
             const value = (Array.isArray(raw) ? raw[0] : raw) as Record<string, unknown> | undefined;
             const label = typographyLabel(cssPx(value?.fontSize), cssPx(value?.lineHeight), value?.fontWeight);
-            return { cells: [label], key: label };
+            return [label];
         },
         [open?.tokenId, ids.join(',')],
     );
@@ -94,7 +94,6 @@ const TypographyOtherThemes = ({
             tokenIds={ids}
             addressTokenId={open.tokenId}
             columns={[TYPOGRAPHY_VARIANTS.find(({ id }) => id === variant)?.label ?? variant]}
-            currentKey={typographyLabel(style.sizePx, style.lineHeightPx, open.weight)}
             describe={describe}
         />
     );
@@ -309,6 +308,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     onCancelCreate={cancelCreate}
                     onRename={rename}
                     onDelete={(style) => requestDelete({ kind: 'style', style })}
+                    isDisabled={(style) => !editor.enabled(style)}
                     onCreateGroup={createGroup}
                     onRenameGroup={renameGroup}
                     onDeleteGroup={(group) => requestDelete(groupDeleteTarget(group))}
@@ -362,6 +362,8 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                                 description={editor.description(selected)}
                                 descriptionPlaceholder={sampleText(selected.group)}
                                 onDescribe={(text) => editor.describe(selected, text)}
+                                enabled={editor.enabled(selected)}
+                                onToggleEnabled={(enabled) => editor.setEnabled(selected, enabled)}
                                 onRename={(size) => rename(selected, size)}
                                 onDelete={
                                     canDelete ? () => requestDelete({ kind: 'style', style: selected }) : undefined

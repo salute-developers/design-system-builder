@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import {
     CloseOutline,
+    DisclosureRightOutline,
     LinkBrokenChainOutline,
     LinkOutline,
     PlusOutline,
@@ -18,10 +19,22 @@ import {
     type PaintPlatform,
     type SaveStatus,
 } from '../../../modules/colorTokens';
-import type { FieldId } from '../colorTokenEditor';
-import { InspectorHeader, SectionHeader } from '../../../components/tokenWorkspace';
+import { parseField, type FieldId } from '../colorTokenEditor';
+import {
+    InspectorHeader,
+    SectionHeader,
+    TokenEnabledButton,
+    TokenEnabledNotice,
+    useTokenEnabled,
+    usePersistedOpen,
+} from '../../../components/tokenWorkspace';
 import { ColorField } from './ColorField';
 import { PublishedWarning } from './ColorTokenTree';
+
+const SUBTHEMES_OPEN_KEY = 'dsb.inspector.subthemes.open';
+
+/** Поле подтемы (`ondark-light`), а не режима (`light`, `dark`). */
+const isContextField = (field: string) => parseField(field as FieldId).context !== null;
 
 const CONTEXT_LABELS: Record<ColorContext, string> = { ondark: 'OnDark', onlight: 'OnLight', inverse: 'Inverse' };
 export const PLATFORM_LABELS: Record<PaintPlatform, string> = { web: 'Web', ios: 'iOS', android: 'Android' };
@@ -62,6 +75,10 @@ interface InspectorProps {
     onRename: (label: string) => Promise<void>;
     /** Описание токена, общее для семейства: отказ бросает ошибку с текстом для поля описания. */
     onDescribe?: (description: string) => Promise<void>;
+    /** Компоненты, где используется токен; `null` — список неизвестен, подтверждение спрашивается всегда. */
+    components: readonly string[] | null;
+    /** Включает или отключает всё семейство токена. */
+    onToggleEnabled: (enabled: boolean) => Promise<void>;
     /** Сброс изменений токена в черновике; без него кнопки сброса нет. */
     onReset?: () => void;
     resetDisabled?: boolean;
@@ -140,6 +157,23 @@ export const ColorTokenInspector = (props: InspectorProps) => {
     // Поле имени открыто: у опубликованного токена рядом предупреждение, что новое имя изменит переменную пакета.
     const [naming, setNaming] = useState(false);
     useEffect(() => setNaming(false), [view.id]);
+    const enabledToggle = useTokenEnabled({
+        subject: view.id,
+        enabled: view.enabled,
+        editable,
+        components: props.components,
+        save: props.onToggleEnabled,
+    });
+    // Подтемы меняются по связи с режимами, поэтому секция свёрнута, пока её не раскроют для переопределения. Ошибка
+    // сохранения подтемы раскрывает её, иначе поле ошибки было бы скрыто; дальше секцию можно снова свернуть. Выбор
+    // цвета открывается только из видимого поля.
+    const [subthemesOpen, setSubthemesOpen] = usePersistedOpen(SUBTHEMES_OPEN_KEY);
+    // Раскрытие из-за ошибки не запоминается: свёрнутая по умолчанию секция остаётся такой на других токенах.
+    const [forcedOpen, setForcedOpen] = useState(false);
+    const subthemeIssue = view.issues.some((issue) => isContextField(issue.field));
+    const invalidField = props.invalidField?.field ?? 'light';
+    useEffect(() => setForcedOpen(isContextField(invalidField)), [invalidField, view.id]);
+    const subthemesShown = subthemesOpen || forcedOpen;
     const isNameField = (target: EventTarget) =>
         target instanceof HTMLInputElement && target.getAttribute('aria-label') === 'Имя токена';
 
@@ -247,6 +281,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     actions={
                         <>
                             {naming && view.publishedIn && <PublishedWarning version={view.publishedIn} />}
+                            <TokenEnabledButton toggle={enabledToggle} />
                             {canDelete && (
                                 <button
                                     type="button"
@@ -262,6 +297,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     }
                 />
             </div>
+            <TokenEnabledNotice toggle={enabledToggle} name={view.displayName} />
             {view.incomplete && (
                 <div className="ct-banner" role="status">
                     <span>Нет значений в этой теме</span>
@@ -279,7 +315,28 @@ export const ColorTokenInspector = (props: InspectorProps) => {
             </section>
             <section className="ct-inspector-section tw-section">
                 <SectionHeader
-                    title="Подтемы"
+                    title={
+                        <button
+                            type="button"
+                            className="ct-section-toggle"
+                            aria-expanded={subthemesShown}
+                            onClick={() => {
+                                setForcedOpen(false);
+                                setSubthemesOpen(!subthemesShown);
+                            }}
+                        >
+                            <DisclosureRightOutline />
+                            <span>Подтемы</span>
+                            {subthemeIssue && (
+                                <i
+                                    className="ct-section-issue"
+                                    role="img"
+                                    aria-label="Есть ошибка в подтемах"
+                                    title="Есть ошибка в подтемах"
+                                />
+                            )}
+                        </button>
+                    }
                     actions={
                         <button
                             type="button"
@@ -293,31 +350,32 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                         </button>
                     }
                 />
-                {COLOR_CONTEXTS.map((context) => {
-                    const { linked, values } = view.contexts[context];
-                    return (
-                        <Fragment key={context}>
-                            <SectionHeader
-                                title={CONTEXT_LABELS[context]}
-                                actions={
-                                    <button
-                                        type="button"
-                                        className={`tw-icon-button context-link-toggle ${linked ? 'is-linked' : 'is-unlinked'}`}
-                                        title={linked ? LINKED_TIP : UNLINKED_TIP}
-                                        aria-label={linked ? 'Связь с Modes включена' : 'Связь с Modes отключена'}
-                                        aria-pressed={linked}
-                                        disabled={!editable}
-                                        onClick={() => !linked && props.onRelink(context)}
-                                    >
-                                        {linked ? <LinkOutline /> : <LinkBrokenChainOutline />}
-                                    </button>
-                                }
-                            />
-                            {field(`${context}-light`, 'Light', values.light, 'Light', false, !linked)}
-                            {field(`${context}-dark`, 'Dark', values.dark, 'Dark', false, !linked)}
-                        </Fragment>
-                    );
-                })}
+                {subthemesShown &&
+                    COLOR_CONTEXTS.map((context) => {
+                        const { linked, values } = view.contexts[context];
+                        return (
+                            <Fragment key={context}>
+                                <SectionHeader
+                                    title={CONTEXT_LABELS[context]}
+                                    actions={
+                                        <button
+                                            type="button"
+                                            className={`tw-icon-button context-link-toggle ${linked ? 'is-linked' : 'is-unlinked'}`}
+                                            title={linked ? LINKED_TIP : UNLINKED_TIP}
+                                            aria-label={linked ? 'Связь с Modes включена' : 'Связь с Modes отключена'}
+                                            aria-pressed={linked}
+                                            disabled={!editable}
+                                            onClick={() => !linked && props.onRelink(context)}
+                                        >
+                                            {linked ? <LinkOutline /> : <LinkBrokenChainOutline />}
+                                        </button>
+                                    }
+                                />
+                                {field(`${context}-light`, 'Light', values.light, 'Light', false, !linked)}
+                                {field(`${context}-dark`, 'Dark', values.dark, 'Dark', false, !linked)}
+                            </Fragment>
+                        );
+                    })}
             </section>
         </>
     );

@@ -13,33 +13,19 @@ import {
     switchTheme,
     themesCacheKey,
 } from '../BuilderShell/ThemeSwitcher';
+import { TreeHeader, usePersistedOpen } from './TokenWorkspace';
 
 const OPEN_KEY = 'dsb.inspector.other-themes.open';
 
-const readOpen = () => {
-    try {
-        return localStorage.getItem(OPEN_KEY) === 'true';
-    } catch {
-        return false;
-    }
-};
-
-/** Строка блока: ячейки значений и ключ для сравнения с текущей темой. */
-export interface OtherThemeRow {
-    cells: ReactNode[];
-    key: string;
-}
-
 /**
  * Блок инспектора «В других темах»: значения выбранного токена во всех остальных темах дизайн-системы, только для
- * чтения. Значения грузятся одним запросом при раскрытии; «≠» отмечает темы, где значение отличается от текущей.
+ * чтения. Значения грузятся одним запросом при раскрытии. Отметки отличия нет: разница видна по самим значениям.
  */
 export const OtherThemesSection = ({
     context,
     tokenIds,
     addressTokenId,
     columns,
-    currentKey,
     describe,
 }: {
     context: EditorContextKey;
@@ -48,14 +34,14 @@ export const OtherThemesSection = ({
     /** Токен, который открывается в выбранной теме. */
     addressTokenId: string;
     columns: string[];
-    /** Ключ значения текущей темы: считается по модели редактора, поэтому меняется сразу после правки. */
-    currentKey: string;
-    describe: (values: TenantTokenValueDto[]) => OtherThemeRow;
+    /** Ячейки значений строки темы, по одной на колонку. */
+    describe: (values: TenantTokenValueDto[]) => ReactNode[];
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
-    const [open, setOpen] = useState(readOpen);
+    const [open, setOpen] = usePersistedOpen(OPEN_KEY);
     const [query, setQuery] = useState('');
+    const [searching, setSearching] = useState(false);
     const [error, setError] = useState<string>();
     const [switchError, setSwitchError] = useState<string>();
     const [attempt, setAttempt] = useState(0);
@@ -67,14 +53,6 @@ export const OtherThemesSection = ({
     );
     const others = (themes.data?.length ?? 1) - 1;
     const requestKey = `${context.designSystemId}:${context.versionId ?? ''}:${tokenIds.join(',')}`;
-
-    useEffect(() => {
-        try {
-            localStorage.setItem(OPEN_KEY, String(open));
-        } catch {
-            // Состояние раскрытия — удобство: без хранилища блок просто свёрнут после перезагрузки.
-        }
-    }, [open]);
 
     useEffect(() => {
         if (!open || !tokenIds.length) return;
@@ -92,6 +70,7 @@ export const OtherThemesSection = ({
 
     const rows = useMemo(() => {
         if (data?.key !== requestKey || !themes.data) return null;
+        // Строка пуста, пока поиск закрыт: «Закрыть поиск» и Escape очищают её.
         const needle = normalizeThemeName(query).toLocaleLowerCase('ru-RU');
         // Названия и порядок — из списка тем: в значениях есть только идентификатор темы.
         return [...themes.data]
@@ -100,7 +79,7 @@ export const OtherThemesSection = ({
             .filter((theme) => !needle || theme.name.toLocaleLowerCase('ru-RU').includes(needle))
             .map((theme) => ({
                 item: { tenantId: theme.id, tenantName: theme.name },
-                row: describe(data.byTenant.get(theme.id) ?? []),
+                cells: describe(data.byTenant.get(theme.id) ?? []),
             }));
     }, [context.tenantId, data, describe, query, requestKey, themes.data]);
 
@@ -120,20 +99,32 @@ export const OtherThemesSection = ({
             className="other-themes tw-section"
             style={{ '--other-themes-columns': columns.length } as CSSProperties}
         >
-            <button type="button" className="other-themes-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+            <button
+                type="button"
+                className="other-themes-toggle"
+                aria-expanded={open}
+                onClick={() => {
+                    setOpen(!open);
+                    // Свёрнутый блок забывает поиск: при раскрытии поле не должно открыться со старой строкой.
+                    setSearching(false);
+                    setQuery('');
+                }}
+            >
                 <span>В других темах · {others}</span>
                 <span className={`other-themes-chevron ${open ? 'is-open' : ''}`} aria-hidden="true" />
             </button>
             {open && (
                 <div className="other-themes-body">
                     {others > THEME_SEARCH_THRESHOLD && (
-                        <input
-                            className="other-themes-search"
-                            type="search"
+                        <TreeHeader
+                            className="other-themes-header"
+                            title="Темы"
+                            searching={searching}
+                            query={query}
                             placeholder="Найти тему"
-                            aria-label="Найти тему в других темах"
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
+                            searchLabel="Найти тему в других темах"
+                            onQuery={setQuery}
+                            onSearchOpen={setSearching}
                         />
                     )}
                     {switchError && (
@@ -159,9 +150,8 @@ export const OtherThemesSection = ({
                                         {column}
                                     </span>
                                 ))}
-                                <span aria-hidden="true" />
                             </div>
-                            {rows.map(({ item, row }) => (
+                            {rows.map(({ item, cells }) => (
                                 <button
                                     type="button"
                                     role="row"
@@ -173,18 +163,11 @@ export const OtherThemesSection = ({
                                     <span role="cell" className="other-themes-name">
                                         {item.tenantName}
                                     </span>
-                                    {row.cells.map((cell, index) => (
+                                    {cells.map((cell, index) => (
                                         <span role="cell" key={index}>
                                             {cell}
                                         </span>
                                     ))}
-                                    <span
-                                        role="cell"
-                                        className="other-themes-diff"
-                                        title={row.key !== currentKey ? 'Отличается от текущей темы' : undefined}
-                                    >
-                                        {row.key !== currentKey ? '≠' : ''}
-                                    </span>
                                 </button>
                             ))}
                             {!rows.length && <p className="other-themes-note">Тем не найдено</p>}

@@ -7,6 +7,9 @@ import {
     InspectorHeader,
     instancesLabel,
     SectionHeader,
+    TokenEnabledButton,
+    TokenEnabledNotice,
+    useTokenEnabled,
 } from '../../../components/tokenWorkspace';
 import {
     differingPlatforms,
@@ -44,6 +47,9 @@ interface InspectorProps {
     /** Описание токена из определения; `onDescribe` — его правка в шапке, у Viewer её нет. */
     description: string;
     onDescribe?: (value: string) => Promise<void>;
+    /** Признак `enabled` определения токена и его смена; отключённого токена нет в пакете. */
+    enabled: boolean;
+    onToggleEnabled: (enabled: boolean) => Promise<void>;
     /** Переименование двойным щелчком по имени в шапке: правится полное имя, префикс раздела можно не вводить. */
     onRename?: (value: string) => Promise<void>;
     /** Сброс изменений токена в черновике (подключается снаружи); без него кнопки нет. */
@@ -478,6 +484,13 @@ const ShadowBody = ({
 export const SizeTokenInspector = (props: InspectorProps) => {
     const { token, saved, editable, canDelete, save } = props;
     const unmatched = save.state === 'error' && save.error && !knownField(token, save.error.field) ? save.error : null;
+    const enabledToggle = useTokenEnabled({
+        subject: token.tokenId,
+        enabled: props.enabled,
+        editable,
+        components: saved.components.map((usage) => usage.name),
+        save: props.onToggleEnabled,
+    });
     return (
         <>
             <InspectorHeader
@@ -488,19 +501,23 @@ export const SizeTokenInspector = (props: InspectorProps) => {
                 onReset={props.onReset}
                 resetDisabled={props.resetDisabled}
                 actions={
-                    canDelete && (
-                        <button
-                            type="button"
-                            className="tw-icon-button"
-                            title="Удалить токен"
-                            aria-label="Удалить токен"
-                            onClick={props.onDelete}
-                        >
-                            <TrashOutline />
-                        </button>
-                    )
+                    <>
+                        <TokenEnabledButton toggle={enabledToggle} />
+                        {canDelete && (
+                            <button
+                                type="button"
+                                className="tw-icon-button"
+                                title="Удалить токен"
+                                aria-label="Удалить токен"
+                                onClick={props.onDelete}
+                            >
+                                <TrashOutline />
+                            </button>
+                        )}
+                    </>
                 }
             />
+            <TokenEnabledNotice toggle={enabledToggle} name={token.name} />
             <div className="st-inspector-body">
                 {!editable && (
                     <div className="viewer-banner" role="status" data-testid="size-tokens-viewer">

@@ -19,6 +19,8 @@ import { setTypographyStyleRepository } from './useTypographyEditor';
 
 const tokenReset = vi.hoisted(() => ({ reset: vi.fn(), busy: false, error: null }));
 vi.mock('../../features/versionJournal/tokenReset', () => ({ useTokenReset: () => tokenReset }));
+const saveEnabled = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock('../../api/tokenEnabled', () => ({ saveTokenEnabled: saveEnabled }));
 vi.mock('../../api/tokenRepository', () => ({
     tokenRepository: {
         async listDefinitions() {
@@ -53,6 +55,8 @@ interface MountOptions {
     describe?: TypographyStyleRepository['describe'];
     /** Описание токена Body M «Крупных» в модели темы. */
     description?: string;
+    /** Отключённые токены модели темы. */
+    disabled?: Set<string>;
     /** Роль в дизайн-системе: удаление стилей доступно Maintainer и Owner. */
     role?: string;
 }
@@ -104,6 +108,8 @@ const mount = (styles: TypographyStyles, options: MountOptions = {}) => {
                 setValue,
                 setDescription,
                 getDescription: () => (name === 'screen-l.body.m.normal' ? options.description : undefined),
+                getEnabled: () => !options.disabled?.has(name),
+                setEnabled: (value: boolean) => (value ? options.disabled?.delete(name) : options.disabled?.add(name)),
             }),
         }) as unknown as Theme;
     const repository: TypographyStyleRepository = {
@@ -567,7 +573,9 @@ describe('экран «Типографика»', () => {
         expect((inspector().getByLabelText('Семейство шрифта') as HTMLButtonElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Weight Regular') as HTMLButtonElement).disabled).toBe(true);
         // Табы начертаний — просмотр, а не правка: в режиме просмотра они переключаются, вес остаётся недоступным.
-        fireEvent.click(within(inspector().getByRole('tablist', { name: 'Начертание' })).getByRole('tab', { name: 'Bold' }));
+        fireEvent.click(
+            within(inspector().getByRole('tablist', { name: 'Начертание' })).getByRole('tab', { name: 'Bold' }),
+        );
         expect((inspector().getByLabelText('Weight Bold') as HTMLButtonElement).disabled).toBe(true);
         fireEvent.click(screen.getByRole('tab', { name: 'Мелкие' }));
         fireEvent.click(tree().getByText('M'));
@@ -691,6 +699,25 @@ describe('экран «Типографика»', () => {
         inspector()
             .getAllByRole('button', { name: 'Своё значение платформы' })
             .forEach((button) => expect(button.classList.contains('tw-icon-button')).toBe(true));
+    });
+
+    it('отключает стиль во всех его токенах и отмечает строку дерева', async () => {
+        saveEnabled.mockClear();
+        mount(typographyStyles(), { disabled: new Set() });
+        await screen.findByText('Body / M', { selector: TITLE });
+
+        fireEvent.click(inspector().getByRole('button', { name: 'Отключить токен' }));
+        // Стиль используется в Combobox и Accordion: отключение спрашивает подтверждение.
+        expect(screen.getByRole('dialog', { name: 'Отключить токен?' })).toHaveTextContent('Combobox, Accordion');
+        expect(saveEnabled).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Отключить' }));
+
+        await waitFor(() => expect(saveEnabled).toHaveBeenCalledTimes(1));
+        const [, ids, enabled] = saveEnabled.mock.calls[0] as unknown as [unknown, string[], boolean];
+        expect(ids).toHaveLength(9);
+        expect(enabled).toBe(false);
+        await waitFor(() => expect(document.querySelector('[data-style-key="body.m"]')).toHaveTextContent('Отключён'));
+        expect(inspector().getByText(/Токен отключён/)).toBeInTheDocument();
     });
 
     it('меняет описание стиля во всех его токенах и показывает экран в описании', async () => {

@@ -8,6 +8,7 @@ import {
 } from '../../components/tokenWorkspace/OtherThemesSection';
 import { useNavigate } from 'react-router-dom';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
+import { saveTokenEnabled } from '../../api/tokenEnabled';
 
 import '../../styles/size-tokens.css';
 
@@ -96,7 +97,7 @@ const SizeOtherThemes = ({ context, token }: { context: EditorContextKey; token:
         (values: TenantTokenValueDto[]) => {
             const raw = webValue(values, token.tokenId, null);
             const label = sizeLabel(cssPx(Array.isArray(raw) ? raw[0] : raw));
-            return { cells: [label], key: label };
+            return [label];
         },
         [token.tokenId],
     );
@@ -106,7 +107,6 @@ const SizeOtherThemes = ({ context, token }: { context: EditorContextKey; token:
             tokenIds={[token.tokenId]}
             addressTokenId={token.tokenId}
             columns={['Значение']}
-            currentKey={sizeLabel(token.fullRounding ? null : token.valuePx)}
             describe={describe}
         />
     );
@@ -272,9 +272,21 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
 
     /** Описание токена хранит определение токена; модель темы держит его после загрузки темы. */
     const themeToken = (token: SizeToken) => props.theme.getToken?.(token.name, THEME_TOKEN_TYPE[token.kind]);
+    const liveTheme = useRef(props.theme);
+    liveTheme.current = props.theme;
     const describe = async (token: SizeToken, description: string) => {
         await saveSizeTokenDescription(context, token.tokenId, description);
         themeToken(token)?.setDescription?.(description || undefined);
+        redraw();
+        props.rerender();
+    };
+
+    /** Признак `enabled` определения токена: из модели темы, как описание. */
+    const tokenEnabled = (token: SizeToken) => themeToken(token)?.getEnabled?.() ?? true;
+    const setEnabled = async (token: SizeToken, enabled: boolean) => {
+        await saveTokenEnabled(context, [token.tokenId], enabled, ['shape', 'spacing', 'shadow']);
+        // Тема могла пересоздаться, пока шёл запрос: признак пишется в текущую, а не в тему момента щелчка.
+        liveTheme.current.getToken?.(token.name, THEME_TOKEN_TYPE[token.kind])?.setEnabled?.(enabled);
         redraw();
         props.rerender();
     };
@@ -321,6 +333,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     onCreate={(kind, name) => void create(kind, name)}
                     onCancelCreate={() => setCreating(null)}
                     onRename={readOnly ? undefined : (token, name) => editor.rename(token, name)}
+                    isDisabled={(token) => !tokenEnabled(token)}
                 />
                 <main className="preview-canvas">
                     <SizeTokenBoard
@@ -355,6 +368,8 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                             canDelete={canDelete}
                             description={themeToken(selected)?.getDescription?.() ?? ''}
                             onDescribe={readOnly ? undefined : (value) => describe(selected, value)}
+                            enabled={tokenEnabled(selected)}
+                            onToggleEnabled={(enabled) => setEnabled(selected, enabled)}
                             onRename={readOnly ? undefined : (value) => editor.rename(selected, value)}
                             onReset={readOnly ? undefined : () => void tokenReset.reset(new Set([selected.tokenId]))}
                             resetDisabled={tokenReset.busy || !props.changedTokenNames?.has(selected.name)}

@@ -2,6 +2,7 @@ import type { ColorTokenStructure } from '../../modules/colorTokens/application/
 import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { acceptTokenValueOverridden, observeSubjectAddresses, tokenValueOverridden } from '../../api/subjectRevisions';
 import { authService } from '../../api/authService';
+import { saveTokenEnabled } from '../../api/tokenEnabled';
 import { getAdditionalColorValues } from '../../actions/colors';
 import {
     AndroidColor,
@@ -821,6 +822,18 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             if (!ids.length) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
             for (const id of ids) await repository.describe(session.context, id, description);
             familyTokens(theme().theme, view.key).forEach((token) => token.setDescription(description));
+            notify(session);
+        },
+
+        /**
+         * Включает или отключает токен: признак `enabled` меняется у всех определений семейства и сразу показывается в
+         * теме. Признак принадлежит определению, поэтому действует во всех темах.
+         */
+        async setEnabled(view: ColorTokenView, enabled: boolean) {
+            const ids = this.family(view).map(([, definition]) => definition.id);
+            if (!ids.length) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
+            await saveTokenEnabled(session.context, ids, enabled, ['color', 'gradient']);
+            familyTokens(theme().theme, view.key).forEach((token) => token.setEnabled(enabled));
             notify(session);
         },
 

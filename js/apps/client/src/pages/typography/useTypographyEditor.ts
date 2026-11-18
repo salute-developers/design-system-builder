@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer } from 'react';
 
 import type { DesignSystem, Theme } from '../../controllers';
 import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
+import { saveTokenEnabled } from '../../api/tokenEnabled';
 import { authService } from '../../api/authService';
 import { reloadWhenDraftAutosaveIsIdle, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { tokenValueKey } from '../../api/editorHttp';
@@ -351,6 +352,26 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         notify(session);
     };
 
+    /** Признак `enabled` стиля — признак токена его первого начертания на экране стиля, как у описания. */
+    const enabled = (style: TypographyStyle) => {
+        const [variant] = definedEntries(style.variants).map(([id]) => id);
+        return theme.getToken(tokenName(style, variant ?? 'normal'), 'typography')?.getEnabled?.() ?? true;
+    };
+
+    /** Стиль включается и отключается целиком: все начертания на всех экранах, как описание. */
+    const setEnabled = async (style: TypographyStyle, value: boolean) => {
+        const tokens = styleTokens(style);
+        await saveTokenEnabled(
+            session.context,
+            tokens.map(({ tokenId }) => tokenId),
+            value,
+            ['typography'],
+        );
+        tokens.forEach(({ name }) => session.live.theme?.getToken(name, 'typography')?.setEnabled?.(value));
+        session.live.rerender();
+        notify(session);
+    };
+
     /** Все стили темы на всех экранах: проверка занятого имени при создании и переименовании. */
     const allStyles = () => (session.saved?.screens ?? []).flatMap((item) => item.styles);
 
@@ -381,6 +402,8 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         styles,
         description,
         describe,
+        enabled,
+        setEnabled,
         /** Создаёт стиль группы [group] с именем из ввода [input]; новая группа появляется с ним. Результат — ключ стиля. */
         create: async (group: string, input: string) => {
             const size = sizeOf(group, input);

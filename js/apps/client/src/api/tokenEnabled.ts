@@ -1,0 +1,31 @@
+import type { EditorContextKey, TokenDefinitionDto } from './editorContracts';
+import { apiRoot } from './editorHttp';
+import { http } from './http';
+import { subjectMutation, subjectMutationHeaders } from './subjectMutation';
+
+/**
+ * Включает или отключает определения токена (`PATCH /tokens/{id}`, поле `enabled`). Признак принадлежит определению,
+ * поэтому действует во всех темах. Определения меняются по одному, как описание: повтор после сбоя идемпотентен. Вся
+ * пачка — одна операция черновика: раздел [tokenTypes] перечитывается один раз после последнего запроса.
+ */
+export const saveTokenEnabled = async (
+    context: EditorContextKey,
+    tokenIds: readonly string[],
+    enabled: boolean,
+    tokenTypes: TokenDefinitionDto['type'][],
+) => {
+    await subjectMutation(
+        context,
+        async () => {
+            for (const tokenId of tokenIds) {
+                await http.patch(
+                    `${apiRoot(context.projectId, context.designSystemId)}/tokens/${encodeURIComponent(tokenId)}`,
+                    { enabled },
+                    { headers: subjectMutationHeaders() },
+                );
+            }
+        },
+        undefined,
+        tokenTypes,
+    );
+};

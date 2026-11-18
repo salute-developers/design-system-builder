@@ -33,13 +33,12 @@ const Location = () => {
     return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
 };
 
-const describeRow = (items: TenantTokenValueDto[]) => {
-    const light = String((webValue(items, 't1', 'light') as string[] | undefined)?.[0] ?? '');
-    const dark = String((webValue(items, 't1', 'dark') as string[] | undefined)?.[0] ?? '');
-    return { cells: [light, dark], key: `${light}|${dark}` };
-};
+const describeRow = (items: TenantTokenValueDto[]) => [
+    String((webValue(items, 't1', 'light') as string[] | undefined)?.[0] ?? ''),
+    String((webValue(items, 't1', 'dark') as string[] | undefined)?.[0] ?? ''),
+];
 
-const tree = (currentKey: string) => (
+const tree = () => (
     <MemoryRouter initialEntries={['/projects/p/design-systems/ds/themes/light/colors?versionId=v1']}>
         <Routes>
             <Route
@@ -51,7 +50,6 @@ const tree = (currentKey: string) => (
                             tokenIds={['t1']}
                             addressTokenId="t1"
                             columns={['Light', 'Dark']}
-                            currentKey={currentKey}
                             describe={describeRow}
                         />
                         <Location />
@@ -62,7 +60,7 @@ const tree = (currentKey: string) => (
     </MemoryRouter>
 );
 
-const renderSection = (currentKey = '#111111|#EEEEEE') => render(tree(currentKey));
+const renderSection = () => render(tree());
 
 beforeEach(() => {
     vi.restoreAllMocks();
@@ -86,7 +84,7 @@ describe('OtherThemesSection', () => {
         expect(load).not.toHaveBeenCalled();
     });
 
-    it('раскрытие делает один запрос и отмечает темы с другим значением', async () => {
+    it('раскрытие делает один запрос и показывает значения без отметок отличия', async () => {
         const load = vi
             .spyOn(tokenRepository, 'loadValuesByTenant')
             .mockResolvedValue(
@@ -104,22 +102,35 @@ describe('OtherThemesSection', () => {
         expect(load).toHaveBeenCalledWith(expect.objectContaining({ versionId: 'v1' }), ['t1'], expect.anything());
         expect(themesApi.list).toHaveBeenCalledWith('p', 'ds', expect.anything(), 'v1');
         const rows = within(table).getAllByRole('row').slice(1);
-        expect(rows.map((row) => row.textContent)).toEqual(['Dark#222222#EEEEEE≠', 'Kids#111111#EEEEEE']);
+        expect(rows.map((row) => row.textContent)).toEqual(['Dark#222222#EEEEEE', 'Kids#111111#EEEEEE']);
+        expect(screen.queryByText('≠')).not.toBeInTheDocument();
         expect(localStorage.getItem('dsb.inspector.other-themes.open')).toBe('true');
     });
 
-    it('отметки пересчитываются по текущему значению без повторного запроса', async () => {
-        const load = vi
-            .spyOn(tokenRepository, 'loadValuesByTenant')
-            .mockResolvedValue(new Map([values('dark', '#111111', '#EEEEEE'), values('kids', '#111111', '#EEEEEE')]));
-        const view = renderSection();
-        fireEvent.click(await screen.findByRole('button', { name: 'В других темах · 2' }));
-        expect(await screen.findByText('Kids')).toBeInTheDocument();
-        expect(screen.queryByText('≠')).not.toBeInTheDocument();
+    it('поиск по темам открывается кнопкой, когда других тем больше порога', async () => {
+        const many = Array.from({ length: 9 }, (_, index) =>
+            theme(index ? `t${index}` : 'light', index ? `Тема ${index}` : 'Light'),
+        );
+        vi.spyOn(themesApi, 'list').mockResolvedValue(many);
+        vi.spyOn(tokenRepository, 'loadValuesByTenant').mockResolvedValue(new Map());
+        renderSection();
+        fireEvent.click(await screen.findByRole('button', { name: 'В других темах · 8' }));
+        await screen.findByRole('table', { name: 'Значения в других темах' });
+        expect(screen.queryByRole('textbox', { name: 'Найти тему в других темах' })).not.toBeInTheDocument();
 
-        view.rerender(tree('#333333|#EEEEEE'));
-        await waitFor(() => expect(screen.getAllByText('≠')).toHaveLength(2));
-        expect(load).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
+        const search = screen.getByRole('textbox', { name: 'Найти тему в других темах' });
+        fireEvent.change(search, { target: { value: 'тема 3' } });
+        expect(
+            screen
+                .getAllByRole('row')
+                .slice(1)
+                .map((row) => row.textContent),
+        ).toEqual(['Тема 3']);
+
+        fireEvent.keyDown(search, { key: 'Escape' });
+        expect(screen.queryByRole('textbox', { name: 'Найти тему в других темах' })).not.toBeInTheDocument();
+        expect(screen.getAllByRole('row')).toHaveLength(9);
     });
 
     it('строка открывает ту же секцию другой темы на этом токене', async () => {

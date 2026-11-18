@@ -34,6 +34,7 @@ import { observeTokenValueRevisions, subjectBaseRevision } from '../../api/subje
 import type { ThemePalette } from '../../modules/palette';
 import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { ColorTokensScreen } from './ColorTokensScreen';
+import * as tokenEnabled from '../../api/tokenEnabled';
 
 const SUBGROUPS = ['default', 'on-dark', 'on-light', 'inverse'];
 let published: string | null = null;
@@ -41,6 +42,8 @@ let published: string | null = null;
 let extraTokens: { name: string; groupId: string; position: number }[] = [];
 /** Токены, значения которых не проходят проверку: их показывает фильтр «Только токены с ошибками». */
 let invalidTokens: string[] = [];
+/** Отключённые токены: у всех определений семейства `enabled = false`. */
+let disabledTokens: string[] = [];
 /** Тип семейства на сервере. */
 let familyType = 'color';
 /** Значение `token-values` вместо значения по умолчанию: имя определения, платформа, режим. */
@@ -54,7 +57,7 @@ const family = (name: string, groupId: string, position: number) =>
         type: familyType,
         displayName: null,
         description: null,
-        enabled: true,
+        enabled: !disabledTokens.includes(name),
         groupId,
         position,
         publishedIn: published,
@@ -246,6 +249,9 @@ const commitLight = (value: string) => {
     fireEvent.keyDown(field, { key: 'Enter' });
 };
 
+/** Раскрывает секцию «Подтемы» инспектора: по умолчанию она свёрнута. */
+const openSubthemes = () => fireEvent.click(within(inspector()).getByRole('button', { name: /^Подтемы/ }));
+
 beforeEach(() => {
     localStorage.clear();
     published = null;
@@ -254,6 +260,7 @@ beforeEach(() => {
     post.mockImplementation(async () => ({ data: { components: [] } }));
     extraTokens = [];
     invalidTokens = [];
+    disabledTokens = [];
     groupState = [...GROUPS];
     definitionState = definitions();
     repository.create.mockReset();
@@ -358,7 +365,74 @@ describe('ColorTokensScreen', () => {
         await renderScreen();
         expect(screen.getByTestId('color-token-row-text.accent')).toHaveTextContent('textAccent');
         expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveValue('118833');
+        openSubthemes();
         expect(screen.getAllByRole('button', { name: 'Связь с Modes включена' })).toHaveLength(3);
+    });
+
+    it('отключённый токен приглушён в дереве и отмечен в инспекторе', async () => {
+        disabledTokens = ['accent'];
+        await renderScreen();
+
+        const row = screen.getByTestId('color-token-row-text.accent');
+        expect(row).toHaveClass('is-disabled');
+        expect(row).toHaveTextContent('Отключён');
+        expect(within(inspector()).getByText(/Токен отключён/)).toBeInTheDocument();
+        expect(within(inspector()).queryByRole('button', { name: 'Отключить токен' })).not.toBeInTheDocument();
+    });
+
+    it('«Отключить токен» отключает все определения семейства и сразу отмечает строку', async () => {
+        const save = vi.spyOn(tokenEnabled, 'saveTokenEnabled').mockResolvedValue();
+        await renderScreen();
+
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Отключить токен' }));
+        // Полного списка использований в «Цветах» нет: подтверждение спрашивается всегда.
+        expect(screen.getByRole('dialog', { name: 'Отключить токен?' })).toHaveTextContent(
+            'Токен может использоваться в компонентах',
+        );
+        expect(save).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Отключить' }));
+
+        await waitFor(() =>
+            expect(save).toHaveBeenCalledWith(
+                expect.anything(),
+                ['accent-0', 'accent-1', 'accent-2', 'accent-3'],
+                false,
+                ['color', 'gradient'],
+            ),
+        );
+        await waitFor(() => expect(screen.getByTestId('color-token-row-text.accent')).toHaveTextContent('Отключён'));
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Включить' }));
+        await waitFor(() =>
+            expect(save).toHaveBeenLastCalledWith(expect.anything(), expect.any(Array), true, ['color', 'gradient']),
+        );
+        await waitFor(() =>
+            expect(screen.getByTestId('color-token-row-text.accent')).not.toHaveTextContent('Отключён'),
+        );
+    });
+
+    it('секция «Подтемы» свёрнута по умолчанию и запоминает раскрытие', async () => {
+        await renderScreen();
+        const toggle = within(inspector()).getByRole('button', { name: 'Подтемы' });
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.queryByRole('button', { name: 'Связь с Modes включена' })).not.toBeInTheDocument();
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })).toHaveLength(1);
+        expect(within(inspector()).getByRole('button', { name: 'Сбросить подтемы' })).toBeInTheDocument();
+
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' }).length).toBeGreaterThan(1);
+        expect(localStorage.getItem('dsb.inspector.subthemes.open')).toBe('true');
+    });
+
+    it('свёрнутая секция «Подтемы» отмечает ошибку значения подтемы', async () => {
+        storedValue = (name, platform, mode) =>
+            name === 'text.on-dark.accent' && platform === 'web' && mode === 'light'
+                ? { value: 'not-a-color' }
+                : undefined;
+        await renderScreen();
+
+        expect(within(inspector()).getByRole('img', { name: 'Есть ошибка в подтемах' })).toBeInTheDocument();
+        expect(within(inspector()).getByRole('button', { name: /^Подтемы/ })).toHaveAttribute('aria-expanded', 'false');
     });
 
     it('автоматически сохраняет правку значения одной операцией над токеном', async () => {
@@ -437,11 +511,32 @@ describe('ColorTokensScreen', () => {
         );
     });
 
+    it('ошибка сохранения подтемы раскрывает свёрнутую секцию «Подтемы»', async () => {
+        repository.updateValues.mockRejectedValueOnce(
+            new ColorTokenOperationError('invalid', 'Неверный цвет', 'INVALID_TOKEN_VALUE', 'accent-1:web:light'),
+        );
+        await renderScreen();
+        const toggle = within(inspector()).getByRole('button', { name: /^Подтемы/ });
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+        commitLight('#123456');
+
+        await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'));
+        expect(localStorage.getItem('dsb.inspector.subthemes.open')).not.toBe('true');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[1]).toHaveAttribute(
+            'aria-invalid',
+            'true',
+        );
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    });
+
     it('указывает поле и подтему при ошибке сохранения значения OnDark', async () => {
         repository.updateValues.mockRejectedValueOnce(
             new ColorTokenOperationError('invalid', 'Неверный цвет', 'INVALID_TOKEN_VALUE', 'accent-1:web:light'),
         );
         await renderScreen();
+        openSubthemes();
 
         const fields = within(inspector()).getAllByRole('textbox', { name: 'Light' });
         fireEvent.change(fields[1], { target: { value: '#123456' } });
@@ -1375,6 +1470,7 @@ describe('ColorTokensScreen: градиенты', () => {
     it('строка iOS: «+» добавляет своё значение, правка web её не перестраивает, «×» убирает', async () => {
         repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'color' });
         await renderScreen();
+        openSubthemes();
 
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0]);
         fireEvent.click(screen.getByRole('menuitem', { name: 'iOS' }));

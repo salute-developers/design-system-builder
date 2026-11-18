@@ -2617,3 +2617,43 @@
     background: transparent;
     color: var(--tw-text-secondary);
 }
+
+/* Заголовок свёрнутой секции «Подтемы»: стрелка, подпись и точка ошибки значения подтемы. */
+.ct-section-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tw-space-xs);
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.ct-section-toggle > svg {
+    flex: none;
+    width: var(--tw-icon-size);
+    height: var(--tw-icon-size);
+    color: var(--tw-text-secondary);
+}
+
+/* Стрелка смотрит вправо у свёрнутой секции и вниз у раскрытой. */
+.ct-section-toggle[aria-expanded='true'] > svg {
+    transform: rotate(90deg);
+}
+
+.ct-section-toggle:focus-visible {
+    border-radius: var(--tw-radius-s);
+    outline: 1px solid var(--tw-accent);
+    outline-offset: 2px;
+}
+
+.ct-section-issue {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--tw-negative);
+}

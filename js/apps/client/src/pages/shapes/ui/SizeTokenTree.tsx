@@ -1,7 +1,7 @@
 import { DisclosureDownOutline, DisclosureRightOutline, PlusOutline, TrashOutline } from '@salutejs/sdds-icons/16';
 import { useRef, useState } from 'react';
 
-import { TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
+import { DisabledFlag, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
 import {
     boxShadow,
     editableName,
@@ -54,6 +54,8 @@ interface SizeTokenTreeProps {
     onCancelCreate: () => void;
     /** Переименование двойным щелчком по строке; ошибка остаётся у поля. */
     onRename?: (token: SizeToken, name: string) => Promise<void>;
+    /** Токен отключён (`enabled = false`): строка приглушена и отмечена «Отключён». */
+    isDisabled?: (token: SizeToken) => boolean;
 }
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -127,12 +129,13 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
 
     const tokenRow = (token: SizeToken) => {
         const selected = selectedId === token.tokenId;
+        const disabled = Boolean(props.isDisabled?.(token));
         if (renaming?.id === token.tokenId) return renameRow(token, renaming);
         return (
             <div key={token.tokenId} className="st-tree-row-wrap tw-tree-row">
                 <button
                     type="button"
-                    className={`st-tree-row tw-tree-item ${selected ? 'is-selected' : ''}`}
+                    className={`st-tree-row tw-tree-item ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''}`}
                     aria-current={selected ? 'true' : undefined}
                     data-token-name={token.name}
                     data-token-id={token.tokenId}
@@ -146,6 +149,7 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
                     {props.changedNames?.has(token.name) && (
                         <i className="tw-changed-indicator" aria-label="Есть изменения" />
                     )}
+                    {disabled && <DisabledFlag />}
                     <b className="tw-tree-item-value st-tree-row-value">{rowValue(token)}</b>
                 </button>
                 {canDelete && (
@@ -170,7 +174,7 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
         return (
             <div
                 key={section.kind}
-                className={`st-tree-group ${closed ? 'is-collapsed' : 'is-open'}`}
+                className={`st-tree-group tw-tree-branch ${closed ? 'is-collapsed' : 'is-open'}`}
                 data-testid={`size-section-${section.kind}`}
             >
                 {/* «+» показывается при наведении и фокусе на строку заголовка раздела, как у групп «Цветов». */}

@@ -123,7 +123,7 @@ describe('ThemeSwitcher', () => {
         );
     });
 
-    it('показывает поиск, когда тем больше порога', async () => {
+    it('открывает поиск кнопкой, когда тем больше порога, и закрывает его Escape', async () => {
         const many = Array.from({ length: THEME_SEARCH_THRESHOLD + 1 }, (_, index) =>
             theme(index === 0 ? 'light' : `t${index}`, index === 0 ? 'Light brand' : `Тема ${index}`),
         );
@@ -131,13 +131,88 @@ describe('ThemeSwitcher', () => {
         renderAt('/projects/p/design-systems/ds/themes/light/colors');
 
         fireEvent.click(screen.getByRole('button', { name: /Переключить тему/ }));
-        const search = await screen.findByRole('searchbox', { name: 'Найти тему' });
-        await waitFor(() => expect(search).toHaveFocus());
-        fireEvent.change(search, { target: { value: '  тема   3 ' } });
+        const current = await screen.findByRole('option', { name: /Light brand/ });
+        await waitFor(() => expect(current).toHaveFocus());
+        expect(screen.queryByRole('textbox', { name: 'Найти тему' })).not.toBeInTheDocument();
 
+        fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
+        const search = screen.getByRole('textbox', { name: 'Найти тему' });
+        expect(search).toHaveFocus();
+        fireEvent.change(search, { target: { value: '  тема   3 ' } });
         const options = await screen.findAllByRole('option');
         expect(options).toHaveLength(1);
         expect(options[0]).toHaveTextContent('Тема 3');
+
+        fireEvent.keyDown(search, { key: 'Escape' });
+        expect(screen.queryByRole('textbox', { name: 'Найти тему' })).not.toBeInTheDocument();
+        expect(screen.getAllByRole('option')).toHaveLength(many.length);
+        fireEvent.keyDown(screen.getByRole('listbox', { name: 'Темы' }), { key: 'Escape' });
+        expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('«Закрыть поиск» очищает строку и возвращает весь список', async () => {
+        const many = Array.from({ length: THEME_SEARCH_THRESHOLD + 1 }, (_, index) =>
+            theme(index === 0 ? 'light' : `t${index}`, index === 0 ? 'Light brand' : `Тема ${index}`),
+        );
+        vi.spyOn(themesApi, 'list').mockResolvedValue(many);
+        renderAt('/projects/p/design-systems/ds/themes/light/colors');
+
+        fireEvent.click(screen.getByRole('button', { name: /Переключить тему/ }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Поиск' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Найти тему' }), { target: { value: 'Тема 3' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Закрыть поиск' }));
+
+        expect(screen.getAllByRole('option')).toHaveLength(many.length);
+        fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
+        expect(screen.getByRole('textbox', { name: 'Найти тему' })).toHaveValue('');
+    });
+
+    it('повторный щелчок по крошке закрывает список, даже когда фокус переходит на неё', async () => {
+        vi.spyOn(themesApi, 'list').mockResolvedValue([theme('light', 'Light brand'), theme('dark', 'Dark brand')]);
+        renderAt('/projects/p/design-systems/ds/themes/light/colors');
+        const trigger = screen.getByRole('button', { name: /Переключить тему/ });
+
+        fireEvent.click(trigger);
+        await waitFor(() => expect(screen.getByRole('option', { name: /Light brand/ })).toHaveFocus());
+        fireEvent.mouseDown(trigger);
+        trigger.focus();
+        fireEvent.click(trigger);
+
+        expect(trigger).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('Enter на кнопках панели выполняет их действие, а не выбирает тему', async () => {
+        const many = Array.from({ length: THEME_SEARCH_THRESHOLD + 1 }, (_, index) =>
+            theme(index === 0 ? 'light' : `t${index}`, index === 0 ? 'Light brand' : `Тема ${index}`),
+        );
+        vi.spyOn(themesApi, 'list').mockResolvedValue(many);
+        renderAt('/projects/p/design-systems/ds/themes/light/colors');
+
+        fireEvent.click(screen.getByRole('button', { name: /Переключить тему/ }));
+        const search = await screen.findByRole('button', { name: 'Поиск' });
+        expect(fireEvent.keyDown(search, { key: 'Enter' })).toBe(true);
+        fireEvent.keyDown(screen.getByRole('link', { name: 'Создать тему' }), { key: 'ArrowDown' });
+        expect(screen.getByRole('listbox', { name: 'Темы' })).toBeInTheDocument();
+        expect(screen.getByTestId('location')).toHaveTextContent('/projects/p/design-systems/ds/themes/light/colors');
+    });
+
+    it('Tab у края панели закрывает список и возвращает фокус на крошку', async () => {
+        vi.spyOn(themesApi, 'list').mockResolvedValue([theme('light', 'Light brand'), theme('dark', 'Dark brand')]);
+        renderAt('/projects/p/design-systems/ds/themes/light/colors');
+        const trigger = screen.getByRole('button', { name: /Переключить тему/ });
+
+        fireEvent.click(trigger);
+        const create = await screen.findByRole('link', { name: 'Создать тему' });
+        create.focus();
+        expect(fireEvent.keyDown(create, { key: 'Tab' })).toBe(false);
+        expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+        await waitFor(() => expect(trigger).toHaveFocus());
+
+        fireEvent.click(trigger);
+        const current = await screen.findByRole('option', { name: /Light brand/ });
+        expect(fireEvent.keyDown(current, { key: 'Tab' })).toBe(true);
+        expect(screen.getByRole('listbox', { name: 'Темы' })).toBeInTheDocument();
     });
 
     it('без поиска для небольшого списка и без создания без права', async () => {
@@ -146,7 +221,7 @@ describe('ThemeSwitcher', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /Переключить тему/ }));
         await screen.findByRole('option', { name: /Light brand/ });
-        expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Поиск' })).not.toBeInTheDocument();
         expect(screen.queryByRole('link', { name: 'Создать тему' })).not.toBeInTheDocument();
     });
 
