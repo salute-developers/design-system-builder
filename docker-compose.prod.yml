@@ -178,7 +178,7 @@ services:
       AI_GIGACHAT_OAUTH_URL: "${AI_GIGACHAT_OAUTH_URL:-}"
       AI_GIGACHAT_BASE_URL: "${AI_GIGACHAT_BASE_URL:-}"
       # Корень НУЦ Минцифры для GigaChat: смонтировать файл томом только для чтения и указать путь внутри контейнера.
-      AI_GIGACHAT_CA_PATH: "${AI_GIGACHAT_CA_PATH:-}"
+      AI_GIGACHAT_CA_PATH: "${AI_GIGACHAT_CA_PATH:-/app/certs/russian_trusted_root_ca.pem}"
       AI_MAX_STEPS: "${AI_MAX_STEPS:-12}"
       AI_MAX_WRITES: "${AI_MAX_WRITES:-10}"
       AI_TURN_TIMEOUT_SECONDS: "${AI_TURN_TIMEOUT_SECONDS:-120}"

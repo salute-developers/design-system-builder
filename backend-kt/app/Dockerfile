@@ -28,8 +28,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
 WORKDIR /app
 COPY --from=builder --chown=dsbuilder:dsbuilder /workspace/backend-kt/app/build/libs/*-all.jar /app/backend.jar
 COPY --from=builder --chown=dsbuilder:dsbuilder /workspace/authorization /app/authorization
+COPY --from=builder --chown=dsbuilder:dsbuilder /workspace/backend-kt/app/certs /app/certs
 ENV AUTHORIZATION_POLICY_PATH=/app/authorization/policy.json
 ENV PROJECT_AUTHORIZATION_POLICY_PATH=/app/authorization/policy.json
+# Корень НУЦ Минцифры для GigaChat: добавляется к системным корням, если AI_PROVIDER=gigachat.
+ENV AI_GIGACHAT_CA_PATH=/app/certs/russian_trusted_root_ca.pem
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60.0"
 USER dsbuilder
 EXPOSE 8080
