@@ -4292,3 +4292,9 @@ button:disabled {
     background: #166dc4;
     color: #f3f3f3;
 }
+
+
+.project-settings #settings-general.ps-user-general {
+    width: 100%;
+    max-width: none;
+}

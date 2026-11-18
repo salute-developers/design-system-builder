@@ -11,10 +11,11 @@ import { ChevronLeftOutline, ChevronRightOutline } from '@salutejs/sdds-icons/16
 import railBrandItemIcon from '../../assets/catalog/icons/rail-brand-item.svg';
 import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg';
 
-export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление' | 'Personal Access Token';
+export type SettingsSection = 'Основное' | 'Участники и роли' | 'Администрирование' | 'Удаление' | 'Personal Access Token' | 'Общее';
 export type BreadcrumbSegment = { label: string; to: string };
 export const settingsSectionIds: Record<SettingsSection, string> = {
     Основное: 'general',
+    Общее: 'general',
     'Personal Access Token': 'personal-access-token',
     'Участники и роли': 'members',
     Администрирование: 'lifecycle',
@@ -95,7 +96,7 @@ export const BuilderAccount = () => {
                         </div>
                         <button role="menuitem" onClick={() => {
                             setAccountOpen(false);
-                            navigate('/settings?section=personal-access-token');
+                            navigate('/settings');
                         }}>Настройки</button>
                         <button
                             role="menuitem"

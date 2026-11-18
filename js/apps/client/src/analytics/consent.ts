@@ -27,7 +27,7 @@ type Saved = {
         policy_sha256?: string;
     };
 };
-type State = { allowed: boolean; choice?: Decision; policy?: Policy; busy: boolean; error: boolean };
+type State = { allowed: boolean; choice?: Decision; policy?: Policy; busy: boolean; error: boolean; saving?: Decision };
 
 type ConsentLock = <T>(operation: () => T) => Promise<T>;
 
@@ -39,7 +39,7 @@ export const createAnalyticsConsent = (
     synchronize: ConsentLock = async (operation) => operation(),
 ) => {
     let state: State = { allowed: false, busy: false, error: false };
-    let started = false;
+    let startup: Promise<void> | undefined;
     let generation = 0;
     const listeners = new Set<() => void>();
     const publish = (patch: Partial<State>) => {
@@ -105,7 +105,7 @@ export const createAnalyticsConsent = (
         } catch {
             if (ticket === generation) publish({ error: true, allowed: false });
         } finally {
-            if (finishBusy && ticket === generation) publish({ busy: false });
+            if (finishBusy && ticket === generation) publish({ busy: false, saving: undefined });
         }
     };
     const apply = (saved: Saved, response: Response, ticket: number, record: boolean) =>
@@ -171,11 +171,10 @@ export const createAnalyticsConsent = (
             };
         },
         getSnapshot: () => state,
-        async start() {
-            if (started) return;
-            started = true;
+        start() {
+            if (startup) return startup;
             const ticket = generation;
-            await perform(
+            startup = perform(
                 ticket,
                 async () => {
                     const saved = await load();
@@ -190,11 +189,12 @@ export const createAnalyticsConsent = (
                 },
                 false,
             );
+            return startup;
         },
         async choose(decision: Decision) {
             const ticket = ++generation;
             const displayed = state.policy;
-            publish({ allowed: false, choice: decision, busy: true, error: false });
+            publish({ allowed: false, choice: decision, busy: true, error: false, saving: decision });
             await perform(ticket, async () => {
                 if (decision === 'granted' && !displayed) {
                     await review(ticket);
@@ -240,10 +240,22 @@ export const createAnalyticsConsent = (
             publish({ busy: true, error: false });
             await perform(ticket, () => review(ticket));
         },
+        stop() {
+            ++generation;
+            startup = undefined;
+            publish({
+                allowed: false,
+                choice: undefined,
+                policy: undefined,
+                busy: false,
+                error: false,
+                saving: undefined,
+            });
+        },
         changed() {
             ++generation;
             try {
-                publish({ allowed: false, choice: read()?.decision, busy: false });
+                publish({ allowed: false, choice: read()?.decision, busy: false, saving: undefined });
             } catch {
                 publish({ allowed: false, error: true });
             }

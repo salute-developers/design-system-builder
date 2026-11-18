@@ -234,6 +234,7 @@ it('does not finish a settings request when startup has no work', async () => {
     await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
     await consent.start();
     expect(consent.getSnapshot().busy).toBe(true);
+    expect(consent.getSnapshot().saving).toBeUndefined();
     finish(ok(response(false)));
     await reviewing;
     expect(consent.getSnapshot()).toMatchObject({ allowed: false, busy: false, error: false });
@@ -322,3 +323,30 @@ it.each(['timeout', '503'])(
         expect(request).toHaveBeenCalledTimes(3);
     },
 );
+
+it('invalidates a late confirmation on session stop and rechecks the preserved grant on next start', async () => {
+    localStorage.setItem('test', JSON.stringify(saved()));
+    let finish!: (response: Response) => void;
+    const request = vi
+        .fn()
+        .mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        )
+        .mockResolvedValueOnce(ok(response()));
+    const consent = createAnalyticsConsent(localStorage, 'test', request);
+    const first = consent.start();
+    const duplicate = consent.start();
+    expect(duplicate).toBe(first);
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    consent.stop();
+    finish(ok(response()));
+    await first;
+    expect(consent.getSnapshot()).toMatchObject({ allowed: false, policy: undefined });
+    expect(JSON.parse(localStorage.getItem('test')!).decision).toBe('granted');
+    await consent.start();
+    expect(consent.getSnapshot().allowed).toBe(true);
+    expect(request).toHaveBeenCalledTimes(2);
+});
