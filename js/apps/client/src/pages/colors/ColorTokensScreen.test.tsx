@@ -1507,8 +1507,14 @@ describe('ColorTokensScreen: градиенты', () => {
         await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
         expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#445566'], overridden: true });
         expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
+        // Образец строки дерева показывает цвет выбранной платформы, как борд.
+        const rowSwatch = () =>
+            (screen.getByTestId('color-token-row-text.accent').querySelector('.token-color-preview') as HTMLElement)
+                .style.cssText;
+        expect(rowSwatch()).toMatch(/445566|rgb\(68, 85, 102\)/i);
 
         choosePlatform('Web');
+        expect(rowSwatch()).not.toMatch(/445566|rgb\(68, 85, 102\)/i);
         expect(field('Light')).toHaveValue('118833');
         commitLight('#123456');
         await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(3));

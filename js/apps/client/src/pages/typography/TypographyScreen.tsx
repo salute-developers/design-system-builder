@@ -308,7 +308,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     <button type="button" className="panel-resizer panel-resizer-right" {...separator('right')} />
                 )}
                 <TypographyTree
-                    styles={styles ? current : null}
+                    styles={styles ? current.map((style) => styleForPlatform(style, platform)) : null}
                     loading={loading}
                     changedStyles={changedStyles}
                     screen={screen}

@@ -250,24 +250,20 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [legacyBusy, setLegacyBusy] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
 
+    // Дерево и борд показывают значения платформы предпросмотра: своё значение iOS или Android, иначе значение Web.
+    const platformViews = useMemo(() => views.map((view) => viewForPlatform(view, platform)), [views, platform]);
     const tree = useMemo(
         () =>
-            buildTree(groups, hideDisabled ? views.filter((view) => view.enabled) : views, { query, sort, issuesOnly }),
-        [groups, views, query, sort, issuesOnly, hideDisabled],
+            buildTree(groups, hideDisabled ? platformViews.filter((view) => view.enabled) : platformViews, {
+                query,
+                sort,
+                issuesOnly,
+            }),
+        [groups, platformViews, query, sort, issuesOnly, hideDisabled],
     );
-    // Борд показывает значения платформы предпросмотра: своё значение iOS или Android, иначе значение Web.
     const board = useMemo(
-        () =>
-            buildTree(
-                groups,
-                views.map((view) => viewForPlatform(view, platform)),
-                {
-                    query: '',
-                    sort: 'source',
-                    issuesOnly: false,
-                },
-            ),
-        [groups, views, platform],
+        () => buildTree(groups, platformViews, { query: '', sort: 'source', issuesOnly: false }),
+        [groups, platformViews],
     );
     // Без явного выбора — первый токен дерева без поиска и фильтра: ввод в поиск не меняет выбранный токен.
     const firstToken = useMemo(

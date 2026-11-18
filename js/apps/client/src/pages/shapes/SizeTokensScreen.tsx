@@ -177,7 +177,12 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const tokenEnabled = (token: SizeToken) =>
         props.theme.getToken?.(token.name, THEME_TOKEN_TYPE[token.kind])?.getEnabled?.() ?? true;
     const [hideDisabled, setHideDisabled] = useHideDisabled();
-    const sections = buildSections(hideDisabled ? shown.filter(tokenEnabled) : shown, query);
+    const [platform, setPlatform] = useTokenPlatform();
+    // Дерево показывает числа платформы предпросмотра, как борд.
+    const sections = buildSections(
+        (hideDisabled ? shown.filter(tokenEnabled) : shown).map((token) => sizeTokenForPlatform(token, platform)),
+        query,
+    );
 
     // Адрес из журнала: `?tokenId` выбирает токен раздела; токена нет на выбранной границе — источник недоступен.
     const addressed = useAddressedToken(context, (name) =>
@@ -209,7 +214,6 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         : (savedTokens.find((token) => token.tokenId === selectedId) ?? defaultToken(savedTokens));
     const selected = saved ? (tokens.find((token) => token.tokenId === saved.tokenId) ?? saved) : null;
     const boardKind = selected?.kind ?? 'radius';
-    const [platform, setPlatform] = useTokenPlatform();
     // Борд показывает значения платформы предпросмотра: свои или построенные из Web числа iOS и Android.
     const board = (buildSections(shown).find((section) => section.kind === boardKind)?.tokens ?? []).map((token) =>
         sizeTokenForPlatform(token, platform),

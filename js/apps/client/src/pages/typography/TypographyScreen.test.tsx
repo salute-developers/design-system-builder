@@ -519,7 +519,10 @@ describe('экран «Типографика»', () => {
         body.overrides = { android: { lineHeightPx: 22 } };
         const { repository } = setup(styles);
         await screen.findByText('Body / M Regular', { selector: TITLE });
+        expect(treeRow('M Regular').textContent).toContain('16/20');
         choosePlatform('Android');
+        // Дерево показывает числа выбранной платформы, как борд.
+        expect(treeRow('M Regular').textContent).toContain('16/22');
         expect((inspector().getByLabelText('Line Height Android') as HTMLInputElement).value).toBe('22');
         fireEvent.click(inspector().getByRole('button', { name: 'Убрать своё значение Android' }));
         await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));

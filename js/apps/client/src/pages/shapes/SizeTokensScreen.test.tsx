@@ -1169,6 +1169,7 @@ describe('SizeTokensScreen', () => {
         const tile = () => within(board()).getByRole('button', { name: 'round.l' });
         expect(screen.getByRole('button', { name: 'Платформа: Web' })).toBeInTheDocument();
         expect(tile()).toHaveTextContent('L16');
+        expect(row('round.l')).toHaveTextContent('L16 px');
 
         choosePlatform('iOS');
         expect(screen.getByRole('button', { name: 'Платформа: iOS' })).toBeInTheDocument();
@@ -1178,8 +1179,10 @@ describe('SizeTokensScreen', () => {
         expect(valueField()).toBeDisabled();
         expect(within(inspector()).getByRole('button', { name: 'Своё значение платформы' })).toBeEnabled();
         expect(screen.queryByTestId('override-ios')).toBeNull();
-        // Борд показывает число iOS: своё у round.l, у остальных — из веба.
+        // Борд и дерево показывают число iOS: своё у round.l, у остальных — из веба.
         expect(tile()).toHaveTextContent('L18');
+        expect(row('round.l')).toHaveTextContent('L18 px');
+        expect(row('round.m')).toHaveTextContent('M12 px');
         expect(within(board()).getByRole('button', { name: 'round.m' })).toHaveTextContent('M12');
         fireEvent.click(tile());
         expect(within(inspector()).getByRole('textbox', { name: 'Значение iOS, px' })).toHaveValue('18');
