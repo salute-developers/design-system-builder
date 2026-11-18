@@ -1,3 +1,4 @@
+import { sectionReadyTimeoutMs } from '../config/timeouts.ts';
 import type { Locator, Page } from '@playwright/test';
 import type { PageReadiness } from '../helpers/page-readiness.ts';
 
@@ -52,17 +53,23 @@ export class SizesPage {
         await this.row(tokenId).click();
     }
 
+    async waitForReady(): Promise<void> {
+        await this.readiness.waitFor('Редактор размеров: готовность данных', this.screen, {
+            timeout: sectionReadyTimeoutMs,
+        });
+    }
+
     async open(): Promise<void> {
         await this.readiness.run('Открытие редактора размеров', async () => {
             await this.page.goto(this.url);
-            await this.screen.waitFor({ state: 'visible' });
+            await this.waitForReady();
         });
     }
 
     async reload(): Promise<void> {
         await this.readiness.run('Повторная загрузка редактора размеров', async () => {
             await this.page.reload();
-            await this.screen.waitFor({ state: 'visible' });
+            await this.waitForReady();
         });
     }
 }

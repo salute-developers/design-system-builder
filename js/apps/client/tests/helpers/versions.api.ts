@@ -19,9 +19,11 @@ export class VersionsApi {
     private readonly session: Session;
 
     constructor(gatewayBaseURL: string, projectId: string, designSystemId: string, session: Session) {
-        const root = new URL(`api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(designSystemId)}/`, gatewayBaseURL);
-        this.createURL = new URL('versions', root).href;
-        this.systemURL = root.href.replace(/\/$/u, '');
+        this.systemURL = new URL(
+            `api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(designSystemId)}`,
+            gatewayBaseURL,
+        ).href;
+        this.createURL = this.systemURL + '/versions';
         this.designSystemId = designSystemId;
         this.projectId = projectId;
         this.session = session;
@@ -63,6 +65,24 @@ export class VersionsApi {
             changelog,
         });
         return { id: (published as { id: string }).id, designSystemId: this.designSystemId, version, changelog };
+    }
+
+    async changesCount(): Promise<number> {
+        // Техническое чтение подготовки: одна попытка до 30s вместо двух обрываемых на 10s запросов.
+        const response = await authenticatedRequest(
+            this.session,
+            this.systemURL + '/changes/summary',
+            'GET',
+            [200],
+            undefined,
+            undefined,
+            { timeoutMs: 30_000, attempts: 1 },
+        );
+        const raw: unknown = await response.json();
+        expect(raw, 'Сводка журнала своей ДС').toMatchObject({ total: expect.any(Number) });
+        const { total } = raw as { total: number };
+        expect(Number.isSafeInteger(total) && total >= 0, 'Число изменений — неотрицательное целое').toBe(true);
+        return total;
     }
 
     async changes(): Promise<unknown[]> {

@@ -20,7 +20,10 @@ export class TokenValuesApi {
     private readonly session: Session;
 
     constructor(gatewayBaseURL: string, projectId: string, systemId: string, session: Session) {
-        this.root = new URL(`api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(systemId)}/`, gatewayBaseURL);
+        this.root = new URL(
+            `api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(systemId)}/`,
+            gatewayBaseURL,
+        );
         this.systemId = systemId;
         this.session = session;
     }

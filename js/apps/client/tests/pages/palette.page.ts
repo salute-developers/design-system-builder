@@ -1,3 +1,4 @@
+import { sectionReadyTimeoutMs } from '../config/timeouts.ts';
 import type { Locator, Page } from '@playwright/test';
 import type { PageReadiness } from '../helpers/page-readiness.ts';
 import type { PaletteSlot } from '../helpers/palette.api.ts';
@@ -50,17 +51,21 @@ export class PalettePage {
             .filter({ has: this.page.getByRole('button', { name: label, exact: true }) });
     }
 
+    async waitForReady(): Promise<void> {
+        await this.readiness.waitFor('Палитра: готовность данных', this.colorMode, { timeout: sectionReadyTimeoutMs });
+    }
+
     async open(): Promise<void> {
         await this.readiness.run('Открытие палитры', async () => {
             await this.page.goto(this.url);
-            await this.colorMode.waitFor({ state: 'visible' });
+            await this.waitForReady();
         });
     }
 
     async reload(): Promise<void> {
         await this.readiness.run('Повторная загрузка палитры', async () => {
             await this.page.reload();
-            await this.colorMode.waitFor({ state: 'visible' });
+            await this.waitForReady();
         });
     }
 

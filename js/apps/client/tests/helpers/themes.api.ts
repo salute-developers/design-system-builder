@@ -14,10 +14,7 @@ export class ThemesApi {
     constructor(gatewayBaseURL: string, projectId: string, designSystemId: string, session: Session) {
         const root = `api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(designSystemId)}/`;
         this.createURL = new URL(root + 'tenants', gatewayBaseURL).href;
-        this.listURL = new URL(
-            root + 'tenants',
-            gatewayBaseURL,
-        ).href;
+        this.listURL = new URL(root + 'tenants', gatewayBaseURL).href;
         this.designSystemId = designSystemId;
         this.session = session;
     }

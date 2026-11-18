@@ -19,7 +19,7 @@ Playwright ожидает HTTP-готовности и завершает сво
 автоматически не выбирается. Запуск сервера ограничен120s; UI-лимиты не меняются.
 Docker Client на3002 и backend не останавливаются.
 
-Повторить текущие 20 сценариев пять раз, всего 100 выполнений:
+В рабочем дереве присутствуют30 сценариев, включая10 новых ролевых; их наличие не означает подтверждённый полный прогон. После отдельного разрешения повторить набор пять раз, всего150 выполнений:
 
 ```sh
 npm run test:e2e -- --repeat-each=5 --workers=1 --retries=0 --max-failures=0
@@ -61,13 +61,13 @@ npm run test:e2e:install-browser
 через `chmod 600 .env.e2e.local`. Файл исключён из Git; пример содержит пустые
 credentials. Токены между запусками не сохраняются.
 
-| Настройка | Поведение |
-| --- | --- |
-| `DSB_E2E_GATEWAY_BASE_URL` | Общий API для обоих режимов; default `http://localhost:8080/`. |
-| `DSB_E2E_CLIENT_ID` | Общий OAuth clientId; default `dsbuilder-api`. |
-| `DSB_E2E_CLIENT_BASE_URL` | Только external; default3002. Основной режим задаёт4173. |
-| `DSB_E2E_CREDENTIALS_FILE` | Другой dotenv-профиль вместо стандартного файла. |
-| `DSB_E2E_PROJECT_NAME` | Имя собственного выделенного проекта; default `E2E Automation`. |
+| Настройка                  | Поведение                                                       |
+| -------------------------- | --------------------------------------------------------------- |
+| `DSB_E2E_GATEWAY_BASE_URL` | Общий API для обоих режимов; default `http://localhost:8080/`.  |
+| `DSB_E2E_CLIENT_ID`        | Общий OAuth clientId; default `dsbuilder-api`.                  |
+| `DSB_E2E_CLIENT_BASE_URL`  | Только external; default3002. Основной режим задаёт4173.        |
+| `DSB_E2E_CREDENTIALS_FILE` | Другой dotenv-профиль вместо стандартного файла.                |
+| `DSB_E2E_PROJECT_NAME`     | Имя собственного выделенного проекта; default `E2E Automation`. |
 
 Process env имеет приоритет над dotenv. Файл читается через `parseEnv`, без
 source/eval. Ручной projectId не нужен. Remote требует HTTPS, loopback допускает
@@ -108,38 +108,38 @@ Compose Preview smoke и модульные тесты запускаются о
 
 ## Автоматизированные сценарии
 
-С экспортом Zephyr05.11.2026 сопоставлены 15 реализованных Jira-кейсов и пилот:
+С экспортом Zephyr05.11.2026 сопоставлены19 Jira-кейсов первых двух этапов и пилот:
 
-| Ключ | Сценарий |
-| --- | --- |
+| Ключ               | Сценарий                                                                     |
+| ------------------ | ---------------------------------------------------------------------------- |
 | Пилот без Jira-key | Создать ДС через UI, проверить сохранение/reload/reopen; очистить через API. |
-| PLASMABLDR-T521 | PROJ-UI-003 Project: Name обязателен. |
-| PLASMABLDR-T523 | PROJ-UI-005 Project: Cancel не создаёт Project. |
-| PLASMABLDR-T566 | PROJ-UI-048 Create Project Team: Tab/Shift+Tab не выпускает focus из modal. |
-| PLASMABLDR-T547 | PROJ-UI-029 Design System: Rename сохраняет designSystemId. |
-| PLASMABLDR-T768 | PROJ-UI-033 Custom: ошибки HEX и исправление формы. |
-| PLASMABLDR-T555 | PROJ-UI-037 Theme: duplicate Name без учёта регистра. |
-| PLASMABLDR-T792 | VER-UI-002 Пустой черновик: журнал и запрет публикации. |
-| PLASMABLDR-T660 | VER-UI-020 Публикация непустого черновика с пустым описанием. |
-| PLASMABLDR-T657 | VER-UI-017 История в разделе версий не переключает версию редактора. |
-| PLASMABLDR-T784 | CT-047 Автосохранение токена и изоляция соседнего. |
-| PLASMABLDR-T791 | VER-UI-001 Журнал и точный переход к источнику. |
-| PLASMABLDR-T647 | VER-UI-007 Отмена изменения из строки журнала. |
-| PLASMABLDR-T560 | PROJ-UI-042 Theme isolation: сохранённые values не смешиваются между A и B. |
-| PLASMABLDR-T782 | CT-024 Палитровая ссылка и прямой HEX. |
-| PLASMABLDR-T776 | PAL-021: Правка ступени: сохранение и changed state. |
-| PLASMABLDR-T604 | PAL-040 Журнал правки ступени: до/после и восстановление. |
-| PLASMABLDR-T742 | RSS-008 — Редактирование отступа и автосохранение. |
-| PLASMABLDR-T750 | RSS-016 — Редактирование параметров слоя тени. |
-| PLASMABLDR-T793 | VER-UI-016 Опубликованная версия и возврат в черновик. |
+| PLASMABLDR-T521    | PROJ-UI-003 Project: Name обязателен.                                        |
+| PLASMABLDR-T523    | PROJ-UI-005 Project: Cancel не создаёт Project.                              |
+| PLASMABLDR-T566    | PROJ-UI-048 Create Project Team: Tab/Shift+Tab не выпускает focus из modal.  |
+| PLASMABLDR-T547    | PROJ-UI-029 Design System: Rename сохраняет designSystemId.                  |
+| PLASMABLDR-T768    | PROJ-UI-033 Custom: ошибки HEX и исправление формы.                          |
+| PLASMABLDR-T555    | PROJ-UI-037 Theme: duplicate Name без учёта регистра.                        |
+| PLASMABLDR-T792    | VER-UI-002 Пустой черновик: журнал и запрет публикации.                      |
+| PLASMABLDR-T660    | VER-UI-020 Публикация непустого черновика с пустым описанием.                |
+| PLASMABLDR-T657    | VER-UI-017 История в разделе версий не переключает версию редактора.         |
+| PLASMABLDR-T784    | CT-047 Автосохранение токена и изоляция соседнего.                           |
+| PLASMABLDR-T791    | VER-UI-001 Журнал и точный переход к источнику.                              |
+| PLASMABLDR-T647    | VER-UI-007 Отмена изменения из строки журнала.                               |
+| PLASMABLDR-T560    | PROJ-UI-042 Theme isolation: сохранённые values не смешиваются между A и B.  |
+| PLASMABLDR-T782    | CT-024 Палитровая ссылка и прямой HEX.                                       |
+| PLASMABLDR-T776    | PAL-021: Правка ступени: сохранение и changed state.                         |
+| PLASMABLDR-T604    | PAL-040 Журнал правки ступени: до/после и восстановление.                    |
+| PLASMABLDR-T742    | RSS-008 — Редактирование отступа и автосохранение.                           |
+| PLASMABLDR-T750    | RSS-016 — Редактирование параметров слоя тени.                               |
+| PLASMABLDR-T793    | VER-UI-016 Опубликованная версия и возврат в черновик.                       |
 
 T768 проверяет согласованный объём: невалидные HEX/исправление/отмену,
 видимость четырёх HEX-полей, создание и сохранённую customPalette после reload.
 Сравнение API `preview` и визуальных Light/Dark-превью исключено по решению
 пользователя. 06.11.2026 пользователь удалил ожидание изменения превью из Jira;
 согласованный объём T768 покрыт. Экспорт05.11.2026 предшествует этой правке. Пилот не покрывает UI-удаление/архивацию
-ДС и не считается T548. Все текущие браузерные проверки используют Owner;
-API-подготовка не является покрытием UI-создания или RBAC других ролей.
+ДС и не считается T548. Первые20 браузерных проверок используют Owner;
+API-подготовка не является покрытием UI-создания или RBAC других ролей. Новые ролевые сценарии описаны ниже.
 
 ## Первая волна
 
@@ -291,3 +291,68 @@ npx playwright show-report playwright-report/product
 Сбой assertions, предусловий или cleanup даёт ненулевой exit. Trace может
 содержать сессию/заголовки: это приватный локальный материал вне Git, он
 автоматически не публикуется.
+
+## Вторая волна: Editor и Viewer
+
+Десять сценариев реализованы: T767/T695/T531/T535/T557/T558/T631/T759/T709/T593.
+Пользователь подтвердил прохождение полного набора: 30/30 E2E.
+Актуальный чеклист — [tasks.md](../../../../openspec/changes/archive/2026-11-18-add-ui-e2e-role-access/tasks.md).
+
+### Роли и запуск
+
+Owner готовит данные и выполняет cleanup; отдельная обычная учётка member работает в браузере.
+Нужны DSB_E2E_USERNAME/PASSWORD и DSB_E2E_MEMBER_USERNAME/PASSWORD, а также
+DSB_E2E_ALLOW_MUTATIONS=true. Оба набора читаются из DSB_E2E_CREDENTIALS_FILE, если задан,
+иначе из .env.e2e.local. Реальная роль подтверждается API, чужое членство не переписывается.
+Проекты UI Roles editor/viewer переиспользуются; каждому сценарию редактора создаётся своя ДС.
+
+Из js/apps/client, Windows PowerShell, только десять новых сценариев:
+
+```powershell
+$env:DSB_E2E_GATEWAY_BASE_URL = 'http://127.0.0.1:8080/'
+npm.cmd run test:e2e:headed -- --grep "PLASMABLDR-(T767|T695|T531|T535|T557|T558|T631|T759|T709|T593):"
+```
+
+Для всего набора уберите --grep и выражение. На macOS используйте npm вместо npm.cmd.
+Headed-скрипт собирает UI и обслуживает его на localhost:4173; внешний готовый UI выбирается
+отдельным --external-ui по правилам раздела запуска.
+
+### Согласованные проверки
+
+- T631 выбирает плитку цветового токена вместо отсутствующего Button на канвасе.
+- T709 показывает свой Size iOS=17 только на крупных экранах при web=16; остальные экраны сохраняют FIX-BASE.
+- T759 использует точный RSS-BASE, включая тень 0/4/8/0 с чёрным цветом и прозрачностью 16%.
+- T593 использует известную связь textAccent, произвольное количество прочих связей, поиск Green,
+  очистку поиска и повторные запреты после возврата из цветового токена в палитру.
+
+### Ошибки и очистка
+
+Неуспешная попытка сохраняет ДС и известный ID; успешная очищается после подтверждения записей
+и закрытия контекста. Неизвестный результат мутации не превращается в успех. Глобального файлового
+маркера блокировки следующих тестов нет. API-записи не повторяются автоматически.
+Ожидания готовности имеют явные timeout; диагностика HTTP не подменяет исходную ошибку.
+
+### Проверки перед PR
+
+Strictacode compare клиента/CLI и штатные FAST/FULL JavaScript-контура прошли, exit 0.
+В gates прошли сборка клиента, CLI typecheck и 95 unit-тестов, Gradle sync Figma core,
+150 тестов Figma-плагина в 11 файлах, сборка и size-check плагина.
+Отдельно прошли E2E types, discovery (30 тестов / 24 файла), OpenSpec validation и diff check.
+Прогоны E2E подтверждены пользователем; gates сами не запускают браузерный набор.
+
+Из корня репозитория, в подходящем окружении Git Bash:
+
+```sh
+bash tools/verify fast --base HEAD --change add-ui-e2e-role-access
+bash tools/verify full --base HEAD --change add-ui-e2e-role-access
+```
+
+На Windows для выполненных gates использованы process-local Git EOL, UTF-8 и npm script-shell,
+а также временный npm.exe launcher для Python-коллектора Strictacode. Конфигурация пользователя,
+protected policy, baseline и thresholds не менялись. Логи: outputs/e2e-wave2-gates-2026-11-18/.
+Windows-фиксы и подъём версии CLI исключены из diff. Исходный CLI 0.1.3 прошёл typecheck
+и 95/95 unit-тестов в WSL Ubuntu 24.04 / Linux Node.js 22.23.3. FAST/FULL после отката целиком не повторялись.
+
+### Общая валидация спецификаций
+
+Строгая проверка change до архивирования и новой main-spec прошла. Общая проверка main specs: 83 passed / 39 failed; снимок HEAD: 82 passed / те же 39 failed. Новая спецификация валидна, новых ошибок не добавлено. Посторонние спецификации не изменялись.

@@ -1,4 +1,6 @@
+import { sectionReadyTimeoutMs } from '../config/timeouts.ts';
 import type { PageReadiness } from '../helpers/page-readiness.ts';
+import { expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 
 /** Экран журнала; навигация и пустое состояние подтверждены Playwright MCP. */
@@ -35,11 +37,23 @@ export class JournalPage {
         });
     }
 
+    async waitForReady(): Promise<void> {
+        await this.readiness.run('Журнал: готовность данных', async () => {
+            await this.readiness.waitFor('Появление журнала', this.list, { timeout: sectionReadyTimeoutMs });
+            await this.readiness.waitFor(
+                'Загрузка данных журнала',
+                this.list.getByRole('status').filter({ hasText: 'Загрузка журнала…' }),
+                { timeout: sectionReadyTimeoutMs, state: 'hidden' },
+            );
+            await expect(this.list.getByRole('alert'), 'Журнал загрузился без ошибки').toHaveCount(0);
+        });
+    }
+
     async open(): Promise<void> {
         await this.readiness.run('Открытие журнала', async () => {
             await this.page.goto(this.editorURL);
             await this.navigationButton.click();
-            await this.list.waitFor({ state: 'visible' });
+            await this.waitForReady();
         });
     }
 }

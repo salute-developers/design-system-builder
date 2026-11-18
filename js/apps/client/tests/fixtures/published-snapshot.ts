@@ -39,9 +39,9 @@ export const test = base.extend<{ snapshot: SnapshotData }>({
             expect(light.value).toEqual([expect.stringMatching(/^#[0-9A-F]{6}$/iu)]);
             const historicalLight = (light.value as [string])[0];
             expect(historicalLight.toUpperCase()).not.toBe(draftColor);
-            const publishedChanges = (await versionsApi.changes()).length;
+            const publishedChanges = await versionsApi.changesCount();
             const version = await versionsApi.publish('0.1.0', 'QA published snapshot');
-            expect(await versionsApi.changes()).toEqual([]);
+            expect(await versionsApi.changesCount(), 'После публикации черновик не содержит изменений').toBe(0);
 
             await paletteApi.seedStep(accentGroup.id, green, 500, snapshotPalette.draft);
             await tokenValues.seed(themeId, [{ current: light, value: draftColor }]);

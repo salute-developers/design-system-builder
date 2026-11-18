@@ -10,7 +10,7 @@ async function finishBrowserWrite(response: BrowserResponse | null, started: num
     return { status: response.status(), elapsedMs: Math.round(performance.now() - started) };
 }
 
-function within<T>(operation: Promise<T>, milliseconds: number, message: string): Promise<T> {
+export function within<T>(operation: Promise<T>, milliseconds: number, message: string): Promise<T> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error(message)), milliseconds);
         operation.then(
@@ -37,11 +37,15 @@ export class PendingMutation {
     }
 
     watchBrowserWrites(gatewayBaseURL: string, projectId: string): () => void {
-        const scope = new URL(`api/projects/${encodeURIComponent(projectId)}/design-systems/`, gatewayBaseURL);
+        const scope = new URL(`api/projects/${encodeURIComponent(projectId)}/design-systems`, gatewayBaseURL);
         const onRequest = (request: Request) => {
             if (!writeMethods.has(request.method())) return;
             const url = new URL(request.url());
-            if (url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
+            if (
+                url.origin !== scope.origin ||
+                (url.pathname !== scope.pathname && !url.pathname.startsWith(scope.pathname + '/'))
+            )
+                return;
             const started = performance.now();
             const finished = request.response().then((response) => finishBrowserWrite(response, started));
             this.remember(finished);
