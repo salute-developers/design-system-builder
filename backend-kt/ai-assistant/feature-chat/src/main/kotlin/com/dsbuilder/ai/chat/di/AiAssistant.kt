@@ -1,6 +1,7 @@
 package com.dsbuilder.ai.chat.di
 
 import com.dsbuilder.ai.chat.application.AgentToolbox
+import com.dsbuilder.ai.chat.application.ChatAccessRefresher
 import com.dsbuilder.ai.chat.application.ChatToolExecutor
 import com.dsbuilder.ai.chat.application.ChatTurnScope
 import com.dsbuilder.ai.chat.application.DesignSystemOwnership
@@ -60,12 +61,14 @@ class AiAssistant internal constructor(
 
 /**
  * Собирает подсистему. [tools] выполняет инструменты каталога внутри процесса; инструмент каталога без обработчика
- * не даёт собрать подсистему. [llmOverride] подменяет провайдера модели в проверках монолита.
+ * не даёт собрать подсистему. [access] актуализирует права участника перед каждым вызовом инструмента.
+ * [llmOverride] подменяет провайдера модели в проверках монолита.
  */
 fun createAiAssistant(
     configuration: AiAssistantConfiguration,
     ownership: DesignSystemOwnership,
     tools: ChatToolExecutor,
+    access: ChatAccessRefresher,
     llmOverride: LlmClient? = null,
 ): AiAssistant {
     val settings = requireNotNull(configuration.providerSettings) { "AI assistant is disabled" }
@@ -77,7 +80,7 @@ fun createAiAssistant(
     val store = InMemoryTurnStore(limits.turnStoreMaxBytes)
     val signer = HmacConfirmationSigner()
     val turnScope = ChatTurnScope(Dispatchers.IO)
-    val runner = RunChatTurnUseCase(llm, toolbox, signer, store, limits)
+    val runner = RunChatTurnUseCase(llm, toolbox, signer, store, limits, access)
     return AiAssistant(
         configuration = configuration,
         validate = ValidateChatTurnUseCase(limits),

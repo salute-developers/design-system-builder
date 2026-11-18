@@ -1,5 +1,6 @@
 package com.dsbuilder.ai.chat.di
 
+import com.dsbuilder.ai.chat.application.AccessCheck
 import com.dsbuilder.ai.chat.application.ChatToolContext
 import com.dsbuilder.ai.chat.application.ChatToolExecutor
 import com.dsbuilder.ai.chat.application.OwnershipCheck
@@ -76,7 +77,7 @@ class AiAssistantConfigurationTest {
     fun incompatibleHistoryLimitFailsAtAssemblyWithBothNames() {
         val configuration = read("AI_ENABLED" to "true", "AI_API_KEY" to "k", "AI_HISTORY_MAX_CHARS" to "9000")
         val failure = assertFailsWith<IllegalStateException> {
-            createAiAssistant(configuration, { _, _ -> OwnershipCheck.OWNED }, AllTools)
+            createAiAssistant(configuration, { _, _ -> OwnershipCheck.OWNED }, AllTools, { AccessCheck.Revoked })
         }
         assertTrue("AI_HISTORY_MAX_CHARS" in failure.message.orEmpty())
         assertTrue("AI_MESSAGE_MAX_CHARS" in failure.message.orEmpty())
@@ -89,7 +90,7 @@ class AiAssistantConfigurationTest {
 
         assertEquals(empty.path, configuration.caPath)
         val failure = assertFailsWith<IllegalStateException> {
-            createAiAssistant(configuration, { _, _ -> OwnershipCheck.OWNED }, AllTools)
+            createAiAssistant(configuration, { _, _ -> OwnershipCheck.OWNED }, AllTools, { AccessCheck.Revoked })
         }
         assertTrue("AI_CA_PATH" in failure.message.orEmpty())
     }
@@ -97,7 +98,7 @@ class AiAssistantConfigurationTest {
     @Test
     fun defaultLimitsAssemble() {
         val configuration = read("AI_ENABLED" to "true", "AI_API_KEY" to "k")
-        createAiAssistant(configuration, { _, _ -> OwnershipCheck.OWNED }, AllTools).close()
+        createAiAssistant(configuration, { _, _ -> OwnershipCheck.OWNED }, AllTools, { AccessCheck.Revoked }).close()
     }
 }
 

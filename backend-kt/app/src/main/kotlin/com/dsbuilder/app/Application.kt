@@ -4,6 +4,7 @@ import com.dsbuilder.ai.chat.di.AiAssistant
 import com.dsbuilder.ai.chat.di.AiAssistantConfiguration
 import com.dsbuilder.ai.chat.di.createAiAssistant
 import com.dsbuilder.ai.chat.presentation.aiChatRoutes
+import com.dsbuilder.app.data.InProcessChatAccess
 import com.dsbuilder.app.data.InProcessChatOwnership
 import com.dsbuilder.app.data.InProcessDesignSystemOwnership
 import com.dsbuilder.app.data.KeycloakProxy
@@ -107,7 +108,8 @@ private fun sharedPolicyEvaluator(): PolicyEvaluator {
 private fun createAiAssistantOrNull(koin: Koin, ownership: InProcessDesignSystemOwnership): AiAssistant? {
     val aiConfiguration = AiAssistantConfiguration.fromEnvironment(System::getenv)
     if (!aiConfiguration.enabled) return null
-    return createAiAssistant(aiConfiguration, InProcessChatOwnership(ownership), inProcessChatTools(koin))
+    val access = InProcessChatAccess(koin.get(), koin.get<UserSettingsModule>().tokens, koin.get())
+    return createAiAssistant(aiConfiguration, InProcessChatOwnership(ownership), inProcessChatTools(koin), access)
 }
 
 /**

@@ -73,8 +73,9 @@ internal class FakeToolbox(
     val executed = mutableListOf<ToolCall>()
     val contexts = mutableListOf<ChatToolContext>()
 
-    override fun specs(access: ChatAccess) = allowed.map { ToolSpec(it, it, JsonObject(emptyMap())) }
-    override fun isAllowed(name: String, access: ChatAccess) = name in allowed
+    override fun specs(access: ChatAccess) =
+        allowed.filter { access.isAllowed(it) }.map { ToolSpec(it, it, JsonObject(emptyMap())) }
+    override fun isAllowed(name: String, access: ChatAccess) = name in allowed && access.isAllowed(name)
     override fun isWrite(name: String) = name in writes || name in destructive
     override fun isDestructive(name: String) = name in destructive
     override fun prepare(call: ToolCall): ToolCall? =
@@ -111,12 +112,13 @@ internal class TurnHarness(
     val llm: LlmClient,
     val toolbox: FakeToolbox = FakeToolbox(),
     val limits: AgentLimits = limits(),
+    val refresher: ChatAccessRefresher? = null,
 ) {
     val store = InMemoryTurnStore(limits.turnStoreMaxBytes)
     val signer = HmacConfirmationSigner()
     private var keys = 0
     private var registrations = 0
-    val runner = RunChatTurnUseCase(llm, toolbox, signer, store, limits, newKey = { "key-${++keys}" })
+    val runner = RunChatTurnUseCase(llm, toolbox, signer, store, limits, refresher, newKey = { "key-${++keys}" })
 
     suspend fun run(
         messages: List<ChatMessage>,

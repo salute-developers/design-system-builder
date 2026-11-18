@@ -6,9 +6,8 @@ import com.dsbuilder.ai.chat.domain.LlmFailure
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -60,10 +59,11 @@ internal class LlmRetry(
     /** Одна попытка запроса: ответ для вызывающего либо сбой, после которого запрос повторяется. */
     @Suppress("TooGenericExceptionCaught")
     private suspend fun attemptOnce(send: suspend () -> HttpResponse): Attempt {
+        // withTimeoutOrNull отличает таймаут попытки от отмены снаружи (срок или остановка хода): отмена уходит
+        // наверх и не превращается в сбой провайдера.
         val reply = try {
-            withTimeout(requestTimeout) { send().let { LlmHttpReply(it.status.value, it.bodyAsText()) } }
-        } catch (timeout: TimeoutCancellationException) {
-            return Attempt.Retry(LlmFailure.Unavailable("Provider request timed out."))
+            withTimeoutOrNull(requestTimeout) { send().let { LlmHttpReply(it.status.value, it.bodyAsText()) } }
+                ?: return Attempt.Retry(LlmFailure.Unavailable("Provider request timed out."))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {

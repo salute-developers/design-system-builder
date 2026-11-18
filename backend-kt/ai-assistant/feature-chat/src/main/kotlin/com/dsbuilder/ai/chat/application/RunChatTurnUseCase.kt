@@ -9,12 +9,23 @@ import com.dsbuilder.ai.chat.domain.LlmRequest
 import com.dsbuilder.ai.chat.domain.LlmResponse
 import com.dsbuilder.ai.chat.domain.ToolCall
 import com.dsbuilder.ai.chat.domain.ToolResult
+import com.dsbuilder.ai.chat.domain.ToolSpec
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import java.time.Clock
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource
 
@@ -30,6 +41,7 @@ class RunChatTurnUseCase internal constructor(
     private val signer: ConfirmationSigner,
     private val turns: TurnStore,
     private val limits: AgentLimits,
+    private val refresher: ChatAccessRefresher? = null,
     private val clock: Clock = Clock.systemUTC(),
     private val newKey: () -> String = { UUID.randomUUID().toString() },
 ) {
@@ -60,15 +72,19 @@ class RunChatTurnUseCase internal constructor(
         private val interrupted = command.messages.any { it.role == ChatRole.INTERRUPTED }
         private var history = repairPending(command.messages, command.confirmed?.operation?.callId)
         private var writes = 0
+        private var principal = command.principal
+        private var access = command.access
         private var modelAnswered = false
         private var errorEmitted = false
         private var outcome = "done"
         private var steps = 0
+        private var accessRevoked = false
         private val tools = mutableListOf<String>()
 
         suspend fun execute() {
             command.confirmed?.let { confirmed ->
                 runConfirmed(confirmed)
+                if (accessRevoked) return error(ERROR_ACCESS_REVOKED, "Доступ к проекту отозван.")
                 if (turns.isStopRequested(command.turnId)) return error(ERROR_STOPPED, "Ход остановлен.")
             }
             repeat(limits.maxSteps) {
@@ -80,14 +96,16 @@ class RunChatTurnUseCase internal constructor(
         /** Один шаг модели; false — ход завершается. */
         private suspend fun step(): Boolean {
             val stop = stopReason()
-            val fitted = if (stop == null) budget.fit(history, systemPrompt().length) else null
+            val specs = toolbox.specs(access)
+            val reserved = systemPrompt().length + specs.sumOf { specChars(it) }
+            val fitted = if (stop == null) budget.fit(history, reserved) else null
             if (fitted == null) {
                 val (code, message) =
                     stop ?: (ERROR_CONTEXT_OVERFLOW to "История разговора не помещается в лимит модели.")
                 error(code, message)
                 return false
             }
-            val response = requestModel(fitted) ?: return false
+            val response = requestModel(fitted, specs) ?: return false
             modelAnswered = true
             steps++
             return when (response) {
@@ -100,19 +118,72 @@ class RunChatTurnUseCase internal constructor(
             }
         }
 
-        /** Запрашивает модель; при сбое провайдера пишет ошибку и возвращает null. */
-        private suspend fun requestModel(messages: List<ChatMessage>): LlmResponse? = try {
-            llm.complete(LlmRequest(systemPrompt(), messages, toolbox.specs(command.access)))
-        } catch (failure: LlmFailure) {
-            error(failure.code(), failure.message.orEmpty())
-            null
+        /**
+         * Запрашивает модель. Ожидание вместе с повторами ограничено оставшимся сроком хода и прерывается
+         * остановкой; при сбое, остановке или истечении срока пишет ошибку и возвращает null.
+         */
+        private suspend fun requestModel(messages: List<ChatMessage>, specs: List<ToolSpec>): LlmResponse? {
+            val remaining = limits.turnTimeout - started.elapsedNow()
+            return try {
+                withTimeout(remaining) { stoppable { llm.complete(LlmRequest(systemPrompt(), messages, specs)) } }
+            } catch (timeout: TimeoutCancellationException) {
+                error(ERROR_TURN_TIMEOUT, "Ход занял больше отведённого времени.")
+                null
+            } catch (stopped: TurnStopped) {
+                error(ERROR_STOPPED, "Ход остановлен.")
+                null
+            } catch (failure: LlmFailure) {
+                error(failure.code(), failure.message.orEmpty())
+                null
+            }
+        }
+
+        /** Выполняет [block], отменяя его, как только запрошена остановка хода. */
+        private suspend fun <T> stoppable(block: suspend () -> T): T = coroutineScope {
+            val work = async { block() }
+            val watcher = launch {
+                while (isActive && !turns.isStopRequested(command.turnId)) delay(STOP_POLL)
+                work.cancel()
+            }
+            try {
+                work.await()
+            } catch (cancelled: CancellationException) {
+                currentCoroutineContext().ensureActive()
+                if (turns.isStopRequested(command.turnId)) throw TurnStopped()
+                throw cancelled
+            } finally {
+                watcher.cancel()
+            }
+        }
+
+        /** Актуализирует права перед вызовом инструмента; null — права действуют, иначе причина отказа. */
+        private suspend fun refreshAccess(): AccessCheck? {
+            val check = refresher?.refresh(command.principal) ?: return null
+            if (check is AccessCheck.Current) {
+                principal = check.principal
+                access = check.access
+                return null
+            }
+            return check
         }
 
         /** Выполняет подтверждённую операцию по данным токена; остановка действует после неё. */
         private suspend fun runConfirmed(confirmed: ConfirmedOperation) {
             val operation = confirmed.operation
             val visible = toolbox.visibleArguments(operation.arguments)
-            val result = if (confirmed.approved) {
+            val denied = if (confirmed.approved) refreshAccess() else null
+            if (denied == AccessCheck.Revoked) {
+                val result = agentError(operation.callId, operation.tool, CODE_NOT_ALLOWED, "Доступ к проекту отозван.")
+                emitFinished(result)
+                history = placeResult(history, ToolCall(operation.callId, operation.tool, visible), result)
+                accessRevoked = true
+                return
+            }
+            val result = if (denied == AccessCheck.Unavailable) {
+                agentError(operation.callId, operation.tool, CODE_BACKEND_UNAVAILABLE, "Права не проверены.")
+            } else if (!toolbox.isAllowed(operation.tool, access) && confirmed.approved) {
+                agentError(operation.callId, operation.tool, CODE_NOT_ALLOWED, "Инструмент недоступен.")
+            } else if (confirmed.approved) {
                 emit(ChatEvent.ToolStarted(operation.callId, operation.tool, visible))
                 val call = ToolCall(operation.callId, operation.tool, operation.arguments)
                 val executed = executeTool(call, toolContext(call, operation.idempotencyKey, operation.draftId))
@@ -142,19 +213,40 @@ class RunChatTurnUseCase internal constructor(
 
         /** Обрабатывает один вызов ответа модели; false — остальные вызовы ответа не выполняются. */
         private suspend fun runCall(call: ToolCall, batch: CallBatch): Boolean {
-            batch.finish = stopReason()
-            if (batch.finish != null) return false
+            blocked(call, batch)?.let { return it }
             val rejected = rejection(call) ?: return runAllowed(call, batch)
             emitFinished(rejected.second)
             batch.executed += rejected
             return true
         }
 
+        /**
+         * Остановка, срок хода и актуальные права перед вызовом. null — вызов можно выполнять, иначе результат для
+         * [runCall]: false — остальные вызовы ответа не выполняются.
+         */
+        private suspend fun blocked(call: ToolCall, batch: CallBatch): Boolean? {
+            batch.finish = stopReason()
+            if (batch.finish != null) return false
+            return when (refreshAccess()) {
+                AccessCheck.Revoked -> {
+                    batch.finish = ERROR_ACCESS_REVOKED to "Доступ к проекту отозван."
+                    false
+                }
+                AccessCheck.Unavailable -> {
+                    val failed = agentError(call.id, call.name, CODE_BACKEND_UNAVAILABLE, "Права не проверены.")
+                    emitFinished(failed)
+                    batch.executed += call to failed
+                    true
+                }
+                else -> null
+            }
+        }
+
         /** Отказ агента для вызова с неразобранными аргументами или недоступного инструмента. */
         private fun rejection(call: ToolCall): Pair<ToolCall, ToolResult>? = when {
             call.hasInvalidArguments -> call.copy(arguments = JsonObject(emptyMap())) to
                 agentError(call.id, call.name, CODE_INVALID_ARGUMENTS, "Аргументы вызова не разобраны как JSON.")
-            !toolbox.isAllowed(call.name, command.access) ->
+            !toolbox.isAllowed(call.name, access) ->
                 call to agentError(call.id, call.name, CODE_NOT_ALLOWED, "Инструмент недоступен.")
             toolbox.prepare(call) == null ->
                 call to agentError(call.id, call.name, CODE_INVALID_ARGUMENTS, "Аргументы не соответствуют схеме.")
@@ -186,7 +278,7 @@ class RunChatTurnUseCase internal constructor(
         /** Ставит вызов на подтверждение; false — черновик не прочитан, и вызов получил ошибку. */
         private suspend fun requestConfirmation(call: ToolCall, write: Boolean): Boolean {
             val prepared = requireNotNull(toolbox.prepare(call))
-            val draftId = toolbox.activeDraftId(command.principal, command.scope.designSystemId)
+            val draftId = toolbox.activeDraftId(principal, command.scope.designSystemId)
                 ?: return false
             val key = newKey()
             val expiresAt = clock.instant().plusSeconds(CONFIRMATION_TTL_SECONDS)
@@ -212,7 +304,7 @@ class RunChatTurnUseCase internal constructor(
         }
 
         private fun toolContext(call: ToolCall, key: String?, expectedDraftId: String?) = ChatToolContext(
-            principal = command.principal,
+            principal = principal,
             designSystemId = command.scope.designSystemId,
             correlationId = "${command.turnId}:${call.id}",
             idempotencyKey = key,
@@ -351,6 +443,9 @@ class RunChatTurnUseCase internal constructor(
         /** Код события `error`: истёк таймаут хода. */
         const val ERROR_TURN_TIMEOUT = "turn_timeout"
 
+        /** Код события `error`: доступ участника к проекту отозван во время хода. */
+        const val ERROR_ACCESS_REVOKED = "access_revoked"
+
         /** Код события `error`: история не помещается в лимит модели. */
         const val ERROR_CONTEXT_OVERFLOW = "context_overflow"
 
@@ -379,6 +474,14 @@ class RunChatTurnUseCase internal constructor(
         const val CODE_OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
 
         private const val SUMMARY_CHARS = 500
+        private val STOP_POLL = 200.milliseconds
+
+        /** Размер описания инструмента в запросе к модели: имя, описание и схема. */
+        private fun specChars(spec: ToolSpec): Int =
+            spec.name.length + spec.description.length + spec.parameters.toString().length
         private val CONFIRMATION_TTL_SECONDS = 10.minutes.inWholeSeconds
     }
 }
+
+/** Остановка хода во время ожидания модели. */
+private class TurnStopped : RuntimeException(null, null, false, false)

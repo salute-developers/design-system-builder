@@ -113,6 +113,29 @@ interface AgentToolbox {
     suspend fun activeDraftId(principal: ProjectPrincipal, designSystemId: String): String?
 }
 
+/** Результат актуализации прав участника перед вызовом инструмента. */
+sealed interface AccessCheck {
+    /**
+     * Доступ есть.
+     *
+     * @property principal актуальный участник проекта.
+     * @property access его актуальные разрешения.
+     */
+    data class Current(val principal: ProjectPrincipal, val access: ChatAccess) : AccessCheck
+
+    /** Доступа к проекту больше нет: участника удалили, отозвали PAT или он истёк. */
+    data object Revoked : AccessCheck
+
+    /** Проверить права не удалось. */
+    data object Unavailable : AccessCheck
+}
+
+/** Порт актуализации прав внутри процесса; в монолите — роль в проекте и состояние PAT. */
+fun interface ChatAccessRefresher {
+    /** Актуальные права участника, с которым начат ход. */
+    suspend fun refresh(principal: ProjectPrincipal): AccessCheck
+}
+
 /** Результат проверки принадлежности DS проекту. */
 enum class OwnershipCheck { OWNED, NOT_FOUND, FORBIDDEN, UNAVAILABLE }
 

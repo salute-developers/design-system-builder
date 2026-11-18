@@ -5,11 +5,14 @@ import com.dsbuilder.ai.chat.domain.ChatMessage
 import com.dsbuilder.ai.chat.domain.ChatRole
 import com.dsbuilder.ai.chat.domain.ConfirmationReason
 import com.dsbuilder.ai.chat.domain.LlmFailure
+import com.dsbuilder.ai.chat.domain.LlmRequest
 import com.dsbuilder.ai.chat.domain.LlmResponse
 import com.dsbuilder.ai.chat.domain.ToolCall
 import com.dsbuilder.ai.chat.domain.ToolResult
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -152,11 +155,11 @@ class RunChatTurnUseCaseTest {
 
     @Test
     fun `turn timeout during a write lets the write finish and stops before the next step`() = runBlocking<Unit> {
-        val toolbox = FakeToolbox(onExecute = { delay(50) })
+        val toolbox = FakeToolbox(onExecute = { delay(400) })
         val harness = TurnHarness(
             ScriptedLlm({ LlmResponse.ToolCalls(listOf(write, write.copy(id = "c8"))) }),
             toolbox,
-            limits(turnTimeout = 20.milliseconds),
+            limits(turnTimeout = 200.milliseconds),
         )
         val events = harness.run(listOf(user("x")))
 
@@ -177,6 +180,89 @@ class RunChatTurnUseCaseTest {
 
         assertTrue(""""name":"Button"""" in llm.requests.single().system)
         assertEquals(listOf("сделай её красной", "ok"), events.finalState().mapNotNull { it.text })
+    }
+
+    @Test
+    fun `stop during the model wait ends the turn even if the model would answer`() = runBlocking<Unit> {
+        lateinit var harness: TurnHarness
+        val llm = object : LlmClient {
+            override suspend fun complete(request: LlmRequest): LlmResponse {
+                delay(5_000)
+                return LlmResponse.Text("поздний ответ")
+            }
+        }
+        harness = TurnHarness(llm)
+        val events = withTimeout(3_000) {
+            harness.run(listOf(user("x"))) { turnId ->
+                launch {
+                    delay(300)
+                    harness.store.stop(turnId, TurnOwner(scope.userId, scope.projectId))
+                }
+            }
+        }
+
+        assertEquals("stopped", events.filterIsInstance<ChatEvent.Error>().single().code)
+        assertTrue(events.none { it is ChatEvent.Message })
+    }
+
+    @Test
+    fun `turn deadline interrupts the model wait`() = runBlocking<Unit> {
+        val llm = object : LlmClient {
+            override suspend fun complete(request: LlmRequest): LlmResponse {
+                delay(5_000)
+                return LlmResponse.Text("поздний ответ")
+            }
+        }
+        val started = System.nanoTime()
+        val events = TurnHarness(llm, limits = limits(turnTimeout = 200.milliseconds)).run(listOf(user("x")))
+
+        assertEquals("turn_timeout", events.filterIsInstance<ChatEvent.Error>().single().code)
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 3_000)
+    }
+
+    @Test
+    fun `revoked access ends the turn before the tool call`() = runBlocking<Unit> {
+        val harness = TurnHarness(
+            ScriptedLlm({ LlmResponse.ToolCalls(listOf(write)) }),
+            refresher = { AccessCheck.Revoked },
+        )
+        val events = harness.run(listOf(user("x")))
+
+        assertTrue(harness.toolbox.executed.isEmpty())
+        assertEquals("access_revoked", events.filterIsInstance<ChatEvent.Error>().single().code)
+    }
+
+    @Test
+    fun `lost permission rejects the tool and unavailable check does not run it`() = runBlocking<Unit> {
+        val readOnly = ChatAccess { it == "components_list" }
+        val harness = TurnHarness(
+            ScriptedLlm({ LlmResponse.ToolCalls(listOf(write)) }),
+            refresher = { principal -> AccessCheck.Current(principal.copy(projectRole = "viewer"), readOnly) },
+        )
+        val events = harness.run(listOf(user("x")))
+        assertTrue(harness.toolbox.executed.isEmpty())
+        assertEquals("tool_not_allowed", events.filterIsInstance<ChatEvent.ToolFinished>().single().code)
+
+        val unavailable = TurnHarness(
+            ScriptedLlm({ LlmResponse.ToolCalls(listOf(write)) }),
+            refresher = { AccessCheck.Unavailable },
+        )
+        val second = unavailable.run(listOf(user("x")))
+        assertTrue(unavailable.toolbox.executed.isEmpty())
+        assertEquals("BACKEND_UNAVAILABLE", second.filterIsInstance<ChatEvent.ToolFinished>().single().code)
+    }
+
+    @Test
+    fun `tool schemas are reserved in the history limit`() = runBlocking<Unit> {
+        val llm = ScriptedLlm({ LlmResponse.Text("ok") })
+        val longHistory =
+            listOf(user("a".repeat(1_500)), ChatMessage(ChatRole.ASSISTANT, text = "b".repeat(1_500)), user("x"))
+        TurnHarness(llm, limits = limits(historyMaxChars = 3_400)).run(longHistory)
+
+        val request = llm.requests.single()
+        val toolChars = request.tools.sumOf { it.name.length + it.description.length + it.parameters.toString().length }
+        val historyChars = request.messages.sumOf { it.text.orEmpty().length + 16 }
+        assertTrue(request.system.length + toolChars + historyChars <= 3_400, "Request exceeds the history limit")
     }
 
     @Test
