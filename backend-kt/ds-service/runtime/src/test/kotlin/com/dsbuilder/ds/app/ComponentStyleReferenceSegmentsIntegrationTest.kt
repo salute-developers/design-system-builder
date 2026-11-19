@@ -134,6 +134,9 @@ class ComponentStyleReferenceSegmentsIntegrationTest {
             setBody("""{"platform":"compose"}""")
         }
         assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
+        // Выгрузка пишет ссылку так, как она записана в пакете, поэтому обратная загрузка снова идёт по идентификаторам.
+        assertTrue("group.l.no-gap.default" in exported.bodyAsText(), "the export must keep the reference text")
+        assertTrue("group.no-gap.default" in exported.bodyAsText(), "the export must keep the reference text")
         val components = json.parseToJsonElement(exported.bodyAsText()).jsonObject.getValue("components").jsonArray
         val back = importPackage(system, components.map { it.toString() })
 
@@ -147,23 +150,29 @@ class ComponentStyleReferenceSegmentsIntegrationTest {
     @Test
     fun `the combinations of a target are read the same number of times for any number of references`() = withService {
         seedGlobalLayer()
+        val none = designSystem("references-none")
         val few = designSystem()
         val many = designSystem("references-many")
         fun parents(count: Int) = (1..count).map { parent("p$it", "group.l.no-gap.default") }
+        fun combinationReads(delta: QueryCounter.Snapshot) =
+            delta.byKind.filterKeys { it.startsWith("SELECT") && "appearance_combination" in it }.values.sum()
 
         QueryCounter.profile(true)
         try {
-            val first = QueryCounter.snapshot()
+            val start = QueryCounter.snapshot()
+            importPackage(none, listOf(group))
+            val afterNone = QueryCounter.snapshot()
             importPackage(few, listOf(group) + parents(2))
-            val second = QueryCounter.snapshot()
+            val afterFew = QueryCounter.snapshot()
             importPackage(many, listOf(group) + parents(30))
-            val third = QueryCounter.snapshot()
-            fun combinationReads(delta: QueryCounter.Snapshot) =
-                delta.byKind.filterKeys { it.startsWith("SELECT") && "appearance_combination" in it }.values.sum()
-            assertTrue(combinationReads(second - first) > 0, "the counter must see the reads of combinations")
+            val afterMany = QueryCounter.snapshot()
+            assertTrue(
+                combinationReads(afterFew - afterNone) > combinationReads(afterNone - start),
+                "the index of the target must add reads of combinations to an import without references",
+            )
             assertEquals(
-                combinationReads(second - first),
-                combinationReads(third - second),
+                combinationReads(afterFew - afterNone),
+                combinationReads(afterMany - afterFew),
                 "reading the combinations of the target must not grow with the number of references",
             )
         } finally {
@@ -171,6 +180,131 @@ class ComponentStyleReferenceSegmentsIntegrationTest {
         }
         // Две дизайн-системы, по три стиля в каждой.
         assertEquals(mapOf("group.l.no-gap.default" to 6), references())
+    }
+
+    /** Сочетание, которое нельзя собрать из имён и идентификаторов значений: индекс сочетаний обязателен. */
+    @Test
+    fun `a reference is resolved by the authored identifier of a combination alone`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+
+        val report = importPackage(system, listOf(combinationOnly, parent("by-combination-only", "combo.x.y")))
+
+        assertEquals(emptyList(), unresolved(report))
+        assertEquals(mapOf("combo.x.y" to 3), references())
+    }
+
+    @Test
+    fun `a value wins over a combination with the same authored identifier`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+
+        val report = importPackage(system, listOf(clash, parent("clash-ref", "clash.k")))
+
+        assertEquals(emptyList(), unresolved(report))
+        assertEquals(mapOf("clash.k" to 1), references())
+    }
+
+    @Test
+    fun `two combinations with one authored identifier are not merged`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+
+        importPackage(system, listOf(duplicated, parent("dup-ref", "dup.d")))
+
+        val styles = references().getValue("dup.d")
+        assertTrue(styles in setOf(2, 3), "the styles of one combination, not of both: $styles")
+    }
+
+    @Test
+    fun `an empty authored identifier addresses nothing`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        val empty =
+            """{"componentName":"group","styleName":"empty","config":{"variations":[""" +
+                """{"id":"gap","name":"gap","values":[{"name":"none","authoredId":""}]}]}}"""
+
+        val report = importPackage(system, listOf(empty, parent("e1", "empty."), parent("e2", "empty..none")))
+
+        assertEquals(listOf("empty.", "empty..none"), unresolved(report).sorted())
+        assertEquals(emptyMap(), references())
+    }
+
+    @Test
+    fun `a reference without a tail is recorded with no styles as before`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+
+        val report = importPackage(system, listOf(group, parent("whole", "group")))
+
+        assertEquals(emptyList(), unresolved(report))
+        assertEquals(mapOf("group" to 0), references())
+    }
+
+    /** Источники ссылки: значение вариации, сочетание стилей и значение с состоянием. */
+    @Test
+    fun `references of variation values, combinations and states are resolved by authored identifiers`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        val byVariation =
+            """{"componentName":"parent","styleName":"by-variation","config":{"variations":[""" +
+                """{"id":"mode","name":"mode","values":[{"name":"a","properties":{"content":""" +
+                """{"type":"component_style","value":"group.no-gap"}}}]}]}}"""
+        val byCombination =
+            """{"componentName":"parent","styleName":"by-combo","config":{"variations":[""" +
+                """{"id":"mode","name":"mode","values":[{"name":"a"}]},""" +
+                """{"id":"tone","name":"tone","values":[{"name":"b","targets":[{"properties":[""" +
+                """{"id":"mode","value":"a"}]}],"properties":{"content":""" +
+                """{"type":"component_style","value":"group.l.no-gap.default"}}}]}]}}"""
+        val byState =
+            """{"componentName":"parent","styleName":"by-state","config":{"invariants":{"content":""" +
+                """{"type":"component_style","value":"group.no-gap","states":[{"state":["hovered"],""" +
+                """"value":"group.l.no-gap.default"}]}}}}"""
+
+        val report = importPackage(system, listOf(group, byVariation, byCombination, byState))
+
+        assertEquals(emptyList(), unresolved(report))
+        assertEquals(mapOf("group.no-gap" to 1, "group.l.no-gap.default" to 3), references())
+    }
+
+    @Test
+    fun `a target that already exists from an earlier import is found`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        importPackage(system, listOf(group))
+
+        val report = importPackage(system, listOf(parent("later", "group.l.no-gap.default")))
+
+        assertEquals(emptyList(), unresolved(report))
+        assertEquals(mapOf("group.l.no-gap.default" to 3), references())
+    }
+
+    @Test
+    fun `a reference stops resolving when the authored identifier of its target is renamed`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        val parent = parent("renamed", "group.no-gap")
+        importPackage(system, listOf(group, parent))
+
+        val renamed = group.replace(""""authoredId":"no-gap"""", """"authoredId":"gap-none"""")
+        val report = importPackage(system, listOf(renamed, parent))
+
+        assertEquals(listOf("group.no-gap"), unresolved(report))
+        assertEquals(emptyMap(), references())
+    }
+
+    @Test
+    fun `a dry run reports what an applied import reports and records no references`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        val entries = listOf(group, parent("dry", "group.l.no-gap.default"), parent("dry-missing", "group.zzz"))
+
+        val dry = importPackage(system, entries, dryRun = true)
+        assertEquals(emptyMap(), references(), "a dry run must record no references")
+
+        val applied = importPackage(system, entries)
+        assertEquals(dry, applied, "a dry run must report exactly what the applied import reports")
+        assertEquals(listOf("group.zzz"), unresolved(applied))
     }
 
     // ── corpus ─────────────────────────────────────────────────────────────────────────────────────
@@ -182,6 +316,32 @@ class ComponentStyleReferenceSegmentsIntegrationTest {
             """{"id":"gap","name":"gap","values":[{"name":"none","authoredId":"no-gap"}]},""" +
             """{"id":"shape","name":"shape","values":[{"name":"default","authoredId":"l.no-gap.default",""" +
             """"targets":[{"properties":[{"id":"size","value":"l"},{"id":"gap","value":"none"}]}]}]}]}}"""
+
+    /** Сочетание `x.y` (`size = l`, `gap = none`, `shape = default`), которого нет среди имён и идентификаторов значений. */
+    private val combinationOnly =
+        """{"componentName":"group","styleName":"combo","config":{"variations":[""" +
+            """{"id":"size","name":"size","values":[{"name":"l"}]},""" +
+            """{"id":"gap","name":"gap","values":[{"name":"none"}]},""" +
+            """{"id":"shape","name":"shape","values":[{"name":"default","authoredId":"x.y",""" +
+            """"targets":[{"properties":[{"id":"size","value":"l"},{"id":"gap","value":"none"}]}]}]}]}}"""
+
+    /** Идентификатор `k` у значения `gap = none` и у сочетания `size = l`, `shape = default`. */
+    private val clash =
+        """{"componentName":"group","styleName":"clash","config":{"variations":[""" +
+            """{"id":"size","name":"size","values":[{"name":"l"}]},""" +
+            """{"id":"gap","name":"gap","values":[{"name":"none","authoredId":"k"}]},""" +
+            """{"id":"shape","name":"shape","values":[{"name":"default","authoredId":"k",""" +
+            """"targets":[{"properties":[{"id":"size","value":"l"}]}]}]}]}}"""
+
+    /** Два сочетания с одним идентификатором `d`. */
+    private val duplicated =
+        """{"componentName":"group","styleName":"dup","config":{"variations":[""" +
+            """{"id":"size","name":"size","values":[{"name":"l"}]},""" +
+            """{"id":"gap","name":"gap","values":[{"name":"none"}]},""" +
+            """{"id":"shape","name":"shape","values":[""" +
+            """{"name":"a","authoredId":"d","targets":[{"properties":[{"id":"size","value":"l"}]}]},""" +
+            """{"name":"b","authoredId":"d","targets":[{"properties":[{"id":"size","value":"l"},""" +
+            """{"id":"gap","value":"none"}]}]}]}]}}"""
 
     private fun parent(styleName: String, reference: String) =
         """{"componentName":"parent","styleName":"$styleName","config":{"invariants":{"content":""" +
@@ -215,12 +375,12 @@ class ComponentStyleReferenceSegmentsIntegrationTest {
         return json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
     }
 
-    private suspend fun importPackage(system: String, entries: List<String>): JsonObject {
+    private suspend fun importPackage(system: String, entries: List<String>, dryRun: Boolean = false): JsonObject {
         val response = service.builder.client.post("/api/design-systems/$system/component-config/import") {
             actor(administrator = false)
             contentType(ContentType.Application.Json)
             setBody(
-                """{"platform":"compose","meta":{"name":"references","source":"kotlin-test"},"dryRun":false,""" +
+                """{"platform":"compose","meta":{"name":"references","source":"kotlin-test"},"dryRun":$dryRun,""" +
                     """"components":[${entries.joinToString(",")}]}""",
             )
         }

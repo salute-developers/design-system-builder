@@ -1033,7 +1033,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
      */
     private fun authoredStyles(appearanceId: UUID, values: List<EditorAxisValue>): Map<String, List<UUID>> {
         val authored = linkedMapOf<String, List<UUID>>()
-        values.forEach { value -> value.authoredId?.let { authored.putIfAbsent(it, listOf(value.styleId)) } }
+        // Пустой идентификатор никого не адресует: пустой сегмент ссылки не должен с ним совпасть.
+        values.forEach { value ->
+            value.authoredId?.takeIf { it.isNotEmpty() }?.let { authored.putIfAbsent(it, listOf(value.styleId)) }
+        }
         AppearanceCombinationsTable.join(
             AppearanceCombinationMembersTable,
             JoinType.INNER,
@@ -1045,8 +1048,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }.orderBy(
             AppearanceCombinationsTable.position to SortOrder.ASC,
             AppearanceCombinationMembersTable.position to SortOrder.ASC,
-        ).groupBy({ it[AppearanceCombinationsTable.authoredId]!! }, { it[AppearanceCombinationMembersTable.styleId] })
-            .forEach { (id, styles) -> authored.putIfAbsent(id, styles) }
+        ).groupBy { it[AppearanceCombinationsTable.id] }.values.forEach { members ->
+            // Группировка по сочетанию, а не по идентификатору: два сочетания с одним идентификатором не склеиваются.
+            members.first()[AppearanceCombinationsTable.authoredId]?.takeIf { it.isNotEmpty() }?.let {
+                authored.putIfAbsent(it, members.map { row -> row[AppearanceCombinationMembersTable.styleId] })
+            }
+        }
         return authored
     }
 
