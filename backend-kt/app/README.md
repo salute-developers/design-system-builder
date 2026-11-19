@@ -74,6 +74,15 @@ Kubernetes указывайте доступные из процесса адр�
 | `DOCUMENTATION_WORKER_*`, `DOCUMENTATION_CLEANUP_*` | Прежние параметры аренды, повторов, опроса и очистки |
 | `DOCUMENTATION_S3_*`, `DS_PLUGIN_S3_*` | Прежние подключения и настройки MinIO/S3 |
 | `PROJECTS_IDENTITY_KEYCLOAK_*`, `PROJECTS_ACCESS_KEYS_*` | Прежние настройки поиска пользователей и ключей проектов |
+| `AI_ENABLED` | Включает ИИ-чат, `false`. При `false` остальные `AI_*` не читаются; при `true` ошибка в любой из них не даёт открыть готовность |
+| `AI_PROVIDER` | `openai-compatible` (по умолчанию) или `gigachat` |
+| `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | API формата OpenAI; по умолчанию ZAI `https://api.z.ai/api/paas/v4` и `glm-4.5-flash`, ключ обязателен |
+| `AI_EXTRA_BODY`, `AI_RETRY_ERROR_CODES` | JSON, подмешиваемый в тело запроса (по умолчанию `{"thinking":{"type":"disabled"}}`), и коды повтора кроме 429/5xx (`1234,1305`) |
+| `AI_GIGACHAT_AUTH_KEY`, `AI_GIGACHAT_SCOPE`, `AI_GIGACHAT_OAUTH_URL`, `AI_GIGACHAT_BASE_URL` | GigaChat; по умолчанию `GIGACHAT_API_PERS`, `https://ngw.devices.sberbank.ru:9443/api/v2/oauth`, `https://api.giga.chat/v1`, ключ обязателен |
+| `AI_GIGACHAT_CA_PATH` | Путь к корню НУЦ Минцифры внутри контейнера; файл монтируется томом только для чтения и добавляется к системным корням |
+| `AI_MAX_STEPS`, `AI_MAX_WRITES`, `AI_TURN_TIMEOUT_SECONDS`, `AI_TOOL_CALL_TIMEOUT_SECONDS` | Лимиты хода: 12 шагов, 10 записей без подтверждения, 120 с, 30 с на вызов инструмента |
+| `AI_HISTORY_MAX_CHARS`, `AI_MESSAGE_MAX_CHARS`, `AI_TOOL_RESULT_MAX_CHARS` | 60000, 8000, 6000; лимит истории должен вмещать промпт со схемами, сообщение и один обмен с инструментом |
+| `AI_TURN_STORE_MAX_MB` | Объём событий ходов в памяти, 64 МиБ; учитывается в `BACKEND_MEMORY_LIMIT` |
 
 Лимиты остальных маршрутов сохраняются: 2 MiB по умолчанию, 16 MiB для DS/импорта
 API-меты, 64 MiB для публикации плагина. Проверяется фактически прочитанное тело,
