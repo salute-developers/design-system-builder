@@ -91,15 +91,33 @@ class RunChatTurnUseCase internal constructor(
         private val tools = mutableListOf<String>()
 
         suspend fun execute() {
-            command.confirmed?.let { confirmed ->
+            val halt = command.confirmed?.let { confirmed ->
                 runConfirmed(confirmed)
-                if (accessRevoked) return error(ERROR_ACCESS_REVOKED, "Доступ к проекту отозван.")
-                if (turns.isStopRequested(command.turnId)) return error(ERROR_STOPPED, "Ход остановлен.")
+                afterConfirmed()
             }
+            if (halt != null) return error(halt.first, halt.second)
             repeat(limits.maxSteps) {
                 if (!step()) return
             }
             error(ERROR_STEP_LIMIT, "Достигнут предел шагов хода.")
+        }
+
+        /** Причина не продолжать моделью после подтверждённой операции; null — продолжать. */
+        private fun afterConfirmed(): Pair<String, String>? {
+            // Флаг остановки читается один раз: остановленный ход не должен расходовать лимит.
+            val stopped = turns.isStopRequested(command.turnId)
+            val seconds = if (accessRevoked || stopped) {
+                null
+            } else {
+                // Решение по подтверждению принимается и на пределе, но дальнейшая работа модели — уже новый ход.
+                turns.chargeContinuation(command.turnId)
+            }
+            return when {
+                accessRevoked -> ERROR_ACCESS_REVOKED to "Доступ к проекту отозван."
+                stopped -> ERROR_STOPPED to "Ход остановлен."
+                seconds != null -> ERROR_TURN_LIMIT to "Лимит ходов исчерпан, продолжить можно через $seconds с."
+                else -> null
+            }
         }
 
         /** Один шаг модели; false — ход завершается. */
@@ -473,6 +491,9 @@ class RunChatTurnUseCase internal constructor(
 
         /** Код события `error`: истёк таймаут хода. */
         const val ERROR_TURN_TIMEOUT = "turn_timeout"
+
+        /** Код события `error`: часовой лимит исчерпан, модель после решения по подтверждению не вызывалась. */
+        const val ERROR_TURN_LIMIT = "turn_limit_reached"
 
         /** Код события `error`: доступ участника к проекту отозван во время хода. */
         const val ERROR_ACCESS_REVOKED = "access_revoked"

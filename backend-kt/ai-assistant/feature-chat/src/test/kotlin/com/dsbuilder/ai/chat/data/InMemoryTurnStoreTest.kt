@@ -183,6 +183,34 @@ class InMemoryTurnStoreTest {
     }
 
     @Test
+    fun continuationAfterConfirmationSpendsTheHourlyLimitOnce() {
+        var now = Instant.parse("2026-11-19T10:00:00Z")
+        val clock = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+            override fun withZone(zone: java.time.ZoneId?) = this
+            override fun instant() = now
+        }
+        val store = InMemoryTurnStore(1_000_000, clock, maxTurnsPerHour = 1)
+        val confirmed = store.register(keys(key = "confirm", token = "hash"), 0).id()
+
+        assertEquals(null, store.chargeContinuation(confirmed))
+        assertEquals(null, store.chargeContinuation(confirmed), "an already counted turn is not charged twice")
+        store.complete(confirmed)
+
+        val next = store.register(keys(key = "confirm-2", token = "hash-2"), 0).id()
+        now = now.plusSeconds(600)
+        assertEquals(3_000L, store.chargeContinuation(next))
+        store.complete(next)
+        assertEquals(
+            3_000L,
+            assertIs<TurnRegistration.RateLimited>(store.register(keys(key = "plain"), 0)).retryAfterSeconds,
+        )
+
+        now = now.plusSeconds(3_001)
+        assertIs<TurnRegistration.Started>(store.register(keys(key = "after-hour"), 0))
+    }
+
+    @Test
     fun concurrentLimitIsShared() {
         val store = InMemoryTurnStore(1_000_000, maxConcurrentTurns = 1)
         store.register(keys(key = "a"), 0).id()

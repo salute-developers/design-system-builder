@@ -113,8 +113,8 @@ internal class TurnHarness(
     val toolbox: FakeToolbox = FakeToolbox(),
     val limits: AgentLimits = limits(),
     val refresher: ChatAccessRefresher? = null,
+    val store: InMemoryTurnStore = InMemoryTurnStore(limits.turnStoreMaxBytes),
 ) {
-    val store = InMemoryTurnStore(limits.turnStoreMaxBytes)
     val signer = HmacConfirmationSigner()
     private var keys = 0
     private var registrations = 0
@@ -132,7 +132,8 @@ internal class TurnHarness(
                 scope.designSystemId,
                 "idem-${registrations++}",
                 "fp",
-                null,
+                // Решение по подтверждению регистрируется с хешем токена, как в StartChatTurnUseCase.
+                confirmed?.let { "token-$registrations" },
             ),
             0,
         ) as TurnRegistration.Started

@@ -1,5 +1,6 @@
 package com.dsbuilder.ai.chat.application
 
+import com.dsbuilder.ai.chat.data.InMemoryTurnStore
 import com.dsbuilder.ai.chat.domain.ChatEvent
 import com.dsbuilder.ai.chat.domain.ChatMessage
 import com.dsbuilder.ai.chat.domain.ChatRole
@@ -109,6 +110,57 @@ class RunChatTurnUseCaseTest {
 
         assertTrue(harness.toolbox.executed.isEmpty())
         assertEquals("user_rejected", events.filterIsInstance<ChatEvent.ToolFinished>().single().code)
+    }
+
+    @Test
+    fun `confirmation decision on exhausted hourly limit finishes without the model`() = runBlocking<Unit> {
+        val llm = ScriptedLlm({ LlmResponse.ToolCalls(listOf(reset)) })
+        val harness = TurnHarness(llm, store = InMemoryTurnStore(1_000_000, maxTurnsPerHour = 1))
+        val pause = harness.run(listOf(user("сбрось"))).filterIsInstance<ChatEvent.ConfirmationRequired>().single()
+        val check = harness.signer.verify(pause.confirmationToken, scope) as ConfirmationCheck.Valid
+
+        val events = harness.run(
+            listOf(user("сбрось"), user("а теперь расскажи про токены")),
+            ConfirmedOperation(check.operation, approved = false),
+        )
+
+        assertEquals(1, llm.requests.size, "the model is not called beyond the hourly limit")
+        assertEquals("user_rejected", events.filterIsInstance<ChatEvent.ToolFinished>().single().code)
+        assertEquals("turn_limit_reached", events.filterIsInstance<ChatEvent.Error>().single().code)
+        assertIs<ChatEvent.Done>(events.last())
+    }
+
+    @Test
+    fun `stopped confirmation turn does not spend the hourly limit`() = runBlocking<Unit> {
+        val llm = ScriptedLlm({ LlmResponse.ToolCalls(listOf(reset)) }, { LlmResponse.Text("ок") })
+        val harness = TurnHarness(llm, store = InMemoryTurnStore(1_000_000, maxTurnsPerHour = 2))
+        val pause = harness.run(listOf(user("сбрось"))).filterIsInstance<ChatEvent.ConfirmationRequired>().single()
+        val check = harness.signer.verify(pause.confirmationToken, scope) as ConfirmationCheck.Valid
+
+        val stopped = harness.run(listOf(user("сбрось")), ConfirmedOperation(check.operation, true)) { turnId ->
+            harness.store.stop(turnId, TurnOwner(scope.userId, scope.projectId))
+        }
+        val next = harness.run(listOf(user("ещё вопрос")))
+
+        assertEquals("stopped", stopped.filterIsInstance<ChatEvent.Error>().single().code)
+        assertTrue(next.none { it is ChatEvent.Error }, "the stopped turn left the second slot free")
+        assertEquals(2, llm.requests.size)
+    }
+
+    @Test
+    fun `confirmation decision under the limit continues and spends the hourly limit`() = runBlocking<Unit> {
+        val llm = ScriptedLlm({ LlmResponse.ToolCalls(listOf(reset)) }, { LlmResponse.ToolCalls(listOf(reset)) })
+        val harness = TurnHarness(llm, store = InMemoryTurnStore(1_000_000, maxTurnsPerHour = 2))
+        val first = harness.run(listOf(user("сбрось"))).filterIsInstance<ChatEvent.ConfirmationRequired>().single()
+        val check = harness.signer.verify(first.confirmationToken, scope) as ConfirmationCheck.Valid
+
+        val second = harness.run(listOf(user("сбрось")), ConfirmedOperation(check.operation, approved = false))
+        val next = second.filterIsInstance<ChatEvent.ConfirmationRequired>().single()
+        val nextCheck = harness.signer.verify(next.confirmationToken, scope) as ConfirmationCheck.Valid
+        val third = harness.run(listOf(user("сбрось")), ConfirmedOperation(nextCheck.operation, approved = false))
+
+        assertEquals(2, llm.requests.size, "the continuation is the second counted turn, the third is not served")
+        assertEquals("turn_limit_reached", third.filterIsInstance<ChatEvent.Error>().single().code)
     }
 
     @Test

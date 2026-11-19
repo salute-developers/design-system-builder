@@ -88,11 +88,25 @@ internal class InMemoryTurnStore(
         return when {
             activeByUser.size >= maxConcurrentTurns -> TurnRegistration.Overloaded
             !counted || starts.size < maxTurnsPerHour -> null
-            else -> {
-                val wait = Duration.between(now, starts.first().plus(HOUR))
-                TurnRegistration.RateLimited(((wait.toMillis() + MILLIS - 1) / MILLIS).coerceAtLeast(1))
-            }
+            else -> TurnRegistration.RateLimited(retryAfter(starts, now))
         }
+    }
+
+    override fun chargeContinuation(turnId: String): Long? = synchronized(lock) {
+        purge()
+        val turn = turns[turnId]?.takeIf { it.countedAt == null } ?: return null
+        val now = clock.instant()
+        val starts = startsByUser[turn.owner.userId].orEmpty()
+        if (starts.size >= maxTurnsPerHour) return retryAfter(starts, now)
+        startsByUser.getOrPut(turn.owner.userId) { ArrayDeque() }.addLast(now)
+        turn.countedAt = now
+        null
+    }
+
+    /** Секунды (с округлением вверх) до выхода самого старого хода из часового окна. */
+    private fun retryAfter(starts: List<Instant>, now: Instant): Long {
+        val wait = Duration.between(now, starts.first().plus(HOUR))
+        return ((wait.toMillis() + MILLIS - 1) / MILLIS).coerceAtLeast(1)
     }
 
     override fun cancelRegistration(turnId: String): Unit = synchronized(lock) {
@@ -227,7 +241,7 @@ internal class InMemoryTurnStore(
     }
 
     private class Turn(val id: String, val owner: TurnOwner, val designSystemId: String, var bytes: Long) {
-        /** Момент, засчитанный в часовой лимит; null — ход в лимит не засчитан (решение по подтверждению). */
+        /** Момент, засчитанный в часовой лимит; null — ход в лимит пока не засчитан (решение по подтверждению). */
         var countedAt: Instant? = null
         val events = mutableListOf<StoredEvent>()
         val version = MutableStateFlow(0L)
