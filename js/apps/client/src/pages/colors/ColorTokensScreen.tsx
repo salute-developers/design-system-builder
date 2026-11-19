@@ -577,12 +577,20 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 : selected.modes[pickerField.mode]
             : null;
     const pickerValue =
-        picker && pickerBase ? (picker.platform === 'web' ? pickerBase : pickerBase.platforms[picker.platform]) : null;
+        picker && pickerBase
+            ? picker.platform === 'web'
+                ? pickerBase
+                : (pickerBase.platforms[picker.platform] ?? pickerBase)
+            : null;
     /** Пояснения выбора цвета: своё значение платформы и начальный угол Conic на Android. */
     const pickerNotes = (() => {
         if (!picker || !pickerBase || !pickerValue) return [];
         if (picker.platform !== 'web')
-            return [`своё значение: правки меняют только ${PLATFORM_LABELS[picker.platform]}`];
+            return [
+                pickerBase.platforms[picker.platform]
+                    ? `своё значение: правки меняют только ${PLATFORM_LABELS[picker.platform]}`
+                    : `строится из Web: правка станет своим значением ${PLATFORM_LABELS[picker.platform]}`,
+            ];
         const paint = pickerValue.paint;
         if (paint?.kind === 'gradient' && paint.model.type === 'conic' && !pickerBase.platforms.android)
             return [
@@ -780,9 +788,6 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             }
                             onOpacity={(target, percent) =>
                                 edit(() => editor.setOpacity(selected, target.field, percent, target.platform))
-                            }
-                            onAddPlatform={(field, platform) =>
-                                edit(() => editor.addPlatform(selected, field, platform))
                             }
                             onRemovePlatform={(field, platform) => {
                                 if (picker?.field === field && picker.platform === platform) setPicker(null);

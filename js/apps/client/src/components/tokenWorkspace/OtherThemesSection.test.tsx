@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
+import { notifyEditorDataInvalidated } from '../../api/draftInvalidationStream';
 import type { TenantTokenValueDto } from '../../api/editorContracts';
 import { tokenRepository } from '../../api/tokenRepository';
 import { themesApi } from '../../modules/themes/data/themesApi';
@@ -38,7 +39,7 @@ const describeRow = (items: TenantTokenValueDto[]) => [
     String((webValue(items, 't1', 'dark') as string[] | undefined)?.[0] ?? ''),
 ];
 
-const tree = () => (
+const tree = ({ versionId }: { versionId?: string } = { versionId: 'v1' }) => (
     <MemoryRouter initialEntries={['/projects/p/design-systems/ds/themes/light/colors?versionId=v1']}>
         <Routes>
             <Route
@@ -46,7 +47,7 @@ const tree = () => (
                 element={
                     <>
                         <OtherThemesSection
-                            context={{ ...context, versionId: 'v1' }}
+                            context={{ ...context, versionId }}
                             tokenIds={['t1']}
                             addressTokenId="t1"
                             columns={['Light', 'Dark']}
@@ -105,6 +106,24 @@ describe('OtherThemesSection', () => {
         expect(rows.map((row) => row.textContent)).toEqual(['Dark#222222#EEEEEE', 'Kids#111111#EEEEEE']);
         expect(screen.queryByText('≠')).not.toBeInTheDocument();
         expect(localStorage.getItem('dsb.inspector.other-themes.open')).toBe('true');
+    });
+
+    it('раскрытый блок перечитывает значения после инвалидации токенов тем', async () => {
+        const load = vi
+            .spyOn(tokenRepository, 'loadValuesByTenant')
+            .mockResolvedValueOnce(
+                new Map([values('dark', '#222222', '#EEEEEE'), values('kids', '#111111', '#EEEEEE')]),
+            )
+            .mockResolvedValueOnce(
+                new Map([values('dark', '#333333', '#EEEEEE'), values('kids', '#111111', '#EEEEEE')]),
+            );
+        render(tree({}));
+
+        fireEvent.click(await screen.findByRole('button', { name: 'В других темах · 2' }));
+        expect(await screen.findByText('#222222')).toBeInTheDocument();
+        notifyEditorDataInvalidated(context, new Set(['theme-tokens']));
+        expect(await screen.findByText('#333333')).toBeInTheDocument();
+        expect(load).toHaveBeenCalledTimes(2);
     });
 
     it('поиск по темам открывается кнопкой, когда других тем больше порога', async () => {

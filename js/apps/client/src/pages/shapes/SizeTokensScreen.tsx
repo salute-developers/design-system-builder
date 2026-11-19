@@ -363,9 +363,10 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     onHideDisabled={() => setHideDisabled(!hideDisabled)}
                 />
                 <main className="preview-canvas">
-                    <div className="st-preview-toolbar">
+                    <header className="st-preview-header">
+                        <strong>Предпросмотр</strong>
                         <TokenPlatformMenu platform={platform} onSelect={setPlatform} />
-                    </div>
+                    </header>
                     <SizeTokenBoard
                         kind={boardKind}
                         tokens={board}

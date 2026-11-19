@@ -96,10 +96,21 @@ describe('токены экрана', () => {
         expect(accent.modes.light).toMatchObject({ paletteLabel: 'Blue 500', opacity: 0.56, resolved: '#3377FFFF' });
         expect(accent).toMatchObject({ groupId: 'accent', position: 2, publishedIn: '1.0.0' });
         expect(accent.contexts.inverse.linked).toBe(true);
-        expect(card.contexts.ondark.linked).toBe(false);
+        // Отличающееся значение сида не отвязывает подтему: связь снимает только `detached`.
+        expect(card.contexts.ondark.linked).toBe(true);
+        expect(card.contexts.ondark.values.dark.value).toBe('#123456');
         expect(card.contexts.onlight.linked).toBe(true);
         expect(card.modes.dark.opacity).toBe(0.08);
         expect(background).toMatchObject({ groupId: null, position: 0, publishedIn: null });
+    });
+
+    it('отвязывает подтему только признаком detached, даже при совпадающих значениях', () => {
+        const tokens = family('text', 'accent', '#111111', '#EEEEEE').map((token) =>
+            token.name === 'dark.text.inverse.accent' ? { ...token, detached: true } : token,
+        );
+        const [view] = buildColorTokenViews(tokens, deps());
+        expect(view.contexts.inverse.linked).toBe(false);
+        expect(view.contexts.ondark.linked).toBe(true);
     });
 
     it('отмечает неполный токен и значения, которые не пройдут проверку', () => {

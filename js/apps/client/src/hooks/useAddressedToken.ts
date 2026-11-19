@@ -43,12 +43,14 @@ export const useAddressedToken = (context?: EditorContextKey, isAvailable?: (nam
     /** Выбор токена всегда пишется в адрес: переключатель тем переносит `tokenId` в другую тему. */
     const selectTokenName = (name: string) => {
         latestName.current = name;
-        const write = (definitions: TokenDefinitionDto[]) => {
-            if (latestName.current !== name) return;
-            const nextId = (
+        const idOf = (definitions: TokenDefinitionDto[]) =>
+            (
                 definitions.find((token) => token.name === name) ??
                 definitions.find((token) => matchesEditorName(name, token.name))
             )?.id;
+        const write = (definitions: TokenDefinitionDto[]) => {
+            if (latestName.current !== name) return;
+            const nextId = idOf(definitions);
             if (!nextId) return;
             setSearchParams(
                 (current) => {
@@ -60,8 +62,16 @@ export const useAddressedToken = (context?: EditorContextKey, isAvailable?: (nam
                 { replace: true },
             );
         };
-        if (tokens.length) write(tokens);
-        else if (context) void repository.listDefinitions(context).then(write, () => undefined);
+        // Имени нет в загруженных определениях — токен создан после загрузки: определения перечитываются.
+        if (idOf(tokens)) write(tokens);
+        else if (context)
+            void repository.listDefinitions(context).then(
+                (next) => {
+                    setTokens(next);
+                    write(next);
+                },
+                () => undefined,
+            );
     };
 
     return { tokenId, requestedTokenName: requested?.name, unavailable, selectTokenName };

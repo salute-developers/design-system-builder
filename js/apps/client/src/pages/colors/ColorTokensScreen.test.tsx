@@ -1479,34 +1479,28 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(field('Dark')).toHaveValue('Линейный · 45°');
     });
 
-    it('платформа iOS: «+» делает значение своим, правка Web его не перестраивает, «×» возвращает к Web', async () => {
+    it('платформа iOS: правка значения делает его своим, правка Web его не перестраивает, «×» возвращает к Web', async () => {
         repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'color' });
         await renderScreen();
         openSubthemes();
         choosePlatform('iOS');
 
-        // Без своего значения iOS поле показывает значение Web и не правится, «+» делает его своим.
+        // Без своего значения iOS поле показывает значение Web и правится без «+»: правка становится своим значением.
         expect(field('Light, iOS')).toHaveValue('118833');
+        expect(field('Light, iOS')).toBeEnabled();
+        expect(within(inspector()).queryByRole('button', { name: /^Своё значение платформы/ })).toBeNull();
         expect(within(inspector()).queryByRole('button', { name: 'Убрать своё значение iOS: Light' })).toBeNull();
-        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0]);
-        fireEvent.click(screen.getByRole('menuitem', { name: 'iOS' }));
-        // Добавление своего значения не открывает выбор цвета.
-        expect(screen.queryByRole('dialog', { name: /^Color picker:/ })).toBeNull();
+        fireEvent.change(field('Light, iOS'), { target: { value: '#445566' } });
+        fireEvent.keyDown(field('Light, iOS'), { key: 'Enter' });
         await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
-        expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#118833'], overridden: true });
+        expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#445566'], overridden: true });
         expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
-        // OnLight наследует Light вместе со своим значением платформы; у связанной подтемы нет ни «+», ни «×».
+        // OnLight наследует Light вместе со своим значением платформы; у связанной подтемы нет «×».
         expect(lastUpdate()('accent-2', 'ios', 'light')).toMatchObject({ overridden: true });
         expect(within(inspector()).getAllByRole('button', { name: 'Убрать своё значение iOS: Light' })).toHaveLength(1);
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Light, iOS' })[0]);
         const picker = screen.getByRole('dialog', { name: /^Color picker: .*, iOS$/ });
         expect(within(picker).getByText('своё значение: правки меняют только iOS')).toBeInTheDocument();
-
-        fireEvent.change(field('Light, iOS'), { target: { value: '#445566' } });
-        fireEvent.keyDown(field('Light, iOS'), { key: 'Enter' });
-        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
-        expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#445566'], overridden: true });
-        expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
         // Образец строки дерева показывает цвет выбранной платформы, как борд.
         const rowSwatch = () =>
             (screen.getByTestId('color-token-row-text.accent').querySelector('.token-color-preview') as HTMLElement)
@@ -1517,7 +1511,7 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(rowSwatch()).not.toMatch(/445566|rgb\(68, 85, 102\)/i);
         expect(field('Light')).toHaveValue('118833');
         commitLight('#123456');
-        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(3));
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
         expect(lastUpdate()('accent-0', 'web', 'light')?.value).toEqual(['#123456']);
         expect(lastUpdate()('accent-0', 'android', 'light')).toMatchObject({ value: ['#123456'], overridden: false });
         expect(lastUpdate()('accent-0', 'ios', 'light')).toBeUndefined();
@@ -1531,7 +1525,7 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(field('Light, iOS')).toHaveValue('123456');
     });
 
-    it('своё значение Android у Conic — без начального угла', async () => {
+    it('выбор цвета Android у Conic — без начального угла', async () => {
         familyType = 'gradient';
         storedValue = (name, platform, mode) =>
             name === 'text.default.accent' && mode === 'dark' && platform === 'web'
@@ -1540,15 +1534,13 @@ describe('ColorTokensScreen: градиенты', () => {
         await renderScreen();
         choosePlatform('Android');
 
-        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Dark' })[0]);
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Android' }));
-        expect(screen.queryByRole('dialog', { name: /^Color picker:/ })).toBeNull();
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark, Android' })[0]);
 
         const picker = screen.getByRole('dialog', { name: /^Color picker: .*, Android$/ });
         expect(within(picker).getByRole('group', { name: 'Центр градиента' })).toBeInTheDocument();
         expect(within(picker).queryByRole('slider', { name: 'Начальный угол' })).toBeNull();
-        expect(field('Dark, Android')).toHaveValue('Конический · 0°');
+        // Без своего значения поле показывает Web, из которого строится Android; угол Android задаётся выбором цвета.
+        expect(field('Dark, Android')).toHaveValue('Конический · 30°');
     });
 
     it('переименовывает токен на месте в заголовке инспектора', async () => {
@@ -1696,13 +1688,13 @@ describe('ColorTokensScreen: вёрстка по Figma', () => {
         expect(tokenReset.reset.mock.calls[0][0].size).toBeGreaterThan(0);
     });
 
-    it('«+» своего значения выбранной платформы видна у полей режимов без наведения', async () => {
+    it('у полей платформы нет «+», кнопка платформы — только иконка', async () => {
         await renderScreen();
         await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
         choosePlatform('iOS');
-        const add = within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0];
-        expect(add).toHaveClass('tw-icon-button');
-        expect(add).toBeVisible();
+        expect(within(inspector()).queryByRole('button', { name: /^Своё значение платформы/ })).toBeNull();
+        const trigger = screen.getByRole('button', { name: 'Платформа: iOS' });
+        expect(trigger.querySelectorAll('svg')).toHaveLength(1);
     });
 
     it('выбор цвета без неработающих значков: формат Hex / RGB / HSL и копирование HEX', async () => {

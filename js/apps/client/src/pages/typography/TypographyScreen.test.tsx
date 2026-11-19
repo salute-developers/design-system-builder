@@ -483,28 +483,16 @@ describe('экран «Типографика»', () => {
         });
     });
 
-    it('платформа iOS: значение Web не правится, «+» делает его своим, правка уходит iOS', async () => {
+    it('платформа iOS: поле показывает Web без «+», правка уходит своим значением iOS', async () => {
         const { repository } = setup();
         await screen.findByText('Body / M Regular', { selector: TITLE });
-        // На Web у полей нет «+»: свои значения задаются на платформе.
-        expect(inspector().queryAllByRole('button', { name: 'Своё значение платформы' })).toHaveLength(0);
         choosePlatform('iOS');
-        // «+» есть у веса, размера, высоты строки и трекинга; значения Web показываются и не правятся.
-        const add = inspector().getAllByRole('button', { name: 'Своё значение платформы' });
-        expect(add).toHaveLength(4);
-        expect(inspector().getByLabelText('Size')).toBeDisabled();
-        fireEvent.click(add[1]);
-        expect(
-            inspector()
-                .getAllByRole('menuitem')
-                .map((item) => item.textContent),
-        ).toEqual(['iOS']);
-        fireEvent.click(inspector().getByRole('menuitem', { name: 'iOS' }));
-        const ios = inspector().getByLabelText('Size iOS') as HTMLInputElement;
-        expect(ios.value).toBe('16');
-        expect(inspector().queryByLabelText('Size')).toBeNull();
-        fireEvent.change(ios, { target: { value: '17' } });
-        fireEvent.blur(ios);
+        expect(inspector().queryAllByRole('button', { name: 'Своё значение платформы' })).toHaveLength(0);
+        const size = inspector().getByLabelText('Size') as HTMLInputElement;
+        expect(size.value).toBe('16');
+        expect(size).toBeEnabled();
+        fireEvent.change(size, { target: { value: '17' } });
+        fireEvent.blur(size);
         await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
         expect(vi.mocked(repository.update).mock.calls[0].slice(1, 3)).toEqual([
             'screen-l.body.m.normal',
@@ -750,13 +738,12 @@ describe('экран «Типографика»', () => {
         expect(vi.mocked(repository.update).mock.calls[0][2]).toEqual({ lineHeight: 14 });
     });
 
-    it('показывает «+» своего значения всегда кнопкой-иконкой', async () => {
+    it('кнопка платформы в шапке «Предпросмотр» — только иконка', async () => {
         setup();
         await screen.findByText('Body / M Regular', { selector: TITLE });
-        choosePlatform('iOS');
-        inspector()
-            .getAllByRole('button', { name: 'Своё значение платформы' })
-            .forEach((button) => expect(button.classList.contains('tw-icon-button')).toBe(true));
+        const trigger = screen.getByRole('button', { name: 'Платформа: Web' });
+        expect(trigger.closest('.typography-editor-header')).not.toBeNull();
+        expect(trigger.querySelectorAll('svg')).toHaveLength(1);
     });
 
     it('фильтр «Скрыть отключённые токены» убирает отключённые начертания и группу без строк', async () => {

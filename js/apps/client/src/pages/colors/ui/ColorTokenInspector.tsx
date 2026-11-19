@@ -1,17 +1,15 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
     CloseOutline,
     DisclosureRightOutline,
     LinkBrokenChainOutline,
     LinkOutline,
-    PlusOutline,
     RotateCcwOutline,
     TrashOutline,
 } from '@salutejs/sdds-icons/16';
 
 import {
     COLOR_CONTEXTS,
-    NATIVE_PLATFORMS,
     type ColorContext,
     type ColorFieldValue,
     type ColorTokenView,
@@ -62,8 +60,6 @@ interface InspectorProps {
     onOpenPicker: (target: PickerTarget) => void;
     onCommit: (target: PickerTarget, value: string) => void;
     onOpacity: (target: PickerTarget, percent: number) => void;
-    /** «+» у значения: строка своего значения платформы. */
-    onAddPlatform: (field: FieldId, platform: NativePlatform) => void;
     /** «×» у строки платформы: значение снова строится из web. */
     onRemovePlatform: (field: FieldId, platform: NativePlatform) => void;
     /** Платформа предпросмотра: поля показывают и правят значения этой платформы. */
@@ -89,71 +85,6 @@ interface InspectorProps {
     /** Подпись адреса недопустимого значения `<токен>:<platform>:<mode>`: подтема, платформа и режим. */
     addressLabel: (address: string) => string;
 }
-
-/** «+» у значения: меню платформ, у которых ещё нет своей строки. */
-const PlatformAdd = ({
-    name,
-    platforms,
-    onAdd,
-}: {
-    name: string;
-    platforms: NativePlatform[];
-    onAdd: (platform: NativePlatform) => void;
-}) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (!open) return;
-        const close = (event: Event) => {
-            if (
-                event instanceof globalThis.KeyboardEvent
-                    ? event.key === 'Escape'
-                    : !ref.current?.contains(event.target as Node)
-            )
-                setOpen(false);
-        };
-        document.addEventListener('mousedown', close);
-        document.addEventListener('keydown', close);
-        return () => {
-            document.removeEventListener('mousedown', close);
-            document.removeEventListener('keydown', close);
-        };
-    }, [open]);
-    return (
-        <div className="ct-platform-add" ref={ref}>
-            <button
-                type="button"
-                className="tw-icon-button ct-platform-button"
-                aria-label={`Своё значение платформы: ${name}`}
-                title="Своё значение для платформы"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                disabled={!platforms.length}
-                onClick={() => setOpen((current) => !current)}
-            >
-                <PlusOutline />
-            </button>
-            {open && (
-                <div className="tw-menu ct-platform-menu" role="menu">
-                    {platforms.map((platform) => (
-                        <button
-                            key={platform}
-                            type="button"
-                            role="menuitem"
-                            className="tw-menu-item"
-                            onClick={() => {
-                                setOpen(false);
-                                onAdd(platform);
-                            }}
-                        >
-                            {PLATFORM_LABELS[platform]}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
 
 /** Инспектор токена по `tokenInspector` прототипа. */
 export const ColorTokenInspector = (props: InspectorProps) => {
@@ -189,19 +120,11 @@ export const ColorTokenInspector = (props: InspectorProps) => {
     };
 
     /**
-     * Поле значения Light или Dark выбранной в предпросмотре платформы. У Web и у своего значения iOS или Android
-     * поле правится; значение iOS или Android, построенное из Web, только показывается, а «+» делает его своим.
-     * «+» есть только у полей режимов: связанная подтема наследует значения платформ режима. В отвязанной подтеме
-     * своё значение платформы можно убрать «×».
+     * Поле значения Light или Dark выбранной в предпросмотре платформы. Без своего значения iOS или Android поле
+     * показывает значение Web, из которого платформа строится; правка записывает своё значение платформы, а «×»
+     * снова строит его из Web. У связанной подтемы «×» нет: она наследует значения платформ режима.
      */
-    const field = (
-        id: FieldId,
-        label: string,
-        value: ColorFieldValue,
-        name: string,
-        canAdd = true,
-        canRemove = true,
-    ) => {
+    const field = (id: FieldId, label: string, value: ColorFieldValue, name: string, canRemove = true) => {
         const platform = props.platform;
         const own = platform === 'web' ? undefined : value.platforms[platform];
         const fromWeb = platform !== 'web' && !own;
@@ -215,7 +138,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                 label={label}
                 name={platformName}
                 value={own ?? value}
-                editable={editable && !fromWeb}
+                editable={editable}
                 pickerOpen={openPicker?.field === id && openPicker.platform === platform}
                 invalid={props.invalidField?.field === id && props.invalidField.platform === shown}
                 message={message(id, shown)}
@@ -226,25 +149,18 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                 trailing={
                     editable &&
                     platform !== 'web' &&
-                    (own
-                        ? canRemove && (
-                              <button
-                                  type="button"
-                                  className="tw-icon-button ct-platform-button"
-                                  aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}: ${name}`}
-                                  title={`Убрать своё значение ${PLATFORM_LABELS[platform]}: снова строится из Web`}
-                                  onClick={() => props.onRemovePlatform(id, platform)}
-                              >
-                                  <CloseOutline />
-                              </button>
-                          )
-                        : canAdd && (
-                              <PlatformAdd
-                                  name={name}
-                                  platforms={[platform]}
-                                  onAdd={(next) => props.onAddPlatform(id, next)}
-                              />
-                          ))
+                    own &&
+                    canRemove && (
+                        <button
+                            type="button"
+                            className="tw-icon-button ct-platform-button"
+                            aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}: ${name}`}
+                            title={`Убрать своё значение ${PLATFORM_LABELS[platform]}: снова строится из Web`}
+                            onClick={() => props.onRemovePlatform(id, platform)}
+                        >
+                            <CloseOutline />
+                        </button>
+                    )
                 }
             />
         );
@@ -358,8 +274,8 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                                         </button>
                                     }
                                 />
-                                {field(`${context}-light`, 'Light', values.light, 'Light', false, !linked)}
-                                {field(`${context}-dark`, 'Dark', values.dark, 'Dark', false, !linked)}
+                                {field(`${context}-light`, 'Light', values.light, 'Light', !linked)}
+                                {field(`${context}-dark`, 'Dark', values.dark, 'Dark', !linked)}
                             </Fragment>
                         );
                     })}

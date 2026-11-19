@@ -101,14 +101,14 @@ describe('редактор цветовых токенов: вид значен�
         }
     });
 
-    it('своё значение iOS: копия построенного из web, не перестраивается при правке web, передаётся состояниям', async () => {
+    it('правка iOS без своего значения делает его своим: не перестраивается при правке web, передаётся состояниям', async () => {
         repository.updateValues.mockResolvedValue({ editRevision: 0 });
         const { session, editor } = setup();
 
-        editor.addPlatform(viewOf(session), 'light', 'ios');
+        expect(isOverridden(session, 'light.text.default.accent', 'ios')).toBe(false);
+        editor.setPaint(viewOf(session), 'light', 'ios', { kind: 'color', color: '#445566' });
         expect(isOverridden(session, 'light.text.default.accent', 'ios')).toBe(true);
         expect(isOverridden(session, 'light.text.default.accent-hover', 'ios')).toBe(true);
-        editor.setPaint(viewOf(session), 'light', 'ios', { kind: 'color', color: '#445566' });
         editor.setField(viewOf(session), 'light', '#123456');
 
         expect(value(session, 'light.text.default.accent', 'ios')).toBe('#445566');
@@ -144,7 +144,7 @@ describe('редактор цветовых токенов: вид значен�
         const { session, editor } = setup(NAMES, (mode, name) => seeded[name] ?? VALUES[mode]);
         const states = Object.keys(seeded).map((name) => `light.${name}`);
 
-        editor.addPlatform(viewOf(session), 'light', 'ios');
+        editor.setPaint(viewOf(session), 'light', 'ios', { kind: 'color', color: VALUES.light });
         expect(states.map((name) => value(session, name, 'web'))).toEqual(['#0D731E', '#0B5F19']);
         expect(value(session, 'light.text.default.accent-hover', 'android')).toBe('#0D731E');
         editor.removePlatform(viewOf(session), 'light', 'ios');
@@ -162,22 +162,26 @@ describe('редактор цветовых токенов: вид значен�
         expect(sent.filter((item) => item.platform === 'web' || item.overridden)).toEqual([]);
     });
 
-    it('у подтемы своя строка платформы не добавляется: строки только наследуются от режима', () => {
-        const { session, editor } = setup();
-
-        editor.addPlatform(viewOf(session), 'ondark-light', 'ios');
-
-        expect(isOverridden(session, 'light.text.default.accent', 'ios')).toBe(false);
-        expect(session.autosave.hasUnsaved()).toBe(false);
-    });
-
-    it('строка платформы связанной подтемы не убирается и в обход интерфейса', () => {
-        // OnDark наследует Dark в обоих режимах: при тех же значениях подтема связана.
+    it('правка подтемы на iOS записывает её своё значение и отвязывает подтему', () => {
         const { session, editor } = setup([...NAMES, 'text.on-dark.accent'], (mode, name) =>
             name.includes('on-dark') ? VALUES.dark : VALUES[mode],
         );
-        editor.addPlatform(viewOf(session), 'light', 'ios');
-        editor.addPlatform(viewOf(session), 'dark', 'ios');
+        expect(viewOf(session).contexts.ondark.linked).toBe(true);
+
+        editor.setPaint(viewOf(session), 'ondark-light', 'ios', { kind: 'color', color: '#445566' });
+
+        expect(value(session, 'light.text.on-dark.accent', 'ios')).toBe('#445566');
+        expect(isOverridden(session, 'light.text.default.accent', 'ios')).toBe(false);
+        expect(session.detachments.get('light.text.on-dark.accent')).toBe(true);
+    });
+
+    it('строка платформы связанной подтемы не убирается и в обход интерфейса', () => {
+        // OnDark без признака `detached` связана с Dark и получает его значения платформ.
+        const { session, editor } = setup([...NAMES, 'text.on-dark.accent'], (mode, name) =>
+            name.includes('on-dark') ? VALUES.dark : VALUES[mode],
+        );
+        editor.setPaint(viewOf(session), 'light', 'ios', { kind: 'color', color: '#445566' });
+        editor.setPaint(viewOf(session), 'dark', 'ios', { kind: 'color', color: '#556677' });
         const view = viewOf(session);
         expect(view.contexts.ondark.linked).toBe(true);
         const before = {

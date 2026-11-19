@@ -55,12 +55,7 @@ export const TokenPlatformMenu = ({
             className="token-platform-menu"
             label={`Платформа: ${current.label}`}
             title="Платформа"
-            trigger={
-                <>
-                    <TyGlyph name={current.glyph} />
-                    <TyGlyph name="chevron-down" />
-                </>
-            }
+            trigger={<TyGlyph name={current.glyph} />}
             items={PLATFORMS.map((item) => ({
                 key: item.id,
                 label: item.label,

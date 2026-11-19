@@ -1011,3 +1011,17 @@
     font: inherit;
     cursor: pointer;
 }
+
+/* Переключатель платформы предпросмотра: одна кнопка 24×24 с иконкой 16 px на «Цветах», «Размерах» и «Типографике»,
+   независимо от размера шрифта шапки экрана. */
+.token-platform-menu > .workbench-menu-trigger {
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+}
+
+.token-platform-menu > .workbench-menu-trigger > .ui-glyph {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.8;
+}

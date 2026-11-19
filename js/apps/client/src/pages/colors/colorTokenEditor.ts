@@ -674,18 +674,6 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         },
 
         /**
-         * Строка своего значения платформы: копия значения, построенного из web. Только у полей режимов: подтема
-         * получает строки платформ наследованием от режима.
-         */
-        addPlatform(view: ColorTokenView, field: FieldId, platform: NativePlatform) {
-            const { context, mode } = parseField(field);
-            const token = context ? undefined : memberToken(view.key, mode, null);
-            if (!token) return;
-            const web = token.getValue('web' as never);
-            this.setValue(view, field, platform, deriveNative(web, platform, stopResolver(token.getName())));
-        },
-
-        /**
          * «×» у строки платформы: значение снова строится из web. У связанной подтемы строка наследуется от режима и
          * убирается только у поля режима, поэтому вызов в обход интерфейса ничего не меняет.
          */
@@ -699,7 +687,8 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         setOpacity(view: ColorTokenView, field: FieldId, percent: number, platform: PaintPlatform = 'web') {
             const { context, mode } = parseField(field);
             const base = context ? view.contexts[context].values[mode] : view.modes[mode];
-            const current = platform === 'web' ? base : base.platforms[platform];
+            // Без своего значения платформы прозрачность меняется у значения Web, из которого она строится.
+            const current = platform === 'web' ? base : (base.platforms[platform] ?? base);
             if (!current) return;
             const opacity = Math.max(0, Math.min(100, Math.round(percent))) / 100;
             this.setValue(view, field, platform, webValue(withStopOpacity(current.value, opacity)));

@@ -8,7 +8,7 @@ import {
     type ReactNode,
     type RefObject,
 } from 'react';
-import { ChevronDownOutline, CloseOutline, PlusOutline, TrashOutline } from '@salutejs/sdds-icons/16';
+import { ChevronDownOutline, CloseOutline, TrashOutline } from '@salutejs/sdds-icons/16';
 
 import {
     FieldMessage,
@@ -269,57 +269,9 @@ const FIELD_LABELS: Record<OverridableField, string> = {
     weight: 'Weight',
 };
 
-/** «+» у поля: кнопка-иконка 24×24 видна всегда, меню — платформы, у которых ещё нет своего значения. */
-const OverrideAdd = ({
-    platforms,
-    onAdd,
-}: {
-    platforms: ReadonlyArray<{ id: TypographyOverridePlatform; label: string }>;
-    onAdd: (platform: TypographyOverridePlatform) => void;
-}) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-    const close = useCallback(() => setOpen(false), []);
-    useDismiss(ref, open, close);
-    return (
-        <div className="typography-override-add" ref={ref}>
-            <button
-                type="button"
-                className="tw-icon-button"
-                aria-label="Своё значение платформы"
-                title="Своё значение платформы"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                disabled={!platforms.length}
-                onClick={() => setOpen((value) => !value)}
-            >
-                <PlusOutline />
-            </button>
-            {open && platforms.length > 0 && (
-                <div className="tw-menu typography-menu typography-override-menu" role="menu">
-                    {platforms.map((platform) => (
-                        <button
-                            key={platform.id}
-                            type="button"
-                            role="menuitem"
-                            className="tw-menu-item"
-                            onClick={() => {
-                                setOpen(false);
-                                onAdd(platform.id);
-                            }}
-                        >
-                            {platform.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
-
 /**
  * Веса прототипа; вес темы вне списка добавляется, чтобы поле показывало текущее значение. Половинное поле веса
- * рядом с «+» показывает только число: подпись «400 / Regular» видна в списке и подсказке поля.
+ * показывает только число: подпись «400 / Regular» видна в списке и подсказке поля.
  */
 const weightOptions = (weight: number | undefined) =>
     (weight === undefined || TYPOGRAPHY_WEIGHTS.some((option) => option.value === weight)
@@ -356,23 +308,17 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
     const variantLabel = TYPOGRAPHY_VARIANTS.find(({ id }) => id === variant)?.label ?? variant;
     const weight = style.variants[variant]?.weight;
 
-    // Строки своих значений, добавленные «+» и ещё не сохранённые: значение платформы пока равно вебу.
-    const [added, setAdded] = useState<string[]>([]);
-    useEffect(() => setAdded([]), [style.screen, style.group, style.size, variant]);
     const baseOf = (field: OverridableField) => (field === 'weight' ? weight : style[OVERRIDE_PROPS[field]]);
     const overrideOf = (platform: TypographyOverridePlatform, field: OverridableField) =>
         field === 'weight'
             ? style.overrides?.[platform]?.weights?.[variant]
             : style.overrides?.[platform]?.[OVERRIDE_PROPS[field]];
     const platformsWith = (field: OverridableField) =>
-        TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(
-            ({ id }) => overrideOf(id, field) !== undefined || added.includes(`${field}:${id}`),
-        );
+        TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(({ id }) => overrideOf(id, field) !== undefined);
     const commitOverride = (platform: TypographyOverridePlatform, field: OverridableField, value: number) =>
         onChange(field === 'weight' ? { platform, weights: { [variant]: value } } : { platform, [field]: value });
     /** «×»: своё значение снимается записью значения веба, после неё поле снова строится из веба. */
     const removeOverride = (platform: TypographyOverridePlatform, field: OverridableField) => {
-        setAdded((keys) => keys.filter((key) => key !== `${field}:${platform}`));
         const base = baseOf(field);
         if (overrideOf(platform, field) !== undefined && base !== undefined) commitOverride(platform, field, base);
     };
@@ -396,29 +342,21 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
             return warning ? [{ tone: 'warning' as const, text: warning }] : [];
         });
 
-    /** Поле с «+» и строками своих значений iOS и Android под ним. */
-    const overridable = (field: OverridableField, base: ReactNode) => {
-        // Поле платформы предпросмотра: у Web — значение стиля; у iOS и Android — своё значение платформы, а без него
-        // значение Web, из которого платформа строится (не правится, «+» делает его своим).
+    /**
+     * Поле платформы предпросмотра: у Web — значение стиля; у iOS и Android — своё значение платформы, а без него
+     * значение Web, из которого платформа строится. Правка такого значения записывает своё значение платформы.
+     */
+    const overridable = (
+        field: OverridableField,
+        commitWeb: (value: number) => void,
+        base: (commit: (value: number) => void) => ReactNode,
+    ) => {
         const platform = props.platform;
         const rows = platformsWith(field).filter(({ id }) => id === platform);
-        const fromWeb = platform !== 'web' && !rows.length;
-        const addable = TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(({ id }) => id === platform);
+        const commit = platform === 'web' ? commitWeb : (value: number) => commitOverride(platform, field, value);
         return (
             <div className="typography-overridable">
-                {!rows.length && (
-                    <div className="typography-value-line">
-                        <fieldset className="typography-from-web" disabled={fromWeb}>
-                            {base}
-                        </fieldset>
-                        {fromWeb && !disabled && (
-                            <OverrideAdd
-                                platforms={addable}
-                                onAdd={(next) => setAdded((keys) => [...keys, `${field}:${next}`])}
-                            />
-                        )}
-                    </div>
-                )}
+                {!rows.length && <div className="typography-value-line">{base(commit)}</div>}
                 {rows.map(({ id, label }) => {
                     const lead = <span className="typography-override-label">↳ {label}</span>;
                     const remove = !disabled && (
@@ -538,16 +476,19 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                     <div className="typography-field-row">
                         {overridable(
                             'weight',
-                            <SelectField
-                                icon="weight"
-                                label={`Weight ${variantLabel}`}
-                                value={String(weight ?? '')}
-                                display={weight === undefined ? undefined : String(weight)}
-                                disabled={disabled || weight === undefined}
-                                tone={toneOf('weight')}
-                                options={weightOptions(weight)}
-                                onChange={(value) => onChange({ weights: { [variant]: Number(value) } })}
-                            />,
+                            (value) => onChange({ weights: { [variant]: value } }),
+                            (commit) => (
+                                <SelectField
+                                    icon="weight"
+                                    label={`Weight ${variantLabel}`}
+                                    value={String(weight ?? '')}
+                                    display={weight === undefined ? undefined : String(weight)}
+                                    disabled={disabled || weight === undefined}
+                                    tone={toneOf('weight')}
+                                    options={weightOptions(weight)}
+                                    onChange={(value) => commit(Number(value))}
+                                />
+                            ),
                         )}
                     </div>
                     <RowMessages messages={messagesOf('weight')} />
@@ -578,18 +519,21 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                     <div className="typography-field-row">
                         {overridable(
                             'size',
-                            numberField('size', (size) => onChange({ size })),
+                            (size) => onChange({ size }),
+                            (commit) => numberField('size', commit),
                         )}
                     </div>
                     <RowMessages messages={messagesOf('size')} />
                     <div className="typography-field-row">
                         {overridable(
                             'lineHeight',
-                            numberField('lineHeight', (lineHeight) => onChange({ lineHeight })),
+                            (lineHeight) => onChange({ lineHeight }),
+                            (commit) => numberField('lineHeight', commit),
                         )}
                         {overridable(
                             'letterSpacing',
-                            numberField('letterSpacing', (letterSpacing) => onChange({ letterSpacing })),
+                            (letterSpacing) => onChange({ letterSpacing }),
+                            (commit) => numberField('letterSpacing', commit),
                         )}
                     </div>
                     <RowMessages messages={[...messagesOf('lineHeight'), ...messagesOf('letterSpacing')]} />

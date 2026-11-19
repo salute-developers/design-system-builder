@@ -29,7 +29,7 @@ import {
     type SizeTokenValue,
 } from '../../../modules/sizeTokens';
 import { derivedLabel, derivedValue } from './SizeTokenBoard';
-import { CommitInput, PlatformAdd } from './fields';
+import { CommitInput } from './fields';
 import { ShadowLayers } from './ShadowLayers';
 
 const PLATFORM_ORDER: readonly NativePlatform[] = ['ios', 'android'];
@@ -212,9 +212,9 @@ const DimensionBody = ({
     const range = RANGES[token.kind];
     const validate = (raw: string) => validatePx(raw, range);
     // Поле показывает значение платформы предпросмотра: Web, своё значение iOS или Android или значение Web, из
-    // которого платформа строится (оно не правится, «+» делает его своим).
+    // которого платформа строится. Правка такого значения делает его своим значением платформы.
     const overridden = platformsOf(token.platforms).filter((item) => item === platform);
-    // Без своего значения поле показывает Web: на Web — правится, на iOS и Android — только показывается.
+    // Без своего значения поле показывает Web; на iOS и Android правка записывает своё значение платформы.
     const showWeb = !overridden.length;
     const fromWeb = showWeb && platform !== 'web';
     const setDimension = (change: (value: Extract<SizeTokenValue, { kind: 'dimension' }>) => SizeTokenValue) =>
@@ -248,21 +248,18 @@ const DimensionBody = ({
                                     aria-label="Значение, px"
                                     aria-invalid={Boolean(valueError)}
                                     value={String(token.valuePx ?? '')}
-                                    disabled={!editable || fromWeb}
+                                    disabled={!editable}
                                     validate={validate}
                                     onIssue={(message) => setError('valuePx', message)}
-                                    onCommit={(raw) => setDimension((value) => ({ ...value, valuePx: parsePx(raw) }))}
-                                />
-                            )}
-                            {editable && !token.fullRounding && fromWeb && (
-                                <PlatformAdd
-                                    added={(['ios', 'android'] as const).filter((item) => item !== platform)}
-                                    label="Своё значение платформы"
-                                    onAdd={(platform) =>
-                                        setDimension((value) => ({
-                                            ...value,
-                                            platforms: { ...value.platforms, [platform]: value.valuePx },
-                                        }))
+                                    onCommit={(raw) =>
+                                        setDimension((value) =>
+                                            fromWeb
+                                                ? {
+                                                      ...value,
+                                                      platforms: { ...value.platforms, [platform]: parsePx(raw) },
+                                                  }
+                                                : { ...value, valuePx: parsePx(raw) },
+                                        )
                                     }
                                 />
                             )}
@@ -407,33 +404,21 @@ const ShadowBody = ({
     return (
         <>
             <section className="st-section tw-section">
-                <SectionHeader
-                    title="Слои"
-                    actions={
-                        editable &&
-                        fromWeb && (
-                            <PlatformAdd
-                                added={(['ios', 'android'] as const).filter((item) => item !== platform)}
-                                label="Свои слои платформы"
-                                onAdd={(platform) =>
-                                    setPlatformLayers(
-                                        platform,
-                                        token.layers.map((layer) => ({ ...layer })),
-                                    )
-                                }
-                            />
-                        )
-                    }
-                />
+                <SectionHeader title="Слои" />
                 {showWeb && (
+                    // На iOS и Android без своих слоёв показываются слои Web; правка делает их своими слоями платформы.
                     <ShadowLayers
                         layers={token.layers}
-                        editable={editable && !fromWeb}
+                        editable={editable}
                         scope="Веб"
                         fieldPrefix="layers"
                         serverError={serverError}
-                        {...colorProps('web')}
-                        onChange={(layers) => setShadow((value) => ({ ...value, layers }))}
+                        {...colorProps(fromWeb ? (platform as NativePlatform) : 'web')}
+                        onChange={(layers) =>
+                            fromWeb
+                                ? setPlatformLayers(platform as NativePlatform, layers)
+                                : setShadow((value) => ({ ...value, layers }))
+                        }
                     />
                 )}
             </section>

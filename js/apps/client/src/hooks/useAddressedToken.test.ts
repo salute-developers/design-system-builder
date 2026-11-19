@@ -5,16 +5,34 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { locateColorToken, locateLegacyToken, useAddressedToken } from './useAddressedToken';
 
+const definitions = vi.hoisted(() => ({
+    created: [] as Array<{ id: string; name: string }>,
+}));
+
 vi.mock('../api/tokenRepository', () => ({
     tokenRepository: {
         async listDefinitions() {
             return [
                 { id: 'first', name: 'surface.first' },
                 { id: 'second', name: 'surface.second' },
+                ...definitions.created,
             ];
         },
     },
 }));
+
+it('перечитывает определения, если выбран токен, созданный после их загрузки', async () => {
+    const context = { projectId: 'project', designSystemId: 'ds', tenantId: 'theme' };
+    const wrapper = ({ children }: PropsWithChildren) =>
+        createElement(MemoryRouter, { initialEntries: ['/?tokenId=first'] }, children);
+    const { result } = renderHook(() => useAddressedToken(context), { wrapper });
+    await waitFor(() => expect(result.current.requestedTokenName).toBe('surface.first'));
+    definitions.created = [{ id: 'third', name: 'surface.third' }];
+    act(() => result.current.selectTokenName('surface.third'));
+    await waitFor(() => expect(result.current.tokenId).toBe('third'));
+    await waitFor(() => expect(result.current.requestedTokenName).toBe('surface.third'));
+    definitions.created = [];
+});
 
 it('обновляет tokenId при выборе редакторского имени с режимом', async () => {
     const context = { projectId: 'project', designSystemId: 'ds', tenantId: 'theme' };

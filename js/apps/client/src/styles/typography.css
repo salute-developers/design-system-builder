@@ -328,11 +328,6 @@
     min-width: 0;
 }
 
-.typography-override-add {
-    position: relative;
-    flex: none;
-}
-
 /* Поле `Inspector/TypographyField`: 24 px, отступы 4/8; рамку, фон и состояния задаёт `tw-field`. */
 .typography-field {
     position: relative;
@@ -493,14 +488,9 @@
     overflow: auto;
 }
 
-.typography-section-body > .typography-select > .typography-menu,
-.typography-override-menu {
+.typography-section-body > .typography-select > .typography-menu {
     right: 0;
     left: auto;
-}
-
-.typography-override-menu {
-    width: 150px;
 }
 
 /* Баннеры инспектора: ошибка сохранения, источник токена, режим просмотра. */
@@ -587,13 +577,4 @@
 /* Переключатель платформы предпросмотра справа в шапке, как у «Цветов» и «Размеров». */
 .typography-editor-header .token-platform-menu {
     margin-left: auto;
-}
-
-/* Значение Web у платформы без своего значения: поле показывается, но не правится. */
-.typography-from-web {
-    display: contents;
-    min-width: 0;
-    margin: 0;
-    padding: 0;
-    border: 0;
 }

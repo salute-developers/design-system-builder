@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
 import type { EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
 import { tokenRepository } from '../../api/tokenRepository';
 import { themesApi } from '../../modules/themes/data/themesApi';
@@ -67,6 +68,15 @@ export const OtherThemesSection = ({
         return () => controller.abort();
         // Запрос зависит от набора токенов и границы версии, а не от объекта контекста.
     }, [open, requestKey, attempt]);
+
+    // Значения других тем меняют и другие пользователи: раскрытый блок перечитывает их после инвалидации токенов тем.
+    useEffect(() => {
+        if (!open) return;
+        return subscribeEditorDataInvalidation(context, (scopes) => {
+            if (scopes.has('theme-tokens') || scopes.has('all')) setAttempt((value) => value + 1);
+        });
+        // Подписка зависит от дизайн-системы и границы версии, а не от объекта контекста.
+    }, [open, context.projectId, context.designSystemId, context.versionId]);
 
     const rows = useMemo(() => {
         if (data?.key !== requestKey || !themes.data) return null;
@@ -135,7 +145,7 @@ export const OtherThemesSection = ({
                     {error ? (
                         <p className="other-themes-note" role="alert">
                             {error}{' '}
-                            <button type="button" onClick={() => setAttempt(attempt + 1)}>
+                            <button type="button" onClick={() => setAttempt((value) => value + 1)}>
                                 Повторить
                             </button>
                         </p>

@@ -1,5 +1,5 @@
 import type { PaletteRampRef } from '../../palette';
-import { colorField, emptyField, sameValue, type PaletteColorResolver } from './field';
+import { colorField, emptyField, type PaletteColorResolver } from './field';
 import { COLOR_CONTEXTS, COLOR_MODES, contextSubgroup, inheritedMode, parseMemberName, tokenId } from './family';
 import { NATIVE_PLATFORMS, type NativePlatform } from './nativeGradient';
 import { validateColorValue } from './validation';
@@ -85,10 +85,10 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
                 const values = Object.fromEntries(
                     COLOR_MODES.map((mode) => [mode, field(mode, subgroup) ?? modes[inheritedMode(context, mode)]]),
                 ) as Record<ColorMode, ColorFieldValue>;
+                // Связь хранится только признаком `detached`: подтема связана, пока её не отвязали явно, даже если
+                // значения сида отличаются от режимов. Правка Light или Dark переносит в неё значения режима.
                 const linked = COLOR_MODES.every(
-                    (mode) =>
-                        !byName.get(`${mode}.${key.group}.${subgroup}.${key.name}`)?.detached &&
-                        sameValue(values[mode], modes[inheritedMode(context, mode)]),
+                    (mode) => !byName.get(`${mode}.${key.group}.${subgroup}.${key.name}`)?.detached,
                 );
                 return [context, { linked, values }];
             }),
