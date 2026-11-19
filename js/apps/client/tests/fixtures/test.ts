@@ -1,7 +1,10 @@
 import { within } from '../helpers/pending-mutation.ts';
-import { systemCreationSettlementTimeoutMs } from '../config/timeouts.ts';
 import { test as base, expect } from '@playwright/test';
-import { resourceFixtureTimeoutMs, sessionFixtureTimeoutMs } from '../config/timeouts.ts';
+import {
+    resourceFixtureTimeoutMs,
+    sessionFixtureTimeoutMs,
+    systemCreationSettlementTimeoutMs,
+} from '../config/timeouts.ts';
 import { PageReadiness } from '../helpers/page-readiness.ts';
 import { readEnvironment } from '../config/environment.ts';
 import type { Environment } from '../config/environment.ts';

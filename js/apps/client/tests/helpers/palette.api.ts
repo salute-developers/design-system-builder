@@ -3,11 +3,12 @@ import { authenticatedRequest } from './authentication.ts';
 import type { Session } from './authentication.ts';
 
 export type PaletteSlot = Readonly<{ type: 'general' | 'additional'; shade: string }>;
-export type PaletteStep = Readonly<{ step: number; value: string; overridden: boolean }>;
+export type PaletteStep = Readonly<{ step: number; value: string; overridden: boolean; linkedCount: number }>;
 export type PaletteRamp = Readonly<{
     slot: PaletteSlot;
     displayName: string;
     modified: boolean;
+    linkedCount: number;
     steps: readonly PaletteStep[];
 }>;
 export type PaletteGroup = Readonly<{ id: string; label: string; systemKey: string; ramps: readonly PaletteRamp[] }>;

@@ -52,6 +52,7 @@ export class PageReadiness {
             elapsedMs: Math.round(performance.now() - started),
             at: performance.now(),
         });
+        if (this.failures.length > 10) this.failures.shift();
     };
 
     async waitFor(

@@ -1,4 +1,4 @@
-﻿import type { Request } from '@playwright/test';
+import type { Request } from '@playwright/test';
 import { test, expect } from '../fixtures/role-sizes.ts';
 import { readSizeValues } from '../helpers/size-data.ts';
 
