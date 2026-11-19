@@ -114,11 +114,13 @@ internal class CatalogAgentToolbox(
     }
 
     /** Число брошенных по таймауту вызовов, которые ещё не завершились. */
-    internal val abandonedCalls: Int get() = abandoned.size
+    internal val abandonedCalls: Int get() = abandoned.also { purgeFinished() }.size
 
     /** Ждёт вызовы, которые ещё идут, не дольше [grace]; используется при остановке процесса. */
     suspend fun drain(grace: Duration) {
-        withTimeoutOrNull(grace) { inFlight.toList().joinAll() }
+        // toTypedArray — безопасный снимок конкурентного множества; toList() падает, если вызов завершился во время копирования.
+        withTimeoutOrNull(grace) { inFlight.toTypedArray().toList().joinAll() }
+        purgeFinished()
     }
 
     private suspend fun run(prepared: ToolCall, context: ChatToolContext): ToolResult = try {
@@ -139,6 +141,11 @@ internal class CatalogAgentToolbox(
         isError = true,
         code = code,
     )
+
+    /** Убирает из учёта завершившиеся брошенные вызовы, если обработчик завершения ещё не успел это сделать. */
+    private fun purgeFinished() {
+        abandoned.entries.removeIf { !it.value.isActive }
+    }
 
     private companion object {
         val log = LoggerFactory.getLogger(CatalogAgentToolbox::class.java)
