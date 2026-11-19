@@ -1,18 +1,22 @@
 ## Контекст
 
 Значение свойства оформления уже может храниться в наборе состояний (`state_sets`), а словарь состояний `states`
-различает общие состояния взаимодействия (`component_id IS NULL`) и состояния компонента. Но ни `ds-service`, ни
-редактор не знают, какой слот платформы принимает значение по состояниям. Редактор угадывает это по типу и имени
+различает общие состояния (`component_id IS NULL`) и состояния компонента. Но ни `ds-service`, ни редактор не знают,
+в каких состояниях генератор платформы может выразить значение свойства. Редактор угадывает это по типу и имени
 (`InspectorPropertyRow`: цвет без `focus`), а меню предлагает только `hovered`, `pressed`, `focused`.
 
-Мета платформ этот признак уже содержит, но нормализаторы CLI его отбрасывают:
+Сведения есть в мете и в генераторах платформ, но устроены по-разному:
 
-| Платформа | Поле меты | Вывод |
+| Платформа | Что выражает генератор | Откуда вывести |
 |---|---|---|
-| Compose | перегрузка `paramSimpleType` у повторов `id` | `StatefulValue` → `any`, иначе `InteractiveColor` → `interaction`, иначе `none` |
-| View | `stateValues` параметра | непустой → `any`, иначе `none` |
-| SwiftUI | `state` у повторов `id` | все состояния взаимодействия → `interaction`, есть иное → `any`, нет → `none` |
-| web | токены с `state` | так же, как SwiftUI |
+| Compose | `StatefulValue` и `InteractiveColor`; состояния переводятся в `InteractiveState` (`focused`, `pressed`, `hovered`, `activated`, `selected`) или в `stateEnum` компонента, остальные имена отбрасываются (`PropertyMapper.toStateEnums`) | перегрузки `paramSimpleType` у повторов `id`, `stateEnum` |
+| View | селекторы по `states` свойства для `color`, `dimension`, `float`, `typography`: состояния framework (`focused`, `pressed`, `hovered`, `activated`, `checked`) и привязки компонента; `stateValues` — дополнительные значения под состоянием (например, `disabled` через `loadingAlpha`) | тип свойства, `stateSets`, `stateValues` |
+| SwiftUI | типы `Stateful*` (`StatefulFillStyle` читает `source.states`) и параметры с полем `state` | `paramSimpleType`, `state`, `stateEnum` |
+| web | только одиночные состояния, для которых есть токен: превью отвечает `unsupported_state` на сочетание и на состояние без токена | токены с `state` |
+
+Поэтому признак — не вид вроде «только взаимодействие / любые», а явный список состояний свойства и флаг
+сочетаний. Сведение к виду теряет точность: у web `Button.backgroundColor` есть токены только для `pressed` и
+`hovered`, а Compose не выражает общие `disabled` и `readonly`.
 
 ## Цели / Вне целей
 
@@ -21,83 +25,130 @@
 - перенести признак из меты в глобальный слой компонентов и отдавать его редактору;
 - сделать признак источником правды для кнопки «Добавить состояние» и списка состояний в меню;
 - дать состояния свойствам любого типа, а не только цвету;
-- не допустить через операции редактора состояние, которое слот платформы не поддерживает.
+- не допустить ни одной операцией записи редактора, включая автосохранение, состояние, которое генератор платформы
+  не выражает;
+- разрешать состояния по идентификатору в пределах компонента, а не по имени во всём каталоге.
 
 **Вне целей:**
 
 - изменение генераторов меты в репозиториях платформ;
-- ограничение импорта конфигураций, сидов и генерации по признаку;
-- удаление уже записанных значений состояний у свойств `none`;
+- ограничение импорта конфигураций, сидов, копирования конфигурации и генерации по признаку;
+- удаление уже записанных значений недопустимых состояний;
 - состояния у строк пересечений стилей (их нет и сейчас).
 
 ## Решения
 
-### Три значения признака и `NULL`
+### Список состояний и флаг сочетаний; `NULL` — признак не задан
 
-Признак — enum `property_state_support` (`none`, `interaction`, `any`) в nullable-столбце `properties.state_support`.
-Булева пометки мало: у Compose `InteractiveColor` принимает только состояния взаимодействия, а `StatefulValue` — ещё
-и состояния компонента (`dragging-over` у `DropZone`). `NULL` означает «мета ещё не сообщила», а не «состояний нет»:
-миграция не может вывести признак из БД, а ставить `none` всем существующим свойствам значит сломать редактору
-привычное добавление состояний цвету до повторного импорта. Поэтому при `NULL` редактор и операции работают как до
-изменения.
+Признак хранится двумя частями:
 
-Альтернатива — заполнить признак миграцией по эвристике редактора — отклонена: эвристика ошибается в обе стороны,
-и миграция закрепила бы её ошибку в данных как сведения меты.
+- `properties.state_combinations boolean NULL` — флаг сочетаний;
+- `property_supported_states (property_id, state_id)` — список с внешними ключами на `properties` (`ON DELETE
+  CASCADE`) и `states`.
+
+`NULL` во флаге означает «мета ещё не сообщила», а не «состояний нет». Миграция не может вывести признак из БД, а
+пустой список всем существующим свойствам сломал бы редактору привычное добавление состояний цвету до повторного
+импорта. Поэтому при `NULL` редактор и операции работают как до изменения. Отдельно от признака проверяется одно:
+состояние набора общее или принадлежит компоненту свойства.
+
+Альтернативы отклонены:
+
+- **Вид `none` / `interaction` / `any`.** Не выражает точный список web, не исключает `disabled` и `readonly` у
+  Compose и не говорит о сочетаниях.
+- **Массив имён в `properties`.** Имя неоднозначно: `checked` есть у `CheckBox`, `RadioBox` и `Switch`, поэтому
+  список хранит идентификаторы, разрешённые в пределах компонента.
+- **Заполнение миграцией по эвристике редактора.** Эвристика ошибается в обе стороны, а миграция закрепила бы
+  ошибку в данных как сведения меты.
 
 ### Признак выводит CLI, backend формат меты не знает
 
-Правило «backend не разбирает формат меты» (`component-api-meta-import`) сохраняется: каждый нормализатор выводит
-признак по своей платформе (таблица выше), а манифест несёт готовое значение `stateSupport`. Свойство сводится из
-нескольких вхождений меты, поэтому признак вычисляется по всем вхождениям, а не по первому. Состояние
-взаимодействия узнаётся тем же словарём и той же канонизацией, что уже есть в `WebApiMetaNormalizer`
-(`INTERACTION_STATES`); словарь выносится в общий для нормализаторов объект.
+Правило «backend не разбирает формат меты» (`component-api-meta-import`) сохраняется. Каждый нормализатор выводит
+список и флаг по своей платформе (таблица выше), манифест несёт `stateSupport: { states, combinations }` с именами
+состояний. Признак вычисляется по всем вхождениям свойства, а не по первому.
+
+Списки состояний генераторов, которых нет в мете, хранятся константами нормализаторов рядом со ссылкой на источник:
+
+- Compose — `InteractiveState` в `PropertyMapper`;
+- View — `AndroidState`;
+- iOS — `InteractiveState` в `SDDSThemeCore`.
+
+Тесты закрепляют их на корпусах.
+
+В CLI «не знаем» тоже не равно «нет». Поле `ApiMetaProperty.stateSupport` nullable и по умолчанию `null`, и такое
+поле не уходит в манифест. Пустой список нормализатор ставит только явно, когда правило платформы говорит, что
+состояний нет. Так путь нормализатора, забывший вывести признак, не выключит состояния при импорте.
+
+Backend разрешает имена в идентификаторы в пределах компонента свойства: сначала состояние компонента, затем
+общее. Имя, которое не разрешается, не создаёт состояния и попадает в `unresolvedStates` отчёта. Так видно
+расхождение словаря базы и генератора, а импорт свойства при этом не теряется.
 
 ### Импорт обновляет признак, как статус устаревания
 
-Импорт аддитивен, но признак — сведения меты, а не правка пользователя, и он должен догонять код компонентов. Поэтому
-признак обновляется у существующего свойства так же, как `deprecated` у алиаса: только если поле пришло в манифесте и
-значение отличается. Поле необязательно, чтобы прежние CLI не сбрасывали признак. Изменения считает
-`stateSupportChanged`; отдельных счётчиков на каждое значение нет, потому что дизайнеру важен сам факт перемены.
+Импорт аддитивен, но признак — сведения меты, а не правка пользователя, и он должен догонять код компонентов.
+Поэтому признак обновляется у существующего свойства так же, как `deprecated` у алиаса: только если поле пришло в
+манифесте и отличается флаг или множество разрешённых идентификаторов. Поле необязательно, чтобы прежние CLI не
+сбрасывали признак. Изменения считает `stateSupportChanged`.
 
 ```mermaid
 flowchart LR
-    M[Мета платформы] -->|нормализатор CLI| N["ApiMetaProperty.stateSupport"]
-    N -->|import-api-meta| I[ExposedApiMetaRepository]
-    I -->|insert / update при отличии| P[(properties.state_support)]
+    M[Мета платформы] -->|нормализатор CLI| N["ApiMetaProperty.stateSupport: states + combinations"]
+    N -->|import-api-meta| I[ExposedApiMetaRepository: имена → id в пределах компонента]
+    I -->|insert / update при отличии| P[(properties.state_combinations + property_supported_states)]
     P --> B[editor-bundle: properties.stateSupport + states]
-    P --> W[AppearanceEditorValueOperations: проверка набора]
+    P --> W[PropertyStateSetGuard: POST/PATCH значений, PUT property-values]
     B --> E[InspectorPropertyRow / StateBindingMenu]
 ```
 
-### Проверка в операциях редактора, а не в импорте
+### Проверка на всех маршрутах записи значения
 
-Проверка набора выполняется в `AppearanceEditorValueOperations` при записи значения с непустым набором: это граница,
-через которую пишут и web-редактор, и MCP. Импорт конфигураций и сиды не проверяются: в существующих
-конфигурациях есть значения в состояниях, которые мета может не подтвердить, и отказ импорта потерял бы данные.
-Удаление и переупорядочивание не проверяются, чтобы недопустимое значение можно было убрать.
+Обычное автосохранение пишет цвета, числа и другие значения через `POST`/`PATCH`
+`invariant-property-values` и `variation-property-values`. Через `PUT …/appearances/{id}/property-values`
+(`AppearanceEditorValueOperations`) идёт только ссылка `component_style`. Поэтому проверка выносится в один
+компонент `PropertyStateSetGuard` слоя `data` и вызывается в транзакции записи каждого из этих маршрутов. На
+`PATCH` проверяется набор изменяемой строки по текущему признаку: вкладка, открытая до переимпорта, не сможет
+продолжать править значение в состоянии, которое мета убрала.
 
-### Доступные состояния приходят бандлом
+Не проверяются:
 
-Чтобы меню знало состояния компонента без дополнительного запроса, `editor-bundle` добавляет `states`: общие
-состояния и состояния этого компонента, в том же DTO `ComponentStateResponse`, что отдаёт каталог. Отдельный запрос к
-`/catalog/states` не нужен; форма существующих маршрутов не меняется.
+- импорт конфигураций и сиды: в существующих конфигурациях есть значения в состояниях, которые мета может не
+  подтвердить, и отказ импорта потерял бы данные;
+- копирование при дублировании конфигурации: копия повторяет источник;
+- удаление и переупорядочивание: недопустимое значение должно оставаться удаляемым.
+
+Коды ошибок разделены: `state_not_in_component` — нарушена целостность (чужое состояние), `states_not_supported` —
+состояние не поддерживает генератор.
+
+### Доступные состояния приходят бандлом, клиент работает по идентификаторам
+
+`editor-bundle` добавляет `states` с полями `id`, `name` и `componentId`: общие состояния и состояния этого
+компонента. Признак свойства отдаёт `stateIds`. Сейчас `componentRepository` строит общую карту `name → id` по
+всему каталогу и ищет готовый набор по склеенным именам. Из-за этого `CheckBox` может получить `checked` другого
+компонента. Клиент разрешает имя в пределах компонента по `states` бандла, ищет набор по множеству идентификаторов
+и создаёт новый из них же. Имя в конфигурации и превью остаётся строкой.
 
 ### Строки состояний — тот же контрол, что у базы
 
 В `InspectorPropertyRow` контрол базового значения уже выбирается по типу. Выбор выносится в функцию, которая
 строит контрол для значения и обработчика; ей пользуются и строка свойства, и строки состояний. Тип `PropState`
-расширяется до строки имени состояния: имена приходят из бандла, а не из фиксированного списка.
+расширяется до строки имени состояния: имена приходят из бандла, а не из фиксированного списка. При
+`combinations: false` меню ведёт себя как выбор одного варианта.
 
 ## Программное проектирование
 
 ```kotlin
 // backend-kt/ds-service, domain
-enum class PropertyStateSupport { NONE, INTERACTION, ANY }
+data class PropertyStateSupport(val stateIds: List<UUID>, val combinations: Boolean)
 
 data class ComponentPropertySummary(
     /* существующие поля */
     val stateSupport: PropertyStateSupport?,
 )
+
+/** Правило допустимого набора; componentStateIds — общие состояния и состояния компонента свойства. */
+object StateSetRule {
+    sealed interface Verdict { object Allowed : Verdict; object ForeignState : Verdict; object NotSupported : Verdict }
+    fun check(support: PropertyStateSupport?, componentStateIds: Set<UUID>, set: Set<UUID>): Verdict
+}
 
 // application
 data class ImportApiMeta.Property(
@@ -105,57 +156,80 @@ data class ImportApiMeta.Property(
     val type: String,
     val aliases: List<ApiMetaAlias>,
     val description: String?,
-    val stateSupport: PropertyStateSupport? = null,
+    val stateSupport: StateSupportManifest? = null,
+)
+data class StateSupportManifest(val states: List<String>, val combinations: Boolean)
+
+data class ApiMetaImportReport(
+    /* существующие поля */
+    val stateSupportChanged: Int,
+    val unresolvedStates: List<String>,
 )
 
-data class ApiMetaImportReport(/* существующие поля */ val stateSupportChanged: Int)
-
-// domain: правило допустимого набора
-object StateSupportRule {
-    fun allows(support: PropertyStateSupport?, componentScoped: Boolean, empty: Boolean): Boolean
+// data: вызывается из invariant/variation create и update и из AppearanceEditorValueOperations
+class PropertyStateSetGuard {
+    /** Бросает EditorRuleViolationException("state_not_in_component" | "states_not_supported", …). */
+    fun requireAllowed(propertyId: UUID, stateSetId: UUID?)
 }
-
-// data: AppearanceEditorValueOperations бросает EditorRuleViolationException("states_not_supported", …)
 ```
 
 ```kotlin
 // frontend-kt/feature-components, domain/apimeta
-internal enum class ApiMetaStateSupport { NONE, INTERACTION, ANY }
+internal data class ApiMetaStateSupport(val states: List<String>, val combinations: Boolean)
 
 internal data class ApiMetaProperty(
     /* существующие поля */
-    val stateSupport: ApiMetaStateSupport = ApiMetaStateSupport.NONE,
+    /** `null` — признак не выведен: поле не уходит в манифест, и импорт не меняет признак. */
+    val stateSupport: ApiMetaStateSupport? = null,
 )
 
-internal object InteractionStates {
-    fun isInteraction(name: String): Boolean
-    fun supportOf(states: Collection<String>): ApiMetaStateSupport
+/** Состояния, которые генераторы выражают без меты; ссылка на источник — в KDoc каждой константы. */
+internal object GeneratorStates {
+    val COMPOSE_INTERACTIVE: List<String>
+    val VIEW_FRAMEWORK: List<String>
+    val IOS_INTERACTIVE: List<String>
 }
 
-public data class ApiMetaImportReport(/* существующие поля */ public val stateSupportChanged: Int = 0)
+public data class ApiMetaImportReport(
+    /* существующие поля */
+    public val stateSupportChanged: Int = 0,
+    public val unresolvedStates: List<String> = emptyList(),
+)
 ```
 
 ```ts
 // js/apps/client
-type StateSupport = 'none' | 'interaction' | 'any';
+interface StateSupport { stateIds: string[]; combinations: boolean }
+interface ComponentStateOption { id: string; name: string; componentId: string | null }
 
 interface ComponentPropertyDto { /* … */ stateSupport?: StateSupport | null }
-interface ComponentEditorBundleDto { /* … */ states?: Array<{ id: string; name: string; componentId: string | null }> }
+interface ComponentEditorBundleDto { /* … */ states?: ComponentStateOption[] }
 interface ComponentAPI { /* … */ stateSupport?: StateSupport | null }
 
 /** Состояния, которые меню предлагает свойству; пусто — кнопки нет. */
-function bindableStates(prop: ComponentAPI, states: ComponentStateOption[], isCombination: boolean): string[];
+function bindableStates(prop: ComponentAPI, states: ComponentStateOption[], isCombination: boolean): ComponentStateOption[];
+
+/** Имя → id в пределах компонента: состояние компонента, затем общее. */
+function resolveStateId(name: string, states: ComponentStateOption[]): string | undefined;
 ```
 
 ## Модель данных и контракты
 
-- Миграция `V21__property_state_support.sql`: `CREATE TYPE property_state_support AS ENUM ('none', 'interaction',
-  'any')`; `ALTER TABLE properties ADD COLUMN state_support property_state_support NULL`. Значения не заполняются.
-- `ImportApiMetaRequest.Property.stateSupport: String?`; недопустимое значение делает тело невалидным (`valid()`).
-- `ImportApiMetaResponse.stateSupportChanged: Int`.
-- `ComponentPropertySummaryResponse.stateSupport: String?` — пишется всегда, в том числе `null`.
+- Миграция `V21__property_state_support.sql`. Номер фиксируется при реализации следующим свободным после `dev` и
+  открытого PR #167: тот после перенумерации своих `V19`/`V20` займёт `V21`–`V22`. Содержимое:
+  - `ALTER TABLE properties ADD COLUMN state_combinations boolean NULL`;
+  - `CREATE TABLE property_supported_states (property_id uuid NOT NULL REFERENCES properties ON DELETE CASCADE,
+    state_id uuid NOT NULL REFERENCES states, PRIMARY KEY (property_id, state_id))` с индексом по `state_id`.
+
+  Значения не заполняются.
+- `ImportApiMetaRequest.Property.stateSupport: { states: List<String>, combinations: Boolean }?`; пустое имя или
+  отсутствие одного из полей делает тело невалидным (`valid()`).
+- `ImportApiMetaResponse.stateSupportChanged: Int`, `unresolvedStates: List<String>`.
+- `ComponentPropertySummaryResponse.stateSupport: { stateIds: List<String>, combinations: Boolean }?` — пишется
+  всегда, в том числе `null`.
 - `ComponentEditorBundleResponse.states: List<ComponentStateResponse>`.
-- Ошибка `422 states_not_supported` у `PUT`-операции записи значения оформления.
+- Ошибки `422 states_not_supported` и `422 state_not_in_component` у `POST` и `PATCH` `invariant-property-values` и
+  `variation-property-values` и у `PUT …/appearances/{appearanceId}/property-values`.
 - Все изменения описываются в `openapi/documentation.yaml`; маршруты не добавляются, `route-manifest.json` не
   меняется.
 
@@ -165,9 +239,15 @@ function bindableStates(prop: ComponentAPI, states: ComponentStateOption[], isCo
   отказа: маршрут импорта разбирает тело с `ignoreUnknownKeys = true` (`ApiMetaImportRoutes`), признак просто не
   запишется.
 - Прежний CLI с новым backend не шлёт `stateSupport`, признаки не меняются.
-- Порядок выкатки: backend, затем клиент, затем повторный `dsbuilder components import-api` по каждой платформе. До
-  импорта редактор работает по прежней эвристике.
-- Откат: столбец nullable и не участвует в ограничениях, откат приложения не требует отката схемы.
+- Клиент `origin/dev` с новым backend: признак не задан до переимпорта, поэтому проверка пропускает его записи, кроме
+  состояния чужого компонента. Такое состояние прежний клиент может отправить по ошибке разрешения имён, и `422`
+  здесь — исправление, а не регрессия.
+- Порядок выкатки: backend, затем клиент, затем повторный импорт меты по каждой платформе. До импорта редактор
+  работает по прежней эвристике.
+- Откат: столбец nullable, новая таблица ссылается на существующие, старый код их не читает. Откат приложения не
+  требует отката схемы. Удаление свойства или состояния каскадом чистит `property_supported_states` по
+  `property_id`. Удаление общего состояния, на которое ссылается список, блокируется внешним ключом; сейчас общие
+  состояния не удаляются ни одним маршрутом.
 
 ## План проверки и развёртывания
 
@@ -180,6 +260,13 @@ function bindableStates(prop: ComponentAPI, states: ComponentStateOption[], isCo
 
 - `tools/verify fast` и `tools/verify full`: detekt, spotless, модульные тесты, интеграционные тесты ds-service на
   PostgreSQL (Testcontainers), сборки `frontend-kt` и `js`.
+- Интеграционные тесты проверки набора проходят по каждому маршруту записи: `POST` и `PATCH` обоих видов значений
+  и `PUT property-values`.
+- Тесты нормализаторов сверяют списки с генераторами на примерах из замечаний ревью:
+  - Compose `Slider.thumbColor` — без `disabled` и `readonly`;
+  - View `BasicButton.backgroundColor` с пустым `stateValues` — со списком;
+  - SwiftUI `CheckBox.toggleIconColor` — со списком;
+  - web `Button.backgroundColor` — `pressed`, `hovered`, без сочетаний.
 - Тесты клиента (`vitest`) и существующий e2e-набор Playwright (`npm run test:e2e`) на локальном контуре: он
   проверяет автосохранение цвета, журнал, откат и темы, то есть то, что может задеть общий код строки свойства.
 
@@ -203,19 +290,35 @@ flowchart TD
    состояния цветовым свойствам. Снять снимок: `POST …/component-config/export` всех компонентов обеих платформ,
    `editor-bundle` нескольких компонентов, сгенерированный web-пакет.
 2. Пересобрать контур на ветке без `--reset`. Ожидание: Flyway применил `V21`, `/health` готов, `flyway: true`.
-3. До переимпорта: `state_support` у всех свойств `NULL`; export и генерация побайтно совпадают со снимком; редактор
-   ведёт себя по прежнему правилу; e2e-набор проходит.
+3. До переимпорта: `state_combinations` у всех свойств `NULL`, `property_supported_states` пуста; export и генерация
+   побайтно совпадают со снимком; редактор ведёт себя по прежнему правилу; e2e-набор проходит.
 4. Переопубликовать плагины Compose и web скриптом `publish-preview-plugin.sh` с JVM CLI ветки и выполнить
    `import-api` для web из файла меты. View и SwiftUI на контуре не проверяются: их файлов меты локально нет, вывод
    признака для них покрыт тестами нормализаторов на корпусах. Миграция проверяется на демо-данных контура, копия
-   базы dev не используется. Ожидание: ненулевой `stateSupportChanged`;
-   распределение признаков по платформам в БД правдоподобно (выборочно `DropZone.paddingStart = any`, свойство только
-   с `InteractiveColor` — `interaction`, `Slider.orientation = none`). Повторная публикация даёт `0`.
+   базы dev не используется. Ожидания:
+   - `stateSupportChanged` ненулевой;
+   - `unresolvedStates` разобран: каждое имя объяснено (состояние генератора, которого нет в словаре базы);
+   - по платформам подсчитано, сколько уже записанных значений в состояниях стали недопустимыми и у скольких
+     свойств: свойство с пустым списком, состояние не из списка, сочетание при запрете сочетаний. Это масштаб
+     значений, которые после выкатки станут только для чтения;
+   - выборочные списки в БД верны: Compose `DropZone.paddingStart` содержит `dragging-over`, `Slider.thumbColor` — пять
+     состояний взаимодействия без `disabled`, web `Button.backgroundColor` — `pressed`, `hovered` без сочетаний;
+   - повторная публикация даёт `0`.
 5. Export и генерация после переимпорта совпадают со снимком: признак не влияет на выгрузку.
-6. В редакторе (встроенный браузер): состояние числовому свойству с `any`, меню `interaction` без состояний
-   компонента, `none` без кнопки, но с удаляемой прежней строкой, сохранение после перезагрузки, превью Compose
-   показывает значение в состоянии. Через API: запись недопустимого набора даёт `422 states_not_supported`, удаление
-   проходит.
+6. В редакторе (встроенный браузер):
+   - состояние `dragging-over` числовому свойству `DropZone` сохраняется и видно в превью Compose;
+   - меню web `Button.backgroundColor` предлагает только `pressed` и `hovered` и не даёт выбрать оба;
+   - свойство без списка — без кнопки, прежняя строка состояния только для чтения и удаляется;
+   - состояние `checked` в `CheckBox` записывается с идентификатором `CheckBox`.
+
+   Через API:
+   - запись недопустимого набора через `POST` и `PATCH` значений и через `PUT property-values` даёт
+     `422 states_not_supported`;
+   - набор с состоянием чужого компонента даёт `422 state_not_in_component`;
+   - удаление проходит.
+7. Устаревшая вкладка: открыть редактор, переимпортировать мету с убранным состоянием (правленый файл web-меты),
+   изменить значение этого состояния в открытой вкладке — автосохранение получает `422`, редактор возвращает прежнее
+   значение.
 
 ### Совместимость версий
 
@@ -229,23 +332,33 @@ flowchart TD
 На базе с применённой `V21` запускается ds-service из `origin/dev`. Flyway по умолчанию пропускает применённые
 миграции из будущего (`ignoreMigrationPatterns = *:future`), а `ExistingDatabaseAdopter` проверяет отпечаток схемы
 только при отсутствии истории Flyway, поэтому старт ожидается успешным; это проверяется на контуре, а не
-предполагается. Миграция только добавляет тип и nullable-столбец без значения по умолчанию: в PostgreSQL это
-изменение каталога без перезаписи таблицы.
+предполагается. Миграция добавляет nullable-столбец без значения по умолчанию и пустую таблицу: в PostgreSQL это
+изменение каталога без перезаписи `properties`.
 
 ### После выкатки
 
 Признак на dev и проде появится только после публикации плагинов CLI с этим изменением, то есть после релиза CLI и
-обновления его версии в CI платформ. До этого редактор работает по прежнему правилу. Наблюдение после выкатки
-(распределение `state_support` и отсутствие всплеска `422 states_not_supported` в логах) ведётся по чек-листу
-выкатки, а не задачами этого изменения.
+обновления его версии в CI платформ. До этого редактор работает по прежнему правилу. Наблюдение после выкатки ведётся
+по чек-листу выкатки, а не задачами этого изменения:
+
+- доля свойств с заданным признаком по платформам;
+- число записанных значений, ставших недопустимыми, тем же запросом, что на контуре;
+- содержимое `unresolvedStates` в логах CI;
+- отсутствие всплеска `422 states_not_supported` и `state_not_in_component` в логах.
 
 ## Риски / Компромиссы
 
-- [Формат `stateValues` у View не представлен в корпусе тестов] → читается как произвольный JSON и учитывается
-  только факт непустоты; корпус дополняется фрагментом с `stateValues`, а живой импорт View — внешняя проверка.
-- [Признак `any` у View шире фактического] → лишнее состояние компонента в меню безопаснее, чем отсутствие нужного;
-  уточнение — после появления в мете перечня состояний параметра.
-- [Расширение `PropState` до строки затрагивает превью и генерацию] → превью уже получает имена состояний строками
+- **Списки состояний генераторов зашиты в нормализаторы.** Новое состояние в `InteractiveState` или `AndroidState`
+  не попадёт в признак без правки CLI. Митигация: константы со ссылкой на источник, а пропущенное состояние видно
+  как недоступное в меню, без потери данных. Перенос списков в мету — отдельное изменение в репозиториях платформ.
+- **View: признак по типу свойства шире фактического для слотов, где генератор селектор не применяет.** Принято:
+  генератор строит селекторы для всех свойств этих типов (`ViewPropertyMapperTest`), лишнее состояние безопаснее
+  отсутствия нужного.
+- **Состояния генератора, которых нет в словаре базы, отбрасываются.** Например, iOS `text-inlined` у компонента
+  без такого состояния. Митигация: `unresolvedStates` в отчёте и проверка на контуре.
+- **Проверка `state_not_in_component` действует и при незаданном признаке.** Принято: такая запись — ошибка
+  целостности, генерация её не выразит.
+- **Расширение `PropState` до строки затрагивает превью и генерацию.** Превью уже получает имена состояний строками
   из ds-service; меняется только тип в клиенте, проверяется сборкой и тестами клиента.
 
 ## Открытые вопросы
