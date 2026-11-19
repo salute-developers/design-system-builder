@@ -6,6 +6,20 @@ plugins {
     id("convention.spotless")
 }
 
+/**
+ * Прогон эталонных сценариев ИИ-чата живёт в отдельном наборе исходников `eval`: это утилита разработчика с `main` и
+ * `exitProcess`, в прод-jar она попадать не должна.
+ */
+val eval: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets["main"].output + sourceSets["main"].compileClasspath
+    runtimeClasspath += output + compileClasspath + sourceSets["main"].runtimeClasspath
+}
+
+kotlin {
+    // Тесты видят internal-объявления прогона так же, как основного кода.
+    target.compilations.getByName("test").associateWith(target.compilations.getByName("eval"))
+}
+
 dependencies {
     implementation("com.dsbuilder.authorization:authorization-core")
     implementation("com.dsbuilder.runtime:runtime-contracts")
@@ -28,7 +42,7 @@ tasks.processResources {
 tasks.register<JavaExec>("evalChat") {
     group = "verification"
     description = "Runs AI chat reference scenarios against a running local stack (needs EVAL_* variables)."
-    classpath = sourceSets["main"].runtimeClasspath
+    classpath = eval.runtimeClasspath
     mainClass.set("com.dsbuilder.ai.eval.EvalChatKt")
     workingDir = rootDir
     args(rootDir.resolve("evals/scenarios.json").absolutePath)
