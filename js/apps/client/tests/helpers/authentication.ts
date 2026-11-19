@@ -112,6 +112,7 @@ export function authenticatedRequest(
     data?: unknown,
     idempotencyKey?: string,
     readPolicy?: ReadPolicy,
+    writeTimeoutMs = 30_000,
 ): Promise<Response> {
     const headers = new Headers({ Authorization: 'Bearer ' + session.accessToken, 'Cache-Control': 'no-store' });
     if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
@@ -122,7 +123,7 @@ export function authenticatedRequest(
         url,
         { method, headers, body },
         allowed,
-        method === 'GET' ? (readPolicy?.timeoutMs ?? 10000) : 30000,
+        method === 'GET' ? (readPolicy?.timeoutMs ?? 10000) : writeTimeoutMs,
         trackWrite,
         readPolicy?.attempts ?? 2,
     );

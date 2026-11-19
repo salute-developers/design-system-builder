@@ -9,6 +9,8 @@ export type TokenValue = Readonly<{
     platform: 'web' | 'ios' | 'android';
     mode: 'light' | 'dark' | null;
     value: unknown;
+    paletteRef?: string | null;
+    sourceValue?: unknown;
     editRevision: number;
     overridden?: boolean;
 }>;

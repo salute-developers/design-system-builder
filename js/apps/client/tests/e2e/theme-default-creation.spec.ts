@@ -4,7 +4,7 @@ test.use({ memberRole: 'editor' });
 
 test(
     'PLASMABLDR-T767: PROJ-UI-032 Создание темы по умолчанию и нормализация имени',
-    { tag: '@smoke', annotation: { type: 'zephyr', description: 'PLASMABLDR-T767' } },
+    { annotation: { type: 'zephyr', description: 'PLASMABLDR-T767' } },
     async ({
         page,
         systems,

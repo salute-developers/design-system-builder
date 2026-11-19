@@ -1,4 +1,4 @@
-﻿import { test as base, expect } from './role-colors.ts';
+import { test as base, expect } from './role-colors.ts';
 import { themeIsolationFixtureTimeoutMs } from '../config/timeouts.ts';
 import { prepareSizeData } from '../helpers/size-data.ts';
 import type { SizeData } from '../helpers/size-data.ts';

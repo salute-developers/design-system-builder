@@ -1,4 +1,4 @@
-﻿import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import type { PageReadiness } from '../helpers/page-readiness.ts';
 import { SizesPage } from './sizes.page.ts';
 

@@ -16,3 +16,6 @@ export const sectionReadyTimeoutMs = 30_000;
 /** Пилот создания ДС: критерий ответа UI и отдельный предел подтверждения позднего результата. */
 export const systemCreationResponseTimeoutMs = 30_000;
 export const systemCreationSettlementTimeoutMs = 60_000;
+
+/** API setup includes base seeding; allow one longer POST without retries. */
+export const systemPreparationTimeoutMs = 90_000;

@@ -1,4 +1,4 @@
-﻿import { expect } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { authenticatedRequest } from './authentication.ts';
 import type { Session } from './authentication.ts';
 import { exactDefinition } from './color-data.ts';
