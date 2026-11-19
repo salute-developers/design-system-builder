@@ -23,8 +23,8 @@ Compose- и web-плагины с API-метаданными. Пакеты те�
 <!-- provenance:end -->
 
 <!-- web-provenance:start -->
-- Web plugin archive: build `30fdc9c99790` (commit `30fdc9c99790cdcc48f1766b8b4603ccb1256a70`), plasma-new-hope `0.386.0`, protocol 1, sha256 `880e96434c8b5c0b4da63c8e8c14888c4341a69f6f3421ba24e6f26b8cf7ed01`.
-- Web API meta: sha256 `2c9bc4ac38aea5fc8c8bf511e8dcc17620c6096ffc896e73f1a2c63e68c0e4e4`; built by `npm run package` in `js/apps/preview-web-plugin`.
+- Web plugin archive: build `9efe19b8714b` (commit `9efe19b8714bc643dfa70187d42634ef732ba355`), plasma-new-hope `0.391.0-dev.0`, protocol 1, sha256 `5ec328b13feecf31b6e1b68118b94b82008ee8fda5a678686ac000ee98796634`.
+- Web API meta: sha256 `d7aa5a3278e91f25194eb54ada4ba42e61db062312d78cd1006ff35a5e6f5525`; built by `npm run package` in `js/apps/preview-web-plugin`.
 <!-- web-provenance:end -->
 
 
