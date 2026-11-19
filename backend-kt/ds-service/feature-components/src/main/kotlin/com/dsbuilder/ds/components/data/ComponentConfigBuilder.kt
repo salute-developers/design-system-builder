@@ -6,6 +6,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
@@ -71,37 +72,43 @@ internal class ComponentConfigBuilder(
         )
     }
 
-    private fun axes(appearanceId: UUID, colorScheme: UUID?): List<ConfigAxis> =
-        AppearanceVariationsTable.innerJoin(VariationsTable).selectAll()
+    private fun axes(appearanceId: UUID, colorScheme: UUID?): List<ConfigAxis> {
+        val rows = AppearanceVariationsTable.innerJoin(VariationsTable).selectAll()
             .where { AppearanceVariationsTable.appearanceId eq appearanceId }
             .orderBy(AppearanceVariationsTable.position)
-            .map { row ->
-                val axisId = row[AppearanceVariationsTable.id]
-                ConfigAxis(
-                    row[AppearanceVariationsTable.variationId],
+            .toList()
+        // Значения всех вариаций оформления одним запросом, а не по запросу на вариацию.
+        val values = chunkedSelect(rows.map { it[AppearanceVariationsTable.id] }) { ids ->
+            AppearanceVariationValuesTable.innerJoin(ComponentStylesTable).selectAll()
+                .where { AppearanceVariationValuesTable.appearanceVariationId inList ids }
+                .orderBy(AppearanceVariationValuesTable.position)
+                .toList()
+        }.sortedBy { it[AppearanceVariationValuesTable.position] }
+            .groupBy({ it[AppearanceVariationValuesTable.appearanceVariationId] }) {
+                ConfigAxisValue(
+                    it[AppearanceVariationValuesTable.styleId],
                     AppearanceEditorRules.axisName(
-                        row[AppearanceVariationsTable.displayName],
-                        row[VariationsTable.name],
+                        it[AppearanceVariationValuesTable.displayName],
+                        it[ComponentStylesTable.name],
                     ),
-                    row[AppearanceVariationsTable.defaultStyleId],
-                    row[AppearanceVariationsTable.variationId] == colorScheme,
-                    row[AppearanceVariationsTable.declaredType],
-                    AppearanceVariationValuesTable.innerJoin(ComponentStylesTable).selectAll()
-                        .where { AppearanceVariationValuesTable.appearanceVariationId eq axisId }
-                        .orderBy(AppearanceVariationValuesTable.position)
-                        .map {
-                            ConfigAxisValue(
-                                it[AppearanceVariationValuesTable.styleId],
-                                AppearanceEditorRules.axisName(
-                                    it[AppearanceVariationValuesTable.displayName],
-                                    it[ComponentStylesTable.name],
-                                ),
-                                it[AppearanceVariationValuesTable.authoredId],
-                            )
-                        },
-                    row[AppearanceVariationsTable.position],
+                    it[AppearanceVariationValuesTable.authoredId],
                 )
             }
+        return rows.map { row ->
+            ConfigAxis(
+                row[AppearanceVariationsTable.variationId],
+                AppearanceEditorRules.axisName(
+                    row[AppearanceVariationsTable.displayName],
+                    row[VariationsTable.name],
+                ),
+                row[AppearanceVariationsTable.defaultStyleId],
+                row[AppearanceVariationsTable.variationId] == colorScheme,
+                row[AppearanceVariationsTable.declaredType],
+                values[row[AppearanceVariationsTable.id]].orEmpty(),
+                row[AppearanceVariationsTable.position],
+            )
+        }
+    }
 
     private fun stateNames(): Map<UUID, List<String>> {
         val names = ComponentStatesTable.selectAll().associate {
@@ -193,25 +200,8 @@ internal class ComponentConfigBuilder(
             )
             .selectAll().where { StyleCombinationsTable.appearanceId eq appearance.id }.toList()
         val byKey = values.groupBy { it[StyleCombinationsTable.combinationKey] }
-        val storedMembers = values.groupBy { it[StyleCombinationsTable.combinationKey] }.mapValues { (_, rows) ->
-            val ids = rows.map { it[StyleCombinationsTable.id] }
-            StyleCombinationMembersTable.innerJoin(ComponentStylesTable).selectAll()
-                .filter { it[StyleCombinationMembersTable.combinationId] in ids }
-                .map(::combinationMember).distinctBy { it.styleId }
-        }
-        val declared = AppearanceCombinationsTable.selectAll()
-            .where { AppearanceCombinationsTable.appearanceId eq appearance.id }
-            .orderBy(AppearanceCombinationsTable.position).map { row ->
-                val id = row[AppearanceCombinationsTable.id]
-                val members = AppearanceCombinationMembersTable.innerJoin(ComponentStylesTable).selectAll()
-                    .where { AppearanceCombinationMembersTable.appearanceCombinationId eq id }
-                    .orderBy(AppearanceCombinationMembersTable.position).map(::declaredMember)
-                Triple(
-                    row[AppearanceCombinationsTable.combinationKey],
-                    row[AppearanceCombinationsTable.authoredId],
-                    members,
-                )
-            }
+        val storedMembers = storedMembers(values)
+        val declared = declaredCombinations(appearance.id)
         // Declared order first; undeclared keys sorted so the export does not depend on physical row order.
         val keys = (declared.map { it.first } + byKey.keys.sorted()).distinct()
         return keys.mapNotNull { key ->
@@ -247,11 +237,53 @@ internal class ComponentConfigBuilder(
         }
     }
 
+    /**
+     * Участники всех сочетаний оформления по ключу сочетания — одним запросом. Представление участников
+     * разрешает редакции коррелированным подзапросом, поэтому чтение его целиком на каждый ключ давало
+     * O(ключи × участники дизайн-системы) индексных сканирований.
+     */
+    private fun storedMembers(values: List<ResultRow>): Map<String, List<ConfigMember>> {
+        val keyOf = values.associate { it[StyleCombinationsTable.id] to it[StyleCombinationsTable.combinationKey] }
+        return chunkedSelect(keyOf.keys.toList()) { ids ->
+            StyleCombinationMembersTable.innerJoin(ComponentStylesTable).selectAll()
+                .where { StyleCombinationMembersTable.combinationId inList ids }
+                .toList()
+        }.groupBy({ keyOf.getValue(it[StyleCombinationMembersTable.combinationId]) }, ::combinationMember)
+            // Порядок строк зависит от плана запроса и от деления id на части: участники упорядочиваются здесь,
+            // по тексту id стиля (так же, как Postgres сравнивает uuid), чтобы чтение конфига было детерминированным.
+            .mapValues { (_, members) -> members.distinctBy { it.styleId }.sortedBy { it.styleId.toString() } }
+    }
+
+    /** Объявленные сочетания оформления в порядке объявления: ключ, authored id и участники по позиции. */
+    private fun declaredCombinations(appearanceId: UUID): List<Triple<String, String?, List<ConfigMember>>> {
+        val rows = AppearanceCombinationsTable.selectAll()
+            .where { AppearanceCombinationsTable.appearanceId eq appearanceId }
+            .orderBy(AppearanceCombinationsTable.position).toList()
+        val members = chunkedSelect(rows.map { it[AppearanceCombinationsTable.id] }) { ids ->
+            AppearanceCombinationMembersTable.innerJoin(ComponentStylesTable).selectAll()
+                .where { AppearanceCombinationMembersTable.appearanceCombinationId inList ids }
+                .orderBy(AppearanceCombinationMembersTable.position)
+                .toList()
+        }.sortedBy { it[AppearanceCombinationMembersTable.position] }
+            .groupBy({ it[AppearanceCombinationMembersTable.appearanceCombinationId] }, ::declaredMember)
+        return rows.map { row ->
+            Triple(
+                row[AppearanceCombinationsTable.combinationKey],
+                row[AppearanceCombinationsTable.authoredId],
+                members[row[AppearanceCombinationsTable.id]].orEmpty(),
+            )
+        }
+    }
+
     /** Подставляет действующие имена значений оформления вместо имён стилей каталога. */
     private fun effectiveNames(members: List<ConfigMember>, axes: List<ConfigAxis>): List<ConfigMember> {
         val names = axes.flatMap { axis -> axis.values.map { it.styleId to it.name } }.toMap()
         return members.map { it.copy(styleName = names[it.styleId] ?: it.styleName) }
     }
+
+    /** Выборка по списку id частями, чтобы число параметров запроса не упиралось в предел драйвера. */
+    private fun <T> chunkedSelect(ids: List<UUID>, select: (List<UUID>) -> List<T>): List<T> =
+        ids.distinct().chunked(ID_CHUNK).flatMap(select)
 
     private fun combinationMember(row: ResultRow) = ConfigMember(
         row[StyleCombinationMembersTable.styleId],
@@ -358,6 +390,7 @@ internal class ComponentConfigBuilder(
 
     private companion object {
         val numericTypes = setOf("dimension", "float", "integer")
+        const val ID_CHUNK = 1_000
     }
 }
 
