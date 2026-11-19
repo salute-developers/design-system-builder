@@ -249,7 +249,9 @@ internal class ComponentConfigBuilder(
                 .where { StyleCombinationMembersTable.combinationId inList ids }
                 .toList()
         }.groupBy({ keyOf.getValue(it[StyleCombinationMembersTable.combinationId]) }, ::combinationMember)
-            .mapValues { (_, members) -> members.distinctBy { it.styleId } }
+            // Порядок строк зависит от плана запроса и от деления id на части: участники упорядочиваются здесь,
+            // по тексту id стиля (так же, как Postgres сравнивает uuid), чтобы чтение конфига было детерминированным.
+            .mapValues { (_, members) -> members.distinctBy { it.styleId }.sortedBy { it.styleId.toString() } }
     }
 
     /** Объявленные сочетания оформления в порядке объявления: ключ, authored id и участники по позиции. */
