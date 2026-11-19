@@ -40,10 +40,9 @@ class ConsentRuntime(configuration: ApplicationConfig) : AutoCloseable {
 }
 
 /** Загружает точные байты уведомлений, показанных клиентом. */
-fun loadConsentPolicies(): Map<String, ConsentPolicy> =
-    mapOf("web" to "web-v2", "cli_mcp" to "cli_mcp-v1").mapValues { (_, version) ->
-        val path = "/dsbuilder/consent/notices/$version.txt"
-        val bytes = requireNotNull(ConsentRuntime::class.java.getResourceAsStream(path))
-            .use { it.readBytes() }
-        ConsentPolicy(version, sha256(bytes), bytes.toString(Charsets.UTF_8))
-    }
+fun loadConsentPolicies(): Map<String, ConsentPolicy> = listOf("web", "cli_mcp").associateWith { group ->
+    val path = "/dsbuilder/consent/notices/$group-v1.txt"
+    val bytes = requireNotNull(ConsentRuntime::class.java.getResourceAsStream(path))
+        .use { it.readBytes() }
+    ConsentPolicy("$group-v1", sha256(bytes), bytes.toString(Charsets.UTF_8))
+}

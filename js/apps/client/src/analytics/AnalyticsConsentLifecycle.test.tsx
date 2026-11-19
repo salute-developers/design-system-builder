@@ -17,7 +17,7 @@ vi.mock('./consent', async (original) => {
     return {
         ...actual,
         analyticsConsentEnabled: true,
-        consentStorageKey: 'lifecycle',
+        getConsentStorageKey: () => 'lifecycle',
         analyticsConsent: actual.createAnalyticsConsent(localStorage, 'lifecycle', (...args) => fetch(...args)),
     };
 });

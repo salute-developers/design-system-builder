@@ -9,10 +9,12 @@ import {
 } from '../../components/BuilderShell/BuilderShell';
 import { PersonalAccessTokensPanel, type PersonalAccessTokenCounts } from './PersonalAccessTokensPanel';
 
-const sections: SettingsSection[] = ['Общее', 'Personal Access Token'];
+const generalSections: SettingsSection[] = ['Общее', 'Personal Access Token'];
+const tokenSections: SettingsSection[] = ['Personal Access Token'];
 
 export const UserSettingsPage = () => {
     const user = authService.getCurrentUser();
+    const sections = analyticsConsentEnabled ? generalSections : tokenSections;
     const active = useActiveSettingsSection(sections);
     const [counts, setCounts] = useState<PersonalAccessTokenCounts>({ total: 0, active: 0, expired: 0 });
     const userId = user?.id ?? '';
@@ -49,9 +51,11 @@ export const UserSettingsPage = () => {
             <section id="settings-personal-access-token" className="settings-section">
                 <PersonalAccessTokensPanel key={userId} userId={userId} onCountsChange={setCounts} />
             </section>
-            <section id="settings-user-general" className="settings-section ps-user-general">
-                {analyticsConsentEnabled && <AnalyticsConsentSettings active={active === 'Общее'} />}
-            </section>
+            {analyticsConsentEnabled && (
+                <section id="settings-user-general" className="settings-section ps-user-general">
+                    <AnalyticsConsentSettings active={active === 'Общее'} />
+                </section>
+            )}
         </SettingsFrame>
     );
 };

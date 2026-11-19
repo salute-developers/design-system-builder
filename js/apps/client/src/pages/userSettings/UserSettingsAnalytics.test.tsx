@@ -23,20 +23,25 @@ vi.mock('../../modules/projects/data/projectsApi', () => ({ projectsApi: { list:
 import { UserSettingsPage } from './UserSettingsPage';
 
 afterEach(cleanup);
-it.each(['/settings', '/settings?section=analytics'])('hides analytics and preserves PAT when disabled: %s', (url) => {
-    config.enabled = false;
-    render(
-        <MemoryRouter initialEntries={[url]}>
-            <UserSettingsPage />
-        </MemoryRouter>,
-    );
-    expect(screen.getByRole('button', { name: 'Общее', exact: true })).toHaveAttribute('aria-current', 'page');
-    expect(screen.queryByText('Управление аналитикой')).toBeNull();
-    expect(screen.getByText('Управление PAT')).not.toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Personal Access Token', exact: true }));
-    expect(screen.getByText('Управление PAT')).toBeVisible();
-    expect(screen.getByText('Всего токенов')).toBeVisible();
-});
+it.each(['/settings', '/settings?section=analytics', '/settings?section=user-general'])(
+    'hides analytics and preserves PAT when disabled: %s',
+    (url) => {
+        config.enabled = false;
+        render(
+            <MemoryRouter initialEntries={[url]}>
+                <UserSettingsPage />
+            </MemoryRouter>,
+        );
+        expect(screen.queryByRole('button', { name: 'Общее', exact: true })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Personal Access Token', exact: true })).toHaveAttribute(
+            'aria-current',
+            'page',
+        );
+        expect(screen.queryByText('Управление аналитикой')).toBeNull();
+        expect(screen.getByText('Управление PAT')).toBeVisible();
+        expect(screen.getByText('Всего токенов')).toBeVisible();
+    },
+);
 
 it('shows analytics management when configured even before permission is granted', () => {
     config.enabled = true;

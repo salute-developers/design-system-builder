@@ -4,7 +4,7 @@ import { matchPath, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { authService } from '../api';
-import { analyticsConsent, analyticsConsentEnabled, consentStorageKey } from './consent';
+import { analyticsConsent, analyticsConsentEnabled, getConsentStorageKey } from './consent';
 import { webAnalytics } from './metrica';
 
 const Panel = styled.section`
@@ -228,8 +228,13 @@ export const AnalyticsConsent = ({ children }: { children?: ReactNode }) => {
     const { pathname } = useLocation();
     useEffect(() => {
         if (!analyticsConsentEnabled) return;
+        const scope = getConsentStorageKey();
         const update = () =>
-            webAnalytics.setConsent(authService.isAuthenticated() && analyticsConsent.getSnapshot().allowed);
+            webAnalytics.setConsent(
+                scope === getConsentStorageKey() &&
+                    authService.isAuthenticated() &&
+                    analyticsConsent.getSnapshot().allowed,
+            );
         const unsubscribe = analyticsConsent.subscribe(update);
         update();
         const reset = () => {
@@ -239,7 +244,8 @@ export const AnalyticsConsent = ({ children }: { children?: ReactNode }) => {
         const unsubscribeSession = authService.onSessionReset(reset);
         void analyticsConsent.start();
         const listener = (event: StorageEvent) => {
-            if ([consentStorageKey, null].includes(event.key)) analyticsConsent.changed();
+            if (scope !== getConsentStorageKey()) reset();
+            else if ([scope, null].includes(event.key)) analyticsConsent.changed();
         };
         window.addEventListener('storage', listener);
         return () => {

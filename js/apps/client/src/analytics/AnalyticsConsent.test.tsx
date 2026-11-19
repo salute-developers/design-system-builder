@@ -18,18 +18,20 @@ const fixture = vi.hoisted(() => ({
     review: vi.fn(),
     setConsent: vi.fn(),
     stop: vi.fn(),
+    changed: vi.fn(),
+    scope: 'test' as string | undefined,
 }));
 vi.mock('../api', () => ({ authService: { isAuthenticated: () => true, onSessionReset: () => () => {} } }));
 vi.mock('./consent', () => ({
     analyticsConsentEnabled: true,
-    consentStorageKey: 'test',
+    getConsentStorageKey: () => fixture.scope,
     analyticsConsent: {
         subscribe: () => () => {},
         getSnapshot: () => fixture.state,
         start: fixture.start,
         choose: fixture.choose,
         review: fixture.review,
-        changed: vi.fn(),
+        changed: fixture.changed,
         stop: fixture.stop,
     },
 }));
@@ -44,6 +46,7 @@ const renderBanner = () =>
 
 beforeEach(() => {
     vi.clearAllMocks();
+    fixture.scope = 'test';
     fixture.start.mockResolvedValue(undefined);
     fixture.state = {
         allowed: false,
@@ -172,4 +175,18 @@ it('loads settings only while their section is active without starting the sessi
     view.rerender(<AnalyticsConsentSettings active />);
     expect(fixture.review).toHaveBeenCalledOnce();
     expect(fixture.start).not.toHaveBeenCalled();
+});
+
+it('ignores other-account consent storage events and stops when authentication scope changes in another tab', () => {
+    fixture.state = { ...fixture.state, allowed: true, choice: 'granted' };
+    renderBanner();
+    fireEvent(window, new StorageEvent('storage', { key: 'other-account' }));
+    expect(fixture.changed).not.toHaveBeenCalled();
+    expect(fixture.stop).not.toHaveBeenCalled();
+    fireEvent(window, new StorageEvent('storage', { key: 'test' }));
+    expect(fixture.changed).toHaveBeenCalledOnce();
+    fixture.scope = 'new-account';
+    fireEvent(window, new StorageEvent('storage', { key: 'auth.access_token' }));
+    expect(fixture.stop).toHaveBeenCalledOnce();
+    expect(fixture.setConsent).toHaveBeenLastCalledWith(false);
 });
