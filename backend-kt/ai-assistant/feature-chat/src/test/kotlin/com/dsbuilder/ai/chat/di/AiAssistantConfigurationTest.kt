@@ -17,7 +17,10 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 class AiAssistantConfigurationTest {
-    private fun read(vararg pairs: Pair<String, String>) = AiAssistantConfiguration.fromEnvironment(mapOf(*pairs)::get)
+    /** Явные адрес и модель, как требует включённый чат; переменные из [pairs] их перекрывают. */
+    private fun read(vararg pairs: Pair<String, String>) = AiAssistantConfiguration.fromEnvironment(
+        (mapOf("AI_BASE_URL" to "https://llm.test/v1", "AI_MODEL" to "test-model") + pairs)::get,
+    )
 
     @Test
     fun disabledIgnoresOtherVariablesEvenWhenBroken() {
@@ -27,16 +30,26 @@ class AiAssistantConfigurationTest {
     }
 
     @Test
-    fun onlyKeyIsNeededForZaiDefaults() {
+    fun explicitProviderWithoutZaiSpecificDefaults() {
         val configuration = read("AI_ENABLED" to "true", "AI_API_KEY" to "key")
         val settings = assertIs<ProviderSettings.OpenAiCompatible>(configuration.providerSettings)
 
-        assertEquals("https://api.z.ai/api/paas/v4", settings.baseUrl)
-        assertEquals("glm-4.5-flash", settings.model)
-        assertEquals(setOf("1234", "1305"), settings.retryErrorCodes)
-        assertEquals("""{"thinking":{"type":"disabled"}}""", settings.extraBody.toString())
+        assertEquals("https://llm.test/v1", settings.baseUrl)
+        assertEquals("test-model", settings.model)
+        assertEquals(emptySet(), settings.retryErrorCodes)
+        assertEquals("{}", settings.extraBody.toString())
         assertEquals(30.seconds, configuration.limits!!.toolCallTimeout)
         assertEquals(64L * 1024 * 1024, configuration.limits!!.turnStoreMaxBytes)
+    }
+
+    @Test
+    fun providerAddressAndModelMustBeExplicit() {
+        for (missing in listOf("AI_BASE_URL", "AI_MODEL")) {
+            val failure = assertFailsWith<IllegalStateException> {
+                read("AI_ENABLED" to "true", "AI_API_KEY" to "key", missing to "")
+            }
+            assertTrue(missing in failure.message.orEmpty(), missing)
+        }
     }
 
     @Test

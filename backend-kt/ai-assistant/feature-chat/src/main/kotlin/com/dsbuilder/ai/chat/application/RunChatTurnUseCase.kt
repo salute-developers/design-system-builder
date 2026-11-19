@@ -11,7 +11,10 @@ import com.dsbuilder.ai.chat.domain.ToolCall
 import com.dsbuilder.ai.chat.domain.ToolResult
 import com.dsbuilder.ai.chat.domain.ToolSpec
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -22,9 +25,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import java.time.Clock
 import java.util.UUID
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource
@@ -46,6 +51,10 @@ class RunChatTurnUseCase internal constructor(
     private val newKey: () -> String = { UUID.randomUUID().toString() },
 ) {
     private val budget = HistoryBudget(limits.historyMaxChars, limits.toolResultMaxChars)
+
+    /** Проверки прав идут отдельными задачами: блокирующую БД отмена корутины не прерывает. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val checks = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(ACCESS_CHECK_THREADS))
 
     /** Выполняет ход до конца; исключения не выходят наружу. */
     suspend fun run(command: ChatTurnCommand) {
@@ -157,21 +166,39 @@ class RunChatTurnUseCase internal constructor(
         }
 
         /** Актуализирует права перед вызовом инструмента; null — права действуют, иначе причина отказа. */
-        private suspend fun refreshAccess(): AccessCheck? {
-            val check = refresher?.refresh(command.principal) ?: return null
-            if (check is AccessCheck.Current) {
-                principal = check.principal
-                access = check.access
-                return null
+        private suspend fun refreshAccess(stoppable: Boolean = true): AccessCheck? {
+            val refresher = refresher ?: return null
+            val check = awaitAccess(refresher, stoppable) ?: AccessCheck.Unavailable
+            if (check !is AccessCheck.Current) return check
+            principal = check.principal
+            access = check.access
+            return null
+        }
+
+        /**
+         * Проверка прав может ждать блокирующей БД: отдельная задача, ожидание ограничено сроком хода и прерывается
+         * остановкой. null — не дождались; решение тогда примет stopReason().
+         */
+        private suspend fun awaitAccess(refresher: ChatAccessRefresher, stoppable: Boolean): AccessCheck? {
+            val remaining = if (stoppable) limits.turnTimeout - started.elapsedNow() else limits.toolCallTimeout
+            val task = checks.async { refresher.refresh(command.principal) }
+            return try {
+                withTimeoutOrNull(remaining.coerceAtLeast(Duration.ZERO)) {
+                    if (stoppable) stoppable { task.await() } else task.await()
+                }
+            } catch (stopped: TurnStopped) {
+                null
+            } finally {
+                // Не дождались — отменяем: суспендящая проверка освободит поток, блокирующая доработает в своём пуле.
+                task.cancel()
             }
-            return check
         }
 
         /** Выполняет подтверждённую операцию по данным токена; остановка действует после неё. */
         private suspend fun runConfirmed(confirmed: ConfirmedOperation) {
             val operation = confirmed.operation
             val visible = toolbox.visibleArguments(operation.arguments)
-            val denied = if (confirmed.approved) refreshAccess() else null
+            val denied = if (confirmed.approved) refreshAccess(stoppable = false) else null
             if (denied == AccessCheck.Revoked) {
                 val result = agentError(operation.callId, operation.tool, CODE_NOT_ALLOWED, "Доступ к проекту отозван.")
                 emitFinished(result)
@@ -227,7 +254,11 @@ class RunChatTurnUseCase internal constructor(
         private suspend fun blocked(call: ToolCall, batch: CallBatch): Boolean? {
             batch.finish = stopReason()
             if (batch.finish != null) return false
-            return when (refreshAccess()) {
+            val check = refreshAccess()
+            // Пока ждали проверку прав, могли прийти остановка или истечь срок хода: новую запись не начинаем.
+            batch.finish = stopReason()
+            if (batch.finish != null) return false
+            return when (check) {
                 AccessCheck.Revoked -> {
                     batch.finish = ERROR_ACCESS_REVOKED to "Доступ к проекту отозван."
                     false
@@ -475,6 +506,9 @@ class RunChatTurnUseCase internal constructor(
 
         private const val SUMMARY_CHARS = 500
         private val STOP_POLL = 200.milliseconds
+
+        /** Отдельный пул проверок прав: зависшая БД не займёт общий Dispatchers.IO. */
+        private const val ACCESS_CHECK_THREADS = 8
 
         /** Размер описания инструмента в запросе к модели: имя, описание и схема. */
         private fun specChars(spec: ToolSpec): Int =

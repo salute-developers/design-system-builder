@@ -77,7 +77,11 @@ fun createAiAssistant(
     val toolbox = CatalogAgentToolbox(ChatToolCatalog.tools, tools, limits.toolCallTimeout)
     checkHistoryBudget(toolbox, limits.historyMaxChars, limits.messageMaxChars, limits.toolResultMaxChars)
     val llm = llmOverride ?: llmClient(providerHttp, settings)
-    val store = InMemoryTurnStore(limits.turnStoreMaxBytes)
+    val store = InMemoryTurnStore(
+        limits.turnStoreMaxBytes,
+        maxTurnsPerHour = limits.maxTurnsPerHour,
+        maxConcurrentTurns = limits.maxConcurrentTurns,
+    )
     val signer = HmacConfirmationSigner()
     val turnScope = ChatTurnScope(Dispatchers.IO)
     val runner = RunChatTurnUseCase(llm, toolbox, signer, store, limits, access)

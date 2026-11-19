@@ -86,6 +86,8 @@ data class AiAssistantConfiguration(
 
         fun secret(name: String): String = env(name)?.trim()?.takeIf(String::isNotEmpty) ?: fail(name, "is required")
 
+        fun required(name: String): String = env(name)?.trim()?.takeIf(String::isNotEmpty) ?: fail(name, "is required")
+
         fun positive(name: String, default: Int): Int {
             val raw = env(name)?.trim()?.takeIf(String::isNotEmpty) ?: return default
             return raw.toIntOrNull()?.takeIf { it > 0 } ?: fail(name, "must be a positive integer")
@@ -119,12 +121,13 @@ data class AiAssistantConfiguration(
                 else -> reader.fail("AI_PROVIDER", "must be openai-compatible or gigachat, got '$raw'")
             }
             val settings = when (provider) {
+                // Провайдер и модель задаются явно: данные DS не должны уйти тому, кого никто не выбирал.
                 AiProvider.OPENAI_COMPATIBLE -> ProviderSettings.OpenAiCompatible(
-                    baseUrl = reader.text("AI_BASE_URL", "https://api.z.ai/api/paas/v4"),
+                    baseUrl = reader.required("AI_BASE_URL"),
                     apiKey = reader.secret("AI_API_KEY"),
-                    model = reader.text("AI_MODEL", "glm-4.5-flash"),
-                    extraBody = reader.json("AI_EXTRA_BODY", """{"thinking":{"type":"disabled"}}"""),
-                    retryErrorCodes = reader.list("AI_RETRY_ERROR_CODES", "1234,1305"),
+                    model = reader.required("AI_MODEL"),
+                    extraBody = reader.json("AI_EXTRA_BODY", "{}"),
+                    retryErrorCodes = reader.list("AI_RETRY_ERROR_CODES", ""),
                 )
                 AiProvider.GIGACHAT -> ProviderSettings.GigaChat(
                     oauthUrl = reader.text("AI_GIGACHAT_OAUTH_URL", DEFAULT_GIGACHAT_OAUTH_URL),
@@ -143,6 +146,8 @@ data class AiAssistantConfiguration(
                 toolResultMaxChars = reader.positive("AI_TOOL_RESULT_MAX_CHARS", 20_000),
                 toolCallTimeout = reader.positive("AI_TOOL_CALL_TIMEOUT_SECONDS", 30).seconds,
                 turnStoreMaxBytes = reader.positive("AI_TURN_STORE_MAX_MB", 64).toLong() * BYTES_IN_MB,
+                maxTurnsPerHour = reader.positive("AI_MAX_TURNS_PER_HOUR", 30),
+                maxConcurrentTurns = reader.positive("AI_MAX_CONCURRENT_TURNS", 20),
             )
             val caPath = env("AI_CA_PATH")?.trim()?.takeIf(String::isNotEmpty)
             return AiAssistantConfiguration(true, provider, settings, limits, caPath)

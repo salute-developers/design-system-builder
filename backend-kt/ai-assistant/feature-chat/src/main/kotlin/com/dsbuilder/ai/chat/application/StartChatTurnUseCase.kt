@@ -105,21 +105,7 @@ class StartChatTurnUseCase internal constructor(
         }
         val turnId = when (val registration = turns.register(keys, inputBytes(request))) {
             is TurnRegistration.Started -> registration.turnId
-            is TurnRegistration.Existing -> return StartResult.Accepted(registration.turnId)
-            is TurnRegistration.Busy -> return StartResult.Rejected(
-                ChatRejection(
-                    TOO_MANY_REQUESTS,
-                    "ai_busy",
-                    mapOf(
-                        "activeTurnId" to registration.activeTurnId,
-                        "projectId" to registration.projectId,
-                        "designSystemId" to registration.designSystemId,
-                    ),
-                ),
-            )
-            TurnRegistration.KeyReused -> return rejected(CONFLICT, KEY_REUSED)
-            TurnRegistration.ConfirmationScopeMismatch -> return rejected(BAD_REQUEST, CONFIRMATION_INVALID)
-            TurnRegistration.Overloaded -> return rejected(UNAVAILABLE, "ai_overloaded")
+            else -> return rejection(registration)
         }
         val command =
             ChatTurnCommand(turnId, chatScope, principal, access, request.messages, confirmed, request.context)
@@ -132,6 +118,33 @@ class StartChatTurnUseCase internal constructor(
     }
 
     private fun rejected(status: Int, code: String) = StartResult.Rejected(ChatRejection(status, code))
+
+    /** Ответ на регистрацию, при которой ход не запускается. */
+    private fun rejection(registration: TurnRegistration): StartResult = when (registration) {
+        is TurnRegistration.Started -> error("A started turn is not a rejection")
+        is TurnRegistration.Existing -> StartResult.Accepted(registration.turnId)
+        is TurnRegistration.Busy -> StartResult.Rejected(
+            ChatRejection(
+                TOO_MANY_REQUESTS,
+                "ai_busy",
+                mapOf(
+                    "activeTurnId" to registration.activeTurnId,
+                    "projectId" to registration.projectId,
+                    "designSystemId" to registration.designSystemId,
+                ),
+            ),
+        )
+        TurnRegistration.KeyReused -> rejected(CONFLICT, KEY_REUSED)
+        TurnRegistration.ConfirmationScopeMismatch -> rejected(BAD_REQUEST, CONFIRMATION_INVALID)
+        TurnRegistration.Overloaded -> rejected(UNAVAILABLE, "ai_overloaded")
+        is TurnRegistration.RateLimited -> StartResult.Rejected(
+            ChatRejection(
+                TOO_MANY_REQUESTS,
+                "ai_turn_limit",
+                retryAfterSeconds = registration.retryAfterSeconds,
+            ),
+        )
+    }
 
     private fun fingerprint(request: ChatTurnRequest): String {
         val digest = MessageDigest.getInstance("SHA-256")

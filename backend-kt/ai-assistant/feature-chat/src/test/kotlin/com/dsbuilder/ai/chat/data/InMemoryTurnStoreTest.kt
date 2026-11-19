@@ -140,6 +140,60 @@ class InMemoryTurnStoreTest {
     }
 
     @Test
+    fun hourlyLimitCountsOnlyNewTurnsAndFreesAfterAnHour() {
+        var now = Instant.parse("2026-11-19T10:00:00Z")
+        val clock = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+            override fun withZone(zone: java.time.ZoneId?) = this
+            override fun instant() = now
+        }
+        val store = InMemoryTurnStore(1_000_000, clock, maxTurnsPerHour = 2)
+        repeat(2) { index ->
+            val turnId = store.register(keys(key = "k$index"), 0).id()
+            assertEquals(TurnRegistration.Existing(turnId), store.register(keys(key = "k$index"), 0))
+            store.complete(turnId)
+        }
+
+        val limited = assertIs<TurnRegistration.RateLimited>(store.register(keys(key = "k3"), 0))
+        assertEquals(3_600L, limited.retryAfterSeconds)
+        assertIs<TurnRegistration.Started>(store.register(keys(key = "k3", owner = TurnOwner("user-2", "project")), 0))
+
+        now = now.plusSeconds(3_601)
+        assertIs<TurnRegistration.Started>(store.register(keys(key = "k3"), 0))
+    }
+
+    @Test
+    fun cancelledTurnAndConfirmationDoNotSpendTheHourlyLimit() {
+        var now = Instant.parse("2026-11-19T10:00:00Z")
+        val clock = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+            override fun withZone(zone: java.time.ZoneId?) = this
+            override fun instant() = now
+        }
+        val store = InMemoryTurnStore(1_000_000, clock, maxTurnsPerHour = 1)
+        store.cancelRegistration(store.register(keys(key = "cancelled"), 0).id())
+        store.complete(store.register(keys(key = "first"), 0).id())
+
+        assertIs<TurnRegistration.RateLimited>(store.register(keys(key = "second"), 0))
+        store.complete(store.register(keys(key = "confirm", token = "hash"), 0).id())
+
+        now = now.plusMillis(500)
+        val limited = assertIs<TurnRegistration.RateLimited>(store.register(keys(key = "third"), 0))
+        assertEquals(3_600L, limited.retryAfterSeconds, "59 min 59.5 s rounds up to a full hour")
+    }
+
+    @Test
+    fun concurrentLimitIsShared() {
+        val store = InMemoryTurnStore(1_000_000, maxConcurrentTurns = 1)
+        store.register(keys(key = "a"), 0).id()
+
+        assertEquals(
+            TurnRegistration.Overloaded,
+            store.register(keys(key = "b", owner = TurnOwner("user-2", "project")), 0),
+        )
+    }
+
+    @Test
     fun completedTurnsExpireAfterRetention() {
         var now = Instant.parse("2026-11-17T10:00:00Z")
         val clock = object : Clock() {

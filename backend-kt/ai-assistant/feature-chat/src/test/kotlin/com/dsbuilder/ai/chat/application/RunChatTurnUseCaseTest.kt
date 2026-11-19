@@ -221,6 +221,45 @@ class RunChatTurnUseCaseTest {
     }
 
     @Test
+    fun `deadline during a slow access check does not start the write`() = runBlocking<Unit> {
+        val harness = TurnHarness(
+            ScriptedLlm({ LlmResponse.ToolCalls(listOf(write)) }),
+            limits = limits(turnTimeout = 300.milliseconds),
+            refresher = { principal ->
+                delay(1_000)
+                AccessCheck.Current(principal, allowAll)
+            },
+        )
+        val events = harness.run(listOf(user("x")))
+
+        assertTrue(harness.toolbox.executed.isEmpty(), "The write must not start after the deadline")
+        assertEquals("turn_timeout", events.filterIsInstance<ChatEvent.Error>().single().code)
+    }
+
+    @Test
+    fun `stop during a slow access check does not start the write`() = runBlocking<Unit> {
+        lateinit var harness: TurnHarness
+        harness = TurnHarness(
+            ScriptedLlm({ LlmResponse.ToolCalls(listOf(write)) }),
+            refresher = { principal ->
+                delay(1_000)
+                AccessCheck.Current(principal, allowAll)
+            },
+        )
+        val events = withTimeout(5_000) {
+            harness.run(listOf(user("x"))) { turnId ->
+                launch {
+                    delay(300)
+                    harness.store.stop(turnId, TurnOwner(scope.userId, scope.projectId))
+                }
+            }
+        }
+
+        assertTrue(harness.toolbox.executed.isEmpty(), "The write must not start after DELETE")
+        assertEquals("stopped", events.filterIsInstance<ChatEvent.Error>().single().code)
+    }
+
+    @Test
     fun `revoked access ends the turn before the tool call`() = runBlocking<Unit> {
         val harness = TurnHarness(
             ScriptedLlm({ LlmResponse.ToolCalls(listOf(write)) }),

@@ -252,8 +252,15 @@ sealed interface TurnRegistration {
     /** Гонка с тем же токеном из другой области. */
     data object ConfirmationScopeMismatch : TurnRegistration
 
-    /** Память занята идущими ходами. */
+    /** Память занята идущими ходами либо достигнут общий предел параллельных ходов. */
     data object Overloaded : TurnRegistration
+
+    /**
+     * Пользователь исчерпал предел ходов за час.
+     *
+     * @property retryAfterSeconds через сколько секунд освободится место в окне.
+     */
+    data class RateLimited(val retryAfterSeconds: Long) : TurnRegistration
 }
 
 /** Результат остановки хода. */
@@ -334,6 +341,8 @@ interface TurnStore {
  * @property toolResultMaxChars предел результата инструмента в символах.
  * @property toolCallTimeout таймаут вызова инструмента.
  * @property turnStoreMaxBytes предел памяти хранилища ходов в байтах.
+ * @property maxTurnsPerHour предел новых ходов пользователя за скользящий час.
+ * @property maxConcurrentTurns предел одновременно идущих ходов всех пользователей.
  */
 data class AgentLimits(
     val maxSteps: Int,
@@ -344,6 +353,8 @@ data class AgentLimits(
     val toolResultMaxChars: Int,
     val toolCallTimeout: Duration,
     val turnStoreMaxBytes: Long,
+    val maxTurnsPerHour: Int = Int.MAX_VALUE,
+    val maxConcurrentTurns: Int = Int.MAX_VALUE,
 )
 
 /**

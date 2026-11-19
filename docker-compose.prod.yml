@@ -168,7 +168,7 @@ services:
       # ИИ-чат: выключен, пока AI_ENABLED не равно true; при включении ошибка в AI_* не даст открыть готовность.
       AI_ENABLED: "${AI_ENABLED:-false}"
       AI_PROVIDER: "${AI_PROVIDER:-openai-compatible}"
-      AI_BASE_URL: "${AI_BASE_URL:-https://api.z.ai/api/paas/v4}"
+      AI_BASE_URL: "${AI_BASE_URL:-}"
       AI_API_KEY: "${AI_API_KEY:-}"
       AI_MODEL: "${AI_MODEL:-}"
       AI_EXTRA_BODY: "${AI_EXTRA_BODY:-}"
@@ -188,6 +188,8 @@ services:
       AI_TOOL_RESULT_MAX_CHARS: "${AI_TOOL_RESULT_MAX_CHARS:-20000}"
       # Хранилище ходов в памяти процесса; учитывается в BACKEND_MEMORY_LIMIT.
       AI_TURN_STORE_MAX_MB: "${AI_TURN_STORE_MAX_MB:-64}"
+      AI_MAX_TURNS_PER_HOUR: "${AI_MAX_TURNS_PER_HOUR:-30}"
+      AI_MAX_CONCURRENT_TURNS: "${AI_MAX_CONCURRENT_TURNS:-20}"
       DOCUMENTATION_WORKER_PARALLELISM: "${DOCUMENTATION_WORKER_PARALLELISM:-1}"
       PROJECTS_DATABASE_POOL_SIZE: "${PROJECTS_DATABASE_POOL_SIZE:-10}"
       DOCUMENTATION_DATABASE_POOL_SIZE: "${DOCUMENTATION_DATABASE_POOL_SIZE:-10}"

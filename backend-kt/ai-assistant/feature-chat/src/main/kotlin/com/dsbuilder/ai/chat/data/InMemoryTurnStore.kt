@@ -31,7 +31,13 @@ internal class InMemoryTurnStore(
     private val clock: Clock = Clock.systemUTC(),
     private val retention: Duration = Duration.ofMinutes(RETENTION_MINUTES),
     private val maxStreamsPerUser: Int = MAX_STREAMS_PER_USER,
+    /** Предел новых ходов пользователя за скользящий час. */
+    private val maxTurnsPerHour: Int = Int.MAX_VALUE,
+    /** Предел одновременно идущих ходов всех пользователей. */
+    private val maxConcurrentTurns: Int = Int.MAX_VALUE,
 ) : TurnStore {
+    /** Моменты начала ходов пользователя за последний час; повторы принятых запросов сюда не попадают. */
+    private val startsByUser = HashMap<String, ArrayDeque<Instant>>()
     private val lock = Any()
     private val turns = LinkedHashMap<String, Turn>()
     private val keyLinks = HashMap<KeyRef, KeyLink>()
@@ -57,9 +63,16 @@ internal class InMemoryTurnStore(
             val turn = turns.getValue(active)
             return TurnRegistration.Busy(active, turn.owner.projectId, turn.designSystemId)
         }
+        // Решение по подтверждению в лимит не засчитывается: предложенную операцию можно подтвердить и на пределе.
+        val counted = keys.confirmationTokenHash == null
+        val now = clock.instant()
+        limitRejection(keys.owner.userId, counted, now)?.let { return it }
         if (!reserve(inputBytes)) return TurnRegistration.Overloaded
+        if (counted) startsByUser.getOrPut(keys.owner.userId) { ArrayDeque() }.addLast(now)
         val turnId = UUID.randomUUID().toString()
-        turns[turnId] = Turn(turnId, keys.owner, keys.designSystemId, inputBytes)
+        turns[turnId] = Turn(turnId, keys.owner, keys.designSystemId, inputBytes).also {
+            it.countedAt = now.takeIf { counted }
+        }
         totalBytes += inputBytes
         keyLinks[KeyRef(keys.owner, keys.idempotencyKey)] = KeyLink(turnId, keys.fingerprint)
         keys.confirmationTokenHash?.let { hash ->
@@ -69,9 +82,24 @@ internal class InMemoryTurnStore(
         TurnRegistration.Started(turnId)
     }
 
+    /** Общий предел параллельных ходов и часовой предел пользователя; окно уже очищено в purge(). */
+    private fun limitRejection(userId: String, counted: Boolean, now: Instant): TurnRegistration? {
+        val starts = startsByUser[userId].orEmpty()
+        return when {
+            activeByUser.size >= maxConcurrentTurns -> TurnRegistration.Overloaded
+            !counted || starts.size < maxTurnsPerHour -> null
+            else -> {
+                val wait = Duration.between(now, starts.first().plus(HOUR))
+                TurnRegistration.RateLimited(((wait.toMillis() + MILLIS - 1) / MILLIS).coerceAtLeast(1))
+            }
+        }
+    }
+
     override fun cancelRegistration(turnId: String): Unit = synchronized(lock) {
         val turn = turns.remove(turnId) ?: return
         totalBytes -= turn.bytes
+        // Ход не стартовал: возвращаем засчитанный момент в окно.
+        turn.countedAt?.let { at -> startsByUser[turn.owner.userId]?.remove(at) }
         keyLinks.values.removeIf { it.turnId == turnId }
         tokenLinks.values.removeIf { it.turnId == turnId }
         activeByUser.remove(turn.owner.userId, turnId)
@@ -183,6 +211,11 @@ internal class InMemoryTurnStore(
     }
 
     private fun purge() {
+        val hourAgo = clock.instant().minus(HOUR)
+        startsByUser.values.forEach { starts ->
+            while (starts.isNotEmpty() && !starts.first().isAfter(hourAgo)) starts.removeFirst()
+        }
+        startsByUser.values.removeIf { it.isEmpty() }
         val threshold = clock.instant().minus(retention)
         val expired = turns.values.filter { it.completedAt?.isBefore(threshold) == true }
         expired.forEach { turn ->
@@ -194,6 +227,8 @@ internal class InMemoryTurnStore(
     }
 
     private class Turn(val id: String, val owner: TurnOwner, val designSystemId: String, var bytes: Long) {
+        /** Момент, засчитанный в часовой лимит; null — ход в лимит не засчитан (решение по подтверждению). */
+        var countedAt: Instant? = null
         val events = mutableListOf<StoredEvent>()
         val version = MutableStateFlow(0L)
         var completedAt: Instant? = null
@@ -211,6 +246,8 @@ internal class InMemoryTurnStore(
     }
 
     private companion object {
+        private val HOUR: Duration = Duration.ofHours(1)
+        private const val MILLIS = 1_000L
         const val RETENTION_MINUTES = 10L
         const val MAX_STREAMS_PER_USER = 3
     }

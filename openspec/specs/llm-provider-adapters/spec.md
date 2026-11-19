@@ -57,8 +57,12 @@
 Подсистема SHALL читать настройки провайдера из env, только если `AI_ENABLED=true`: `AI_PROVIDER` (`openai-compatible` или `gigachat`) и параметры выбранного адаптера. Неполная или недопустимая конфигурация при `AI_ENABLED=true` MUST обрабатываться как ошибочная конфигурация монолита: приложение не открывает готовность и называет переменную. Значения ключей MUST NOT выводиться в журнал. Если задан `AI_CA_PATH`, корни из этого файла MUST добавляться к системным доверенным сертификатам HTTP-клиента любого провайдера, а не заменять их: на инфраструктуре GigaChat и OpenAI-совместимый API, и OAuth подписаны корнем НУЦ Минцифры.
 
 #### Scenario: Значения по умолчанию
-- **WHEN** заданы только `AI_ENABLED=true` и `AI_API_KEY`
-- **THEN** подсистема MUST использовать `openai-compatible`, адрес ZAI `https://api.z.ai/api/paas/v4`, модель `glm-4.5-flash`, `AI_EXTRA_BODY={"thinking":{"type":"disabled"}}` и коды повтора `1234,1305`
+- **WHEN** `AI_ENABLED=true`, `AI_PROVIDER` не задан, а `AI_API_KEY`, `AI_BASE_URL` и `AI_MODEL` заданы
+- **THEN** подсистема MUST использовать `openai-compatible` с этими адресом и моделью, без дополнительных полей тела запроса и без кодов повтора сверх 429 и 5xx
+
+#### Scenario: Провайдер не выбран явно
+- **WHEN** `AI_ENABLED=true` и `AI_PROVIDER=openai-compatible`, но не задан `AI_BASE_URL` или `AI_MODEL`
+- **THEN** приложение MUST NOT открывать готовность и MUST назвать переменную: данные DS не должны уйти провайдеру, которого никто не выбирал
 
 #### Scenario: Не задан ключ
 - **WHEN** `AI_ENABLED=true`, а `AI_API_KEY` для `openai-compatible` пуст

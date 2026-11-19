@@ -12,11 +12,13 @@ import com.dsbuilder.ai.chat.di.AiAssistant
 import com.dsbuilder.ai.chat.di.AiAssistantConfiguration
 import com.dsbuilder.ai.chat.domain.ChatScope
 import com.dsbuilder.authorization.PolicyEvaluator
+import com.dsbuilder.authorization.ProjectActorType
 import com.dsbuilder.authorization.ProjectPrincipal
 import com.dsbuilder.authorization.TrustedProjectPrincipalFactory
 import io.ktor.http.CacheControl
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveText
@@ -88,6 +90,11 @@ private suspend fun ApplicationCall.startTurn(
     trustedHeaders: (ApplicationCall) -> Headers,
 ) {
     val (ai, principal) = authorized(assistant, evaluator, trustedHeaders) ?: return
+    // Чат — функция интерфейса: PAT не должен превращать его в прокси к платной модели для скриптов.
+    if (principal.type == ProjectActorType.PERSONAL_ACCESS_TOKEN) {
+        reject(ChatRejection(FORBIDDEN, "ai_pat_forbidden"))
+        return
+    }
     val valid = turnInput(ai) ?: return
     val scope = ChatScope(principal.actorId, principal.projectId, valid.designSystemId)
     val access = ChatAccess { permission -> evaluator.isAllowed(principal, permission) }
@@ -230,7 +237,9 @@ private suspend fun ApplicationCall.reject(rejection: ChatRejection) {
     val body = buildJsonObject {
         put("code", rejection.code)
         rejection.details.forEach { (key, value) -> put(key, JsonPrimitive(value)) }
+        rejection.retryAfterSeconds?.let { put("retryAfterSeconds", it) }
     }
+    rejection.retryAfterSeconds?.let { response.headers.append(HttpHeaders.RetryAfter, it.toString()) }
     respondJson(HttpStatusCode.fromValue(rejection.status), body)
 }
 

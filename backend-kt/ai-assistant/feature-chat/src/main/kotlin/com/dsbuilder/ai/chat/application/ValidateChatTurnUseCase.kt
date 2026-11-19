@@ -8,8 +8,14 @@ import com.dsbuilder.ai.chat.domain.ChatRole
  * @property status HTTP-статус ответа.
  * @property code машиночитаемый код отказа.
  * @property details необязательные детали отказа.
+ * @property retryAfterSeconds через сколько секунд повторить запрос, если отказ временный.
  */
-data class ChatRejection(val status: Int, val code: String, val details: Map<String, String> = emptyMap())
+data class ChatRejection(
+    val status: Int,
+    val code: String,
+    val details: Map<String, String> = emptyMap(),
+    val retryAfterSeconds: Long? = null,
+)
 
 /** Результат проверки формы запроса. */
 sealed interface ChatTurnValidation {

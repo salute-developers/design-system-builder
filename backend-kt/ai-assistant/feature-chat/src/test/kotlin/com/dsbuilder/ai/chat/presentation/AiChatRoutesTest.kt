@@ -48,7 +48,14 @@ import kotlin.time.Duration.Companion.milliseconds
 class AiChatRoutesTest {
     private val evaluator = PolicyEvaluator(AuthorizationPolicyLoader.load(null))
     private val configuration =
-        AiAssistantConfiguration.fromEnvironment(mapOf("AI_ENABLED" to "true", "AI_API_KEY" to "k")::get)
+        AiAssistantConfiguration.fromEnvironment(
+            mapOf(
+                "AI_ENABLED" to "true",
+                "AI_API_KEY" to "k",
+                "AI_BASE_URL" to "https://llm.test/v1",
+                "AI_MODEL" to "glm-4.5-flash",
+            )::get,
+        )
 
     private fun assistant(llm: LlmClient = ScriptedLlm({ LlmResponse.Text("ok") })): AiAssistant {
         val limits = limits()
@@ -157,6 +164,24 @@ class AiChatRoutesTest {
         assertEquals("IDEMPOTENCY_KEY_REUSED", client.chat(body = withContext).code())
         val badContext = BODY.replace("}]}", """}],"context":{"section":"nope"}}""")
         assertEquals("invalid_request", client.chat(key = "k-bad", body = badContext).code())
+    }
+
+    @Test
+    fun personalAccessTokenCannotStartATurn() = routesTest(assistant()) {
+        val response = client.post("/api/projects/project-1/ai/chat") {
+            header("X-Actor-Type", "personal_access_token")
+            header("X-User-Id", "user-1")
+            header("X-Project-Id", "project-1")
+            header("X-Project-Role", "editor")
+            header("X-Project-Scopes", "design-systems:read")
+            header("X-Personal-Access-Token-Id", "pat-1")
+            header("Idempotency-Key", "pat-key")
+            contentType(ContentType.Application.Json)
+            setBody(BODY)
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertEquals("ai_pat_forbidden", response.code())
     }
 
     @Test
