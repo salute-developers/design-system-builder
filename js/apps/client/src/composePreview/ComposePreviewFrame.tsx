@@ -7,7 +7,7 @@ import { isDebugMode } from '../utils/debugMode';
 import { PreviewPayloadInput, PreviewComponentDescription, PreviewFailureDetails, PreviewPluginPlatform } from './types';
 import type { LoadedComposePreviewManifest } from './types';
 import { ComposeFailureDetails } from './ComposeFailureDetails';
-import { FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
+import { FailureState, FailureStateText, FailureStateTitle, FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
 
 export interface ComposePreviewFrameProps {
     pluginUrl: string;
@@ -253,14 +253,18 @@ export const ComposePreviewFrame = ({
     const activeCrash = crashNotice && payload && crashNotice.key === payloadKey ? crashNotice : undefined;
     const cause = failure ? failureCause : activeCrash?.details;
     const labels = FRAME_LABELS[platform];
+    const failureMessage = failure ?? activeCrash?.message;
+    // Плагин уже нарисовал результат для этого получателя: при отказе он остаётся на экране.
+    const hasFrame = revealed || renderedFor === subscriber;
 
     return (
         <FrameRoot data-status={status}>
             <PreviewIframe
                 ref={iframeRef}
                 title={labels.title}
-                // Отказ показывает iframe как раньше, но не кадр, открытый для другого получателя.
-                $hidden={!revealed && (status !== 'failure' || revealedFor !== undefined)}
+                // Без успешного кадра этого получателя iframe скрыт и при отказе: плагин без результата рисует пустой
+                // холст, а причина показывается вместо него.
+                $hidden={!revealed && !(status === 'failure' && hasFrame)}
                 data-revealed={revealed}
                 sandbox="allow-scripts allow-same-origin"
                 onLoad={() => {
@@ -297,7 +301,16 @@ export const ComposePreviewFrame = ({
                 <Status>{labels.loading}</Status>
             )}
             {status === 'rendering' && !revealed && <Status>{labels.rendering}</Status>}
-            {(failure ?? activeCrash?.message) && <Status role="alert">{failure ?? activeCrash?.message}</Status>}
+            {failureMessage &&
+                (hasFrame ? (
+                    // Последний успешный кадр остаётся на экране, причина отказа — поверх него.
+                    <Status role="alert">{failureMessage}</Status>
+                ) : (
+                    <FailureState role="alert">
+                        <FailureStateTitle>Не удалось построить превью</FailureStateTitle>
+                        <FailureStateText>{failureMessage}</FailureStateText>
+                    </FailureState>
+                ))}
             {isDebugMode() && cause && <ComposeFailureDetails details={cause} />}
         </FrameRoot>
     );

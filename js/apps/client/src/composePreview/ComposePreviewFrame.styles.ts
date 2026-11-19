@@ -31,6 +31,36 @@ export const Status = styled.div`
     font-size: 0.75rem;
 `;
 
+/** Отказ без успешного кадра: причина занимает область превью вместо пустого холста плагина. */
+export const FailureState = styled.div`
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: #ffffff;
+    background: #1e1f22;
+`;
+
+export const FailureStateTitle = styled.div`
+    font-size: 0.875rem;
+    font-weight: 600;
+`;
+
+export const FailureStateText = styled.div`
+    max-width: 32rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: rgb(255 255 255 / 72%);
+    white-space: pre-wrap;
+    word-break: break-word;
+`;
+
 export const FailureDetailsRoot = styled.div`
     position: absolute;
     top: 0.75rem;
