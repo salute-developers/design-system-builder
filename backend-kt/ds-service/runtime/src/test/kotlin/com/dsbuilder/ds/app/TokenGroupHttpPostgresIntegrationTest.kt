@@ -13,7 +13,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -40,7 +39,7 @@ class TokenGroupHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `token groups and moves keep definition ids and component references`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)

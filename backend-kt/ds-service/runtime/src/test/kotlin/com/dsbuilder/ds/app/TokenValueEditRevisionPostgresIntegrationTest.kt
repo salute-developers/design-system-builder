@@ -3,7 +3,6 @@ package com.dsbuilder.ds.app
 import com.dsbuilder.ds.core.data.BatchJdbc
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -26,7 +25,7 @@ class TokenValueEditRevisionPostgresIntegrationTest {
             val fixture = transaction(db = db) { seed() }
             val options = "-c%20plan_cache_mode%3Dforce_generic_plan%20-c%20statement_timeout%3D5000"
             val url = "${postgres.jdbcUrl}&prepareThreshold=1&options=$options"
-            testApplication {
+            integrationTestApplication {
                 application {
                     module(
                         DsServiceConfiguration(

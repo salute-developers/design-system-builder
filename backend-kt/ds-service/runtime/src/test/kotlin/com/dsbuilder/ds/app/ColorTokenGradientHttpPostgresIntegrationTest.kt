@@ -21,7 +21,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
@@ -54,7 +53,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `color batch preserves individual revision warnings and rejects invalid values atomically`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
@@ -127,7 +126,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `concurrent batches create one missing address and keep both edit revisions`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val system = api.create("/api/design-systems", OWNER, """{"name":"missing","projectName":"missing"}""")
@@ -212,7 +211,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `color batch with an inaccessible draft returns not found and rolls back the transaction`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val system = api.create(
@@ -262,7 +261,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `addressed revert serializes with writes creation rename delete and publication`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 for (operation in listOf("write", "create", "rename", "delete", "publish")) {
@@ -392,7 +391,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `literal dependency validation rejects a hidden tenant before reference shortcut`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val system = api.create(
@@ -440,7 +439,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `literal batch preserves stale errors rollback and replay`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
@@ -774,7 +773,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `gradient in one mode of one theme derives the family type`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"g","projectName":"g"}""")
@@ -977,7 +976,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `rename revert keeps the family type derived from values`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
@@ -1019,7 +1018,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `batch revert resets every entry of a token atomically in one request`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"b","projectName":"b"}""")
@@ -1095,7 +1094,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `definition revert of one member keeps one family type matching values`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"m","projectName":"m"}""")
@@ -1141,7 +1140,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `removing the theme with the only gradient resets the family type`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"d","projectName":"d"}""")
@@ -1189,7 +1188,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `new theme gets initial values of a non-seed gradient token`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"n","projectName":"n"}""")
@@ -1229,7 +1228,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `general token-values routes apply the value kind rule and the published form`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"v","projectName":"v"}""")
@@ -1324,7 +1323,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `general token-values routes initialize the template copy of a theme created outside ds-service`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"t","projectName":"t"}""")
@@ -1395,7 +1394,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `repeated token-value create replays the stored response and fingerprints the original body`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"r","projectName":"r"}""")

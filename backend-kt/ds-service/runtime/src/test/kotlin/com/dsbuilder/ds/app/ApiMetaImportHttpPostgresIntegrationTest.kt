@@ -10,7 +10,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -317,7 +316,7 @@ class ApiMetaImportHttpPostgresIntegrationTest {
 
     private fun withService(body: suspend ApiMetaImportHttpPostgresIntegrationTest.() -> Unit) {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 service = Service(postgres, this)
                 kotlinx.coroutines.runBlocking { body() }

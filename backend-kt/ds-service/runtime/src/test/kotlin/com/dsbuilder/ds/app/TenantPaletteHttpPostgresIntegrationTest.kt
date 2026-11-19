@@ -14,7 +14,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -41,7 +40,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
     @Test
     fun `theme palette is a template copy edited through the palette API`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
 
@@ -205,7 +204,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
     @Test
     fun `palette_id references and themes created outside ds-service`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
                 val designSystem = """{"name":"beta","projectName":"beta"}"""
@@ -276,7 +275,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
     @Test
     fun `reads do not initialize missing palette and shared design systems are read-only`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
                 val designSystem = """{"name":"gamma","projectName":"gamma"}"""
@@ -342,7 +341,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
     @Test
     fun `palette seed batches preserve every canonical color and roll back a late failure`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = PaletteApi(client)
                 val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")

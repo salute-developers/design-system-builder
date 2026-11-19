@@ -10,7 +10,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -44,7 +43,7 @@ class JournalProjectionHttpPostgresIntegrationTest {
         IsolatedPostgresDatabase.create().use { postgres ->
             val db = Database.connect(postgres.jdbcUrl, user = postgres.username, password = postgres.password)
             lateinit var legacy: ExposedDraftChangeRepository
-            testApplication {
+            integrationTestApplication {
                 application {
                     module(
                         DsServiceConfiguration(
@@ -182,7 +181,7 @@ class JournalProjectionHttpPostgresIntegrationTest {
                     exec("ANALYZE")
                 }
             }
-            testApplication {
+            integrationTestApplication {
                 application {
                     module(
                         DsServiceConfiguration(
