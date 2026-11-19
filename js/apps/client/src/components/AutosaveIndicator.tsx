@@ -32,10 +32,12 @@ const SaveIcon = ({ status }: { status: AutosaveStatus }) => (
     </svg>
 );
 
-export const AutosaveIndicator = ({ status, retry, lastSavedAt }: {
+export const AutosaveIndicator = ({ status, retry, lastSavedAt, errorMessage }: {
     status: AutosaveStatus;
     retry: () => void;
     lastSavedAt?: number;
+    /** Причина отказа сервера, понятная пользователю; показывается вместо общего текста ошибки. */
+    errorMessage?: string;
 }) => {
     const [open, setOpen] = useState(false);
     const anchorRef = useRef<HTMLDivElement>(null);
@@ -46,7 +48,7 @@ export const AutosaveIndicator = ({ status, retry, lastSavedAt }: {
         : undefined;
     const lastSaveLabel = savedTime ? `Последнее сохранение — ${savedTime}` : undefined;
     const hint = status === 'saved' ? lastSaveLabel ?? 'Нет несохранённых изменений'
-        : [labels[status], lastSaveLabel ?? (status === 'error' ? 'Время последнего успешного сохранения неизвестно' : undefined)]
+        : [status === 'error' && errorMessage ? `${errorMessage.replace(/\.$/, '')}. Нажмите, чтобы повторить.` : labels[status], lastSaveLabel ?? (status === 'error' ? 'Время последнего успешного сохранения неизвестно' : undefined)]
             .filter(Boolean).join('\n');
 
     return (

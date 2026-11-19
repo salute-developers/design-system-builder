@@ -832,7 +832,8 @@ export const componentRepository = {
                             acceptMetadata(response.headers);
                         } catch (error) {
                             const message = isAxiosError(error)
-                                ? styleReferenceErrorMessage(error.response?.data?.code)
+                                ? // ds-service кладёт код отказа в поле `error`; `code` — прежняя форма ответа.
+                                  styleReferenceErrorMessage(error.response?.data?.error ?? error.response?.data?.code)
                                 : undefined;
                             throw message ? Object.assign(error as Error, { message }) : error;
                         }

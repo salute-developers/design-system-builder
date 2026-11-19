@@ -9,11 +9,25 @@ import {
     getDraftAutosaveRevision,
     registerDraftAutosaveSource,
     getDraftAutosaveSourceStatus,
+    subscribeDraftAutosaveStatus,
 } from './draftAutosaveActivity';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 
 describe('draft autosave activity', () => {
+    it('передаёт подписчикам причину ошибки очереди, пока она в статусе error', () => {
+        const messageContext = { ...context, tenantId: 'tenant-error-message' };
+        const listener = vi.fn();
+        const unsubscribe = subscribeDraftAutosaveStatus(messageContext, listener);
+        const source = registerDraftAutosaveSource(messageContext, 'component:compose/ButtonGroup');
+        source('error', 'Ссылка на стиль создаёт цикл');
+        expect(listener).toHaveBeenLastCalledWith('error', undefined, 'Ссылка на стиль создаёт цикл');
+        source('saving');
+        expect(listener).toHaveBeenLastCalledWith('saving', undefined, undefined);
+        source(null);
+        unsubscribe();
+    });
+
     it('передаёт ошибку восстановленной очереди, не освобождая ещё работающий старый запрос', () => {
         const old = registerDraftAutosaveSource(context, 'component:web/Button');
         old('saving');

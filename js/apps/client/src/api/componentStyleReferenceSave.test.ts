@@ -113,7 +113,10 @@ describe('сохранение ссылки на стиль вложенного
         put.mockRejectedValue(
             Object.assign(new Error('Request failed'), {
                 isAxiosError: true,
-                response: { status: 422, data: { code: 'reference_cycle' } },
+                response: {
+                    status: 422,
+                    data: { error: 'reference_cycle', message: 'The reference closes a cycle of configurations' },
+                },
             }),
         );
 
