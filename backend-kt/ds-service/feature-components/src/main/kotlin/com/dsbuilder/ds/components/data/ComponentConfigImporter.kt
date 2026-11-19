@@ -4,15 +4,18 @@ import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ImportComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfig
 import com.dsbuilder.ds.components.domain.ConfigurationName
+import com.dsbuilder.ds.components.domain.EditorAxisValue
 import com.dsbuilder.ds.components.domain.RootCandidate
 import com.dsbuilder.ds.components.domain.fallbackRoot
 import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.insertReturning
@@ -928,10 +931,8 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             val component = component(componentName, context)?.get(ComponentsTable.id)
             val resolved = component?.let { referenceTarget(ds, it, styleName, context) }
             val target = resolved?.appearance
-            val available = resolved?.available.orEmpty()
-            val effective = resolved?.effective.orEmpty()
-            val targetStyles = parts.drop(1).mapNotNull { effective[it.trim().lowercase()] ?: available[it] }
-            if (target == null || targetStyles.size != parts.size - 1) {
+            val targetStyles = resolved?.let { targetStyles(parts.drop(1), it) }
+            if (target == null || targetStyles == null) {
                 context.report.unresolvedComponentStyles += pending.reference
             } else {
                 writeReference(ds, pending, target, targetStyles, context)
@@ -995,6 +996,17 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }
     }
 
+    /**
+     * Стили, на которые указывает хвост ссылки. Сначала действует прежнее правило: каждый сегмент — имя значения
+     * вариации или имя стиля компонента. Только если оно не покрыло хвост, хвост раскладывается на группы с
+     * исходными идентификаторами значений и сочетаний цели ([ReferenceSegments]).
+     */
+    private fun targetStyles(tail: List<String>, target: ReferenceTarget): List<UUID>? {
+        fun byName(segment: String) = target.effective[segment.trim().lowercase()] ?: target.available[segment]
+        val byNames = tail.mapNotNull(::byName)
+        return if (byNames.size == tail.size) byNames else ReferenceSegments.resolve(tail, ::byName, target.authored)
+    }
+
     /** Цель ссылки и её стили читаются один раз: ссылок на одно оформление в пакете много. */
     private fun referenceTarget(
         ds: UUID,
@@ -1003,17 +1015,40 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         context: ComponentConfigImportContext,
     ): ReferenceTarget = context.referenceTargets.getOrPut(component to styleName) {
         val appearance = appearance(ds, component, styleName)
+        val values = appearance?.let {
+            AppearanceEditorModelReader.axes(it[ComponentAppearancesTable.id], ds, null).flatMap { axis -> axis.values }
+        }.orEmpty()
         ReferenceTarget(
             appearance,
             referenceStyles(ds, component),
-            appearance?.let { effectiveStyles(ds, it[ComponentAppearancesTable.id]) }.orEmpty(),
+            // Значения вариаций целевого оформления по действующему имени: ссылки экспорта написаны этими именами.
+            values.associate { it.name.trim().lowercase() to it.styleId },
+            appearance?.let { authoredStyles(it[ComponentAppearancesTable.id], values) }.orEmpty(),
         )
     }
 
-    /** Значения оси целевого оформления по действующему имени: ссылки экспорта написаны этими именами. */
-    private fun effectiveStyles(ds: UUID, appearanceId: UUID): Map<String, UUID> =
-        AppearanceEditorModelReader.axes(appearanceId, ds, null).flatMap { it.values }
-            .associate { it.name.trim().lowercase() to it.styleId }
+    /**
+     * Стили значений и сочетаний по исходному идентификатору из пакета. Значение раньше сочетания при совпадении
+     * идентификаторов, внутри одной таблицы первое по позиции. Сочетания читаются одним запросом с `JOIN` участников.
+     */
+    private fun authoredStyles(appearanceId: UUID, values: List<EditorAxisValue>): Map<String, List<UUID>> {
+        val authored = linkedMapOf<String, List<UUID>>()
+        values.forEach { value -> value.authoredId?.let { authored.putIfAbsent(it, listOf(value.styleId)) } }
+        AppearanceCombinationsTable.join(
+            AppearanceCombinationMembersTable,
+            JoinType.INNER,
+            AppearanceCombinationsTable.id,
+            AppearanceCombinationMembersTable.appearanceCombinationId,
+        ).selectAll().where {
+            (AppearanceCombinationsTable.appearanceId eq appearanceId) and
+                AppearanceCombinationsTable.authoredId.isNotNull()
+        }.orderBy(
+            AppearanceCombinationsTable.position to SortOrder.ASC,
+            AppearanceCombinationMembersTable.position to SortOrder.ASC,
+        ).groupBy({ it[AppearanceCombinationsTable.authoredId]!! }, { it[AppearanceCombinationMembersTable.styleId] })
+            .forEach { (id, styles) -> authored.putIfAbsent(id, styles) }
+        return authored
+    }
 
     private fun referenceStyles(ds: UUID, component: UUID): Map<String, UUID> = ComponentStylesTable.join(
         VariationsTable,
