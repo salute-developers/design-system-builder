@@ -40,6 +40,7 @@ import '../../styles/component-structure.css';
 
 import { ComponentEditor } from './features/ComponentEditor';
 import { ComponentEditorSkeleton } from './features/ComponentEditor/ComponentEditorSkeleton';
+import { LoadErrorState } from '../../components/Catalog/Catalog';
 import { ComponentsSectionSkeleton } from './ComponentsSectionSkeleton';
 import { COMPONENTS_PANEL } from './panelWidths';
 import {
@@ -749,6 +750,9 @@ export const Components = () => {
                 <Workspace
                     section="components"
                     readOnly={designSystem.getParameters()?.readOnly}
+                    // Правку раздел закрывает сам (каталог, «Структура», поля свойств): переключать компоненты,
+                    // платформы и вариации можно и в режиме просмотра.
+                    inertWhenReadOnly={false}
                     menuBackground={'transparent'}
                     menuWidth="var(--panel-left, 280px)"
                     menu={
@@ -835,12 +839,7 @@ export const Components = () => {
                             ) : componentLoading ? (
                                 <ComponentEditorSkeleton />
                             ) : componentError ? (
-                                <div role="alert">
-                                    Не удалось загрузить компонент{' '}
-                                    <button type="button" onClick={reload}>
-                                        Повторить
-                                    </button>
-                                </div>
+                                <LoadErrorState text="Не удалось загрузить компонент" retry={reload} kind="workspace" />
                             ) : (
                                 <ComponentEditor
                                     designSystem={designSystem}
@@ -853,6 +852,7 @@ export const Components = () => {
                                     onConfigurationSelect={onConfigurationSelect}
                                     structure={designSystemReadOnly ? undefined : structure}
                                     onLoadComponent={loadComponent}
+                                    readOnly={designSystemReadOnly}
                                 />
                             )}
                         </>

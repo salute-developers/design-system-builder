@@ -15,6 +15,22 @@ export interface VariationTreeBranch {
 export const sameStyles = (a: readonly string[], b: readonly string[]) =>
     a.length === b.length && a.every((id) => b.includes(id));
 
+/** Стили, выбранные в «Variants»: у вариации и у флага значение выбора — ID стиля, вариации без ключа не выбраны. */
+export const selectedStyles = (selection: Readonly<Record<string, string | boolean>>) =>
+    Object.values(selection).filter((value): value is string => typeof value === 'string');
+
+/**
+ * Вариация `view` — цветовая схема: заблокирована (без перетаскивания и удаления) и идёт последней. Узнаётся по имени
+ * вариации из каталога компонента (`catalogNames`: ID → имя), поэтому переименование в конфигурации её не снимает.
+ * Ось, которую сервер уже отдал цветовой схемой, остаётся ею.
+ */
+export const withColorScheme = (axes: EditorAxisDto[], catalogNames: ReadonlyMap<string, string>) =>
+    axes.map((axis) =>
+        !axis.isColorScheme && (catalogNames.get(axis.variationId) ?? axis.name).toLowerCase() === 'view'
+            ? { ...axis, isColorScheme: true, locked: true }
+            : axis,
+    );
+
 /** Уровни дерева: вариации в порядке конфигурации, цветовая схема последней. */
 export const treeAxes = (axes: EditorAxisDto[]) =>
     [...axes].sort((a, b) => Number(a.isColorScheme) - Number(b.isColorScheme) || a.position - b.position);

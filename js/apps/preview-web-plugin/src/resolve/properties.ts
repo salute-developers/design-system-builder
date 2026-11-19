@@ -1,3 +1,4 @@
+import { resolveCoreTemplates } from '../cssVariables';
 import type { JsonValue, PreviewPropertySource, PreviewPropertyValue } from '../protocol';
 import { stateParamFor, type ApiMetaParam, type MetaIndex } from './meta';
 import { applyTemplate, templateFor, type TemplateIndex } from './templates';
@@ -38,7 +39,17 @@ const literalToCss = (value: JsonValue, type: string, alpha?: number): string | 
 };
 
 const resolveSource = (source: PreviewPropertySource, ctx: ResolveContext, path: string): ResolvedSource | undefined => {
-    if (source.type === 'literal') return { kind: 'literal', value: source.value, alpha: source.alpha };
+    if (source.type === 'literal') {
+        if (typeof source.value !== 'string' || !source.value.includes('${')) {
+            return { kind: 'literal', value: source.value, alpha: source.alpha };
+        }
+        // Выражения ядра хранятся с шаблоном токенов (`var(${avatarTokens.avatarSize})`): в CSS он недействителен.
+        const { value, unresolved } = resolveCoreTemplates(source.value);
+        unresolved.forEach((template) =>
+            ctx.warnings.add('incompatible_value', `Core template ${template} is not resolved`, path),
+        );
+        return { kind: 'literal', value, alpha: source.alpha };
+    }
     if (source.type === 'tokenRef') {
         const token = ctx.theme[source.tokenId];
         if (!token) {

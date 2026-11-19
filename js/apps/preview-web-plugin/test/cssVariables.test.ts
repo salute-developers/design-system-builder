@@ -1,7 +1,7 @@
-import { buttonTokens } from '@salutejs/plasma-new-hope/styled-components';
+import { avatarTokens, buttonTokens } from '@salutejs/plasma-new-hope/styled-components';
 import { describe, expect, it } from 'vitest';
 
-import { getCSSVariableName, toCSSVariables, toCoreCssVariables } from '../src/cssVariables';
+import { getCSSVariableName, resolveCoreTemplates, toCSSVariables, toCoreCssVariables } from '../src/cssVariables';
 
 describe('getCSSVariableName', () => {
     it('берёт имя из объекта токенов ядра, если ключ в нём есть', () => {
@@ -52,5 +52,24 @@ describe('toCoreCssVariables для Button', () => {
 
     it('для неизвестного компонента строит имена по схеме', () => {
         expect(toCSSVariables('Chip', { backgroundColorHover: 'red' })).toEqual({ '--plasma-chip-background-color-hover': 'red' });
+    });
+});
+
+describe('resolveCoreTemplates', () => {
+    it('заменяет шаблоны токенов ядра на имена CSS-переменных, как генератор', () => {
+        const { value, unresolved } = resolveCoreTemplates(
+            'calc(var(${avatarTokens.avatarSize}) - var(${avatarTokens.statusIconSize}))',
+        );
+
+        expect(value).toBe(`calc(var(${avatarTokens.avatarSize}) - var(${avatarTokens.statusIconSize}))`);
+        expect(value).not.toContain('${');
+        expect(unresolved).toEqual([]);
+    });
+
+    it('оставляет неизвестный шаблон как есть и сообщает о нём', () => {
+        expect(resolveCoreTemplates('var(${unknownTokens.size})')).toEqual({
+            value: 'var(${unknownTokens.size})',
+            unresolved: ['${unknownTokens.size}'],
+        });
     });
 });

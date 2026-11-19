@@ -18,6 +18,34 @@ export const sortCatalogByName = <T extends { name: string; updatedAt?: string }
     return [...items].sort((left, right) => direction * left.name.localeCompare(right.name, 'ru'));
 };
 
+/**
+ * Заглушка ошибки загрузки из макета (`07 System / Error`): картинка, «Не удалось загрузить данные», подсказка и
+ * «Повторить». `text` — что не загрузилось, для экранного диктора; `kind` задаёт отступ в своей раскладке.
+ */
+export const LoadErrorState = ({
+    text,
+    retry,
+    kind = 'project',
+}: {
+    text: string;
+    retry?: () => void;
+    kind?: 'project' | 'system' | 'theme' | 'workspace';
+}) => (
+    <section className={`catalog-error-state is-${kind}`} role="alert" aria-label={text}>
+        <span className="catalog-state-label">{text}</span>
+        <div className="catalog-error-art" aria-hidden="true">
+            <img src={errorStateImage} alt="" />
+        </div>
+        <h2>Не удалось загрузить данные</h2>
+        <p>Проверьте подключение и попробуйте ещё раз.</p>
+        <Visible when={Boolean(retry)}>
+            <button className="primary catalog-primary-action" onClick={retry}>
+                Повторить
+            </button>
+        </Visible>
+    </section>
+);
+
 export const State = ({
     text,
     retry,
@@ -52,19 +80,7 @@ export const State = ({
                         <div className="catalog-state">
                             <p>{text}</p>
                         </div>,
-                        <section className={`catalog-error-state is-${kind}`} role="alert" aria-label={text}>
-                            <span className="catalog-state-label">{text}</span>
-                            <div className="catalog-error-art" aria-hidden="true">
-                                <img src={errorStateImage} alt="" />
-                            </div>
-                            <h2>Не удалось загрузить данные</h2>
-                            <p>Проверьте подключение и попробуйте ещё раз.</p>
-                            <Visible when={Boolean(retry)}>
-                                <button className="primary catalog-primary-action" onClick={retry}>
-                                    Повторить
-                                </button>
-                            </Visible>
-                        </section>,
+                        <LoadErrorState text={text} retry={retry} kind={kind} />,
                     ),
                     <section className={`catalog-loading-grid is-${kind}`} role="status" aria-label={text}>
                         <span className="catalog-state-label">{text}</span>
@@ -311,14 +327,7 @@ export const EmptyState = ({
                     </span>
                 </>
             ) : (
-                <img
-                    src={
-                        kind === 'theme'
-                            ? emptyThemePreviewImage
-                            : emptyDesignSystemPreviewImage
-                    }
-                    alt=""
-                />
+                <img src={kind === 'theme' ? emptyThemePreviewImage : emptyDesignSystemPreviewImage} alt="" />
             )}
         </div>
         <div className="catalog-empty-copy">

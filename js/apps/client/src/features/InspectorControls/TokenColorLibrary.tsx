@@ -89,7 +89,9 @@ export const TokenColorLibrary = ({ options, value, onPick }: TokenColorLibraryP
     return (
         <div className={`cp-library cp-source-library cp-component-library ${preferences.grid ? 'is-grid' : ''}`}>
             <div className="cp-library-search">
-                <span aria-hidden="true">⌕</span>
+                <span aria-hidden="true">
+                    <TyGlyph name="search" />
+                </span>
                 <input
                     aria-label="Найти токен цвета"
                     placeholder="Найти"

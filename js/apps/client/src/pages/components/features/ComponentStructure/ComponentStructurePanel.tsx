@@ -16,21 +16,21 @@ import {
     isTreePath,
     offTreeCombinations,
     sameStyles,
+    selectedStyles,
     treeAxes,
     treeChildren,
+    withColorScheme,
     type VariationTreeBranch,
 } from './variationTree';
 
 interface ComponentStructurePanelProps {
     config: Config;
     structure: StructureAccess;
-    /** Сочетание вариаций превью: имя вариации → ID стиля. */
+    /** Выбор в «Variants»: имя вариации → ID стиля; вариации без ключа — «не выбрано». */
     selection: Record<string, string | boolean>;
+    /** `undefined` снимает выбор вариации. */
     onSelectionChange: (variationName: string, styleID: string | undefined) => void;
     onConfigurationSelect: (configurationId: string | undefined) => void;
-    /** Пересечение, открытое в «Стилизации»: стили сочетания. */
-    combination?: string[];
-    onCombinationSelect?: (styleIds: string[] | undefined) => void;
 }
 
 interface PendingDelete {
@@ -39,6 +39,8 @@ interface PendingDelete {
     text: string;
     confirmLabel: string;
     operation: StructureOperation;
+    /** Тексты кодов ошибок именно этой операции: один код сервера значит разное для разных удалений. */
+    errors?: Record<string, string>;
 }
 
 /** Строка ввода имени: `Enter` сохраняет, `Escape` отменяет, пустое имя не сохраняется. */
@@ -79,11 +81,20 @@ const ERRORS: Record<string, string> = {
     axis_locked: 'Вариацию цветовой схемы удалить нельзя',
 };
 
-const errorText = (error: unknown) => structureErrorText(error, ERRORS);
+/** Сервер отвечает `axis_locked` и на удаление оси цветовой схемы, и на удаление её последнего значения. */
+const DELETE_AXIS_ERRORS: Record<string, string> = { axis_locked: 'Вариацию цветовой схемы удалить нельзя' };
+const DELETE_VALUE_ERRORS: Record<string, string> = {
+    axis_locked: 'Нельзя удалить единственное значение цветовой схемы',
+};
 
-/** Порядок показа: вариация цветовой схемы первой, остальные — в порядке конфигурации. */
-const orderedAxes = (axes: EditorAxisDto[]) =>
-    [...axes].sort((a, b) => Number(b.isColorScheme) - Number(a.isColorScheme) || a.position - b.position);
+const errorText = (error: unknown, errors?: Record<string, string>) =>
+    structureErrorText(error, { ...ERRORS, ...errors });
+
+/**
+ * Порядок показа — как у уровней дерева: вариации в порядке конфигурации, цветовая схема последней. Серверная позиция
+ * цветовой схемы может быть любой: порядок перемещаемых вариаций на экране совпадает с их серверным порядком.
+ */
+const orderedAxes = treeAxes;
 
 /** Кнопка действия строки дерева (`component-tree-icon-button` прототипа). */
 const IconButton = (props: {
@@ -166,7 +177,7 @@ const SectionHead = ({ title, children }: { title: string; children?: ReactNode 
  * конфигурации со значениями. Операции выполняются сразу через редакторский API, затем компонент перечитывается.
  */
 export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => {
-    const { config, structure, selection, onSelectionChange, onConfigurationSelect, combination } = props;
+    const { config, structure, selection, onSelectionChange, onConfigurationSelect } = props;
     const appearanceId = config.getConfigurationId();
     const componentId = config.getComponentId();
     const configurations = config.getConfigurations();
@@ -196,7 +207,12 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
         const controller = new AbortController();
         repository
             .loadModel(structure.context, appearanceId, controller.signal)
-            .then((loaded) => setModel({ appearanceId, axes: loaded.axes }))
+            .then((loaded) =>
+                setModel({
+                    appearanceId,
+                    axes: withColorScheme(loaded.axes, config.getCatalogVariationNames()),
+                }),
+            )
             .catch((reason: unknown) => {
                 if (!controller.signal.aborted) setError(errorText(reason));
             });
@@ -208,7 +224,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
         setPendingDelete(undefined);
     }, [appearanceId]);
 
-    const run = async (operation: StructureOperation) => {
+    const run = async (operation: StructureOperation, errors?: Record<string, string>) => {
         setBusy(true);
         setError(undefined);
         try {
@@ -216,7 +232,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
             setEdit(undefined);
             setPendingDelete(undefined);
         } catch (reason) {
-            setError(errorText(reason));
+            setError(errorText(reason, errors));
             setPendingDelete(undefined);
         } finally {
             setBusy(false);
@@ -399,6 +415,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                                         confirmLabel: 'Удалить значение',
                                         operation: (context) =>
                                             repository.deleteValue(context, appearanceId!, value.id),
+                                        errors: DELETE_VALUE_ERRORS,
                                     })
                                 }
                             />
@@ -468,6 +485,15 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                                         ⠿
                                     </span>
                                 )}
+                                {/* У цветовой схемы на месте ручки — замок: она не перетаскивается и не удаляется. */}
+                                {axis.isColorScheme && (
+                                    <span
+                                        className="component-protected-lock component-axis-lock-slot"
+                                        title="Вариация цветовой схемы: не перетаскивается и не удаляется"
+                                    >
+                                        <TyGlyph name="lock" />
+                                    </span>
+                                )}
                                 <button
                                     type="button"
                                     className="component-axis-toggle"
@@ -476,7 +502,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                                 >
                                     <TyGlyph name={isCollapsed ? 'chevron-right' : 'chevron-down'} />
                                     <span className="component-axis-name">
-                                        {isProtected && (
+                                        {isProtected && !axis.isColorScheme && (
                                             <span className="component-protected-lock">
                                                 <TyGlyph name="lock" />
                                             </span>
@@ -510,6 +536,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                                             confirmLabel: 'Удалить вариацию',
                                             operation: (context) =>
                                                 repository.deleteAxis(context, appearanceId!, axis.id),
+                                            errors: DELETE_AXIS_ERRORS,
                                         })
                                     }
                                 />
@@ -561,12 +588,19 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
         .filter((item) => item.props.getList().length > 0)
         .map((item) => item.styleIDs);
     const levels = treeAxes(axes ?? []);
+    // Стили, выбранные в «Variants»: по ним подсвечивается узел дерева, чей путь совпадает с выбором.
+    const selected = selectedStyles(selection);
+    // Выбор узла выставляет в «Variants» стили его пути, остальные вариации (и флаги) — «не выбрано».
     const selectCombination = (styleIds: string[]) => {
-        styleIds.forEach((id) => {
-            const axis = levels.find((item) => item.values.some((value) => value.styleId === id));
-            if (axis) onSelectionChange(axis.name, id);
+        const picked = new Map<string, string>();
+        levels.forEach((axis) => {
+            const value = axis.values.find((item) => styleIds.includes(item.styleId));
+            if (value) picked.set(axis.name, value.styleId);
         });
-        props.onCombinationSelect?.(styleIds.length > 1 ? styleIds : undefined);
+        picked.forEach((styleId, name) => onSelectionChange(name, styleId));
+        new Set([...levels.map((axis) => axis.name), ...Object.keys(selection)]).forEach((name) => {
+            if (!picked.has(name)) onSelectionChange(name, undefined);
+        });
     };
     const deleteCombination = (styleIds: string[], path: string) =>
         setPendingDelete({
@@ -611,9 +645,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                     (configuredOnly && within.some((item) => item.length > branch.styleIds.length));
                 const own = isConfigured(branch.styleIds, configured);
                 const path = branchPathLabel(levels, branch.styleIds);
-                const isSelected = combination
-                    ? sameStyles(combination, branch.styleIds)
-                    : branch.styleIds.length === 1 && selection[branch.axis.name] === branch.value.styleId;
+                const isSelected = sameStyles(selected, branch.styleIds);
                 return (
                     <div
                         key={branch.key}
@@ -664,7 +696,8 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
     const tree = treeBranches();
 
     const visibleAxes = orderedAxes(axes ?? []);
-    const firstCustom = visibleAxes.findIndex((axis) => !axis.isColorScheme);
+    // Бросок над цветовой схемой ставит вариацию перед ней, то есть после последней перемещаемой.
+    const lastMovable = visibleAxes.filter((axis) => !axis.isColorScheme).slice(-1)[0] as EditorAxisDto | undefined;
 
     return (
         <div className="component-variation-tree" aria-busy={busy}>
@@ -757,20 +790,25 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                         Загружаем вариации…
                     </p>
                 )}
-                {visibleAxes.map((axis, index) => (
+                {visibleAxes.map((axis) => (
                     <div
                         key={axis.id}
                         className="component-axis-slot"
                         onDragOver={(event) => {
-                            if (!drag || axis.isColorScheme) return;
+                            if (!drag) return;
+                            if (axis.isColorScheme) {
+                                if (lastMovable && (drag.overId !== lastMovable.id || !drag.after))
+                                    setDrag({ ...drag, overId: lastMovable.id, after: true });
+                                return;
+                            }
                             const rect = event.currentTarget.getBoundingClientRect();
                             const after = event.clientY > rect.top + rect.height / 2;
                             if (drag.overId !== axis.id || drag.after !== after)
                                 setDrag({ ...drag, overId: axis.id, after });
                         }}
                     >
-                        {index === firstCustom && (
-                            <div className="component-variation-subsection-head">Настраиваемые вариации</div>
+                        {axis.isColorScheme && (
+                            <div className="component-variation-subsection-head">Цветовая схема</div>
                         )}
                         {axisGroup(axis)}
                     </div>
@@ -824,7 +862,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                         <div className="component-variation-subsection-head">Другие пересечения</div>
                         {offTree.map((styleIds) => {
                             const path = branchPathLabel(levels, styleIds);
-                            const isSelected = Boolean(combination && sameStyles(combination, styleIds));
+                            const isSelected = sameStyles(selected, styleIds);
                             return (
                                 <div key={styleIds.join('/')} className="component-tree-intersection-row">
                                     <span className="component-tree-icon-spacer" aria-hidden="true" />
@@ -860,7 +898,7 @@ export const ComponentStructurePanel = (props: ComponentStructurePanelProps) => 
                     confirmLabel={pendingDelete.confirmLabel}
                     busy={busy}
                     onCancel={() => setPendingDelete(undefined)}
-                    onConfirm={() => void run(pendingDelete.operation)}
+                    onConfirm={() => void run(pendingDelete.operation, pendingDelete.errors)}
                 />
             )}
         </div>

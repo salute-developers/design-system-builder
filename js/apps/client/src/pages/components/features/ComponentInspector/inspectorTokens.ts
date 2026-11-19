@@ -1,12 +1,10 @@
-import { Theme, PropState } from '../../../../controllers';
+import { Theme } from '../../../../controllers';
 import { restorePaletteColor } from '../../../../palette/activePalette';
+import { cssPx } from '../../../../modules/sizeTokens/domain/platformValues';
 
 import type { ColorTokenOption, TokenOption } from '../../../../features/InspectorControls';
 
 export type ThemeMode = 'dark' | 'light';
-
-// Производные токены состояний (`-hover`, `-active`) и служебные `brightness` в списки не попадают.
-const isBaseColor = (name: string) => !/(hover|active|brightness)/.test(name);
 
 /** Группа библиотеки прототипа по первому сегменту имени: `surface.default.accent` → Surface. */
 const COLOR_GROUPS: Record<string, string> = {
@@ -32,7 +30,8 @@ export const resolveColorToken = (theme: Theme, name: string, mode: ThemeMode) =
 export const getColorTokenOptions = (theme: Theme, mode: ThemeMode): ColorTokenOption[] =>
     theme
         .getTokens('color')
-        .filter((item) => item.getEnabled() && item.getTags()[0] === mode && isBaseColor(item.getName()))
+        // Производные токены (`-hover`, `-active`, `-brightness`) доступны наравне с базовыми: их выбирают для состояний.
+        .filter((item) => item.getEnabled() && item.getTags()[0] === mode)
         .map((item) => {
             const [, ...parts] = item.getName().split('.');
             const name = parts.join('.');
@@ -48,8 +47,12 @@ export const getColorTokenOptions = (theme: Theme, mode: ThemeMode): ColorTokenO
             };
         });
 
-/** Состояния цветового свойства: подписи прототипа и порядок, в котором имена соединяются через `+`. */
-export const STATE_ORDER: PropState[] = ['focused', 'pressed', 'hovered'];
+/**
+ * Размер токена в px для подсказки — по правилу экранов токенов (`cssPx`): значение в px остаётся как есть, rem
+ * переводится в px. Без значения подсказки нет.
+ */
+const pxHint = (value: unknown, unit = '') =>
+    value === undefined || value === null || value === '' ? undefined : `${cssPx(String(value))}${unit}`;
 
 export const getShapeTokenOptions = (theme: Theme): TokenOption[] =>
     (theme.getTokens('shape') || [])
@@ -57,7 +60,7 @@ export const getShapeTokenOptions = (theme: Theme): TokenOption[] =>
         .map((item) => ({
             value: item.getName(),
             label: item.getName(),
-            hint: `${parseFloat(item.getValue('web')) * 16} px`,
+            hint: pxHint(item.getValue('web'), ' px'),
         }));
 
 export const getShadowTokenOptions = (theme: Theme): TokenOption[] =>
@@ -72,5 +75,5 @@ export const getTypographyTokenOptions = (theme: Theme): TokenOption[] =>
         .map((item) => {
             const [, ...value] = item.getName().split('.');
             const name = value.join('.');
-            return { value: name, label: name, hint: `${parseFloat(item.getValue('web').fontSize) * 16}` };
+            return { value: name, label: name, hint: pxHint(item.getValue('web')?.fontSize) };
         });

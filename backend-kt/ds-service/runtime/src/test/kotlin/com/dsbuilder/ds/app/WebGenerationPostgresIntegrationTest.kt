@@ -48,6 +48,17 @@ class WebGenerationPostgresIntegrationTest {
                 }
             }
             seedFixture(postgres, designSystemId)
+            // Фикстура проверяет выгрузку прежнего черновика: разовое дописывание `view` при старте здесь не нужно
+            // и гонялось бы с публикацией, поэтому оно отмечается выполненным до старта.
+            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+                .locations("classpath:dsbuilder/ds/db/migration").load().migrate()
+            DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                connection.createStatement().use {
+                    it.executeUpdate(
+                        "UPDATE view_axis_backfill SET completed_at = now()",
+                    )
+                }
+            }
             integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val publishedId = publish(client, designSystemId)

@@ -104,3 +104,19 @@ export const toCSSVariables = (
 /** Web-параметры компонента (`component.properties`, связанные компоненты) → CSS-переменные ядра по его объекту токенов. */
 export const toCoreCssVariables = (componentName: string, properties: Record<string, string> | null | undefined) =>
     toCSSVariables(componentName, properties, getCoreTokens(componentName));
+
+/**
+ * Шаблоны ядра в значении свойства (`calc(var(${avatarTokens.avatarSize}) …)`) → имена CSS-переменных из экспорта ядра,
+ * как при генерации пакета. Неизвестный объект или ключ остаётся как есть и попадает в `unresolved`.
+ */
+export const resolveCoreTemplates = (value: string) => {
+    const unresolved: string[] = [];
+    const resolved = value.replace(/\$\{(\w+)\.(\w+)\}/g, (template, objectName: string, key: string) => {
+        const tokens = coreExports[objectName] as Record<string, unknown> | undefined;
+        const name = tokens?.[key];
+        if (typeof name === 'string') return name;
+        unresolved.push(template);
+        return template;
+    });
+    return { value: resolved, unresolved };
+};

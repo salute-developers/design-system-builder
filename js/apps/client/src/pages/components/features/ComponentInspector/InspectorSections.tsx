@@ -7,14 +7,10 @@ import { InspectorGroup } from './InspectorGroup';
 import { InspectorPropertyRow, type InspectorTokenLists } from './InspectorPropertyRow';
 import {
     INSPECTOR_SECTIONS,
-    collectCombinationProperties,
-    collectSourceProperties,
+    collectProperties,
     compareProperties,
-    hasUnlinkedStyleSource,
-    isSetOnlySection,
     sourceKey,
     type InspectorProperty,
-    type InspectorSection,
     type Selection,
 } from './inspectorModel';
 
@@ -26,10 +22,9 @@ interface InspectorSectionsProps {
     /** Меняется после каждой правки модели: по нему пересобираются строки. */
     updated: object;
     onConfigUpdate: () => void;
-    /** Привязка свойства к вариации стиля; без неё (только чтение) непривязанные свойства не показываются. */
+    /** Привязка свойства к вариации стиля перед первым значением. */
     onLinkProperty?: (propertyId: string, variationId: string) => Promise<void>;
-    /** Открытое пересечение: секции показывают его значения вместо значений стилей. */
-    combination?: string[];
+    /** Запись значения пересечения: источник правки — пересечение, когда в «Variants» выбрано два стиля и больше. */
     onCombinationChange?: (propertyId: string, value: string | null) => void;
 }
 
@@ -54,28 +49,16 @@ const FilterButton = ({ title, on, onToggle }: FilterButtonProps) => (
 );
 
 /**
- * Свойства выбранного сочетания по секциям прототипа (Size … Effects) и группа Behaviour для свойств без секции.
- * Незаданные свойства показываются пустыми строками; фильтр группы оставляет только заполненные.
+ * Свойства источника правки по секциям прототипа (Size … Effects) и группа Behaviour для свойств без секции. Набор
+ * строк одинаковый для любого источника; незаданные свойства — пустые строки, фильтр группы оставляет заполненные.
  */
 export const InspectorSections = (props: InspectorSectionsProps) => {
-    const { config, api, selection, tokens, updated, onConfigUpdate, onLinkProperty, combination } = props;
+    const { config, api, selection, tokens, updated, onConfigUpdate, onLinkProperty } = props;
     // Фильтр «только заполненные» по группам.
     const [filters, setFilters] = useState<Record<string, boolean>>({});
-    // «Показать все свойства»: стилю видны и непривязанные к его вариации свойства. У вариации без привязок — всегда.
-    const [showAllChosen, setShowAll] = useState(false);
-    const forced = useMemo(
-        () => Boolean(onLinkProperty) && hasUnlinkedStyleSource(config, selection, api),
-        [api, config, onLinkProperty, selection, updated],
-    );
-    // Выбор пользователя действует на все стили сочетания; у новой вариации её стили показывают все свойства сами.
-    const showAll = Boolean(onLinkProperty) && showAllChosen;
     const properties = useMemo(
-        () =>
-            (combination
-                ? collectCombinationProperties(config, combination, api)
-                : collectSourceProperties(config, selection, api, showAll)
-            ).sort(compareProperties),
-        [config, api, selection, updated, showAll, combination],
+        () => collectProperties(config, selection, api).sort(compareProperties),
+        [config, api, selection, updated],
     );
 
     const row = ({ prop, source, isSet, linked }: InspectorProperty) => (
@@ -96,7 +79,8 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
 
     const group = (title: string, rows: InspectorProperty[], additional = false) => {
         if (!rows.length) return null;
-        const filtered = Boolean(filters[title]);
+        // По умолчанию секция показывает только заполненные свойства; пустые открываются кнопкой фильтра.
+        const filtered = filters[title] ?? true;
         const visible = filtered ? rows.filter((item) => item.isSet) : rows;
         return (
             <InspectorGroup
@@ -104,34 +88,11 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
                 title={title}
                 additional={additional}
                 actions={
-                    <>
-                        {onLinkProperty &&
-                            !additional &&
-                            !combination &&
-                            !isSetOnlySection(title as InspectorSection) && (
-                                <button
-                                    type="button"
-                                    className={`component-property-filter-button ${showAll ? 'is-on' : ''}`}
-                                    aria-pressed={showAll}
-                                    title={
-                                        showAll
-                                            ? 'Скрыть свойства, не привязанные к вариации'
-                                            : forced
-                                              ? 'Новой вариации видны все свойства; показать их и у остальных стилей'
-                                              : 'Показать все свойства'
-                                    }
-                                    aria-label={`Показать все свойства ${title}`}
-                                    onClick={() => setShowAll(!showAll)}
-                                >
-                                    <TyGlyph name="add" />
-                                </button>
-                            )}
-                        <FilterButton
-                            title={title}
-                            on={filtered}
-                            onToggle={() => setFilters((current) => ({ ...current, [title]: !filtered }))}
-                        />
-                    </>
+                    <FilterButton
+                        title={title}
+                        on={filtered}
+                        onToggle={() => setFilters((current) => ({ ...current, [title]: !filtered }))}
+                    />
                 }
             >
                 {visible.map(row)}

@@ -17,6 +17,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -131,12 +132,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             return context.report.reject(entry, it)
         }
         context.track(appearanceId, created = old == null)
-        val axes = upsertAxes(ds, componentId, entry.config, names)
-        val styles = upsertStyles(ds, entry.config, axes, names, context)
-        declareAxes(appearanceId, entry.config, axes, styles, names, context)
+        val (config, axes) = upsertAxesWithView(ds, componentId, entry.config, names)
+        val styles = upsertStyles(ds, config, axes, names, context)
+        declareAxes(appearanceId, config, axes, styles, names, context)
         val properties = properties(componentId, entry, context)
-        writeInvariants(ds, componentId, appearanceId, entry.config, properties, context)
-        writeVariations(appearanceId, entry.config, axes, styles, properties, context)
+        writeInvariants(ds, componentId, appearanceId, config, properties, context)
+        writeVariations(appearanceId, config, axes, styles, properties, context)
         dependencies(componentId, entry.config, context)
         if (underivable(
                 entry.config,
@@ -434,6 +435,50 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         names: EffectiveNameSnapshot,
     ) = axes(config).associate { (key, name) ->
         key to (names.axis(name)?.variationId ?: VariationWrites.findOrCreate(ds, component, name))
+    }
+
+    /** Оси конфигурации вместе с осью `view`, если её нет в импорте, и сама дополненная конфигурация. */
+    private fun upsertAxesWithView(
+        ds: UUID,
+        component: UUID,
+        config: ComponentConfig,
+        names: EffectiveNameSnapshot,
+    ): Pair<ComponentConfig, Map<String, UUID>> {
+        val declared = upsertAxes(ds, component, config, names)
+        val withView = withViewAxis(ds, component, config, declared)
+        return if (withView === config) config to declared else withView to upsertAxes(ds, component, withView, names)
+    }
+
+    /**
+     * Конфигурация, у которой есть вариация `view`: если ни одна ось импорта не указывает на вариацию каталога `view`,
+     * она добавляется последней осью со значением `default` по умолчанию. Импорт заменяет объявление конфигурации
+     * целиком, поэтому ось дописывается в саму конфигурацию, а не отдельной записью: так очистка импорта её не снимает,
+     * а повторный импорт той же конфигурации ничего не меняет.
+     */
+    private fun withViewAxis(
+        ds: UUID,
+        component: UUID,
+        config: ComponentConfig,
+        axes: Map<String, UUID>,
+    ): ComponentConfig {
+        val hasView = axes.isNotEmpty() && VariationsTable.selectAll().where {
+            (VariationsTable.id inList axes.values) and (VariationsTable.name.lowerCase() eq ViewAxis.NAME)
+        }.any()
+        if (hasView) return config
+        val name = VariationWrites.find(ds, component, ViewAxis.NAME, ignoreCase = true)?.let { id ->
+            VariationsTable.selectAll().where { VariationsTable.id eq id }.single()[VariationsTable.name]
+        } ?: ViewAxis.NAME
+        val id = generateSequence(0) { it + 1 }.map { if (it == 0) ViewAxis.NAME else "${ViewAxis.NAME}-$it" }
+            .first { candidate -> axes(config).none { it.first == candidate } }
+        val default = ComponentConfig.Default(id, ComponentConfig.Scalar.Text(ViewAxis.DEFAULT_VALUE))
+        return config.copy(
+            defaults = config.defaults + default,
+            variations = config.variations + ComponentConfig.Variation(
+                id = id,
+                name = name,
+                values = listOf(ComponentConfig.VariationValue(ViewAxis.DEFAULT_VALUE, properties = emptyMap())),
+            ),
+        )
     }
 
     private fun upsertStyles(

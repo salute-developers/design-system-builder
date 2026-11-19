@@ -29,6 +29,7 @@ import com.dsbuilder.ds.app.DsServiceConfiguration
 import com.dsbuilder.ds.app.createDsRuntime
 import com.dsbuilder.ds.app.installDsHttpPlugins
 import com.dsbuilder.ds.app.installDsRoutes
+import com.dsbuilder.ds.app.launchViewAxisBackfill
 import com.dsbuilder.ds.core.presentation.configureDsBodyConsumption
 import com.dsbuilder.ds.core.presentation.configureDsPublicEntry
 import com.dsbuilder.identity.auth.application.GatewayAuthorizer
@@ -191,6 +192,7 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
         projectsRoutes(internalApiKey = null, publicEntry = true)
         registerBackendRoutes(configuration, ds, documentation, proxy, userSettings)
         documentation.start(this)
+        launchViewAxisBackfill(ds)
     } catch (failure: Throwable) {
         owned.asReversed().forEach { runCatching { it.close() } }
         throw failure

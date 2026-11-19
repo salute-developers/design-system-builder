@@ -8,8 +8,11 @@ import {
     isConfigured,
     isTreePath,
     offTreeCombinations,
+    sameStyles,
+    selectedStyles,
     treeAxes,
     treeChildren,
+    withColorScheme,
 } from './variationTree';
 
 const axis = (name: string, position: number, values: string[], isColorScheme = false): EditorAxisDto => ({
@@ -90,5 +93,41 @@ describe('variationTree', () => {
         expect(branchPathLabel(axes, skipping)).toBe('size: l · view: accent');
         const [, l] = treeChildren(axes);
         expect(configuredWithin(axes, l, [skipping])).toEqual([]);
+    });
+
+    it('берёт выбранные стили из «Variants» без невыбранных вариаций', () => {
+        expect(selectedStyles({ size: 'size-m', view: 'view-accent' })).toEqual(['size-m', 'view-accent']);
+        expect(selectedStyles({ size: 'size-m', legacy: true })).toEqual(['size-m']);
+        expect(selectedStyles({})).toEqual([]);
+    });
+
+    it('сравнивает выбор с путём узла как множество', () => {
+        expect(sameStyles(['view-accent', 'size-m'], ['size-m', 'view-accent'])).toBe(true);
+        expect(sameStyles(['size-m'], ['size-m', 'view-accent'])).toBe(false);
+        expect(sameStyles(['size-m', 'shape-pilled'], ['size-m'])).toBe(false);
+    });
+});
+
+describe('withColorScheme', () => {
+    it('locks the view variation by its catalog name, also after the axis is renamed', () => {
+        const renamed = { ...axis('view', 0, ['default']), name: 'scheme', displayName: 'scheme' };
+        const result = withColorScheme(
+            [axis('size', 1, ['m']), renamed],
+            new Map([
+                ['size', 'size'],
+                ['view', 'view'],
+            ]),
+        );
+
+        expect(result.map((item) => [item.name, item.isColorScheme, item.locked])).toEqual([
+            ['size', false, false],
+            ['scheme', true, true],
+        ]);
+        expect(treeAxes(result).map((item) => item.name)).toEqual(['size', 'scheme']);
+    });
+
+    it('keeps the colour scheme the server already marked', () => {
+        const tone = axis('tone', 0, ['default'], true);
+        expect(withColorScheme([tone], new Map())).toEqual([tone]);
     });
 });
