@@ -132,12 +132,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             return context.report.reject(entry, it)
         }
         context.track(appearanceId, created = old == null)
-        val (config, axes) = upsertAxesWithView(ds, componentId, entry.config, names)
+        val (config, axes, trailing) = upsertAxesWithView(ds, componentId, entry.config, names)
         val styles = upsertStyles(ds, config, axes, names, context)
-        declareAxes(appearanceId, config, axes, styles, names, context)
+        declareAxes(appearanceId, config, axes, styles, names, context, trailing)
         val properties = properties(componentId, entry, context)
         writeInvariants(ds, componentId, appearanceId, config, properties, context)
-        writeVariations(appearanceId, config, axes, styles, properties, context)
+        writeVariations(appearanceId, config, axes, styles, properties, context, trailing)
         dependencies(componentId, entry.config, context)
         if (underivable(
                 entry.config,
@@ -437,21 +437,30 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         key to (names.axis(name)?.variationId ?: VariationWrites.findOrCreate(ds, component, name))
     }
 
+    /** Дополненная конфигурация, её оси и id оси `view`, добавленной импортом (`null`, если `view` была в пакете). */
+    private data class AxesWithView(
+        val config: ComponentConfig,
+        val axes: Map<String, UUID>,
+        val trailingAxisId: String?,
+    )
+
     /** Оси конфигурации вместе с осью `view`, если её нет в импорте, и сама дополненная конфигурация. */
     private fun upsertAxesWithView(
         ds: UUID,
         component: UUID,
         config: ComponentConfig,
         names: EffectiveNameSnapshot,
-    ): Pair<ComponentConfig, Map<String, UUID>> {
+    ): AxesWithView {
         val declared = upsertAxes(ds, component, config, names)
         val withView = withViewAxis(ds, component, config, declared)
-        return if (withView === config) config to declared else withView to upsertAxes(ds, component, withView, names)
+            ?: return AxesWithView(config, declared, trailingAxisId = null)
+        return AxesWithView(withView.first, upsertAxes(ds, component, withView.first, names), withView.second)
     }
 
     /**
      * Конфигурация, у которой есть вариация `view`: если ни одна ось импорта не указывает на вариацию каталога `view`,
-     * она добавляется последней осью со значением `default` по умолчанию. Импорт заменяет объявление конфигурации
+     * она добавляется последней осью со значением `default` по умолчанию: последней и после осей, заданных только в
+     * `targets`, — её id возвращается, и порядок осей (`axes`) ставит её в конец. Импорт заменяет объявление конфигурации
      * целиком, поэтому ось дописывается в саму конфигурацию, а не отдельной записью: так очистка импорта её не снимает,
      * а повторный импорт той же конфигурации ничего не меняет.
      */
@@ -460,11 +469,11 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         component: UUID,
         config: ComponentConfig,
         axes: Map<String, UUID>,
-    ): ComponentConfig {
+    ): Pair<ComponentConfig, String>? {
         val hasView = axes.isNotEmpty() && VariationsTable.selectAll().where {
             (VariationsTable.id inList axes.values) and (VariationsTable.name.lowerCase() eq ViewAxis.NAME)
         }.any()
-        if (hasView) return config
+        if (hasView) return null
         val name = VariationWrites.find(ds, component, ViewAxis.NAME, ignoreCase = true)?.let { id ->
             VariationsTable.selectAll().where { VariationsTable.id eq id }.single()[VariationsTable.name]
         } ?: ViewAxis.NAME
@@ -478,7 +487,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 name = name,
                 values = listOf(ComponentConfig.VariationValue(ViewAxis.DEFAULT_VALUE, properties = emptyMap())),
             ),
-        )
+        ) to id
     }
 
     private fun upsertStyles(
@@ -526,10 +535,11 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         styles: Map<String, UUID>,
         names: EffectiveNameSnapshot,
         context: ComponentConfigImportContext,
+        trailingAxisId: String?,
     ) {
         val values = axisValues(config).groupBy({ it.first }, { it.second })
         val defaults = config.defaults.associate { it.id to it.value.text() }
-        axes(config).forEachIndexed { position, (axisId, axisName) ->
+        axes(config, trailingAxisId).forEachIndexed { position, (axisId, axisName) ->
             val declared = config.variations.firstOrNull { it.id == axisId }
             val existing = StableAppearanceVariationsTable.selectAll().where {
                 (StableAppearanceVariationsTable.appearanceId eq id) and
@@ -590,7 +600,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }
             }
         }
-        storeRoles(id, config, axes, context)
+        storeRoles(id, config, axes, context, trailingAxisId)
     }
 
     /** Сохраняет роли осей; корень, не указанный в конфигурации, выбирается по правилу фолбэка. */
@@ -599,10 +609,11 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         config: ComponentConfig,
         axes: Map<String, UUID>,
         context: ComponentConfigImportContext,
+        trailingAxisId: String?,
     ) {
         val colorScheme = config.colorSchemeVariationId?.let(axes::get)
         val root = config.rootVariationId?.let(axes::get) ?: fallbackRoot(
-            axes(config).mapIndexed { position, (key, name) -> RootCandidate(axes.getValue(key), name, position) },
+            axes(config, trailingAxisId).mapIndexed { position, (key, name) -> RootCandidate(axes.getValue(key), name, position) },
             colorScheme,
         )
         val current = AppearanceAxisRoleStore.load(listOf(id)).getValue(id)
@@ -708,6 +719,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         styles: Map<String, UUID>,
         properties: Map<String, UUID>,
         context: ComponentConfigImportContext,
+        trailingAxisId: String?,
     ) {
         val declarations = linkedMapOf<String, Pair<List<UUID>, String?>>()
         config.variations.forEach { axis ->
@@ -733,7 +745,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }
         // Declared coordinates are stored in a canonical order (axis, then value, in the order of the axes), not in
         // the order of the entries in the file, so a config and its own export produce the same stored state.
-        val rank = canonicalRank(config, styles)
+        val rank = canonicalRank(config, styles, trailingAxisId)
         val unranked = Int.MAX_VALUE to Int.MAX_VALUE
         fun ranks(members: List<UUID>) = members.map { rank[it] ?: unranked }.sortedWith(RANK)
         val ordered = declarations.values.sortedWith { left, right ->
@@ -791,10 +803,14 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     }
 
     /** Position of every style as (axis index, value index), the same positions that [declareAxes] stores. */
-    private fun canonicalRank(config: ComponentConfig, styles: Map<String, UUID>): Map<UUID, Pair<Int, Int>> {
+    private fun canonicalRank(
+        config: ComponentConfig,
+        styles: Map<String, UUID>,
+        trailingAxisId: String?,
+    ): Map<UUID, Pair<Int, Int>> {
         val values = axisValues(config).groupBy({ it.first }, { it.second })
         return buildMap {
-            axes(config).forEachIndexed { axisIndex, (axisId, _) ->
+            axes(config, trailingAxisId).forEachIndexed { axisIndex, (axisId, _) ->
                 val declared = config.variations.firstOrNull { it.id == axisId }?.values?.map { it.name }.orEmpty()
                 (declared + values[axisId].orEmpty()).distinct().forEachIndexed { valueIndex, value ->
                     styles[styleKey(axisId, value)]?.let { put(it, axisIndex to valueIndex) }
@@ -1151,10 +1167,18 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     private fun invalidType(entry: ImportComponentConfig.Entry) = allProperties(entry.config)
         .flatMap { listOf(it.type) + it.states.mapNotNull(ComponentConfig.State::type) }
         .firstOrNull { it !in valueTypes }
-    private fun axes(config: ComponentConfig): List<Pair<String, String>> = buildList {
-        addAll(config.variations.map { it.id to it.name })
-        config.variations.flatMap { it.values }.flatMap { it.targets.orEmpty() }.flatMap { it.properties }
-            .forEach { if (none { axis -> axis.first == it.id }) add(it.id to it.id) }
+    /**
+     * Оси конфигурации по порядку: объявленные вариации, затем оси, заданные только в `targets`. Ось `trailingAxisId`
+     * (`view`, добавленная импортом) ставится последней.
+     */
+    private fun axes(config: ComponentConfig, trailingAxisId: String? = null): List<Pair<String, String>> {
+        val ordered = buildList {
+            addAll(config.variations.map { it.id to it.name })
+            config.variations.flatMap { it.values }.flatMap { it.targets.orEmpty() }.flatMap { it.properties }
+                .forEach { if (none { axis -> axis.first == it.id }) add(it.id to it.id) }
+        }
+        val (trailing, rest) = ordered.partition { it.first == trailingAxisId }
+        return rest + trailing
     }
     private fun axisValues(config: ComponentConfig) = buildList {
         config.defaults.filter { it.value is ComponentConfig.Scalar.BooleanValue }.forEach {

@@ -6,19 +6,19 @@ import type { ColorTokenOption, TokenOption } from '../../../../features/Inspect
 
 export type ThemeMode = 'dark' | 'light';
 
-/** Группа библиотеки прототипа по первому сегменту имени: `surface.default.accent` → Surface. */
+/** Группа библиотеки прототипа по первому сегменту имени: `surface.default.accent` → «Поверхность». */
 const COLOR_GROUPS: Record<string, string> = {
-    text: 'Text',
-    surface: 'Surface',
-    outline: 'Outline',
-    background: 'Background',
-    overlay: 'Overlay',
-    data: 'Data',
+    text: 'Текст',
+    surface: 'Поверхность',
+    outline: 'Обводка',
+    background: 'Фон',
+    overlay: 'Наложение',
+    data: 'Данные',
 };
 
-/** Подгруппа, как её выводит прототип: General, Accent или Status. */
+/** Подгруппа, как её выводит прототип: «Общие», «Акцентные» или «Статусные». */
 const colorSubgroup = (name: string) =>
-    /(positive|negative|warning|info)/i.test(name) ? 'Status' : /accent/i.test(name) ? 'Accent' : 'General';
+    /(positive|negative|warning|info)/i.test(name) ? 'Статусные' : /accent/i.test(name) ? 'Акцентные' : 'Общие';
 
 /** Цвет токена в режиме темы; `undefined`, если у темы нет такого токена. */
 export const resolveColorToken = (theme: Theme, name: string, mode: ThemeMode) => {
@@ -40,7 +40,7 @@ export const getColorTokenOptions = (theme: Theme, mode: ThemeMode): ColorTokenO
                 value: name,
                 label: name,
                 color: restorePaletteColor(item.getValue('web'), 0, item.getName()),
-                group: COLOR_GROUPS[group] ?? (group ? group[0].toUpperCase() + group.slice(1) : 'Other'),
+                group: COLOR_GROUPS[group] ?? (group ? group[0].toUpperCase() + group.slice(1) : 'Другие'),
                 subgroup: colorSubgroup(name),
                 // У `background` второй сегмент — режим (`dark`, `light`), а не подтема.
                 subtheme: ['on-dark', 'on-light', 'inverse'].includes(subtheme) ? subtheme : 'default',

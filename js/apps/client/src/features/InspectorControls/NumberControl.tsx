@@ -13,8 +13,8 @@ interface NumberControlProps {
     /** Сообщение для недопустимого ввода: поле помечается ошибкой, пока ввод не исправят. */
     invalidMessage?: string;
     /**
-     * Поле принимает и CSS-выражение (`calc(…)`, `var(…)`): число пишется числом, другое непустое значение — строкой
-     * как есть. Единица показывается только у числа.
+     * Поле принимает и CSS-выражение (`calc(…)`, `var(…)`): число пишется числом, число с единицей `px`/`rem` — числом
+     * в px, другое непустое значение — строкой как есть. Единица показывается только у числа.
      */
     allowExpressions?: boolean;
     onCommit: (value: string) => void;
@@ -36,8 +36,19 @@ const parseNumber = (raw: string) => {
     return text !== '' && Number.isFinite(Number(text)) ? String(Number(text)) : null;
 };
 
-/** Число — числом, иначе непустое CSS-выражение как есть. */
-const parseNumberOrExpression = (raw: string) => parseNumber(raw) ?? (raw.trim() || null);
+const REM_PX = 16;
+const WITH_UNIT = /^(-?\d*\.?\d+)\s*(px|rem)$/i;
+
+/** Число с единицей — числом в px (`12px` → `12`, `0.75rem` → `12`), как в экранах токенов; иначе `null`. */
+const parseLength = (raw: string) => {
+    const match = WITH_UNIT.exec(raw.trim().replace(',', '.'));
+    if (!match) return null;
+    const px = Number(match[1]) * (match[2].toLowerCase() === 'rem' ? REM_PX : 1);
+    return Number.isFinite(px) ? String(px) : null;
+};
+
+/** Число — числом, число с единицей — числом в px, иначе непустое CSS-выражение как есть. */
+const parseNumberOrExpression = (raw: string) => parseNumber(raw) ?? parseLength(raw) ?? (raw.trim() || null);
 
 /**
  * Числовое поле прототипа (`component-number-control`): значок, значение и единица. Значение записывается

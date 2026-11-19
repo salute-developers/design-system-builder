@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { previewSelection, useComponentData } from '../../../../hooks';
@@ -50,11 +50,19 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     // INFO: Переход из «Доступности» цветовых токенов выбирает только стиль пары: инспектор правит этот стиль. Эффект
     // объявлен после `useComponentData` и применяется поверх пустого выбора, который хук выставляет при загрузке.
+    // Запрос перехода остаётся в `location.state`, поэтому он применяется один раз на компонент: перечитывание
+    // конфигурации после сохранения не сбрасывает выбор, сделанный уже после перехода.
+    const appliedPreview = useRef<{ preview: object; key: string }>();
     useEffect(() => {
         const target = config && preview ? resolveComponentPreview(config, preview) : undefined;
-        if (!target) {
+        if (!config || !preview || !target) {
             return;
         }
+        const key = `${config.getPlatform()}:${config.getName()}`;
+        if (appliedPreview.current?.preview === preview && appliedPreview.current.key === key) {
+            return;
+        }
+        appliedPreview.current = { preview, key };
         setSelection({ [target.variationName]: target.styleID });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, preview]);

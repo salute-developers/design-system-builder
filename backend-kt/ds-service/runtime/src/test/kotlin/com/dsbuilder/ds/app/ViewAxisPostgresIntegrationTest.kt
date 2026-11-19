@@ -78,6 +78,30 @@ class ViewAxisPostgresIntegrationTest {
         }
 
     @Test
+    fun `view added by import goes after axes declared only in targets`() = withService {
+        ComponentSeedFixture.seed(database.jdbcUrl, database.username, database.password)
+        val system = createDesignSystem("targets")
+        val body = """
+            {"platform":"web","dryRun":false,"meta":{"name":"fixture","source":"kotlin-test"},
+             "components":[{"componentName":"heading","styleName":"gapped","config":{
+               "variations":[{"id":"size","name":"size","values":[
+                 {"name":"m","properties":{},"targets":[{"properties":[{"id":"gap","value":"wide"}]}]}]}],
+               "defaults":[{"id":"size","value":"m"}],"invariants":{}}}]}
+        """.trimIndent()
+        val first = api("POST", "/api/design-systems/$system/component-config/import", body)
+        assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
+        assertEquals("1", Json.parseToJsonElement(first.bodyAsText()).field("created"), first.bodyAsText())
+        assertEquals("size,gap,view", axisOrder(system, "gapped"))
+
+        val journal = journalSize(system)
+        val repeated = api("POST", "/api/design-systems/$system/component-config/import", body)
+        assertEquals(HttpStatusCode.OK, repeated.status, repeated.bodyAsText())
+        assertEquals("1", Json.parseToJsonElement(repeated.bodyAsText()).field("unchanged"), repeated.bodyAsText())
+        assertEquals("size,gap,view", axisOrder(system, "gapped"))
+        assertEquals(journal, journalSize(system), "повторный импорт не меняет данные и журнал")
+    }
+
+    @Test
     fun `the backfill adds view to draft configurations once`() = withService {
         ComponentSeedFixture.seed(database.jdbcUrl, database.username, database.password)
         val system = createDesignSystem("backfill")
@@ -172,6 +196,24 @@ class ViewAxisPostgresIntegrationTest {
             .associate { it.field("id") to it.field("value") }
 
     private fun List<Pair<String, List<String>>>.axisNames(): List<String> = map { it.first }
+
+    /** Вариации оформления `appearance` в черновике по позиции, через запятую. */
+    private fun axisOrder(system: String, appearance: String): String = scalar(
+        """
+        WITH av AS (SELECT DISTINCT ON (appearance_variation_id) * FROM appearance_variation_revisions
+                    WHERE design_system_id = '$system' ORDER BY appearance_variation_id, version_sequence_number DESC),
+             vr AS (SELECT DISTINCT ON (variation_id) * FROM variation_revisions
+                    WHERE design_system_id = '$system' ORDER BY variation_id, version_sequence_number DESC),
+             ar AS (SELECT DISTINCT ON (appearance_id) * FROM appearance_revisions
+                    WHERE design_system_id = '$system' ORDER BY appearance_id, version_sequence_number DESC)
+        SELECT string_agg(vr.name, ',' ORDER BY av.position)
+        FROM av
+        JOIN appearance_variations entity ON entity.id = av.appearance_variation_id
+        JOIN ar ON ar.appearance_id = entity.appearance_id AND ar.name = '$appearance' AND NOT ar.deleted
+        JOIN vr ON vr.variation_id = entity.variation_id
+        WHERE NOT av.deleted
+        """.trimIndent(),
+    )
 
     private fun journalSize(system: String): List<String> = listOf(
         "draft_transaction_markers",

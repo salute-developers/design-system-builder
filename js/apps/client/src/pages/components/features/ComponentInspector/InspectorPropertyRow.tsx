@@ -45,6 +45,8 @@ interface InspectorPropertyRowProps {
     onConfigUpdate: () => void;
     /** Запись значения пересечения (`null` — сброс); есть только у строк источника `combination`. */
     onCombinationChange?: (propertyId: string, value: string | null) => void;
+    /** Значение унаследовано пересечением от этого источника (`size: m`): без сброса, состояния — только чтение. */
+    inheritedFrom?: string;
 }
 
 /** Подпись набора состояний в порядке пунктов меню: `hovered + pressed`. */
@@ -273,15 +275,45 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         );
     })();
 
+    const stateRows = () =>
+        states.map((state) => {
+            const key = stateKey(state.state);
+            const name = stateLabel(state.state);
+            return (
+                <div key={key} className="component-variation-state-row" data-state-name={key}>
+                    <span>{name}</span>
+                    {colorControl(
+                        String(state.value ?? ''),
+                        (next) => {
+                            config.updateTokenState(id, key, { ...state, value: next }, variationID, styleID);
+                            onConfigUpdate();
+                        },
+                        <StateRemoveButton
+                            label={`${label} ${name}`}
+                            onRemove={() => {
+                                config.removeTokenState(id, key, variationID, styleID);
+                                onConfigUpdate();
+                            }}
+                        />,
+                        `${label} ${name}`,
+                    )}
+                </div>
+            );
+        });
+
     const layout = (controlNode: ReactNode, rows?: ReactNode) => (
         <div
-            className="component-variation-property-group-row"
+            className={`component-variation-property-group-row ${props.inheritedFrom ? 'is-inherited' : ''}`}
             data-property={prop.getName()}
             data-property-type={type}
         >
             <div className="component-variation-style-row">
-                <span className="sdds-style-role-label">
-                    <b title={`${label} · ${sourceLabel(source)}`}>{label}</b>
+                {/* Подсказка своя, а не `title`: нативная появляется с задержкой и не везде. */}
+                <span
+                    className="sdds-style-role-label"
+                    data-tooltip={`${label} · ${props.inheritedFrom ?? sourceLabel(source)}`}
+                >
+                    <b>{label}</b>
                 </span>
                 <div className="component-variation-property-value">
                     {controlNode}
@@ -290,31 +322,17 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             </div>
             {rows}
             {type === 'color' &&
-                !isCombination &&
-                states.map((state) => {
-                    const key = stateKey(state.state);
-                    const name = stateLabel(state.state);
-                    return (
-                        <div key={key} className="component-variation-state-row" data-state-name={key}>
-                            <span>{name}</span>
-                            {colorControl(
-                                String(state.value ?? ''),
-                                (next) => {
-                                    config.updateTokenState(id, key, { ...state, value: next }, variationID, styleID);
-                                    onConfigUpdate();
-                                },
-                                <StateRemoveButton
-                                    label={`${label} ${name}`}
-                                    onRemove={() => {
-                                        config.removeTokenState(id, key, variationID, styleID);
-                                        onConfigUpdate();
-                                    }}
-                                />,
-                                `${label} ${name}`,
-                            )}
-                        </div>
-                    );
-                })}
+                (isCombination ? (
+                    // Состояния, унаследованные пересечением от стиля, видны, но не правятся: у пересечения нет записи
+                    // состояний.
+                    props.inheritedFrom && states.length > 0 ? (
+                        <fieldset className="component-inspector-readonly-rows" disabled>
+                            {stateRows()}
+                        </fieldset>
+                    ) : null
+                ) : (
+                    stateRows()
+                ))}
             {linkError && (
                 <p className="component-property-error" role="alert">
                     {linkError}

@@ -396,6 +396,14 @@
     flex-direction: column;
     row-gap: 0;
 }
+/* Строки режима только чтения: `fieldset disabled` отключает поля, не меняя раскладку списка. */
+.component-inspector-readonly-rows {
+    display: contents;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
 .component-variation-empty {
     margin: 0;
     color: #7f8a98;

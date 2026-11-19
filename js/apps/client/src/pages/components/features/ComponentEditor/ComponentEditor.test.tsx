@@ -111,6 +111,75 @@ const previewArgs = () => JSON.parse(screen.getByTestId('preview').dataset.args 
 const section = (name: string) => screen.getAllByRole('region', { name })[0];
 const property = (name: string) => document.querySelector(`[data-property="${name}"]`) as HTMLElement;
 
+describe('ComponentEditor: блок «Конфигурация»', () => {
+    afterEach(cleanup);
+
+    it('показывает выбор конфигурации отдельным блоком над вариациями', () => {
+        const meta = {
+            ...chipMeta,
+            sources: {
+                ...chipMeta.sources,
+                configs: [
+                    { ...chipMeta.sources.configs[0], id: 'base', name: 'default', isDefault: true },
+                    { ...chipMeta.sources.configs[0], id: 'copy', name: 'default-copy', isDefault: false },
+                ],
+            },
+        } as typeof chipMeta;
+        render(
+            <MemoryRouter>
+                <ComponentEditor
+                    designSystem={designSystem}
+                    theme={theme}
+                    configs={[new Config(meta)]}
+                    updated={{}}
+                    platforms={[]}
+                    onPlatformSelect={vi.fn()}
+                    onConfigUpdate={vi.fn()}
+                    onConfigurationSelect={vi.fn()}
+                />
+            </MemoryRouter>,
+        );
+
+        const configuration = screen.getByRole('region', { name: 'Конфигурация' });
+        const variations = screen.getByRole('region', { name: 'Вариации' });
+        expect(within(configuration).getByRole('combobox', { name: 'Конфигурация' })).toBeInTheDocument();
+        expect(within(variations).queryByRole('combobox', { name: 'Конфигурация' })).toBeNull();
+        expect(configuration.compareDocumentPosition(variations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
+
+describe('ComponentEditor: переход из «Доступности»', () => {
+    afterEach(cleanup);
+
+    it('выбирает стиль пары один раз: перечитанная конфигурация не сбрасывает выбор', () => {
+        const entries = [{ pathname: '/', state: { preview: { variation: 'view', style: 'accent', mode: 'dark' } } }];
+        const editor = (config: Config) => (
+            <MemoryRouter initialEntries={entries}>
+                <ComponentEditor
+                    designSystem={designSystem}
+                    theme={theme}
+                    configs={[config]}
+                    updated={{}}
+                    platforms={[]}
+                    onPlatformSelect={vi.fn()}
+                    onConfigUpdate={vi.fn()}
+                />
+            </MemoryRouter>
+        );
+        const view = render(editor(new Config(chipMeta)));
+
+        expect(screen.getByRole('combobox', { name: 'View' })).toHaveValue('v-accent');
+        expect(screen.getByRole('combobox', { name: 'Size' })).toHaveValue('');
+
+        fireEvent.change(screen.getByRole('combobox', { name: 'Size' }), { target: { value: 's-m' } });
+        // Автосохранение перечитывает компонент: приходит новый экземпляр конфигурации.
+        view.rerender(editor(new Config(chipMeta)));
+
+        expect(screen.getByRole('combobox', { name: 'View' })).toHaveValue('v-accent');
+        expect(screen.getByRole('combobox', { name: 'Size' })).toHaveValue('s-m');
+    });
+});
+
 describe('ComponentEditor', () => {
     // Поле поиска выпадающего списка токенов ждёт загрузки шрифтов, которой в jsdom нет.
     beforeEach(() => {
@@ -127,9 +196,13 @@ describe('ComponentEditor', () => {
         expect(screen.getByRole('tab', { name: 'Стилизация' })).toHaveAttribute('aria-selected', 'true');
         expect(screen.getByRole('combobox', { name: 'Size' })).toHaveValue('');
         expect(screen.getByRole('combobox', { name: 'View' })).toHaveValue('');
-        expect(within(property('background')).getByTitle('Background · Инвариант')).toBeInTheDocument();
-        expect(within(section('Size')).getByText('Height')).toBeInTheDocument();
-        expect(within(section('Text')).getByText('Typography')).toBeInTheDocument();
+        // «Все варианты» — первый пункт списка вариации: вариация не выбрана.
+        expect(within(screen.getByRole('combobox', { name: 'Size' })).getAllByRole('option')[0]).toHaveTextContent(
+            'Все варианты',
+        );
+        expect(property('background').querySelector('[data-tooltip="Background · Инвариант"]')).toBeInTheDocument();
+        expect(within(section('Размер')).getByText('Height')).toBeInTheDocument();
+        expect(within(section('Текст')).getByText('Typography')).toBeInTheDocument();
     });
 
     it('edits the intersection when two variations are selected and the style after one is cleared', () => {
@@ -138,12 +211,27 @@ describe('ComponentEditor', () => {
 
         fireEvent.change(screen.getByRole('combobox', { name: 'Size' }), { target: { value: 's-m' } });
         fireEvent.change(screen.getByRole('combobox', { name: 'View' }), { target: { value: 'v-accent' } });
-        expect(within(property('height')).getByTitle('Height · size: m · view: accent')).toBeInTheDocument();
+        // Height не задан на пересечении: он унаследован от `size: m`, его видно, но сбросить нельзя.
+        expect(property('height').querySelector('[data-tooltip="Height · size: m"]')).toBeInTheDocument();
+        expect(property('height')).toHaveClass('is-inherited');
+        expect(within(property('height')).queryByRole('button', { name: /Очистить значение/ })).toBeNull();
         expect(document.querySelectorAll('[data-property="height"]')).toHaveLength(1);
 
         fireEvent.change(screen.getByRole('combobox', { name: 'Size' }), { target: { value: '' } });
-        expect(within(property('height')).getByTitle('Height · view: accent')).toBeInTheDocument();
+        expect(property('height').querySelector('[data-tooltip="Height · view: accent"]')).toBeInTheDocument();
         expect(previewArgs()).toEqual({ size: 's-m', view: 'v-accent' });
+    });
+
+    it('keeps inherited values of an intersection visible with the filter on', () => {
+        renderEditor();
+
+        fireEvent.change(screen.getByRole('combobox', { name: 'Size' }), { target: { value: 's-m' } });
+        fireEvent.change(screen.getByRole('combobox', { name: 'View' }), { target: { value: 'v-accent' } });
+
+        // Фильтр включён по умолчанию: унаследованные значения видны, пустые строки скрыты.
+        expect(property('height')).toHaveClass('is-inherited');
+        expect(property('background').querySelector('[data-tooltip="Background · view: accent"]')).toBeInTheDocument();
+        expect(property('pilledBorderRadius')).toBeNull();
     });
 
     it('changes the combination of the preview and the property rows from Variants', () => {
@@ -153,15 +241,15 @@ describe('ComponentEditor', () => {
 
         // Не выбранный Size превью рисует стилем по умолчанию.
         expect(previewArgs()).toEqual({ size: 's-m', view: 'v-accent' });
-        expect(within(property('background')).getByTitle('Background · view: accent')).toBeInTheDocument();
+        expect(property('background').querySelector('[data-tooltip="Background · view: accent"]')).toBeInTheDocument();
         expect(within(property('background')).getByText('surfaceAccent')).toBeInTheDocument();
     });
 
     it('shows story arguments in their own Preview group and changes only the preview', () => {
         renderEditor();
-        const preview = section('Preview');
+        const preview = section('Предпросмотр');
         // Вариации и параметры story — в разных секциях.
-        expect(within(section('Variants')).queryByRole('switch', { name: 'Disabled' })).toBeNull();
+        expect(within(section('Вариации')).queryByRole('switch', { name: 'Disabled' })).toBeNull();
         expect(within(preview).queryByRole('combobox', { name: 'Size' })).toBeNull();
 
         fireEvent.click(within(preview).getByRole('switch', { name: 'Disabled' }));
@@ -195,9 +283,21 @@ describe('ComponentEditor', () => {
 
         fireEvent.change(screen.getByRole('combobox', { name: 'View' }), { target: { value: 'v-accent' } });
         expect(previewArgs()).toEqual({ size: 's-m', view: 'v-accent' });
-        const sections = document.querySelector('.component-inspector-sections') as HTMLDivElement & { inert: boolean };
-        expect(sections.inert).toBe(true);
-        expect(sections.contains(property('background'))).toBe(true);
+        // Поля неактивны, но остаются в дереве доступности: значение читается.
+        const background = property('background');
+        within(background)
+            .getAllByRole('button')
+            .forEach((button) => expect(button).toBeDisabled());
+        expect(background.closest('section')).not.toHaveAttribute('aria-hidden');
+
+        // Фильтр и сворачивание секций работают и в режиме просмотра.
+        const filter = within(section('Цвет')).getByRole('button', { name: 'Фильтр Цвет' });
+        expect(filter).toBeEnabled();
+        fireEvent.click(filter);
+        expect(filter).toHaveAttribute('aria-pressed', 'false');
+        const toggle = section('Цвет').querySelector('.component-variation-type-toggle') as HTMLElement;
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
     });
 
     it('shows a raw CSS value as text without a unit and saves it as typed', () => {
@@ -215,7 +315,7 @@ describe('ComponentEditor', () => {
 
     it('leaves a text story argument on Enter and keeps the typed value', () => {
         renderEditor();
-        const text = within(section('Preview')).getByRole('textbox', { name: 'Text' });
+        const text = within(section('Предпросмотр')).getByRole('textbox', { name: 'Text' });
 
         text.focus();
         fireEvent.change(text, { target: { value: 'Hello' } });
@@ -231,11 +331,15 @@ describe('ComponentEditor', () => {
 
         fireEvent.click(screen.getByRole('switch', { name: 'Pilled' }));
         expect(previewArgs()).toEqual({ size: 's-m', view: 'v-default', pilled: 'p-true' });
-        expect(within(property('pilledBorderRadius')).getByTitle('Pilled border radius · pilled: true')).not.toBeNull();
+        expect(
+            property('pilledBorderRadius').querySelector('[data-tooltip="Pilled border radius · pilled: true"]'),
+        ).not.toBeNull();
 
         fireEvent.click(screen.getByRole('switch', { name: 'Pilled' }));
         expect(previewArgs()).toEqual({ size: 's-m', view: 'v-default' });
-        expect(within(property('pilledBorderRadius')).getByTitle('Pilled border radius · Инвариант')).not.toBeNull();
+        expect(
+            property('pilledBorderRadius').querySelector('[data-tooltip="Pilled border radius · Инвариант"]'),
+        ).not.toBeNull();
     });
 
     it('writes a colour token into the source style only', () => {
@@ -272,8 +376,8 @@ describe('ComponentEditor', () => {
         showEmptyRows();
         const focus = () => config.getInvariants().getProp('focus');
 
-        // Дополнительной группы Color нет: цвета живут в секции Color.
-        expect(screen.getAllByRole('region', { name: 'Color' })).toHaveLength(1);
+        // Дополнительной группы «Цвет» нет: цвета живут в секции «Цвет».
+        expect(screen.getAllByRole('region', { name: 'Цвет' })).toHaveLength(1);
         expect(within(property('focusColor')).getByRole('button', { name: 'Focus color' })).toHaveTextContent(
             'Не задано',
         );
@@ -294,8 +398,8 @@ describe('ComponentEditor', () => {
         renderEditor();
 
         // Иконки в своей секции, развёрнутой по умолчанию: поля видны без раскрытия группы.
-        expect(screen.getByRole('region', { name: 'Icons' })).toBeInTheDocument();
-        expect(screen.queryByRole('region', { name: 'Behaviour' })).not.toBeInTheDocument();
+        expect(screen.getByRole('region', { name: 'Иконки' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Поведение' })).not.toBeInTheDocument();
 
         // Каталога в тесте нет: пикер показывает значение строкой, как до выбора из каталога.
         expect(within(property('closeIcon')).getByText('close.16')).not.toBeNull();
@@ -306,8 +410,8 @@ describe('ComponentEditor', () => {
     it('hides unset rows by default and shows them with the group filter', () => {
         renderEditor();
 
-        const color = section('Color');
-        const filter = within(color).getByRole('button', { name: 'Фильтр Color' });
+        const color = section('Цвет');
+        const filter = within(color).getByRole('button', { name: 'Фильтр Цвет' });
         expect(filter).toHaveAttribute('aria-pressed', 'true');
         expect(property('focusColor')).toBeNull();
         expect(property('disabledOpacity')).not.toBeNull();

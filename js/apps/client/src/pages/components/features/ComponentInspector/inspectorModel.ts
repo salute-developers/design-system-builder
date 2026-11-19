@@ -1,7 +1,16 @@
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { humanizeName } from '../../../../utils/text';
-import { Props, type ComponentAPI, type Config, type PropType, type PropUnion } from '../../../../controllers';
+import {
+    Props,
+    resolveSelectedProps,
+    variationOrder,
+    type ComponentAPI,
+    type Config,
+    type PropType,
+    type PropUnion,
+    type SelectedPropOrigin,
+} from '../../../../controllers';
 
 /** Выбор сочетания: имя вариации → id выбранного стиля (у флага — id стиля `true`). */
 export type Selection = Record<string, string | boolean>;
@@ -28,6 +37,20 @@ export const INSPECTOR_SECTIONS = [
 
 export type InspectorSection = (typeof INSPECTOR_SECTIONS)[number] | 'Additional';
 
+/** Заголовки секций на экране: в коде и требованиях секции называются по-английски. */
+export const SECTION_TITLES: Record<InspectorSection, string> = {
+    Size: 'Размер',
+    Layout: 'Расположение',
+    Color: 'Цвет',
+    Text: 'Текст',
+    Border: 'Обводка',
+    Appearance: 'Форма',
+    Effects: 'Эффекты',
+    Icons: 'Иконки',
+    'Nested styles': 'Вложенные стили',
+    Additional: 'Поведение',
+};
+
 /** Секции, чьи свойства показываются только заданными: пустые строки им не строятся. */
 export const isSetOnlySection = (section: InspectorSection) => section === 'Additional' || section === 'Nested styles';
 
@@ -39,6 +62,11 @@ export interface InspectorProperty {
     isSet: boolean;
     /** Свойство привязано к вариации источника; непривязанное привязывается перед первым значением. */
     linked: boolean;
+    /**
+     * Только у пересечения: значение не задано на нём, а унаследовано от выбранного стиля или меньшего пересечения —
+     * подпись этого источника (`size: m`). Такое значение видно, но не сбрасывается: его можно только перекрыть.
+     */
+    inheritedFrom?: string;
 }
 
 export { humanizeName };
@@ -167,6 +195,7 @@ export const collectProperties = (
     api: ComponentAPI[] = [],
 ): InspectorProperty[] => {
     const source = editSource(config, selection);
+    if (source.kind === 'combination') return collectCombinationProperties(config, source, api);
     const props = sourceProps(config, source);
     const byId = new Map(api.map((item) => [item.id, item]));
     const set = (props?.getList() ?? []).flatMap((prop): InspectorProperty[] => {
@@ -183,17 +212,58 @@ export const collectProperties = (
     return [...set, ...empty];
 };
 
-const variationRank = (name: string) => (name === 'size' ? 0 : name === 'view' ? 1 : 2);
-
-/** Вариации в порядке «Variants»: `size`, `view`, затем остальные в порядке модели. */
-export const orderedVariations = (config: Config) =>
-    config
-        .getVariations()
-        .map((variation, index) => ({ variation, index }))
-        .sort(
-            (a, b) => variationRank(a.variation.getName()) - variationRank(b.variation.getName()) || a.index - b.index,
+/** Подпись источника унаследованного значения: стиль `size: m` или стили пересечения в порядке дерева. */
+const originLabel = (config: Config, origin: SelectedPropOrigin) => {
+    if (origin.kind === 'style') return `${origin.variation.getName()}: ${origin.style.getName()}`;
+    const ids = new Set(origin.combination.styleIDs);
+    return orderedVariations(config)
+        .flatMap((variation) =>
+            (variation.getStyles() ?? [])
+                .filter((style) => ids.has(style.getID()))
+                .map((style) => `${variation.getName()}: ${style.getName()}`),
         )
-        .map(({ variation }) => variation);
+        .join(' · ');
+};
+
+const sameStyles = (a: string[], b: string[]) => a.length === b.length && a.every((id) => b.includes(id));
+
+/**
+ * Строки пересечения: действующие значения выбранных стилей и меньших пересечений (`resolveSelectedProps`, порядок
+ * дерева), поверх них — значения самого пересечения. Заданные на пересечении строки сбрасываются, унаследованные
+ * помечены источником (`inheritedFrom`), свойства без значения — пустые строки.
+ */
+const collectCombinationProperties = (
+    config: Config,
+    source: Extract<PropertySource, { kind: 'combination' }>,
+    api: ComponentAPI[],
+): InspectorProperty[] => {
+    const resolved = resolveSelectedProps(config, source.styleIDs);
+    const rows = [...resolved.values()].flatMap(({ prop, from }): InspectorProperty[] => {
+        const section = propertySection(prop);
+        if (!section) return [];
+        const own = from.kind === 'combination' && sameStyles(from.combination.styleIDs, source.styleIDs);
+        return [
+            {
+                prop,
+                source,
+                section,
+                isSet: own,
+                linked: true,
+                ...(own ? {} : { inheritedFrom: originLabel(config, from) }),
+            },
+        ];
+    });
+    const empty = api.flatMap((item): InspectorProperty[] => {
+        const section = sectionOf(item.type, item.name);
+        if (!section || isSetOnlySection(section) || resolved.has(item.id)) return [];
+        const prop = emptyProp(item, api);
+        return prop ? [{ prop, source, section, isSet: false, linked: true }] : [];
+    });
+    return [...rows, ...empty];
+};
+
+/** Вариации в порядке «Вариаций» — как уровни дерева «Структуры»: порядок модели, цветовая схема последней. */
+export const orderedVariations = (config: Config) => variationOrder(config);
 
 /** Заголовок сочетания: «Chip M Default». `size` пишется заглавными, остальные стили — с заглавной буквы, флаги не пишутся. */
 export const combinationTitle = (config: Config, selection: Selection) => {

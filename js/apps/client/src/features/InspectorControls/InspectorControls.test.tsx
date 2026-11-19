@@ -144,6 +144,23 @@ describe('NumberControl', () => {
         expect(onCommit).toHaveBeenCalledTimes(2);
     });
 
+    it('saves a number with px or rem as a number of px', () => {
+        const onCommit = vi.fn();
+        render(<NumberControl label="Width" value="auto" allowExpressions onCommit={onCommit} />);
+        const input = screen.getByRole('textbox', { name: 'Width' });
+
+        for (const [raw, saved] of [
+            ['12px', '12'],
+            ['0.75rem', '12'],
+            [' 1,5REM ', '24'],
+        ]) {
+            input.focus();
+            fireEvent.change(input, { target: { value: raw } });
+            fireEvent.keyDown(input, { key: 'Enter' });
+            expect(onCommit).toHaveBeenLastCalledWith(saved);
+        }
+    });
+
     it('sizes the input by its value where field-sizing is not supported', () => {
         render(<NumberControl label="Height" value="148" onCommit={vi.fn()} />);
 

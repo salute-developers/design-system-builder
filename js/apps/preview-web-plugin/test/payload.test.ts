@@ -84,6 +84,47 @@ describe('parseWebPayload: старый формат WEB — invalid_payload', (
     });
 });
 
+describe('parseWebPayload: выражения CSS в числовых свойствах', () => {
+    const chipPayload = (width: unknown, id = 'width') => ({
+        ...webButtonPayload(),
+        component: { id: 'Chip', variations: {}, properties: { [id]: { base: { type: 'literal', value: width } } } },
+    });
+
+    it.each(['calc(100% - 8px)', 'var(--chip-width)', ' CLAMP(1px, 2vw, 3px)'])('%s у Chip.width доходит до CSS как есть', (width) => {
+        const parsed = parseWebPayload(chipPayload(width));
+
+        expect(parsed).toMatchObject({ ok: true });
+        if (!parsed.ok) return;
+        expect(parsed.request.resolved.componentVariables['--plasma-chip-width']).toBe(width);
+        expect(parsed.request.warnings).toEqual([]);
+    });
+
+    it('число, переведённое клиентом в rem, — по-прежнему старый формат', () => {
+        expect(parseWebPayload(chipPayload('3rem'))).toMatchObject({
+            ok: false,
+            code: 'invalid_payload',
+            path: '$.component.properties.width.base.value',
+        });
+    });
+
+    it('выражение у ключа ядра вне меты — старый формат', () => {
+        const payload = {
+            ...webButtonPayload(),
+            component: {
+                id: 'Button',
+                variations: {},
+                properties: { buttonHeight: { base: { type: 'literal', value: 'var(--button-height)' } } },
+            },
+        };
+
+        expect(parseWebPayload(payload)).toMatchObject({
+            ok: false,
+            code: 'invalid_payload',
+            path: '$.component.properties.buttonHeight.base.value',
+        });
+    });
+});
+
 describe('parseWebPayload: проверка формата', () => {
     it.each([
         ['цвет не #RRGGBBAA', { theme: { c: { type: 'color', value: '#FFF' } } }, '$.theme.c.value'],

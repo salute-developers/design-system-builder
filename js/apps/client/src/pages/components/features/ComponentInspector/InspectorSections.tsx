@@ -7,6 +7,7 @@ import { InspectorGroup } from './InspectorGroup';
 import { InspectorPropertyRow, type InspectorTokenLists } from './InspectorPropertyRow';
 import {
     INSPECTOR_SECTIONS,
+    SECTION_TITLES,
     collectProperties,
     compareProperties,
     sourceKey,
@@ -26,6 +27,8 @@ interface InspectorSectionsProps {
     onLinkProperty?: (propertyId: string, variationId: string) => Promise<void>;
     /** Запись значения пересечения: источник правки — пересечение, когда в «Variants» выбрано два стиля и больше. */
     onCombinationChange?: (propertyId: string, value: string | null) => void;
+    /** Только просмотр: поля значений неактивны, заголовки, фильтр и сворачивание секций работают. */
+    readOnly?: boolean;
 }
 
 interface FilterButtonProps {
@@ -61,7 +64,7 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
         [config, api, selection, updated],
     );
 
-    const row = ({ prop, source, isSet, linked }: InspectorProperty) => (
+    const row = ({ prop, source, isSet, linked, inheritedFrom }: InspectorProperty) => (
         <InspectorPropertyRow
             key={`${sourceKey(source)}:${prop.getID()}`}
             config={config}
@@ -70,6 +73,7 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
             source={source}
             isSet={isSet}
             linked={linked}
+            inheritedFrom={inheritedFrom}
             onLinkProperty={onLinkProperty}
             tokens={tokens}
             onConfigUpdate={onConfigUpdate}
@@ -81,7 +85,8 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
         if (!rows.length) return null;
         // По умолчанию секция показывает только заполненные свойства; пустые открываются кнопкой фильтра.
         const filtered = filters[title] ?? true;
-        const visible = filtered ? rows.filter((item) => item.isSet) : rows;
+        // Унаследованное пересечением значение — тоже значение: фильтр скрывает только строки без значения.
+        const visible = filtered ? rows.filter((item) => item.isSet || item.inheritedFrom) : rows;
         return (
             <InspectorGroup
                 key={title}
@@ -95,7 +100,14 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
                     />
                 }
             >
-                {visible.map(row)}
+                {props.readOnly ? (
+                    // Отключённые поля остаются в дереве доступности: скринридер читает значения, правка недоступна.
+                    <fieldset className="component-inspector-readonly-rows" disabled>
+                        {visible.map(row)}
+                    </fieldset>
+                ) : (
+                    visible.map(row)
+                )}
             </InspectorGroup>
         );
     };
@@ -104,13 +116,13 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
         <>
             {INSPECTOR_SECTIONS.map((section) =>
                 group(
-                    section,
+                    SECTION_TITLES[section],
                     properties.filter((item) => item.section === section),
                 ),
             )}
-            {/* Как в прототипе: Behaviour есть, только если в нём есть свойства без основной секции. */}
+            {/* Как в прототипе: «Поведение» есть, только если в нём есть свойства без основной секции. */}
             {group(
-                'Behaviour',
+                SECTION_TITLES.Additional,
                 properties.filter((item) => item.section === 'Additional'),
                 true,
             )}

@@ -16,6 +16,7 @@ import {
 } from './inspectorTokens';
 import { InspectorGroup } from './InspectorGroup';
 import { InspectorStoryArgs } from './InspectorStoryArgs';
+import { InspectorConfiguration } from './InspectorConfiguration';
 import { InspectorVariants } from './InspectorVariants';
 import { StyleReferenceContext } from './StyleReferenceContext';
 import { ComponentStructurePanel, type StructureAccess } from '../ComponentStructure';
@@ -194,19 +195,21 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                     id="component-inspector-panel-style"
                     aria-labelledby="component-inspector-tab-style"
                 >
-                    {/* Variants не прокручивается: выбор источника правки всегда на месте, свойства прокручиваются под ним. */}
+                    {/* Конфигурация и вариации не прокручиваются: выбор источника правки всегда на месте, свойства прокручиваются под ним. */}
                     <div className="component-inspector-pinned">
+                        {onConfigurationSelect && (
+                            <InspectorConfiguration config={config} onConfigurationSelect={onConfigurationSelect} />
+                        )}
                         <InspectorVariants
                             config={config}
                             selection={selection}
                             onSelectionChange={onSelectionChange}
-                            onConfigurationSelect={onConfigurationSelect}
                         />
                     </div>
                     <div className="component-inspector-scroll">
                         {/* Параметры story действуют только на превью: отдельно от вариаций, которые задают источник правки. */}
                         {storyArgs?.properties.length ? (
-                            <InspectorGroup title="Preview">
+                            <InspectorGroup title="Предпросмотр">
                                 <div className="component-variation-targets">
                                     <InspectorStoryArgs storyArgs={storyArgs} />
                                 </div>
@@ -217,13 +220,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                                 {combinationError}
                             </p>
                         )}
-                        <div
-                            className="component-inspector-sections"
-                            // React 18 не знает `inert`: атрибут ставится напрямую, как в `Workspace`.
-                            ref={(node) => {
-                                if (node) (node as HTMLDivElement & { inert: boolean }).inert = Boolean(props.readOnly);
-                            }}
-                        >
+                        <div className="component-inspector-sections">
                             <StyleReferenceContext.Provider value={styleReferenceAccess}>
                                 <InspectorSections
                                     config={config}
@@ -234,6 +231,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                                     onConfigUpdate={onConfigUpdate}
                                     onLinkProperty={linkProperty}
                                     onCombinationChange={changeCombination}
+                                    readOnly={props.readOnly}
                                 />
                             </StyleReferenceContext.Provider>
                         </div>

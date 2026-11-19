@@ -16,4 +16,7 @@ export {
 } from './styleReference';
 export type { ResolvedStyleReference, StyleReferenceInput, StyleReferenceTarget } from './styleReference';
 
+export { isColorSchemeVariation, resolveSelectedProps, variationOrder } from './selectedProps';
+export type { SelectedProp, SelectedPropOrigin } from './selectedProps';
+
 export * from './type';

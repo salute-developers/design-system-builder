@@ -163,7 +163,8 @@ describe('combinationTitle', () => {
     it('writes size in capitals, other styles capitalised and skips flags', () => {
         const config = new Config(meta);
 
-        expect(orderedVariations(config).map((variation) => variation.getName())).toEqual(['size', 'view', 'pilled']);
+        // Порядок дерева «Структуры»: модель (`pilled`, `view`, `size`), цветовая схема `view` последней.
+        expect(orderedVariations(config).map((variation) => variation.getName())).toEqual(['pilled', 'size', 'view']);
         expect(combinationTitle(config, selection)).toBe('Chip M Default');
         expect(combinationTitle(config, { size: 's-xs' })).toBe('Chip XS');
     });
@@ -234,7 +235,7 @@ describe('collectProperties for an intersection', () => {
         const rows = collectProperties(new Config(withCombination), { size: 's-m', pilled: 'p-true' }, api);
         const height = rows.find((row) => row.prop.getName() === 'height');
 
-        expect(height).toMatchObject({ isSet: true, source: { kind: 'combination', styleIDs: ['s-m', 'p-true'] } });
+        expect(height).toMatchObject({ isSet: true, source: { kind: 'combination', styleIDs: ['p-true', 's-m'] } });
         expect(height?.prop.getValue()).toBe('44');
         expect(rows.filter((row) => row.prop.getName() === 'height')).toHaveLength(1);
         expect(rows.every((row) => row.source.kind === 'combination' && row.linked)).toBe(true);
@@ -244,5 +245,82 @@ describe('collectProperties for an intersection', () => {
         const rows = collectProperties(new Config(withCombination), { size: 's-xs', pilled: 'p-true' }, api);
         expect(rows.length).toBeGreaterThan(0);
         expect(rows.every((row) => !row.isSet)).toBe(true);
+    });
+});
+
+describe('collectProperties: значения пересечения с учётом выбранных стилей', () => {
+    // Пример из требования: size = m и view = default со своими значениями и пересечение с цветом текста (`color`);
+    // `value` — свойство `width`.
+    const meta = (order: string[] = ['v-size', 'v-view']) => {
+        const variations = {
+            'v-size': {
+                id: 'v-size',
+                styles: [
+                    style('s-m', 'm', [
+                        { id: 'height', value: '100' },
+                        { id: 'value', value: '200' },
+                        { id: 'padding', value: '4' },
+                    ]),
+                ],
+            },
+            'v-view': {
+                id: 'v-view',
+                styles: [
+                    style('v-default', 'default', [
+                        { id: 'background', value: 'red' },
+                        { id: 'color', value: 'white' },
+                        { id: 'padding', value: '8' },
+                    ]),
+                ],
+            },
+        } as Record<string, unknown>;
+        return {
+            ...chipMeta,
+            sources: {
+                ...chipMeta.sources,
+                configs: [
+                    {
+                        ...chipMeta.sources.configs[0],
+                        config: {
+                            defaultVariations: [],
+                            invariantProps: [],
+                            variations: order.map((id) => variations[id]),
+                            combinations: [
+                                { styleIDs: ['s-m', 'v-default'], props: [{ id: 'color', value: 'green' }] },
+                            ],
+                        },
+                    },
+                ],
+            },
+        } as unknown as Meta;
+    };
+    const values = (selection: Record<string, string>, order?: string[]) =>
+        Object.fromEntries(
+            collectProperties(new Config(meta(order)), selection)
+                .filter((row) => row.isSet || row.inheritedFrom)
+                .map((row) => [
+                    row.prop.getID(),
+                    `${row.prop.getValue()}${row.inheritedFrom ? ` ← ${row.inheritedFrom}` : ''}`,
+                ]),
+        );
+
+    it('показывает у одного стиля только его значения', () => {
+        expect(values({ size: 's-m' })).toEqual({ height: '100', value: '200', padding: '4' });
+        expect(values({ view: 'v-default' })).toEqual({ background: 'red', color: 'white', padding: '8' });
+    });
+
+    it('у пересечения показывает унаследованные значения и своё поверх них', () => {
+        expect(values({ size: 's-m', view: 'v-default' })).toEqual({
+            height: '100 ← size: m',
+            value: '200 ← size: m',
+            background: 'red ← view: default',
+            color: 'green',
+            // Цветовая схема последняя в дереве: её значение перекрывает значение size.
+            padding: '8 ← view: default',
+        });
+    });
+
+    it('цветовая схема перекрывает другие вариации, даже если в модели она раньше', () => {
+        expect(values({ size: 's-m', view: 'v-default' }, ['v-view', 'v-size']).padding).toBe('8 ← view: default');
     });
 });
