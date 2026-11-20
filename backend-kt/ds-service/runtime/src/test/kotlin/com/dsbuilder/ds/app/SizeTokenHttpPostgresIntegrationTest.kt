@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.HttpClient
@@ -40,6 +42,7 @@ import kotlin.time.Duration.Companion.seconds
  * предупреждениями параллельной записи, журнал и откат, повтор создания, логическое удаление, ссылка цвета слоя тени
  * на палитру, права и коды ошибок.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class SizeTokenHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 
@@ -53,7 +56,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                     // Компоненты дизайн-системы сидятся при её создании из каталога компонентов.
                     ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                     val designSystemId = api.create(
-                        "/api/ds/design-systems",
+                        "/api/design-systems",
                         OWNER,
                         """{"name":"alpha","projectName":"alpha"}""",
                     )
@@ -67,6 +70,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                     removedComponentLeavesUsage(scope)
                     renameKeepsUsage(scope)
                     publishedBoundary(scope, section)
+                    repeatSpecializedWrites(scope)
                 }
             }
         }
@@ -80,7 +84,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                     application { module(configuration(postgres)) }
                     val api = Api(client)
                     val designSystemId = api.create(
-                        "/api/ds/design-systems",
+                        "/api/design-systems",
                         OWNER,
                         """{"name":"beta","projectName":"beta"}""",
                     )
@@ -92,6 +96,67 @@ class SizeTokenHttpPostgresIntegrationTest {
                     revertToRemovedRamp(scope)
                 }
             }
+        }
+    }
+
+    /** Сохранённый ответ обновления не перезаписывает более позднее значение ни одного вида размера. */
+    private suspend fun repeatSpecializedWrites(scope: Scope) {
+        val api = scope.api
+        val current = api.read(scope.base, OWNER).jsonObject
+        for (section in listOf("radii", "spacing", "shadows")) {
+            val tokenId = current.array(section).first().text("tokenId")
+            val path = "${scope.base}/$tokenId/value"
+            val key = UUID.randomUUID().toString()
+            val firstBody = if (section == "shadows") {
+                """
+{
+  "layers": [
+    {
+      "offsetX": 0,
+      "offsetY": 1,
+      "blur": 2,
+      "spread": 0,
+      "color": "#00000033"
+    }
+  ],
+  "fallbackElevation": 2
+}
+"""
+            } else {
+                """{"valuePx":21}"""
+            }
+            val nextBody = if (section == "shadows") {
+                """
+{
+  "layers": [
+    {
+      "offsetX": 0,
+      "offsetY": 2,
+      "blur": 4,
+      "spread": 0,
+      "color": "#00000033"
+    }
+  ],
+  "fallbackElevation": 4
+}
+"""
+            } else {
+                """{"valuePx":23}"""
+            }
+            val original = api.call("PUT", path, OWNER, firstBody, key)
+            assertEquals(HttpStatusCode.OK, original.status, original.bodyAsText())
+            val originalText = original.bodyAsText()
+            val originalMetadata = original.headers["X-DS-Mutation-Metadata"]
+            val next = api.call("PUT", path, OWNER, nextBody)
+            assertEquals(HttpStatusCode.OK, next.status, next.bodyAsText())
+            val state = api.read(scope.base, OWNER)
+            val replay = api.call("PUT", path, OWNER, firstBody, key)
+            assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
+            assertEquals(originalText, replay.bodyAsText())
+            assertEquals(originalMetadata, replay.headers["X-DS-Mutation-Metadata"])
+            assertEquals(state, api.read(scope.base, OWNER))
+            api.reject("PUT", path, OWNER, nextBody, 409, "IDEMPOTENCY_KEY_REUSED", key)
+            api.reject("PUT", path, VIEWER, firstBody, 403, key = key)
         }
     }
 
@@ -112,8 +177,8 @@ class SizeTokenHttpPostgresIntegrationTest {
         val roundMUsage = roundM.array("components").associate { it.text("name") to it.number("count") }
         assertEquals(3, roundMUsage["EmptyState"])
         assertEquals(2, roundMUsage["Slider"])
-        assertEquals(11, roundMUsage.size)
-        assertEquals(16, roundMUsage.values.sum())
+        assertEquals(12, roundMUsage.size)
+        assertEquals(17, roundMUsage.values.sum())
         val derived = section.token("radii", "round.l").array("derived").single { it.number("offsetPx") == -2 }
         assertEquals(14, derived.number("valuePx"))
         val usages = derived.array("usages").map {
@@ -134,7 +199,10 @@ class SizeTokenHttpPostgresIntegrationTest {
         )
         assertEquals(2, softS.number("fallbackElevation"))
         assertEquals(
-            setOf("Popover", "Combobox", "Range", "Select", "TextArea", "TextField"),
+            setOf(
+                "Autocomplete", "Combobox", "DatePicker", "DateTimePicker", "InformationWrapper", "Popover",
+                "Range", "Select", "TextArea", "TextField", "TextFieldSlider", "TimePicker",
+            ),
             section.token("shadows", "down.hard.m").array("components").map { it.text("name") }.toSet(),
         )
         assertEquals(0, section.token("spacing", "spacing.4x").array("components").size)
@@ -148,14 +216,14 @@ class SizeTokenHttpPostgresIntegrationTest {
         val roundM = section.token("radii", "round.m").text("tokenId")
         val roundMPath = "${scope.base}/$roundM/value"
         val statesB = db.editStates(scope.tenantB)
-        val bases = api.baseRevisions(scope.tenantA, roundM)
+        val bases = api.baseRevisions(scope.designSystemId, scope.tenantA, roundM)
 
         // Радиус: три платформы текущей темы, другая тема не меняется; метаданные без предупреждений.
         val edited = api.mutate("PUT", roundMPath, EDITOR, """{"valuePx":14,"baseRevisions":$bases}""")
         assertFalse("editRevision" in edited.body)
         assertEquals("radius", edited.body.text("kind"))
         assertEquals(14, edited.body.obj("token").number("valuePx"))
-        assertEquals(11, edited.body.obj("token").array("components").size)
+        assertEquals(12, edited.body.obj("token").array("components").size)
         assertEquals(3, edited.body.array("values").size)
         assertEquals(3, edited.metadata.size)
         assertTrue(edited.metadata.all { it.text("entityType") == "token-value" && it.array("warnings").isEmpty() })
@@ -176,8 +244,8 @@ class SizeTokenHttpPostgresIntegrationTest {
         assertEquals("""["0.9375rem"]""", db.value(scope.tenantA, roundM, "web"))
         val roundXs = section.token("radii", "round.xs").text("tokenId")
         val roundS = section.token("radii", "round.s").text("tokenId")
-        val basesXs = api.baseRevisions(scope.tenantA, roundXs)
-        val basesS = api.baseRevisions(scope.tenantA, roundS)
+        val basesXs = api.baseRevisions(scope.designSystemId, scope.tenantA, roundXs)
+        val basesS = api.baseRevisions(scope.designSystemId, scope.tenantA, roundS)
         val xs = api.mutate("PUT", "${scope.base}/$roundXs/value", EDITOR, """{"valuePx":5,"baseRevisions":$basesXs}""")
         val s = api.mutate("PUT", "${scope.base}/$roundS/value", EDITOR, """{"valuePx":9,"baseRevisions":$basesS}""")
         listOf(xs, s).forEach { other ->
@@ -194,7 +262,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         assertEquals("false", db.overridden(scope.tenantA, roundL, "ios"))
         assertEquals("""["1.25rem"]""", db.value(scope.tenantA, roundL, "web"))
         assertEquals("""[{"kind": "round", "cornerRadius": 18}]""", db.value(scope.tenantA, roundL, "android"))
-        val androidValue = api.valueId(scope.tenantA, roundL, "android")
+        val androidValue = api.valueId(scope.designSystemId, scope.tenantA, roundL, "android")
         val change = api.changes(scope.designSystemId)
             .single { it.text("entityType") == "token-value" && it.text("entityId") == androidValue }
         assertEquals(
@@ -256,7 +324,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         api.reject("PUT", path, VIEWER, """{"valuePx":4}""", 403)
         val color = scope.db.text(activeRevisionTestSql(tokenIdSql(scope.designSystemId, "text.default.primary")))
         api.reject("PUT", "${scope.base}/$color/value", EDITOR, """{"valuePx":4}""", 400, "INVALID_SIZE_TOKEN")
-        val otherSystem = api.create("/api/ds/design-systems", OWNER, """{"name":"gamma","projectName":"gamma"}""")
+        val otherSystem = api.create("/api/design-systems", OWNER, """{"name":"gamma","projectName":"gamma"}""")
         val otherToken = scope.db.text(activeRevisionTestSql(tokenIdSql(otherSystem, "round.m")))
         api.reject("PUT", "${scope.base}/$otherToken/value", EDITOR, """{"valuePx":4}""", 404)
         api.reject("GET", scope.base, FOREIGN, null, 404)
@@ -276,7 +344,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         }
         scope.api.mutate(
             "PUT",
-            "/api/ds/tenants/${scope.tenantA}/token-values",
+            "/api/design-systems/${scope.designSystemId}/tenants/${scope.tenantA}/token-values",
             EDITOR,
             """{"editRevision":0,"values":[$values]}""",
         )
@@ -298,7 +366,12 @@ class SizeTokenHttpPostgresIntegrationTest {
                     "WHERE l.design_system_id = '${scope.designSystemId}' AND c.name = '$name'",
             )
         }.forEach { id ->
-            val response = scope.api.call("DELETE", "/api/ds/design-system-components/$id", OWNER, null)
+            val response = scope.api.call(
+                "DELETE",
+                "/api/design-systems/${scope.designSystemId}/design-system-components/$id",
+                OWNER,
+                null,
+            )
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         }
         val section = scope.api.read(scope.base, OWNER).jsonObject
@@ -320,7 +393,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         val versionId = api.publish(scope.designSystemId)
 
         // Новый черновик: удаление round.m — Editor не может, Maintainer удаляет; ссылки компонентов пустые.
-        assertEquals(16, db.count(activeRevisionTestSql(referenceCount(roundM))))
+        assertEquals(17, db.count(activeRevisionTestSql(referenceCount(roundM))))
         api.reject("DELETE", "${scope.base}/$roundM", EDITOR, null, 403)
         val deleted = api.mutate("DELETE", "${scope.base}/$roundM", MAINTAINER, null)
         assertEquals(listOf(roundM), deleted.body.array("deletedTokenIds").map { it.jsonPrimitive.content })
@@ -338,7 +411,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         val publishedM = historical.token("radii", "round.m")
         assertEquals(15, publishedM.number("valuePx"))
         // EmptyState и Button убраны из ДС до публикации.
-        assertEquals(9, publishedM.array("components").size)
+        assertEquals(10, publishedM.array("components").size)
         assertEquals(18, historical.token("radii", "round.l").obj("platforms").number("android"))
         assertEquals(20, historical.token("radii", "round.l").number("valuePx"))
         api.reject("GET", "${scope.base}?versionId=${UUID.randomUUID()}", VIEWER, null, 404)
@@ -347,10 +420,10 @@ class SizeTokenHttpPostgresIntegrationTest {
         api.reject("DELETE", historicalDelete, OWNER, null, 400)
 
         // Откат правки значения Android в журнале возвращает значение и признак опубликованной границы.
-        val androidValue = api.valueId(scope.tenantA, roundL, "android")
+        val androidValue = api.valueId(scope.designSystemId, scope.tenantA, roundL, "android")
         val change = api.changes(scope.designSystemId)
             .single { it.text("entityType") == "token-value" && it.text("entityId") == androidValue }
-        api.revert(scope.designSystemId, change.text("changeId"), change.long("editRevision"))
+        api.revert(scope.designSystemId, change)
         assertEquals("true", db.overridden(scope.tenantA, roundL, "android"))
         assertEquals("""[{"kind": "round", "cornerRadius": 18}]""", db.value(scope.tenantA, roundL, "android"))
         assertEquals("""["1.875rem"]""", db.value(scope.tenantA, roundL, "web"))
@@ -485,7 +558,10 @@ class SizeTokenHttpPostgresIntegrationTest {
         assertTrue(requireNotNull(db.value(scope.tenantB, cardId, "ios")).contains("\"color\": \"$reference\""))
 
         // GET token-values: HEX на месте ссылки слоя, исходное значение — в sourceValue.
-        val values = api.read("/api/ds/tenants/${scope.tenantA}/token-values", VIEWER).jsonArray
+        val values = api.read(
+            "/api/design-systems/${scope.designSystemId}/tenants/${scope.tenantA}/token-values",
+            VIEWER,
+        ).jsonArray
         val resolved = values.single { it.text("tokenId") == cardId && it.text("platform") == "web" }
         val resolvedWeb = json.parseToJsonElement("""["0rem 0.125rem 0.5rem 0rem $expected"]""")
         assertEquals(resolvedWeb, resolved.jsonObject.getValue("value"))
@@ -494,7 +570,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         assertTrue(values.filter { it.text("tokenId") == flatId }.none { "sourceValue" in it })
 
         // Связи растяжки учитывают тень; ступень вне палитры при правке — отказ без записи.
-        val linksPath = "/api/ds/tenants/${scope.tenantA}/palette/links?type=general&shade=${step.shade}"
+        val linksPath = "/api/design-systems/${scope.designSystemId}/tenants/${scope.tenantA}/palette/links?type=general&shade=${step.shade}"
         val links = api.read(linksPath, VIEWER).jsonArray
         assertTrue(links.any { it.text("tokenId") == cardId }, links.toString())
         val bad = """{"layers":[${LAYER.replace("#000000", "[${step.slot}.1]")}]}"""
@@ -516,7 +592,7 @@ class SizeTokenHttpPostgresIntegrationTest {
     private suspend fun revertToRemovedRamp(scope: Scope) {
         val api = scope.api
         val db = scope.db
-        val palette = "/api/ds/tenants/${scope.tenantA}/palette"
+        val palette = "/api/design-systems/${scope.designSystemId}/tenants/${scope.tenantA}/palette"
         val neutralGroup = api.read(palette, VIEWER).array("groups").single { it.text("systemKey") == "neutral" }
         val neutral = neutralGroup.text("id")
         val taken = neutralGroup.array("ramps").map { it.obj("slot").text("shade") }.toSet()
@@ -537,13 +613,12 @@ class SizeTokenHttpPostgresIntegrationTest {
         val layer = api.read(scope.base, VIEWER).token("shadows", "down.hard.m").array("layers").single()
         assertNull(layer.jsonObject["colorRef"])
 
-        val webValue = api.valueId(scope.tenantA, hardM, "web")
+        val webValue = api.valueId(scope.designSystemId, scope.tenantA, hardM, "web")
         val change = api.changes(scope.designSystemId)
             .single { it.text("entityType") == "token-value" && it.text("entityId") == webValue }
         val conflict = api.revert(
             scope.designSystemId,
-            change.text("changeId"),
-            change.long("editRevision"),
+            change,
             HttpStatusCode.Conflict,
         )
         assertEquals("REVERT_DEPENDENCY_CONFLICT", conflict.text("code"))
@@ -558,11 +633,14 @@ class SizeTokenHttpPostgresIntegrationTest {
         val tenantA: String,
         val tenantB: String,
     ) {
-        val base = "/api/ds/tenants/$tenantA/size-tokens"
+        val base = "/api/design-systems/$designSystemId/tenants/$tenantA/size-tokens"
 
         /** Последняя ступень общей растяжки копии шаблона палитры темы A, кроме оттенков [except]. */
         suspend fun paletteStep(except: Set<String> = emptySet()): PaletteStep {
-            val ramp = api.read("/api/ds/tenants/$tenantA/palette", VIEWER).array("template").first {
+            val ramp = api.read(
+                "/api/design-systems/$designSystemId/tenants/$tenantA/palette",
+                VIEWER,
+            ).array("template").first {
                 it.text("type") == "general" && it.text("shade") !in except && it.array("steps").size > 1
             }
             val step = ramp.array("steps").last()
@@ -603,7 +681,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         }
 
         suspend fun createTenant(designSystemId: String, name: String) =
-            create("/api/ds/tenants", EDITOR, """{"designSystemId":"$designSystemId","name":"$name"}""")
+            create("/api/design-systems/$designSystemId/tenants", EDITOR, """{"name":"$name"}""")
 
         /** Успешная операция: тело и технические редакции из `X-DS-Mutation-Metadata`. */
         @Suppress("LongParameterList")
@@ -640,28 +718,28 @@ class SizeTokenHttpPostgresIntegrationTest {
         }
 
         /** Значения токена в теме из `GET token-values`: платформа → идентификатор и техническая редакция. */
-        suspend fun values(tenantId: String, tokenId: String): Map<String, Pair<String, Long>> =
-            read("/api/ds/tenants/$tenantId/token-values", VIEWER).jsonArray
+        suspend fun values(designSystemId: String, tenantId: String, tokenId: String): Map<String, Pair<String, Long>> =
+            read("/api/design-systems/$designSystemId/tenants/$tenantId/token-values", VIEWER).jsonArray
                 .filter { it.text("tokenId") == tokenId }
                 .associate { it.text("platform") to (it.text("id") to it.long("editRevision")) }
 
-        suspend fun valueId(tenantId: String, tokenId: String, platform: String): String =
-            values(tenantId, tokenId).getValue(platform).first
+        suspend fun valueId(designSystemId: String, tenantId: String, tokenId: String, platform: String): String =
+            values(designSystemId, tenantId, tokenId).getValue(platform).first
 
         /** Базовые редакции значений токена по платформам в форме тела `baseRevisions`. */
-        suspend fun baseRevisions(tenantId: String, tokenId: String): String =
-            values(tenantId, tokenId).entries.joinToString(",", "{", "}") { (platform, value) ->
+        suspend fun baseRevisions(designSystemId: String, tenantId: String, tokenId: String): String =
+            values(designSystemId, tenantId, tokenId).entries.joinToString(",", "{", "}") { (platform, value) ->
                 "\"$platform\":${value.second}"
             }
 
         suspend fun publish(designSystemId: String): String {
-            val system = read("/api/ds/design-systems/$designSystemId", VIEWER)
-            val response = client.request("/api/ds/design-system-versions") {
+            val system = read("/api/design-systems/$designSystemId", VIEWER)
+            val response = client.request("/api/design-systems/$designSystemId/versions") {
                 method = HttpMethod.Post
                 trusted(OWNER)
                 header("Idempotency-Key", UUID.randomUUID().toString())
                 jsonBody(
-                    """{"designSystemId":"$designSystemId","draftId":"${system.text("draftId")}",""" +
+                    """{"draftId":"${system.text("draftId")}",""" +
                         """"draftRevision":${system.number("draftRevision")},""" +
                         """"version":"1.0.0","changelog":"Sizes"}""",
                 )
@@ -671,18 +749,24 @@ class SizeTokenHttpPostgresIntegrationTest {
         }
 
         suspend fun changes(designSystemId: String): JsonArray =
-            read("/api/ds/design-systems/$designSystemId/changes", VIEWER).jsonArray
+            read("/api/design-systems/$designSystemId/changes", VIEWER).jsonArray
 
         suspend fun revert(
             designSystemId: String,
-            changeId: String,
-            revision: Long,
+            change: JsonElement,
             status: HttpStatusCode = HttpStatusCode.OK,
         ): JsonObject {
-            val response = client.request("/api/ds/design-systems/$designSystemId/changes/$changeId/revert") {
+            val response = client.request("/api/design-systems/$designSystemId/changes/revert-by-address") {
                 method = HttpMethod.Post
                 trusted(OWNER)
-                header("X-DS-Base-Revision", revision.toString())
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"draftId":"${change.text(
+                        "versionId",
+                    )}","targets":[{"entityType":"${change.text(
+                        "entityType",
+                    )}","entityId":"${change.text("entityId")}","expectedRevision":${change.long("editRevision")}}]}""",
+                )
                 header("Idempotency-Key", UUID.randomUUID().toString())
             }
             assertEquals(status, response.status, response.bodyAsText())

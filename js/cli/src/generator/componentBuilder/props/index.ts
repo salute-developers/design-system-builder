@@ -1,6 +1,7 @@
 export { ColorProp } from './color.ts';
 export { DimensionProp } from './dimension.ts';
 export { FloatProp } from './float.ts';
+export { IntegerProp } from './integer.ts';
 export { ShadowProp } from './shadow.ts';
 export { ShapeProp } from './shape.ts';
 export { TypographyProp } from './typography.ts';

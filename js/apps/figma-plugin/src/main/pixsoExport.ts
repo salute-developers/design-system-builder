@@ -75,6 +75,22 @@ const writeTable = (root: PluginDataHolder, table: Table) => {
     }
 };
 
+/** Pixso в пустом файле отвечает `undefined` вместо пустого списка. */
+const listOf = <T>(items: readonly T[] | null | undefined): T[] => (items ? [...items] : []);
+
+/**
+ * Чтение переменных пустого файла падает внутри Pixso. Без коллекций переменных не бывает, поэтому отказ при пустом
+ * списке коллекций означает пустой список. Иначе отказ пробрасывается: с пустым списком экспорт создал бы дубликаты.
+ */
+const readVariables = async (variables: ExportFigmaApi['variables']): Promise<Variable[]> => {
+    try {
+        return listOf(await variables.getLocalVariablesAsync());
+    } catch (error) {
+        if (listOf(await variables.getLocalVariableCollectionsAsync()).length === 0) return [];
+        throw error;
+    }
+};
+
 /**
  * Переходник к API записи плана. Pixso не сохраняет данные плагина у переменных, коллекций и стилей, а у документа
  * сохраняет, и `id` объектов стабильны. Поэтому данные объектов живут в таблице документа по `id`: запись плана
@@ -95,9 +111,9 @@ export const pixsoExportApi = (pixso: PixsoDocumentApi): PixsoExportApi => {
         // Без переменных запись плана сама сообщает, что редактор их не поддерживает.
         // Методы перечислены явно: у API Pixso они могут лежать в прототипе, и копирование объекта их потеряет.
         variables: (variables && {
-            getLocalVariablesAsync: async () => (await variables.getLocalVariablesAsync()).map(tracked),
+            getLocalVariablesAsync: async () => (await readVariables(variables)).map(tracked),
             getLocalVariableCollectionsAsync: async () =>
-                (await variables.getLocalVariableCollectionsAsync()).map(tracked),
+                listOf(await variables.getLocalVariableCollectionsAsync()).map(tracked),
             createVariableCollection: (name: string) => tracked(variables.createVariableCollection(name)),
             createVariable: (name: string, collection: VariableCollection, type: VariableResolvedDataType) =>
                 tracked(variables.createVariable(name, collection, type)),
@@ -110,9 +126,9 @@ export const pixsoExportApi = (pixso: PixsoDocumentApi): PixsoExportApi => {
                 variable: Variable | null,
             ) => variables.setBoundVariableForEffect(effect, field, variable),
         }) as unknown as ExportFigmaApi['variables'],
-        getLocalTextStylesAsync: async () => pixso.getLocalTextStyles().map(tracked),
-        getLocalEffectStylesAsync: async () => pixso.getLocalEffectStyles().map(tracked),
-        getLocalPaintStylesAsync: async () => pixso.getLocalPaintStyles().map(tracked),
+        getLocalTextStylesAsync: async () => listOf(pixso.getLocalTextStyles()).map(tracked),
+        getLocalEffectStylesAsync: async () => listOf(pixso.getLocalEffectStyles()).map(tracked),
+        getLocalPaintStylesAsync: async () => listOf(pixso.getLocalPaintStyles()).map(tracked),
         createTextStyle: () => tracked(pixso.createTextStyle()),
         createEffectStyle: () => tracked(pixso.createEffectStyle()),
         createPaintStyle: () => tracked(pixso.createPaintStyle()),
@@ -124,11 +140,11 @@ export const pixsoExportApi = (pixso: PixsoDocumentApi): PixsoExportApi => {
             if (!variables) return;
             const alive = new Set(
                 [
-                    ...(await variables.getLocalVariablesAsync()),
-                    ...(await variables.getLocalVariableCollectionsAsync()),
-                    ...pixso.getLocalTextStyles(),
-                    ...pixso.getLocalEffectStyles(),
-                    ...pixso.getLocalPaintStyles(),
+                    ...(await readVariables(variables)),
+                    ...listOf(await variables.getLocalVariableCollectionsAsync()),
+                    ...listOf(pixso.getLocalTextStyles()),
+                    ...listOf(pixso.getLocalEffectStyles()),
+                    ...listOf(pixso.getLocalPaintStyles()),
                 ].map((item) => item.id),
             );
             writeTable(pixso.root, Object.fromEntries(Object.entries(table).filter(([id]) => alive.has(id))));

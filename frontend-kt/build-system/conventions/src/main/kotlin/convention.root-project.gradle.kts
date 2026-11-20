@@ -1,12 +1,23 @@
+import org.gradle.api.tasks.testing.Test
+
 plugins {
     id("base")
 }
 
 allprojects {
+    apply(plugin = "convention.test-tiers")
     repositories {
         google()
         mavenCentral()
         maven { url = uri("https://maven.pkg.jetbrains.space/kotlin/p/kotlin/kotlin-js-wrappers") }
+    }
+}
+
+val unitTestAll = tasks.register("unitTestAll") {
+    group = "verification"
+    description = "Runs only fast JVM tests, without integration categories or native/Node test tasks."
+    allprojects.forEach { project ->
+        dependsOn(project.tasks.withType<Test>().matching { it.name == "test" || it.name == "jvmTest" })
     }
 }
 

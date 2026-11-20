@@ -92,6 +92,6 @@ class HttpComponentReadRemoteSourceTest {
             "/work/.sdds/config.json",
         ),
         apiUrl = ProjectApiUrl("https://api.example.com"),
-        credential = BackendCredential.ProjectKey("test-key"),
+        credential = BackendCredential.PersonalAccessToken("test-key"),
     )
 }

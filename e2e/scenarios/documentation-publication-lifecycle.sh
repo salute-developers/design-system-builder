@@ -217,7 +217,7 @@ design_system_payload="$(
 )"
 status="$(
   e2e_http_status "$design_system_response" \
-    --request POST "$E2E_GATEWAY_URL/api/projects/$E2E_PROJECT_ID/ds/design-systems" \
+    --request POST "$E2E_GATEWAY_URL/api/projects/$E2E_PROJECT_ID/design-systems" \
     --header "Authorization: Bearer $owner_token" \
     --header 'Content-Type: application/json' \
     --data "$design_system_payload"

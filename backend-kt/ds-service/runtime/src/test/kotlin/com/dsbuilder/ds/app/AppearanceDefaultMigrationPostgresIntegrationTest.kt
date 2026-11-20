@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /** Заполнение признака конфигурации по умолчанию и новых полей редактора при переходе на модель редакций. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class AppearanceDefaultMigrationPostgresIntegrationTest {
     @Test
     fun `the default configuration is the one named like the component or else the earliest`() {

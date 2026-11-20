@@ -96,6 +96,12 @@ class SizeTokenUseCaseTest {
     }
 
     @Test
+    fun `чтение размеров без цветовых ссылок не загружает палитру`() = runBlocking {
+        success(get.execute(context("viewer"), current))
+        assertEquals(0, palette.snapshotReads)
+    }
+
+    @Test
     fun `чтение раздела отдаёт токены по правилам имён, компоненты и вычисляемые радиусы`() = runBlocking {
         val section = success(get.execute(context("viewer"), current))
 

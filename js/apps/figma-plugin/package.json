@@ -10,6 +10,8 @@
         "build:dev": "npm run core:build && tsc -b && vite build --mode development && npm run build:main -- --mode development && node scripts/check-size.mjs",
         "build:pixso": "npm run build && npm run pack:pixso",
         "build:pixso:dev": "npm run build:dev && npm run pack:pixso",
+        "build:pixso:stand": "npm run core:build && tsc -b && vite build --mode stand && npm run build:main && node scripts/check-size.mjs && npm run pack:pixso",
+        "build:pixso:yandex": "npm run core:build && tsc -b && vite build --mode yandex && npm run build:main && node scripts/check-size.mjs && npm run pack:pixso",
         "pack:pixso": "vite build --config vite.pixso.config.ts && node scripts/pack-pixso.mjs",
         "dev:pixso": "node scripts/pixso-dev.mjs",
         "build:ui": "vite build",

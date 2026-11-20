@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.ds.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.PLATFORM_OPTION_HELP
 import com.dsbuilder.frontend.cli.presentation.echoResult
 import com.dsbuilder.frontend.cli.presentation.printPlan
@@ -7,7 +8,6 @@ import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.ds.application.GenerateDesignSystemCommand
 import com.dsbuilder.frontend.feature.ds.application.GenerateDesignSystemUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.multiple
@@ -19,7 +19,7 @@ import com.github.ajalt.clikt.parameters.options.option
  */
 internal class DsGenerateCliCommand(
     private val generateDesignSystemUseCase: GenerateDesignSystemUseCase,
-) : CliktCommand(name = "generate") {
+) : AnalyticsCliCommand(name = "generate", operation = "ds generate") {
     private val platform: TargetPlatform? by option("--platform").targetPlatform().help(PLATFORM_OPTION_HELP)
 
     private val output: String? by option("--output")
@@ -31,7 +31,7 @@ internal class DsGenerateCliCommand(
     private val passthrough: List<String> by argument("[-- <tool args>]")
         .multiple()
 
-    override fun run() {
+    override fun runOperation() {
         val result = generateDesignSystemUseCase.execute(
             GenerateDesignSystemCommand(
                 platform = platform,

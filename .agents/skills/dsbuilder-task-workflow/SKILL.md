@@ -102,11 +102,23 @@ implementation. When Apply completes, run:
 tools/verify fast --change <change-name>
 ```
 
+FAST runs Strictacode compare for every selected contour before any project build
+or test command. Then it runs formatting, Detekt, architecture and fast JVM unit
+tests. Gradle excludes IntegrationTest categories, native/KMP Node, installer and package
+smoke tests. The JavaScript contour retains its build and fast CLI tests. Ktor test-host checks with fake dependencies stay in FAST. Never
+postpone analyzer fixes until after review.
+
 After FAST succeeds, create a fresh read-only reviewer with no inherited
 conversation history. Give it only the paths and review contract from the shared
 workflow. Keep implementation with the main agent. Validate findings, fix real
 blocking issues, rerun FAST and create another fresh reviewer. Stop after three
 iterations or earlier when the workflow's stopping conditions apply.
+
+FULL is self-contained: it repeats the current-source Strictacode preflight,
+then runs FAST dependencies, integration categories, native/Node/package tests
+and complete builds. Gradle reuses unchanged unit-test results; no separate
+source-fingerprint cache is required. A missing Docker/service prerequisite
+fails the integration gate rather than silently skipping it.
 
 When review passes, run:
 

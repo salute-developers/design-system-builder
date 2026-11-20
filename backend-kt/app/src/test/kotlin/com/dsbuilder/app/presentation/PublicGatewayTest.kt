@@ -46,6 +46,26 @@ class PublicGatewayTest {
     }
 
     @Test
+    fun `consent route is anonymous but exact origin method and body limits remain enforced`() = testApplication {
+        application {
+            installPublicGateway(configuration, authorizer)
+            routing {
+                get("/api/privacy/analytics/consent") { call.respondText("notice") }
+                post("/api/privacy/analytics/consent") { call.respondText("record") }
+            }
+        }
+        val path = "/api/privacy/analytics/consent"
+        assertEquals(HttpStatusCode.OK, client.get(path).status)
+        assertEquals(HttpStatusCode.OK, client.get(path) { header("Origin", "http://localhost:5173") }.status)
+        assertEquals(HttpStatusCode.Forbidden, client.get(path) { header("Origin", "https://unknown.example") }.status)
+        assertEquals(HttpStatusCode.PayloadTooLarge, client.post(path) { setBody("x".repeat(4097)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.get("$path/history").status)
+        val options = client.options(path) { header("Origin", "http://localhost:5173") }
+        assertTrue("X-Consent-Key" in options.headers["Access-Control-Allow-Headers"].orEmpty())
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/projects").status)
+    }
+
+    @Test
     fun `preflight cache is limited to allowed origins and does not authorize commands`() = testApplication {
         application {
             installPublicGateway(configuration, authorizer)
@@ -98,12 +118,12 @@ class PublicGatewayTest {
             header("Origin", "null")
             header("Access-Control-Request-Method", method)
         }.headers["Access-Control-Allow-Origin"]
-        assertEquals("null", preflight("/api/projects/project/ds/design-systems", "GET"))
+        assertEquals("null", preflight("/api/projects/project/design-systems", "GET"))
         assertEquals("null", preflight("/auth/token", "POST"))
         assertEquals("null", preflight("/auth/logout", "POST"))
         assertEquals("null", preflight("/realms/dsbuilder/protocol/openid-connect/auth/device", "POST"))
-        assertEquals(null, preflight("/api/projects/project/ds/tokens/token", "PATCH"))
-        assertEquals(null, preflight("/api/projects/project/ds/design-systems", "POST"))
+        assertEquals(null, preflight("/api/projects/project/design-systems/ds/tokens/token", "PATCH"))
+        assertEquals(null, preflight("/api/projects/project/design-systems", "POST"))
         assertEquals(null, preflight("/realms/dsbuilder/account", "GET"))
 
         val anonymous = client.get("/api/projects") { header("Origin", "null") }
@@ -130,19 +150,19 @@ class PublicGatewayTest {
         application {
             installPublicGateway(configuration, authorizer)
             routing {
-                get("/api/projects/{projectId}/ds/probe") {
+                get("/api/projects/{projectId}/design-systems/probe") {
                     call.respondText(call.verifiedRequestHeaders()["X-User-Id"].orEmpty())
                 }
             }
         }
         assertEquals(
             HttpStatusCode.Unauthorized,
-            client.get("/api/projects/p/ds/probe") {
+            client.get("/api/projects/p/design-systems/probe") {
                 header("X-System-Admin", "true")
                 header("X-User-Id", "spoofed")
             }.status,
         )
-        val authorized = client.get("/api/projects/p/ds/probe") {
+        val authorized = client.get("/api/projects/p/design-systems/probe") {
             header("Authorization", "Bearer valid")
             header("X-User-Id", "spoofed")
         }
@@ -178,8 +198,33 @@ class PublicGatewayTest {
         for (path in listOf("/api/ds/tenants/t/size-tokens", "/unknown")) {
             assertEquals(HttpStatusCode.NotFound, client.get(path) { header("X-System-Admin", "true") }.status)
         }
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/projects/p/ds/tenants/t/size-tokens").status)
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.get("/api/projects/p/design-systems/tenants/t/size-tokens").status,
+        )
     }
+
+    @Test
+    fun `icon catalog upload requires a user token and accepts a manifest above the default limit`() =
+        testApplication {
+            application {
+                installPublicGateway(configuration, authorizer)
+                routing { post("/api/admin/icons/catalog") { call.respondText(call.receiveText().length.toString()) } }
+            }
+            assertEquals(HttpStatusCode.Unauthorized, client.post("/api/admin/icons/catalog") { setBody("{}") }.status)
+            val manifest = "x".repeat(5 * 1024 * 1024)
+            val accepted = client.post("/api/admin/icons/catalog") {
+                header("Authorization", "Bearer valid")
+                setBody(manifest)
+            }
+            assertEquals(HttpStatusCode.OK, accepted.status)
+            assertEquals(manifest.length.toString(), accepted.bodyAsText())
+            val tooLarge = client.post("/api/admin/icons/catalog") {
+                header("Authorization", "Bearer valid")
+                setBody("x".repeat(33 * 1024 * 1024))
+            }
+            assertEquals(HttpStatusCode.PayloadTooLarge, tooLarge.status)
+        }
 
     @Test
     fun `plugin publication waits after upload and cancels a stalled handler`() = testApplication {

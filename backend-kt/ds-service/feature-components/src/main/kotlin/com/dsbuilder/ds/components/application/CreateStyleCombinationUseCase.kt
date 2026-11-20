@@ -21,8 +21,8 @@ class CreateStyleCombinationUseCase(
         idempotencyKey: String? = null,
     ): DsResult<StyleCombination> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-style-combination", command,
-        { repository.find(context.projectId, context.principal.systemAdmin, it) },
-        { repository.create(context.projectId, context.principal.systemAdmin, command) },
+        { repository.find(context.projectId, context.principal.globalAdmin, it) },
+        { repository.create(context.projectId, context.principal.globalAdmin, command) },
         StyleCombination::id,
     )
 }

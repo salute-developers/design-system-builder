@@ -29,7 +29,6 @@ public class CheckProjectStatusUseCase internal constructor(
             val result = projectContextReader.requireContext(
                 command.workspace,
                 command.designSystemUri,
-                command.projectKeyEnvName,
             )
         ) {
             is ProjectContextReadResult.Found -> result
@@ -97,14 +96,12 @@ public class CheckProjectStatusUseCase internal constructor(
  * @property apiUrlOverride runtime API URL override.
  * @property workspace optional starting directory for project context resolution.
  * @property designSystemUri explicit design-system link.
- * @property projectKeyEnvName environment variable for an explicit project key.
  */
 public data class CheckProjectStatusCommand(
     public val apiKeyOverride: String?,
     public val apiUrlOverride: String?,
     public val workspace: String? = null,
     public val designSystemUri: String? = null,
-    public val projectKeyEnvName: String? = null,
 )
 
 /**
@@ -121,7 +118,7 @@ public enum class CheckProjectStatusErrorCode {
     AUTH_REQUIRED,
 
     /** The supplied project key was rejected. */
-    PROJECT_KEY_INVALID,
+    PAT_INVALID,
 
     /** The backend denied access to the project. */
     FORBIDDEN,
@@ -164,7 +161,7 @@ public sealed interface CheckProjectStatusResult {
 private fun AuthErrorCode.toStatusErrorCode(): CheckProjectStatusErrorCode =
     when (this) {
         AuthErrorCode.AUTH_REQUIRED -> CheckProjectStatusErrorCode.AUTH_REQUIRED
-        AuthErrorCode.PROJECT_KEY_INVALID -> CheckProjectStatusErrorCode.PROJECT_KEY_INVALID
+        AuthErrorCode.PAT_INVALID -> CheckProjectStatusErrorCode.PAT_INVALID
         AuthErrorCode.FORBIDDEN -> CheckProjectStatusErrorCode.FORBIDDEN
         AuthErrorCode.BACKEND_UNAVAILABLE -> CheckProjectStatusErrorCode.BACKEND_UNAVAILABLE
         AuthErrorCode.INVALID_AUTH_URL -> CheckProjectStatusErrorCode.BACKEND_UNAVAILABLE

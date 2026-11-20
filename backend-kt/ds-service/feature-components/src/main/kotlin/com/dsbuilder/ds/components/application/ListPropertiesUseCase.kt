@@ -15,6 +15,6 @@ class ListPropertiesUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<ComponentPropertySummary>> =
         modelList(policy, transactions, context) {
-            repository.listProperties(context.projectId, context.principal.systemAdmin)
+            repository.listProperties(context.projectId, context.principal.globalAdmin)
         }
 }

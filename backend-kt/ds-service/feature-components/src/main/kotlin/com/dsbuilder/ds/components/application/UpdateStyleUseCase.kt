@@ -24,7 +24,7 @@ class UpdateStyleUseCase(
         command: StyleRepository.Update,
     ): DsResult<ComponentStyleSummary> = policy.read(context, ProjectScope.COMPONENT_VARIATIONS_WRITE) {
         transactions.required(context) {
-            val current = repository.findAccessible(context.projectId, context.principal.systemAdmin, id)
+            val current = repository.findAccessible(context.projectId, context.principal.globalAdmin, id)
                 ?: return@required DsResult.Failure(DsFailure.NotFound)
             if (command.name != null) {
                 val normalizedName = command.name.trim().lowercase()
@@ -32,7 +32,7 @@ class UpdateStyleUseCase(
                 if (
                     repository.nameExists(
                         context.projectId,
-                        context.principal.systemAdmin,
+                        context.principal.globalAdmin,
                         current.designSystemId,
                         current.variationId,
                         normalizedName,
@@ -42,7 +42,7 @@ class UpdateStyleUseCase(
                     return@required DsResult.Failure(DsFailure.Conflict("STYLE_NAME_CONFLICT"))
                 }
             }
-            repository.updateAccessible(context.projectId, context.principal.systemAdmin, id, command)
+            repository.updateAccessible(context.projectId, context.principal.globalAdmin, id, command)
                 ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
         }
     }

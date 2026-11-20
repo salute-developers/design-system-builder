@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class VersionBoundaryMigrationPostgresIntegrationTest {
     @Test
     fun `legacy snapshots stay archived and new boundaries obey their lifecycle`() {

@@ -23,7 +23,7 @@ internal class LocalProjectContextReader(
         contextResolver.resolve(startingDirectory)
 
     override fun requireContext(request: ContextRequest): ProjectContextReadResult =
-        contextResolver.resolve(request.startingDirectory, request.designSystemUri, request.projectKeyEnvName)
+        contextResolver.resolve(request.startingDirectory, request.designSystemUri)
 }
 
 internal fun WorkspaceProjectContext.toProjectContext(): ProjectContext =
@@ -35,7 +35,7 @@ internal fun WorkspaceProjectContext.toProjectContext(): ProjectContext =
         credentialPolicy = when (config.credential.type) {
             CredentialReferenceType.ENV, CredentialReferenceType.AUTO -> CredentialPolicy.AUTO
             CredentialReferenceType.USER_SESSION -> CredentialPolicy.USER_SESSION
-            CredentialReferenceType.PROJECT_KEY_ENV -> CredentialPolicy.PROJECT_KEY_ENV
+            CredentialReferenceType.PAT_ENV -> CredentialPolicy.PAT_ENV
         },
         platforms = config.platforms.map { value ->
             com.dsbuilder.frontend.core.domain.TargetPlatform.fromCliValue(value)

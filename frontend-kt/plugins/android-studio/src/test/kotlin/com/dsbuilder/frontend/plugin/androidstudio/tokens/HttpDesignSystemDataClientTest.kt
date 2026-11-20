@@ -66,7 +66,7 @@ class HttpDesignSystemDataClientTest {
             )
         }
 
-        val tokens = HttpDesignSystemDataClient(clientFor(engine)).listTokens("project-a")
+        val tokens = HttpDesignSystemDataClient(clientFor(engine)).listTokens("project-a", "ds-a")
 
         assertEquals(
             listOf(
@@ -75,7 +75,7 @@ class HttpDesignSystemDataClientTest {
             ),
             tokens,
         )
-        assertEquals("/api/projects/project-a/ds/tokens", request!!.url.encodedPath)
+        assertEquals("/api/projects/project-a/design-systems/ds-a/tokens", request!!.url.encodedPath)
     }
 
     @Test
@@ -90,7 +90,7 @@ class HttpDesignSystemDataClientTest {
             )
         }
 
-        val values = HttpDesignSystemDataClient(clientFor(engine)).listTokenValues("project-a")
+        val values = HttpDesignSystemDataClient(clientFor(engine)).listTokenValues("project-a", "ds-a")
 
         assertEquals(1, values.size)
         val value = values.single()
@@ -112,7 +112,7 @@ class HttpDesignSystemDataClientTest {
             )
         }
 
-        val value = HttpDesignSystemDataClient(clientFor(engine)).listTokenValues("project-a").single()
+        val value = HttpDesignSystemDataClient(clientFor(engine)).listTokenValues("project-a", "ds-a").single()
 
         assertEquals("[\"a\",\"b\"]", value.rawValue)
     }
@@ -121,7 +121,7 @@ class HttpDesignSystemDataClientTest {
     fun resolvesPaletteReferenceToHexAndAppliesOpacity() = runBlocking<Unit> {
         val engine = MockEngine { request ->
             when (request.url.encodedPath) {
-                "/api/projects/project-a/ds/palette" ->
+                "/api/projects/project-a/design-systems/catalog/palette" ->
                     respond("""[{"id":"pal-1","value":"#108E26"},{"id":"pal-2","value":"#28D247"}]""")
                 else -> respond(
                     """
@@ -134,7 +134,7 @@ class HttpDesignSystemDataClientTest {
             }
         }
 
-        val values = HttpDesignSystemDataClient(clientFor(engine)).listTokenValues("project-a")
+        val values = HttpDesignSystemDataClient(clientFor(engine)).listTokenValues("project-a", "ds-a")
 
         assertEquals("#108E26", values[0].rawValue)
         assertEquals("#28D2478F", values[1].rawValue)

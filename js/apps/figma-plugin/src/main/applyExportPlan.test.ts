@@ -466,20 +466,97 @@ describe('запись плана экспорта', () => {
         expect(variables[1].name).toBe('Text&Icons/Default/General/Main');
     });
 
-    it('возвращает переменную с занятым прежним именем под пометкой «(устарело)», а не на временное имя', async () => {
+    it('не начинает цепочку переименований, конец которой упирается в чужое имя', async () => {
         const { figma, collections, variables } = createFigma();
         await applyExportPlan(createPlan(), figma);
         const [, , family, size] = variables;
         figma.variables.createVariable('Taken', collections[2] as unknown as VariableCollection, 'FLOAT');
         const plan = createPlan();
-        // `size` хочет занятое чужое имя и будет пропущен, `family` забирает прежнее имя `size`.
+        // Цепочка `family → имя size`, `size → Taken`: Taken занято дизайнером, поэтому не переименовывается никто.
         plan.collections[2].variables[1].name = 'Taken';
         plan.collections[2].variables[0].name = 'Header/H1 B/Font Size';
 
+        const report = await applyExportPlan(plan, figma);
+
+        expect(family.name).toBe('FontFamily/Header');
+        expect(size.name).toBe('Header/H1 B/Font Size');
+        expect(variables.map((item) => item.name)).not.toContainEqual(expect.stringMatching(/устарело|dsbuilder-tmp/));
+        expect(report.skipped).toEqual(
+            expect.arrayContaining([
+                { name: 'Taken', reason: 'имя занято переменной, созданной не DS Builder' },
+                { name: 'Header/H1 B/Font Size', reason: 'имя занято переменной плана, которую нельзя переименовать' },
+            ]),
+        );
+    });
+
+    it('не переименовывает переменную в имя, которое в плане носят два объекта', async () => {
+        const { figma, variables } = createFigma();
+        await applyExportPlan(createPlan(), figma);
+        const [, , family, size] = variables;
+        const plan = createPlan();
+        const typography = plan.collections[2].variables;
+        // Новая переменная первой занимает `N`, `size` тоже хочет `N`, а `family` — прежнее имя `size`.
+        typography.unshift({ ...typography[1], key: 'typography:new', name: 'N' });
+        typography[2].name = 'N';
+        typography[1].name = 'Header/H1 B/Font Size';
+
+        const report = await applyExportPlan(plan, figma);
+
+        expect(family.name).toBe('FontFamily/Header');
+        expect(size.name).toBe('Header/H1 B/Font Size');
+        expect(variables.map((item) => item.name)).not.toContainEqual(expect.stringMatching(/устарело|dsbuilder-tmp/));
+        expect(report.skipped).toContainEqual({ name: 'N', reason: 'в плане два объекта с этим именем' });
+    });
+
+    it('называет причиной пропуска новой переменной заблокированное переименование', async () => {
+        const { figma, collections, variables } = createFigma();
+        await applyExportPlan(createPlan(), figma);
+        figma.variables.createVariable('Taken', collections[2] as unknown as VariableCollection, 'FLOAT');
+        const plan = createPlan();
+        const typography = plan.collections[2].variables;
+        typography[1].name = 'Taken';
+        typography.push({ ...typography[1], key: 'typography:new', name: 'Header/H1 B/Font Size' });
+
+        const report = await applyExportPlan(plan, figma);
+
+        expect(variables[3].name).toBe('Header/H1 B/Font Size');
+        expect(report.skipped).toContainEqual({
+            name: 'Header/H1 B/Font Size',
+            reason: 'имя занято переменной плана, которую нельзя переименовать',
+        });
+    });
+
+    it('сохраняет добавленный режим в соответствии, даже если Figma не дала его переименовать', async () => {
+        const { figma, collections } = createFigma();
+        await applyExportPlan(createPlan(), figma);
+        const plan = createPlan();
+        plan.collections[1].modes.push({ key: 'contrast', name: 'Contrast' });
+        const rename = collections[1].renameMode.bind(collections[1]);
+        collections[1].renameMode = (modeId, name) => {
+            if (name === 'Contrast') throw new Error('locked');
+            rename(modeId, name);
+        };
+        await applyExportPlan(plan, figma);
+        collections[1].renameMode = rename;
+
         await applyExportPlan(plan, figma);
 
-        expect(family.name).toBe('Header/H1 B/Font Size');
-        expect(size.name).toBe('Header/H1 B/Font Size (устарело)');
+        expect(collections[1].modes.map((mode) => mode.name)).toEqual(['Light', 'Dark', 'Contrast']);
+    });
+
+    it('сохраняет соответствие добавленных режимов, если тариф отказал на следующем', async () => {
+        const { figma, collections } = createFigma({ modeLimit: 3 });
+        await applyExportPlan(createPlan(), figma);
+        const plan = createPlan();
+        plan.collections[1].modes.push({ key: 'contrast', name: 'Contrast' }, { key: 'extra', name: 'Extra' });
+
+        const first = await applyExportPlan(plan, figma);
+        const second = await applyExportPlan(plan, figma);
+
+        expect(first.failure).toContain('режим «Extra»');
+        // Повторный экспорт узнаёт добавленный Contrast и упирается в лимит снова только на Extra.
+        expect(second.failure).toContain('режим «Extra»');
+        expect(collections[1].modes.map((mode) => mode.name)).toEqual(['Light', 'Dark', 'Contrast']);
     });
 
     it('не занимает режим, добавленный дизайнером, когда соответствие уже сохранено', async () => {
@@ -920,6 +997,56 @@ describe('экспорт в Pixso с таблицей ключей', () => {
 
         await expect(applyPixsoExport(createPlan(), document.pixso)).rejects.toThrow('Таблица ключей DS Builder');
         expect(document.collections).toHaveLength(0);
+    });
+
+    /** Пустой файл в Pixso: списки приходят `undefined`, чтение переменных падает внутри редактора. */
+    const emptyPixso = (document: ReturnType<typeof createDocument>) => {
+        const variables = document.pixso.variables as unknown as Record<string, unknown>;
+        const readCollections = variables.getLocalVariableCollectionsAsync as () => Promise<unknown[]>;
+        const readVariables = variables.getLocalVariablesAsync as () => Promise<unknown[]>;
+        const emptyAsUndefined = async (read: () => Promise<unknown[]>) => {
+            const items = await read();
+            return items.length ? items : undefined;
+        };
+        variables.getLocalVariableCollectionsAsync = () => emptyAsUndefined(readCollections);
+        variables.getLocalVariablesAsync = async () => {
+            const items = await readVariables();
+            if (!items.length) throw new TypeError("Cannot read properties of undefined (reading 'message')");
+            return items;
+        };
+        const styles = document.pixso as unknown as Record<string, () => unknown[] | undefined>;
+        for (const name of ['getLocalTextStyles', 'getLocalEffectStyles', 'getLocalPaintStyles']) {
+            const read = styles[name];
+            styles[name] = () => {
+                const items = read();
+                return items?.length ? items : undefined;
+            };
+        }
+    };
+
+    it('экспортирует в пустой файл, где Pixso отвечает undefined и падает на чтении переменных', async () => {
+        const document = createDocument();
+        emptyPixso(document);
+
+        const report = await applyPixsoExport(createPlan(), document.pixso);
+
+        expect(report.failure).toBeUndefined();
+        expect(report.created.collections).toBe(3);
+        expect(document.variables).toHaveLength(4);
+    });
+
+    it('не считает переменные пустыми, если их чтение упало, а коллекции в файле есть', async () => {
+        const document = createDocument();
+        await applyPixsoExport(createPlan(), document.pixso);
+        const variables = document.pixso.variables as unknown as Record<string, unknown>;
+        variables.getLocalVariablesAsync = async () => {
+            throw new Error('read failed');
+        };
+
+        const report = await applyPixsoExport(createPlan(), document.pixso);
+
+        expect(report.failure).toContain('read failed');
+        expect(document.variables).toHaveLength(4);
     });
 
     it('сообщает в отчёте, что ключи не сохранились', async () => {

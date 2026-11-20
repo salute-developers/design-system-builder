@@ -16,6 +16,6 @@ class GetStyleCombinationMemberUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<StyleCombinationMember> =
         modelFind(policy, transactions, context) {
-            repository.findMember(context.projectId, context.principal.systemAdmin, id)
+            repository.findMember(context.projectId, context.principal.globalAdmin, id)
         }
 }

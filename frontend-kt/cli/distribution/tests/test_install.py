@@ -46,7 +46,7 @@ class InstallTest(unittest.TestCase):
         self.web_paths = 0
         self.tool('java', '#!/bin/sh\necho \'openjdk version "17.0.2"\' >&2\n')
         self.webroot = self.root / 'web'
-        self.version_dir = self.webroot / 'releases/1.2.3'
+        self.version_dir = self.webroot / 'releases/download/cli-v1.2.3'
         self.version_dir.mkdir(parents=True)
         self.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietHandler, directory=str(self.webroot)))
         self.server.redirects = {}
@@ -55,10 +55,10 @@ class InstallTest(unittest.TestCase):
         self.thread.start()
         self.stopped = False
         self.addCleanup(self.stop_server)
-        self.env['CLI_DOWNLOAD_BASE_URL'] = f'http://127.0.0.1:{self.server.server_port}'
+        self.env['CLI_RELEASE_BASE_URL'] = f'http://127.0.0.1:{self.server.server_port}'
         self.archive = make_archive(self.version_dir, 'jvm')
         self.update_sums()
-        (self.webroot / 'stable.json').write_bytes(release.json_bytes({'schemaVersion': 1, 'version': '1.2.3'}))
+
 
     def stop_server(self):
         if self.stopped:
@@ -74,7 +74,15 @@ class InstallTest(unittest.TestCase):
         path.chmod(0o755)
 
     def update_sums(self):
-        (self.version_dir / 'SHA256SUMS').write_text(f'{release.digest(self.archive.read_bytes())}  {self.archive.name}\n')
+        sha = release.digest(self.archive.read_bytes())
+        (self.version_dir / 'SHA256SUMS').write_text(f'{sha}  {self.archive.name}\n')
+        artifacts = {t: {'file': f'dsbuilder-cli-{t}.zip', 'sha256': sha} for t in release.TARGETS}
+        manifest = release.json_bytes({'schemaVersion': 1, 'version': '1.2.3',
+                                      'iosCliReleaseTag': 'release-14-10-2026', 'artifacts': artifacts})
+        (self.version_dir / 'release.json').write_bytes(manifest)
+        latest = self.webroot / 'releases/latest/download'
+        latest.mkdir(parents=True, exist_ok=True)
+        (latest / 'release.json').write_bytes(manifest)
 
     def run_install(self, *args, success=True):
         result = subprocess.run(['/bin/sh', str(DIST / 'bootstrap/install.sh'), *args], env=self.env,
@@ -106,7 +114,7 @@ class InstallTest(unittest.TestCase):
     def test_missing_archive_and_invalid_manifest(self):
         self.archive.unlink()
         self.run_install('--target', 'jvm', success=False)
-        (self.webroot / 'stable.json').write_text('{"version":"../../bad"}')
+        (self.webroot / 'releases/latest/download/release.json').write_text('{"version":"../../bad"}')
         self.run_install('--target', 'jvm', success=False)
         self.assertFalse(Path(self.env['DSBUILDER_INSTALL_DIR']).exists())
 
@@ -138,6 +146,7 @@ class InstallTest(unittest.TestCase):
         self.run_install(success=False)
 
     def test_native_architecture_selection(self):
+        self.tool('sysctl', '#!/bin/sh\necho 0\n')
         log = Path(self.env['HOME']) / 'ios-install-args'
         for machine, target in [('arm64', 'macos-arm64'), ('x86_64', 'macos-x64')]:
             self.tool('uname', f'#!/bin/sh\ncase "$1" in -s) echo Darwin ;; *) echo {machine} ;; esac\n')
@@ -415,18 +424,98 @@ class InstallTest(unittest.TestCase):
                 self.assertIn(expected, result.stderr)
                 self.assertFalse(Path(self.env['DSBUILDER_INSTALL_DIR']).exists())
 
-    def test_redirects_are_rejected_at_every_download_stage(self):
+    def test_redirects_are_followed_and_loops_are_bounded(self):
         self.run_install('--target', 'jvm')
         binary = Path(self.env['DSBUILDER_INSTALL_DIR']) / 'bin/dsbuilder'
         previous = binary.read_bytes()
-        paths = ('/stable.json', '/releases/1.2.3/SHA256SUMS',
-                 '/releases/1.2.3/dsbuilder-cli-jvm.zip')
-        for status in (301, 302, 303, 307, 308):
-            for path in paths:
-                with self.subTest(status=status, path=path):
-                    self.server.redirects = {path: (status, '/redirect-target')}
-                    self.server.requests.clear()
-                    self.run_install('--target', 'jvm', success=False)
-                    self.assertNotIn('/redirect-target', self.server.requests)
-                    self.assertEqual(previous, binary.read_bytes())
-        self.server.redirects = {}
+        paths = ('/releases/latest/download/release.json', '/releases/download/cli-v1.2.3/SHA256SUMS',
+                 '/releases/download/cli-v1.2.3/dsbuilder-cli-jvm.zip')
+        for path in paths:
+            source = self.webroot / path.lstrip('/')
+            (self.webroot / 'redirect-target').write_bytes(source.read_bytes())
+            self.server.redirects = {path: (302, '/redirect-target')}
+            self.run_install('--target', 'jvm')
+            self.assertIn('/redirect-target', self.server.requests)
+        self.server.redirects = {paths[0]: (302, paths[0])}
+        self.run_install('--target', 'jvm', success=False)
+        self.assertEqual(previous, binary.read_bytes())
+
+    def test_explicit_version_does_not_resolve_latest(self):
+        self.server.redirects = {'/releases/latest/download/release.json': (302, '/missing')}
+        self.run_install('--target', 'jvm', '--version', '1.2.3')
+        self.assertNotIn('/releases/latest/download/release.json', self.server.requests)
+
+    def test_latest_is_resolved_once(self):
+        self.run_install('--target', 'jvm')
+        self.assertEqual(1, self.server.requests.count('/releases/latest/download/release.json'))
+        self.assertIn('/releases/download/cli-v1.2.3/SHA256SUMS', self.server.requests)
+
+    def test_linux_selects_jvm_and_rosetta_selects_arm64(self):
+        self.tool('uname', '#!/bin/sh\necho Linux\n')
+        self.run_install()
+        self.tool('uname', '#!/bin/sh\ncase "$1" in -s) echo Darwin ;; *) echo x86_64 ;; esac\n')
+        self.tool('sysctl', '#!/bin/sh\necho 1\n')
+        self.archive = make_archive(self.version_dir, 'macos-arm64')
+        self.update_sums()
+        self.run_install('--without-ios')
+
+    def test_duplicate_manifest_fields_and_mismatching_version_are_rejected(self):
+        path = self.webroot / 'releases/latest/download/release.json'
+        path.write_text(path.read_text().replace('"schemaVersion":1', '"schemaVersion":1,"schemaVersion":1'))
+        self.run_install('--target', 'jvm', success=False)
+        path = self.version_dir / 'release.json'
+        path.write_text(path.read_text().replace('1.2.3', '1.2.4'))
+        self.run_install('--target', 'jvm', '--version', '1.2.3', success=False)
+
+    def test_https_redirects_and_downgrade_for_curl_and_wget(self):
+        import ssl
+        cert = self.root / 'certificate.pem'
+        key = self.root / 'key.pem'
+        config = self.root / 'certificate.cnf'
+        config.write_text('[req]\ndistinguished_name=dn\nx509_extensions=ext\nprompt=no\n'
+                          '[dn]\nCN=localhost\n[ext]\nsubjectAltName=DNS:localhost\n'
+                          'basicConstraints=critical,CA:TRUE\n')
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                        '-config', str(config), '-keyout', str(key), '-out', str(cert)],
+                       check=True, capture_output=True)
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0),
+                                                 partial(QuietHandler, directory=str(self.webroot)))
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert, key)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        server.requests = []
+        server.redirects = {'/releases/latest/download/release.json': (302, '/manifest')}
+        (self.webroot / 'manifest').write_bytes((self.version_dir / 'release.json').read_bytes())
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.env['CLI_RELEASE_BASE_URL'] = f'https://localhost:{server.server_port}'
+        self.env['CURL_CA_BUNDLE'] = str(cert)
+        config = self.root / 'wgetrc'
+        config.write_text('ca_certificate = ' + str(cert) + '\n')
+        self.env['WGETRC'] = str(config)
+        # curl используется в обычном PATH; отдельный PATH исключает curl и проверяет ветку wget.
+        normal_path = self.env['PATH']
+        for downloader in ('curl', 'wget'):
+            if not shutil.which(downloader):
+                raise RuntimeError(downloader + ' is required for HTTPS delivery tests')
+            if downloader == 'wget':
+                isolated = self.root / 'wget-only'
+                isolated.mkdir()
+                for tool in ('java', 'uname', 'sed', 'head', 'grep', 'awk', 'mktemp', 'unzip', 'zipinfo',
+                             'sh', 'cat', 'cut', 'rm', 'mkdir', 'wget', 'shasum', 'sha256sum', 'dirname', 'cp',
+                             'chmod', 'mv', 'ln', 'readlink', 'basename', 'date'):
+                    executable = shutil.which(tool, path=normal_path)
+                    if executable:
+                        (isolated / tool).symlink_to(executable)
+                self.env['PATH'] = str(isolated)
+            server.redirects = {'/releases/latest/download/release.json': (302, '/manifest')}
+            self.run_install('--target', 'jvm')
+            server.redirects = {'/releases/latest/download/release.json':
+                                (302, f'http://127.0.0.1:{self.server.server_port}/downgrade')}
+            self.server.requests.clear()
+            self.run_install('--target', 'jvm', success=False)
+            self.assertNotIn('/downgrade', self.server.requests)
+        self.env['PATH'] = normal_path

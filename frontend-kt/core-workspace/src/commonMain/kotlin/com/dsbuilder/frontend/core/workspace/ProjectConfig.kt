@@ -68,9 +68,9 @@ public data class CredentialReference(
     public val name: String = "DSBUILDER_API_KEY",
 ) {
     init {
-        if (type == CredentialReferenceType.PROJECT_KEY_ENV) {
+        if (type == CredentialReferenceType.PAT_ENV) {
             require(name.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))) {
-                "Project key env name is invalid."
+                "PAT env name is invalid."
             }
         }
     }
@@ -87,8 +87,8 @@ public enum class CredentialReferenceType {
     @SerialName("user-session")
     USER_SESSION,
 
-    @SerialName("project-key-env")
-    PROJECT_KEY_ENV,
+    @SerialName("pat-env")
+    PAT_ENV,
 
     /**
      * API key читается из env-переменной.

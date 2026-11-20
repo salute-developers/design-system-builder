@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -8,6 +9,7 @@ import { PanelSkeleton, usePanelWidths, WorkspaceLoadError } from '../../compone
 import '../../styles/color-tokens.css';
 
 import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
+import type { DraftRefreshChange } from '../../api/editorContracts';
 import type { Config, DesignSystem, Theme } from '../../controllers';
 import {
     buildTree,
@@ -59,6 +61,7 @@ export interface ColorTokensScreenProps {
     updated: object;
     rerender: () => void;
     reload: () => void;
+    refreshChanges?: (changes: DraftRefreshChange[], options?: DraftRefreshOptions) => Promise<void>;
     /** Сброс изменений выбранного токена в черновике; без него кнопки сброса в инспекторе нет. */
     /** Токены с неопубликованными изменениями темы: сброс доступен только у изменённого токена. */
     changedTokenNames?: Set<string>;
@@ -369,10 +372,17 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
     };
 
-    const tokenReset = useTokenReset(props.context, async () => {
-        props.reload();
-        rerender();
-    });
+    const tokenReset = useTokenReset(
+        props.context,
+        async (changes, options) => {
+            if (!changes.length) return;
+            if (props.refreshChanges) await props.refreshChanges(changes, options);
+            else props.reload();
+            rerender();
+        },
+        props.designSystem.getParameters()?.draftId,
+        props.reload,
+    );
 
     /** Описание общее для семейства токена; ошибка остаётся у поля описания. */
     const describeToken = async (view: ColorTokenView, description: string) => {
@@ -619,6 +629,15 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     {tokenReset.error && (
                         <div className="ct-banner" role="alert">
                             {tokenReset.error}
+                            {tokenReset.refreshFailed && (
+                                <button
+                                    type="button"
+                                    disabled={tokenReset.busy}
+                                    onClick={() => void tokenReset.retryRefresh()}
+                                >
+                                    Повторить загрузку данных
+                                </button>
+                            )}
                         </div>
                     )}
                     {readOnly && (
@@ -715,6 +734,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             }
                             resetDisabled={
                                 tokenReset.busy ||
+                                tokenReset.refreshFailed ||
                                 !editor.family(selected).some(([name]) => props.changedTokenNames?.has(name))
                             }
                             addressLabel={addressLabel}

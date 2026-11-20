@@ -1,7 +1,7 @@
 # component-state-model Specification
 
 ## Purpose
-Определяет модель состояний `ds-service`: единый словарь состояний `states` для состояний взаимодействия и состояний компонента, набор состояний `state_sets` как самостоятельную сущность, на которую ссылаются значения свойств, а также политику удаления, целостность наборов через триггеры и единую точку построения набора `POST /ds/state-sets/resolve`.
+Определяет модель состояний `ds-service`: единый словарь состояний `states` для состояний взаимодействия и состояний компонента, набор состояний `state_sets` как самостоятельную сущность, на которую ссылаются значения свойств, а также политику удаления, целостность наборов через триггеры и единую точку построения набора `POST /api/design-systems/catalog/state-sets/resolve`.
 ## Requirements
 ### Requirement: State vocabulary is a table
 
@@ -173,7 +173,7 @@ because a shared set can carry hundreds of values across many components.
 
 #### Scenario: Предпросмотр называет объём удаления
 
-- **WHEN** `GET /ds/states/{id}/impact` is requested
+- **WHEN** `GET /api/design-systems/catalog/states/{id}/impact` is requested
 - **THEN** the response MUST report the number of state sets to be deleted
 - **THEN** the response MUST report the number of property values to be deleted
 - **THEN** the response MUST report the number of affected components
@@ -243,7 +243,7 @@ themselves.
 
 #### Scenario: Resolve возвращает существующий набор
 
-- **WHEN** `POST /ds/state-sets/resolve` receives a list of state identifiers matching an existing set
+- **WHEN** `POST /api/design-systems/catalog/state-sets/resolve` receives a list of state identifiers matching an existing set
 - **THEN** it MUST return the identifier of that set
 - **THEN** it MUST NOT create a new row
 

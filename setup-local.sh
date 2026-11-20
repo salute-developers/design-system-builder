@@ -26,12 +26,19 @@ Options:
            local-dev/web-preview.
   --skip-plugin
            Do not publish the preview plugins (neither Compose nor web).
+  --icons FILE|DIR
+           Icon catalog to load: a manifest file or the packages/sdds-icons directory of plasma (the whole set).
+           Env: LOCAL_ICONS_SOURCE. Default: the starter set local-dev/icons/icons-manifest.json.
+  --skip-icons
+           Do not load the icon catalog (the icon page and the icon picker stay empty).
   --components-package DIR
            Explicitly create a demo design system and import this component package (meta.json and *_config.json).
            Env: COMPOSE_COMPONENTS_PACKAGE. Without an explicit package no demo design system or theme is seeded.
   --theme-package DIR
            Theme package of theme-converter whose Android token values replace the values of the new theme.
            Requires --components-package. Default: local-dev/design-system/theme.
+  --publish-version VERSION
+           Version published after the component seed. Requires --components-package. Default: 0.1.0.
   --skip-design-system
            Do not create the design system and do not load the components.
   --help   Show this help.
@@ -43,7 +50,8 @@ and starts the client.
 The preview plugin archives and the component package are bundled in local-dev/ (see local-dev/README.md;
 ./refresh-local-dev-assets.sh updates the Compose ones from a plasma-android checkout, `npm run package` in
 js/apps/preview-web-plugin the web one). The setup publishes both plugins with ./publish-preview-plugin.sh, which
-also imports the API meta of each platform from the archive.
+also imports the API meta of each platform from the archive. The starter icon set local-dev/icons is loaded with
+./publish-local-icons.sh (./refresh-local-dev-icons.sh rebuilds it from a plasma checkout).
 User design systems and themes are created in the editor with backend defaults.
 Only an explicit --components-package (or COMPOSE_COMPONENTS_PACKAGE) invokes ./seed-local-design-system.sh
 to create a demo design system and import token values and component configurations.
@@ -71,13 +79,19 @@ SKIP_PLUGIN=0
 WEB_PLUGIN_ZIP="${WEB_PREVIEW_PLUGIN_ZIP:-}"
 WEB_PLUGIN_ZIP_EXPLICIT=0
 [[ -n "$WEB_PLUGIN_ZIP" ]] && WEB_PLUGIN_ZIP_EXPLICIT=1
+ICONS_SOURCE="${LOCAL_ICONS_SOURCE:-}"
+ICONS_EXPLICIT=0
+SKIP_ICONS=0
+[[ -n "$ICONS_SOURCE" ]] && ICONS_EXPLICIT=1
 COMPONENTS_PACKAGE="${COMPOSE_COMPONENTS_PACKAGE:-}"
 COMPONENTS_PACKAGE_EXPLICIT=0
 THEME_PACKAGE_ARGS=()
+PUBLISH_VERSION_ARGS=()
 SKIP_DESIGN_SYSTEM=0
 [[ -n "$COMPONENTS_PACKAGE" ]] && COMPONENTS_PACKAGE_EXPLICIT=1
 BUNDLED_PLUGIN_ZIP="$ROOT_DIR/local-dev/compose-preview/preview-compose-plugin.zip"
 BUNDLED_WEB_PLUGIN_ZIP="$ROOT_DIR/local-dev/web-preview/preview-web-plugin.zip"
+BUNDLED_ICONS="$ROOT_DIR/local-dev/icons/icons-manifest.json"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -107,6 +121,15 @@ while [[ $# -gt 0 ]]; do
       SKIP_PLUGIN=1
       shift
       ;;
+    --icons)
+      ICONS_SOURCE="${2:-}"
+      ICONS_EXPLICIT=1
+      shift 2
+      ;;
+    --skip-icons)
+      SKIP_ICONS=1
+      shift
+      ;;
     --components-package)
       COMPONENTS_PACKAGE="${2:-}"
       COMPONENTS_PACKAGE_EXPLICIT=1
@@ -114,6 +137,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --theme-package)
       THEME_PACKAGE_ARGS=(--theme-package "${2:-}")
+      shift 2
+      ;;
+    --publish-version)
+      PUBLISH_VERSION_ARGS=(--publish-version "${2:-}")
       shift 2
       ;;
     --skip-design-system)
@@ -132,8 +159,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && "$SKIP_DESIGN_SYSTEM" == "0" && "${#THEME_PACKAGE_ARGS[@]}" -gt 0 && "$COMPONENTS_PACKAGE_EXPLICIT" == "0" ]]; then
-  echo "[local-setup] --theme-package requires --components-package (or COMPOSE_COMPONENTS_PACKAGE)" >&2
+if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && "$SKIP_DESIGN_SYSTEM" == "0" && ( "${#THEME_PACKAGE_ARGS[@]}" -gt 0 || "${#PUBLISH_VERSION_ARGS[@]}" -gt 0 ) && "$COMPONENTS_PACKAGE_EXPLICIT" == "0" ]]; then
+  echo "[local-setup] --theme-package/--publish-version require --components-package (or COMPOSE_COMPONENTS_PACKAGE)" >&2
   exit 2
 fi
 
@@ -214,11 +241,34 @@ if [[ "$SKIP_PLUGIN" == "0" ]]; then
     "restore local-dev/web-preview or pass --web-plugin-zip"
 fi
 
+# The icon catalog is loaded as CI does it (`dsbuilder icons publish --apply`): the backend stores the SVG files in the
+# MinIO bucket of the Compose preview plugin, so the plugin storage must be configured (it is, by the local compose).
+if [[ "$SKIP_ICONS" == "0" ]]; then
+  if [[ -z "$ICONS_SOURCE" && -f "$BUNDLED_ICONS" ]]; then
+    ICONS_SOURCE="$BUNDLED_ICONS"
+  fi
+  if [[ -z "$ICONS_SOURCE" ]]; then
+    log "No icon set: restore local-dev/icons or pass --icons"
+  else
+    log "Loading the icon catalog"
+    ICONS_ARGS=(--from "$ICONS_SOURCE")
+    # The bundled set must not replace a catalog that was loaded by hand.
+    [[ "$ICONS_EXPLICIT" == "1" ]] || ICONS_ARGS+=(--if-empty)
+    if ! "$ROOT_DIR/publish-local-icons.sh" "${ICONS_ARGS[@]}"; then
+      if [[ "$ICONS_EXPLICIT" == "1" ]]; then
+        echo "[local-setup] The requested icon set could not be loaded" >&2
+        exit 1
+      fi
+      log "The bundled icon set could not be loaded; the setup continues without the icon catalog"
+    fi
+  fi
+fi
+
 # The components of the package must already exist in the global layer: the plugin publication above imports them.
 if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; then
   if [[ -n "$COMPONENTS_PACKAGE" ]]; then
     log "Creating the design system with a theme and loading the components"
-    if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}"; then
+    if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}" "${PUBLISH_VERSION_ARGS[@]+"${PUBLISH_VERSION_ARGS[@]}"}"; then
       echo "[local-setup] The requested component package could not be loaded" >&2
       exit 1
     fi

@@ -15,6 +15,6 @@ class DeletePropertyVariationUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> =
         modelDelete(policy, transactions, context) {
-            repository.deletePropertyVariation(context.projectId, context.principal.systemAdmin, id)
+            repository.deletePropertyVariation(context.projectId, context.principal.globalAdmin, id)
         }
 }

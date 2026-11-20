@@ -570,3 +570,271 @@ describe('presentJournal', () => {
         expect(result.canRevert).toBe(false);
     });
 });
+
+describe('подпись значения свойства компонента', () => {
+    const metadata = {
+        componentNames: { appearance: 'Accordion' },
+        referenceNames: {
+            'property-gap': 'accordionGap',
+            'property-alpha': 'disableAlpha',
+            'property-background': 'background',
+            'style-m': 'm',
+            'style-default': 'default',
+        },
+        styleVariations: { 'style-m': 'size', 'style-default': 'view' },
+        stateSetStates: { base: [], 'hover-press': ['hovered', 'pressed'] },
+    };
+    const present = (overrides: Partial<DraftChangeDto>) =>
+        presentJournal({
+            changes: [change({ entityType: 'variation-property-value', entityId: 'value', ...overrides })],
+            tokens: [
+                { ...token, id: 'token-a', name: 'surface.default.accent', displayName: 'surface.default.accent' },
+            ],
+            components: [],
+            actorLabels: {},
+            context,
+            componentMetadata: metadata,
+        })[0];
+    const values = (value: Record<string, unknown>, next: Record<string, unknown>) => ({
+        previousValue: { appearance_id: 'appearance', state_set_id: 'base', ...value },
+        currentValue: { appearance_id: 'appearance', state_set_id: 'base', ...next },
+    });
+
+    it('подписывает значение стиля вариации свойством и местом', () => {
+        const result = present({
+            changedPaths: ['/value'],
+            ...values(
+                { property_id: 'property-gap', style_id: 'style-m', value: '2' },
+                { property_id: 'property-gap', style_id: 'style-m', value: '32' },
+            ),
+        });
+        expect(result.title).toBe('Изменение значения свойства компонента «Accordion»');
+        expect(result.changedFields).toEqual([
+            { path: '/value', label: 'Accordion gap · size: m', before: '2', after: '32' },
+        ]);
+    });
+
+    it('подписывает инвариант', () => {
+        const result = present({
+            entityType: 'invariant-property-value',
+            changedPaths: ['/value'],
+            ...values({ property_id: 'property-alpha', value: '0.4' }, { property_id: 'property-alpha', value: '0.5' }),
+        });
+        expect(result.changedFields[0].label).toBe('Disable alpha · Инвариант');
+    });
+
+    it('добавляет состояния набора в порядке инспектора', () => {
+        const result = present({
+            changedPaths: ['/value'],
+            ...values(
+                {
+                    property_id: 'property-background',
+                    style_id: 'style-default',
+                    state_set_id: 'hover-press',
+                    value: '#000000',
+                },
+                {
+                    property_id: 'property-background',
+                    style_id: 'style-default',
+                    state_set_id: 'hover-press',
+                    value: '#FFFFFF',
+                },
+            ),
+        });
+        expect(result.changedFields[0].label).toBe('Background · view: default · pressed + hovered');
+    });
+
+    it('пропускает неизвестное свойство без идентификаторов', () => {
+        const result = present({
+            changedPaths: ['/value'],
+            ...values(
+                { property_id: 'unknown', style_id: 'style-m', value: '2' },
+                { property_id: 'unknown', style_id: 'style-m', value: '3' },
+            ),
+        });
+        expect(result.changedFields[0].label).toBe('size: m');
+    });
+
+    it('показывает смену токена именами токенов', () => {
+        const result = present({
+            changedPaths: ['/token_id'],
+            ...values(
+                { property_id: 'property-background', style_id: 'style-default', token_id: null, value: '#000000' },
+                { property_id: 'property-background', style_id: 'style-default', token_id: 'token-a', value: null },
+            ),
+        });
+        expect(result.changedFields).toEqual([
+            {
+                path: '/token_id',
+                label: 'Background · view: default',
+                before: '#000000',
+                after: 'surface.default.accent',
+                revertPaths: [],
+            },
+        ]);
+    });
+});
+
+describe('заголовок структурной записи компонента', () => {
+    const metadata = {
+        componentNames: {
+            appearance: 'Button',
+            'variation-size': 'Button',
+            'style-xxxs': 'Button',
+            component: 'Button',
+        },
+        referenceNames: { 'variation-size': 'size', 'style-xxxs': 'xxxs', appearance: 'default' },
+        styleVariations: { 'style-xxxs': 'size' },
+        stateSetStates: {},
+    };
+    const present = (overrides: Partial<DraftChangeDto>) =>
+        presentJournal({
+            changes: [change({ operation: 'created', previousValue: null, ...overrides })],
+            tokens: [],
+            components: [],
+            actorLabels: {},
+            context,
+            componentMetadata: metadata,
+        })[0];
+
+    const presentAll = (changes: DraftChangeDto[]) =>
+        presentJournal({ changes, tokens: [], components: [], actorLabels: {}, context, componentMetadata: metadata });
+    const styleCreated = change({
+        changeId: 'style-change',
+        operation: 'created',
+        previousValue: null,
+        entityType: 'style',
+        entityId: 'style-xxxs',
+        changedPaths: ['/name', '/variation_id'],
+        currentValue: { name: 'xxxs', variation_id: 'variation-size' },
+    });
+    const styleLinked = change({
+        changeId: 'link-change',
+        operation: 'created',
+        previousValue: null,
+        entityType: 'appearance-variation-value',
+        entityId: 'link',
+        changedPaths: ['/appearance_variation_id', '/position', '/style_id'],
+        currentValue: { position: 6, style_id: 'style-xxxs', appearance_variation_id: 'axis' },
+    });
+
+    it('склеивает создание стиля и его подключение в одну строку с отменой сначала подключения', () => {
+        const rows = presentAll([styleLinked, styleCreated]);
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0].title).toBe('Добавление стиля «xxxs» в вариацию «size» компонента «Button»');
+        expect(rows[0].changedFields).toEqual([{ path: '/name', label: 'Стиль', before: undefined, after: 'xxxs' }]);
+        expect(rows[0].changes.map(({ changeId }) => changeId)).toEqual(['link-change', 'style-change']);
+    });
+
+    it('при удалении стиля отменяет сначала сам стиль, затем подключение', () => {
+        const removed = (record: DraftChangeDto) => ({
+            ...record,
+            operation: 'deleted' as const,
+            previousValue: record.currentValue,
+            currentValue: null,
+        });
+        const [row] = presentAll([removed(styleCreated), removed(styleLinked)]);
+
+        expect(row.title).toBe('Удаление стиля «xxxs» из вариации «size» компонента «Button»');
+        expect(row.changes.map(({ changeId }) => changeId)).toEqual(['style-change', 'link-change']);
+    });
+
+    it('не склеивает записи разных авторов', () => {
+        expect(presentAll([styleCreated, { ...styleLinked, actorId: 'user-2' }])).toHaveLength(2);
+    });
+
+    it('показывает перестановку стиля как перемещение с местом от единицы', () => {
+        const [row] = presentAll([
+            change({
+                entityType: 'appearance-variation-value',
+                entityId: 'link',
+                changedPaths: ['/position'],
+                previousValue: { position: 6, style_id: 'style-xxxs' },
+                currentValue: { position: 2, style_id: 'style-xxxs' },
+            }),
+        ]);
+
+        expect(row.title).toBe('Перемещение стиля «xxxs» в вариации «size» компонента «Button»');
+        expect(row.changedFields).toEqual([{ path: '/position', label: 'Место в списке', before: 7, after: 3 }]);
+    });
+
+    it('склеивает создание вариации и её подключение', () => {
+        const rows = presentAll([
+            change({
+                changeId: 'variation-change',
+                operation: 'created',
+                previousValue: null,
+                entityType: 'variation',
+                entityId: 'variation-size',
+                changedPaths: ['/name'],
+                currentValue: { name: 'size', component_id: 'component' },
+            }),
+            change({
+                changeId: 'axis-change',
+                operation: 'created',
+                previousValue: null,
+                entityType: 'appearance-variation',
+                entityId: 'axis',
+                changedPaths: ['/variation_id', '/default_style_id'],
+                currentValue: {
+                    variation_id: 'variation-size',
+                    appearance_id: 'appearance',
+                    default_style_id: 'style-xxxs',
+                },
+            }),
+        ]);
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0].title).toBe('Добавление вариации «size» в компонент «Button»');
+        expect(rows[0].changedFields).toEqual([
+            { path: '/name', label: 'Вариация', before: undefined, after: 'size' },
+            { path: '/default_style_id', label: 'Стиль по умолчанию', before: undefined, after: 'xxxs' },
+        ]);
+    });
+
+    it('называет добавление компонента в дизайн-систему, вариацию и конфигурацию', () => {
+        expect(
+            present({
+                entityType: 'design-system-component',
+                entityId: 'link',
+                changedPaths: ['/component_id'],
+                currentValue: { component_id: 'component' },
+            }).title,
+        ).toBe('Добавление компонента «Button» в дизайн-систему');
+        expect(
+            present({
+                entityType: 'variation',
+                entityId: 'variation-size',
+                changedPaths: ['/name'],
+                currentValue: { name: 'size', component_id: 'component' },
+            }).title,
+        ).toBe('Создание вариации «size» компонента «Button»');
+        expect(
+            present({
+                entityType: 'appearance',
+                entityId: 'appearance',
+                changedPaths: ['/name'],
+                currentValue: { name: 'default', component_id: 'component' },
+            }).title,
+        ).toBe('Создание конфигурации «default» компонента «Button»');
+        expect(
+            present({
+                entityType: 'appearance-variation',
+                entityId: 'axis',
+                changedPaths: ['/variation_id'],
+                currentValue: { variation_id: 'variation-size', appearance_id: 'appearance', position: 0 },
+            }).title,
+        ).toBe('Подключение вариации «size» к конфигурации «default» компонента «Button»');
+    });
+
+    it('пропускает неизвестную вариацию без идентификаторов', () => {
+        const result = present({
+            entityType: 'style',
+            entityId: 'style-new',
+            changedPaths: ['/name'],
+            currentValue: { name: 'xxxs', variation_id: 'unknown', component_id: 'component' },
+        });
+        expect(result.title).toBe('Создание стиля «xxxs» компонента «Button»');
+    });
+});

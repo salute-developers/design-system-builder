@@ -4,9 +4,10 @@
 Единая политика прав проекта, наследование ролей и проверка разрешений с отказом при некорректной конфигурации.
 
 ## Requirements
+
 ### Requirement: Canonical project authorization policy
 
-Система SHALL хранить единый versioned machine-readable policy artifact, определяющий каталог project permissions, наследование project roles, grants ролей, допустимые project-key scopes и `system_admin` override.
+Система SHALL хранить единый versioned machine-readable policy artifact, определяющий каталог project permissions, наследование project roles, grants ролей, допустимые PAT scopes и `system_admin` override.
 
 #### Scenario: Сервисы используют один policy artifact
 
@@ -16,7 +17,7 @@
 
 #### Scenario: Policy содержит неизвестный permission
 
-- **WHEN** role grant, inheritance или project-key scope ссылается на permission вне каталога
+- **WHEN** role grant, inheritance или PAT scope ссылается на permission вне каталога
 - **THEN** validation MUST завершиться ошибкой
 - **AND** сервис MUST NOT начать обслуживать traffic с частично загруженной policy
 
@@ -33,31 +34,6 @@ Policy evaluator SHALL детерминированно разворачиват
 
 - **WHEN** policy roles образуют прямой или косвенный inheritance cycle
 - **THEN** startup validation MUST завершиться ошибкой
-
-### Requirement: Unified permission evaluation for actors
-
-Policy evaluator SHALL проверять user actor по grants effective project role, project key actor — по точному набору trusted scopes, а `system_admin` — через global override; `ds-service` MUST использовать этот evaluator для каждого предметного маршрута.
-
-#### Scenario: User role имеет permission
-
-- **WHEN** trusted user actor имеет effective role, grants которой содержат требуемый permission
-- **THEN** evaluator SHALL разрешить действие
-
-#### Scenario: Project key не имеет permission
-
-- **WHEN** trusted project key actor не содержит требуемый permission в `X-Project-Scopes`
-- **THEN** evaluator MUST запретить действие
-
-#### Scenario: System admin использует override
-
-- **WHEN** trusted user actor имеет global role `system_admin`
-- **THEN** evaluator SHALL разрешить permission, известный текущей policy
-
-#### Scenario: ds-service не получил trusted principal
-
-- **WHEN** запрос достиг `ds-service` без полного набора trusted-полей для объявленного actor type
-- **THEN** сервис MUST отклонить запрос без permissive fallback
-- **AND** MUST NOT выполнять предметный запрос
 
 ### Requirement: Fail-closed policy loading
 
@@ -181,3 +157,36 @@ Permission evaluation SHALL определять право actor на тип д
 - **THEN** `ds-service` MAY изменить глобальный компонентный слой
 - **AND** вызов MUST пройти обычную проверку известного policy permission и аудит
 
+### Requirement: Проверка разрешений пользователей и PAT
+Policy evaluator SHALL проверять user actor по grants effective project role, PAT actor — по пересечению актуальных прав владельца (проектная роль либо глобальный администратор) и точного набора scopes, а OAuth-пользователя `system_admin` — через global override; `ds-service` MUST использовать этот evaluator для каждого предметного маршрута.
+
+#### Scenario: User role имеет permission
+
+- **WHEN** trusted user actor имеет effective role, grants которой содержат требуемый permission
+- **THEN** evaluator SHALL разрешить действие
+
+#### Scenario: PAT не имеет permission
+
+- **WHEN** trusted PAT actor не содержит требуемый permission в `X-Project-Scopes`
+- **THEN** evaluator MUST запретить действие
+
+#### Scenario: System admin использует override
+
+- **WHEN** trusted user actor имеет global role `system_admin`
+- **THEN** evaluator SHALL разрешить permission, известный текущей policy
+
+#### Scenario: ds-service не получил trusted principal
+
+- **WHEN** запрос достиг `ds-service` без полного набора trusted-полей для объявленного actor type
+- **THEN** сервис MUST отклонить запрос без permissive fallback
+- **AND** MUST NOT выполнять предметный запрос
+
+#### Scenario: PAT не обходит ограничения роли
+
+- **WHEN** PAT содержит нужный scope, но владелец не является глобальным администратором и его актуальная проектная роль не разрешает операцию
+- **THEN** evaluator MUST запретить действие
+
+#### Scenario: Глобальный администратор с PAT
+
+- **WHEN** операция выполняется с PAT владельца с глобальными административными правами
+- **THEN** evaluator MUST разрешить проектный доступ без членства, но MUST проверить scopes и отказать при отсутствии требуемого scope

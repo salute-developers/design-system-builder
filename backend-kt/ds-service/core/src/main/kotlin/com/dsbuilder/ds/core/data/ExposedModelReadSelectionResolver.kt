@@ -27,7 +27,9 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
             is DsResult.Success -> parsed.value
         }
         val owner = owner(context, target) ?: return DsResult.Failure(DsFailure.NotFound)
-        return if (target.kind == ModelReadTarget.Kind.VERSION_HISTORY) {
+        return if (context.designSystemId != null && context.designSystemId != owner) {
+            DsResult.Failure(DsFailure.NotFound)
+        } else if (target.kind == ModelReadTarget.Kind.VERSION_HISTORY) {
             DsResult.Success(
                 ResolvedModelRead(
                     context.copy(
@@ -99,7 +101,7 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
             ModelReadTarget.Kind.APPEARANCE -> "SELECT design_system_id FROM appearances WHERE id = ?"
         }
         val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to target.id)
-        val accessible = if (context.principal.systemAdmin) {
+        val accessible = if (context.principal.globalAdmin) {
             "TRUE"
         } else {
             args += TextColumnType() to context.projectId.value

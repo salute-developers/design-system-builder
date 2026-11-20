@@ -8,6 +8,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 
 /** Сценарии не разделяют данные и изменения схемы, удаление одной БД не затрагивает другую. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class IsolatedPostgresDatabaseTest {
     @Test
     fun `each scenario has a distinct database and cleanup leaves its neighbour intact`() {

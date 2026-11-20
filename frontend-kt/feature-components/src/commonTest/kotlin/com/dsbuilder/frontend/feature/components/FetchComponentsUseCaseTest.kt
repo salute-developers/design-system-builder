@@ -86,7 +86,7 @@ class FetchComponentsUseCaseTest {
         assertEquals(1, commands.size)
         assertEquals("project-a", commands.single().projectId.value)
         assertEquals("ds-a", commands.single().designSystemId.value)
-        assertEquals(BackendCredential.ProjectKey("secret-key"), commands.single().credential)
+        assertEquals(BackendCredential.PersonalAccessToken("secret-key"), commands.single().credential)
 
         assertEquals("/work/.sdds/components", result.path)
         assertEquals(listOf("avatar_config.json"), result.fileNames)
@@ -333,7 +333,10 @@ class FetchComponentsUseCaseTest {
         existing: ExistingComponentPackage = ExistingComponentPackage(),
         exportResult: ExportComponentsResult? = null,
         credentialProvider: CredentialProvider = testCredentialProvider(
-            CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
+            CredentialResult.Selected(
+                BackendCredential.PersonalAccessToken("secret-key"),
+                BackendCredentialType.PERSONAL_ACCESS_TOKEN,
+            ),
         ),
         onExport: (ExportComponentsCommand) -> Unit = {},
         webAdapterResult: WebAdapterFileResult = WebAdapterFileResult.Loaded("[]"),

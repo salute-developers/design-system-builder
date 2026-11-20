@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.HttpClient
@@ -31,6 +33,7 @@ import kotlin.test.assertTrue
  * только для своих комбинаций, журнал показывает создание темы без изменений значений, отказ проверки откатывает
  * создание темы целиком.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class TenantInitialValuesHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 
@@ -50,8 +53,8 @@ class TenantInitialValuesHttpPostgresIntegrationTest {
                 ).joinToString(",")
                 val imported = api.createTenant(designSystemId, "imported", "[$passed]")
 
-                val values = api.values(imported)
-                val referenceValues = api.values(reference)
+                val values = api.values(designSystemId, imported)
+                val referenceValues = api.values(designSystemId, reference)
                 assertEquals(referenceValues.size, values.size, "набор комбинаций совпадает с темой без values")
                 assertEquals(
                     JsonArray(listOf(JsonPrimitive("#123456"))),
@@ -120,37 +123,51 @@ class TenantInitialValuesHttpPostgresIntegrationTest {
         }
 
         suspend fun createDesignSystem(): String {
-            val response = call("POST", "/api/ds/design-systems", OWNER, """{"name":"import","projectName":"import"}""")
+            val response = call("POST", "/api/design-systems", OWNER, """{"name":"import","projectName":"import"}""")
             assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
             return body(response).text("id")
         }
 
         suspend fun createTenant(designSystemId: String, name: String, values: String): String {
-            val response = call("POST", "/api/ds/tenants", EDITOR, tenantBody(designSystemId, name, values))
+            val response =
+                call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants",
+                    EDITOR,
+                    tenantBody(designSystemId, name, values),
+                )
             assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
             return body(response).text("id")
         }
 
         /** Создание отклонено с `400`, тело ошибки содержит [marker]: код или поле прежнего формата ошибки. */
         suspend fun rejectTenant(designSystemId: String, values: String, marker: String) {
-            val response = call("POST", "/api/ds/tenants", EDITOR, tenantBody(designSystemId, "rejected", values))
+            val response =
+                call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants",
+                    EDITOR,
+                    tenantBody(designSystemId, "rejected", values),
+                )
             assertEquals(HttpStatusCode.BadRequest, response.status, response.bodyAsText())
             assertTrue(marker in response.bodyAsText(), response.bodyAsText())
         }
 
         suspend fun tenants(designSystemId: String): Int =
-            read("/api/ds/design-systems/$designSystemId/tenants").jsonArray.size
+            read("/api/design-systems/$designSystemId/tenants").jsonArray.size
 
-        suspend fun values(tenantId: String): JsonArray = read("/api/ds/tenants/$tenantId/token-values").jsonArray
+        suspend fun values(designSystemId: String, tenantId: String): JsonArray = read(
+            "/api/design-systems/$designSystemId/tenants/$tenantId/token-values",
+        ).jsonArray
 
         suspend fun journal(designSystemId: String) =
-            read("/api/ds/design-systems/$designSystemId/changes").jsonArray.map { it.jsonObject }
+            read("/api/design-systems/$designSystemId/changes").jsonArray.map { it.jsonObject }
     }
 
     private data class Actor(val projectId: String, val role: String)
 
     private fun tenantBody(designSystemId: String, name: String, values: String) =
-        """{"designSystemId":"$designSystemId","name":"$name","values":$values}"""
+        """{"name":"$name","values":$values}"""
 
     private fun item(tokenId: String, platform: String, mode: String, value: String) =
         """{"tokenId":"$tokenId","platform":"$platform","mode":"$mode","value":$value}"""

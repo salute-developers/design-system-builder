@@ -28,7 +28,7 @@ describe('fetchComposePreviewPluginDescriptor', () => {
         await expect(fetchComposePreviewPluginDescriptor('project-1')).resolves.toEqual(data);
 
         expect(get).toHaveBeenCalledTimes(1);
-        expect(get).toHaveBeenCalledWith('https://api.test/api/projects/project-1/ds/compose-preview/plugin');
+        expect(get).toHaveBeenCalledWith('https://api.test/api/projects/project-1/design-systems/catalog/compose-preview/plugin');
     });
 
     it('treats 404 as "no plugin is published"', async () => {

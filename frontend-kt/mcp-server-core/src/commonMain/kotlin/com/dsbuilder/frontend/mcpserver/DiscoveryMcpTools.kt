@@ -57,13 +57,14 @@ private fun summary(id: String, name: String, description: String?): JsonObject 
 internal fun discoveryMcpTools(): List<McpToolDefinition> = listOf(
     McpToolDefinition(
         name = "projects_list",
-        description = "Start here without context: list projects using the user session. " +
+        description = "Start here without context: list projects using a PAT from the environment " +
+            "or the user session. " +
             "Discuss choices with the user, then call design_systems_list(projectId). " +
             "Run dsbuilder auth login if required.",
     ),
     McpToolDefinition(
         name = "design_systems_list",
-        description = "List systems of the selected project using the user session. " +
+        description = "List systems of the selected project using a PAT from the environment or the user session. " +
             "Ask the user to choose, then call design_system_versions_list(projectId, designSystemId). " +
             "Does not write workspace files or remember a selection.",
         inputSchema = mapOf(

@@ -5,6 +5,7 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class PublicationCleanupMigrationIntegrationTest {
     private val url = System.getenv(TEST_DATABASE_URL)?.also(::requireDedicatedTestDatabase)
     private val user = System.getenv(TEST_DATABASE_USER) ?: "documentation"

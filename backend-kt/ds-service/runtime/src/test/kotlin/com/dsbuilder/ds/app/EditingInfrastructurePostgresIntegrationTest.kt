@@ -26,6 +26,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class EditingInfrastructurePostgresIntegrationTest {
     @Test
     fun `edit states idempotency and unique-key lock are transactional`() {

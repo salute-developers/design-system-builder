@@ -13,6 +13,9 @@ group = "com.dsbuilder.app"
 version = "1.0.0"
 application { mainClass = "com.dsbuilder.app.ApplicationKt" }
 dependencies {
+    implementation("com.dsbuilder.ai:runtime:1.0.0")
+    implementation("com.dsbuilder.settings:feature-user-settings:1.0.0")
+    implementation("com.dsbuilder.consent:consent-history:1.0.0")
     implementation("com.dsbuilder.identity:runtime:1.0.0")
     implementation("com.dsbuilder.projects:runtime:1.0.0")
     implementation("com.dsbuilder.ds:runtime:1.0.0")
@@ -23,6 +26,9 @@ dependencies {
     implementation("com.dsbuilder.projects:feature-projects:1.0.0")
     implementation("com.dsbuilder.projects:core:1.0.0")
     implementation("com.dsbuilder.ds:feature-design-systems:1.0.0")
+    implementation("com.dsbuilder.ds:feature-tokens:1.0.0")
+    implementation("com.dsbuilder.ds:feature-themes:1.0.0")
+    implementation("com.dsbuilder.ds:feature-components:1.0.0")
     implementation("com.dsbuilder.ds:core:1.0.0")
     implementation("com.dsbuilder.documentation:feature-ingestion:1.0.0")
     implementation("com.dsbuilder.documentation:feature-publication:1.0.0")
@@ -30,6 +36,7 @@ dependencies {
     implementation(libs.exposed.jdbc)
     implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.server.compression)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.call.logging)
     implementation(libs.ktor.server.status.pages)
@@ -39,6 +46,7 @@ dependencies {
     implementation(libs.koin.ktor)
     implementation(libs.koin.logger.slf4j)
     implementation(libs.logback.classic)
+    testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
 }

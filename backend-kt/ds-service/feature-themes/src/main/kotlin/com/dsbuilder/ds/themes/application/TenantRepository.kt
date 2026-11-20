@@ -10,6 +10,13 @@ interface TenantRepository {
     /** Performs the listaccessible operation. */
     suspend fun listAccessible(projectId: ProjectId): List<Tenant>
 
+    /** Возвращает страницу тем до вычисления их превью. */
+    suspend fun pageAccessible(
+        projectId: ProjectId,
+        read: com.dsbuilder.ds.core.application.ModelReadQuery,
+    ): com.dsbuilder.ds.core.application.ModelReadItems<Tenant> =
+        com.dsbuilder.ds.core.application.ModelReadItems(listAccessible(projectId))
+
     /** Performs the findaccessible operation. */
     suspend fun findAccessible(projectId: ProjectId, id: UUID): Tenant?
 
@@ -36,6 +43,14 @@ interface TenantRepository {
         id: UUID,
         types: Set<com.dsbuilder.ds.themes.domain.ThemeTokenType> = emptySet(),
     ): List<TenantTokenValue>?
+
+    /** Подтверждения выбранных токенов без загрузки остальных значений темы. */
+    suspend fun tokenValuesForTokens(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<com.dsbuilder.ds.themes.domain.ThemeTokenType>,
+        tokenIds: Set<UUID>,
+    ): List<TenantTokenValue>? = tokenValues(projectId, id, types)?.filter { it.tokenId in tokenIds }
 
     /** Атомарно заменяет platform-specific значения доступной темы. */
     suspend fun saveTokenValues(

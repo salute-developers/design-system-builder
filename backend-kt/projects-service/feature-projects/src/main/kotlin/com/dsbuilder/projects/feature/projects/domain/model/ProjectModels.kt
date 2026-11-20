@@ -37,16 +37,16 @@ internal data class AuthenticatedActor(
     val userId: String,
     val isSystemAdmin: Boolean,
     val projectId: String? = null,
-    val projectKeyId: String? = null,
-    val scopes: Set<AccessKeyScope> = emptySet(),
+    val personalAccessTokenId: String? = null,
+    val scopes: Set<TokenScope> = emptySet(),
 )
 
 internal enum class ActorType {
     USER,
-    PROJECT_KEY,
+    PERSONAL_ACCESS_TOKEN,
 }
 
-internal enum class AccessKeyAction {
+internal enum class TokenAction {
     READ,
     WRITE,
     DELETE,
@@ -71,33 +71,14 @@ internal enum class ProjectEntity(val configValue: String) {
     }
 }
 
-internal data class AccessKeyScope(val value: String) {
-    constructor(entity: ProjectEntity, action: AccessKeyAction) :
+internal data class TokenScope(val value: String) {
+    constructor(entity: ProjectEntity, action: TokenAction) :
         this("${entity.configValue}:${action.name.lowercase()}")
 
     companion object {
-        fun parse(rawValue: String): AccessKeyScope? =
-            rawValue.trim().lowercase().takeIf { it.matches(SCOPE_PATTERN) }?.let(::AccessKeyScope)
+        fun parse(rawValue: String): TokenScope? =
+            rawValue.trim().lowercase().takeIf { it.matches(SCOPE_PATTERN) }?.let(::TokenScope)
 
         private val SCOPE_PATTERN = Regex("^[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)+$")
     }
 }
-
-internal enum class ProjectAccessKeyStatus {
-    ACTIVE,
-    REVOKED,
-}
-
-internal data class ProjectAccessKey(
-    val id: String,
-    val projectId: String,
-    val name: String,
-    val scopes: Set<AccessKeyScope>,
-    val secretHash: String,
-    val createdByUserId: String,
-    val expiresAt: Instant?,
-    val revokedAt: Instant?,
-    val lastUsedAt: Instant?,
-    val createdAt: Instant,
-    val updatedAt: Instant,
-)

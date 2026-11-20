@@ -16,6 +16,6 @@ class GetAppearanceVariationValueUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<AppearanceVariationValue> =
         modelFind(policy, transactions, context) {
-            repository.findValue(context.projectId, context.principal.systemAdmin, id)
+            repository.findValue(context.projectId, context.principal.globalAdmin, id)
         }
 }

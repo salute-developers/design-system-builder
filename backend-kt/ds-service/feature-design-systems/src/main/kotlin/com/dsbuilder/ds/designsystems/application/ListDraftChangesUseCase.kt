@@ -44,7 +44,7 @@ class ListDraftChangesUseCase(
         ) { selected ->
             try {
                 repository.pageAndSummary(
-                    selected.projectId, selected.principal.systemAdmin, designSystemId,
+                    selected.projectId, selected.principal.globalAdmin, designSystemId,
                     selected.versionId?.let(::DesignSystemVersionId), selected.readQuery,
                 )?.let { DsResult.Success(it, readPage = it.changes.page) } ?: DsResult.Failure(DsFailure.NotFound)
             } catch (_: DraftChangeLimitExceededException) {
@@ -66,7 +66,7 @@ class ListDraftChangesUseCase(
     ): DsResult<Int> = projection(context, designSystemId, versionId) { selected ->
         repository.summary(
             selected.projectId,
-            selected.principal.systemAdmin,
+            selected.principal.globalAdmin,
             designSystemId,
             selected.versionId?.let(::DesignSystemVersionId),
         )
@@ -80,7 +80,7 @@ class ListDraftChangesUseCase(
     ): DsResult<Set<java.util.UUID>> = projection(context, designSystemId, null) { selected ->
         repository.changedTokenIds(
             selected.projectId,
-            selected.principal.systemAdmin,
+            selected.principal.globalAdmin,
             designSystemId,
             selected.versionId?.let(::DesignSystemVersionId),
             tenantId,

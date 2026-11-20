@@ -4,6 +4,7 @@ import com.dsbuilder.ds.core.application.ModelReadItems
 import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.data.InvalidModelReadQueryException
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.tokengroups.NewTokenGroup
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
@@ -26,6 +27,7 @@ class ExposedTokenGroupRepository : TokenGroupRepository {
         ThemeDesignSystemsTable.selectAll()
             .where {
                 (ThemeDesignSystemsTable.id eq designSystemId) and
+                    requestDesignSystemScope(ThemeDesignSystemsTable.id) and
                     (
                         (ThemeDesignSystemsTable.projectId eq projectId.value) or
                             ThemeDesignSystemsTable.projectId.isNull()

@@ -31,7 +31,8 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
         designSystemId: String,
     ): ModelReadResult = read(
         clients.create(apiUrl, credential),
-        "${root(projectId)}/design-system-versions/by-design-system/${encodeModelSegment(designSystemId)}",
+        credential,
+        "${system(projectId, designSystemId)}/versions",
     )
 
     override suspend fun tokens(
@@ -39,7 +40,7 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
         credential: BackendCredential,
         context: ThemeContext,
         versionId: String?,
-    ): ModelReadResult = readAll(clients.create(apiUrl, credential), sections(context, versionId))
+    ): ModelReadResult = readAll(clients.create(apiUrl, credential), credential, sections(context, versionId))
 
     override suspend fun exportSource(
         apiUrl: String,
@@ -61,7 +62,7 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
             "palette" to "${tenant(context)}/palette${query(version)}",
             "groups" to "${system(context)}/token-groups${query(version)}",
         )
-        return readAll(clients.create(apiUrl, credential), paths)
+        return readAll(clients.create(apiUrl, credential), credential, paths)
     }
 
     private fun sections(context: ThemeContext, versionId: String?): Map<String, String> {
@@ -75,28 +76,37 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
     }
 
     /** Все чтения параллельно; первый отказ возвращается вместо частичного ответа. */
-    private suspend fun readAll(client: AuthenticatedHttpClient, paths: Map<String, String>): ModelReadResult =
-        coroutineScope {
-            val results = paths.map { (name, path) -> async { name to read(client, path) } }.awaitAll()
-            results.firstNotNullOfOrNull { (_, result) -> result as? ModelReadResult.Failed }
-                ?: ModelReadResult.Success(
-                    JsonObject(
-                        results.associate { (name, result) -> name to (result as ModelReadResult.Success).value },
-                    ),
-                )
-        }
+    private suspend fun readAll(
+        client: AuthenticatedHttpClient,
+        credential: BackendCredential,
+        paths: Map<String, String>,
+    ): ModelReadResult = coroutineScope {
+        val results = paths.map { (name, path) -> async { name to read(client, credential, path) } }.awaitAll()
+        results.firstNotNullOfOrNull { (_, result) -> result as? ModelReadResult.Failed }
+            ?: ModelReadResult.Success(
+                JsonObject(
+                    results.associate { (name, result) -> name to (result as ModelReadResult.Success).value },
+                ),
+            )
+    }
 
-    private fun system(context: ThemeContext) =
-        "${root(context.projectId)}/design-systems/${encodeModelSegment(context.designSystemId)}"
+    private fun system(context: ThemeContext) = system(context.projectId, context.designSystemId)
+
+    /** Маршруты дизайн-системы: gateway переписывает `/api/projects/{id}/design-systems/...` в маршрут ds-service. */
+    private fun system(projectId: String, designSystemId: String) =
+        "/api/projects/${encodeModelSegment(projectId)}/design-systems/${encodeModelSegment(designSystemId)}"
 
     private fun tenant(context: ThemeContext) =
-        "${root(context.projectId)}/tenants/${encodeModelSegment(context.tenantId)}"
+        "${system(context)}/tenants/${encodeModelSegment(context.tenantId)}"
 
-    private suspend fun read(client: AuthenticatedHttpClient, path: String): ModelReadResult =
-        when (val response = client.get(path)) {
-            is AuthenticatedHttpResult.Failure -> modelReadFailure(response.statusCode)
-            is AuthenticatedHttpResult.Success -> decode(response.body)
-        }
+    private suspend fun read(
+        client: AuthenticatedHttpClient,
+        credential: BackendCredential,
+        path: String,
+    ): ModelReadResult = when (val response = client.get(path)) {
+        is AuthenticatedHttpResult.Failure -> modelReadFailure(response.statusCode, credential)
+        is AuthenticatedHttpResult.Success -> decode(response.body)
+    }
 
     private fun decode(body: String): ModelReadResult = runCatching<JsonElement> { Json.parseToJsonElement(body) }
         .fold(
@@ -105,8 +115,6 @@ public class HttpThemeTokensClient(private val clients: AuthenticatedHttpClientF
                 ModelReadResult.Failed("INVALID_BACKEND_RESPONSE", "Backend returned an invalid theme response.")
             },
         )
-
-    private fun root(projectId: String) = "/api/projects/${encodeModelSegment(projectId)}/ds"
 
     private fun query(vararg parts: String?): String =
         parts.filterNotNull().joinToString("&").let { if (it.isEmpty()) "" else "?$it" }

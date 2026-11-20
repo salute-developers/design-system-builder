@@ -74,7 +74,7 @@ export const subscribeIncompleteMutationMetadata = (
     context: EditorContextKey,
     refresh: (scope: RefreshScope) => void,
 ) => {
-    const prefix = `/projects/${encodeURIComponent(context.projectId)}/ds/`;
+    const prefix = `/projects/${encodeURIComponent(context.projectId)}/design-systems/`;
     const listener = (path: string) => {
         if (!path.includes(prefix) || context.versionId) return;
         refresh(

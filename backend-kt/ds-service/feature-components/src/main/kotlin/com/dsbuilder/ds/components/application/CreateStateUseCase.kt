@@ -23,7 +23,7 @@ class CreateStateUseCase(
         command: StateRepository.Create,
         idempotencyKey: String? = null,
     ): DsResult<ComponentState> {
-        if (!context.principal.systemAdmin) return DsResult.Failure(DsFailure.Forbidden)
+        if (!context.principal.globalAdmin) return DsResult.Failure(DsFailure.Forbidden)
         return policy.read(context, ProjectScope.COMPONENT_VARIATIONS_WRITE) {
             transactions.required(context) {
                 IdempotentCreateExecutor(repeatedRequests).execute(

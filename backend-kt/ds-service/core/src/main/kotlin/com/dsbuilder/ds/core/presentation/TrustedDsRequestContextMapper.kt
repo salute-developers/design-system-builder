@@ -20,6 +20,7 @@ object TrustedDsRequestContextMapper {
             projectScopes = headers[PROJECT_SCOPES_HEADER],
             systemAdmin = headers[SYSTEM_ADMIN_HEADER],
             policy = evaluator.policy,
+            personalAccessTokenId = headers["X-Personal-Access-Token-Id"],
             composePreviewPublisher = headers[COMPOSE_PREVIEW_PUBLISHER_HEADER],
         ) ?: return null
         val correlationId = headers[CORRELATION_ID_HEADER]?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
@@ -29,7 +30,14 @@ object TrustedDsRequestContextMapper {
         val parsedVersionId = versionId?.let { runCatching { UUID.fromString(it) }.getOrNull() ?: return null }
         val clientId = headers[CLIENT_ID_HEADER]?.takeIf { it.isNotBlank() && it.length <= MAX_CLIENT_ID_LENGTH }
         if (headers[CLIENT_ID_HEADER] != null && clientId == null) return null
-        return DsRequestContext(principal, correlationId, baseRevision, parsedVersionId, clientId)
+        return DsRequestContext(
+            principal,
+            correlationId,
+            baseRevision,
+            parsedVersionId,
+            clientId,
+            designSystemId = headers[DESIGN_SYSTEM_CONTEXT_HEADER]?.let(UUID::fromString),
+        )
     }
 
     private const val ACTOR_TYPE_HEADER = "X-Actor-Type"

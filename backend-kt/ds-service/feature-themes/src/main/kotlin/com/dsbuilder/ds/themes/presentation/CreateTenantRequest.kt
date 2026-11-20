@@ -5,8 +5,6 @@ import kotlinx.serialization.Serializable
 /** Совместимый с актуальным db-service payload создания темы. */
 @Serializable
 data class CreateTenantRequest(
-    /** Design system id carried by this contract. */
-    val designSystemId: String,
     /** Name carried by this contract. */
     val name: String,
     /** Description carried by this contract. */

@@ -172,10 +172,56 @@ private class FakeJournal(
     val batches = mutableListOf<List<UUID>>()
     val commits = mutableListOf<Boolean>()
 
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = required(context, block)
+
     override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> =
         block().also { commits += it is DsResult.Success }
 
     override suspend fun <T> readOnly(block: suspend () -> DsResult<T>): DsResult<T> = block()
+
+    override suspend fun revertAddressed(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        draftId: UUID,
+        targets: List<com.dsbuilder.ds.designsystems.application.DraftAddressTarget>,
+    ): DsResult<Unit> {
+        batches += targets.map { it.entityId }
+        return when (outcome) {
+            DraftChangeBatchRevertResult.Reverted -> DsResult.Success(Unit)
+            is DraftChangeBatchRevertResult.Failed -> DsResult.Failure(DsFailure.Conflict("fixture_conflict"))
+        }
+    }
+
+    override suspend fun tokenTargets(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        draftId: UUID,
+        tenantId: UUID,
+        tokenIds: Set<UUID>,
+        cursor: String?,
+    ): DsResult<com.dsbuilder.ds.designsystems.application.DraftTokenTargetPage> = DsResult.Success(
+        com.dsbuilder.ds.designsystems.application.DraftTokenTargetPage(draftId, "fixture", emptyList(), null),
+    )
+
+    override suspend fun summary(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+    ): Int = 0
+
+    override suspend fun changedTokenIds(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        versionId: DesignSystemVersionId?,
+        tenantId: UUID,
+    ): Set<UUID> = emptySet()
 
     override suspend fun revertAll(
         projectId: ProjectId,

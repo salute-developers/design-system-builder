@@ -17,7 +17,8 @@ import java.util.UUID
 /** Exposed repository for component dependency relations. */
 class ExposedComponentDependencyRepository : ComponentDependencyRepository {
     override suspend fun listAccessible(projectId: ProjectId, systemAdmin: Boolean): List<ComponentDependency> {
-        val readable = ComponentOwnership.readableComponentIds(projectId, systemAdmin)
+        // Как в `GET /components`: зависимости скрытых компонентов нужны, чтобы вернуть их вместе с родителем.
+        val readable = ComponentOwnership.catalogComponentIds(projectId, systemAdmin)
         if (readable.isEmpty()) return emptyList()
         return ComponentDependenciesTable.selectAll().where {
             (ComponentDependenciesTable.parentId inList readable) and

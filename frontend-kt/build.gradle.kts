@@ -6,7 +6,7 @@ plugins {
 
 tasks.register("test") {
     val testTasks = subprojects.flatMap {
-        it.tasks.matching { task -> task.name == "allTests" || task.name == "test" }
+        it.tasks.matching { task -> task.name in setOf("allTests", "test", "integrationTest", "jvmIntegrationTest") }
     }
     dependsOn(testTasks)
 }
@@ -42,9 +42,9 @@ tasks.named("check") {
 
 tasks.register("verifyFast") {
     group = "verification"
-    description = "Runs frontend architecture, formatting, static analysis, and tests."
+    description = "Runs frontend static checks and fast JVM unit tests without native or Node execution."
     dependsOn(":architecture-tests:test")
-    dependsOn("detektAll", "spotlessCheckAll", "test")
+    dependsOn("detektAll", "spotlessCheckAll", "unitTestAll")
 }
 
 tasks.register("verifyFull") {

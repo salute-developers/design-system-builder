@@ -93,15 +93,7 @@ public enum class DocumentationPlatform(
      * Возвращает versioned format для указанного info-artifact.
      */
     public fun infoArtifactFormat(type: ArtifactType): String? =
-        when (this to type) {
-            COMPOSE to ArtifactType.COMPONENTS_INFO -> "sdds-compose-components-info-v1"
-            COMPOSE to ArtifactType.THEME_INFO -> "sdds-compose-theme-info-v1"
-            ANDROID_VIEW to ArtifactType.COMPONENTS_INFO -> "sdds-view-components-info-v1"
-            ANDROID_VIEW to ArtifactType.THEME_INFO -> "sdds-view-theme-info-v1"
-            SWIFT_UI to ArtifactType.COMPONENTS_INFO -> "sdds-swiftui-components-info-v1"
-            SWIFT_UI to ArtifactType.THEME_INFO -> "sdds-ios-theme-info-v1"
-            else -> null
-        }
+        INFO_ARTIFACT_FORMATS[this to type]
 
     public companion object {
         /**
@@ -120,12 +112,7 @@ public enum class DocumentationPlatform(
  * поэтому целевой платформы у них нет и задаются они только явным `--platform`.
  */
 public fun TargetPlatform.toDocumentationPlatform(): DocumentationPlatform =
-    when (this) {
-        TargetPlatform.COMPOSE -> DocumentationPlatform.COMPOSE
-        TargetPlatform.ANDROID_VIEW -> DocumentationPlatform.ANDROID_VIEW
-        TargetPlatform.SWIFT_UI -> DocumentationPlatform.SWIFT_UI
-        TargetPlatform.REACT -> DocumentationPlatform.REACT
-    }
+    DOCUMENTATION_PLATFORMS.getValue(this)
 
 /**
  * Тип артефакта в пакете документации.
@@ -153,3 +140,19 @@ public enum class ArtifactType {
     /** Примеры кода из `assets/examples/`. */
     CODE_EXAMPLES,
 }
+
+private val INFO_ARTIFACT_FORMATS = mapOf(
+    (DocumentationPlatform.COMPOSE to ArtifactType.COMPONENTS_INFO) to "sdds-compose-components-info-v1",
+    (DocumentationPlatform.COMPOSE to ArtifactType.THEME_INFO) to "sdds-compose-theme-info-v1",
+    (DocumentationPlatform.ANDROID_VIEW to ArtifactType.COMPONENTS_INFO) to "sdds-view-components-info-v1",
+    (DocumentationPlatform.ANDROID_VIEW to ArtifactType.THEME_INFO) to "sdds-view-theme-info-v1",
+    (DocumentationPlatform.SWIFT_UI to ArtifactType.COMPONENTS_INFO) to "sdds-swiftui-components-info-v1",
+    (DocumentationPlatform.SWIFT_UI to ArtifactType.THEME_INFO) to "sdds-ios-theme-info-v1",
+)
+
+private val DOCUMENTATION_PLATFORMS = mapOf(
+    TargetPlatform.COMPOSE to DocumentationPlatform.COMPOSE,
+    TargetPlatform.ANDROID_VIEW to DocumentationPlatform.ANDROID_VIEW,
+    TargetPlatform.SWIFT_UI to DocumentationPlatform.SWIFT_UI,
+    TargetPlatform.REACT to DocumentationPlatform.REACT,
+)

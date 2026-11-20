@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PreviewComponentDescription, PreviewPayloadInput } from '../../../../composePreview';
 import { ComponentEditorPreview } from './ComponentEditorPreview';
+import { withStoryArgs } from './storyArgsTestHarness';
 
 const createDraft = vi.fn();
 const payload: PreviewPayloadInput = {
@@ -77,16 +78,26 @@ const theme = {
 
 const renderPreview = () =>
     render(
-        <ComponentEditorPreview
-            config={config as never}
-            theme={theme as never}
-            args={{ reactOnly: 'React', variant: 'variation-value' }}
-            themeModeList={[{ label: 'Светлый', value: 'light' }]}
-            themeMode={{ label: 'Светлый', value: 'light' }}
-            onUpdateThemeMode={vi.fn()}
-            onChange={vi.fn()}
-        />,
+        withStoryArgs(
+            <ComponentEditorPreview
+                config={config as never}
+                theme={theme as never}
+                args={{ reactOnly: 'React', variant: 'variation-value' }}
+                themeModeList={[{ label: 'Светлый', value: 'light' }]}
+                themeMode={{ label: 'Светлый', value: 'light' }}
+                onUpdateThemeMode={vi.fn()}
+                title="Preview"
+                platforms={[]}
+                onPlatformSelect={vi.fn()}
+            />,
+        ),
     );
+
+/** Выбор рендерера в меню панели окружения превью. */
+const chooseRenderer = async (label: string) => {
+    fireEvent.click(await screen.findByRole('button', { name: /^Рендерер/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: label }));
+};
 
 describe('ComponentEditorPreview Compose controls', () => {
     beforeEach(() => {
@@ -98,13 +109,13 @@ describe('ComponentEditorPreview Compose controls', () => {
 
     it('renders exactly the BasicButton descriptor controls and excludes non-variation editor args', async () => {
         renderPreview();
-        fireEvent.click(await screen.findByText('Compose'));
+        await chooseRenderer('Compose');
         await screen.findByTestId('compose-frame');
 
-        for (const label of ['Label', 'Value', 'Icon', 'Spacing', 'HasFixedWidth', 'Enabled', 'Loading']) {
+        for (const label of ['Label', 'Value', 'Icon', 'Spacing', 'Has fixed width', 'Enabled', 'Loading']) {
             expect(screen.getByText(label)).toBeInTheDocument();
         }
-        expect(screen.queryByText('ReactOnly')).not.toBeInTheDocument();
+        expect(screen.queryByText('React only')).not.toBeInTheDocument();
         expect(screen.queryByText('Variant')).not.toBeInTheDocument();
 
         await waitFor(() => {
@@ -118,7 +129,7 @@ describe('ComponentEditorPreview Compose controls', () => {
 
     it('updates typed Compose state without calling variation callbacks', async () => {
         const view = renderPreview();
-        fireEvent.click(await screen.findByText('Compose'));
+        await chooseRenderer('Compose');
         const labelInput = await screen.findByDisplayValue('label');
         fireEvent.change(labelInput, { target: { value: 'Changed' } });
 
@@ -141,7 +152,7 @@ describe('ComponentEditorPreview Compose controls', () => {
             ],
         };
         renderPreview();
-        fireEvent.click(await screen.findByText('Compose'));
+        await chooseRenderer('Compose');
         fireEvent.change(await screen.findByDisplayValue('2'), { target: { value: '7' } });
         fireEvent.change(await screen.findByDisplayValue('1.5'), { target: { value: '2.25' } });
 

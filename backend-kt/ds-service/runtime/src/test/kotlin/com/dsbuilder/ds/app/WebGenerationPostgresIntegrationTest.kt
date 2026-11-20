@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.HttpClient
@@ -26,6 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 /** Контракт данных web-генерации: web-адаптер и смещения в выгрузке. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class WebGenerationPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 
@@ -82,17 +85,19 @@ class WebGenerationPostgresIntegrationTest {
         assertEquals(HttpStatusCode.NotFound, client.webAdapter("project-b", "viewer", designSystemId).status)
         assertEquals(HttpStatusCode.NotFound, client.webAdapter("project-a", "viewer", MISSING_ID).status)
 
-        val withoutScope = client.post(WEB_ADAPTER_PATH) {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "key-1")
+        val withoutScope = client.post(webAdapterPath(designSystemId)) {
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "key-1")
+            header("X-User-Id", "integration-owner")
+            header("X-Project-Role", "owner")
             header("X-Project-Id", "project-a")
             header("X-Project-Scopes", "tokens:read")
-            jsonBody("""{"designSystemId":"$designSystemId"}""")
+            jsonBody("""{}""")
         }
         assertEquals(HttpStatusCode.Forbidden, withoutScope.status)
 
-        listOf("{}", """{"designSystemId":"not-a-uuid"}""").forEach { body ->
-            val invalid = client.post(WEB_ADAPTER_PATH) {
+        listOf("""{"designSystemId":"not-a-uuid"}""").forEach { body ->
+            val invalid = client.post(webAdapterPath(designSystemId)) {
                 trusted("project-a", "viewer")
                 jsonBody(body)
             }
@@ -101,10 +106,10 @@ class WebGenerationPostgresIntegrationTest {
     }
 
     private suspend fun verifyExportOffsets(client: HttpClient, designSystemId: String) {
-        val exported = client.post("/api/ds/component-config/export") {
+        val exported = client.post("/api/design-systems/$designSystemId/component-config/export") {
             trusted("project-a", "viewer")
             jsonBody(
-                """{"designSystemId":"$designSystemId","platform":"web","components":["tabs"],"styles":["default"]}""",
+                """{"platform":"web","components":["tabs"],"styles":["default"]}""",
             )
         }
         assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
@@ -126,7 +131,7 @@ class WebGenerationPostgresIntegrationTest {
         assertEquals("3", sizes.padding("l").getValue("adjustment").jsonPrimitive.content)
 
         val single = client.get(
-            "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=default&component=Tabs&platform=web",
+            "/api/design-systems/$designSystemId/component-config?ds=alpha&version=1.0.0&appearance=default&component=Tabs&platform=web",
         ) {
             trusted("project-a", "viewer")
         }
@@ -141,7 +146,7 @@ class WebGenerationPostgresIntegrationTest {
             .getValue("properties").jsonObject.getValue("padding").jsonObject
 
     private suspend fun createPublishedDesignSystem(client: HttpClient, name: String): String {
-        val designSystem = client.post("/api/ds/design-systems") {
+        val designSystem = client.post("/api/design-systems") {
             trusted("project-a", "owner")
             jsonBody("""{"name":"$name","projectName":"$name"}""")
         }
@@ -152,20 +157,20 @@ class WebGenerationPostgresIntegrationTest {
     }
 
     private suspend fun publish(client: HttpClient, id: String): String {
-        val changed = client.patch("/api/ds/design-systems/$id") {
+        val changed = client.patch("/api/design-systems/$id") {
             trusted("project-a", "owner")
             header("X-DS-Base-Revision", "0")
             jsonBody("""{"description":"Fixture publication"}""")
         }
         assertEquals(HttpStatusCode.OK, changed.status, changed.bodyAsText())
-        val current = client.get("/api/ds/design-systems/$id") { trusted("project-a", "owner") }
+        val current = client.get("/api/design-systems/$id") { trusted("project-a", "owner") }
         assertEquals(HttpStatusCode.OK, current.status, current.bodyAsText())
         val draft = json.parseToJsonElement(current.bodyAsText()).jsonObject
-        val version = client.post("/api/ds/design-system-versions") {
+        val version = client.post("/api/design-systems/$id/versions") {
             trusted("project-a", "owner")
             header("Idempotency-Key", UUID.randomUUID().toString())
             jsonBody(
-                """{"designSystemId":"$id","draftId":"${draft.getValue("draftId").jsonPrimitive.content}",""" +
+                """{"draftId":"${draft.getValue("draftId").jsonPrimitive.content}",""" +
                     """"draftRevision":${draft.getValue("draftRevision").jsonPrimitive.content},"version":"1.0.0"}""",
             )
         }
@@ -174,14 +179,14 @@ class WebGenerationPostgresIntegrationTest {
     }
 
     private suspend fun verifySelectedBoundary(client: HttpClient, system: String, version: String) {
-        val adjustments = client.get("/api/ds/invariant-platform-param-adjustments") {
+        val adjustments = client.get("/api/design-systems/$system/invariant-platform-param-adjustments") {
             trusted("project-a", "viewer")
         }
         assertEquals(HttpStatusCode.OK, adjustments.status, adjustments.bodyAsText())
         val id = json.parseToJsonElement(adjustments.bodyAsText()).jsonArray.single {
             it.jsonObject["template"]?.jsonPrimitive?.content == "0 $1"
         }.jsonObject.getValue("id").jsonPrimitive.content
-        val changed = client.patch("/api/ds/invariant-platform-param-adjustments/$id") {
+        val changed = client.patch("/api/design-systems/$system/invariant-platform-param-adjustments/$id") {
             trusted("project-a", "owner")
             jsonBody("""{"template":"99 $1"}""")
         }
@@ -193,25 +198,25 @@ class WebGenerationPostgresIntegrationTest {
             .getValue("templates").jsonObject.getValue("shape").jsonObject
             .getValue("tabsRadius").jsonPrimitive.content
         assertEquals("99 $1", template(client.webAdapter("project-a", "viewer", system).bodyAsText()))
-        val historical = client.post("$WEB_ADAPTER_PATH?versionId=$version") {
+        val historical = client.post("${webAdapterPath(system)}?versionId=$version") {
             trusted("project-a", "viewer")
-            jsonBody("""{"designSystemId":"$system"}""")
+            jsonBody("""{}""")
         }
         assertEquals(HttpStatusCode.OK, historical.status, historical.bodyAsText())
         assertEquals("0 $1", template(historical.bodyAsText()))
         listOf(null to "draft", version to "1.0.0").forEach { (boundary, expected) ->
             val suffix = boundary?.let { "?versionId=$it" }.orEmpty()
-            val exported = client.post("/api/ds/component-config/export$suffix") {
+            val exported = client.post("/api/design-systems/$system/component-config/export$suffix") {
                 trusted("project-a", "viewer")
-                jsonBody("""{"designSystemId":"$system","platform":"web"}""")
+                jsonBody("""{"platform":"web"}""")
             }
             assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
             val metadata = json.parseToJsonElement(exported.bodyAsText()).jsonObject.getValue("meta").jsonObject
             assertEquals(expected, metadata.getValue("version").jsonPrimitive.content)
         }
-        val inaccessible = client.post("$WEB_ADAPTER_PATH?versionId=$version") {
+        val inaccessible = client.post("${webAdapterPath(system)}?versionId=$version") {
             trusted("project-b", "viewer")
-            jsonBody("""{"designSystemId":"$system"}""")
+            jsonBody("""{}""")
         }
         assertEquals(HttpStatusCode.NotFound, inaccessible.status)
     }
@@ -363,9 +368,9 @@ class WebGenerationPostgresIntegrationTest {
     }
 
     private suspend fun HttpClient.webAdapter(projectId: String, role: String, designSystemId: String) =
-        post(WEB_ADAPTER_PATH) {
+        post(webAdapterPath(designSystemId)) {
             trusted(projectId, role)
-            jsonBody("""{"designSystemId":"$designSystemId"}""")
+            jsonBody("""{}""")
         }
 
     private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
@@ -395,7 +400,7 @@ class WebGenerationPostgresIntegrationTest {
     }
 
     private companion object {
-        const val WEB_ADAPTER_PATH = "/api/ds/component-config/web-adapter"
+        fun webAdapterPath(id: String) = "/api/design-systems/$id/component-config/web-adapter"
         const val MISSING_ID = "ffffffff-ffff-4fff-8fff-ffffffffffff"
         val EMPTY_STATE_SET: UUID = UUID.fromString("00000000-0000-4000-8000-0000000000ff")
     }

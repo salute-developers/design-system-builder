@@ -17,7 +17,7 @@ class UpdatePaletteEntryUseCase(
 ) {
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID, value: String): DsResult<PaletteEntry> {
-        if (!context.principal.systemAdmin) return DsResult.Failure(DsFailure.Forbidden)
+        if (!context.principal.globalAdmin) return DsResult.Failure(DsFailure.Forbidden)
         return when (val allowed = policy.require(context, ProjectScope.TOKENS_WRITE)) {
             is DsResult.Failure -> allowed
             is DsResult.Success -> transactions.required(context) {

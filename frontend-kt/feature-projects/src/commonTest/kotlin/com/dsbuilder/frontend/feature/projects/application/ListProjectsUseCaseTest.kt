@@ -59,7 +59,7 @@ class ListProjectsUseCaseTest {
             ): CredentialResult = error("Must use explicit user-session policy")
 
             override suspend fun resolve(request: CredentialRequest): CredentialResult {
-                assertEquals(CredentialPolicy.USER_SESSION, request.policy)
+                assertEquals(CredentialPolicy.AUTO, request.policy)
                 return CredentialResult.Failed(AuthErrorCode.FORBIDDEN, "fixture-secret")
             }
         }

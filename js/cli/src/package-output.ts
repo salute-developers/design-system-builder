@@ -30,8 +30,11 @@ export interface PackagePartOptions {
     coreVersion: string;
     /** Записать всю папку пакета (`package.json`, конфиги сборки, `src`) вместо исходников частей. */
     pack: boolean;
-    /** Пишет свои части в `src` временного пакета. */
-    fill: (pathToDir: string) => Promise<void>;
+    /**
+     * Пишет свои части в `src` временного пакета. `hasTheme` — будет ли в результате тема: своя часть `theme`
+     * или, без `--package`, уже лежащая в `output` тема, которую команда не заменяет.
+     */
+    fill: (pathToDir: string, context: { hasTheme: boolean }) => Promise<void>;
 }
 
 /**
@@ -59,7 +62,8 @@ export async function writePackagePart(options: PackagePartOptions): Promise<str
             hasComponents: parts.includes('components'),
             hasTheme: parts.includes('theme'),
         });
-        await options.fill(pathToDir);
+        const hasTheme = parts.includes('theme') || (!pack && (await isDirectory(join(outputDirectory, 'src', 'theme'))));
+        await options.fill(pathToDir, { hasTheme });
         // Генератор пишет индекс со ссылкой на тему всегда; в пакете из одной части её может не быть.
         await writeRootIndex(join(pathToDir, 'src'));
 
@@ -88,6 +92,12 @@ export async function writePackagePart(options: PackagePartOptions): Promise<str
 const isDirectory = async (path: string) => (await stat(path).catch(() => null))?.isDirectory() ?? false;
 
 /**
+ * Компоненты ядра, которые sdds-serv реэкспортирует без конфига темы и которые не заводятся в ДС: `SSRProvider`
+ * (имя `ssr-provider` не восстанавливается в `SSRProvider`). Корневой индекс пакета с компонентами реэкспортирует их.
+ */
+export const CORE_REEXPORTS = ['SSRProvider'];
+
+/**
  * Корневой индекс по фактическому содержимому `src`, в формате генератора: экспорт каждого
  * компонента верхнего уровня (дочерние лежат в папке родителя) и темы, если они есть.
  */
@@ -103,6 +113,7 @@ async function writeRootIndex(sourceDirectory: string): Promise<void> {
 
     const blocks = [
         components.map((name) => `export * from './components/${name}';`).join('\n'),
+        components.length > 0 ? `export { ${CORE_REEXPORTS.join(', ')} } from '@salutejs/plasma-new-hope/styled-components';` : '',
         hasTheme ? "export * from './theme';" : '',
     ].filter(Boolean);
     await writeFile(join(sourceDirectory, 'index.ts'), blocks.length > 0 ? `${blocks.join('\n\n')}\n` : '');

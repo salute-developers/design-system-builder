@@ -19,6 +19,9 @@ import java.time.Instant
 /** Реестр билдов плагина поверх Exposed; работает в транзакции вызывающего кода. */
 internal class ExposedPluginBuildRepository : PluginBuildRepository {
     override suspend fun lockPublications() {
+        // The registry lock serializes publications. Each read after waiting must see the winning commit,
+        // before any storage write: a SERIALIZABLE snapshot taken while waiting would still see the old registry.
+        TransactionManager.current().exec("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
         TransactionManager.current().exec(
             "SELECT pg_advisory_xact_lock(?)",
             listOf(LongColumnType() to PUBLICATION_LOCK_KEY),

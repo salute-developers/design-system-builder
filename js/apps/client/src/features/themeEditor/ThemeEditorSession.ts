@@ -1,3 +1,5 @@
+import { colorReadRevision } from './colorReadRevision';
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import type { ConfirmedTokenValues } from '../../api/draftAutosaveActivity';
 import { loadThemeEditor, loadDesignSystemCursor } from '../../api/themeEditorRepository';
 import { tokenRepository } from '../../api/tokenRepository';
@@ -10,7 +12,7 @@ import type {
     EditorContextKey,
     ThemeEditorSnapshot,
     TokenDefinitionDto,
-    DraftChangeDto,
+    DraftRefreshChange,
 } from '../../api/editorContracts';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
@@ -85,10 +87,22 @@ interface SessionOptions {
     signal: AbortSignal;
     onSaved: (types?: TokenDefinitionDto['type'][], values?: ConfirmedTokenValues[]) => void;
     onStatus: (status: AutosaveStatus) => void;
-    onSnapshot: (snapshot: ThemeEditorSnapshot, tokensChanged: boolean, componentsChanged: boolean) => void;
+    /**
+     * `componentsScope: 'index'` — снимок после чтения краткого списка компонентов: данные компонентов в нём из кеша,
+     * поэтому загруженные экземпляры заменять нельзя, только состав списка.
+     */
+    onSnapshot: (
+        snapshot: ThemeEditorSnapshot,
+        tokensChanged: boolean,
+        componentsChanged: boolean,
+        componentsScope?: ComponentsScope,
+    ) => void;
     onDisposed: () => void;
     sections?: EditorSectionData;
 }
+/** Что прочитано о компонентах: полные данные или только краткий список. */
+export type ComponentsScope = 'index' | 'full';
+
 type PendingMutationEvent = Parameters<NonNullable<Parameters<typeof setPendingMutationListener>[0]>>[0];
 
 /** Владеет очередью, редакциями и SSE одного открытого черновика; не зависит от React. */
@@ -188,16 +202,29 @@ export class ThemeEditorSession {
         }
     }
 
-    /** Компонент для канваса «Цвета» (без имени — индекс компонентов); активный раздел не меняется. */
-    async loadComponent(component?: string): Promise<void> {
+    /**
+     * Компонент для канваса «Цвета» (без имени — индекс компонентов); активный раздел не меняется. `force` перечитывает
+     * компонент сразу, не дожидаясь уведомления об изменении: после структурной правки редактора.
+     */
+    async loadComponent(component?: string, force = false): Promise<void> {
         const sections = this.options.sections;
         if (!sections) return;
+        if (force) {
+            sections.invalidate(new Set(['component-configurations']));
+            invalidateEditorReads(this.context);
+        }
         const result = await sections.loadComponent(component);
         if (!result) return;
         const types = result.tokenTypes.filter(
             (type) => !this.queue.hasPendingWhere((operation) => operation.change.type === type),
         );
-        this.applyRemoteSnapshot(result.snapshot, types.length > 0, result.componentsChanged, types);
+        this.applyRemoteSnapshot(
+            result.snapshot,
+            types.length > 0,
+            result.componentsChanged,
+            types,
+            component ? 'full' : 'index',
+        );
     }
 
     /** После подтверждения скрытой очереди можно завершить отложенное обновление открытой зоны. */
@@ -228,6 +255,7 @@ export class ThemeEditorSession {
         tokensChanged: boolean,
         componentsChanged: boolean,
         types?: TokenDefinitionDto['type'][],
+        componentsScope: ComponentsScope = 'full',
     ) {
         if (this.options.sections && this.lastAppliedSectionSnapshot === next) return;
         this.lastAppliedSectionSnapshot = next;
@@ -236,7 +264,7 @@ export class ThemeEditorSession {
             if (types && this.options.sections) this.replaceSectionRuntimeState(next, types);
             else this.replaceTokenRuntimeState(next);
         }
-        this.options.onSnapshot(next, tokensChanged, componentsChanged);
+        this.options.onSnapshot(next, tokensChanged, componentsChanged, componentsScope);
     }
 
     private replaceSectionRuntimeState(next: ThemeEditorSnapshot, types: TokenDefinitionDto['type'][]) {
@@ -455,30 +483,48 @@ export class ThemeEditorSession {
     }
 
     /** Перечитывает подтверждённые предметные данные после локальной отмены, даже без SSE-эха. */
-    refreshChanges(changes: DraftChangeDto[]) {
+    async refreshChanges(changes: DraftRefreshChange[], options?: DraftRefreshOptions) {
+        if (options?.outcome === 'unknown') return this.refreshSnapshot(new Set(['all']));
+        const sections = this.options.sections;
+        if (sections && changes.length && changes.every((change) => change.entityType === 'token-value')) {
+            invalidateEditorReads(this.context);
+            const pending = (type: TokenDefinitionDto['type']) =>
+                this.queue.hasPendingWhere((operation) => operation.change.type === type);
+            const revision = getDraftAutosaveRevision(this.context);
+            if (
+                (await sections.refreshAddressedColors(changes, pending)) &&
+                revision === colorReadRevision(this.context, this.signal, pending)
+            ) {
+                notifyEditorDataInvalidated(this.context, new Set(['theme-tokens']));
+                this.applyRemoteSnapshot(sections.currentSnapshot, true, false, ['color', 'gradient']);
+                return;
+            }
+        }
         const scopes = new Set<DraftInvalidationScope>();
         for (const change of changes) {
             if (
-                change.entityType === 'token' ||
-                change.entityType === 'token-value' ||
-                change.entityType === 'token-group' ||
+                ['token', 'token-value', 'token-group'].includes(change.entityType) ||
                 change.entityType.startsWith('palette-')
             )
                 scopes.add('theme-tokens');
             else if (change.entityType === 'tenant') scopes.add('theme-metadata');
             else scopes.add('all');
         }
-        return this.refreshSnapshot(scopes);
+        return this.refreshSnapshot(scopes, undefined, changes);
     }
 
-    private refreshSnapshot(scopes: Set<DraftInvalidationScope>, event?: DraftInvalidationEvent) {
+    private refreshSnapshot(
+        scopes: Set<DraftInvalidationScope>,
+        event?: DraftInvalidationEvent,
+        changes?: DraftRefreshChange[],
+    ) {
         notifyEditorDataInvalidated(this.context, scopes);
         if (this.options.sections) {
             if (event) {
                 if (event.draftId !== this.snapshot.designSystem.draftId) scopes.add('all');
                 this.options.sections.acceptDraftCursor(event.draftId, event.draftRevision);
             }
-            this.options.sections.invalidate(scopes);
+            this.options.sections.invalidate(scopes, changes);
             invalidateEditorReads(this.context);
             return this.refreshActiveSection();
         }
@@ -610,34 +656,37 @@ export class ThemeEditorSession {
 
     private confirmed(operation: PendingTokenSave, result: TokenSaveResult) {
         if (!this.mounted || this.signal.aborted) return;
-        const values: ConfirmedTokenValues[] | undefined =
-            operation.kind === 'update' &&
-            !Object.keys(operation.request?.definitionPatch ?? {}).length &&
-            result.values?.length
-                ? [
-                      {
-                          tokenId: result.tokenId,
-                          type: operation.change.type,
-                          values: result.values
-                              .filter((value) => value.platform !== null)
-                              .map((value) => ({
-                                  platform: value.platform!,
-                                  mode: value.mode,
-                                  value: value.sourceValue ?? value.value,
-                                  overridden: value.overridden,
-                              })),
-                      },
-                  ]
-                : undefined;
+        const confirmedValues = result.values ?? [];
+        const valueConfirmation = {
+            update: operation.kind === 'update',
+            unchangedDefinition: !Object.keys(operation.request?.definitionPatch ?? {}).length,
+            values: confirmedValues.length > 0,
+        };
+        const values: ConfirmedTokenValues[] | undefined = Object.values(valueConfirmation).every(Boolean)
+            ? [
+                  {
+                      tokenId: result.tokenId,
+                      type: operation.change.type,
+                      values: confirmedValues
+                          .filter((value) => value.platform !== null)
+                          .map((value) => ({
+                              platform: value.platform!,
+                              mode: value.mode,
+                              value: value.sourceValue ?? value.value,
+                              overridden: value.overridden,
+                          })),
+                  },
+              ]
+            : undefined;
         if (!values || !this.options.sections?.acceptConfirmedValues(values))
             this.options.sections?.invalidateTokenTypes([operation.change.type]);
         notifyEditorDataInvalidated(this.context, new Set(['theme-tokens']), [operation.change.type]);
         if (this.mounted) this.options.onSaved([operation.change.type], values);
         const baseName = operation.tokenName.replace(/^(light|dark)\./, '');
         const previousBaseName = operation.previousTokenName?.replace(/^(light|dark)\./, '');
-        if ([previousBaseName, previousBaseName !== baseName].every(Boolean)) delete this.tokenIds[previousBaseName!];
         const affectsCurrentName = operation.kind !== 'delete' || this.tokenIds[baseName] === result.tokenId;
         if ([previousBaseName, previousBaseName !== baseName].every(Boolean)) {
+            delete this.tokenIds[previousBaseName!];
             this.logicalKeyByName.delete(previousBaseName!);
             this.renamedAwayNames.delete(previousBaseName!);
         }

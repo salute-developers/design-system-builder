@@ -91,7 +91,7 @@ internal class LocalThemeFileWriter(
                     type = when (context.credentialPolicy) {
                         CredentialPolicy.AUTO -> CredentialReferenceType.AUTO
                         CredentialPolicy.USER_SESSION -> CredentialReferenceType.USER_SESSION
-                        CredentialPolicy.PROJECT_KEY_ENV -> CredentialReferenceType.PROJECT_KEY_ENV
+                        CredentialPolicy.PAT_ENV -> CredentialReferenceType.PAT_ENV
                         // The service account policy belongs to global commands and is never kept in a project config.
                         CredentialPolicy.SERVICE_ACCOUNT_OR_USER_SESSION -> CredentialReferenceType.USER_SESSION
                     },

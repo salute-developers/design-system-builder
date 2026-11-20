@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.ds.components.domain.Appearance
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -24,11 +25,11 @@ class CreateAppearanceUseCase(
         idempotencyKey: String? = null,
     ): DsResult<Appearance> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-appearance", command,
-        { repository.find(context.projectId, context.principal.systemAdmin, it) },
-        { repository.create(context.projectId, context.principal.systemAdmin, command) },
+        { repository.find(context.projectId, context.principal.globalAdmin, it) },
+        { repository.create(context.projectId, context.principal.globalAdmin, command) },
         Appearance::id,
         validateCreate = {
-            val normalizedName = command.name?.trim()?.lowercase()
+            val normalizedName = command.name?.let(ConfigurationName::key)
             uniqueKeys.lock(command.designSystemId, "appearance-default", command.componentId.toString())
             uniqueKeys.lock(
                 command.designSystemId,
@@ -38,7 +39,7 @@ class CreateAppearanceUseCase(
             if (
                 repository.nameExists(
                     context.projectId,
-                    context.principal.systemAdmin,
+                    context.principal.globalAdmin,
                     command.designSystemId,
                     command.componentId,
                     normalizedName,

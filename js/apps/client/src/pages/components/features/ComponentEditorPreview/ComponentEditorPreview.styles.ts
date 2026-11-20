@@ -1,5 +1,4 @@
 import styled from 'styled-components';
-import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 export const Root = styled.div<{ background?: string }>`
     position: relative;
@@ -8,13 +7,11 @@ export const Root = styled.div<{ background?: string }>`
     height: 100%;
     flex: 1;
     min-width: 0;
-    background: ${backgroundSecondary};
 `;
 
 export const StyledPreviewShadow = styled.div<{ $scrollable?: boolean }>`
     position: relative;
 
-    padding: 0.75rem;
     box-sizing: border-box;
 
     width: 100%;
@@ -22,18 +19,9 @@ export const StyledPreviewShadow = styled.div<{ $scrollable?: boolean }>`
 
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
 
     /* Только при отладочном блоке: иначе обычная раскладка и выпадающие списки остаются как были. */
     ${({ $scrollable }) => $scrollable && 'overflow-y: auto;'}
-`;
-
-export const StyledPreviewBackgroundEditor = styled.div`
-    position: relative;
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
 `;
 
 export const StyledComponentWrapper = styled.div<{ background: string }>`
@@ -41,13 +29,11 @@ export const StyledComponentWrapper = styled.div<{ background: string }>`
 
     background: ${({ background }) => background};
     color: var(--text-primary);
-    border-radius: 1.25rem;
 
-    flex: none;
-    height: 30rem;
-    width: 100%;
+    /* Холст занимает всю колонку под панелью окружения: без отступов и скругления. */
+    flex: 1;
+    min-height: 20rem;
     box-sizing: border-box;
-    padding: 6px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -65,22 +51,6 @@ export const StyledStorySelector = styled.div`
     position: absolute;
     left: 0.75rem;
     top: 0.75rem;
-`;
-
-export const StyledComponentControls = styled.div<{ $reserveHeight?: boolean }>`
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    width: 100%;
-
-    flex: 1;
-    /* Отладочный блок не должен сжимать панель свойств до нуля: колонка прокручивается. */
-    min-height: ${({ $reserveHeight }) => ($reserveHeight ? '8rem' : '0')};
-    overflow-y: auto;
-`;
-
-export const StyledDivider = styled.div`
-    margin: 0.75rem 0;
 `;
 
 export const StyledPayloadDebug = styled.div`

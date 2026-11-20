@@ -33,7 +33,7 @@ class ListComponentConfigurationsUseCase(
             ) { selected ->
                 val items = repository.listByComponent(
                     selected.projectId,
-                    selected.principal.systemAdmin,
+                    selected.principal.globalAdmin,
                     designSystemId,
                     componentId,
                 ) ?: return@readOnly DsResult.Failure(DsFailure.NotFound)

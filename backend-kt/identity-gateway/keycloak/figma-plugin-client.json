@@ -1,0 +1,17 @@
+{
+  "clientId": "dsbuilder-figma-plugin",
+  "name": "DS Builder для Figma",
+  "enabled": true,
+  "publicClient": true,
+  "consentRequired": true,
+  "directAccessGrantsEnabled": false,
+  "standardFlowEnabled": false,
+  "implicitFlowEnabled": false,
+  "attributes": {
+    "oauth2.device.authorization.grant.enabled": "true",
+    "login_theme": "dsbuilder",
+    "client.offline.session.idle.timeout": "2592000",
+    "client.offline.session.max.lifespan": "7776000"
+  },
+  "protocol": "openid-connect"
+}

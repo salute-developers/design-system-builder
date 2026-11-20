@@ -1,7 +1,7 @@
 package com.dsbuilder.ds.app
 
+import com.dsbuilder.ds.core.presentation.dsCanonicalPath
 import com.dsbuilder.ds.core.presentation.dsFailureOutcome
-import com.dsbuilder.ds.core.presentation.dsLegacyPath
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.createApplicationPlugin
 import io.ktor.server.request.httpMethod
@@ -28,7 +28,7 @@ val DsObservability = createApplicationPlugin("DsObservability", ::DsObservabili
         call.attributes.put(RequestStartedAt, System.nanoTime())
         operations.firstOrNull { (operation, pattern) ->
             operation.method.equals(call.request.httpMethod.value, ignoreCase = true) &&
-                pattern.matches(call.dsLegacyPath(call.request.path()))
+                pattern.matches(call.dsCanonicalPath(call.request.path()))
         }?.first?.let { operation ->
             call.attributes.put(RouteTemplate, operation.path)
             call.attributes.put(RoutePermission, operation.permission)

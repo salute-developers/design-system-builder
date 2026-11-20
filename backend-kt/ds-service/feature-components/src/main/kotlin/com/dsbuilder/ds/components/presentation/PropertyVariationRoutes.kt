@@ -30,7 +30,7 @@ fun Route.propertyVariationRoutes(
     create: CreatePropertyVariationUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/property-variations")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/property-variations")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

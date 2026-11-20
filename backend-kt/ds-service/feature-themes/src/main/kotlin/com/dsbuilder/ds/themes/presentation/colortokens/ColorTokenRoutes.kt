@@ -32,9 +32,9 @@ import io.ktor.server.routing.route
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
-/** Регистрирует операции над цветовым токеном `/api/ds/tenants/{tenantId}/color-tokens`. */
+/** Регистрирует операции над цветовым токеном `/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens`. */
 fun Route.colorTokenRoutes(evaluator: PolicyEvaluator, useCases: ColorTokenUseCases) {
-    route(dsRoutePath("/api/ds/tenants/{tenantId}/color-tokens")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens")) {
         post {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
             val command = call.body<CreateColorTokenRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)

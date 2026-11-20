@@ -32,9 +32,9 @@ class UpdateVariationUseCase(
         id: UUID,
         command: ComponentModelRepository.VariationUpdate,
     ): DsResult<ComponentVariationSummary> {
-        val current = repository.findVariation(context.projectId, context.principal.systemAdmin, id)
+        val current = repository.findVariation(context.projectId, context.principal.globalAdmin, id)
             ?: return DsResult.Failure(DsFailure.NotFound)
-        if (!repository.canWriteVariation(context.projectId, context.principal.systemAdmin, id)) {
+        if (!repository.canWriteVariation(context.projectId, context.principal.globalAdmin, id)) {
             return DsResult.Failure(DsFailure.NotFound)
         }
         if (command.name != null) {
@@ -44,7 +44,7 @@ class UpdateVariationUseCase(
                 return DsResult.Failure(DsFailure.Conflict("VARIATION_NAME_CONFLICT"))
             }
         }
-        return repository.updateVariation(context.projectId, context.principal.systemAdmin, id, command)
+        return repository.updateVariation(context.projectId, context.principal.globalAdmin, id, command)
             ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
     }
 }

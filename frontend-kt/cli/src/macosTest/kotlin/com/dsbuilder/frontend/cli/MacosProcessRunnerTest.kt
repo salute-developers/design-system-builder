@@ -18,6 +18,20 @@ class MacosProcessRunnerTest {
     private val workingDirectory = "/usr/bin"
 
     @Test
+    fun analyticsConfigurationDoesNotReachGenerators() {
+        val result = runner.run(
+            shellRequest(
+                script = "env",
+                inheritStdio = false,
+                environment = mapOf("DSBUILDER_METRICA_CLI_TOKEN" to "fake-embedded-token"),
+            ),
+        )
+        assertEquals(0, result.exitCode)
+        assertTrue(!result.output.contains("DSBUILDER_METRICA_"))
+        assertTrue(!result.output.contains("fake-embedded-token"))
+    }
+
+    @Test
     fun exitCodeIsPropagated() {
         assertEquals(3, runner.run(shellRequest("exit 3")).exitCode)
     }

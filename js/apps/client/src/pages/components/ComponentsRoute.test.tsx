@@ -32,15 +32,16 @@ describe('ComponentsRoute', () => {
         expect(screen.getByText('Редактор компонентов')).toBeInTheDocument();
     });
 
-    it.each(['/themes/theme-1/components', '/themes/theme-1/components/Button', '/themes/theme-1/components/compose-Avatar'])(
-        'redirects %s to the colors section when the section is disabled',
-        (path) => {
-            vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'false');
+    it.each([
+        '/themes/theme-1/components',
+        '/themes/theme-1/components/Button',
+        '/themes/theme-1/components/compose-Avatar',
+    ])('redirects %s to the colors section when the section is disabled', (path) => {
+        vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'false');
 
-            renderAt(path);
+        renderAt(path);
 
-            expect(screen.getByText('Цветовые токены')).toBeInTheDocument();
-            expect(screen.queryByText('Редактор компонентов')).not.toBeInTheDocument();
-        },
-    );
+        expect(screen.getByText('Цветовые токены')).toBeInTheDocument();
+        expect(screen.queryByText('Редактор компонентов')).not.toBeInTheDocument();
+    });
 });

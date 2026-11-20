@@ -2,7 +2,9 @@
 
 package com.dsbuilder.ds.components.data
 
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.domain.ProjectId
+import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.Expression
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.and
@@ -19,8 +21,16 @@ import java.util.UUID
 
 /** SQL ownership predicates. Each predicate scopes the resource in the statement that uses it. */
 internal object ComponentOwnership {
-    fun readableDesignSystem(c: Expression<UUID>, p: ProjectId, admin: Boolean) = scope(admin, c, readableDs(p))
-    fun writableDesignSystem(c: Expression<UUID>, p: ProjectId, admin: Boolean) = scope(admin, c, writableDs(p))
+    fun readableDesignSystem(
+        c: Expression<UUID>,
+        p: ProjectId,
+        admin: Boolean,
+    ) = requestDesignSystemScope(c) and scope(admin, c, readableDs(p))
+    fun writableDesignSystem(
+        c: Expression<UUID>,
+        p: ProjectId,
+        admin: Boolean,
+    ) = requestDesignSystemScope(c) and scope(admin, c, writableDs(p))
     fun readableComponent(c: Expression<UUID>, p: ProjectId, admin: Boolean) = scope(admin, c, readableComponents(p))
     fun writableComponent(c: Expression<UUID>, p: ProjectId, admin: Boolean): Op<Boolean> = if (admin) {
         Op.TRUE
@@ -185,7 +195,20 @@ internal object ComponentOwnership {
             it[ComponentsTable.id]
         }
     } else {
-        readableComponents(p).mapTo(linkedSetOf()) { it[DesignSystemComponentsTable.componentId] }
+        readableComponents(p).mapTo(linkedSetOf()) { it[ProjectDesignSystemComponentsTable.componentId] }
+    }
+
+    /**
+     * Читаемые компоненты вместе со скрытыми из дизайн-систем проекта: связи у скрытого нет,
+     * а оформление остаётся, и без него компонент нечем назвать при возврате.
+     */
+    fun catalogComponentIds(p: ProjectId, admin: Boolean): Set<UUID> = if (admin) {
+        readableComponentIds(p, admin = true)
+    } else {
+        readableComponentIds(p, admin = false) + ComponentAppearancesTable
+            .select(ComponentAppearancesTable.componentId)
+            .where { ComponentAppearancesTable.designSystemId inSubQuery readableDs(p) }
+            .map { it[ComponentAppearancesTable.componentId] }
     }
     fun writableComponentIds(
         p: ProjectId,
@@ -195,7 +218,7 @@ internal object ComponentOwnership {
             it[ComponentsTable.id]
         }
     } else {
-        writableComponentIds(p).mapTo(linkedSetOf()) { it[DesignSystemComponentsTable.componentId] }
+        writableComponentIds(p).mapTo(linkedSetOf()) { it[ProjectDesignSystemComponentsTable.componentId] }
     }
 
     fun canReadDesignSystem(p: ProjectId, a: Boolean, id: UUID) = ComponentDesignSystemsTable.selectAll().where {
@@ -277,16 +300,24 @@ internal object ComponentOwnership {
     fun canWriteDependency(p: ProjectId, a: Boolean, id: UUID) = ComponentDependenciesTable.selectAll().where {
         (ComponentDependenciesTable.id eq id) and writableComponent(ComponentDependenciesTable.parentId, p, a) and writableComponent(ComponentDependenciesTable.childId, p, a)
     }.any()
-    fun canReadToken(p: ProjectId, a: Boolean, id: UUID) = if (a) {
-        true
-    } else {
-        ComponentTokensTable.selectAll().where {
-            (ComponentTokensTable.id eq id) and
-                (ComponentTokensTable.designSystemId.isNull() or (ComponentTokensTable.designSystemId inSubQuery readableDs(p)))
-        }.any()
-    }
+    fun canReadToken(p: ProjectId, a: Boolean, id: UUID) = ComponentTokensTable.selectAll().where {
+        (ComponentTokensTable.id eq id) and requestDesignSystemScope(ComponentTokensTable.designSystemId) and
+            (
+                if (a) {
+                    Op.TRUE
+                } else {
+                    ComponentTokensTable.designSystemId.isNull() or
+                        (ComponentTokensTable.designSystemId inSubQuery readableDs(p))
+                }
+                )
+    }.any()
 
-    private fun scope(admin: Boolean, c: Expression<UUID>, ids: Query): Op<Boolean> = if (admin) Op.TRUE else c inSubQuery ids
+    @Suppress("UNCHECKED_CAST")
+    private fun scope(admin: Boolean, c: Expression<UUID>, ids: Query): Op<Boolean> {
+        val owner = (c as? Column<*>)?.table?.columns?.find { it.name == "design_system_id" }
+        val expected = if (owner == null) Op.TRUE else requestDesignSystemScope(owner as Expression<UUID>)
+        return expected and if (admin) Op.TRUE else c inSubQuery ids
+    }
     private fun readableDs(
         p: ProjectId,
     ) = ComponentDesignSystemsTable.select(ComponentDesignSystemsTable.id).where {
@@ -297,26 +328,34 @@ internal object ComponentOwnership {
     ) = ComponentDesignSystemsTable.select(ComponentDesignSystemsTable.id).where {
         ComponentDesignSystemsTable.projectId eq p.value
     }
+    private fun projectReadableDs(p: ProjectId) = ProjectComponentDesignSystemsTable
+        .select(ProjectComponentDesignSystemsTable.id).where {
+            (ProjectComponentDesignSystemsTable.projectId eq p.value) or ProjectComponentDesignSystemsTable.projectId.isNull()
+        }
+    private fun projectWritableDs(p: ProjectId) = ProjectComponentDesignSystemsTable
+        .select(ProjectComponentDesignSystemsTable.id).where { ProjectComponentDesignSystemsTable.projectId eq p.value }
     private fun readableComponents(
         p: ProjectId,
-    ) = DesignSystemComponentsTable.select(DesignSystemComponentsTable.componentId).where {
-        DesignSystemComponentsTable.designSystemId inSubQuery readableDs(p)
+    ) = ProjectDesignSystemComponentsTable.select(ProjectDesignSystemComponentsTable.componentId).where {
+        ProjectDesignSystemComponentsTable.designSystemId inSubQuery projectReadableDs(p)
     }
     private fun writableComponents(
         p: ProjectId,
-    ) = DesignSystemComponentsTable.select(DesignSystemComponentsTable.componentId).where {
-        DesignSystemComponentsTable.designSystemId inSubQuery writableDs(p)
+    ) = ProjectDesignSystemComponentsTable.select(ProjectDesignSystemComponentsTable.componentId).where {
+        ProjectDesignSystemComponentsTable.designSystemId inSubQuery projectWritableDs(p)
     }
     private fun foreignComponents(
         p: ProjectId,
-    ) = DesignSystemComponentsTable.innerJoin(
-        ComponentDesignSystemsTable,
-    ).select(DesignSystemComponentsTable.componentId).where {
-        (ComponentDesignSystemsTable.projectId neq p.value) or ComponentDesignSystemsTable.projectId.isNull()
+    ) = ProjectDesignSystemComponentsTable.innerJoin(
+        ProjectComponentDesignSystemsTable,
+    ).select(ProjectDesignSystemComponentsTable.componentId).where {
+        (ProjectComponentDesignSystemsTable.projectId neq p.value) or ProjectComponentDesignSystemsTable.projectId.isNull()
     }
     private fun writableComponentIds(
         p: ProjectId,
-    ) = writableComponents(p).adjustWhere { DesignSystemComponentsTable.componentId notInSubQuery foreignComponents(p) }
+    ) = writableComponents(p).adjustWhere {
+        ProjectDesignSystemComponentsTable.componentId notInSubQuery foreignComponents(p)
+    }
     private fun variations(
         d: Query,
         c: Query,

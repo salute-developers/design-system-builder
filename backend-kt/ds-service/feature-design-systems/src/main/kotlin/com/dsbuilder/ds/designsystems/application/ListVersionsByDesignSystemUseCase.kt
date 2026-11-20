@@ -25,7 +25,7 @@ class ListVersionsByDesignSystemUseCase(
             ) { selected ->
                 repository.pageByDesignSystem(selected.projectId, id, selected.readQuery)
                     ?.let { DsResult.Success(it.items, readPage = it.page) }
-                    ?: if (context.principal.systemAdmin) {
+                    ?: if (context.principal.globalAdmin) {
                         DsResult.Success(emptyList())
                     } else {
                         DsResult.Failure(DsFailure.NotFound)

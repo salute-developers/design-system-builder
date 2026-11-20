@@ -19,6 +19,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class DraftInvalidationStreamPostgresIntegrationTest {
     @Test
     fun `startup overflow and lost LISTEN produce reconciliation signals`() = runBlocking {

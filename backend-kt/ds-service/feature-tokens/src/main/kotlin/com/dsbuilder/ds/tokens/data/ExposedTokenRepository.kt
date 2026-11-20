@@ -1,10 +1,12 @@
 package com.dsbuilder.ds.tokens.data
 
 import com.dsbuilder.ds.core.application.TokenReferenceCleaner
+import com.dsbuilder.ds.core.data.ResolvedSubjectRows
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.latestRevision
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.data.selectedVersionBoundary
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.tokens.application.CreateToken
@@ -204,21 +206,16 @@ class ExposedTokenRepository(
         projectId: ProjectId? = null,
         designSystemId: UUID? = null,
         id: UUID? = null,
-    ): List<ResultRow> = TokensTable
-        .join(TokenRevisionsTable, JoinType.INNER, TokensTable.id, TokenRevisionsTable.tokenId)
-        .join(TokenDesignSystemsTable, JoinType.INNER, TokensTable.designSystemId, TokenDesignSystemsTable.id)
-        .join(
-            TokenVersionBoundariesTable,
-            JoinType.INNER,
-            TokenRevisionsTable.designSystemId,
-            TokenVersionBoundariesTable.designSystemId,
-        )
-        .selectAll()
-        .where {
-            var predicate: Op<Boolean> = selectedVersionBoundary("design_system_versions") and
-                (TokenRevisionsTable.versionSequenceNumber lessEq TokenVersionBoundariesTable.sequenceNumber) and
-                latestRevision("token_revisions", "token_id") and
-                (TokenRevisionsTable.deleted eq false)
+    ): List<ResultRow> = ResolvedSubjectRows(
+        TokensTable,
+        TokenRevisionsTable,
+        TokenVersionBoundariesTable,
+        TokenRevisionsTable.tokenId,
+        TokenDesignSystemsTable,
+        designSystemId = designSystemId,
+    ).read(
+        run {
+            var predicate: Op<Boolean> = TokenRevisionsTable.deleted eq false
             projectId?.let {
                 predicate = predicate and
                     ((TokenDesignSystemsTable.projectId eq it.value) or TokenDesignSystemsTable.projectId.isNull())
@@ -226,8 +223,8 @@ class ExposedTokenRepository(
             designSystemId?.let { predicate = predicate and (TokensTable.designSystemId eq it) }
             id?.let { predicate = predicate and (TokensTable.id eq it) }
             predicate
-        }
-        .toList()
+        },
+    )
 
     private fun currentRow(id: UUID) = currentRows(id = id).singleOrNull()
 
@@ -300,7 +297,11 @@ class ExposedTokenRepository(
 
     private fun ownedDesignSystem(projectId: ProjectId, id: UUID): Boolean = TokenDesignSystemsTable
         .selectAll()
-        .where { (TokenDesignSystemsTable.id eq id) and (TokenDesignSystemsTable.projectId eq projectId.value) }
+        .where {
+            (TokenDesignSystemsTable.id eq id) and
+                (TokenDesignSystemsTable.projectId eq projectId.value) and
+                requestDesignSystemScope(TokenDesignSystemsTable.id)
+        }
         .limit(1)
         .any()
 }

@@ -4,23 +4,34 @@
 Определяет группу команд `dsbuilder ds`: загрузку и генерацию дизайн-системы целиком — темы и компонентов.
 
 ## Requirements
+
 ### Requirement: CLI ds fetch command
 
-CLI SHALL provide `dsbuilder ds fetch` that runs `theme fetch` and then `components fetch` with the same
-options of project context, API URL and credential.
+CLI SHALL предоставлять `dsbuilder ds fetch`, последовательно выполняющий загрузку темы и компонентов с одним выбранным контекстом, API URL, типом учётных данных и пользователем согласно общему выбору PAT/OAuth.
 
 #### Scenario: Тема, затем компоненты
 
-- **WHEN** developer runs `dsbuilder ds fetch`
-- **THEN** CLI MUST fetch the themes first and the component configurations second
-- **THEN** both MUST use the same `--api-url`, `--api-key`, `--design-system` and `--project-key-env`
-- **THEN** `--platform` MUST be passed to the component fetch, `--destination` to the theme fetch and `--to` to the component fetch
-- **THEN** the output MUST contain the results of both fetches in the same format as the separate commands
+- **WHEN** пользователь запускает `dsbuilder ds fetch`
+- **THEN** CLI MUST сначала загрузить темы, затем конфигурации компонентов
+- **AND** обе загрузки MUST использовать один контекст из `--design-system` либо локальной конфигурации и один API URL из общего resolver
+- **AND** выбранный через `--api-key`, окружение или OAuth-сессию тип учётных данных и пользователь MUST сохраняться для обеих загрузок
+- **AND** `--platform` MUST передаваться загрузке компонентов, `--destination` — загрузке темы, `--to` — загрузке компонентов
+- **AND** вывод MUST содержать результаты обеих загрузок в формате отдельных команд
 
 #### Scenario: Отказ загрузки темы
 
-- **WHEN** the theme fetch fails
-- **THEN** CLI MUST print the failure, exit with code 1 and MUST NOT fetch the components
+- **WHEN** загрузка темы завершается ошибкой
+- **THEN** CLI MUST вывести ошибку и завершиться с кодом 1 без загрузки компонентов
+
+#### Scenario: PAT отклонён при загрузке компонентов
+
+- **WHEN** после успешной загрузки темы запрос компонентов с выбранным PAT получает `401` или `403`
+- **THEN** CLI MUST вернуть соответственно `PAT_INVALID` или `FORBIDDEN` без OAuth refresh и смены учётных данных
+
+#### Scenario: Прежние параметры ключа
+
+- **WHEN** пользователь передаёт `--project-key-env`
+- **THEN** команда MUST отклонить прежний параметр до сетевых запросов с указанием перехода на `--api-key` или `DSBUILDER_API_KEY`
 
 ### Requirement: CLI ds generate command
 

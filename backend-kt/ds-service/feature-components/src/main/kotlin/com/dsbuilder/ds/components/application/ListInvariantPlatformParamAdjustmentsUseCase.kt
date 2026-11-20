@@ -15,6 +15,6 @@ class ListInvariantPlatformParamAdjustmentsUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<InvariantPlatformParamAdjustment>> =
         modelList(policy, transactions, context) {
-            repository.listInvariantAdjustments(context.projectId, context.principal.systemAdmin)
+            repository.listInvariantAdjustments(context.projectId, context.principal.globalAdmin)
         }
 }

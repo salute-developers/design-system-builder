@@ -19,6 +19,6 @@ class ListVariationsUseCase(
         designSystemId: UUID? = null,
     ): DsResult<List<ComponentVariationSummary>> =
         modelList(policy, transactions, context) {
-            repository.listVariations(context.projectId, context.principal.systemAdmin, designSystemId)
+            repository.listVariations(context.projectId, context.principal.globalAdmin, designSystemId)
         }
 }

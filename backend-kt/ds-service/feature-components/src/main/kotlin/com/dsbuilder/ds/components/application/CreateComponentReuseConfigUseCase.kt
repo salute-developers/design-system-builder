@@ -22,8 +22,8 @@ class CreateComponentReuseConfigUseCase(
     ): DsResult<ComponentReuseConfig> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-component-reuse-config",
         command,
-        { repository.findAccessible(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createAccessible(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findAccessible(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createAccessible(context.projectId, context.principal.globalAdmin, command) },
         ComponentReuseConfig::id,
     )
 }

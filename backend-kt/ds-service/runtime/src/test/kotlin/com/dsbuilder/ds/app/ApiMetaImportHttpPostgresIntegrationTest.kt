@@ -29,6 +29,7 @@ import kotlin.test.assertTrue
  * The administrative API-meta import served by ds-service (change move-import-api-meta-to-ds-service):
  * access, body contract, additive writes, platform identity, deprecation of platform names and the journal.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ApiMetaImportHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 
@@ -368,7 +369,7 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         }
 
     private companion object {
-        const val PATH = "/api/ds/admin/component-config/import-api-meta"
+        const val PATH = "/api/admin/component-config/import-api-meta"
         val CREATED = arrayOf(
             "createdComponents",
             "createdProperties",

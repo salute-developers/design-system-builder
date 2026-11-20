@@ -6,11 +6,13 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
 import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.designsystems.application.DraftAddressTarget
 import com.dsbuilder.ds.designsystems.application.DraftChangeRevertTarget
 import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.RevertDraftChangeUseCase
@@ -44,12 +46,114 @@ fun Route.designSystemChangeRoutes(
     tokenIdsRoute(evaluator, list)
     revertChangeRoute(evaluator, revert, json)
     revertChangesRoute(evaluator, revertBatch, json)
+    addressedRevertRoutes(evaluator, revertBatch, json)
+}
+
+private fun Route.addressedRevertRoutes(evaluator: PolicyEvaluator, useCase: RevertDraftChangesUseCase, json: Json) {
+    addressedRevertRoute(evaluator, useCase, json)
+    tokenTargetsRoute(evaluator, useCase, json)
+}
+
+private fun Route.addressedRevertRoute(evaluator: PolicyEvaluator, useCase: RevertDraftChangesUseCase, json: Json) {
+    val strict = Json(json) { ignoreUnknownKeys = false }
+    post(dsRoutePath("/api/design-systems/{designSystemId}/changes/revert-by-address")) {
+        val context = TrustedDsRequestContextMapper.map(
+            call.dsTrustedHeaders(), evaluator,
+            call.request.queryParameters["versionId"],
+        ) ?: return@post call.respondFailure(DsFailure.Forbidden)
+        val owner = call.dsPathDesignSystemId()?.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val key = call.dsTrustedHeaders()["Idempotency-Key"]?.takeIf { it.isNotBlank() }
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("idempotency_key_required"))
+        val body = call.receiveText()
+        val request = runCatching {
+            require(body.length <= MAX_REVERT_BATCH_BODY)
+            strict.decodeFromString<AddressedRevertRequest>(body)
+        }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("INVALID_REVERT_REQUEST"))
+        val draft = request.draftId.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_draft_id"))
+        val targets = request.targets.map { target ->
+            val id = target.entityId.uuid()
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_entity_id"))
+            DraftAddressTarget(target.entityType, id, target.expectedRevision)
+        }
+        when (
+            val result = useCase.executeAddressed(
+                context.withIdempotentResponse { _: Unit ->
+                    json.encodeToString(OkResponse())
+                },
+                DesignSystemId(owner),
+                draft,
+                targets,
+                key,
+            )
+        ) {
+            is DsResult.Success -> call.respondSuccess(result, OkResponse())
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
+}
+
+private fun Route.tokenTargetsRoute(evaluator: PolicyEvaluator, useCase: RevertDraftChangesUseCase, json: Json) {
+    val strict = Json(json) { ignoreUnknownKeys = false }
+    post(dsRoutePath("/api/design-systems/{designSystemId}/changes/token-targets")) {
+        val context = TrustedDsRequestContextMapper.map(
+            call.dsTrustedHeaders(), evaluator,
+            call.request.queryParameters["versionId"],
+        ) ?: return@post call.respondFailure(DsFailure.Forbidden)
+        val owner = call.dsPathDesignSystemId()?.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val body = call.receiveText()
+        val request = runCatching {
+            require(body.length <= MAX_REVERT_BATCH_BODY)
+            strict.decodeFromString<TokenTargetsRequest>(body)
+        }.getOrNull() ?: return@post call.respondFailure(DsFailure.InvalidRequest("INVALID_TARGET_REQUEST"))
+        val draft = request.draftId.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_draft_id"))
+        val tenant = request.tenantId.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_tenant_id"))
+        val ids = request.tokenIds.map {
+            it.uuid()
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_token_id"))
+        }
+        if (ids.distinct().size != ids.size) {
+            return@post call.respondFailure(DsFailure.InvalidRequest("duplicate_token_id"))
+        }
+        when (
+            val result = useCase.tokenTargets(
+                context,
+                DesignSystemId(owner),
+                draft,
+                tenant,
+                ids.toSet(),
+                request.cursor,
+            )
+        ) {
+            is DsResult.Success -> call.respondSuccess(
+                result,
+                TokenTargetsResponse(
+                    result.value.draftId.toString(),
+                    result.value.scopeRevision,
+                    result.value.targets.map {
+                        TokenTargetResponse(
+                            it.target.entityType,
+                            it.target.entityId.toString(),
+                            it.target.expectedRevision,
+                            it.operation,
+                        )
+                    },
+                    result.value.nextCursor,
+                ),
+            )
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
 }
 
 private fun Route.tokenIdsRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
-    get(dsRoutePath("/api/ds/design-systems/{id}/changes/token-ids")) {
+    get(dsRoutePath("/api/design-systems/{designSystemId}/changes/token-ids")) {
         val context = call.modelReadContext(evaluator) ?: return@get
-        val id = call.parameters["id"]?.uuid()
+        val id = call.dsPathDesignSystemId()?.uuid()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
         val tenantId = call.request.queryParameters["tenantId"]?.uuid()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_tenant_id"))
@@ -67,9 +171,9 @@ private fun Route.tokenIdsRoute(evaluator: PolicyEvaluator, list: ListDraftChang
 private data class ChangedTokenIdsResponse(val tokenIds: List<String>)
 
 private fun Route.summaryChangeRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
-    get(dsRoutePath("/api/ds/design-systems/{id}/changes/summary")) {
+    get(dsRoutePath("/api/design-systems/{designSystemId}/changes/summary")) {
         val context = call.modelReadContext(evaluator) ?: return@get
-        val id = call.parameters["id"]?.uuid()
+        val id = call.dsPathDesignSystemId()?.uuid()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
         val rawVersion = call.request.queryParameters["versionId"]
         val version = rawVersion?.uuid()
@@ -82,9 +186,9 @@ private fun Route.summaryChangeRoute(evaluator: PolicyEvaluator, list: ListDraft
 }
 
 private fun Route.listChangeRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
-    get(dsRoutePath("/api/ds/design-systems/{id}/changes")) {
+    get(dsRoutePath("/api/design-systems/{designSystemId}/changes")) {
         val context = call.modelReadContext(evaluator) ?: return@get
-        val designSystemId = call.parameters["id"]?.uuid()
+        val designSystemId = call.dsPathDesignSystemId()?.uuid()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
         val rawVersionId = call.request.queryParameters["versionId"]
         val versionId = rawVersionId?.uuid()
@@ -107,14 +211,14 @@ private fun Route.listChangeRoute(evaluator: PolicyEvaluator, list: ListDraftCha
 
 private fun Route.revertChangeRoute(evaluator: PolicyEvaluator, revert: RevertDraftChangeUseCase, json: Json) {
     val revertJson = Json(json) { ignoreUnknownKeys = false }
-    post(dsRoutePath("/api/ds/design-systems/{id}/changes/{changeId}/revert")) {
+    post(dsRoutePath("/api/design-systems/{designSystemId}/changes/{changeId}/revert")) {
         val context = TrustedDsRequestContextMapper.map(
             call.dsTrustedHeaders(),
             evaluator,
             call.request.queryParameters["versionId"],
         )
             ?: return@post call.respondFailure(DsFailure.Forbidden)
-        val designSystemId = call.parameters["id"]?.uuid()
+        val designSystemId = call.dsPathDesignSystemId()?.uuid()
             ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
         val changeId = call.parameters["changeId"]?.uuid()
             ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_change_id"))
@@ -146,14 +250,14 @@ private fun Route.revertChangeRoute(evaluator: PolicyEvaluator, revert: RevertDr
 
 private fun Route.revertChangesRoute(evaluator: PolicyEvaluator, revert: RevertDraftChangesUseCase, json: Json) {
     val revertJson = Json(json) { ignoreUnknownKeys = false }
-    post(dsRoutePath("/api/ds/design-systems/{id}/changes/revert")) {
+    post(dsRoutePath("/api/design-systems/{designSystemId}/changes/revert")) {
         val context = TrustedDsRequestContextMapper.map(
             call.dsTrustedHeaders(),
             evaluator,
             call.request.queryParameters["versionId"],
         )
             ?: return@post call.respondFailure(DsFailure.Forbidden)
-        val designSystemId = call.parameters["id"]?.uuid()
+        val designSystemId = call.dsPathDesignSystemId()?.uuid()
             ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
         val idempotencyKey = call.dsTrustedHeaders()["Idempotency-Key"]
         if (idempotencyKey.isNullOrBlank()) {

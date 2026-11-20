@@ -14,6 +14,10 @@ fun interface TokenRevertListener {
      */
     fun beforeRevert(designSystemId: UUID, tokenId: UUID): () -> Unit
 
+    /** Действие для пакета; общий ключ допустим, если первое действие покрывает всю группу до отката. */
+    fun beforeBatchRevert(designSystemId: UUID, tokenId: UUID): TokenRevertAction =
+        TokenRevertAction(key = tokenId, run = beforeRevert(designSystemId, tokenId))
+
     /**
      * Блокирует предметные зависимости определения [tokenId] (определения семейства в устойчивом порядке) до
      * блокировки самой записи журнала `token`. Порядок общий для записей значений (см. [TokenValueWritePolicy]):

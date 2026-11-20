@@ -28,10 +28,13 @@ const statusListeners = new Map<string, Set<(status: AutosaveStatus, savedAt?: n
 let activityRevision = 0;
 type SourceOwner = { status: AutosaveStatus; detached: boolean; transferred: boolean; released: boolean };
 const sourceOwners = new Map<string, Map<string, Map<symbol, SourceOwner>>>();
+/** Повтор неудавшихся операций каждой очереди: индикатор редактора повторяет все очереди сразу. */
+const retryHandlers = new Map<string, Map<string, () => void>>();
 let sessionGeneration = 0;
 authService.onSessionReset(() => {
     sessionGeneration += 1;
     sourceOwners.clear();
+    retryHandlers.clear();
     statuses.clear();
     idleListeners.clear();
     activityRevisions.clear();
@@ -43,6 +46,20 @@ authService.onSessionReset(() => {
 });
 
 const contextKey = (context: EditorContextKey) => `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
+
+/** Регистрирует повтор очереди `source`; `null` снимает его. */
+export const setDraftAutosaveRetry = (context: EditorContextKey, source: string, retry: (() => void) | null) => {
+    const key = contextKey(context);
+    const handlers = retryHandlers.get(key) ?? new Map<string, () => void>();
+    if (retry) handlers.set(source, retry);
+    else handlers.delete(source);
+    if (handlers.size) retryHandlers.set(key, handlers);
+    else retryHandlers.delete(key);
+};
+
+/** Повторяет неудавшиеся операции всех зарегистрированных очередей редактора. */
+export const retryDraftAutosave = (context: EditorContextKey) =>
+    retryHandlers.get(contextKey(context))?.forEach((retry) => retry());
 
 /** Каждая живая очередь владеет своим статусом, включая очередь, завершающуюся после ухода со страницы. */
 export const registerDraftAutosaveSource = (context: EditorContextKey, source: string) => {

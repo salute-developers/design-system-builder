@@ -12,6 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class JvmPkcePlatformTest {
     @Test
     fun listenerWaitsForSavedSessionWritesUtf8AndRejectsReplay() = runBlocking {

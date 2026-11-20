@@ -56,9 +56,9 @@ const resourceUrls = (key: string) => {
     if (key.startsWith('project:')) return [`${PROJECTS_URL}/${key.slice('project:'.length)}`];
     if (key.startsWith('members:')) return [`${PROJECTS_URL}/${key.slice('members:'.length)}/members`];
     const [kind, projectId, id] = key.split(':');
-    if (kind === 'systems') return [`${PROJECTS_URL}/${projectId}/ds/design-systems`];
-    if (kind === 'system') return [`${PROJECTS_URL}/${projectId}/ds/design-systems/${id}`];
-    if (kind === 'themes') return [`${PROJECTS_URL}/${projectId}/ds/design-systems/${id}/tenants`];
+    if (kind === 'systems') return [`${PROJECTS_URL}/${projectId}/design-systems`];
+    if (kind === 'system') return [`${PROJECTS_URL}/${projectId}/design-systems/${id}`];
+    if (kind === 'themes') return [`${PROJECTS_URL}/${projectId}/design-systems/${id}/tenants`];
     return [];
 };
 

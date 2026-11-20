@@ -32,7 +32,7 @@ interface StyleRepository {
 
     /**
      * Стили вариаций компонента в дизайн-системе: тот же состав, что у
-     * `GET /api/ds/design-systems/{id}/components/{componentId}/styles`.
+     * `GET /api/design-systems/{id}/components/{componentId}/styles`.
      */
     suspend fun listByComponentAndDesignSystem(
         projectId: ProjectId,

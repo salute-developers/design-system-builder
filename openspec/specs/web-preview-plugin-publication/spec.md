@@ -5,7 +5,7 @@ TBD - created by archiving change publish-web-preview-plugin. Update Purpose aft
 ## Requirements
 ### Requirement: Публикация web-плагина принимает архив и мету одним запросом
 
-ds-service SHALL принимать публикацию web-плагина маршрутом `POST /api/ds/admin/web-preview/plugin-builds?dryRun=<bool>` (через gateway — `POST /api/admin/web-preview/plugin-builds`) multipart-запросом с частями `plugin` (zip-архив) и `meta` (нормализованная API-мета `ImportApiMetaRequest`). Поле `platform` меты MUST быть `web`, иначе запрос MUST отклоняться ответом `400` с кодом `invalid_body`. Без `dryRun=false` публикация SHALL выполняться как пробная и ничего не записывать. Маршрут SHALL быть доступен роли публикации плагинов и системному администратору, как маршрут Compose; остальным MUST возвращаться `403` до чтения тела.
+ds-service SHALL принимать публикацию web-плагина маршрутом `POST /api/admin/web-preview/plugin-builds?dryRun=<bool>` (через gateway — `POST /api/admin/web-preview/plugin-builds`) multipart-запросом с частями `plugin` (zip-архив) и `meta` (нормализованная API-мета `ImportApiMetaRequest`). Поле `platform` меты MUST быть `web`, иначе запрос MUST отклоняться ответом `400` с кодом `invalid_body`. Без `dryRun=false` публикация SHALL выполняться как пробная и ничего не записывать. Маршрут SHALL быть доступен роли публикации плагинов и системному администратору, как маршрут Compose; остальным MUST возвращаться `403` до чтения тела.
 
 #### Scenario: Публикация web-плагина
 
@@ -59,7 +59,7 @@ ds-service SHALL принимать публикацию web-плагина ма
 
 ### Requirement: Публикация web импортирует web API-мету
 
-Публикация web-плагина с `dryRun=false` SHALL в той же операции, что и запись билда, импортировать переданную мету в глобальный слой компонентов платформы `web` — так же, как `POST /api/ds/admin/component-config/import-api-meta` с `platform: web`. Ошибка импорта MUST отменять публикацию целиком: файлы не активируются, билд не записывается.
+Публикация web-плагина с `dryRun=false` SHALL в той же операции, что и запись билда, импортировать переданную мету в глобальный слой компонентов платформы `web` — так же, как `POST /api/admin/component-config/import-api-meta` с `platform: web`. Ошибка импорта MUST отменять публикацию целиком: файлы не активируются, билд не записывается.
 
 #### Scenario: Новое свойство в мете
 
@@ -73,7 +73,7 @@ ds-service SHALL принимать публикацию web-плагина ма
 
 ### Requirement: Адрес активного web-билда выдаётся по проектному маршруту
 
-ds-service SHALL отдавать активный web-билд маршрутом `GET /api/ds/web-preview/plugin` (через gateway — `GET /api/projects/{projectId}/ds/web-preview/plugin`) с правом чтения компонентов. Ответ SHALL содержать `buildId`, `platform: web`, `libraryVersion`, `metaSha256`, `protocolVersion`, `pluginUrl` (`<публичный адрес web>/builds/<buildId>/`) и `publishedAt`. Без активного web-билда или без настроенного хранилища web маршрут MUST отвечать `404`. Маршрут Compose MUST отдавать только Compose-билд в прежнем формате.
+ds-service SHALL отдавать активный web-билд маршрутом `GET /api/design-systems/catalog/web-preview/plugin` (через gateway — `GET /api/projects/{projectId}/design-systems/catalog/web-preview/plugin`) с правом чтения компонентов. Ответ SHALL содержать `buildId`, `platform: web`, `libraryVersion`, `metaSha256`, `protocolVersion`, `pluginUrl` (`<публичный адрес web>/builds/<buildId>/`) и `publishedAt`. Без активного web-билда или без настроенного хранилища web маршрут MUST отвечать `404`. Маршрут Compose MUST отдавать только Compose-билд в прежнем формате.
 
 #### Scenario: Активный web-билд есть
 
@@ -110,7 +110,7 @@ ds-service SHALL читать настройки хранилища web из `DS
 
 ### Requirement: Gateway пропускает публикацию web как публикацию Compose
 
-Gateway SHALL проксировать `POST /api/admin/web-preview/plugin-builds` в ds-service с теми же правилами, что публикацию Compose: только токен пользователя (ключ проекта получает `401`), роль публикации и признак системного администратора передаются доверенными заголовками, лимит тела 64 МБ. Маршрут описан в `nginx.local.conf` и `nginx.prod.conf.template` и проверяется `test-route-namespaces.sh`; как и публикация Compose, он не входит в публичный OpenAPI и `contracts/route-manifest.json`, где описан только `GET /api/ds/web-preview/plugin`.
+Gateway SHALL проксировать `POST /api/admin/web-preview/plugin-builds` в ds-service с теми же правилами, что публикацию Compose: только токен пользователя (ключ проекта получает `401`), роль публикации и признак системного администратора передаются доверенными заголовками, лимит тела 64 МБ. Маршрут описан в `nginx.local.conf` и `nginx.prod.conf.template` и проверяется `test-route-namespaces.sh`; как и публикация Compose, он не входит в публичный OpenAPI и `contracts/route-manifest.json`, где описан только `GET /api/design-systems/catalog/web-preview/plugin`.
 
 #### Scenario: Ключ проекта
 

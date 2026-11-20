@@ -18,7 +18,6 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -161,8 +160,6 @@ public class KtorTokenClient(
                     expiresInSeconds = response.expiresIn,
                 ),
             )
-        } catch (exception: SerializationException) {
-            AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: cannot parse token response.")
         } catch (exception: IllegalArgumentException) {
             AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: cannot parse token response.")
         }
@@ -171,8 +168,6 @@ public class KtorTokenClient(
         try {
             val response: GatewayAccessTokenResponse = json.decodeFromString(body)
             AuthResult.Success(AccessTokenResponse(response.accessToken))
-        } catch (exception: SerializationException) {
-            AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: cannot parse token response.")
         } catch (exception: IllegalArgumentException) {
             AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: cannot parse token response.")
         }
@@ -185,8 +180,6 @@ public class KtorTokenClient(
             } else {
                 AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: token request failed.")
             }
-        } catch (exception: SerializationException) {
-            AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: token request failed.")
         } catch (exception: IllegalArgumentException) {
             AuthResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: token request failed.")
         }

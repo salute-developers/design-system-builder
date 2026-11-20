@@ -296,7 +296,7 @@ export const ComposePreviewFrame = ({
             {(status === 'loading' || (status === 'ready' && !payload && subscriber)) && (
                 <Status>{labels.loading}</Status>
             )}
-            {status === 'rendering' && <Status>{labels.rendering}</Status>}
+            {status === 'rendering' && !revealed && <Status>{labels.rendering}</Status>}
             {(failure ?? activeCrash?.message) && <Status role="alert">{failure ?? activeCrash?.message}</Status>}
             {isDebugMode() && cause && <ComposeFailureDetails details={cause} />}
         </FrameRoot>

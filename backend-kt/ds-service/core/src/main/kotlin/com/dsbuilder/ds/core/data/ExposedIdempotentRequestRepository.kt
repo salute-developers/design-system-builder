@@ -30,7 +30,10 @@ class ExposedIdempotentRequestRepository : IdempotentRequestRepository {
             sql,
             listOf(TextColumnType() to projectId.value, TextColumnType() to key),
         ) { rows ->
-            if (!rows.next()) return@exec IdempotentRequestLookup.New
+            if (!rows.next()) {
+                requireRequestDesignSystemMutable()
+                return@exec IdempotentRequestLookup.New
+            }
             if (rows.getString("operation") != operation || rows.getString("request_hash") != requestHash) {
                 IdempotentRequestLookup.PayloadMismatch
             } else {

@@ -13,8 +13,6 @@ import java.util.UUID
 /** HTTP body for atomic package component-config import. */
 @Serializable
 data class ImportComponentConfigRequest(
-    /** Design system id carried by this contract. */
-    val designSystemId: String,
     /** Platform of the components: a component is identified by its name and platform. */
     val platform: String,
     /** Meta carried by this contract. */

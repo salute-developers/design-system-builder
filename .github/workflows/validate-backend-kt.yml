@@ -18,8 +18,8 @@ permissions:
   contents: read
 
 jobs:
-  analysis:
-    name: Analysis
+  validation:
+    name: Backend validation
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -28,65 +28,19 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew detektAll spotlessCheckAll
+      - name: Keycloak bootstrap contract
+        run: python3 -m unittest discover -s backend-kt/identity-gateway/keycloak -p 'test_bootstrap.py' -v
+      - name: Verify all backend modules and builds
+        if: ${{ !cancelled() }}
+        run: ./gradlew --init-script ci/test-logging.init.gradle verifyFull --continue --stacktrace
         working-directory: backend-kt
-
-  tests:
-    name: Tests (${{ matrix.project.name }})
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        project:
-          - name: identity-gateway
-            directory: backend-kt/identity-gateway
-          - name: projects-service
-            directory: backend-kt/projects-service
-          - name: project-publisher
-            directory: backend-kt/project-publisher
-          - name: documentation-service
-            directory: backend-kt/documentation-service
-          - name: ds-service
-            directory: backend-kt/ds-service
-          - name: backend-app
-            directory: backend-kt
-            args: -p app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Upload backend test reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
         with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew ${{ matrix.project.args }} test
-        working-directory: ${{ matrix.project.directory }}
-
-  build:
-    name: Build (${{ matrix.project.name }})
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        project:
-          - name: identity-gateway
-            directory: backend-kt/identity-gateway
-          - name: projects-service
-            directory: backend-kt/projects-service
-          - name: project-publisher
-            directory: backend-kt/project-publisher
-          - name: documentation-service
-            directory: backend-kt/documentation-service
-          - name: ds-service
-            directory: backend-kt/ds-service
-          - name: backend-app
-            directory: backend-kt
-            args: -p app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew ${{ matrix.project.args }} build
-        working-directory: ${{ matrix.project.directory }}
+          name: backend-test-reports-${{ github.run_attempt }}
+          path: |
+            backend-kt/**/build/test-results/**/*.xml
+            backend-kt/**/build/reports/tests/**
+          if-no-files-found: warn
+          retention-days: 7

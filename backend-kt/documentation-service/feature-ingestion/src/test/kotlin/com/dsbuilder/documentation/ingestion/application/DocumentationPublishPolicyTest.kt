@@ -17,19 +17,21 @@ class DocumentationPublishPolicyTest {
 
     @Test fun `viewer may not publish`() = assertFalse(policy.allows(actor("viewer")))
 
-    @Test fun `project key requires exact write scope`() = assertTrue(
+    @Test fun `PAT requires exact write scope`() = assertTrue(
         policy.allows(
             ActorContext(
-                ActorType.PROJECT_KEY,
+                ActorType.PERSONAL_ACCESS_TOKEN,
                 "key-1",
                 "project-1",
                 projectScopes = setOf("documentation:write"),
+                personalAccessTokenId = "pat",
+                projectRole = "editor",
             ),
         ),
     )
 
     @Test fun `blank trusted project is invalid`() = assertFalse(
-        policy.allows(ActorContext(ActorType.PROJECT_KEY, "key-1", "")),
+        policy.allows(ActorContext(ActorType.PERSONAL_ACCESS_TOKEN, "key-1", "")),
     )
 
     private fun actor(role: String) = ActorContext(ActorType.USER, "user-1", "project-1", role)

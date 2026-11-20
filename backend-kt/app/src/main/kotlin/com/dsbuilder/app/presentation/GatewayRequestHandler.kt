@@ -29,6 +29,15 @@ internal class GatewayRequestHandler(
             return false
         }
         val path = java.net.URI(rawPath).path
+        if (path == "/api/privacy/analytics/consent") {
+            val origin = call.request.headers[HttpHeaders.Origin]
+            val allowedOrigin = origin == null || origin == configuration.webOrigin ||
+                configuration.webOrigin == null && Regex("http://(localhost|127\\.0\\.0\\.1):[0-9]+").matches(origin)
+            if (!allowedOrigin || call.request.httpMethod !in setOf(HttpMethod.Get, HttpMethod.Post)) {
+                reject(call, HttpStatusCode.Forbidden)
+                return false
+            }
+        }
         val policy = routePolicy(path)
         return acceptBody(call, path, policy) && authorize(call, path, policy.userRoute, policy.projectId)
     }
@@ -52,8 +61,10 @@ internal class GatewayRequestHandler(
         policy: RoutePolicy,
     ): Boolean {
         val maxBytes = when {
+            path == "/api/privacy/analytics/consent" -> 4096L
             policy.documentation -> configuration.documentationMaxBytes
             path in pluginPublishPaths -> 64L * 1024 * 1024
+            path == ICON_CATALOG_UPLOAD_PATH -> 32L * 1024 * 1024
             policy.ds || path == "/api/admin/component-config/import-api-meta" -> 16L * 1024 * 1024
             else -> 2L * 1024 * 1024
         }
@@ -73,11 +84,12 @@ internal class GatewayRequestHandler(
 
     private fun routePolicy(path: String): RoutePolicy {
         val project = Regex("^/api/projects/([^/]+)(?:/.*)?$").matchEntire(path)
-        val userRoute = path in pluginPublishPaths || path in setOf(
-            "/api/projects", "/api/projects/member-candidates",
-            "/api/admin/component-config/import-api-meta",
-        )
-        val ds = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/ds")
+        val userRoute = path.startsWith("/api/settings/personal-access-tokens") ||
+            path in pluginPublishPaths || path in setOf(
+                "/api/projects", "/api/projects/member-candidates",
+                "/api/admin/component-config/import-api-meta", ICON_CATALOG_UPLOAD_PATH,
+            )
+        val ds = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/design-systems")
         val documentation = project != null && path.startsWith("/api/projects/${project.groupValues[1]}/documentation")
         return RoutePolicy(project?.groupValues?.get(1), userRoute, ds, documentation)
     }
@@ -97,6 +109,10 @@ internal class GatewayRequestHandler(
             }
             when (decision) {
                 is GatewayAuthDecision.Allowed -> {
+                    if (!allowsUserRoute(decision, path, userRoute, call.request.httpMethod)) {
+                        reject(call, HttpStatusCode.Forbidden)
+                        return@run false
+                    }
                     val context = decision.trustedHeaders.asMap().toMutableMap()
                     if (path.startsWith("/api/admin/")) context["X-Project-Id"] = "global"
                     call.attributes.put(verifiedContextKey, verifiedHeaders(call.request.headers, context))
@@ -106,12 +122,27 @@ internal class GatewayRequestHandler(
                     reject(call, HttpStatusCode.Unauthorized)
                     false
                 }
+                is GatewayAuthDecision.Unavailable -> {
+                    reject(call, HttpStatusCode.ServiceUnavailable)
+                    false
+                }
                 is GatewayAuthDecision.Forbidden -> {
                     reject(call, HttpStatusCode.Forbidden)
                     false
                 }
             }
         }
+    }
+
+    private fun allowsUserRoute(
+        decision: GatewayAuthDecision.Allowed,
+        path: String,
+        userRoute: Boolean,
+        method: HttpMethod,
+    ): Boolean {
+        if (decision.trustedHeaders.actorType != "personal_access_token" || !userRoute) return true
+        return path == "/api/projects" && method == HttpMethod.Get &&
+            "projects:read" in decision.trustedHeaders.projectScopes.orEmpty().split(',')
     }
 
     private fun cors(call: ApplicationCall) {
@@ -138,7 +169,7 @@ internal class GatewayRequestHandler(
         call.response.header(
             HttpHeaders.AccessControlAllowHeaders,
             "Authorization, Content-Type, Accept, X-Requested-With, " +
-                "X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key",
+                "X-Consent-Key, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key",
         )
         call.response.header(
             HttpHeaders.AccessControlExposeHeaders,

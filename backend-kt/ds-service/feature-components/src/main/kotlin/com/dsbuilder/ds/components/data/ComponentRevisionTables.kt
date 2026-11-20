@@ -330,15 +330,20 @@ internal fun lockComponentSubject(
     return lockDraftSubject(stable[designSystemColumn], entityType, entityId)
 }
 
+/**
+ * Заменяет редакцию сущности в черновике. [draft] — граница черновика этой дизайн-системы; по умолчанию она читается
+ * здесь (с блокировкой изменения), а вызывающий, который пишет много редакций в одной транзакции, передаёт одну и ту же
+ * границу, чтобы не повторять блокировку и чтение для каждой строки.
+ */
 internal fun <T : ComponentRevisionTable> T.replaceRevision(
     entityColumn: Column<UUID>,
     entityId: UUID,
     designSystemId: UUID,
     deleted: Boolean = false,
     changedPaths: Set<String>? = null,
+    draft: ResultRow = componentDraft(designSystemId),
     body: T.(InsertStatement<Number>) -> Unit = {},
 ) {
-    val draft = componentDraft(designSystemId)
     deleteWhere {
         (entityColumn eq entityId) and
             (designSystemVersionId eq draft[ComponentVersionBoundariesTable.id])

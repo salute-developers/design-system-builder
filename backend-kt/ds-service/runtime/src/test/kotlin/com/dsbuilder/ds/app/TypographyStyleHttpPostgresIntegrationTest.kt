@@ -33,6 +33,7 @@ import kotlin.test.assertTrue
  * Стили типографии через HTTP на реальном PostgreSQL: чтение на границе версии, области записи, предметные редакции
  * значений с метаданными, использование по редакциям компонентов, журнал, права.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class TypographyStyleHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 
@@ -46,17 +47,17 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 // Компоненты дизайн-системы сидятся при её создании, поэтому каталог загружается раньше.
                 ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                 val designSystemId = api.create(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
-                val base = "/api/ds/tenants/$tenantA/typography-styles"
+                val base = "/api/design-systems/$designSystemId/tenants/$tenantA/typography-styles"
 
                 // Компоненты другой дизайн-системы со ссылками на те же стили в использование не попадают.
                 val otherSystem = api.create(
-                    "/api/ds/design-systems",
+                    "/api/design-systems",
                     OWNER,
                     """{"name":"beta","projectName":"beta"}""",
                 )
@@ -70,8 +71,31 @@ class TypographyStyleHttpPostgresIntegrationTest {
                 publishedBoundary(api, db, designSystemId, tenantA, base)
                 structure(api, db, designSystemId, base)
                 groups(api, db, designSystemId, base)
+                repeatStyleWrite(api, base)
             }
         }
+    }
+
+    /** Повтор PATCH возвращает исходный DTO и метаданные без перезаписи конкурентной правки. */
+    private suspend fun repeatStyleWrite(api: Api, base: String) {
+        val token = style(api.read(base, VIEWER), "screen-s", "body", "large")
+            .obj("variants").obj("bold").text("tokenId")
+        val path = "$base/$token"
+        val key = UUID.randomUUID().toString()
+        val body = """{"size":21}"""
+        val original = api.call("PATCH", path, EDITOR, body, key)
+        assertEquals(HttpStatusCode.OK, original.status, original.bodyAsText())
+        val originalBody = original.bodyAsText()
+        val originalMetadata = original.headers["X-DS-Mutation-Metadata"]
+        api.patch(path, EDITOR, """{"size":23}""")
+        val state = api.read(base, VIEWER)
+        val replay = api.call("PATCH", path, EDITOR, body, key)
+        assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
+        assertEquals(originalBody, replay.bodyAsText())
+        assertEquals(originalMetadata, replay.headers["X-DS-Mutation-Metadata"])
+        assertEquals(state, api.read(base, VIEWER))
+        assertEquals(HttpStatusCode.Conflict, api.call("PATCH", path, EDITOR, """{"size":25}""", key).status)
+        assertEquals(HttpStatusCode.Forbidden, api.call("PATCH", path, VIEWER, body, key).status)
     }
 
     /** Ссылки на стиль через `token_id` и текст с экраном в значении инварианта — новыми редакциями черновика. */
@@ -165,7 +189,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
         api.reject("POST", base, OWNER, """{"group":"caption","size":"promo-title"}""", 201)
         var read = api.read(base, VIEWER)
         assertTrue(hasStyle(read, "caption", "promo-title"))
-        val groups = "/api/ds/tenants/${base.split('/')[4]}/typography-groups"
+        val groups = "${base.substringBeforeLast('/')}/typography-groups"
         api.reject("PATCH", "$groups/body", EDITOR, """{"name":"copy"}""", 400)
         api.reject("PATCH", "$groups/caption", EDITOR, """{"name":"body"}""", 409)
         api.reject("PATCH", "$groups/caption", EDITOR, """{"name":"note"}""", 200)
@@ -373,7 +397,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
             .single { db.platform(it) == "web" }
         val change = api.changes(designSystemId)
             .single { it.text("entityType") == "token-value" && it.text("entityId") == webValue }
-        api.revert(designSystemId, change.text("changeId"), change.long("editRevision"))
+        api.revert(designSystemId, change)
         assertEquals("1.125rem", db.field(tenantA, designSystemId, "screen-l.body.m.normal", "web", "fontSize"))
         assertEquals("1.25rem", db.field(tenantA, designSystemId, "screen-l.body.m.medium", "web", "fontSize"))
     }
@@ -411,10 +435,17 @@ class TypographyStyleHttpPostgresIntegrationTest {
     private class Mutation(val body: JsonObject, val metadata: List<JsonObject>, val truncated: String?)
 
     private inner class Api(private val client: HttpClient) {
-        suspend fun call(method: String, path: String, actor: Actor, body: String? = null): HttpResponse =
+        suspend fun call(
+            method: String,
+            path: String,
+            actor: Actor,
+            body: String? = null,
+            key: String? = null,
+        ): HttpResponse =
             client.request(path) {
                 this.method = HttpMethod.parse(method)
                 trusted(actor)
+                key?.let { header("Idempotency-Key", it) }
                 body?.let { jsonBody(it) }
             }
 
@@ -442,16 +473,16 @@ class TypographyStyleHttpPostgresIntegrationTest {
         }
 
         suspend fun createTenant(designSystemId: String, name: String) =
-            create("/api/ds/tenants", EDITOR, """{"designSystemId":"$designSystemId","name":"$name"}""")
+            create("/api/design-systems/$designSystemId/tenants", EDITOR, """{"name":"$name"}""")
 
         suspend fun publish(designSystemId: String): String {
-            val system = read("/api/ds/design-systems/$designSystemId", VIEWER)
-            val response = client.request("/api/ds/design-system-versions") {
+            val system = read("/api/design-systems/$designSystemId", VIEWER)
+            val response = client.request("/api/design-systems/$designSystemId/versions") {
                 method = HttpMethod.Post
                 trusted(OWNER)
                 header("Idempotency-Key", UUID.randomUUID().toString())
                 jsonBody(
-                    """{"designSystemId":"$designSystemId","draftId":"${system.text("draftId")}",""" +
+                    """{"draftId":"${system.text("draftId")}",""" +
                         """"draftRevision":${system.number("draftRevision")},""" +
                         """"version":"1.0.0","changelog":"Typography"}""",
                 )
@@ -461,16 +492,21 @@ class TypographyStyleHttpPostgresIntegrationTest {
         }
 
         suspend fun changes(designSystemId: String): JsonArray {
-            val response = call("GET", "/api/ds/design-systems/$designSystemId/changes", VIEWER)
+            val response = call("GET", "/api/design-systems/$designSystemId/changes", VIEWER)
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
             return body(response).jsonArray
         }
 
-        suspend fun revert(designSystemId: String, changeId: String, revision: Long) {
-            val response = client.request("/api/ds/design-systems/$designSystemId/changes/$changeId/revert") {
+        suspend fun revert(designSystemId: String, change: JsonElement) {
+            val response = client.request("/api/design-systems/$designSystemId/changes/revert-by-address") {
                 method = HttpMethod.Post
                 trusted(OWNER)
-                header("X-DS-Base-Revision", revision.toString())
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"draftId":"${change.text("versionId")}","targets":[{""" +
+                        """"entityType":"${change.text("entityType")}","entityId":"${change.text("entityId")}",""" +
+                        """"expectedRevision":${change.long("editRevision")}}]}""",
+                )
                 header("Idempotency-Key", UUID.randomUUID().toString())
             }
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())

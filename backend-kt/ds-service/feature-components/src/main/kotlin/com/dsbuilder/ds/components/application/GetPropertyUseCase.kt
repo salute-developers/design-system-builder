@@ -16,6 +16,6 @@ class GetPropertyUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<ComponentPropertySummary> =
         modelFind(policy, transactions, context) {
-            repository.findProperty(context.projectId, context.principal.systemAdmin, id)
+            repository.findProperty(context.projectId, context.principal.globalAdmin, id)
         }
 }

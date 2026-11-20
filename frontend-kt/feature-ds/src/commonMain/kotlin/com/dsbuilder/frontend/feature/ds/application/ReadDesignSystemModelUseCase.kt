@@ -76,7 +76,7 @@ public class ReadDesignSystemModelUseCase internal constructor(
                     "apiUrl" to JsonPrimitive(runtime.apiUrl.value),
                     "credentialType" to JsonPrimitive(
                         when (runtime.credential) {
-                            is BackendCredential.ProjectKey -> "PROJECT_KEY"
+                            is BackendCredential.PersonalAccessToken -> "PERSONAL_ACCESS_TOKEN"
                             is BackendCredential.Bearer -> "USER_SESSION"
                             is BackendCredential.ServiceToken -> "SERVICE_TOKEN"
                         },

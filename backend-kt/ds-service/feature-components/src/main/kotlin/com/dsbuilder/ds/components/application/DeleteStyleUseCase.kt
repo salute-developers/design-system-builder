@@ -15,6 +15,6 @@ class DeleteStyleUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> =
         modelDelete(policy, transactions, context) {
-            repository.deleteAccessible(context.projectId, context.principal.systemAdmin, id)
+            repository.deleteAccessible(context.projectId, context.principal.globalAdmin, id)
         }
 }

@@ -61,6 +61,13 @@
 - **WHEN** манифест задаёт `generic` с `propsType`, `itemType`, `refElement`
 - **THEN** обёртка MUST быть файлом `.tsx`, сохраняющим параметр типа элемента списка через `fixedForwardRef`
 
+#### Scenario: Дженерик-обёртка с несколькими appearance
+
+- **WHEN** манифест задаёт `generic`, а у компонента больше одного конфига
+- **THEN** обёртка MUST собрать компонент ядра на каждый appearance из его конфига темы `<X>.config.ts` или `<X>.<appearance>.config.ts`
+- **THEN** выбор appearance MUST выполняться через `createConditionalComponent` по пропу `appearance`
+- **THEN** тип пропсов MUST содержать необязательный `appearance` с перечислением имён appearance и сохранять параметр типа элемента списка
+
 #### Scenario: Приведение типа
 
 - **WHEN** манифест задаёт `castToProps`
@@ -71,6 +78,12 @@
 
 - **WHEN** манифест перечисляет `siblings`
 - **THEN** для каждого MUST быть записана пустая обёртка над указанным конфигом ядра рядом с компонентом
+
+#### Scenario: Компоненту нужна тема пакета
+
+- **WHEN** манифест задаёт `requiresTheme: true`
+- **THEN** компонент MUST генерироваться только в пакет, где есть тема
+- **THEN** без темы генератор MUST пропустить компонент, напечатать предупреждение с его именем и MUST NOT завершаться ошибкой
 
 ### Requirement: Composite components live in the parent folder
 
@@ -108,4 +121,28 @@
 
 - **WHEN** сборка сгенерированного пакета завершается ошибкой
 - **THEN** CLI MUST вывести stderr сборки и завершить команду с ненулевым кодом
+
+### Requirement: Вид по точкам перелома
+
+Манифест компонента SHALL уметь задать `breakpointView: { function, paramSuffix }`. Для каждого стиля, у которого есть значения web-параметров с окончанием `paramSuffix`, генератор SHALL вставлять в CSS стиля вызов функции ядра `function` с объектом «CSS-переменная параметра → значение» и именем стиля, перед значениями стиля.
+
+#### Scenario: Grid
+
+- **WHEN** у Grid в стиле `view.default` есть значения `smallMMinWidth` и `largeMMinWidth`, а манифест задаёт `breakpointView: { function: "getBaseGridView", paramSuffix: "MinWidth" }`
+- **THEN** `Grid.config.ts` MUST содержать `${getBaseGridView({ [gridTokens.smallMMinWidth]: '0rem', [gridTokens.largeMMinWidth]: '75rem' }, 'default')};` в стиле `default`
+- **THEN** функция MUST импортироваться из `@salutejs/plasma-new-hope/styled-components`
+
+#### Scenario: Компонент без признака
+
+- **WHEN** манифест не задаёт `breakpointView`
+- **THEN** конфиг MUST совпадать с прежним
+
+### Requirement: Свойство типа integer
+
+Генератор SHALL записывать значение свойства типа `integer` в конфиг числом без единиц.
+
+#### Scenario: Число колонок
+
+- **WHEN** у Grid свойство `smallMColsCount` типа `integer` со значением `6`
+- **THEN** конфиг MUST содержать `${gridTokens.smallMColsCount}: 6;`
 

@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.auth.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.feature.auth.application.AuthStatusCommand
 import com.dsbuilder.frontend.feature.auth.application.AuthStatusResult
@@ -37,9 +38,9 @@ internal class AuthCliCommand(
 internal class AuthLoginCliCommand(
     private val useCase: LoginUseCase,
     private val apiUrlResolver: ApiUrlResolver,
-) : CliktCommand(name = "login") {
+) : AnalyticsCliCommand(name = "login", operation = "auth login") {
 
-    override fun run() {
+    override fun runOperation() {
         val resolvedApiUrl = apiUrlResolver.resolve(null)
         echo("API URL: ${resolvedApiUrl.value} (from ${resolvedApiUrl.sourceName})")
         val result = runBlocking {
@@ -66,9 +67,9 @@ internal class AuthLoginCliCommand(
  */
 internal class AuthStatusCliCommand(
     private val useCase: AuthStatusUseCase,
-) : CliktCommand(name = "status") {
+) : AnalyticsCliCommand(name = "status", operation = "auth status") {
 
-    override fun run() {
+    override fun runOperation() {
         val result = runBlocking { useCase.execute(AuthStatusCommand(apiUrlOverride = null)) }
         when (result) {
             is AuthStatusResult.LoggedIn -> echo("Logged in: ${result.username} (${result.apiUrl})")
@@ -84,9 +85,9 @@ internal class AuthStatusCliCommand(
  */
 internal class AuthLogoutCliCommand(
     private val useCase: LogoutUseCase,
-) : CliktCommand(name = "logout") {
+) : AnalyticsCliCommand(name = "logout", operation = "auth logout") {
 
-    override fun run() {
+    override fun runOperation() {
         val result = runBlocking { useCase.execute(LogoutCommand(apiUrlOverride = null)) }
         when (result) {
             is LogoutResult.Failed -> {

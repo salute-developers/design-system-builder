@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Config } from '../controllers';
 
@@ -34,52 +34,104 @@ export const getDefaultProps = (config: Config) => {
     return defaults;
 };
 
-const getDefaults = (config?: Config, args?: Record<string, string | boolean>) => {
-    if (config === undefined) {
-        return { variationID: undefined, styleID: undefined };
-    }
+/** Вариации, в которых уже можно что-то выбрать: у заглушки модели, пока компонент грузится, стилей нет. */
+export const selectableVariations = (config: Config) =>
+    new Set(
+        config
+            .getVariations()
+            .filter((variation) => (variation.getStyles()?.length ?? 0) > 0)
+            .map((variation) => variation.getName()),
+    );
 
-    const variations = config.getVariations();
-    const variationNames = new Set(variations.map((item) => item.getName()));
-    const entries = Object.entries(args as Record<string, string>).filter(([key]) => variationNames.has(key));
+/** Имена стилей экземпляра модели по ключу `вариация:ID стиля`. */
+export const styleNames = (config: Config) =>
+    new Map(
+        config
+            .getVariations()
+            .flatMap((variation) =>
+                (variation.getStyles() ?? []).map((style) => [
+                    `${variation.getName()}:${style.getID()}`,
+                    style.getName(),
+                ]),
+            ),
+    );
 
-    if (entries.length === 0) {
-        return { variationID: undefined, styleID: undefined };
-    }
+/**
+ * Выбор, сделанный в прежнем экземпляре того же компонента, после перечитывания (например, после автосохранения):
+ * сохраняются стили, которые ещё есть в модели; стиль, получивший серверный ID вместо временного, находится по имени
+ * в той же вариации; выключенный флаг остаётся выключенным; удалённый стиль заменяется стилем по умолчанию. Вариация, в которой прежде выбрать было нечего (заглушка до загрузки компонента или новая
+ * вариация), получает стиль по умолчанию.
+ */
+export const keepSelection = (
+    config: Config,
+    current: Record<string, string | boolean>,
+    defaults: Record<string, string | boolean>,
+    known: ReadonlySet<string>,
+    /** Имена стилей прежнего экземпляра ({@link styleNames}). */
+    previousNames: ReadonlyMap<string, string> = new Map(),
+) => {
+    const kept: Record<string, string | boolean> = {};
 
-    const [variation, value] = entries[0];
-    const variationID = variations.find((item) => item.getName() === variation)?.getID();
+    config.getVariations().forEach((variation) => {
+        const name = variation.getName();
+        const value = current[name];
 
-    return { variationID, styleID: value };
+        if (!known.has(name)) {
+            if (defaults[name] !== undefined) kept[name] = defaults[name];
+            return;
+        }
+
+        if (value === undefined) {
+            return;
+        }
+
+        const renamed = (id: string) => {
+            const styleName = previousNames.get(`${name}:${id}`);
+            return styleName
+                ? variation
+                      .getStyles()
+                      ?.find((style) => style.getName() === styleName)
+                      ?.getID()
+                : undefined;
+        };
+        const next =
+            typeof value === 'string'
+                ? variation.getStyle(value)
+                    ? value
+                    : (renamed(value) ?? defaults[name])
+                : defaults[name];
+
+        if (next !== undefined) {
+            kept[name] = next;
+        }
+    });
+
+    return kept;
 };
 
 /** Выбор вариаций редактора: стили по умолчанию при открытии компонента. Аргументы story описывает плагин превью. */
 export const useComponentData = (config?: Config) => {
     const [componentProps, setComponentProps] = useState<Record<string, string | boolean>>({});
-    const { variationID, styleID } = getDefaults(config, componentProps);
-
-    const [selectedVariation, setSelectedVariation] = useState<undefined | string>(variationID);
-    const [selectedStyle, setSelectedStyle] = useState<undefined | string>(styleID);
+    // Компонент, которому принадлежит выбор, и его вариации со стилями: при перечитывании того же компонента выбор
+    // не сбрасывается, а вариации, которые только что получили стили, встают на стили по умолчанию.
+    // Прежний экземпляр хранится целиком: стиль, добавленный редактором, попадает в него уже после эффекта.
+    const owner = useRef<{ key: string; known: ReadonlySet<string>; config: Config }>();
 
     useEffect(() => {
         if (!config) {
             return;
         }
 
+        const key = `${config.getPlatform()}:${config.getName()}`;
         const defaults = getDefaultProps(config);
-        setComponentProps(defaults);
+        const previous = owner.current?.key === key ? owner.current : undefined;
+        const previousNames = previous ? styleNames(previous.config) : undefined;
+        owner.current = { key, known: selectableVariations(config), config };
 
-        const newDefaults = getDefaults(config, defaults);
-        setSelectedVariation(newDefaults.variationID);
-        setSelectedStyle(newDefaults.styleID);
+        setComponentProps((current) =>
+            previous ? keepSelection(config, current, defaults, previous.known, previousNames) : defaults,
+        );
     }, [config]);
 
-    return [
-        selectedVariation,
-        setSelectedVariation,
-        selectedStyle,
-        setSelectedStyle,
-        componentProps,
-        setComponentProps,
-    ] as const;
+    return [componentProps, setComponentProps] as const;
 };

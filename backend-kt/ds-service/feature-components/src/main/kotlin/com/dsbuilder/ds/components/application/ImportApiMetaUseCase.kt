@@ -33,7 +33,7 @@ class ImportApiMetaUseCase(
         command: ImportApiMeta,
         idempotencyKey: String? = null,
     ): DsResult<ApiMetaImportReport> {
-        if (!context.principal.systemAdmin) return DsResult.Failure(DsFailure.Forbidden)
+        if (!context.principal.globalAdmin) return DsResult.Failure(DsFailure.Forbidden)
         if (idempotencyKey != null && idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
             return DsResult.Failure(DsFailure.InvalidRequest("idempotency_key_too_long"))
         }

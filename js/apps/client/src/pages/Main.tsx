@@ -2,6 +2,7 @@ import { useChangedTokenNames } from '../features/versionJournal/useChangedToken
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
+import { SymbolsOutline } from '@salutejs/sdds-icons/16';
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 import { isDebugMode, isComponentEditorEnabled } from '../utils';
 import { useDesignSystem, useForceRerender } from '../hooks';
@@ -11,6 +12,7 @@ import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell
 import { Visible } from '../components/rendering';
 import { IconColorSwatchOutline } from '../icons';
 import { StyledSpinner as EditorLoadingSpinner } from '../components/EditorLoading/EditorLoading.styles';
+import { ComponentsSectionSkeleton } from './components/ComponentsSectionSkeleton';
 
 import { AutosaveIndicator } from '../components/AutosaveIndicator';
 import { McpLinkButton } from '../components/McpLinkButton';
@@ -36,6 +38,7 @@ const editorSectionLabels: Record<string, string> = {
     typography: 'Типографика',
     shapes: 'Отступы, радиусы и тени',
     components: 'Компоненты',
+    icons: 'Иконки',
     changes: 'Журнал изменений',
     versions: 'Версии',
     settings: 'Настройки темы',
@@ -71,7 +74,9 @@ export const Main = () => {
     const editorSectionLabel = editorSectionLabels[editorSection] ?? 'Редактор';
     /** Экраны токенов и палитра сами показывают загрузку скелетонами и ошибку загрузки с «Повторить». */
     const ownsSectionStates =
-        Boolean(editorContext) && ['palette', 'colors', 'typography', 'shapes'].includes(editorSection);
+        Boolean(editorContext) && ['palette', 'colors', 'typography', 'shapes', 'icons'].includes(editorSection);
+    /** Раздел компонентов на время загрузки показывает свой скелетон вместо общего спиннера. */
+    const componentsSkeleton = Boolean(editorContext) && editorSection === 'components';
     const sectionSelection = useMemo(
         () => ({
             section: toEditorSection(editorSection),
@@ -100,6 +105,7 @@ export const Main = () => {
         componentError,
         hasConfiguredComponents,
         reload,
+        loadComponent,
         palette,
         paletteError,
         setPalette,
@@ -107,13 +113,15 @@ export const Main = () => {
         lastSavedAt,
         retryAutosave,
         refreshChanges,
+        refreshRevision,
     } = useDesignSystem(editorContext, true, sectionSelection);
 
     // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
     const isEditingDesignSystem = Boolean(editorContext);
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
-    // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
-    const hasComponents = isComponentEditorEnabled() && hasConfiguredComponents;
+    // Раздел «Компоненты» показываем, если к ДС привязан хотя бы один компонент. Пока тема грузится, кнопка видна
+    // вместе с остальными: иначе она появляется с задержкой и сдвигает нижние кнопки.
+    const hasComponents = isComponentEditorEnabled() && (hasConfiguredComponents || !designSystem);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = !isEditingDesignSystem;
     const isEditorLoading = Boolean(editorContext && !designSystem && !loadError);
@@ -127,7 +135,7 @@ export const Main = () => {
         Boolean(designSystem) && journalOpen,
     );
     useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
-    const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}`;
+    const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}:${refreshRevision}`;
     const changedTokenNames = useChangedTokenNames(
         editorContext,
         tokenDefinitions,
@@ -264,6 +272,16 @@ export const Main = () => {
                                             </StyledIconButton>
                                         </>
                                     ) : null}
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('icons') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-icons"
+                                        aria-label={editorSectionLabels.icons}
+                                        title={editorSectionLabels.icons}
+                                        selected={currentPath.includes('icons')}
+                                        onClick={() => onClickPanelButton('icons')}
+                                    >
+                                        <SymbolsOutline color="inherit" />
+                                    </StyledIconButton>
                                     <Separator />
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('changes') ? 'is-active' : ''}`}
@@ -380,7 +398,9 @@ export const Main = () => {
                     </>
                 ) : null}
                 <EditorCanvas>
-                    {!ownsSectionStates && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
+                    {componentsSkeleton && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
+                        <ComponentsSectionSkeleton />
+                    ) : !ownsSectionStates && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
                         <div
                             className="editor-section-loading"
                             role="status"
@@ -407,6 +427,7 @@ export const Main = () => {
                                 updated,
                                 rerender,
                                 reload,
+                                loadComponent,
                                 componentLoading,
                                 componentError,
                                 palette,

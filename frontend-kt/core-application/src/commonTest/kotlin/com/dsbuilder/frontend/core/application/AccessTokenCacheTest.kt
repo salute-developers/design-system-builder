@@ -1,8 +1,8 @@
 package com.dsbuilder.frontend.core.application
 
-import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
+import com.dsbuilder.frontend.core.auth.PatResolver
 import com.dsbuilder.frontend.core.auth.RotatingCredentialStore
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
@@ -34,7 +34,7 @@ class AccessTokenCacheTest {
             }
             override suspend fun logout(apiUrl: String, refreshToken: String) = AuthResult.Success(Unit)
         }
-        val provider = RuntimeCredentialProvider(ApiKeyResolver { null }, store, tokens, nowMillis = { now })
+        val provider = RuntimeCredentialProvider(PatResolver { null }, store, tokens, nowMillis = { now })
         val request =
             CredentialRequest(
                 ProjectApiUrl("https://example.com"),
@@ -67,8 +67,8 @@ class AccessTokenCacheTest {
             }
             override suspend fun logout(apiUrl: String, refreshToken: String) = AuthResult.Success(Unit)
         }
-        val a = RuntimeCredentialProvider(ApiKeyResolver { null }, store, tokens, nowMillis = { 0L })
-        val b = RuntimeCredentialProvider(ApiKeyResolver { null }, store, tokens, nowMillis = { 0L })
+        val a = RuntimeCredentialProvider(PatResolver { null }, store, tokens, nowMillis = { 0L })
+        val b = RuntimeCredentialProvider(PatResolver { null }, store, tokens, nowMillis = { 0L })
         val request =
             CredentialRequest(
                 ProjectApiUrl("https://example.com"),
@@ -99,7 +99,7 @@ class AccessTokenCacheTest {
             }
             override suspend fun logout(apiUrl: String, refreshToken: String) = AuthResult.Success(Unit)
         }
-        val provider = RuntimeCredentialProvider(ApiKeyResolver { null }, store, tokens, nowMillis = { 0L })
+        val provider = RuntimeCredentialProvider(PatResolver { null }, store, tokens, nowMillis = { 0L })
         val request =
             CredentialRequest(
                 ProjectApiUrl("https://example.com"),
@@ -121,7 +121,7 @@ class AccessTokenCacheTest {
                 fail("Несовместимый refresh token не должен отправляться")
             override suspend fun logout(apiUrl: String, refreshToken: String) = AuthResult.Success(Unit)
         }
-        val provider = RuntimeCredentialProvider(ApiKeyResolver { null }, store, tokens, nowMillis = { 0L })
+        val provider = RuntimeCredentialProvider(PatResolver { null }, store, tokens, nowMillis = { 0L })
         val result = provider.resolve(ProjectApiUrl("https://example.com"), null, CredentialEnvName("KEY"))
         assertEquals(AuthErrorCode.AUTH_REQUIRED, assertIs<CredentialResult.Failed>(result).code)
     }

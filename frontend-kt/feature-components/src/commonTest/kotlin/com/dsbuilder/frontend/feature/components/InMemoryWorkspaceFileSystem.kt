@@ -46,8 +46,8 @@ internal class InMemoryWorkspaceFileSystem(
         files[path] = text
     }
 
-    // Двоичные операции пакетом не используются: конфигурации и `meta.json` — текст.
-    override fun readBytes(path: String): ByteArray = error("не используется")
+    // Файлы хранятся текстом: SVG и манифест иконок читаются как UTF-8.
+    override fun readBytes(path: String): ByteArray = files.getValue(path).encodeToByteArray()
 
     override fun writeBytes(path: String, bytes: ByteArray): Unit = error("не используется")
 

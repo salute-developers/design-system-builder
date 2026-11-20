@@ -1,9 +1,9 @@
 package com.dsbuilder.frontend.cli.feature.docs.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.feature.docs.application.DocsPublishCommand
 import com.dsbuilder.frontend.feature.docs.application.DocsPublishResult
 import com.dsbuilder.frontend.feature.docs.application.DocsPublishUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.default
@@ -17,7 +17,7 @@ import kotlinx.coroutines.runBlocking
  */
 internal class DocsPublishCliCommand(
     private val publishUseCase: DocsPublishUseCase,
-) : CliktCommand(name = "publish") {
+) : AnalyticsCliCommand(name = "publish", operation = "docs publish") {
 
     private val bundle: String by option("--bundle")
         .default(".sdds/temp/docs-bundle.tar.gz")
@@ -25,9 +25,8 @@ internal class DocsPublishCliCommand(
     private val apiKey: String? by option("--api-key")
 
     private val designSystem: String? by option("--design-system")
-    private val projectKeyEnv: String? by option("--project-key-env")
 
-    override fun run() {
+    override fun runOperation() {
         val result = runBlocking {
             publishUseCase.execute(
                 DocsPublishCommand(
@@ -35,7 +34,6 @@ internal class DocsPublishCliCommand(
                     apiKeyOverride = apiKey,
                     apiUrlOverride = null,
                     designSystemUri = designSystem,
-                    projectKeyEnvName = projectKeyEnv,
                 ),
             )
         }

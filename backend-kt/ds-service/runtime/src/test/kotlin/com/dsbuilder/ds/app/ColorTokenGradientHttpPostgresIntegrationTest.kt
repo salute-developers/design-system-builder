@@ -1,5 +1,15 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
+import com.dsbuilder.ds.core.application.DsFailure
+import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.data.ExposedTransactionRunner
+import com.dsbuilder.ds.core.data.PostgresTransactionFailureMapper
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
+import com.dsbuilder.ds.themes.data.ExposedColorTokenRepository
+import com.dsbuilder.ds.themes.domain.ThemeTokenMode
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
@@ -24,9 +34,13 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.sql.DriverManager
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -35,8 +49,726 @@ import kotlin.test.assertTrue
  * платформ строкой и слоем при чтении, признак своего значения, журнал без производного типа, откат с пересчётом
  * типа, ссылки на палитру в стопах градиента в текущей и опубликованной версии, связи и удаление растяжки.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ColorTokenGradientHttpPostgresIntegrationTest {
+    @Test
+    fun `color batch preserves individual revision warnings and rejects invalid values atomically`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val members = api.body(created).jsonObject.getValue("value").jsonObject.array("members")
+                    .associate { it.text("name") to it.text("tokenId") }
+                val base = members.getValue("text.default.highlight")
+                val hover = members.getValue("text.default.highlight-hover")
+                val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$base/values"
+                val original = api.values(system, tenant)
+                val baseBefore = value(original, base, "web", "light").getValue("editRevision").jsonPrimitive.long
+                val hoverBefore = value(original, hover, "web", "light").getValue("editRevision").jsonPrimitive.long
+                fun body(baseRevision: Long, hoverRevision: Long?, color: String): String {
+                    fun member(id: String, revision: Long) =
+                        """{"tokenId":"$id","values":[{"platform":"web","mode":"light","value":["$color"],"baseRevision":$revision}]}"""
+                    val entries = listOfNotNull(member(base, baseRevision), hoverRevision?.let { member(hover, it) })
+                    return """{"editRevision":0,"members":[${entries.joinToString(",")}]}"""
+                }
+                assertEquals(HttpStatusCode.OK, api.call("PUT", path, EDITOR, body(baseBefore, null, "#111111")).status)
+                val afterFirst = api.values(system, tenant)
+                val baseCurrent = value(afterFirst, base, "web", "light").getValue("editRevision").jsonPrimitive.long
+                assertTrue(baseCurrent > baseBefore)
+                val warned = api.call("PUT", path, EDITOR, body(baseBefore, hoverBefore, "#222222"))
+                assertEquals(HttpStatusCode.OK, warned.status, warned.bodyAsText())
+                val metadata = json.parseToJsonElement(requireNotNull(warned.headers["X-DS-Mutation-Metadata"]))
+                    .jsonArray.filter { it.text("entityType") == "token-value" }
+                val baseEntity = value(original, base, "web", "light").text("id")
+                val hoverEntity = value(original, hover, "web", "light").text("id")
+                assertTrue(
+                    metadata.single { it.text("entityId") == baseEntity }.jsonObject.getValue(
+                        "warnings",
+                    ).jsonArray.isNotEmpty(),
+                )
+                assertTrue(
+                    metadata.single { it.text("entityId") == hoverEntity }.jsonObject.getValue(
+                        "warnings",
+                    ).jsonArray.isEmpty(),
+                )
+                val beforeInvalid = api.values(system, tenant)
+                val invalid = body(baseCurrent, hoverBefore, "#444444").replaceFirst("#444444", "not-a-color")
+                val rejected = api.call("PUT", path, EDITOR, invalid)
+                assertEquals(HttpStatusCode.BadRequest, rejected.status, rejected.bodyAsText())
+                assertEquals(beforeInvalid.toSet(), api.values(system, tenant).toSet(), "ошибка отменяет весь пакет")
+                val saved = api.call("PUT", path, EDITOR, body(baseCurrent, hoverBefore, "#333333"))
+                assertEquals(HttpStatusCode.OK, saved.status, saved.bodyAsText())
+                val result = api.values(system, tenant)
+                for (token in listOf(base, hover)) {
+                    assertEquals(
+                        JsonArray(listOf(JsonPrimitive("#333333"))),
+                        value(
+                            result,
+                            token,
+                            "web",
+                            "light",
+                        ).getValue("value"),
+                    )
+                    assertEquals(value(original, token, "web", "dark"), value(result, token, "web", "dark"))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `concurrent batches create one missing address and keep both edit revisions`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"missing","projectName":"missing"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("race"),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val token = api.body(created).obj("value").array("members").first().text("tokenId")
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(
+                            "DELETE FROM token_value_revisions WHERE token_value_id IN " +
+                                "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' " +
+                                "AND platform='web' AND mode='light')",
+                        )
+                        statement.execute(
+                            "DELETE FROM entity_edit_states WHERE entity_type='token-value' AND entity_id IN " +
+                                "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' " +
+                                "AND platform='web' AND mode='light')",
+                        )
+                        statement.execute(
+                            "DELETE FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light'",
+                        )
+                        statement.execute(
+                            """
+                            CREATE FUNCTION delay_new_value() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN PERFORM pg_sleep(0.15); RETURN NEW; END; ${'$'}${'$'};
+                            CREATE TRIGGER delay_new_value BEFORE INSERT ON token_values FOR EACH ROW EXECUTE FUNCTION delay_new_value();
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values"
+                fun body(color: String) =
+                    """{"editRevision":0,"members":[{"tokenId":"$token","values":[{"platform":"web","mode":"light","paletteId":null,"value":["$color"],"baseRevision":0}]}]}"""
+                val responses = kotlinx.coroutines.withTimeout(30_000) {
+                    coroutineScope {
+                        val first = async { api.call("PUT", path, EDITOR, body("#123456")) }
+                        val second = async { api.call("PUT", path, EDITOR, body("#654321")) }
+                        listOf(first.await(), second.await())
+                    }
+                }
+                for (response in responses) assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+                val selected = api.values(system, tenant).filter {
+                    it.text("tokenId") == token && it.text("platform") == "web" && it.text("mode") == "light"
+                }
+                assertEquals(1, selected.size)
+                assertEquals(2, selected.single().number("editRevision"))
+                val warnings = responses.flatMap { response ->
+                    json.parseToJsonElement(requireNotNull(response.headers["X-DS-Mutation-Metadata"])).jsonArray
+                }.filter {
+                    it.text("entityType") == "token-value" &&
+                        it.text("entityId") == selected.single().text("id")
+                }
+                assertEquals(2, warnings.size)
+                assertTrue(warnings.any { it.jsonObject.getValue("warnings").jsonArray.isNotEmpty() })
+                val invalid = api.call(
+                    "PUT",
+                    path,
+                    EDITOR,
+                    body("#abcdef").replace(
+                        "\"mode\":\"light\"",
+                        "\"mode\":null",
+                    ),
+                )
+                assertEquals(HttpStatusCode.BadRequest, invalid.status)
+                assertEquals(
+                    selected,
+                    api.values(
+                        system,
+                        tenant,
+                    ).filter { it.text("id") == selected.single().text("id") },
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `color batch with an inaccessible draft returns not found and rolls back the transaction`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create(
+                    "/api/design-systems",
+                    OWNER,
+                    """{"name":"missing-draft","projectName":"batch"}""",
+                )
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
+                val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute("CREATE TABLE rollback_probe(value integer NOT NULL)")
+                    }
+                }
+                val database = Database.connect(
+                    postgres.jdbcUrl,
+                    user = postgres.username,
+                    password = postgres.password,
+                )
+                val result = ExposedTransactionRunner(database, PostgresTransactionFailureMapper()).required {
+                    TransactionManager.current().exec("INSERT INTO rollback_probe VALUES (1)")
+                    TransactionManager.current().exec("SET LOCAL ds.project_id = 'other-project'")
+                    ExposedColorTokenRepository().replaceValues(
+                        UUID.fromString(tenant),
+                        mapOf(
+                            UUID.fromString(token) to listOf(ColorTokenValue(ThemeTokenPlatform.WEB, ThemeTokenMode.LIGHT, null, JsonArray(listOf(JsonPrimitive("#123456"))))),
+                        ),
+                    )
+                    DsResult.Success(Unit)
+                }
+                assertEquals(DsResult.Failure(DsFailure.NotFound), result)
+                assertEquals("0", text(postgres, "SELECT count(*)::text FROM rollback_probe", raw = true))
+                assertEquals("""["#FFFFFF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
+            }
+        }
+    }
+
     private val json = Json { ignoreUnknownKeys = false }
+
+    @Test
+    fun `addressed revert serializes with writes creation rename delete and publication`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                for (operation in listOf("write", "create", "rename", "delete", "publish")) {
+                    val system = api.create(
+                        "/api/design-systems",
+                        OWNER,
+                        """{"name":"race-$operation","projectName":"race-$operation"}""",
+                    )
+                    val tenant = api.createTenant(system, "theme")
+                    val created = api.call(
+                        "POST",
+                        "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                        MAINTAINER,
+                        createBody("brand"),
+                    )
+                    val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                    api.publish(postgres, system, "1.0.0")
+                    assertEquals(
+                        HttpStatusCode.OK,
+                        api.call(
+                            "PUT",
+                            "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values",
+                            EDITOR,
+                            solidBody(token, "#123456"),
+                        ).status,
+                    )
+                    val draft = api.read("/api/design-systems/$system").text("draftId")
+                    val changes = api.journal(system)
+                    val targets = JsonArray(
+                        changes.map { change ->
+                            JsonObject(
+                                mapOf(
+                                    "entityType" to change.getValue("entityType"),
+                                    "entityId" to change.getValue("entityId"),
+                                    "expectedRevision" to change.getValue("editRevision"),
+                                ),
+                            )
+                        },
+                    )
+                    val addressBody = """{"draftId":"$draft","targets":$targets}"""
+                    val selected = api.values(system, tenant).single {
+                        it.text("tokenId") == token && it.text("platform") == "web" && it.text("mode") == "light"
+                    }
+                    val publicationRevision =
+                        text(postgres, "SELECT resolved_draft_revision('$draft')::text", raw = true)
+                    val (reverted, concurrent) = kotlinx.coroutines.withTimeout(30_000) {
+                        coroutineScope {
+                            val revert = async {
+                                api.call(
+                                    "POST",
+                                    "/api/design-systems/$system/changes/revert-by-address",
+                                    OWNER,
+                                    addressBody,
+                                    idempotencyKey = "race-revert-$operation",
+                                )
+                            }
+                            val other = async {
+                                when (operation) {
+                                    "write" -> api.call(
+                                        "PATCH",
+                                        "/api/design-systems/$system/token-values/${selected.text("id")}",
+                                        EDITOR,
+                                        """{"value":["#ABCDEF"]}""",
+                                        base = selected.number("editRevision").toLong(),
+                                    )
+                                    "create" -> api.call(
+                                        "POST",
+                                        "/api/design-systems/$system/tenants",
+                                        EDITOR,
+                                        """{"name":"parallel"}""",
+                                    )
+                                    "rename" -> api.call(
+                                        "PATCH",
+                                        "/api/design-systems/$system/tokens/$token",
+                                        MAINTAINER,
+                                        """{"name":"text.default.renamed"}""",
+                                    )
+                                    "delete" -> api.call("DELETE", "/api/design-systems/$system/tokens/$token", OWNER)
+                                    else -> api.call(
+                                        "POST",
+                                        "/api/design-systems/$system/versions",
+                                        OWNER,
+                                        """{"draftId":"$draft","draftRevision":$publicationRevision,"version":"1.0.1","changelog":"race"}""",
+                                        idempotencyKey = "race-publish",
+                                    )
+                                }
+                            }
+                            revert.await() to other.await()
+                        }
+                    }
+                    assertTrue(
+                        reverted.status in setOf(HttpStatusCode.OK, HttpStatusCode.Conflict),
+                        "$operation revert: ${reverted.status} ${reverted.bodyAsText()}",
+                    )
+                    assertTrue(
+                        concurrent.status in setOf(HttpStatusCode.OK, HttpStatusCode.Created, HttpStatusCode.Conflict),
+                        "$operation other: ${concurrent.status} ${concurrent.bodyAsText()}",
+                    )
+                    assertTrue(reverted.status == HttpStatusCode.OK || concurrent.status != HttpStatusCode.Conflict)
+                    if (operation == "publish") {
+                        assertTrue(
+                            reverted.status != HttpStatusCode.OK || concurrent.status == HttpStatusCode.Conflict,
+                            "$operation: ${reverted.status} / ${concurrent.status}",
+                        )
+                    }
+                    if (operation == "write" && concurrent.status == HttpStatusCode.OK) {
+                        assertEquals("""["#ABCDEF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
+                    }
+                    if (reverted.status == HttpStatusCode.OK && operation != "delete" &&
+                        !(operation == "write" && concurrent.status == HttpStatusCode.OK)
+                    ) {
+                        assertEquals("""["#FFFFFF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
+                    }
+                    assertEquals(
+                        "color",
+                        text(
+                            postgres,
+                            "SELECT type FROM token_revisions WHERE token_id='$token' ORDER BY " +
+                                "version_sequence_number DESC LIMIT 1",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `literal dependency validation rejects a hidden tenant before reference shortcut`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create(
+                    "/api/design-systems",
+                    OWNER,
+                    """{"name":"visibility","projectName":"visibility"}""",
+                )
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
+                val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values"
+                assertEquals(HttpStatusCode.OK, api.call("PUT", path, EDITOR, solidBody(token, "#123456")).status)
+                val change = api.journal(system).first { it.text("entityType") == "token-value" }
+                val database = org.jetbrains.exposed.v1.jdbc.Database.connect(
+                    postgres.jdbcUrl,
+                    user = postgres.username,
+                    password = postgres.password,
+                )
+                fun valid() = org.jetbrains.exposed.v1.jdbc.transactions.transaction(database) {
+                    exec("SELECT set_config('ds.design_system_id', '$system', true)")
+                    kotlinx.coroutines.runBlocking {
+                        com.dsbuilder.ds.themes.data.PaletteRevertDependencyValidator().valid(
+                            java.util.UUID.fromString(system),
+                            "token-value",
+                            java.util.UUID.fromString(change.text("entityId")),
+                        )
+                    }
+                }
+                assertTrue(valid())
+                val removed = api.call("DELETE", "/api/design-systems/$system/tenants/$tenant", OWNER)
+                assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
+                assertFalse(valid())
+                val reverted = api.revert(system, change)
+                assertEquals(HttpStatusCode.Conflict, reverted.status, reverted.bodyAsText())
+            }
+        }
+    }
+
+    @Test
+    fun `literal batch preserves stale errors rollback and replay`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
+                val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                val valuePath = "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values"
+                assertEquals(HttpStatusCode.OK, api.call("PUT", valuePath, EDITOR, solidBody(token, "#123456")).status)
+                val changes = api.journal(system)
+                assertEquals(6, changes.size)
+                fun body(stale: Int = -1) = changes.mapIndexed { index, change ->
+                    val revision = change.getValue("editRevision").jsonPrimitive.long + if (index == stale) 1 else 0
+                    """{"changeId":"${change.text("changeId")}","expectedRevision":$revision}"""
+                }.joinToString(",", """{"changes":[""", "]}")
+                val path = "/api/design-systems/$system/changes/revert"
+                for (index in listOf(0, 2, 5)) {
+                    val stale = api.call("POST", path, OWNER, body(index), idempotencyKey = "stale-$index")
+                    assertEquals(HttpStatusCode.Conflict, stale.status, stale.bodyAsText())
+                    assertEquals("DRAFT_CHANGE_STALE", api.body(stale).text("code"))
+                    assertEquals(
+                        index.toString(),
+                        api.body(stale).obj("details").array("changeIndex").single().jsonPrimitive.content,
+                    )
+                    assertEquals(6, api.journal(system).size)
+                }
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(
+                            """
+                            CREATE FUNCTION fail_batch_constraint() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='fixture'; END ${'$'}${'$'};
+                            CREATE CONSTRAINT TRIGGER fail_batch AFTER DELETE ON token_value_revisions
+                            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_batch_constraint()
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val failed = api.call("POST", path, OWNER, body(), idempotencyKey = "batch-constraint")
+                assertEquals(HttpStatusCode.Conflict, failed.status, failed.bodyAsText())
+                assertEquals("REVERT_DEPENDENCY_CONFLICT", api.body(failed).text("code"))
+                assertEquals(6, api.journal(system).size)
+                assertEquals(
+                    "0",
+                    text(
+                        postgres,
+                        "SELECT count(*)::text FROM idempotent_requests WHERE idempotency_key='batch-constraint'",
+                    ),
+                )
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use {
+                        it.execute(
+                            "DROP TRIGGER fail_batch ON token_value_revisions; DROP FUNCTION fail_batch_constraint()",
+                        )
+                    }
+                }
+                val draft = api.read("/api/design-systems/$system").text("draftId")
+                val targetPath = "/api/design-systems/$system/changes/token-targets"
+                val selector = """{"draftId":"$draft","tenantId":"$tenant","tokenIds":["$token"]}"""
+                val scoped = api.call("POST", targetPath, VIEWER, selector)
+                assertEquals(HttpStatusCode.OK, scoped.status, scoped.bodyAsText())
+                val scopedBody = api.body(scoped).jsonObject
+                assertEquals(6, scopedBody.array("targets").size)
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.prepareStatement(
+                        """
+                        INSERT INTO entity_edit_states(design_system_version_id,design_system_id,entity_type,
+                          entity_id,revision,last_actor_id,updated_at)
+                        SELECT ?::uuid,?::uuid,'token-value',md5('unrelated-'||i)::uuid,1,'fixture',now()
+                        FROM generate_series(1,100001) i
+                        """.trimIndent(),
+                    ).use { statement ->
+                        statement.setString(1, draft)
+                        statement.setString(2, system)
+                        statement.executeUpdate()
+                    }
+                }
+                val scopedAfter = api.call("POST", targetPath, VIEWER, selector)
+                assertEquals(HttpStatusCode.OK, scopedAfter.status, scopedAfter.bodyAsText())
+                assertEquals(scopedBody, api.body(scopedAfter).jsonObject)
+                val addressPath = "/api/design-systems/$system/changes/revert-by-address"
+                val addressBody = """{"draftId":"$draft","targets":${scopedBody.getValue("targets").jsonArray.map {
+                    JsonObject(it.jsonObject.filterKeys { key -> key != "operation" })
+                }.let(::JsonArray)}}"""
+                val addressTargets = json.parseToJsonElement(addressBody).jsonObject.getValue("targets").jsonArray
+                val discoveryPayload = JsonArray(
+                    addressTargets.map {
+                        JsonObject(it.jsonObject + ("operation" to JsonPrimitive("updated")))
+                    },
+                )
+                val invalidBody = api.call(
+                    "POST",
+                    addressPath,
+                    OWNER,
+                    """{"draftId":"$draft","targets":$discoveryPayload}""",
+                    idempotencyKey = "discovery-is-not-command",
+                )
+                assertEquals(HttpStatusCode.BadRequest, invalidBody.status)
+                assertEquals("INVALID_REVERT_REQUEST", api.body(invalidBody).text("code"))
+                for (index in listOf(0, 2, 5)) {
+                    val staleTargets = JsonArray(
+                        addressTargets.mapIndexed { position, element ->
+                            if (position != index) {
+                                element
+                            } else {
+                                JsonObject(
+                                    element.jsonObject + (
+                                        "expectedRevision" to JsonPrimitive(
+                                            element.jsonObject.getValue("expectedRevision").jsonPrimitive.long + 1,
+                                        )
+                                        ),
+                                )
+                            }
+                        },
+                    )
+                    val stale = api.call(
+                        "POST",
+                        addressPath,
+                        OWNER,
+                        """{"draftId":"$draft","targets":$staleTargets}""",
+                        idempotencyKey = "address-stale-$index",
+                    )
+                    assertEquals(HttpStatusCode.Conflict, stale.status, stale.bodyAsText())
+                    assertEquals("DRAFT_CHANGE_STALE", api.body(stale).text("code"))
+                    assertEquals(
+                        index.toString(),
+                        api.body(stale).obj("details").array("changeIndex").single().jsonPrimitive.content,
+                    )
+                    assertEquals(scopedBody, api.body(api.call("POST", targetPath, VIEWER, selector)).jsonObject)
+                }
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(
+                            """
+                            CREATE FUNCTION fail_batch_constraint() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='fixture'; END ${'$'}${'$'};
+                            CREATE CONSTRAINT TRIGGER fail_batch AFTER DELETE ON token_value_revisions
+                            DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_batch_constraint()
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val addressFailed = api.call(
+                    "POST",
+                    addressPath,
+                    OWNER,
+                    addressBody,
+                    idempotencyKey = "address-constraint",
+                )
+                assertEquals(HttpStatusCode.Conflict, addressFailed.status, addressFailed.bodyAsText())
+                assertEquals("REVERT_DEPENDENCY_CONFLICT", api.body(addressFailed).text("code"))
+                assertEquals(scopedBody, api.body(api.call("POST", targetPath, VIEWER, selector)).jsonObject)
+                assertEquals(
+                    "0",
+                    text(
+                        postgres,
+                        "SELECT count(*)::text FROM idempotent_requests WHERE idempotency_key='address-constraint'",
+                    ),
+                )
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use {
+                        it.execute(
+                            "DROP TRIGGER fail_batch ON token_value_revisions; DROP FUNCTION fail_batch_constraint()",
+                        )
+                    }
+                }
+                val wrongDraft = api.call(
+                    "POST",
+                    addressPath,
+                    OWNER,
+                    addressBody.replace(draft, java.util.UUID.randomUUID().toString()),
+                    idempotencyKey = "wrong-draft",
+                )
+                assertEquals(HttpStatusCode.Conflict, wrongDraft.status, wrongDraft.bodyAsText())
+                assertEquals("DRAFT_CHANGED", api.body(wrongDraft).text("code"))
+                val result = api.call("POST", addressPath, OWNER, addressBody, idempotencyKey = "literal-batch")
+                assertEquals(HttpStatusCode.OK, result.status, result.bodyAsText())
+                assertTrue(api.journal(system).isEmpty())
+                assertEquals("""["#FFFFFF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
+                val replay = api.call("POST", addressPath, OWNER, addressBody, idempotencyKey = "literal-batch")
+                assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
+                assertEquals(result.bodyAsText(), replay.bodyAsText())
+                val mismatched = api.call(
+                    "POST",
+                    addressPath,
+                    OWNER,
+                    addressBody.replace("\"expectedRevision\":", "\"expectedRevision\":1"),
+                    idempotencyKey = "literal-batch",
+                )
+                assertEquals(HttpStatusCode.Conflict, mismatched.status)
+                assertEquals("IDEMPOTENCY_KEY_REUSED", api.body(mismatched).text("code"))
+
+                val currentValues = api.read("/api/design-systems/$system/tenants/$tenant/token-values").array("items")
+                val removedValue = value(currentValues, token, "web", "light")
+                val deleted = api.call(
+                    "DELETE",
+                    "/api/design-systems/$system/token-values/${removedValue.text("id")}",
+                    OWNER,
+                    base = removedValue.number("editRevision").toLong(),
+                )
+                assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
+                val deletedTargets = api.body(
+                    api.call("POST", targetPath, VIEWER, selector),
+                ).jsonObject.array("targets")
+                assertEquals(1, deletedTargets.size)
+                assertEquals("deleted", deletedTargets.single().jsonObject.text("operation"))
+                val restoreBody = """{"draftId":"$draft","targets":${JsonArray(
+                    deletedTargets.map {
+                        JsonObject(it.jsonObject.filterKeys { key -> key != "operation" })
+                    },
+                )}}"""
+                assertEquals(
+                    HttpStatusCode.OK,
+                    api.call(
+                        "POST",
+                        addressPath,
+                        OWNER,
+                        restoreBody,
+                        idempotencyKey = "restore-deleted",
+                    ).status,
+                )
+                val newTenant = api.createTenant(system, "new-theme")
+                val newSelector = selector.replace(tenant, newTenant)
+                assertTrue(
+                    api.body(api.call("POST", targetPath, VIEWER, newSelector)).jsonObject.array("targets").isEmpty(),
+                )
+                assertEquals(
+                    HttpStatusCode.OK,
+                    api.call(
+                        "PUT",
+                        "/api/design-systems/$system/tenants/$newTenant/color-tokens/$token/values",
+                        EDITOR,
+                        solidBody(token, "#123456"),
+                    ).status,
+                )
+                val newTargets = api.body(api.call("POST", targetPath, VIEWER, newSelector)).jsonObject.array("targets")
+                assertEquals(6, newTargets.size)
+                val newBody = """{"draftId":"$draft","targets":${JsonArray(
+                    newTargets.map {
+                        JsonObject(it.jsonObject.filterKeys { key -> key != "operation" })
+                    },
+                )}}"""
+                assertEquals(
+                    HttpStatusCode.OK,
+                    api.call(
+                        "POST",
+                        addressPath,
+                        OWNER,
+                        newBody,
+                        idempotencyKey = "restore-new-theme",
+                    ).status,
+                )
+                assertTrue(
+                    api.body(api.call("POST", targetPath, VIEWER, newSelector)).jsonObject.array("targets").isEmpty(),
+                )
+
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(
+                            """
+                            BEGIN;
+                            INSERT INTO tokens(id,design_system_id)
+                              SELECT md5('page-token-'||i)::uuid,'$system' FROM generate_series(1,101) i;
+                            INSERT INTO token_revisions(token_id,design_system_id,design_system_version_id,
+                              version_sequence_number,name,type)
+                              SELECT md5('page-token-'||i)::uuid,'$system','$draft',b.sequence_number,
+                                'text.default.page-'||i,'color' FROM generate_series(1,101) i
+                                CROSS JOIN design_system_versions b WHERE b.id='$draft';
+                            INSERT INTO token_values(id,design_system_id,token_id,tenant_id,platform,mode)
+                              SELECT md5('page-value-'||i)::uuid,'$system',md5('page-token-'||i)::uuid,
+                                '$tenant','web','light' FROM generate_series(1,101) i;
+                            INSERT INTO token_value_revisions(token_value_id,design_system_id,design_system_version_id,
+                              version_sequence_number,value,deleted)
+                              SELECT md5('page-value-'||i)::uuid,'$system','$draft',b.sequence_number,
+                                '["#FFFFFF"]'::jsonb,false FROM generate_series(1,101) i
+                                CROSS JOIN design_system_versions b WHERE b.id='$draft';
+                            COMMIT;
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val pageIds = (1..101).map { index ->
+                    // SQL md5 UUID keeps the digest bits unchanged, unlike UUID.nameUUIDFromBytes.
+                    java.security.MessageDigest.getInstance("MD5").digest("page-token-$index".toByteArray())
+                        .joinToString("") { "%02x".format(it) }.let { hex ->
+                            "${hex.substring(
+                                0,
+                                8,
+                            )}-${hex.substring(
+                                8,
+                                12,
+                            )}-${hex.substring(12,16)}-${hex.substring(16,20)}-${hex.substring(20)}"
+                        }
+                }
+                val pageRequest =
+                    JsonObject(
+                        mapOf(
+                            "draftId" to JsonPrimitive(draft),
+                            "tenantId" to JsonPrimitive(tenant),
+                            "tokenIds" to JsonArray(pageIds.map(::JsonPrimitive)),
+                        ),
+                    )
+                val firstPage = api.body(api.call("POST", targetPath, VIEWER, pageRequest.toString())).jsonObject
+                assertEquals(200, firstPage.array("targets").size)
+                val next = JsonObject(pageRequest + ("cursor" to firstPage.getValue("nextCursor")))
+                val secondPage = api.body(api.call("POST", targetPath, VIEWER, next.toString())).jsonObject
+                assertEquals(2, secondPage.array("targets").size)
+                assertEquals(firstPage.text("scopeRevision"), secondPage.text("scopeRevision"))
+                assertEquals(
+                    HttpStatusCode.OK,
+                    api.call(
+                        "PATCH",
+                        "/api/design-systems/$system/tokens/${pageIds.first()}",
+                        EDITOR,
+                        """{"description":"changed"}""",
+                    ).status,
+                )
+                val stalePage = api.call("POST", targetPath, VIEWER, next.toString())
+                assertEquals(HttpStatusCode.Conflict, stalePage.status, stalePage.bodyAsText())
+                assertEquals("TARGET_SNAPSHOT_CHANGED", api.body(stalePage).text("code"))
+            }
+        }
+    }
 
     @Test
     @Suppress("LongMethod")
@@ -45,27 +777,37 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"g","projectName":"g"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"g","projectName":"g"}""")
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
-                val paletteB = api.read("/api/ds/tenants/$tenantB/palette")
+                val paletteB = api.read("/api/design-systems/$designSystemId/tenants/$tenantB/palette")
                 val green = paletteB.array("template")
                     .single { it.text("type") == "general" && it.text("shade") == "green" }
                 val greenHex = green.array("steps").single { it.number("step") == STEP }.text("value")
-                val created = api.call("POST", "/api/ds/tenants/$tenantA/color-tokens", MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val family = api.body(created).jsonObject.getValue("value").jsonObject
                 assertEquals("color", family.text("type"))
                 val members = family.array("members").associate { it.text("name") to it.text("tokenId") }
                 val base = members.getValue("text.default.highlight")
                 val hover = members.getValue("text.default.highlight-hover")
-                val valuesPath = "/api/ds/tenants/$tenantB/color-tokens/$base/values"
+                val valuesPath = "/api/design-systems/$designSystemId/tenants/$tenantB/color-tokens/$base/values"
                 // Токен опубликован: дальше журнал показывает только изменения, а не создание.
                 api.publish(postgres, designSystemId, "1.0.0")
                 val revisionsOfA = count(postgres, valueRevisions(tenantA))
 
                 // Градиент в Dark темы B на всех платформах; Android — своё значение платформы.
-                val update = api.call("PUT", valuesPath, EDITOR, gradientBody(base, api.revisions(tenantB, base)))
+                val update = api.call(
+                    "PUT",
+                    valuesPath,
+                    EDITOR,
+                    gradientBody(base, api.revisions(designSystemId, tenantB, base)),
+                )
                 assertEquals(HttpStatusCode.OK, update.status, update.bodyAsText())
                 assertEquals("gradient", api.body(update).jsonObject.text("type"))
                 val confirmed = api.body(update).jsonObject.getValue("confirmedValues").jsonArray
@@ -83,12 +825,12 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(revisionsOfA, count(postgres, valueRevisions(tenantA)), "значения темы A не меняются")
 
                 // Чтение: тема A отдаёт сплошные ios и android слоем color, тема B раскрывает ссылки в градиенте.
-                val valuesA = api.values(tenantA)
+                val valuesA = api.values(designSystemId, tenantA)
                 val iosA = value(valuesA, base, "ios", "dark")
                 assertEquals(layer("#FFFFFF"), iosA.getValue("value"))
                 assertEquals(JsonArray(listOf(JsonPrimitive("#FFFFFF"))), iosA.getValue("sourceValue"))
                 assertNull(value(valuesA, base, "web", "dark")["sourceValue"])
-                val valuesB = api.values(tenantB)
+                val valuesB = api.values(designSystemId, tenantB)
                 val webB = value(valuesB, base, "web", "dark")
                 val resolvedWeb = webB.getValue("value").toString().uppercase()
                 assertTrue(greenHex.uppercase() in resolvedWeb && "[GENERAL" !in resolvedWeb, resolvedWeb)
@@ -117,7 +859,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                         """"baseRevision":$before}]}]}""",
                 )
                 assertEquals(HttpStatusCode.OK, flagOnly.status, flagOnly.bodyAsText())
-                val afterFlag = value(api.values(tenantB), base, "android", "dark")
+                val afterFlag = value(api.values(designSystemId, tenantB), base, "android", "dark")
                 assertEquals(false, afterFlag.getValue("overridden").jsonPrimitive.boolean)
                 assertTrue(afterFlag.getValue("editRevision").jsonPrimitive.long > before)
 
@@ -125,13 +867,18 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 val primary = text(postgres, tokenIdSql(designSystemId, "text.default.primary"))
                 val batch = """{"editRevision":0,"values":[{"tokenId":"$primary","platform":"web","mode":"light",""" +
                     """"value":${gradientWeb("#FFFFFF")}}]}"""
-                api.reject("PUT", "/api/ds/tenants/$tenantB/token-values", batch, "INVALID_TOKEN_VALUE")
+                api.reject(
+                    "PUT",
+                    "/api/design-systems/$designSystemId/tenants/$tenantB/token-values",
+                    batch,
+                    "INVALID_TOKEN_VALUE",
+                )
 
                 // Общий маршрут значения: проверка вида, сплошной слой хранится строкой, тип семейства пересчитывается.
                 // Значение без palette_id: у ссылки на общую палитру значение — только прозрачность.
                 val accent = text(postgres, tokenIdSql(designSystemId, "surface.default.accent-hover"))
-                val accentIos = value(api.values(tenantB), accent, "ios", "dark")
-                val accentValue = "/api/ds/token-values/${accentIos.text("id")}"
+                val accentIos = value(api.values(designSystemId, tenantB), accent, "ios", "dark")
+                val accentValue = "/api/design-systems/$designSystemId/token-values/${accentIos.text("id")}"
                 api.reject("PATCH", accentValue, """{"value":["not-a-color"]}""", "INVALID_TOKEN_VALUE")
                 val solidLayer = api.call("PATCH", accentValue, EDITOR, """{"value":${layer("#123456")}}""")
                 assertEquals(HttpStatusCode.OK, solidLayer.status, solidLayer.bodyAsText())
@@ -142,7 +889,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(0, count(postgres, accentTypeCount(designSystemId, "color")), "всё семейство — gradient")
                 assertTrue(count(postgres, accentTypeCount(designSystemId, "gradient")) > 1)
                 // Превью темы берёт цвет только из сплошных значений цветовых токенов и не падает на слоях.
-                val preview = api.read("/api/ds/tenants/$tenantB").obj("preview")
+                val preview = api.read("/api/design-systems/$designSystemId/tenants/$tenantB").obj("preview")
                 assertTrue(preview.text("accentDark").startsWith("#"), preview.toString())
                 val layeredChange = api.journal(designSystemId).single { it.text("entityId") == accentIos.text("id") }
                 assertEquals(HttpStatusCode.OK, api.revert(designSystemId, layeredChange).status)
@@ -160,7 +907,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
                 // Параллельная запись в двух темах: градиент в A и сплошной цвет в B сериализуются по семейству.
                 coroutineScope {
-                    val pathA = "/api/ds/tenants/$tenantA/color-tokens/$base/values"
+                    val pathA = "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens/$base/values"
                     val inA = async { api.call("PUT", pathA, EDITOR, gradientBody(base, emptyMap())) }
                     val inB = async { api.call("PUT", valuesPath, EDITOR, solidBody(base, "#123456")) }
                     assertEquals(HttpStatusCode.OK, inA.await().status)
@@ -169,16 +916,17 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(2, count(postgres, typeCount(designSystemId, "gradient")))
 
                 // Опубликованная версия раскрывает ссылку стопа по палитре своей границы, а черновик — по своей.
-                val groupA = api.read("/api/ds/tenants/$tenantA/palette").array("tokens")
+                val groupA = api.read("/api/design-systems/$designSystemId/tenants/$tenantA/palette").array("tokens")
                     .single { it.text("tokenId") == base }.text("groupId")
-                val step = "/api/ds/tenants/$tenantA/palette/groups/$groupA/ramps/general/green/steps/$STEP"
+                val step =
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green/steps/$STEP"
                 val edited = api.call("PATCH", step, EDITOR, """{"value":"#112233","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, edited.status, edited.bodyAsText())
                 val publishedId = api.publish(postgres, designSystemId, "1.0.1")
                 val reedited = api.call("PATCH", step, EDITOR, """{"value":"#445566","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, reedited.status, reedited.bodyAsText())
                 suspend fun webA(version: String?) = value(
-                    api.values(tenantA, version),
+                    api.values(designSystemId, tenantA, version),
                     base,
                     "web",
                     "dark",
@@ -186,7 +934,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertTrue("#112233" in webA(publishedId), webA(publishedId))
                 assertTrue("#445566" in webA(null), webA(null))
                 val publishedIos = value(
-                    api.values(tenantA, publishedId),
+                    api.values(designSystemId, tenantA, publishedId),
                     hover,
                     "ios",
                     "light",
@@ -194,12 +942,15 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(layer("#FFFFFF"), publishedIos.getValue("value"), "форма по типу на границе версии")
 
                 // Связь через стоп градиента и удаление растяжки «как Custom» переписывает только ссылки.
-                val links = api.read("/api/ds/tenants/$tenantA/palette/links?type=general&shade=green&groupId=$groupA")
+                val links = api.read(
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/palette/links?type=general&shade=green&groupId=$groupA",
+                )
                     .let { JsonArray(it.array("items")) }
                 assertTrue(
                     links.any { it.text("tokenId") == base && it.text("mode") == "dark" && it.number("step") == STEP },
                 )
-                val ramp = "/api/ds/tenants/$tenantA/palette/groups/$groupA/ramps/general/green"
+                val ramp =
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green"
                 val removed = api.call("DELETE", ramp, EDITOR, """{"strategy":"detach","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
                 val storedWeb = text(postgres, storedValueSql(tenantA, base, "web", "dark"))
@@ -229,20 +980,25 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
                 val tenant = api.createTenant(designSystemId, "a")
-                val created = api.call("POST", "/api/ds/tenants/$tenant/color-tokens", MAINTAINER, createBody("brand"))
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val tokenId = api.body(created).jsonObject.getValue("value").array("members").single().text("tokenId")
                 api.publish(postgres, designSystemId, "1.0.0")
 
                 // В черновике значение стало градиентом, а определение переименовано.
-                val values = "/api/ds/tenants/$tenant/color-tokens/$tokenId/values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$tokenId/values"
                 val gradient = api.call("PUT", values, EDITOR, gradientBody(tokenId, emptyMap()))
                 assertEquals("gradient", api.body(gradient).jsonObject.text("type"))
                 val renamed = api.call(
                     "PATCH",
-                    "/api/ds/tokens/$tokenId",
+                    "/api/design-systems/$designSystemId/tokens/$tokenId",
                     EDITOR,
                     """{"name":"text.default.renamed"}""",
                 )
@@ -266,18 +1022,23 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"b","projectName":"b"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"b","projectName":"b"}""")
                 val tenant = api.createTenant(designSystemId, "a")
-                val created = api.call("POST", "/api/ds/tenants/$tenant/color-tokens", MAINTAINER, createBody("brand"))
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val tokenId = api.body(created).jsonObject.getValue("value").array("members").single().text("tokenId")
                 api.publish(postgres, designSystemId, "1.0.0")
-                val values = "/api/ds/tenants/$tenant/color-tokens/$tokenId/values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$tokenId/values"
                 val gradient = api.call("PUT", values, EDITOR, gradientBody(tokenId, emptyMap()))
                 assertEquals("gradient", api.body(gradient).jsonObject.text("type"))
                 val renamed = api.call(
                     "PATCH",
-                    "/api/ds/tokens/$tokenId",
+                    "/api/design-systems/$designSystemId/tokens/$tokenId",
                     EDITOR,
                     """{"name":"text.default.renamed"}""",
                 )
@@ -295,7 +1056,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     """{"changeId":"${it.text("changeId")}","expectedRevision":${revisionOf(it)}}"""
                 }
                 val revisionOf = { change: JsonObject -> change.getValue("editRevision").jsonPrimitive.long }
-                val path = "/api/ds/design-systems/$designSystemId/changes/revert"
+                val path = "/api/design-systems/$designSystemId/changes/revert"
 
                 // Устаревшая последняя запись: пакет не меняет ничего, отказ называет позицию записи.
                 val stale = api.call(
@@ -337,9 +1098,14 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"m","projectName":"m"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"m","projectName":"m"}""")
                 val tenant = api.createTenant(designSystemId, "a")
-                val created = api.call("POST", "/api/ds/tenants/$tenant/color-tokens", MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val members = api.body(created).jsonObject.getValue("value").array("members")
                     .associate { it.text("name") to it.text("tokenId") }
@@ -348,12 +1114,17 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 api.publish(postgres, designSystemId, "1.0.0")
 
                 // Градиент только у `-hover`; у `highlight` — своя правка определения в черновике.
-                val values = "/api/ds/tenants/$tenant/color-tokens/$hover/values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$hover/values"
                 assertEquals(
                     "gradient",
                     api.body(api.call("PUT", values, EDITOR, gradientBody(hover, emptyMap()))).jsonObject.text("type"),
                 )
-                val described = api.call("PATCH", "/api/ds/tokens/$base", EDITOR, """{"description":"described"}""")
+                val described = api.call(
+                    "PATCH",
+                    "/api/design-systems/$designSystemId/tokens/$base",
+                    EDITOR,
+                    """{"description":"described"}""",
+                )
                 assertEquals(HttpStatusCode.OK, described.status, described.bodyAsText())
                 val change = api.journal(designSystemId)
                     .single { it.text("entityType") == "token" && it.text("entityId") == base }
@@ -373,16 +1144,21 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"d","projectName":"d"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"d","projectName":"d"}""")
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantC = api.createTenant(designSystemId, "c")
-                val created = api.call("POST", "/api/ds/tenants/$tenantA/color-tokens", MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val base = api.body(created).jsonObject.getValue("value").array("members").first().text("tokenId")
                 api.publish(postgres, designSystemId, "1.0.0")
                 suspend fun gradientIn(tenant: String) = api.call(
                     "PUT",
-                    "/api/ds/tenants/$tenant/color-tokens/$base/values",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$base/values",
                     EDITOR,
                     gradientBody(base, emptyMap()),
                 ).let { assertEquals("gradient", api.body(it).jsonObject.text("type"), it.bodyAsText()) }
@@ -398,7 +1174,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
                 // Удаление опубликованной темы с единственным градиентом и откат удаления.
                 gradientIn(tenantC)
-                val deleted = api.call("DELETE", "/api/ds/tenants/$tenantC", OWNER)
+                val deleted = api.call("DELETE", "/api/design-systems/$designSystemId/tenants/$tenantC", OWNER)
                 assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
                 assertEquals(0, count(postgres, typeCount(designSystemId, "gradient")), "удаление темы")
                 assertTrue(api.journal(designSystemId).none { it.text("entityType") == "token" })
@@ -416,13 +1192,18 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"n","projectName":"n"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"n","projectName":"n"}""")
                 val tenantA = api.createTenant(designSystemId, "a")
-                val created = api.call("POST", "/api/ds/tenants/$tenantA/color-tokens", MAINTAINER, createBody())
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val members = api.body(created).jsonObject.getValue("value").array("members").map { it.text("tokenId") }
                 val base = members.first()
-                val values = "/api/ds/tenants/$tenantA/color-tokens/$base/values"
+                val values = "/api/design-systems/$designSystemId/tenants/$tenantA/color-tokens/$base/values"
                 assertEquals(
                     "gradient",
                     api.body(api.call("PUT", values, EDITOR, gradientBody(base, emptyMap()))).jsonObject.text("type"),
@@ -430,7 +1211,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
                 val tenantC = api.createTenant(designSystemId, "c")
 
-                val valuesC = api.values(tenantC)
+                val valuesC = api.values(designSystemId, tenantC)
                 members.forEach { member ->
                     val keys = valuesC.filter { it.text("tokenId") == member }
                         .map { it.text("platform") to it.text("mode") }.toSet()
@@ -451,19 +1232,24 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"v","projectName":"v"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"v","projectName":"v"}""")
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
                 val accent = text(postgres, tokenIdSql(designSystemId, "surface.default.accent-hover"))
-                val accentIos = value(api.values(tenantB), accent, "ios", "dark")
-                val accentValue = "/api/ds/token-values/${accentIos.text("id")}"
+                val accentIos = value(api.values(designSystemId, tenantB), accent, "ios", "dark")
+                val accentValue = "/api/design-systems/$designSystemId/token-values/${accentIos.text("id")}"
                 val layered = api.call("PATCH", accentValue, EDITOR, """{"value":${nativeGradient()}}""")
                 assertEquals(HttpStatusCode.OK, layered.status, layered.bodyAsText())
                 assertEquals(0, count(postgres, accentTypeCount(designSystemId, "color")), "всё семейство — gradient")
 
-                // Общий GET отдаёт ту же форму, что чтение по теме: слой color, раскрытые ссылки, sourceValue/paletteRef.
-                val general = JsonArray(api.read("/api/ds/token-values").array("items")).associateBy { it.text("id") }
-                listOf(tenantA, tenantB).flatMap { api.values(it) }.forEach { tenantValue ->
+                // Общий GET отдаёт ту же форму, что чтение по теме: слой color, раскрытые ссылки,
+                // sourceValue/paletteRef.
+                val general = JsonArray(
+                    api.read("/api/design-systems/$designSystemId/token-values").array("items"),
+                ).associateBy {
+                    it.text("id")
+                }
+                listOf(tenantA, tenantB).flatMap { api.values(designSystemId, it) }.forEach { tenantValue ->
                     val id = tenantValue.text("id")
                     val listed = general.getValue(id).jsonObject
                     listOf("value", "paletteRef", "sourceValue").forEach { field ->
@@ -471,7 +1257,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     }
                     assertEquals(tenantValue.jsonObject["paletteId"], listed["paletteId"], "$id paletteId")
                 }
-                val solidA = value(api.values(tenantA), accent, "android", "light")
+                val solidA = value(api.values(designSystemId, tenantA), accent, "android", "light")
                 assertEquals(
                     "color",
                     general.getValue(solidA.text("id")).jsonObject.getValue("value").jsonArray.single()
@@ -482,7 +1268,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     general.values.filter { "paletteRef" in it.jsonObject }.none { "sourceValue" in it.jsonObject },
                     "при paletteRef sourceValue не отдаётся",
                 )
-                val single = api.read("/api/ds/token-values/${solidA.text("id")}")
+                val single = api.read("/api/design-systems/$designSystemId/token-values/${solidA.text("id")}")
                 assertEquals(general.getValue(solidA.text("id")).jsonObject.getValue("value"), single.getValue("value"))
 
                 // DELETE единственного градиентного значения возвращает семейству тип color.
@@ -495,18 +1281,18 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     """{"tokenId":"$tokenId","tenantId":"$tenantB","platform":"ios","mode":"dark","value":$value}"""
                 api.reject(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     createBody(accent, """["not-a-color"]"""),
                     "INVALID_TOKEN_VALUE",
                 )
                 assertTrue(
-                    api.values(tenantB).none {
+                    api.values(designSystemId, tenantB).none {
                         it.text("tokenId") == accent && it.text("platform") == "ios" && it.text("mode") == "dark"
                     },
                 )
                 val created = api.call(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     EDITOR,
                     createBody(accent, layer("#123456").toString()),
                 )
@@ -516,16 +1302,16 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
 
                 // Токен чужого проекта: 404 до проверки значения, а не 400.
                 val foreignOwner = Actor("project-b", "owner")
-                val foreign = api.create("/api/ds/design-systems", foreignOwner, """{"name":"f","projectName":"f"}""")
+                val foreign = api.create("/api/design-systems", foreignOwner, """{"name":"f","projectName":"f"}""")
                 api.create(
-                    "/api/ds/tenants",
+                    "/api/design-systems/$foreign/tenants",
                     Actor("project-b", "editor"),
-                    """{"designSystemId":"$foreign","name":"f"}""",
+                    """{"name":"f"}""",
                 )
                 val foreignAccent = text(postgres, tokenIdSql(foreign, "surface.default.accent-hover"))
                 val foreignCreate = api.call(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     EDITOR,
                     createBody(foreignAccent, """["not-a-color"]"""),
                 )
@@ -541,11 +1327,11 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"t","projectName":"t"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"t","projectName":"t"}""")
                 val tenant = api.createTenant(designSystemId, "a")
                 val accent = text(postgres, tokenIdSql(designSystemId, "surface.default.accent-hover"))
                 val accentBase = text(postgres, tokenIdSql(designSystemId, "surface.default.accent"))
-                val values = api.values(tenant)
+                val values = api.values(designSystemId, tenant)
                 val light = value(values, accent, "web", "light")
                 val dark = value(values, accent, "web", "dark")
                 val reference = """["$REFERENCE"]"""
@@ -554,7 +1340,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 dropTemplate(postgres, tenant)
                 val patched = api.call(
                     "PATCH",
-                    "/api/ds/token-values/${light.text("id")}",
+                    "/api/design-systems/$designSystemId/token-values/${light.text("id")}",
                     EDITOR,
                     """{"value":$reference}""",
                 )
@@ -564,12 +1350,16 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 // POST: то же для нового значения.
                 assertEquals(
                     HttpStatusCode.OK,
-                    api.call("DELETE", "/api/ds/token-values/${dark.text("id")}", OWNER).status,
+                    api.call(
+                        "DELETE",
+                        "/api/design-systems/$designSystemId/token-values/${dark.text("id")}",
+                        OWNER,
+                    ).status,
                 )
                 dropTemplate(postgres, tenant)
                 val created = api.call(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     EDITOR,
                     """{"tokenId":"$accent","tenantId":"$tenant","platform":"web","mode":"dark","value":$reference}""",
                 )
@@ -580,17 +1370,17 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 dropTemplate(postgres, tenant)
                 val put = api.call(
                     "PUT",
-                    "/api/ds/tenants/$tenant/color-tokens/$accentBase/values",
+                    "/api/design-systems/$designSystemId/tenants/$tenant/color-tokens/$accentBase/values",
                     EDITOR,
                     solidBody(accentBase, REFERENCE),
                 )
                 assertEquals(HttpStatusCode.OK, put.status, put.bodyAsText())
 
                 // Системный администратор читает общий GET в той же форме: ссылки раскрыты по палитре темы.
-                val general = api.call("GET", "/api/ds/token-values", ADMIN)
+                val general = api.call("GET", "/api/design-systems/$designSystemId/token-values", ADMIN)
                 assertEquals(HttpStatusCode.OK, general.status, general.bodyAsText())
                 val listed = api.body(general).jsonArray.associateBy { it.text("id") }
-                val referenced = api.values(tenant).filter { it.jsonObject.containsKey("paletteRef") }
+                val referenced = api.values(designSystemId, tenant).filter { it.jsonObject.containsKey("paletteRef") }
                 assertTrue(referenced.any { it.text("id") == light.text("id") }, "ссылка на всё значение")
                 referenced.forEach { tenantValue ->
                     val item = listed.getValue(tenantValue.text("id")).jsonObject
@@ -608,26 +1398,36 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
-                val designSystemId = api.create("/api/ds/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
+                val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
                 val tenant = api.createTenant(designSystemId, "a")
                 val accent = text(postgres, tokenIdSql(designSystemId, "surface.default.accent-hover"))
-                val ios = value(api.values(tenant), accent, "ios", "dark")
+                val ios = value(api.values(designSystemId, tenant), accent, "ios", "dark")
                 assertEquals(
                     HttpStatusCode.OK,
-                    api.call("DELETE", "/api/ds/token-values/${ios.text("id")}", OWNER).status,
+                    api.call(
+                        "DELETE",
+                        "/api/design-systems/$designSystemId/token-values/${ios.text("id")}",
+                        OWNER,
+                    ).status,
                 )
                 fun body(value: String) =
                     """{"tokenId":"$accent","tenantId":"$tenant","platform":"ios","mode":"dark","value":$value}"""
                 val layered = body(layer("#123456").toString())
 
-                val created = api.call("POST", "/api/ds/token-values", EDITOR, layered, idempotencyKey = KEY)
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/token-values",
+                    EDITOR,
+                    layered,
+                    idempotencyKey = KEY,
+                )
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 assertEquals("""["#123456"]""", text(postgres, storedValueSql(tenant, accent, "ios", "dark")))
 
                 // Другое исходное тело с той же хранимой формой — повторное использование ключа, а не повтор.
                 val reused = api.call(
                     "POST",
-                    "/api/ds/token-values",
+                    "/api/design-systems/$designSystemId/token-values",
                     EDITOR,
                     body("""["#123456"]"""),
                     idempotencyKey = KEY,
@@ -636,9 +1436,15 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals("IDEMPOTENCY_KEY_REUSED", api.body(reused).text("code"))
 
                 // Повтор успешного запроса после удаления токена возвращает сохранённый ответ 201.
-                val deleted = api.call("DELETE", "/api/ds/tokens/$accent", OWNER)
+                val deleted = api.call("DELETE", "/api/design-systems/$designSystemId/tokens/$accent", OWNER)
                 assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
-                val repeated = api.call("POST", "/api/ds/token-values", EDITOR, layered, idempotencyKey = KEY)
+                val repeated = api.call(
+                    "POST",
+                    "/api/design-systems/$designSystemId/token-values",
+                    EDITOR,
+                    layered,
+                    idempotencyKey = KEY,
+                )
                 assertEquals(HttpStatusCode.Created, repeated.status, repeated.bodyAsText())
                 assertEquals(api.body(created).text("id"), api.body(repeated).text("id"))
             }
@@ -683,33 +1489,38 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
         }
 
         suspend fun createTenant(designSystemId: String, name: String) =
-            create("/api/ds/tenants", EDITOR, """{"designSystemId":"$designSystemId","name":"$name"}""")
+            create("/api/design-systems/$designSystemId/tenants", EDITOR, """{"name":"$name"}""")
 
         /** Технические редакции значений токена [tokenId] в теме: `platform:mode` → редакция. */
-        suspend fun revisions(tenantId: String, tokenId: String): Map<String, Long> =
-            read("/api/ds/tenants/$tenantId/token-values").array("items")
+        suspend fun revisions(designSystemId: String, tenantId: String, tokenId: String): Map<String, Long> =
+            read("/api/design-systems/$designSystemId/tenants/$tenantId/token-values").array("items")
                 .filter { it.text("tokenId") == tokenId }
                 .associate { value ->
                     "${value.text("platform")}:${value.text("mode")}" to
                         value.jsonObject.getValue("editRevision").jsonPrimitive.long
                 }
 
-        suspend fun values(tenantId: String, version: String? = null): JsonArray =
+        suspend fun values(designSystemId: String, tenantId: String, version: String? = null): JsonArray =
             JsonArray(
-                read("/api/ds/tenants/$tenantId/token-values" + version?.let { "?versionId=$it" }.orEmpty())
+                read(
+                    "/api/design-systems/$designSystemId/tenants/$tenantId/token-values" + version?.let { "?versionId=$it" }.orEmpty(),
+                )
                     .array("items"),
             )
 
         suspend fun journal(designSystemId: String) =
-            read("/api/ds/design-systems/$designSystemId/changes").array("items").map { it.jsonObject }
+            read("/api/design-systems/$designSystemId/changes").array("items").map { it.jsonObject }
 
         suspend fun revert(designSystemId: String, change: JsonObject) = call(
             "POST",
-            "/api/ds/design-systems/$designSystemId/changes/${change.text("changeId")}/revert",
+            "/api/design-systems/$designSystemId/changes/revert-by-address",
             OWNER,
-            "{}",
-            change.getValue("editRevision").jsonPrimitive.long,
-            "revert-${change.text("changeId")}-${change.getValue("editRevision").jsonPrimitive.long}",
+            """{"draftId":"${change.text(
+                "versionId",
+            )}","targets":[{"entityType":"${change.text(
+                "entityType",
+            )}","entityId":"${change.text("entityId")}","expectedRevision":${change.getValue("editRevision")}}]}""",
+            idempotencyKey = "address-${change.text("changeId")}-${change.getValue("editRevision")}",
         )
 
         suspend fun publish(postgres: IsolatedPostgresDatabase, designSystemId: String, version: String): String {
@@ -719,11 +1530,11 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
             val (draftId, revision) = draft.split(':')
             val response = call(
                 "POST",
-                "/api/ds/design-system-versions",
+                "/api/design-systems/$designSystemId/versions",
                 OWNER,
-                """{"designSystemId":"$designSystemId","draftId":"$draftId","draftRevision":$revision,""" +
+                """{"draftId":"$draftId","draftRevision":$revision,""" +
                     """"version":"$version","changelog":"gradient"}""",
-                idempotencyKey = "publish-$version",
+                idempotencyKey = "publish-$designSystemId-$version",
             )
             assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
             return body(response).text("id")

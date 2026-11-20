@@ -3,7 +3,7 @@ info:
   title: DS Builder Design System API
   version: 1.0.0
 paths:
-  /api/ds/design-systems:
+  "/api/design-systems":
     get:
       tags:
         - Design Systems
@@ -67,7 +67,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: design-systems:write
-  /api/ds/design-systems/{id}:
+  "/api/design-systems/{designSystemId}":
     get:
       tags:
         - Design Systems
@@ -79,7 +79,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
         - $ref: '#/components/parameters/VersionId'
       responses:
@@ -121,7 +121,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
         - $ref: '#/components/parameters/BaseRevision'
       requestBody:
@@ -171,7 +171,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
         - $ref: '#/components/parameters/BaseRevision'
       responses:
@@ -199,14 +199,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: design-systems:delete
-  /api/ds/design-systems/{id}/components:
+  "/api/design-systems/{designSystemId}/components":
     get:
       tags:
         - Design Systems
       summary: Get components for design system
-      description: >-
-        Project-scoped authoritative component list. Preserves array response shape and supports optional
-        textual query.
+      description: Project-scoped authoritative component list. Preserves array response
+        shape and supports optional textual query.
       parameters:
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/PageLimit'
@@ -219,7 +218,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
         - schema:
             type: string
@@ -267,15 +266,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/design-systems/{id}/token-groups:
+  "/api/design-systems/{designSystemId}/token-groups":
     get:
       tags:
         - Token groups
       summary: List token groups and subgroups of a design system
-      description: >-
-        Includes empty groups. Full and paged reads use the same tree order: each root by position and ID,
-        immediately followed by its children by position and ID. parentId selects immediate children.
-        name and query are unsupported and return INVALID_QUERY.
+      description: 'Includes empty groups. Full and paged reads use the same tree
+        order: each root by position and ID, immediately followed by its children
+        by position and ID. parentId selects immediate children. name and query are
+        unsupported and return INVALID_QUERY.'
       parameters:
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/PageLimit'
@@ -286,7 +285,7 @@ paths:
             type: string
             format: uuid
           required: true
-          name: id
+          name: designSystemId
           in: path
         - schema:
             type: string
@@ -336,15 +335,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:read
-  /api/ds/design-systems/{id}/tokens:
+  "/api/design-systems/{designSystemId}/tokens":
     get:
       tags:
         - Design Systems
       summary: Get tokens for design system
-      description: >-
-        Project-scoped authoritative token list. Preserves array response shape and supports optional
-        type/query filters.
+      description: Project-scoped authoritative token list. Preserves array response
+        shape and supports optional type/query filters.
       parameters:
+        - $ref: '#/components/parameters/TokenIdsFilter'
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/PageLimit'
         - $ref: '#/components/parameters/PageCursor'
@@ -356,7 +355,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
         - schema:
             type: string
@@ -417,7 +416,51 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:read
-  /api/ds/design-systems/{id}/components/{componentId}/styles:
+    post:
+      tags:
+        - Tokens
+      summary: Create token
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/BaseRevision'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateToken'
+      responses:
+        '201':
+          description: Created
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tokens:write
+  "/api/design-systems/{designSystemId}/components/{componentId}/styles":
     get:
       tags:
         - Design Systems
@@ -433,7 +476,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
         - schema:
             type: string
@@ -483,7 +526,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/design-systems/{id}/components/{componentId}/editor-bundle:
+  "/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle":
     get:
       tags:
         - Components
@@ -493,7 +536,7 @@ paths:
         его свойствами и этой дизайн-системой: appearances — GET /ds/appearances, export —
         POST /ds/component-config/export с одним компонентом и platform, properties —
         GET /ds/components/{id}/properties, platformParams — GET /ds/property-platform-params,
-        propertyVariations — GET /ds/property-variations (пусто для compose), variations —
+        propertyVariations — GET /ds/property-variations, variations —
         GET /ds/components/{id}/variations?designSystemId=…, styles —
         GET /ds/design-systems/{id}/components/{componentId}/styles, webAdapter — запись компонента
         из POST /ds/component-config/web-adapter (null для compose), dependencies — связи, где
@@ -507,7 +550,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
           description: Дизайн-система
         - schema:
@@ -565,11 +608,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/design-systems/{id}/tenants:
+  "/api/design-systems/{designSystemId}/tenants":
     get:
       tags:
-        - Design Systems
-      summary: Get tenants for design system
+        - Tenants
+      summary: List all tenants
       parameters:
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/PageLimit'
@@ -582,44 +625,76 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
       responses:
         '200':
           description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Tenant"
           headers:
             X-DS-Read-Context:
               $ref: '#/components/headers/ReadContext'
             X-DS-Page-Limit:
               $ref: '#/components/headers/ReadPageLimit'
             X-DS-Next-Cursor:
-              $ref: '#/components/headers/ReadNextCursor'
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Tenant'
+              "$ref": "#/components/headers/ReadNextCursor"
         '500':
           description: Server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '400':
-          description: 'INVALID_QUERY: некорректный селектор, фильтр или cursor.'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: 'NOT_FOUND: ресурс или выбранная версия недоступны.'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:read
-  /api/ds/design-systems/{id}/appearances:
+    post:
+      tags:
+        - Tenants
+      summary: Create tenant
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/BaseRevision'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenant'
+      responses:
+        '201':
+          description: Created
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+  "/api/design-systems/{designSystemId}/appearances":
     get:
       tags:
         - Design Systems
@@ -631,7 +706,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
       responses:
         '200':
@@ -649,15 +724,64 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/design-systems/{id}/changes/summary:
-    get:
-      tags: [Design Systems]
-      summary: Число отображаемых изменений без полного журнала
+    post:
+      tags:
+        - Appearances
+      summary: Create appearance
+      description: >-
+        Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
-        - name: id
+        - name: designSystemId
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/BaseRevision'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppearance'
+      responses:
+        '201':
+          description: Created
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appearance'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
+  "/api/design-systems/{designSystemId}/changes/summary":
+    get:
+      tags:
+        - Design Systems
+      summary: Число отображаемых изменений без полного журнала
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/VersionId'
       responses:
@@ -675,15 +799,19 @@ paths:
         '404':
           description: ДС или версия недоступна
       x-permission: design-systems:read
-  /api/ds/design-systems/{id}/changes/token-ids:
+  "/api/design-systems/{designSystemId}/changes/token-ids":
     get:
-      tags: [Design Systems]
-      summary: Unique changed token IDs for visible indicators, independent of the full journal limit
+      tags:
+        - Design Systems
+      summary: Unique changed token IDs for visible indicators, independent of the
+        full journal limit
       parameters:
-        - name: id
+        - name: designSystemId
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema:
+            type: string
+            format: uuid
         - name: tenantId
           in: query
           required: true
@@ -713,7 +841,7 @@ paths:
         '404':
           description: Design system, version or tenant not accessible
       x-permission: design-systems:read
-  /api/ds/design-systems/{id}/changes:
+  "/api/design-systems/{designSystemId}/changes":
     get:
       tags:
         - Design Systems
@@ -727,7 +855,7 @@ paths:
             format: uuid
             example: 550e8400-e29b-41d4-a716-446655440000
           required: true
-          name: id
+          name: designSystemId
           in: path
         - $ref: '#/components/parameters/VersionId'
       responses:
@@ -776,101 +904,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: design-systems:read
-  /api/ds/design-system-versions:
-    get:
-      tags:
-        - Design System Versions
-      summary: List all design system versions
-      parameters:
-        - $ref: '#/components/parameters/VersionId'
-      responses:
-        '200':
-          description: List of items
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DesignSystemVersion'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      x-permission: design-systems:read
-    post:
-      tags:
-        - Design System Versions
-      summary: Publish the active design system draft
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateDesignSystemVersion'
-      responses:
-        '201':
-          description: Created
-          headers:
-            X-DS-Mutation-Metadata:
-              $ref: '#/components/headers/MutationMetadata'
-            X-DS-Mutation-Metadata-Truncated:
-              $ref: '#/components/headers/MutationMetadataTruncated'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DesignSystemVersion'
-        '400':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      x-permission: design-systems:write
-  /api/ds/design-system-versions/{id}:
-    get:
-      tags:
-        - Design System Versions
-      summary: Get design system version by ID
-      parameters:
-        - $ref: '#/components/parameters/VersionId'
-        - schema:
-            type: string
-            format: uuid
-            example: 550e8400-e29b-41d4-a716-446655440000
-          required: true
-          name: id
-          in: path
-      responses:
-        '200':
-          description: Item
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DesignSystemVersion'
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      x-permission: design-systems:read
-  /api/ds/design-system-versions/by-design-system/{designSystemId}:
+  "/api/design-systems/{designSystemId}/versions":
     get:
       tags:
         - Design System Versions
@@ -922,42 +956,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: design-systems:read
-  /api/ds/tenants:
-    get:
-      tags:
-        - Tenants
-      summary: List all tenants
-      parameters:
-        - $ref: '#/components/parameters/VersionId'
-      responses:
-        '200':
-          description: List of items
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Tenant'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      x-permission: tenants:read
     post:
       tags:
-        - Tenants
-      summary: Create tenant
+        - Design System Versions
+      summary: Publish the active design system draft
       parameters:
-        - $ref: '#/components/parameters/BaseRevision'
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTenant'
+              $ref: '#/components/schemas/CreateDesignSystemVersion'
       responses:
         '201':
           description: Created
@@ -969,7 +985,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Tenant'
+                $ref: '#/components/schemas/DesignSystemVersion'
         '400':
           description: Validation error
           content:
@@ -982,13 +998,59 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-      x-permission: tenants:write
-  /api/ds/tenants/{id}:
+      x-permission: design-systems:write
+  "/api/design-systems/{designSystemId}/versions/{id}":
+    get:
+      tags:
+        - Design System Versions
+      summary: Get design system version by ID
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/VersionId'
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+      responses:
+        '200':
+          description: Item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignSystemVersion'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: design-systems:read
+  "/api/design-systems/{designSystemId}/tenants/{id}":
     get:
       tags:
         - Tenants
       summary: Get tenant by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -1022,6 +1084,12 @@ paths:
         - Tenants
       summary: Update tenant
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - schema:
             type: string
@@ -1072,6 +1140,12 @@ paths:
         - Tenants
       summary: Delete tenant
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - schema:
             type: string
@@ -1105,23 +1179,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:delete
-  /api/ds/tenants/{id}/token-values:
+  "/api/design-systems/{designSystemId}/tenants/{id}/token-values":
     get:
       tags:
         - Tenants
       summary: All token values for a tenant
-      description: >-
-        Значения на границе выбранной версии (versionId). Ссылки цветовых значений, в том числе цвета стопов
-        web-градиента и элементы colors и background слоёв ios и android, заменены HEX по палитре темы и группе
-        токена (paletteId = null); исходная ссылка на всё значение — в paletteRef. Сплошные значения ios и android
-        токена типа gradient отдаются слоем [{ "kind": "color", "background": <HEX> }], типа color — строкой.
-        Ссылки цветов слоёв тени заменены #RRGGBBAA на своём месте.
-        Если value отличается от хранимого значения, хранимое значение — в sourceValue; при ссылке на всё значение
-        (paletteRef) sourceValue не отдаётся. overridden — своё значение платформы. Ссылка, которую палитра темы не
-        раскрывает, остаётся в значении без paletteRef; форма значения по типу токена применяется всегда.
-        Необязательный types ограничивает чтение типами текущего раздела; без него сохраняется полный ответ.
-        Необязательный platforms оставляет значения только этих платформ; значения без платформы при нём не отдаются.
+      description: 'Значения на границе выбранной версии (versionId). Ссылки цветовых
+        значений, в том числе цвета стопов web-градиента и элементы colors и background
+        слоёв ios и android, заменены HEX по палитре темы и группе токена (paletteId
+        = null); исходная ссылка на всё значение — в paletteRef. Сплошные значения
+        ios и android токена типа gradient отдаются слоем [{ "kind": "color", "background":
+        <HEX> }], типа color — строкой. Ссылки цветов слоёв тени заменены #RRGGBBAA
+        на своём месте. Если value отличается от хранимого значения, хранимое значение
+        — в sourceValue; при ссылке на всё значение (paletteRef) sourceValue не отдаётся.
+        overridden — своё значение платформы. Ссылка, которую палитра темы не раскрывает,
+        остаётся в значении без paletteRef; форма значения по типу токена применяется
+        всегда. Необязательный types ограничивает чтение типами текущего раздела;
+        без него сохраняется полный ответ. Необязательный platforms оставляет значения
+        только этих платформ; значения без платформы при нём не отдаются.'
       parameters:
+        - $ref: '#/components/parameters/TokenIdsFilter'
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - name: platforms
           in: query
@@ -1175,6 +1258,12 @@ paths:
         - Tenants
       summary: Atomically save token values for one tenant
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - schema:
             type: string
@@ -1274,12 +1363,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/palette:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette":
     get:
       tags:
         - Tenant palette
       summary: Theme palette of a tenant
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/PaletteGroupFilter'
         - $ref: '#/components/parameters/PaletteTypeFilter'
@@ -1326,12 +1421,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:read
-  /api/ds/tenants/{tenantId}/palette/links:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/links":
     get:
       tags:
         - Tenant palette
       summary: Token links of a palette slot
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -1396,12 +1497,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:read
-  /api/ds/tenants/{tenantId}/palette/groups:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups":
     post:
       tags:
         - Tenant palette
       summary: Create a custom palette group
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
@@ -1459,12 +1566,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/palette/groups/{groupId}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}":
     patch:
       tags:
         - Tenant palette
       summary: Rename a custom palette group
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -1531,6 +1644,12 @@ paths:
         - Tenant palette
       summary: Delete a custom palette group
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -1592,12 +1711,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/palette/token-groups/{tokenId}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/token-groups/{tokenId}":
     put:
       tags:
         - Tenant palette
       summary: Assign a color token to a palette group
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -1660,12 +1785,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps":
     post:
       tags:
         - Tenant palette
       summary: Add a template ramp to a group
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
@@ -1728,12 +1859,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}":
     delete:
       tags:
         - Tenant palette
       summary: Remove a ramp from a group
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -1808,12 +1945,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/source:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/source":
     put:
       tags:
         - Tenant palette
       summary: Replace the ramp source within a group
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -1888,12 +2031,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/rebuild:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/rebuild":
     post:
       tags:
         - Tenant palette
       summary: Rebuild a ramp from an anchor color or preview it
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
@@ -1972,12 +2121,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/steps/{step}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/steps/{step}":
     patch:
       tags:
         - Tenant palette
       summary: Edit one step of a ramp in a group
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2057,15 +2212,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/color-tokens:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens":
     post:
       tags:
         - Color tokens
-      summary: >-
-        Create a color token with its family in a token group, values in every theme and optional palette
-        group
-      description: Требует tenants:write и tokens:write. Атомарно создаёт предметные редакции во всех темах. editRevision оставлен для совместимости и равен 0.
+      summary: Create a color token with its family in a token group, values in every
+        theme and optional palette group
+      description: Требует tenants:write и tokens:write. Атомарно создаёт предметные
+        редакции во всех темах. editRevision оставлен для совместимости и равен 0.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
@@ -2125,18 +2286,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/values:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/values":
     put:
       tags:
         - Color tokens
       summary: Replace values of color token family members in the theme
-      description: >-
-        Требует tenants:write. Передаются только изменённые пары платформы и режима; остальные сохраняются. Повтор
-        пары запрещён. Каждое значение — цвет или градиент; в той же транзакции тип семейства вычисляется по
-        значениям всех тем и при смене записывается редакциями определений с путём /type, значения других тем не
-        меняются. Сплошной слой color ios и android сохраняется строкой. Технические редакции изменённых значений
-        и определений — в X-DS-Mutation-Metadata. editRevision оставлен для совместимости и равен 0.
+      description: Требует tenants:write. Передаются только изменённые пары платформы
+        и режима; остальные сохраняются. Повтор пары запрещён. Каждое значение — цвет
+        или градиент; в той же транзакции тип семейства вычисляется по значениям всех
+        тем и при смене записывается редакциями определений с путём /type, значения
+        других тем не меняются. Сплошной слой color ios и android сохраняется строкой.
+        Технические редакции изменённых значений и определений — в X-DS-Mutation-Metadata.
+        editRevision оставлен для совместимости и равен 0.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2201,13 +2369,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/color-tokens/{tokenId}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}":
     delete:
       tags:
         - Color tokens
       summary: Delete a color token family with values in every theme
-      description: Требует tenants:write и tokens:delete. Логическое удаление сохраняет опубликованные данные. editRevision оставлен для совместимости и равен 0.
+      description: Требует tenants:write и tokens:delete. Логическое удаление сохраняет
+        опубликованные данные. editRevision оставлен для совместимости и равен 0.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2270,16 +2445,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/move:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/move":
     post:
       tags:
         - Color tokens
-      summary: Move a color token family to a token group and position, optionally renaming it
-      description: >-
-        Requires tenants:write and tokens:write. Definition ids are kept; moving to a group with another code
-        changes the first name segment, display names are recomputed. Increments editRevision of every theme
-        of the design system.
+      summary: Move a color token family to a token group and position, optionally
+        renaming it
+      description: Requires tenants:write and tokens:write. Definition ids are kept;
+        moving to a group with another code changes the first name segment, display
+        names are recomputed. Increments editRevision of every theme of the design
+        system.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
@@ -2345,15 +2527,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/token-groups:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/token-groups":
     post:
       tags:
         - Token groups
       summary: Create a token group or subgroup
-      description: >-
-        Requires tenants:write and tokens:write. A top-level group gets a code derived from its label.
-        Increments editRevision of every theme of the design system.
+      description: Requires tenants:write and tokens:write. A top-level group gets
+        a code derived from its label. Increments editRevision of every theme of the
+        design system.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
@@ -2411,15 +2599,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/token-groups/{groupId}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/token-groups/{groupId}":
     patch:
       tags:
         - Token groups
       summary: Rename or reorder a token group, move a subgroup to another group
-      description: >-
-        Requires tenants:write and tokens:write. Moving a subgroup to a group with another code renames its
-        tokens keeping definition ids. Increments editRevision of every theme of the design system.
+      description: Requires tenants:write and tokens:write. Moving a subgroup to a
+        group with another code renames its tokens keeping definition ids. Increments
+        editRevision of every theme of the design system.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2486,11 +2680,16 @@ paths:
       tags:
         - Token groups
       summary: Delete a token group with its subgroups and tokens
-      description: >-
-        Requires tenants:write and tokens:delete. Token values in every theme and palette group bindings are
-        deleted, component value references become null. Increments editRevision of every theme of the design
-        system.
+      description: Requires tenants:write and tokens:delete. Token values in every
+        theme and palette group bindings are deleted, component value references become
+        null. Increments editRevision of every theme of the design system.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2553,17 +2752,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/typography-styles:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-styles":
     get:
       tags:
         - Typography styles
       summary: Typography styles of the theme by screen in px
-      description: >-
-        Requires tenants:read. Returns styles of screen-l, screen-m and screen-s with variant tokens and
-        technical revisions of their values, font families of the design system and components that use each
-        style, resolved on the selected published version (versionId) or the active draft. canEdit reflects
-        tenants:write and is false for a published version.
+      description: Requires tenants:read. Returns styles of screen-l, screen-m and
+        screen-s with variant tokens and technical revisions of their values, font
+        families of the design system and components that use each style, resolved
+        on the selected published version (versionId) or the active draft. canEdit
+        reflects tenants:write and is false for a published version.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -2607,15 +2812,22 @@ paths:
       tags:
         - Typography styles
       summary: Create a typography style with nine variant tokens in every theme
-      description: >-
-        Требует tenants:write и tokens:write. Создаёт в активном черновике стиль group.size — девять токенов
-        screen-(s|m|l).group.size.(normal|medium|bold) — со значениями ближайшего размера той же группы во всех темах
-        (в пустой группе — body.m с семейством fontFamily.group, если оно есть). Группа — системная (display, header,
-        body, text) или своя: a-z до 32 знаков, кроме dspl; новая группа появляется с первым стилем. Имя стиля
-        произвольное: a-z, 0-9 и дефис между ними. Ответ — идентификаторы токенов и стиль на каждом экране в формате
-        чтения. Повтор с тем же Idempotency-Key возвращает сохранённый ответ. Мутация с versionId отклоняется
-        historical_version_read_only.
+      description: 'Требует tenants:write и tokens:write. Создаёт в активном черновике
+        стиль group.size — девять токенов screen-(s|m|l).group.size.(normal|medium|bold)
+        — со значениями ближайшего размера той же группы во всех темах (в пустой группе
+        — body.m с семейством fontFamily.group, если оно есть). Группа — системная
+        (display, header, body, text) или своя: a-z до 32 знаков, кроме dspl; новая
+        группа появляется с первым стилем. Имя стиля произвольное: a-z, 0-9 и дефис
+        между ними. Ответ — идентификаторы токенов и стиль на каждом экране в формате
+        чтения. Повтор с тем же Idempotency-Key возвращает сохранённый ответ. Мутация
+        с versionId отклоняется historical_version_read_only.'
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
@@ -2673,7 +2885,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/typography-styles/{tokenId}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-styles/{tokenId}":
     patch:
       tags:
         - Typography styles
@@ -2684,8 +2896,18 @@ paths:
         fontFamily to every style token. Values of other themes are not changed. Every changed value of the
         active draft gets its own subject revision of path /value; the base revision of a value comes from
         baseRevisions, otherwise from X-DS-Base-Revision. A concurrent write of the same path is applied (last
-        write wins) and reported in warnings of X-DS-Mutation-Metadata; the operation never answers 409.
+        write wins) and reported in warnings of X-DS-Mutation-Metadata; subject conflicts do not produce 409.
+        При Idempotency-Key сохраняются исходные статус, тело и технические метаданные.
+        Повтор той же команды возвращает сохранённый ответ до сравнения базовых редакций;
+        другая команда с тем же ключом получает 409 IDEMPOTENCY_KEY_REUSED.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2757,11 +2979,17 @@ paths:
       tags:
         - Typography styles
       summary: Delete a typography style with its nine tokens in every theme
-      description: >-
-        Требует tenants:write и tokens:delete. По любому токену стиля логически удаляет в активном черновике девять
-        токенов стиля со значениями; ссылки компонентов на стиль, в том числе текстом без экрана (body.m.normal),
-        становятся пустыми. Опубликованные версии сохраняют данные; отмена — через журнал изменений.
+      description: Требует tenants:write и tokens:delete. По любому токену стиля логически
+        удаляет в активном черновике девять токенов стиля со значениями; ссылки компонентов
+        на стиль, в том числе текстом без экрана (body.m.normal), становятся пустыми.
+        Опубликованные версии сохраняют данные; отмена — через журнал изменений.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2805,6 +3033,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency key belongs to a different command (IDEMPOTENCY_KEY_REUSED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
           content:
@@ -2812,18 +3046,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/typography-styles/{tokenId}/name:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-styles/{tokenId}/name":
     patch:
       tags:
         - Typography styles
       summary: Rename a typography style within its group
-      description: >-
-        Требует tenants:write и tokens:write. По любому токену стиля меняет имя стиля (size) в именах девяти токенов;
-        группа не меняется, идентификаторы токенов сохраняются. Текстовые ссылки компонентов на стиль привязываются
-        по token_id: без экрана (body.m.normal) — к токену screen-s своего начертания, с экраном
-        (screen-l.body.m.normal) — к токену этого экрана; учитываются вариации, инварианты и комбинации стилей.
-        Выгрузка конфигурации отдаёт для них имя без экрана.
+      description: 'Требует tenants:write и tokens:write. По любому токену стиля меняет
+        имя стиля (size) в именах девяти токенов; группа не меняется, идентификаторы
+        токенов сохраняются. Текстовые ссылки компонентов на стиль привязываются по
+        token_id: без экрана (body.m.normal) — к токену screen-s своего начертания,
+        с экраном (screen-l.body.m.normal) — к токену этого экрана; учитываются вариации,
+        инварианты и комбинации стилей. Выгрузка конфигурации отдаёт для них имя без
+        экрана.'
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2886,17 +3127,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/typography-groups/{group}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/typography-groups/{group}":
     patch:
       tags:
         - Typography styles
       summary: Rename an own typography group with all its styles
-      description: >-
-        Требует tenants:write и tokens:write. Меняет группу в именах токенов всех стилей своей группы; имена стилей и
-        идентификаторы токенов сохраняются. Системные группы display, header, body и text не переименовываются
-        (SYSTEM_TYPOGRAPHY_GROUP). Текстовые ссылки компонентов на стили группы привязываются по token_id, как при
-        переименовании стиля.
+      description: Требует tenants:write и tokens:write. Меняет группу в именах токенов
+        всех стилей своей группы; имена стилей и идентификаторы токенов сохраняются.
+        Системные группы display, header, body и text не переименовываются (SYSTEM_TYPOGRAPHY_GROUP).
+        Текстовые ссылки компонентов на стили группы привязываются по token_id, как
+        при переименовании стиля.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -2962,11 +3209,17 @@ paths:
       tags:
         - Typography styles
       summary: Delete an own typography group with all its styles
-      description: >-
-        Требует tenants:write и tokens:delete. Логически удаляет в активном черновике токены всех стилей своей группы
-        со значениями; ссылки компонентов на них, в том числе текстовые, становятся пустыми. Системные группы не
-        удаляются (SYSTEM_TYPOGRAPHY_GROUP).
+      description: Требует tenants:write и tokens:delete. Логически удаляет в активном
+        черновике токены всех стилей своей группы со значениями; ссылки компонентов
+        на них, в том числе текстовые, становятся пустыми. Системные группы не удаляются
+        (SYSTEM_TYPOGRAPHY_GROUP).
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -3016,18 +3269,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/size-tokens:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens":
     get:
       tags:
         - Size tokens
-      summary: Radius, spacing and shadow tokens of a theme in px with component usage and derived radii
-      description: >-
-        Требует tenants:read. Читает токены на границе активного черновика или опубликованной версии versionId
-        (недоступная версия — 404); использование компонентами, вычисляемые радиусы и раскрытие ссылок цвета слоёв
-        тени — на той же границе. Токены с именем вне правила своего типа не возвращаются. canEdit равен true при
-        праве tenants:write на тему своего проекта и false у опубликованной версии. Общего счётчика темы нет: базовые
-        редакции значений клиент берёт из GET /api/ds/tenants/{id}/token-values.
+      summary: Radius, spacing and shadow tokens of a theme in px with component usage
+        and derived radii
+      description: 'Требует tenants:read. Читает токены на границе активного черновика
+        или опубликованной версии versionId (недоступная версия — 404); использование
+        компонентами, вычисляемые радиусы и раскрытие ссылок цвета слоёв тени — на
+        той же границе. Токены с именем вне правила своего типа не возвращаются. canEdit
+        равен true при праве tenants:write на тему своего проекта и false у опубликованной
+        версии. Общего счётчика темы нет: базовые редакции значений клиент берёт из
+        GET /api/design-systems/{designSystemId}/tenants/{id}/token-values.'
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -3071,12 +3332,19 @@ paths:
       tags:
         - Size tokens
       summary: Create a radius, a spacing or a shadow with values in every theme
-      description: >-
-        Требует tenants:write и tokens:write. Создаёт в активном черновике предметные редакции определений и значений
-        во всех темах дизайн-системы с overridden false. Уникальность имени проверяется среди действующих токенов под
-        блокировкой ключа имени; имя удалённого в черновике токена свободно. Повтор с тем же Idempotency-Key и телом
-        возвращает сохранённый ответ. Мутация с versionId отклоняется historical_version_read_only.
+      description: Требует tenants:write и tokens:write. Создаёт в активном черновике
+        предметные редакции определений и значений во всех темах дизайн-системы с
+        overridden false. Уникальность имени проверяется среди действующих токенов
+        под блокировкой ключа имени; имя удалённого в черновике токена свободно. Повтор
+        с тем же Idempotency-Key и телом возвращает сохранённый ответ. Мутация с versionId
+        отклоняется historical_version_read_only.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
@@ -3138,7 +3406,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/size-tokens/{tokenId}/value:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens/{tokenId}/value":
     put:
       tags:
         - Size tokens
@@ -3148,9 +3416,19 @@ paths:
         platforms пишутся с overridden true, остальные строятся из веба с overridden false. Записываются предметные
         редакции только изменившихся значений текущей темы с путями /value и /overridden; базовая редакция значения —
         из baseRevisions по платформе, иначе из X-DS-Base-Revision. Конкурентная правка одного значения: последняя
-        запись побеждает, путь — в warnings метаданных изменения, без 409. round.circle не правится. Мутация с
+        запись побеждает, путь — в warnings метаданных изменения, без предметного 409. round.circle не правится. Мутация с
         versionId отклоняется historical_version_read_only.
+        При Idempotency-Key сохраняются исходные статус, тело и технические метаданные.
+        Повтор той же команды возвращает сохранённый ответ до сравнения базовых редакций;
+        другая команда с тем же ключом получает 409 IDEMPOTENCY_KEY_REUSED.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -3204,6 +3482,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency key belongs to a different command (IDEMPOTENCY_KEY_REUSED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
           content:
@@ -3211,17 +3495,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tenants/{tenantId}/size-tokens/{tokenId}:
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens/{tokenId}":
     delete:
       tags:
         - Size tokens
       summary: Delete a radius, spacing or shadow token with values in every theme
-      description: >-
-        Требует tenants:write и tokens:delete. Логически удаляет в активном черновике токен со значениями во всех
-        темах (deleted = true); ссылки компонентов на него становятся пустыми.
-        Опубликованные версии сохраняют данные; отмена — через журнал изменений. Тело не нужно. Мутация с versionId
-        отклоняется historical_version_read_only.
+      description: Требует tenants:write и tokens:delete. Логически удаляет в активном
+        черновике токен со значениями во всех темах (deleted = true); ссылки компонентов
+        на него становятся пустыми. Опубликованные версии сохраняют данные; отмена
+        — через журнал изменений. Тело не нужно. Мутация с versionId отклоняется historical_version_read_only.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -3276,13 +3565,19 @@ paths:
       tags:
         - Size tokens
       summary: Rename a radius, spacing or shadow token
-      description: >-
-        Требует tenants:write и tokens:write. Переименовывает токен в активном черновике: name — часть после round.
-        или spacing. у радиуса и отступа, имя целиком у тени (части через точку). Идентификатор токена сохраняется;
-        текстовые ссылки компонентов на прежнее имя привязываются к токену по token_id. Полное скругление
-        round.circle не переименовывается. Отмена — через журнал изменений. Мутация с versionId отклоняется
-        historical_version_read_only.
+      description: 'Требует tenants:write и tokens:write. Переименовывает токен в
+        активном черновике: name — часть после round. или spacing. у радиуса и отступа,
+        имя целиком у тени (части через точку). Идентификатор токена сохраняется;
+        текстовые ссылки компонентов на прежнее имя привязываются к токену по token_id.
+        Полное скругление round.circle не переименовывается. Отмена — через журнал
+        изменений. Мутация с versionId отклоняется historical_version_read_only.'
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
@@ -3349,73 +3644,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
-  /api/ds/tokens:
-    get:
-      tags:
-        - Tokens
-      summary: List all tokens
-      parameters:
-        - $ref: '#/components/parameters/VersionId'
-      responses:
-        '200':
-          description: List of items
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Token'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      x-permission: tokens:read
-    post:
-      tags:
-        - Tokens
-      summary: Create token
-      parameters:
-        - $ref: '#/components/parameters/BaseRevision'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateToken'
-      responses:
-        '201':
-          description: Created
-          headers:
-            X-DS-Mutation-Metadata:
-              $ref: '#/components/headers/MutationMetadata'
-            X-DS-Mutation-Metadata-Truncated:
-              $ref: '#/components/headers/MutationMetadataTruncated'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Token'
-        '400':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      x-permission: tokens:write
-  /api/ds/tokens/{id}:
+  "/api/design-systems/{designSystemId}/tokens/{id}":
     get:
       tags:
         - Tokens
       summary: Get token by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/VersionId'
         - schema:
@@ -3459,6 +3699,12 @@ paths:
         - Tokens
       summary: Update token
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - schema:
             type: string
@@ -3509,6 +3755,12 @@ paths:
         - Tokens
       summary: Delete token
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - schema:
             type: string
@@ -3542,12 +3794,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:delete
-  /api/ds/tokens/{id}/values:
+  "/api/design-systems/{designSystemId}/tokens/{id}/values":
     get:
       tags:
         - Tokens
       summary: Filtered token values for a token
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/VersionId'
         - schema:
@@ -3618,19 +3876,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:read
-  /api/ds/token-values:
+  "/api/design-systems/{designSystemId}/token-values":
     get:
       tags:
         - Token Values
       summary: List all token values
-      description: >-
-        Значения отдаются в той же форме, что и GET /api/ds/tenants/{tenantId}/token-values, на границе выбранной
-        версии: ссылки на палитру в значениях цветовых и градиентных токенов раскрываются в HEX по палитре темы
-        значения, сплошные значения ios и android токена типа gradient отдаются слоем
-        [{ "kind": "color", "background": <цвет> }], а у токена типа color — строкой. Если value отличается от
-        хранимого, хранимое значение возвращается в sourceValue; при ссылке на всё значение вместо него —
-        paletteRef, а paletteId равен null.
+      description: 'Значения отдаются в той же форме, что и GET /api/design-systems/{designSystemId}/tenants/{tenantId}/token-values,
+        на границе выбранной версии: ссылки на палитру в значениях цветовых и градиентных
+        токенов раскрываются в HEX по палитре темы значения, сплошные значения ios
+        и android токена типа gradient отдаются слоем [{ "kind": "color", "background":
+        <цвет> }], а у токена типа color — строкой. Если value отличается от хранимого,
+        хранимое значение возвращается в sourceValue; при ссылке на всё значение вместо
+        него — paletteRef, а paletteId равен null.'
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -3653,6 +3917,12 @@ paths:
         - Token Values
       summary: Create token value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -3686,12 +3956,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:write
-  /api/ds/token-values/{id}:
+  "/api/design-systems/{designSystemId}/token-values/{id}":
     get:
       tags:
         - Token Values
       summary: Get token value by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -3725,6 +4001,12 @@ paths:
         - Token Values
       summary: Update token value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - schema:
             type: string
@@ -3775,6 +4057,12 @@ paths:
         - Token Values
       summary: Delete token value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - schema:
             type: string
@@ -3808,7 +4096,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:delete
-  /api/ds/palette:
+  "/api/design-systems/catalog/palette":
     get:
       tags:
         - Palette
@@ -3863,7 +4151,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:write
-  /api/ds/palette/{id}:
+  "/api/design-systems/catalog/palette/{id}":
     get:
       tags:
         - Palette
@@ -3973,7 +4261,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:delete
-  /api/ds/palette/by-type/{type}:
+  "/api/design-systems/catalog/palette/by-type/{type}":
     get:
       tags:
         - Palette
@@ -4004,14 +4292,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tokens:read
-  /api/ds/compose-preview/plugin:
+  "/api/design-systems/catalog/compose-preview/plugin":
     get:
       tags:
         - Compose Preview
       summary: Get the active Compose preview plugin build
-      description: >-
-        Returns the public address and version of the plugin build that is active in this environment.
-        The answer does not depend on the selected design system version.
+      description: Returns the public address and version of the plugin build that
+        is active in this environment. The answer does not depend on the selected
+        design system version.
       responses:
         '200':
           description: Active plugin build
@@ -4032,14 +4320,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/web-preview/plugin:
+      parameters: []
+  "/api/design-systems/catalog/icons":
+    get:
+      tags:
+        - Icons
+      summary: Get the active icon catalog
+      description: Returns the icon catalog of this environment with the source package
+        and the base address of the SVG files. The answer does not depend on the selected
+        design system version and carries an ETag equal to the load identifier.
+        An environment without a loaded catalog answers with an empty list and no source.
+      responses:
+        '200':
+          description: Active icon catalog
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IconCatalog'
+        '304':
+          description: The catalog has not changed since the ETag in If-None-Match
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
+      parameters: []
+  "/api/design-systems/catalog/web-preview/plugin":
     get:
       tags:
         - Web Preview
       summary: Get the active web preview plugin build
-      description: >-
-        Returns the public address and version of the web plugin build that is active in this environment.
-        The answer does not depend on the selected design system version.
+      description: Returns the public address and version of the web plugin build
+        that is active in this environment. The answer does not depend on the selected
+        design system version.
       responses:
         '200':
           description: Active web plugin build
@@ -4060,7 +4375,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/components:
+      parameters: []
+  "/api/design-systems/catalog/components":
     get:
       tags:
         - Components
@@ -4115,7 +4431,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:write
-  /api/ds/components/{id}:
+  "/api/design-systems/catalog/components/{id}":
     get:
       tags:
         - Components
@@ -4193,12 +4509,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:write
-  /api/ds/components/{id}/variations:
+  "/api/design-systems/{designSystemId}/components/{id}/variations":
     get:
       tags:
         - Components
       summary: Get variations of a component
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -4207,14 +4529,6 @@ paths:
           required: true
           name: id
           in: path
-        - schema:
-            type: string
-            format: uuid
-            example: 550e8400-e29b-41d4-a716-446655440000
-          required: false
-          name: designSystemId
-          in: query
-          description: Return only variation axes owned by this design system.
       responses:
         '200':
           description: List of items
@@ -4231,7 +4545,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/components/{id}/properties:
+  "/api/design-systems/catalog/components/{id}/properties":
     get:
       tags:
         - Components
@@ -4248,12 +4562,6 @@ paths:
             type: string
             enum: [platformParams]
           description: Include platform parameter metadata for each property
-        - name: designSystemId
-          in: query
-          schema:
-            type: string
-            format: uuid
-          description: Required when include=platformParams
         - schema:
             type: string
             format: uuid
@@ -4277,7 +4585,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/components/{id}/deps:
+  "/api/design-systems/{designSystemId}/components/{id}/properties":
+    get:
+      tags:
+        - Components
+      summary: Get properties of a component
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/VersionId'
+        - name: version
+          in: query
+          schema: { type: string }
+          description: Model version for include reads; draft is the default
+        - name: include
+          in: query
+          schema:
+            type: string
+            enum: [platformParams]
+          description: Include platform parameter metadata for each property
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Property'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
+  "/api/design-systems/catalog/components/{id}/deps":
     get:
       tags:
         - Components
@@ -4294,12 +4648,6 @@ paths:
             type: string
             enum: [reuseConfig]
           description: Include reuse settings of the selected design system
-        - name: designSystemId
-          in: query
-          schema:
-            type: string
-            format: uuid
-          description: Required when include=reuseConfig
         - schema:
             type: string
             format: uuid
@@ -4333,12 +4681,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/design-system-components:
+  "/api/design-systems/{designSystemId}/components/{id}/deps":
+    get:
+      tags:
+        - Components
+      summary: Parent and child deps of a component
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/VersionId'
+        - name: version
+          in: query
+          schema: { type: string }
+          description: Model version for include reads; draft is the default
+        - name: include
+          in: query
+          schema:
+            type: string
+            enum: [reuseConfig]
+          description: Include reuse settings of the selected design system
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+      responses:
+        '200':
+          description: Deps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asParent:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ComponentDep'
+                  asChild:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ComponentDep'
+                required:
+                  - asParent
+                  - asChild
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
+  "/api/design-systems/{designSystemId}/design-system-components":
     get:
       tags:
         - Design System Components
       summary: List all design system components
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -4361,6 +4771,12 @@ paths:
         - Design System Components
       summary: Create design system component
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -4387,6 +4803,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Нет шаблона (template_not_found) или в дизайн-системе не хватает метаданных и токенов шаблона (template_metadata_missing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
           content:
@@ -4394,12 +4816,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:write
-  /api/ds/design-system-components/{id}:
+  "/api/design-systems/catalog/component-templates":
+    get:
+      tags:
+        - Design System Components
+      summary: Шаблоны web-компонентов, которые можно добавить в дизайн-систему
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComponentTemplate'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
+  "/api/design-systems/{designSystemId}/design-system-components/{id}":
     get:
       tags:
         - Design System Components
       summary: Get design system component by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -4433,6 +4882,12 @@ paths:
         - Design System Components
       summary: Delete design system component
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -4466,7 +4921,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:delete
-  /api/ds/component-deps:
+  "/api/design-systems/catalog/component-deps":
     get:
       tags:
         - Component Deps
@@ -4521,7 +4976,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:write
-  /api/ds/component-deps/{id}:
+  "/api/design-systems/catalog/component-deps/{id}":
     get:
       tags:
         - Component Deps
@@ -4599,12 +5054,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:write
-  /api/ds/component-reuse-configs:
+  "/api/design-systems/{designSystemId}/component-reuse-configs":
     get:
       tags:
         - Component Reuse Configs
       summary: List all component reuse configs
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -4627,6 +5088,12 @@ paths:
         - Component Reuse Configs
       summary: Create component reuse config
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -4660,12 +5127,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:write
-  /api/ds/component-reuse-configs/{id}:
+  "/api/design-systems/{designSystemId}/component-reuse-configs/{id}":
     get:
       tags:
         - Component Reuse Configs
       summary: Get component reuse config by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -4699,6 +5172,12 @@ paths:
         - Component Reuse Configs
       summary: Update component reuse config
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -4749,6 +5228,12 @@ paths:
         - Component Reuse Configs
       summary: Delete component reuse config
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -4782,12 +5267,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:delete
-  /api/ds/component-reuse-configs/by-dep/{componentDepId}:
+  "/api/design-systems/{designSystemId}/component-reuse-configs/by-dep/{componentDepId}":
     get:
       tags:
         - Component Reuse Configs
       summary: Configs for a component dep
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -4812,21 +5303,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/variations:
+  "/api/design-systems/{designSystemId}/variations":
     get:
       tags:
         - Variations
       summary: List all variations
       parameters:
-        - $ref: '#/components/parameters/VersionId'
-        - schema:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
             type: string
             format: uuid
-            example: 550e8400-e29b-41d4-a716-446655440000
-          required: false
-          name: designSystemId
-          in: query
-          description: Return only variation axes owned by this design system.
+        - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
           description: List of items
@@ -4848,6 +5337,12 @@ paths:
         - Variations
       summary: Create variation
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -4881,12 +5376,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/variations/{id}:
+  "/api/design-systems/{designSystemId}/variations/{id}":
     get:
       tags:
         - Variations
       summary: Get variation by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -4920,6 +5421,12 @@ paths:
         - Variations
       summary: Update variation
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -4965,12 +5472,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/variations/{id}/styles:
+  "/api/design-systems/{designSystemId}/variations/{id}/styles":
     get:
       tags:
         - Variations
       summary: Styles for a variation
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -4995,12 +5508,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/variations/{id}/properties:
+  "/api/design-systems/{designSystemId}/variations/{id}/properties":
     get:
       tags:
         - Variations
       summary: Properties linked to a variation
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -5025,7 +5544,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/properties:
+  "/api/design-systems/catalog/properties":
     get:
       tags:
         - Properties
@@ -5080,7 +5599,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/properties/{id}:
+  "/api/design-systems/catalog/properties/{id}":
     get:
       tags:
         - Properties
@@ -5158,7 +5677,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/property-platform-params:
+  "/api/design-systems/catalog/property-platform-params":
     get:
       tags:
         - Property Platform Params
@@ -5213,7 +5732,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/property-platform-params/{id}:
+  "/api/design-systems/catalog/property-platform-params/{id}":
     get:
       tags:
         - Property Platform Params
@@ -5291,12 +5810,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/property-variations:
+  "/api/design-systems/{designSystemId}/property-variations":
     get:
       tags:
         - Property Variations
       summary: List all property variations
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -5319,6 +5844,12 @@ paths:
         - Property Variations
       summary: Create property variation
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -5346,12 +5877,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/property-variations/{id}:
+  "/api/design-systems/{designSystemId}/property-variations/{id}":
     get:
       tags:
         - Property Variations
       summary: Get property variation by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -5380,12 +5917,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/variation-platform-param-adjustments:
+  "/api/design-systems/{designSystemId}/variation-platform-param-adjustments":
     get:
       tags:
         - Variation Platform Param Adjustments
       summary: List all variation platform param adjustments
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -5408,6 +5951,12 @@ paths:
         - Variation Platform Param Adjustments
       summary: Create variation platform param adjustment
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -5441,12 +5990,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/variation-platform-param-adjustments/{id}:
+  "/api/design-systems/{designSystemId}/variation-platform-param-adjustments/{id}":
     get:
       tags:
         - Variation Platform Param Adjustments
       summary: Get variation platform param adjustment by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -5480,6 +6035,12 @@ paths:
         - Variation Platform Param Adjustments
       summary: Update variation platform param adjustment
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -5530,6 +6091,12 @@ paths:
         - Variation Platform Param Adjustments
       summary: Delete variation platform param adjustment
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -5563,12 +6130,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/invariant-platform-param-adjustments:
+  "/api/design-systems/{designSystemId}/invariant-platform-param-adjustments":
     get:
       tags:
         - Invariant Platform Param Adjustments
       summary: List all invariant platform param adjustments
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -5591,6 +6164,12 @@ paths:
         - Invariant Platform Param Adjustments
       summary: Create invariant platform param adjustment
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -5624,12 +6203,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/invariant-platform-param-adjustments/{id}:
+  "/api/design-systems/{designSystemId}/invariant-platform-param-adjustments/{id}":
     get:
       tags:
         - Invariant Platform Param Adjustments
       summary: Get invariant platform param adjustment by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -5663,6 +6248,12 @@ paths:
         - Invariant Platform Param Adjustments
       summary: Update invariant platform param adjustment
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -5713,6 +6304,12 @@ paths:
         - Invariant Platform Param Adjustments
       summary: Delete invariant platform param adjustment
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -5746,100 +6343,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/appearances:
-    get:
-      tags:
-        - Appearances
-      summary: List appearances, optionally filtered by design system and component
-      description: >-
-        Without designSystemId and componentId, returns the legacy array. With both filters,
-        returns a paginated page of component configurations (appearances).
-      parameters:
-        - $ref: '#/components/parameters/VersionId'
-        - $ref: '#/components/parameters/ModelVersion'
-        - name: designSystemId
-          in: query
-          schema:
-            type: string
-            format: uuid
-        - name: componentId
-          in: query
-          schema:
-            type: string
-            format: uuid
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: cursor
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of items
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - type: array
-                    items:
-                      $ref: '#/components/schemas/Appearance'
-                  - $ref: '#/components/schemas/ComponentConfigurationsResponse'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      x-permission: components:variations:read
-    post:
-      tags:
-        - Appearances
-      summary: Create appearance
-      parameters:
-        - $ref: '#/components/parameters/BaseRevision'
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateAppearance'
-      responses:
-        '201':
-          description: Created
-          headers:
-            X-DS-Mutation-Metadata:
-              $ref: '#/components/headers/MutationMetadata'
-            X-DS-Mutation-Metadata-Truncated:
-              $ref: '#/components/headers/MutationMetadataTruncated'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Appearance'
-        '400':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-      x-permission: components:variations:write
-  /api/ds/appearances/{id}:
+  "/api/design-systems/{designSystemId}/appearances/{id}":
     get:
       tags:
         - Appearances
       summary: Get appearance by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -5872,7 +6387,15 @@ paths:
       tags:
         - Appearances
       summary: Update appearance
+      description: >-
+        Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -5923,6 +6446,12 @@ paths:
         - Appearances
       summary: Delete appearance
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -5956,7 +6485,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/appearances/{id}/variations:
+  "/api/design-systems/{designSystemId}/appearances/{id}/variations":
     get:
       tags:
         - Appearances
@@ -5967,6 +6496,12 @@ paths:
         Ручка нужна для переноса объявлений при копировании дизайн-системы: тянуть ради десятка
         строк все объявления базы и фильтровать их на клиенте значит возить мегабайты.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/ModelVersion'
         - $ref: '#/components/parameters/VersionId'
         - schema:
@@ -6007,12 +6542,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/appearances/{id}/editor-model:
+  "/api/design-systems/{designSystemId}/appearances/{id}/editor-model":
     get:
       tags:
         - Appearance editor
       summary: Appearance model for the editor
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6041,18 +6582,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/appearances/{id}/resolved-properties:
+  "/api/design-systems/{designSystemId}/appearances/{id}/resolved-properties":
     get:
       tags:
         - Appearance editor
       summary: Resolve properties for selected axis values
       parameters:
-        - name: id
+        - name: designSystemId
           in: path
           required: true
           schema:
             type: string
             format: uuid
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
         - name: selectedValueId
           in: query
           schema:
@@ -6083,18 +6628,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/appearances/{id}/token-references:
+  "/api/design-systems/{designSystemId}/appearances/{id}/token-references":
     get:
       tags:
         - Appearance editor
       summary: Read verified token references for a full axis selection
       parameters:
-        - name: id
+        - name: designSystemId
           in: path
           required: true
           schema:
             type: string
             format: uuid
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
         - name: selectedValueId
           in: query
           schema:
@@ -6125,12 +6674,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/appearances/{id}/axes:
+  "/api/design-systems/{designSystemId}/appearances/{id}/axes":
     post:
       tags:
         - Appearance editor
       summary: Add an axis with values
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6189,12 +6744,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearances/{id}/axes/{axisId}:
+  "/api/design-systems/{designSystemId}/appearances/{id}/axes/{axisId}":
     delete:
       tags:
         - Appearance editor
       summary: Remove an axis with dependent values
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6252,12 +6813,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/appearances/{id}/axis-order:
+  "/api/design-systems/{designSystemId}/appearances/{id}/axis-order":
     post:
       tags:
         - Appearance editor
       summary: Set the order of axes
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6311,12 +6878,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearances/{id}/axes/{axisId}/values:
+  "/api/design-systems/{designSystemId}/appearances/{id}/axes/{axisId}/values":
     post:
       tags:
         - Appearance editor
       summary: Add an axis value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6382,12 +6955,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearances/{id}/axis-values/{valueId}:
+  "/api/design-systems/{designSystemId}/appearances/{id}/axis-values/{valueId}":
     delete:
       tags:
         - Appearance editor
       summary: Remove an axis value with dependent values
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6445,12 +7024,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/appearances/{id}/axes/{axisId}/value-order:
+  "/api/design-systems/{designSystemId}/appearances/{id}/axes/{axisId}/value-order":
     put:
       tags:
         - Appearance editor
       summary: Set the order of axis values
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6509,12 +7094,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearances/{id}/property-values:
+  "/api/design-systems/{designSystemId}/appearances/{id}/property-values":
     put:
       tags:
         - Appearance editor
       summary: Set a property value for a scope and a state set
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6571,6 +7162,12 @@ paths:
         - Appearance editor
       summary: Remove a property value of a scope and a state set
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6628,12 +7225,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/appearances/{id}/state-order:
+  "/api/design-systems/{designSystemId}/appearances/{id}/state-order":
     put:
       tags:
         - Appearance editor
       summary: Set the order of state values of a property
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6687,12 +7290,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearances/new:
+  "/api/design-systems/{designSystemId}/appearances/new":
     post:
       tags:
         - Appearance editor
       summary: Create an empty configuration
+      description: >-
+        Без имени в запросе конфигурация получает имя new (new-2, new-3 при занятом); первая конфигурация компонента — имя компонента в kebab-case. Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/OptionalBaseRevision'
         - $ref: '#/components/parameters/OptionalIdempotencyKey'
       requestBody:
@@ -6744,12 +7355,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearances/{id}/duplicate:
+  "/api/design-systems/{designSystemId}/appearances/{id}/duplicate":
     post:
       tags:
         - Appearance editor
       summary: Duplicate a configuration
+      description: >-
+        Без имени в запросе копия получает имя <имя источника в kebab-case>-copy (-copy-2 при занятом). Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис); имя не по правилу — 422 appearance_name_invalid.
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6808,12 +7427,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearance-variations:
+  "/api/design-systems/{designSystemId}/appearance-variations":
     get:
       tags:
         - Appearance Variations
       summary: List all appearance variations
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -6836,6 +7461,12 @@ paths:
         - Appearance Variations
       summary: Create appearance variation
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -6869,12 +7500,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearance-variations/{id}:
+  "/api/design-systems/{designSystemId}/appearance-variations/{id}":
     get:
       tags:
         - Appearance Variations
       summary: Get appearance variation by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -6908,6 +7545,12 @@ paths:
         - Appearance Variations
       summary: Update appearance variation
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6958,6 +7601,12 @@ paths:
         - Appearance Variations
       summary: Delete appearance variation
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -6991,12 +7640,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/appearance-variation-values:
+  "/api/design-systems/{designSystemId}/appearance-variation-values":
     get:
       tags:
         - Appearance Variation Values
       summary: List all appearance variation values
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -7019,6 +7674,12 @@ paths:
         - Appearance Variation Values
       summary: Create appearance variation value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -7052,12 +7713,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/appearance-variation-values/{id}:
+  "/api/design-systems/{designSystemId}/appearance-variation-values/{id}":
     get:
       tags:
         - Appearance Variation Values
       summary: Get appearance variation value by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -7091,6 +7758,12 @@ paths:
         - Appearance Variation Values
       summary: Update appearance variation value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -7141,6 +7814,12 @@ paths:
         - Appearance Variation Values
       summary: Delete appearance variation value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -7174,12 +7853,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/styles:
+  "/api/design-systems/{designSystemId}/styles":
     get:
       tags:
         - Styles
       summary: List all styles
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -7202,6 +7887,12 @@ paths:
         - Styles
       summary: Create style
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -7235,12 +7926,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/styles/{id}:
+  "/api/design-systems/{designSystemId}/styles/{id}":
     get:
       tags:
         - Styles
       summary: Get style by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -7274,6 +7971,12 @@ paths:
         - Styles
       summary: Update style
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -7324,6 +8027,12 @@ paths:
         - Styles
       summary: Delete style
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -7357,7 +8066,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/styles/by-variation/{variationId}/by-design-system/{designSystemId}:
+  "/api/design-systems/{designSystemId}/styles/by-variation/{variationId}":
     get:
       tags:
         - Styles
@@ -7394,12 +8103,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/variation-property-values:
+  "/api/design-systems/{designSystemId}/variation-property-values":
     get:
       tags:
         - Variation Property Values
       summary: List all variation property values
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -7422,6 +8137,12 @@ paths:
         - Variation Property Values
       summary: Create variation property value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -7455,12 +8176,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/variation-property-values/{id}:
+  "/api/design-systems/{designSystemId}/variation-property-values/{id}":
     get:
       tags:
         - Variation Property Values
       summary: Get variation property value by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -7494,6 +8221,12 @@ paths:
         - Variation Property Values
       summary: Update variation property value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -7526,6 +8259,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: После изменения у значения не осталось ни токена, ни значения (property_value_empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Not found
           content:
@@ -7544,6 +8283,12 @@ paths:
         - Variation Property Values
       summary: Delete variation property value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -7577,12 +8322,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/variation-property-values/by-style/{styleId}:
+  "/api/design-systems/{designSystemId}/variation-property-values/by-style/{styleId}":
     get:
       tags:
         - Variation Property Values
       summary: Values for a style
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -7607,12 +8358,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/variation-property-values/by-appearance/{appearanceId}:
+  "/api/design-systems/{designSystemId}/variation-property-values/by-appearance/{appearanceId}":
     get:
       tags:
         - Variation Property Values
       summary: Values for an appearance
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -7637,12 +8394,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/invariant-property-values:
+  "/api/design-systems/{designSystemId}/invariant-property-values":
     get:
       tags:
         - Invariant Property Values
       summary: List all invariant property values
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -7665,6 +8428,12 @@ paths:
         - Invariant Property Values
       summary: Create invariant property value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -7698,12 +8467,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/invariant-property-values/{id}:
+  "/api/design-systems/{designSystemId}/invariant-property-values/{id}":
     get:
       tags:
         - Invariant Property Values
       summary: Get invariant property value by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -7737,6 +8512,12 @@ paths:
         - Invariant Property Values
       summary: Update invariant property value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -7769,6 +8550,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: После изменения у значения не осталось ни токена, ни значения (property_value_empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Not found
           content:
@@ -7787,6 +8574,12 @@ paths:
         - Invariant Property Values
       summary: Delete invariant property value
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -7820,7 +8613,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}:
+  "/api/design-systems/{designSystemId}/invariant-property-values/by-component/{componentId}":
     get:
       tags:
         - Invariant Property Values
@@ -7857,7 +8650,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/states:
+  "/api/design-systems/catalog/states":
     get:
       tags:
         - States
@@ -7929,7 +8722,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/states/{id}:
+  "/api/design-systems/catalog/states/{id}":
     get:
       tags:
         - States
@@ -8007,7 +8800,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/states/{id}/impact:
+  "/api/design-systems/catalog/states/{id}/impact":
     get:
       tags:
         - States
@@ -8051,7 +8844,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/state-sets:
+  "/api/design-systems/catalog/state-sets":
     get:
       tags:
         - State Sets
@@ -8074,7 +8867,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/state-sets/{id}:
+  "/api/design-systems/catalog/state-sets/{id}":
     get:
       tags:
         - State Sets
@@ -8107,7 +8900,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
-  /api/ds/state-sets/resolve:
+  "/api/design-systems/catalog/state-sets/resolve":
     post:
       tags:
         - State Sets
@@ -8167,12 +8960,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/style-combinations:
+  "/api/design-systems/{designSystemId}/style-combinations":
     get:
       tags:
         - Style Combinations
       summary: List all style combinations
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -8195,6 +8994,12 @@ paths:
         - Style Combinations
       summary: Create style combination
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8228,12 +9033,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/style-combinations/{id}:
+  "/api/design-systems/{designSystemId}/style-combinations/{id}":
     get:
       tags:
         - Style Combinations
       summary: Get style combination by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -8267,6 +9078,12 @@ paths:
         - Style Combinations
       summary: Update style combination
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -8317,6 +9134,12 @@ paths:
         - Style Combinations
       summary: Delete style combination
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -8350,12 +9173,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/style-combinations/{id}/members:
+  "/api/design-systems/{designSystemId}/style-combinations/{id}/members":
     get:
       tags:
         - Style Combinations
       summary: Members of a style combination
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -8385,6 +9214,12 @@ paths:
         - Style Combinations
       summary: Add style to combination
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -8425,12 +9260,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/style-combination-members:
+  "/api/design-systems/{designSystemId}/style-combination-members":
     get:
       tags:
         - Style Combination Members
       summary: List all style combination members
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
       responses:
         '200':
@@ -8453,6 +9294,12 @@ paths:
         - Style Combination Members
       summary: Create style combination member
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -8486,12 +9333,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:write
-  /api/ds/style-combination-members/{id}:
+  "/api/design-systems/{designSystemId}/style-combination-members/{id}":
     get:
       tags:
         - Style Combination Members
       summary: Get style combination member by ID
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -8525,6 +9378,12 @@ paths:
         - Style Combination Members
       summary: Delete style combination member
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - schema:
             type: string
             format: uuid
@@ -8558,12 +9417,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:delete
-  /api/ds/component-config:
+  "/api/design-systems/{designSystemId}/component-config":
     get:
       tags:
         - Component Config
-      summary: Get a single component config (invariants, defaults, variations) for a design system / appearance
+      summary: Get a single component config (invariants, defaults, variations) for
+        a design system / appearance
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
@@ -8653,11 +9519,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/component-config/import:
+  "/api/design-systems/{designSystemId}/component-config/import":
     post:
       tags:
         - Component Config
       parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
         - $ref: '#/components/parameters/BaseRevision'
         - $ref: '#/components/parameters/IdempotencyKey'
       summary: Импорт конфигураций компонентов одним запросом
@@ -8911,7 +9783,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:write
-  /api/ds/component-config/export:
+  "/api/design-systems/{designSystemId}/component-config/export":
     post:
       tags:
         - Component Config
@@ -8982,11 +9854,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/component-config/web-adapter:
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+  "/api/design-systems/{designSystemId}/component-config/web-adapter":
     post:
       tags:
         - Component Config
-      summary: 'Web-адаптер: шаблоны web-параметров, compose-связи, имена и описания компонентов'
+      summary: 'Web-адаптер: шаблоны web-параметров, compose-связи, имена и описания
+        компонентов'
       description: |-
         Временная ручка для локальной web-генерации: CLI сохраняет ответ как есть в
         .sdds/web/web-adapter.json. В ответ /export эти данные не входят: формат конфигураций
@@ -9033,7 +9913,116 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
-  /api/ds/design-systems/{id}/changes/revert:
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+  "/api/design-systems/{designSystemId}/changes/revert-by-address":
+    post:
+      tags: [Design Systems]
+      summary: Atomically revert selected stable entity addresses in the specified draft without scanning the journal
+      description: Atomically revert selected stable entity addresses in the specified draft without scanning the journal. Conflicts preserve input index; unrelated edits do not invalidate the request.
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressedRevertRequest'
+      responses:
+        '200':
+          description: Successful addressed operation
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Invalid body, duplicate address or token ID, unsupported entity type, or size limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Design system, tenant, subject, or visible change not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: DRAFT_CHANGED, DRAFT_CHANGE_STALE, REVERT_DEPENDENCY_CONFLICT, IDEMPOTENCY_KEY_REUSED, or TARGET_SNAPSHOT_CHANGED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: design-systems:write
+  "/api/design-systems/{designSystemId}/changes/token-targets":
+    post:
+      tags: [Design Systems]
+      summary: Read scoped reset targets including deleted values
+      description: Read scoped reset targets including deleted values. Cursor and scopeRevision depend only on selected tokens and their values in one tenant; no full journal lookup.
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenTargetsRequest'
+      responses:
+        '200':
+          description: Successful addressed operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenTargetsResponse'
+        '400':
+          description: Invalid body, duplicate address or token ID, unsupported entity type, or size limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Design system, tenant, subject, or visible change not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: DRAFT_CHANGED, DRAFT_CHANGE_STALE, REVERT_DEPENDENCY_CONFLICT, IDEMPOTENCY_KEY_REUSED, or TARGET_SNAPSHOT_CHANGED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: design-systems:read
+  "/api/design-systems/{designSystemId}/changes/revert":
     post:
       tags:
         - Design Systems
@@ -9055,7 +10044,7 @@ paths:
             schema:
               $ref: '#/components/schemas/RevertDraftChanges'
       parameters:
-        - name: id
+        - name: designSystemId
           in: path
           required: true
           schema:
@@ -9101,7 +10090,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: design-systems:write
-  /api/ds/design-systems/{id}/changes/{changeId}/revert:
+  "/api/design-systems/{designSystemId}/changes/{changeId}/revert":
     post:
       tags:
         - Design Systems
@@ -9120,7 +10109,7 @@ paths:
             schema:
               $ref: '#/components/schemas/RevertDraftChange'
       parameters:
-        - name: id
+        - name: designSystemId
           in: path
           required: true
           schema:
@@ -9165,7 +10154,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: design-systems:write
-  /api/ds/design-systems/{id}/events:
+  "/api/design-systems/{designSystemId}/events":
     get:
       tags:
         - Design Systems
@@ -9175,7 +10164,7 @@ paths:
             type: string
             format: uuid
           required: true
-          name: id
+          name: designSystemId
           in: path
         - schema:
             type: string
@@ -9392,6 +10381,78 @@ components:
         - version
         - changelog
         - publishedAt
+    IconCatalog:
+      type: object
+      required:
+        - source
+        - assetsBaseUrl
+        - icons
+      properties:
+        source:
+          type: object
+          nullable: true
+          description: Package the active load was built from; null without a catalog
+          required:
+            - package
+            - version
+            - loadedAt
+            - loadId
+          properties:
+            package:
+              type: string
+            version:
+              type: string
+            loadedAt:
+              type: string
+              format: date-time
+            loadId:
+              type: string
+        assetsBaseUrl:
+          type: string
+          nullable: true
+          description: SVG files are served at assetsBaseUrl/size/name.svg
+        icons:
+          type: array
+          items:
+            $ref: '#/components/schemas/Icon'
+    Icon:
+      type: object
+      required:
+        - name
+        - style
+        - sizes
+        - legacyKey
+        - category
+        - aliases
+      properties:
+        name:
+          type: string
+          description: Canonical name, for example DisclosureDownFill
+        style:
+          type: string
+          enum:
+            - outline
+            - outline-bold
+            - fill
+            - none
+        sizes:
+          type: array
+          items:
+            type: integer
+            enum:
+              - 16
+              - 24
+              - 36
+        legacyKey:
+          type: string
+          description: Key of the stored value format without the size, for example disclosure.down.fill
+        category:
+          type: string
+          nullable: true
+        aliases:
+          type: array
+          items:
+            type: string
     ActivePluginBuild:
       type: object
       required:
@@ -9481,6 +10542,27 @@ components:
         - createdAt
         - updatedAt
         - platform
+    ComponentTemplate:
+      type: object
+      properties:
+        componentId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        platform:
+          type: string
+        dependsOn:
+          type: array
+          description: Компоненты, от которых он зависит по шаблону и которые добавляются вместе с ним.
+          items:
+            type: string
+            format: uuid
+      required:
+        - componentId
+        - name
+        - platform
+        - dependsOn
     DesignSystemComponent:
       type: object
       properties:
@@ -10249,9 +11331,6 @@ components:
     CreateAppearanceConfiguration:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
         componentId:
           type: string
           format: uuid
@@ -10260,7 +11339,6 @@ components:
           nullable: true
           maxLength: 255
       required:
-        - designSystemId
         - componentId
     DuplicateAppearanceConfiguration:
       type: object
@@ -10465,9 +11543,10 @@ components:
       properties:
         paletteRef:
           type: string
-          description: >-
-            Исходная ссылка на палитру, если value целиком вычислен по палитре темы (GET
-            /api/ds/tenants/{id}/token-values и общий GET /api/ds/token-values). Тогда sourceValue не отдаётся.
+          description: Исходная ссылка на палитру, если value целиком вычислен по
+            палитре темы (GET /api/design-systems/{designSystemId}/tenants/{id}/token-values
+            и общий GET /api/design-systems/{designSystemId}/token-values). Тогда
+            sourceValue не отдаётся.
         sourceValue:
           nullable: true
           description: >-
@@ -11037,9 +12116,6 @@ components:
     CreateDesignSystemVersion:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
         draftId:
           type: string
           format: uuid
@@ -11055,7 +12131,6 @@ components:
           default: ''
           description: Необязательные примечания к публикации. Пустая строка означает отсутствие примечаний.
       required:
-        - designSystemId
         - draftId
         - draftRevision
         - version
@@ -11092,21 +12167,20 @@ components:
     CreateDesignSystemComponent:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
         componentId:
           type: string
           format: uuid
+        fromTemplate:
+          type: boolean
+          default: false
+          description: >-
+            Собрать компонент без конфигурации в этой дизайн-системе из шаблона ds-service вместе с зависимостями.
+            Компонент с сохранённой конфигурацией возвращается с ней. Без флага создаётся или восстанавливается только связь.
       required:
-        - designSystemId
         - componentId
     CreateVariation:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
         componentId:
           type: string
           format: uuid
@@ -11118,7 +12192,6 @@ components:
           type: string
           maxLength: 1000
       required:
-        - designSystemId
         - componentId
         - name
     UpdateVariation:
@@ -11297,9 +12370,6 @@ components:
     CreateAppearance:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
         componentId:
           type: string
           format: uuid
@@ -11308,7 +12378,6 @@ components:
           maxLength: 255
           default: default
       required:
-        - designSystemId
         - componentId
     UpdateAppearance:
       type: object
@@ -11320,9 +12389,6 @@ components:
     CreateStyle:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
         variationId:
           type: string
           format: uuid
@@ -11334,7 +12400,6 @@ components:
           type: string
           maxLength: 1000
       required:
-        - designSystemId
         - variationId
         - name
     UpdateStyle:
@@ -11426,9 +12491,6 @@ components:
     CreateToken:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
         name:
           type: string
           minLength: 1
@@ -11482,9 +12544,6 @@ components:
     CreateTenant:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
         name:
           type: string
         description:
@@ -11520,9 +12579,9 @@ components:
             - text
         values:
           type: array
-          description: >-
-            Значения, которые заменяют начальные значения профиля для своих комбинаций tokenId + platform + mode и
-            записываются в той же транзакции создания. Проверяются так же, как в PUT /api/ds/tenants/{id}/token-values.
+          description: Значения, которые заменяют начальные значения профиля для своих
+            комбинаций tokenId + platform + mode и записываются в той же транзакции
+            создания. Проверяются так же, как в PUT /api/design-systems/{designSystemId}/tenants/{id}/token-values.
           items:
             type: object
             properties:
@@ -11553,7 +12612,6 @@ components:
               - platform
               - value
       required:
-        - designSystemId
         - name
     UpdateTenant:
       type: object
@@ -11675,13 +12733,17 @@ components:
           format: uuid
         tokenId:
           type: string
+          nullable: true
           format: uuid
         value:
           type: string
+          nullable: true
         alpha:
           type: string
+          nullable: true
         adjustment:
           type: string
+          nullable: true
         stateSetId:
           type: string
           format: uuid
@@ -11695,13 +12757,17 @@ components:
       properties:
         tokenId:
           type: string
+          nullable: true
           format: uuid
         value:
           type: string
+          nullable: true
         alpha:
           type: string
+          nullable: true
         adjustment:
           type: string
+          nullable: true
         stateSetId:
           type: string
           format: uuid
@@ -11709,9 +12775,6 @@ components:
       type: object
       properties:
         propertyId:
-          type: string
-          format: uuid
-        designSystemId:
           type: string
           format: uuid
         componentId:
@@ -11722,19 +12785,22 @@ components:
           format: uuid
         tokenId:
           type: string
+          nullable: true
           format: uuid
         value:
           type: string
+          nullable: true
         alpha:
           type: string
+          nullable: true
         adjustment:
           type: string
+          nullable: true
         stateSetId:
           type: string
           format: uuid
       required:
         - propertyId
-        - designSystemId
         - componentId
         - appearanceId
         - stateSetId
@@ -11743,13 +12809,17 @@ components:
       properties:
         tokenId:
           type: string
+          nullable: true
           format: uuid
         value:
           type: string
+          nullable: true
         alpha:
           type: string
+          nullable: true
         adjustment:
           type: string
+          nullable: true
         stateSetId:
           type: string
           format: uuid
@@ -11807,9 +12877,6 @@ components:
         componentDepId:
           type: string
           format: uuid
-        designSystemId:
-          type: string
-          format: uuid
         appearanceId:
           type: string
           format: uuid
@@ -11821,7 +12888,6 @@ components:
           format: uuid
       required:
         - componentDepId
-        - designSystemId
         - appearanceId
         - variationId
         - styleId
@@ -12012,13 +13078,8 @@ components:
             - values
     ComponentWebAdapterRequest:
       type: object
-      properties:
-        designSystemId:
-          type: string
-          format: uuid
-          description: Дизайн-система, данные которой выгружаются
-      required:
-        - designSystemId
+      properties: {}
+      required: []
     ComponentWebAdapter:
       type: array
       description: Компоненты пакета по componentName; пустые поля не пишутся
@@ -12062,10 +13123,6 @@ components:
     ComponentExportRequest:
       type: object
       properties:
-        designSystemId:
-          type: string
-          format: uuid
-          description: Дизайн-система, конфигурации которой выгружаются
         platform:
           type: string
           enum:
@@ -12086,8 +13143,13 @@ components:
             type: string
             minLength: 1
           description: Optional style names to include in the returned package
+        editorIds:
+          type: boolean
+          default: false
+          description: >-
+            Для редактора: у оси config.variations[] добавляется variationId, у значения values[] — styleId
+            (у пересечения — ID стиля-владельца). В пакеты конфигураций эти поля не попадают
       required:
-        - designSystemId
         - platform
     ComponentExportPackage:
       type: object
@@ -13181,6 +14243,61 @@ components:
             pattern: ^/value(?:/|$)
           example:
             - /value/fontSize
+    AddressedRevertTarget:
+      type: object
+      additionalProperties: false
+      required: [entityType, entityId, expectedRevision]
+      properties:
+        entityType: {type: string, minLength: 1, maxLength: 64}
+        entityId: {type: string, format: uuid}
+        expectedRevision: {type: integer, format: int64, minimum: 0}
+    AddressedRevertRequest:
+      type: object
+      additionalProperties: false
+      required: [draftId, targets]
+      properties:
+        draftId: {type: string, format: uuid}
+        targets:
+          type: array
+          minItems: 1
+          maxItems: 200
+          description: Unique entityType/entityId pairs in execution order.
+          items:
+            $ref: '#/components/schemas/AddressedRevertTarget'
+    TokenTargetsRequest:
+      type: object
+      additionalProperties: false
+      required: [draftId, tenantId, tokenIds]
+      properties:
+        draftId: {type: string, format: uuid}
+        tenantId: {type: string, format: uuid}
+        tokenIds:
+          type: array
+          minItems: 1
+          maxItems: 200
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        cursor: {type: string, nullable: true, maxLength: 512}
+    TokenTargetResponse:
+      type: object
+      required: [entityType, entityId, expectedRevision, operation]
+      properties:
+        entityType: {type: string}
+        entityId: {type: string, format: uuid}
+        expectedRevision: {type: integer, format: int64, minimum: 0}
+        operation: {type: string, enum: [created, updated, deleted]}
+    TokenTargetsResponse:
+      type: object
+      required: [draftId, scopeRevision, targets, nextCursor]
+      properties:
+        draftId: {type: string, format: uuid}
+        scopeRevision: {type: string, minLength: 64, maxLength: 64}
+        targets:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/TokenTargetResponse'
+        nextCursor: {type: string, nullable: true, maxLength: 512}
     RevertDraftChanges:
       type: object
       additionalProperties: false
@@ -13815,9 +14932,8 @@ components:
         - shadows
     SizeBaseRevisions:
       type: object
-      description: >-
-        Базовые технические редакции значений по платформам из GET /api/ds/tenants/{id}/token-values; приоритетнее
-        заголовка X-DS-Base-Revision
+      description: Базовые технические редакции значений по платформам из GET /api/design-systems/{designSystemId}/tenants/{id}/token-values;
+        приоритетнее заголовка X-DS-Base-Revision
       properties:
         web:
           type: integer
@@ -13987,6 +15103,24 @@ components:
       required:
         - deletedTokenIds
   parameters:
+    TokenIdsFilter:
+      name: tokenIds
+      in: query
+      required: false
+      description: >-
+        От 1 до 200 UUID токенов через запятую. Повтор параметра, пустой или неверный UUID
+        возвращает 400 invalid_token_ids. Чужие и отсутствующие токены не включаются в ответ.
+        Без фильтра сохраняется полная выдача; остальные фильтры применяются совместно.
+        HTTP/1.1-конфигурация сервера допускает начальную строку до 16 КиБ.
+      schema:
+        type: array
+        minItems: 1
+        maxItems: 200
+        items:
+          type: string
+          format: uuid
+      style: form
+      explode: false
     ModelVersion:
       name: version
       in: query

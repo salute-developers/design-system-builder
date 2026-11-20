@@ -22,27 +22,7 @@ internal object ComponentsTable : Table("components") {
 
 internal object ComponentDesignSystemsTable : ResolvedRevisionTable(
     "design_systems",
-    """
-        SELECT entity.id, revision.name, entity.project_name, entity.project_id,
-               entity.created_at, revision.updated_at AS updated_at
-        FROM design_systems entity
-        JOIN design_system_versions draft
-          ON draft.design_system_id = entity.id
-         AND draft.id = COALESCE(
-              NULLIF(current_setting('ds.version_id', true), '')::uuid,
-              (SELECT active.id FROM design_system_versions active
-               WHERE active.design_system_id = entity.id AND active.status = 'draft')
-         )
-         AND draft.status IN ('draft', 'published')
-        JOIN design_system_revisions revision
-          ON revision.design_system_id = entity.id AND revision.version_sequence_number <= draft.sequence_number
-        WHERE NOT revision.deleted
-          AND revision.version_sequence_number = (
-              SELECT max(candidate.version_sequence_number) FROM design_system_revisions candidate
-              WHERE candidate.design_system_id = entity.id
-                AND candidate.version_sequence_number <= draft.sequence_number
-          )
-    """.trimIndent(),
+    resolvedDesignSystemSql(),
 ) {
     val id = uuid("id")
     val name = text("name")
@@ -611,4 +591,51 @@ internal object PluginBuildsTable : Table("compose_preview_plugin_builds") {
     val publishedAt = timestamp("published_at")
     val active = bool("active")
     override val primaryKey = PrimaryKey(buildId)
+}
+
+private fun resolvedDesignSystemSql(scopeToRequest: Boolean = true): String = """
+        SELECT entity.id, revision.name, entity.project_name, entity.project_id,
+               entity.created_at, revision.updated_at AS updated_at
+        FROM design_systems entity
+        JOIN design_system_versions draft
+          ON draft.design_system_id = entity.id
+         AND draft.id = COALESCE(
+              NULLIF(current_setting('ds.version_id', true), '')::uuid,
+              (SELECT active.id FROM design_system_versions active
+               WHERE active.design_system_id = entity.id AND active.status = 'draft')
+         )
+         AND draft.status IN ('draft', 'published')
+        JOIN design_system_revisions revision
+          ON revision.design_system_id = entity.id AND revision.version_sequence_number <= draft.sequence_number
+        WHERE ${if (scopeToRequest) "ds_request_matches_design_system(entity.id)" else "TRUE"} AND NOT revision.deleted
+          AND revision.version_sequence_number = (
+              SELECT max(candidate.version_sequence_number) FROM design_system_revisions candidate
+              WHERE candidate.design_system_id = entity.id
+                AND candidate.version_sequence_number <= draft.sequence_number
+          )
+""".trimIndent()
+
+/** Проектная видимость глобальных компонентов не сужается выбранной системой системного запроса. */
+internal object ProjectComponentDesignSystemsTable : ResolvedRevisionTable(
+    "component_visibility_systems",
+    resolvedDesignSystemSql(scopeToRequest = false),
+) {
+    val id = uuid("id")
+    val projectId = text("project_id").nullable()
+}
+
+/** Связи для проектной ACL глобального каталога; предметные операции используют DesignSystemComponentsTable. */
+internal object ProjectDesignSystemComponentsTable : ResolvedRevisionTable(
+    "component_visibility_links",
+    resolvedRevisionSql(
+        "design_system_components",
+        "design_system_component_revisions",
+        "design_system_component_id",
+        listOf("id", "design_system_id", "component_id", "created_at"),
+        emptyList(),
+        scopeToRequest = false,
+    ),
+) {
+    val componentId = uuid("component_id")
+    val designSystemId = reference("design_system_id", ProjectComponentDesignSystemsTable.id)
 }

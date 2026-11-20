@@ -1,6 +1,6 @@
 import { storedTokenValue } from './confirmedTokenValues';
 import { http } from './http';
-import { readEditor, invalidateEditorReads } from './editorReads';
+import { readEditor, invalidateEditorReads, invalidateEditorResources } from './editorReads';
 import type { ThemeMeta } from '../controllers/themeBuilder/types/meta';
 import type { TokenType } from '../controllers/themeBuilder/types/token';
 import type { PlatformsVariations } from '../controllers/themeBuilder/types/theme';
@@ -15,7 +15,14 @@ import type {
     DesignSystemVersionDto,
     PendingTokenMutation,
 } from './editorContracts';
-import { apiRoot, tokenValueKey, parseMutationMetadata, readRequest, keepaliveRequest } from './editorHttp';
+import {
+    apiRoot,
+    tokenValueKey,
+    tokenDefinitionsUrl,
+    parseMutationMetadata,
+    readRequest,
+    keepaliveRequest,
+} from './editorHttp';
 import { nextPatchVersion } from './versionNumbers';
 import { normalizedColorValue } from './colorValue';
 import { createHttpPaletteRepository, paletteSourceFromEnv } from '../modules/palette';
@@ -27,7 +34,7 @@ export const tokenRepository = {
     async loadColorGroups(context: EditorContextKey, signal?: AbortSignal) {
         const request = readRequest(context, signal);
         const response = await readEditor<import('../modules/colorTokens/domain/types').TokenGroupDto[]>(
-            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/token-groups`,
+            `${apiRoot(context.projectId, context.designSystemId)}/token-groups`,
             { ...request, params: { ...request.params, kind: 'color' } },
         );
         return response.data;
@@ -38,8 +45,9 @@ export const tokenRepository = {
         knownPublicationVersion?: string,
         types?: TokenDefinitionDto['type'][],
         knownPalette?: ThemeEditorTokenSnapshot['palette'],
+        tokenIds?: string[],
     ): Promise<ThemeEditorTokenSnapshot> {
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const request = readRequest(context, signal);
         const themePalette = knownPalette
             ? Promise.resolve({ palette: knownPalette, paletteError: undefined })
@@ -57,30 +65,36 @@ export const tokenRepository = {
               : Promise.resolve({ palette: undefined, paletteError: undefined });
         const [tenant, tokens, values, versions] = await Promise.all([
             readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
-            types
-                ? Promise.all(
-                      types.map((type) =>
-                          readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, {
-                              ...request,
-                              params: { ...request.params, type },
-                          }),
-                      ),
-                  ).then((responses) => ({ data: responses.flatMap((response) => response.data) }))
-                : readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
-            readEditor<TenantTokenValueDto[]>(
-                `${root}/tenants/${context.tenantId}/token-values`,
-                types ? { ...request, params: { ...request.params, types: types.join(',') } } : request,
-            ),
+            tokenIds
+                ? readEditor<TokenDefinitionDto[]>(`${root}/tokens`, {
+                      ...request,
+                      params: { ...request.params, tokenIds: tokenIds.join(',') },
+                  })
+                : types
+                  ? Promise.all(
+                        types.map((type) =>
+                            readEditor<TokenDefinitionDto[]>(`${root}/tokens`, {
+                                ...request,
+                                params: { ...request.params, type },
+                            }),
+                        ),
+                    ).then((responses) => ({ data: responses.flatMap((response) => response.data) }))
+                  : readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
+            readEditor<TenantTokenValueDto[]>(`${root}/tenants/${context.tenantId}/token-values`, {
+                ...request,
+                params: {
+                    ...request.params,
+                    ...(types ? { types: types.join(',') } : {}),
+                    ...(tokenIds ? { tokenIds: tokenIds.join(',') } : {}),
+                },
+            }),
             context.versionId || knownPublicationVersion
                 ? Promise.resolve({ data: [] as DesignSystemVersionDto[] })
-                : readEditor<DesignSystemVersionDto[]>(
-                      `${root}/design-system-versions/by-design-system/${context.designSystemId}`,
-                      { signal },
-                  ),
+                : readEditor<DesignSystemVersionDto[]>(`${root}/versions`, { signal }),
         ]);
         if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
         const palette = values.data.some((value) => value.paletteId)
-            ? await readEditor<PaletteDto[]>(`${root}/palette`, { signal })
+            ? await readEditor<PaletteDto[]>(`${apiRoot(context.projectId)}/palette`, { signal })
             : { data: [] as PaletteDto[] };
         const paletteById = new Map(palette.data.map((entry) => [entry.id, entry]));
         const valuesByToken = new Map<string, TenantTokenValueDto[]>();
@@ -210,7 +224,7 @@ export const tokenRepository = {
         idempotencyKey: string = crypto.randomUUID(),
     ) {
         const response = await http.put<{ editRevision: number; values: TenantTokenValueDto[] }>(
-            `${apiRoot(context.projectId)}/tenants/${context.tenantId}/token-values`,
+            `${apiRoot(context.projectId, context.designSystemId)}/tenants/${context.tenantId}/token-values`,
             { editRevision, values },
             {
                 headers: { 'X-DS-Base-Revision': '0', 'Idempotency-Key': idempotencyKey },
@@ -236,7 +250,7 @@ export const tokenRepository = {
         keepalive = false,
         signal?: AbortSignal,
     ) {
-        const root = apiRoot(context.projectId);
+        const root = apiRoot(context.projectId, context.designSystemId);
         const mode: 'light' | 'dark' | null = mutation.tokenName.startsWith('light.')
             ? 'light'
             : mutation.tokenName.startsWith('dark.')
@@ -254,6 +268,8 @@ export const tokenRepository = {
             });
             const metadata = parseMutationMetadata(deleted.headers?.['x-ds-mutation-metadata']);
             invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
             const revision = metadata.reduce((latest, item) => Math.max(latest, item.revision), baseRevision);
             return {
                 tokenId: stableTokenId,
@@ -268,7 +284,6 @@ export const tokenRepository = {
             const created = await http.post<TokenDefinitionDto>(
                 `${root}/tokens`,
                 {
-                    designSystemId: context.designSystemId,
                     name: tokenName,
                     type: mutation.change.type,
                     displayName: mutation.change.meta?.displayName ?? tokenName,
@@ -282,6 +297,8 @@ export const tokenRepository = {
             );
             stableTokenId = created.data.id;
             invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
             tokenMutationMetadata = parseMutationMetadata(created.headers?.['x-ds-mutation-metadata']);
         } else if (mutation.definitionPatch && Object.keys(mutation.definitionPatch).length > 0) {
             const updated = await http.patch(`${root}/tokens/${stableTokenId}`, mutation.definitionPatch, {
@@ -290,6 +307,8 @@ export const tokenRepository = {
             });
             tokenMutationMetadata = parseMutationMetadata(updated.headers?.['x-ds-mutation-metadata']);
             invalidateEditorReads(context);
+            // Справочник токенов кешируется (`freshFor`) и общим сбросом не снимается: определения изменились.
+            invalidateEditorResources([tokenDefinitionsUrl(context)]);
         }
         const values = (['web', 'ios', 'android'] as const)
             .filter((platform) => mutation.change.values[platform] !== undefined)
@@ -332,7 +351,7 @@ export const tokenRepository = {
     async listDefinitions(context: EditorContextKey, signal?: AbortSignal) {
         return (
             await readEditor<TokenDefinitionDto[]>(
-                `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/tokens`,
+                `${apiRoot(context.projectId, context.designSystemId)}/tokens`,
                 readRequest(context, signal),
             )
         ).data;

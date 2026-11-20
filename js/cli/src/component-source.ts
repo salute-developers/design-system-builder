@@ -16,7 +16,8 @@ import type {
  * Генератор ждёт прежнюю модель `Meta` (связи через идентификаторы, web-маппинг в `sources.api`),
  * а данные лежат в трёх источниках: значения — в native-конфигах `components/`, имена
  * web-параметров — в аннотациях токенов установленного пакета компонентов (собираются на каждый
- * запуск), имена, описания, шаблоны и compose-связи — во временном `.sdds/web/web-adapter.json` из базы.
+ * запуск), имена, описания, шаблоны и compose-связи — в `web-adapter.json`, по умолчанию встроенном в CLI
+ * (`src/data/web-adapter.json`, копия файла web-плагина превью).
  * Идентификаторы строятся из имён: генератору они нужны только для связей внутри одного компонента.
  */
 
@@ -41,7 +42,8 @@ interface NativeConfig {
     variations?: Array<{
         id: string;
         binding: Array<{ name: string; value: string | boolean }>;
-        props: Record<string, NativeValue>;
+        /** Стиль без значений выгрузка отдаёт без поля. */
+        props?: Record<string, NativeValue>;
     }>;
 }
 
@@ -69,8 +71,8 @@ export interface ApiMetaComponent {
 export interface ComponentSourcePaths {
     /** Каталог выгрузки: `meta.json` и конфиги. */
     componentsDirectory: string;
-    /** Каталог web-данных: `web-adapter.json` из `components fetch` для React. */
-    webDirectory: string;
+    /** Файл `web-adapter.json`: имена, описания, шаблоны и compose-связи компонентов. */
+    webAdapterFile: string;
     /** Маппинги Style API установленного пакета компонентов, собранные `buildApiMeta`. */
     apiMeta: ApiMetaComponent[];
 }
@@ -79,7 +81,7 @@ const readJson = async <T>(path: string): Promise<T> => JSON.parse(await readFil
 
 /**
  * Имя из `meta.json` в имя компонента кода: `icon-tab-item` → `IconTabItem`. Запасной путь для
- * компонента без записи в `web-adapter.json`; обычно имя берётся оттуда, из базы.
+ * компонента без записи в `web-adapter.json`; обычно имя берётся оттуда.
  */
 const toComponentName = (kebab: string) =>
     kebab
@@ -160,7 +162,7 @@ const toConfig = (styleName: string, native: NativeConfig): Config => {
         .filter((entry) => entry.binding.length > 1)
         .map((entry) => ({
             styleIDs: entry.binding.map(({ name, value }) => styleId(name, value)).sort(),
-            props: Object.entries(entry.props).map(([name, prop]) => toPropConfig(name, prop)),
+            props: Object.entries(entry.props ?? {}).map(([name, prop]) => toPropConfig(name, prop)),
         }));
 
     return {
@@ -180,7 +182,7 @@ const toConfig = (styleName: string, native: NativeConfig): Config => {
 /** Все значения конфигурации: инварианты, вариации и сочетания. */
 const valuesOf = (native: NativeConfig): Array<[string, NativeValue]> => [
     ...Object.entries(native.props ?? {}),
-    ...(native.variations ?? []).flatMap((entry) => Object.entries(entry.props)),
+    ...(native.variations ?? []).flatMap((entry) => Object.entries(entry.props ?? {})),
 ];
 
 /**
@@ -238,12 +240,12 @@ const toApi = (
  */
 export async function readComponentsMeta({
     componentsDirectory,
-    webDirectory,
+    webAdapterFile,
     apiMeta,
 }: ComponentSourcePaths): Promise<Meta[]> {
     const packageMeta = await readJson<PackageMeta>(join(componentsDirectory, 'meta.json'));
     const adapter = new Map(
-        (await readJson<WebAdapterComponent[]>(join(webDirectory, 'web-adapter.json'))).map((entry) => [
+        (await readJson<WebAdapterComponent[]>(webAdapterFile)).map((entry) => [
             entry.componentName,
             entry,
         ]),

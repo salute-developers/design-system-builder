@@ -18,7 +18,7 @@ class ListMembersByStyleCombinationUseCase(
         modelFindList(policy, transactions, context) {
             repository.listMembersByCombination(
                 context.projectId,
-                context.principal.systemAdmin,
+                context.principal.globalAdmin,
                 combinationId,
             )
         }

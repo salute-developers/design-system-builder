@@ -19,6 +19,7 @@ import com.dsbuilder.ds.core.data.ExposedTransactionRunner
 import com.dsbuilder.ds.core.data.PostgresTransactionFailureMapper
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersion
+import com.dsbuilder.ds.designsystems.application.DraftAddressTarget
 import com.dsbuilder.ds.designsystems.application.PublishDesignSystemResult
 import com.dsbuilder.ds.designsystems.data.ExposedDesignSystemVersionRepository
 import com.dsbuilder.ds.designsystems.data.ExposedDraftChangeRepository
@@ -77,6 +78,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class VersionedPalettePostgresIntegrationTest {
     @Test
     fun `undo removes explicitly added and rebuilt ramp`() = runBlocking {
@@ -185,9 +187,15 @@ class VersionedPalettePostgresIntegrationTest {
             }
             val journal = ExposedDraftChangeRepository(handlers, listOf(themeDraftChangePolicy()))
             assertEquals(
-                DraftChangeRevertResult.Reverted,
+                DsResult.Success(Unit),
                 fixture.mutate {
-                    journal.revert(PROJECT, false, fixture.system, change.changeId, change.editRevision, emptySet())
+                    journal.revertAddressed(
+                        PROJECT,
+                        false,
+                        fixture.system,
+                        change.versionId.value,
+                        listOf(DraftAddressTarget(change.entityType, change.entityId, change.editRevision)),
+                    )
                 },
             )
             assertEquals(fixture.color(initial, 500), fixture.color(fixture.snapshot(), 500))

@@ -25,20 +25,3 @@ internal object ProjectMembersTable : Table("project_members") {
 
     override val primaryKey = PrimaryKey(projectId, userId)
 }
-
-internal object ProjectAccessKeysTable : Table("project_access_keys") {
-    val id = varchar("id", 64)
-    val projectId = reference("project_id", ProjectsTable.id, onDelete = ReferenceOption.CASCADE)
-    val name = varchar("name", 255)
-    val scopes = text("scopes")
-    val secretHash = text("secret_hash")
-    val status = varchar("status", 32)
-    val createdByUserId = varchar("created_by_user_id", 128)
-    val expiresAt = timestamp("expires_at").nullable()
-    val revokedAt = timestamp("revoked_at").nullable()
-    val lastUsedAt = timestamp("last_used_at").nullable()
-    val createdAt = timestamp("created_at")
-    val updatedAt = timestamp("updated_at")
-
-    override val primaryKey = PrimaryKey(id)
-}

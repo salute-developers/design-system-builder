@@ -2,7 +2,6 @@ package com.dsbuilder.projects.feature.projects.application
 
 import com.dsbuilder.authorization.AuthorizationPolicyLoader
 import com.dsbuilder.authorization.PolicyEvaluator
-import com.dsbuilder.projects.feature.projects.application.usecase.AccessKeyManagementPermission
 import com.dsbuilder.projects.feature.projects.application.usecase.MemberManagementPermission
 import com.dsbuilder.projects.feature.projects.application.usecase.ProjectAccessPolicy
 import com.dsbuilder.projects.feature.projects.domain.model.ActorType
@@ -27,6 +26,53 @@ class ProjectAccessPolicyTest {
         createdAt = Instant.parse("2024-01-01T00:00:00Z"),
         updatedAt = Instant.parse("2024-01-01T00:00:00Z"),
     )
+
+    @Test
+    fun `PAT uses current membership and cannot manage project even as admin`() {
+        val pat = AuthenticatedActor(
+            type = ActorType.PERSONAL_ACCESS_TOKEN,
+            userId = "user",
+            isSystemAdmin = false,
+            projectId = project.id,
+            personalAccessTokenId = "pat",
+        )
+        val member = com.dsbuilder.projects.feature.projects.domain.model.ProjectMember(
+            project.id,
+            "user",
+            ProjectRole.EDITOR,
+            project.createdAt,
+            project.updatedAt,
+        )
+        assertEquals(ProjectRole.EDITOR, policy.requireProjectAccess(pat, project, member))
+        assertEquals(
+            ProjectRole.VIEWER,
+            policy.requireProjectAccess(pat, project, member.copy(role = ProjectRole.VIEWER)),
+        )
+        assertFailsWith<ForbiddenProjectActionException> { policy.requireProjectAccess(pat, project, null) }
+        assertFailsWith<ForbiddenProjectActionException> {
+            policy.requireProjectAccess(pat.copy(projectId = "other"), project, member)
+        }
+        assertFailsWith<ForbiddenProjectActionException> {
+            policy.requireProjectAccess(pat.copy(personalAccessTokenId = null), project, member)
+        }
+        val admin = pat.copy(isSystemAdmin = true)
+        assertEquals(ProjectRole.OWNER, policy.requireProjectAccess(admin, project, null))
+        for (actor in listOf(pat.copy(userId = project.ownerUserId), admin)) {
+            assertFailsWith<ForbiddenProjectActionException> { policy.requireProjectMutationAccess(actor) }
+            assertFailsWith<ForbiddenProjectActionException> {
+                policy.requireMemberManagement(
+                    ProjectRole.OWNER,
+                    "other",
+                    project,
+                    MemberManagementPermission.ADD,
+                    actor,
+                )
+            }
+        }
+        assertFailsWith<ForbiddenProjectActionException> {
+            policy.requireMutableProject(project.copy(status = ProjectStatus.ARCHIVED))
+        }
+    }
 
     @Test
     fun `owner resolved from project owner field without membership`() {
@@ -86,25 +132,6 @@ class ProjectAccessPolicyTest {
             targetUserId = "viewer-1",
             project = project,
             permission = MemberManagementPermission.CHANGE_ROLE,
-        )
-    }
-
-    @Test
-    fun `access key management checks operation-specific permission`() {
-        val policyWithoutRead = policyWithoutMaintainerGrant("access_keys:read")
-        val maintainer = AuthenticatedActor(ActorType.USER, "maintainer-1", isSystemAdmin = false)
-
-        assertFailsWith<ForbiddenProjectActionException> {
-            policyWithoutRead.requireAccessKeyManagement(
-                maintainer,
-                ProjectRole.MAINTAINER,
-                AccessKeyManagementPermission.READ,
-            )
-        }
-        policyWithoutRead.requireAccessKeyManagement(
-            maintainer,
-            ProjectRole.MAINTAINER,
-            AccessKeyManagementPermission.CREATE,
         )
     }
 

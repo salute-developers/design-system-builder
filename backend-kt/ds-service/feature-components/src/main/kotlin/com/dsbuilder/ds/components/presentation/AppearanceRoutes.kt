@@ -10,6 +10,7 @@ import com.dsbuilder.ds.components.application.ListAppearancesUseCase
 import com.dsbuilder.ds.components.application.ListComponentConfigurationsUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceUseCase
 import com.dsbuilder.ds.components.domain.Appearance
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
@@ -45,12 +46,12 @@ fun Route.appearanceRoutes(
     axes: ListAppearanceVariationAxesUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/appearances")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/appearances")) {
         get {
             val query = call.request.queryParameters
-            if (query["designSystemId"] != null || query["componentId"] != null) {
+            if (query["componentId"] != null) {
                 val context = call.modelReadContext(evaluator) ?: return@get
-                val designSystemId = query["designSystemId"].toUuidOrNull()
+                val designSystemId = context.designSystemId
                     ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_design_system_id"))
                 val componentId = query["componentId"].toUuidOrNull()
                     ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_component_id"))
@@ -99,12 +100,17 @@ fun Route.appearanceRoutes(
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateAppearanceRequest>()
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
             val componentId = request.componentId.toUuidOrNull()
             if (
                 designSystemId == null || componentId == null || request.name.trim().length > 255
             ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            }
+            if (!ConfigurationName.isValid(request.name.trim())) {
+                return@post call.respondFailure(
+                    DsFailure.Unprocessable(ConfigurationName.INVALID_CODE, ConfigurationName.INVALID_MESSAGE),
+                )
             }
             val command = AppearanceRepository.AppearanceCreate(
                 designSystemId,
@@ -139,6 +145,11 @@ fun Route.appearanceRoutes(
                 payload.hasInvalidNull("name") || (request.name != null && !request.name.validName())
             ) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            }
+            if (request.name != null && !ConfigurationName.isValid(request.name.trim())) {
+                return@patch call.respondFailure(
+                    DsFailure.Unprocessable(ConfigurationName.INVALID_CODE, ConfigurationName.INVALID_MESSAGE),
+                )
             }
             val command = AppearanceRepository.AppearanceUpdate(request.name?.trim())
             val mutation = call.repeatableMutation(

@@ -171,8 +171,8 @@ const call = async <T>(operation: () => Promise<{ data: T }>): Promise<T> => {
     }
 };
 
-const tokensPath = ({ projectId, tenantId }: SizeTokenContext, suffix = '') =>
-    `/api/projects/${projectId}/ds/tenants/${tenantId}/size-tokens${suffix}`;
+const tokensPath = ({ projectId, designSystemId, tenantId }: SizeTokenContext, suffix = '') =>
+    `/api/projects/${projectId}/design-systems/${designSystemId}/tenants/${tenantId}/size-tokens${suffix}`;
 
 /** Базовые редакции значений токена по платформам из последнего чтения значений темы и ответов операций. */
 const baseRevisions = (context: SizeTokenContext, tokenId: string) =>

@@ -32,22 +32,4 @@ export interface ProjectMemberCandidate {
     displayName?: string | null;
 }
 
-export interface ProjectAccessKey {
-    id: string;
-    projectId: string;
-    name: string;
-    scopes: string[];
-    createdByUserId: string;
-    expiresAt: string | null;
-    revokedAt: string | null;
-    lastUsedAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-}
-
-export interface CreatedProjectAccessKey {
-    key: ProjectAccessKey;
-    secret: string;
-}
-
 export type PendingProjectMember = { email: string; role: ProjectMember['role'] };

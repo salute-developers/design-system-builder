@@ -1,6 +1,6 @@
 package com.dsbuilder.ds.themes.application.colortokens
 
-/** Use case цветовых токенов для маршрутов `/api/ds/tenants/{tenantId}/color-tokens`. */
+/** Use case цветовых токенов для маршрутов `/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens`. */
 data class ColorTokenUseCases(
     /** Создание токена. */
     val create: CreateColorTokenUseCase,

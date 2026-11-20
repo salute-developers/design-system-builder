@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.feature.init.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.auth.DEFAULT_API_KEY_ENV
 import com.dsbuilder.frontend.core.domain.InitCredentialSelection
@@ -12,7 +13,6 @@ import com.dsbuilder.frontend.feature.init.application.InitProjectResult
 import com.dsbuilder.frontend.feature.init.application.InitProjectUseCase
 import com.dsbuilder.frontend.feature.projects.application.ListProjectsUseCase
 import com.dsbuilder.frontend.feature.projects.application.ProjectsReadResult
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.terminal
@@ -28,14 +28,14 @@ internal class InitCliCommand(
     private val projects: ListProjectsUseCase,
     private val systems: ListDesignSystemsUseCase,
     private val menu: InitSelectionMenu,
-) : CliktCommand(name = "init") {
+) : AnalyticsCliCommand(name = "init", operation = "init") {
     private val projectId: String? by option("--project-id")
     private val designSystemId: String? by option("--design-system-id")
     private val apiKeyEnv: String? by option("--api-key-env")
     private val platforms: List<TargetPlatform> by option("--platform").targetPlatform().multiple()
         .help("Target platform of the project; repeat the option for several platforms.")
 
-    override fun run() {
+    override fun runOperation() {
         val directory = fileSystem.currentWorkingDirectory()
         initProjectUseCase.checkTarget(directory)?.let { fail(it) }
         val interactive = projectId == null || designSystemId == null
@@ -48,11 +48,7 @@ internal class InitCliCommand(
         }
         val (project, system) = if (interactive) runBlocking { discover() } else projectId!! to designSystemId!!
         val selectedPlatforms = platformsFor(interactive)
-        val credential = if (interactive && apiKeyEnv == null) {
-            InitCredentialSelection.UserSession
-        } else {
-            InitCredentialSelection.Environment(apiKeyEnv ?: DEFAULT_API_KEY_ENV)
-        }
+        val credential = InitCredentialSelection.Environment(apiKeyEnv ?: DEFAULT_API_KEY_ENV)
         when (
             val result = initProjectUseCase.execute(
                 InitProjectCommand(
@@ -71,7 +67,7 @@ internal class InitCliCommand(
     }
 
     private suspend fun discover(): Pair<String, String> {
-        val project = projectId ?: when (val result = projects.execute()) {
+        val project = projectId ?: when (val result = projects.execute(credentialEnvName = apiKeyEnv)) {
             is ProjectsReadResult.Failed -> fail(result.message)
             is ProjectsReadResult.Success -> choose(
                 "Выберите проект",
@@ -80,7 +76,7 @@ internal class InitCliCommand(
                 },
             )
         }
-        val available = when (val result = systems.execute(project)) {
+        val available = when (val result = systems.execute(project, credentialEnvName = apiKeyEnv)) {
             is DesignSystemsReadResult.Failed -> fail(result.message)
             is DesignSystemsReadResult.Success -> result.items
         }
@@ -104,9 +100,9 @@ internal class InitCliCommand(
         } catch (_: UnsupportedOperationException) {
             fail("Error: interactive selection is unavailable; provide --project-id and --design-system-id.")
         } catch (_: IllegalStateException) {
-            fail("Error: selection cancelled or terminal input closed.")
+            selectionCancelled()
         }
-        if (selected == null) fail("Error: selection cancelled or terminal input closed.")
+        if (selected == null) selectionCancelled()
         if (choices.none { it.id == selected }) fail("Error: invalid selection.")
         return selected
     }
@@ -120,8 +116,8 @@ internal class InitCliCommand(
         } catch (_: UnsupportedOperationException) {
             fail("Error: interactive platform selection is unavailable; provide --platform.")
         } catch (_: IllegalStateException) {
-            fail("Error: selection cancelled or terminal input closed.")
-        } ?: fail("Error: selection cancelled or terminal input closed.")
+            selectionCancelled()
+        } ?: selectionCancelled()
         if (selected.size != selected.distinct().size) fail("Error: invalid platform selection.")
         return selected.map { id ->
             TargetPlatform.fromCliValue(id) ?: fail("Error: invalid platform selection.")
@@ -130,6 +126,11 @@ internal class InitCliCommand(
 
     private fun platformsFor(interactive: Boolean): List<TargetPlatform> =
         if (interactive && platforms.isEmpty()) choosePlatforms() else platforms
+
+    private fun selectionCancelled(): Nothing {
+        markAnalyticsCancelled()
+        fail("Error: selection cancelled or terminal input closed.")
+    }
 
     private fun fail(message: String): Nothing {
         echo(message)

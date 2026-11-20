@@ -5,6 +5,7 @@ import com.dsbuilder.ds.designsystems.application.DraftChangeLimitExceededExcept
 import com.dsbuilder.ds.designsystems.data.ExposedDraftChangeRepository
 import com.dsbuilder.ds.designsystems.data.designSystemDraftChangeHandler
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
+import com.dsbuilder.ds.themes.data.ThemeJournalCandidateProjection
 import com.dsbuilder.ds.themes.data.themeDraftChangeHandlers
 import com.dsbuilder.ds.themes.data.themeDraftChangePolicy
 import com.dsbuilder.ds.tokens.data.tokenDraftChangeHandlers
@@ -16,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class CompactJournalPostgresIntegrationTest {
     @Test
     fun `compact projections work above full journal limit and isolate tenants and projects`() {
@@ -80,6 +82,7 @@ class CompactJournalPostgresIntegrationTest {
             val journal = ExposedDraftChangeRepository(
                 listOf(designSystemDraftChangeHandler()) + themeDraftChangeHandlers() + tokenDraftChangeHandlers(),
                 listOf(themeDraftChangePolicy()),
+                journalProjections = listOf(ThemeJournalCandidateProjection()),
             )
             transaction(db = database) {
                 runBlocking {

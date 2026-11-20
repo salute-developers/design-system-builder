@@ -411,7 +411,9 @@ class ComponentsImportApiCliCommandTest {
     ) = DsBuilderCli(
         ClientRuntime(
             fileSystem = InMemoryFileSystem(files.toMutableMap()),
-            environmentReader = EnvironmentReader { name -> env[name] },
+            environmentReader = EnvironmentReader { name ->
+                if (name == "DSBUILDER_ANALYTICS_DISABLED") "1" else env[name]
+            },
             httpClientFactory = FakeHttpClientFactory(answer, requests, credentials),
             credentialStore = sessionStore(session),
             tokenClient = tokenClient(),

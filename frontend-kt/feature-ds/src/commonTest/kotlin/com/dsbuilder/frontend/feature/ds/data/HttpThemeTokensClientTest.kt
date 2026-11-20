@@ -9,6 +9,8 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -22,6 +24,7 @@ class HttpThemeTokensClientTest {
     private val credential = BackendCredential.Bearer("fixture-access")
     private val context = ThemeContext("p 1", "ds1", "t1")
     private val requests = mutableListOf<String>()
+    private val requestsMutex = Mutex()
 
     private fun client(
         status: (String) -> HttpStatusCode = { HttpStatusCode.OK },
@@ -33,7 +36,7 @@ class HttpThemeTokensClientTest {
                     MockEngine { request ->
                         assertEquals("Bearer fixture-access", request.headers[HttpHeaders.Authorization])
                         val path = request.url.encodedPathAndQuery
-                        requests += path
+                        requestsMutex.withLock { requests += path }
                         respond(body(path), status(path))
                     },
                 )
@@ -48,10 +51,10 @@ class HttpThemeTokensClientTest {
 
         assertEquals(
             setOf(
-                "/api/projects/p%201/ds/design-systems/ds1/tokens?versionId=v1",
-                "/api/projects/p%201/ds/tenants/t1/token-values?versionId=v1&types=color%2Cgradient",
-                "/api/projects/p%201/ds/tenants/t1/typography-styles?versionId=v1",
-                "/api/projects/p%201/ds/tenants/t1/size-tokens?versionId=v1",
+                "/api/projects/p%201/design-systems/ds1/tokens?versionId=v1",
+                "/api/projects/p%201/design-systems/ds1/tenants/t1/token-values?versionId=v1&types=color%2Cgradient",
+                "/api/projects/p%201/design-systems/ds1/tenants/t1/typography-styles?versionId=v1",
+                "/api/projects/p%201/design-systems/ds1/tenants/t1/size-tokens?versionId=v1",
             ),
             requests.toSet(),
         )
@@ -64,8 +67,10 @@ class HttpThemeTokensClientTest {
     fun omitsVersionForActiveDraft() = runTest {
         client().tokens("https://gw", credential, context, null)
 
-        assertTrue(requests.contains("/api/projects/p%201/ds/design-systems/ds1/tokens"))
-        assertTrue(requests.contains("/api/projects/p%201/ds/tenants/t1/token-values?types=color%2Cgradient"))
+        assertTrue(requests.contains("/api/projects/p%201/design-systems/ds1/tokens"))
+        assertTrue(
+            requests.contains("/api/projects/p%201/design-systems/ds1/tenants/t1/token-values?types=color%2Cgradient"),
+        )
     }
 
     @Test
@@ -74,14 +79,14 @@ class HttpThemeTokensClientTest {
 
         assertEquals(
             setOf(
-                "/api/projects/p%201/ds/design-systems/ds1/tokens?versionId=v1",
-                "/api/projects/p%201/ds/tenants/t1/token-values?versionId=v1" +
+                "/api/projects/p%201/design-systems/ds1/tokens?versionId=v1",
+                "/api/projects/p%201/design-systems/ds1/tenants/t1/token-values?versionId=v1" +
                     "&types=color%2Cgradient&platforms=ios%2Cweb",
-                "/api/projects/p%201/ds/tenants/t1/token-values?versionId=v1&types=fontFamily",
-                "/api/projects/p%201/ds/tenants/t1/typography-styles?versionId=v1",
-                "/api/projects/p%201/ds/tenants/t1/size-tokens?versionId=v1",
-                "/api/projects/p%201/ds/tenants/t1/palette?versionId=v1",
-                "/api/projects/p%201/ds/design-systems/ds1/token-groups?versionId=v1",
+                "/api/projects/p%201/design-systems/ds1/tenants/t1/token-values?versionId=v1&types=fontFamily",
+                "/api/projects/p%201/design-systems/ds1/tenants/t1/typography-styles?versionId=v1",
+                "/api/projects/p%201/design-systems/ds1/tenants/t1/size-tokens?versionId=v1",
+                "/api/projects/p%201/design-systems/ds1/tenants/t1/palette?versionId=v1",
+                "/api/projects/p%201/design-systems/ds1/token-groups?versionId=v1",
             ),
             requests.toSet(),
         )
@@ -95,8 +100,8 @@ class HttpThemeTokensClientTest {
             status = { if (it.contains("palette")) HttpStatusCode.NotFound else HttpStatusCode.OK },
         ).exportSource("https://gw", credential, context, null)
 
-        assertTrue(requests.contains("/api/projects/p%201/ds/tenants/t1/palette"))
-        assertTrue(requests.contains("/api/projects/p%201/ds/design-systems/ds1/token-groups"))
+        assertTrue(requests.contains("/api/projects/p%201/design-systems/ds1/tenants/t1/palette"))
+        assertTrue(requests.contains("/api/projects/p%201/design-systems/ds1/token-groups"))
         assertEquals("NOT_FOUND", assertIs<ModelReadResult.Failed>(result).code)
     }
 
@@ -104,7 +109,7 @@ class HttpThemeTokensClientTest {
     fun readsVersionsOfDesignSystem() = runTest {
         val result = client().versions("https://gw", credential, "p1", "ds1")
 
-        assertEquals(listOf("/api/projects/p1/ds/design-system-versions/by-design-system/ds1"), requests)
+        assertEquals(listOf("/api/projects/p1/design-systems/ds1/versions"), requests)
         assertIs<ModelReadResult.Success>(result)
     }
 

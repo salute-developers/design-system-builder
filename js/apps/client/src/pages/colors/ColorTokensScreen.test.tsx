@@ -118,7 +118,7 @@ const reply =
             };
         if (url.endsWith('/design-system-components') || url.endsWith('/components') || url.endsWith('/appearances'))
             return { data: [] };
-        if (url.endsWith('/design-system-versions/by-design-system/ds-1')) return { data: [] };
+        if (url.endsWith('/design-systems/ds-1/versions')) return { data: [] };
         if (url.endsWith('/palette'))
             return { data: { tenantId: 'tenant-1', editRevision: 3, groups: [], tokens: [], template: [], links: [] } };
         throw new Error(`Unexpected URL ${url}`);

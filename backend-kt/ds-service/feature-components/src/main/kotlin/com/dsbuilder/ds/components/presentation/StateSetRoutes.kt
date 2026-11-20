@@ -29,7 +29,7 @@ fun Route.stateSetRoutes(
     resolve: ResolveStateSetUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/state-sets")) {
+    route(dsRoutePath("/api/design-systems/catalog/state-sets")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

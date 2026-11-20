@@ -15,6 +15,6 @@ class ListStylesUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<ComponentStyleSummary>> =
         modelList(policy, transactions, context) {
-            repository.listAccessible(context.projectId, context.principal.systemAdmin)
+            repository.listAccessible(context.projectId, context.principal.globalAdmin)
         }
 }

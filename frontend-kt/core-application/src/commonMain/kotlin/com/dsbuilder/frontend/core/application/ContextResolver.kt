@@ -59,7 +59,7 @@ public class ContextResolver(
 ) {
     /** Resolves a typed context request without mutating any process-wide selection. */
     public fun resolve(request: ContextRequest): ProjectContextReadResult =
-        resolve(request.startingDirectory, request.designSystemUri, request.projectKeyEnvName)
+        resolve(request.startingDirectory, request.designSystemUri)
 
     /**
      * Resolves the first available context from the configured source chain.
@@ -68,37 +68,20 @@ public class ContextResolver(
     public fun resolve(
         startingDirectory: String? = null,
         designSystemUri: String? = null,
-        projectKeyEnvName: String? = null,
     ): ProjectContextReadResult {
-        if (projectKeyEnvName != null && designSystemUri == null) {
-            return ProjectContextReadResult.Failed(
-                "--project-key-env requires --design-system.",
-                ProjectContextFailure.INVALID_CONTEXT,
-            )
-        }
         if (designSystemUri != null) {
             val selection = DesignSystemLink.parse(designSystemUri)
                 ?: return ProjectContextReadResult.Failed(
                     "Invalid design-system link.", ProjectContextFailure.INVALID_CONTEXT,
                 )
-            if (projectKeyEnvName != null && !projectKeyEnvName.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))) {
-                return ProjectContextReadResult.Failed(
-                    "Invalid project-key env name.",
-                    ProjectContextFailure.INVALID_CONTEXT,
-                )
-            }
             return ProjectContextReadResult.Found(
                 ProjectContext(
                     projectId = ProjectId(selection.projectId.value),
                     designSystemId = DesignSystemId(selection.designSystemId.value),
-                    credentialEnvName = CredentialEnvName(projectKeyEnvName ?: "DSBUILDER_API_KEY"),
+                    credentialEnvName = CredentialEnvName("DSBUILDER_API_KEY"),
                     configPath = "",
                     platforms = listOfNotNull(selection.platform),
-                    credentialPolicy = if (projectKeyEnvName == null) {
-                        CredentialPolicy.USER_SESSION
-                    } else {
-                        CredentialPolicy.PROJECT_KEY_ENV
-                    },
+                    credentialPolicy = CredentialPolicy.AUTO,
                     provenance = ContextProvenance.EXPLICIT_LINK,
                     selectedVersion = selection.version,
                 ),

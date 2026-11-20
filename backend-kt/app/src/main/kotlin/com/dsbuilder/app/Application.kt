@@ -1,7 +1,14 @@
 package com.dsbuilder.app
 
+import com.dsbuilder.ai.chat.di.AiAssistant
+import com.dsbuilder.ai.chat.di.AiAssistantConfiguration
+import com.dsbuilder.ai.chat.di.createAiAssistant
+import com.dsbuilder.ai.chat.presentation.aiChatRoutes
+import com.dsbuilder.app.data.InProcessChatAccess
+import com.dsbuilder.app.data.InProcessChatOwnership
 import com.dsbuilder.app.data.InProcessDesignSystemOwnership
 import com.dsbuilder.app.data.KeycloakProxy
+import com.dsbuilder.app.data.aitools.inProcessChatTools
 import com.dsbuilder.app.di.installBackendDependencies
 import com.dsbuilder.app.presentation.RequestBodyLimit
 import com.dsbuilder.app.presentation.cacheDsJsonBody
@@ -10,11 +17,13 @@ import com.dsbuilder.app.presentation.pluginPublicationBodyConsumed
 import com.dsbuilder.app.presentation.verifiedRequestHeaders
 import com.dsbuilder.authorization.AuthorizationPolicyLoader
 import com.dsbuilder.authorization.PolicyEvaluator
+import com.dsbuilder.consent.presentation.consentRoutes
 import com.dsbuilder.documentation.app.DocumentationRuntime
 import com.dsbuilder.documentation.app.createDocumentationRuntime
 import com.dsbuilder.documentation.ingestion.presentation.configureIngestionPublicEntry
 import com.dsbuilder.documentation.publication.presentation.configurePublicationPublicEntry
 import com.dsbuilder.documentation.search.presentation.configureSearchPublicEntry
+import com.dsbuilder.ds.app.DS_HTTP_INITIAL_LINE_LIMIT
 import com.dsbuilder.ds.app.DsRuntime
 import com.dsbuilder.ds.app.DsServiceConfiguration
 import com.dsbuilder.ds.app.createDsRuntime
@@ -27,14 +36,21 @@ import com.dsbuilder.projects.app.initializeProjectsDatabase
 import com.dsbuilder.projects.core.DatabaseProvider
 import com.dsbuilder.projects.feature.projects.presentation.configureProjectsPublicEntry
 import com.dsbuilder.projects.feature.projects.presentation.projectsRoutes
+import com.dsbuilder.settings.di.UserSettingsModule
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.ApplicationStopPreparing
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.compression.Compression
+import io.ktor.server.plugins.compression.gzip
+import io.ktor.server.plugins.compression.matchContentType
+import io.ktor.server.plugins.compression.minimumSize
 import io.ktor.server.request.path
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondRedirect
@@ -50,6 +66,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.koin.core.Koin
 import org.koin.ktor.ext.getKoin
 
 /** Единственная прикладная точка запуска backend. */
@@ -59,6 +76,7 @@ fun main() {
         Netty,
         configure = {
             connector { port = configuration.port }
+            maxInitialLineLength = DS_HTTP_INITIAL_LINE_LIMIT
             requestReadTimeoutSeconds = configuration.timeoutSeconds.toInt()
             responseWriteTimeoutSeconds = configuration.timeoutSeconds.toInt()
             shutdownGracePeriod = 1000
@@ -67,16 +85,62 @@ fun main() {
     ) { monolith(configuration) }.start(wait = true)
 }
 
-/** Соединяет библиотечные подсистемы с одним сервером и одним графом DI. */
-// Закрываем все частично созданные ресурсы при любой ошибке инициализации.
-@Suppress("TooGenericExceptionCaught")
-fun Application.monolith(configuration: GatewayConfiguration = GatewayConfiguration.fromEnvironment()) {
+/** Сжимает крупные JSON-ответы монолита. */
+private fun Application.configureJsonCompression() {
+    install(Compression) {
+        gzip {
+            minimumSize(1024)
+            matchContentType(ContentType.Application.Json)
+        }
+    }
+}
+
+private fun sharedPolicyEvaluator(): PolicyEvaluator {
     val policyPaths = listOfNotNull(
         System.getenv("AUTHORIZATION_POLICY_PATH"),
         System.getenv("PROJECT_AUTHORIZATION_POLICY_PATH"),
     ).filter(String::isNotBlank).distinct()
     require(policyPaths.size <= 1) { "Authorization policy paths must identify the same shared policy" }
-    val evaluator = PolicyEvaluator(AuthorizationPolicyLoader.load(policyPaths.singleOrNull()))
+    return PolicyEvaluator(AuthorizationPolicyLoader.load(policyPaths.singleOrNull()))
+}
+
+/** Собирает ИИ-ассистента, если он включён; инструменты чата вызывают use case DS внутри процесса. */
+private fun createAiAssistantOrNull(koin: Koin, ownership: InProcessDesignSystemOwnership): AiAssistant? {
+    val aiConfiguration = AiAssistantConfiguration.fromEnvironment(System::getenv)
+    if (!aiConfiguration.enabled) return null
+    val access = InProcessChatAccess(koin.get(), koin.get<UserSettingsModule>().tokens, koin.get())
+    return createAiAssistant(aiConfiguration, InProcessChatOwnership(ownership), inProcessChatTools(koin), access)
+}
+
+/**
+ * Регистрирует маршруты ИИ-ассистента и, если он включён, собирает его и подписывает на начало остановки. Подписка
+ * идёт раньше остальных подсистем, поэтому ожидание начатых вызовов инструментов заканчивается до закрытия их ресурсов.
+ */
+private fun Application.installAiAssistant(
+    koin: Koin,
+    ownership: InProcessDesignSystemOwnership,
+    evaluator: PolicyEvaluator,
+): AiAssistant? {
+    val assistant = createAiAssistantOrNull(koin, ownership)
+    routing {
+        route("/api/projects/{projectId}/ai") {
+            aiChatRoutes(assistant, evaluator, trustedHeaders = { it.verifiedRequestHeaders() })
+        }
+    }
+    if (assistant == null) return null
+    monitor.subscribe(ApplicationStopPreparing) {
+        kotlinx.coroutines.runBlocking {
+            assistant.shutdown(requireNotNull(assistant.configuration.limits).toolCallTimeout)
+        }
+    }
+    return assistant
+}
+
+/** Соединяет подсистемы с одним сервером и закрывает ресурсы при ошибке инициализации. */
+@Suppress("TooGenericExceptionCaught")
+fun Application.monolith(configuration: GatewayConfiguration = GatewayConfiguration.fromEnvironment()) {
+    configureJsonCompression()
+    val evaluator = sharedPolicyEvaluator()
     val dsConfiguration = DsServiceConfiguration.fromEnvironment()
     val ds = createDsRuntime(dsConfiguration, evaluator)
     val owned = mutableListOf<AutoCloseable>(ds)
@@ -86,7 +150,16 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
         val koin = getKoin()
         owned += koin.get<DatabaseProvider>()
         initializeProjectsDatabase(koin)
-        val documentation = createDocumentationRuntime(evaluator, InProcessDesignSystemOwnership(koin.get()))
+        val userSettings = koin.get<UserSettingsModule>().also { owned += it }
+        userSettings.initialize()
+        val consent = com.dsbuilder.consent.di.ConsentRuntime(
+            requireNotNull(io.ktor.server.config.yaml.YamlConfig("dsbuilder/projects/defaults.yaml")),
+        ).also { owned += it }
+        routing { consentRoutes(consent.history) }
+
+        val ownership = InProcessDesignSystemOwnership(koin.get())
+        val ai = installAiAssistant(koin, ownership, evaluator)?.also { owned += it }
+        val documentation = createDocumentationRuntime(evaluator, ownership)
         owned += documentation
         val proxy = KeycloakProxy(configuration)
         owned += proxy
@@ -101,7 +174,7 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
         )
         install(RequestBodyLimit)
         configureDsBodyConsumption { it.pluginPublicationBodyConsumed() }
-        configureDsPublicEntry("/api/projects/{projectId}/ds") { it.verifiedRequestHeaders() }
+        configureDsPublicEntry("/api/projects/{projectId}/design-systems") { it.verifiedRequestHeaders() }
         configureProjectsPublicEntry("/projects") { it.verifiedRequestHeaders() }
         val documentationPrefix = "/api/projects/{projectId}/documentation"
         configureIngestionPublicEntry(documentationPrefix) { it.verifiedRequestHeaders() }
@@ -116,7 +189,7 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
             diagnostics = false,
         )
         projectsRoutes(internalApiKey = null, publicEntry = true)
-        registerBackendRoutes(configuration, ds, documentation, proxy)
+        registerBackendRoutes(configuration, ds, documentation, proxy, userSettings)
         documentation.start(this)
     } catch (failure: Throwable) {
         owned.asReversed().forEach { runCatching { it.close() } }
@@ -129,8 +202,10 @@ private fun Application.registerBackendRoutes(
     ds: DsRuntime,
     documentation: DocumentationRuntime,
     proxy: KeycloakProxy,
+    userSettings: UserSettingsModule,
 ) {
     routing {
+        userSettings.registerRoutes(this) { it.verifiedRequestHeaders() }
         documentation.registerRoutes(this)
         get("/health") { call.respondText("ok\n") }
         get("/ready") { call.respondBackendReadiness(ds, documentation) }

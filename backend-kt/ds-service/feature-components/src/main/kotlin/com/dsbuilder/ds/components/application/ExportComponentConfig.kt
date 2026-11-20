@@ -12,4 +12,6 @@ data class ExportComponentConfig(
     val components: List<String>?,
     /** Styles carried by this contract. */
     val styles: List<String>?,
+    /** Отдать редактору ID вариации у оси и ID стиля у значения; в пакеты конфигураций они не попадают. */
+    val editorIds: Boolean = false,
 )

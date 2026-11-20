@@ -18,6 +18,9 @@ public enum class DesignSystemsReadErrorCode {
     /** Нет действующей пользовательской сессии. */
     AUTH_REQUIRED,
 
+    /** PAT отклонён сервером. */
+    PAT_INVALID,
+
     /** Пользователь не имеет доступа. */
     FORBIDDEN,
 
@@ -64,7 +67,11 @@ public class ListDesignSystemsUseCase(
     private val client: DesignSystemsClient,
 ) {
     /** Возвращает системы projectId либо безопасную ошибку. */
-    public suspend fun execute(projectId: String, apiUrlOverride: String? = null): DesignSystemsReadResult {
+    public suspend fun execute(
+        projectId: String,
+        apiUrlOverride: String? = null,
+        credentialEnvName: String? = null,
+    ): DesignSystemsReadResult {
         if (projectId.isBlank()) {
             return DesignSystemsReadResult.Failed(
                 DesignSystemsReadErrorCode.INVALID_QUERY,
@@ -72,7 +79,7 @@ public class ListDesignSystemsUseCase(
             )
         }
         val apiUrl = apiUrlResolver.resolve(apiUrlOverride).value
-        return when (val access = sessionResolver.resolve(apiUrl)) {
+        return when (val access = sessionResolver.resolve(apiUrl, credentialEnvName)) {
             is CredentialResult.Selected -> client.list(apiUrl, access.credential, projectId)
             is CredentialResult.Failed -> DesignSystemsReadResult.Failed(
                 SYSTEM_SESSION_FAILURES[access.code] ?: DesignSystemsReadErrorCode.BACKEND_UNAVAILABLE,
@@ -87,6 +94,7 @@ public class ListDesignSystemsUseCase(
 }
 
 private val SYSTEM_SESSION_FAILURES = mapOf(
+    AuthErrorCode.PAT_INVALID to DesignSystemsReadErrorCode.PAT_INVALID,
     AuthErrorCode.AUTH_REQUIRED to DesignSystemsReadErrorCode.AUTH_REQUIRED,
     AuthErrorCode.FORBIDDEN to DesignSystemsReadErrorCode.FORBIDDEN,
 )

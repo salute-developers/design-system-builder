@@ -28,13 +28,13 @@ class GetComponentPropertiesWithPlatformParamsUseCase(
                 context,
                 ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, designSystemId),
             ) { selected ->
-                val linked = links.listAccessible(selected.projectId, selected.principal.systemAdmin)
+                val linked = links.listAccessible(selected.projectId, selected.principal.globalAdmin)
                     .any { it.designSystemId == designSystemId && it.componentId == componentId }
                 if (!linked) return@readOnly DsResult.Failure(DsFailure.NotFound)
-                val properties = components.properties(selected.projectId, selected.principal.systemAdmin, componentId)
+                val properties = components.properties(selected.projectId, selected.principal.globalAdmin, componentId)
                     ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
                 val propertyIds = properties.mapTo(mutableSetOf()) { it.id }
-                val params = model.listPlatformParams(selected.projectId, selected.principal.systemAdmin)
+                val params = model.listPlatformParams(selected.projectId, selected.principal.globalAdmin)
                     .filter { it.propertyId in propertyIds }
                     .groupBy { it.propertyId }
                 DsResult.Success(properties.map { ComponentPropertyWithPlatformParams(it, params[it.id].orEmpty()) })

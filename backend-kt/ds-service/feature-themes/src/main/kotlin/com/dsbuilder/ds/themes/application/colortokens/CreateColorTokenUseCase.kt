@@ -99,8 +99,7 @@ class CreateColorTokenUseCase(
         }
         val values = tokens.confirmedValues(lock.designSystemId, tenantId, ids.values)?.let { values ->
             com.dsbuilder.ds.themes.application.TokenValuePublisher(
-                tenantId,
-                palette.snapshot(context.projectId, tenantId),
+                palette.snapshot(context.projectId, tenantId)?.forValueResolution(),
             )
                 .publish(values.map { it.copy(tokenType = type) })
         }

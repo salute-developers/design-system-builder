@@ -2,21 +2,20 @@ import { describe, expect, it } from 'vitest';
 
 import { Config } from '../controllers';
 import type { Meta } from '../controllers';
-import { getComposeMenuItems } from './menuItems';
+import { getComponentGroups } from './menuItems';
 
-const config = (name: string) =>
-    new Config({ name, description: name, sources: { api: [], variations: [], configs: [] } } as Meta);
+const config = (name: string, platform: Meta['platform'] = 'compose') =>
+    new Config({ name, description: name, platform, sources: { api: [], variations: [], configs: [] } } as Meta);
 
-describe('getComposeMenuItems', () => {
-    const data = getComposeMenuItems([
+describe('getComponentGroups', () => {
+    const data = getComponentGroups([
         config('Avatar'),
         config('BasicButton'),
         config('CheckBox'),
         config('AiAnswer'),
         config('Unknown'),
     ]);
-    const names = (group: string) =>
-        data.groups[0].data.find((item) => item.name === group)?.items.map((item) => item.name);
+    const names = (group: string) => data.find((item) => item.name === group)?.items.map((item) => item.getName());
 
     it('places Compose components into the same groups as web components', () => {
         expect(names('Data Display')).toEqual(['Avatar']);
@@ -31,19 +30,27 @@ describe('getComposeMenuItems', () => {
         expect(names('Other')).toEqual(['Unknown']);
     });
 
-    it('enables every component and keeps its config', () => {
-        const items = data.groups[0].data.flatMap((group) => group.items);
+    it('keeps the group of unknown components last', () => {
+        expect(data.at(-1)?.name).toBe('Other');
+    });
 
-        expect(items.every((item) => !item.disabled && item.data.length === 1)).toBe(true);
+    it('hides web components the editor does not support', () => {
+        expect(getComponentGroups([config('Editable', 'web')])).toEqual([]);
+    });
+
+    it('keeps Compose components whose web namesakes are unsupported', () => {
+        const groups = getComponentGroups([config('Overlay'), config('Carousel')]);
+
+        expect(groups.flatMap(({ items }) => items.map((item) => item.getName()))).toEqual(['Carousel', 'Overlay']);
     });
 });
 
-describe('getComposeMenuItems with groups of the plugin', () => {
-    const names = (data: ReturnType<typeof getComposeMenuItems>, group: string) =>
-        data.groups[0].data.find((item) => item.name === group)?.items.map((item) => item.name);
+describe('getComponentGroups with groups of the plugin', () => {
+    const names = (data: ReturnType<typeof getComponentGroups>, group: string) =>
+        data.find((item) => item.name === group)?.items.map((item) => item.getName());
 
     it('places a component into the group of the plugin instead of the client table', () => {
-        const data = getComposeMenuItems(
+        const data = getComponentGroups(
             [config('CircularProgressBar'), config('Avatar')],
             [{ name: 'Data Display', components: ['CircularProgressBar', 'Avatar'] }],
         );
@@ -53,13 +60,13 @@ describe('getComposeMenuItems with groups of the plugin', () => {
     });
 
     it('falls back to the client table without groups', () => {
-        const data = getComposeMenuItems([config('CircularProgressBar')]);
+        const data = getComponentGroups([config('CircularProgressBar')]);
 
         expect(names(data, 'Overlay')).toEqual(['CircularProgressBar']);
     });
 
     it('uses the client table and Other for components missing from the groups of the plugin', () => {
-        const data = getComposeMenuItems(
+        const data = getComponentGroups(
             [config('Avatar'), config('BasicButton'), config('Unknown')],
             [{ name: 'Data Display', components: ['Avatar'] }],
         );
@@ -70,7 +77,7 @@ describe('getComposeMenuItems with groups of the plugin', () => {
     });
 
     it('shows the group names of the plugin', () => {
-        const data = getComposeMenuItems([config('AiAnswer')], [{ name: 'AI Kit', components: ['AiAnswer'] }]);
+        const data = getComponentGroups([config('AiAnswer')], [{ name: 'AI Kit', components: ['AiAnswer'] }]);
 
         expect(names(data, 'AI Kit')).toEqual(['AiAnswer']);
     });

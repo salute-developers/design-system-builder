@@ -22,8 +22,8 @@ class CreateInvariantPlatformParamAdjustmentUseCase(
     ): DsResult<InvariantPlatformParamAdjustment> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-invariant-platform-adjustment",
         command,
-        { repository.findInvariantAdjustment(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createInvariantAdjustment(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findInvariantAdjustment(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createInvariantAdjustment(context.projectId, context.principal.globalAdmin, command) },
         InvariantPlatformParamAdjustment::id,
     )
 }

@@ -33,7 +33,7 @@ internal object AppearanceEditorConfigurationOperations {
             ?: AppearanceNaming.freeName(
                 designSystemId,
                 componentId,
-                if (first) componentName else "$componentName new",
+                if (first) componentName else "new",
             )
         val appearanceId = newAppearance(designSystemId, componentId, name, first, null, null)
         addColorSchemeAxis(designSystemId, componentId, appearanceId)
@@ -59,7 +59,7 @@ internal object AppearanceEditorConfigurationOperations {
         val componentId = source[ComponentAppearancesTable.componentId]
         val sourceName = source[ComponentAppearancesTable.name] ?: "default"
         val newName = name?.let { AppearanceNaming.requireFree(designSystemId, componentId, it) }
-            ?: AppearanceNaming.freeName(designSystemId, componentId, "$sourceName copy")
+            ?: AppearanceNaming.freeName(designSystemId, componentId, "${AppearanceNaming.kebab(sourceName)}-copy")
         val copyId = newAppearance(designSystemId, componentId, newName, false, null, null)
         copyAxes(designSystemId, sourceId, copyId)
         // Роли ссылаются на объявления осей, поэтому записываются после их копирования.

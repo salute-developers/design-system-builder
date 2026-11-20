@@ -18,7 +18,7 @@ class DeleteDesignSystemComponentUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> =
         policy.read(context, ProjectScope.COMPONENTS_DELETE) {
             transactions.required(context) {
-                if (repository.deleteOwned(context.projectId, context.principal.systemAdmin, id)) {
+                if (repository.deleteOwned(context.projectId, context.principal.globalAdmin, id)) {
                     DsResult.Success(Unit)
                 } else {
                     DsResult.Failure(DsFailure.NotFound)

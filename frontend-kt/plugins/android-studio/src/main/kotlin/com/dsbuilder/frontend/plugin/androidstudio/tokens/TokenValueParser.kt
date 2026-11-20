@@ -9,7 +9,7 @@ import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 
 /**
- * Разбирает значение токена (массив-обёртка, как оно приходит от `/ds/token-values`) в
+ * Разбирает значение токена (массив-обёртка, как оно приходит от `/design-systems/{designSystemId}/token-values`) в
  * типизированный [TokenValuePayload] для платформ `android`/`ios`. Форма разбора по типу токена
  * зеркалит контракт `TokenValueNormalizer` (`frontend-kt/feature-theme`): `color` — единственная
  * строка, `typography`/`shape`/`spacing` — единственный объект, `gradient`/`shadow` — массив
@@ -24,16 +24,17 @@ internal fun parseTokenValuePayload(
     value: JsonElement?,
 ): TokenValuePayload {
     if (value == null) return TokenValuePayload.Unsupported
-    return when (type) {
-        TokenType.COLOR -> parseColorValue(value)
-        TokenType.SHAPE -> parseShapeValue(platform, value)
-        TokenType.SPACING -> parseSpacingValue(platform, value)
-        TokenType.GRADIENT -> parseGradientValue(platform, value)
-        TokenType.SHADOW -> parseShadowValue(platform, value)
-        TokenType.TYPOGRAPHY -> parseTypographyValue(platform, value)
-        TokenType.FONT_FAMILY, null -> TokenValuePayload.Unsupported
-    }
+    return TOKEN_VALUE_PARSERS[type]?.invoke(platform, value) ?: TokenValuePayload.Unsupported
 }
+
+private val TOKEN_VALUE_PARSERS = mapOf(
+    TokenType.COLOR to ::parseColorValue,
+    TokenType.SHAPE to ::parseShapeValue,
+    TokenType.SPACING to ::parseSpacingValue,
+    TokenType.GRADIENT to ::parseGradientValue,
+    TokenType.SHADOW to ::parseShadowValue,
+    TokenType.TYPOGRAPHY to ::parseTypographyValue,
+)
 
 internal fun isStructuredPlatform(platform: TokenPlatform?): Boolean =
     platform == TokenPlatform.ANDROID || platform == TokenPlatform.IOS
@@ -55,7 +56,8 @@ internal fun JsonObject.floatListOrNull(key: String): List<Float>? {
     return (this[key] as? JsonArray)?.map { (it as? JsonPrimitive)?.floatOrNull ?: return null }
 }
 
-private fun parseColorValue(value: JsonElement): TokenValuePayload {
+@Suppress("UNUSED_PARAMETER")
+private fun parseColorValue(platform: TokenPlatform?, value: JsonElement): TokenValuePayload {
     val hex = ((value as? JsonArray)?.singleOrNull() as? JsonPrimitive)?.contentOrNull
         ?: return TokenValuePayload.Unsupported
     return TokenValuePayload.ColorValue(hex)

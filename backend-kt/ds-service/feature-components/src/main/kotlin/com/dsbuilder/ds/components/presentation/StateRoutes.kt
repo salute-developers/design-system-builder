@@ -39,7 +39,7 @@ fun Route.stateRoutes(
     update: UpdateStateUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/states")) {
+    route(dsRoutePath("/api/design-systems/catalog/states")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

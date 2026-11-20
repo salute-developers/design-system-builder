@@ -6,17 +6,15 @@ import com.dsbuilder.authorization.ProjectActorType
 import com.dsbuilder.authorization.ProjectPrincipal
 import com.dsbuilder.projects.feature.projects.application.ForbiddenProjectActionException
 import com.dsbuilder.projects.feature.projects.application.InvalidProjectRequestException
-import com.dsbuilder.projects.feature.projects.domain.model.AccessKeyAction
-import com.dsbuilder.projects.feature.projects.domain.model.AccessKeyScope
 import com.dsbuilder.projects.feature.projects.domain.model.ActorType
 import com.dsbuilder.projects.feature.projects.domain.model.AuthenticatedActor
 import com.dsbuilder.projects.feature.projects.domain.model.Project
-import com.dsbuilder.projects.feature.projects.domain.model.ProjectAccessKey
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectEntity
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectMember
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
-import java.time.Instant
+import com.dsbuilder.projects.feature.projects.domain.model.TokenAction
+import com.dsbuilder.projects.feature.projects.domain.model.TokenScope
 
 internal class ProjectAccessPolicy(
     private val evaluator: PolicyEvaluator = PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded()),
@@ -27,10 +25,6 @@ internal class ProjectAccessPolicy(
         membership: ProjectMember?,
     ): ProjectRole? =
         when {
-            actor.type == ActorType.PROJECT_KEY &&
-                actor.projectId == project.id &&
-                actor.hasScope(ProjectEntity.PROJECTS, AccessKeyAction.READ) ->
-                ProjectRole.VIEWER
             actor.isSystemAdmin -> ProjectRole.OWNER
             actor.userId == project.ownerUserId -> ProjectRole.OWNER
             membership != null -> membership.role
@@ -43,6 +37,13 @@ internal class ProjectAccessPolicy(
         membership: ProjectMember?,
     ): ProjectRole =
         resolveRole(actor, project, membership)
+            ?.also {
+                val wrongProject = actor.projectId != null && actor.projectId != project.id
+                val invalidPat = actor.personalAccessTokenId.isNullOrBlank() || wrongProject
+                if (actor.type == ActorType.PERSONAL_ACCESS_TOKEN && invalidPat) {
+                    throw ForbiddenProjectActionException("Invalid personal access token context")
+                }
+            }
             ?: throw ForbiddenProjectActionException("Project access denied")
 
     fun requireMetadataUpdate(role: ProjectRole) {
@@ -52,8 +53,8 @@ internal class ProjectAccessPolicy(
     }
 
     fun requireProjectMutationAccess(actor: AuthenticatedActor) {
-        if (actor.type == ActorType.PROJECT_KEY) {
-            throw ForbiddenProjectActionException("Project keys cannot modify project metadata or lifecycle")
+        if (actor.type != ActorType.USER) {
+            throw ForbiddenProjectActionException("Personal access tokens cannot modify project metadata or lifecycle")
         }
     }
 
@@ -71,7 +72,7 @@ internal class ProjectAccessPolicy(
         actor: AuthenticatedActor? = null,
     ) {
         val failureMessage = when {
-            actor?.type == ActorType.PROJECT_KEY -> "Project keys cannot manage project members"
+            actor != null && actor.type != ActorType.USER -> "Personal access tokens cannot manage project members"
             targetUserId == project.ownerUserId -> "Owner cannot be managed through project members"
             !actorRole.isAllowed(permission.value, actor?.isSystemAdmin == true) ->
                 "Only owner or maintainer can manage project members"
@@ -88,19 +89,6 @@ internal class ProjectAccessPolicy(
         }
     }
 
-    fun requireAccessKeyManagement(
-        actor: AuthenticatedActor,
-        role: ProjectRole,
-        permission: AccessKeyManagementPermission,
-    ) {
-        if (actor.type == ActorType.PROJECT_KEY) {
-            throw ForbiddenProjectActionException("Project keys cannot manage access keys")
-        }
-        if (!role.isAllowed(permission.value, actor.isSystemAdmin)) {
-            throw ForbiddenProjectActionException("Only owner or maintainer can manage access keys")
-        }
-    }
-
     fun validateProjectName(name: String) {
         if (name.isBlank()) {
             throw InvalidProjectRequestException("Project name must not be blank")
@@ -113,56 +101,18 @@ internal class ProjectAccessPolicy(
         }
     }
 
-    fun validateAccessKeyName(name: String) {
-        if (name.isBlank()) {
-            throw InvalidProjectRequestException("Access key name must not be blank")
-        }
-    }
-
-    fun validateAccessKeyScopes(
-        scopes: Set<AccessKeyScope>,
-        availableScopes: Set<AccessKeyScope>,
-    ) {
-        if (scopes.isEmpty()) {
-            throw InvalidProjectRequestException("Access key must contain at least one scope")
-        }
-        if (!availableScopes.containsAll(scopes)) {
-            throw InvalidProjectRequestException("Access key contains unsupported scopes")
-        }
-    }
-
-    fun resolveExpiration(now: Instant, ttlSeconds: Long?, defaultTtlSeconds: Long): Instant? {
-        val ttl = ttlSeconds ?: defaultTtlSeconds
-        if (ttl <= 0) {
-            throw InvalidProjectRequestException("TTL must be greater than zero")
-        }
-        return now.plusSeconds(ttl)
-    }
-
-    fun requireActiveAccessKey(key: ProjectAccessKey, now: Instant) {
-        if (key.revokedAt != null) {
-            throw ForbiddenProjectActionException("Access key has been revoked")
-        }
-        if (key.expiresAt != null && !key.expiresAt.isAfter(now)) {
-            throw ForbiddenProjectActionException("Access key has expired")
-        }
-    }
-
-    fun requireProjectKeyScope(
+    fun requireTokenScope(
         actor: AuthenticatedActor,
         entity: ProjectEntity,
-        action: AccessKeyAction,
+        action: TokenAction,
     ) {
         val permission = "${entity.configValue}:${action.name.lowercase()}"
-        if (actor.type == ActorType.PROJECT_KEY && !actor.isAllowed(permission)) {
+        if (actor.type != ActorType.USER && permission !in actor.scopes.map(TokenScope::value)) {
             throw ForbiddenProjectActionException(
-                "Project key does not have ${entity.configValue}:${action.name.lowercase()} scope",
+                "Personal access token does not have ${entity.configValue}:${action.name.lowercase()} scope",
             )
         }
     }
-
-    private fun AuthenticatedActor.hasScope(entity: ProjectEntity, action: AccessKeyAction): Boolean =
-        scopes.contains(AccessKeyScope(entity, action))
 
     private fun ProjectRole.isAllowed(permission: String, systemAdmin: Boolean = false): Boolean = evaluator.isAllowed(
         ProjectPrincipal(
@@ -171,18 +121,6 @@ internal class ProjectAccessPolicy(
             projectId = "project-policy",
             projectRole = name.lowercase(),
             systemAdmin = systemAdmin,
-        ),
-        permission,
-    )
-
-    private fun AuthenticatedActor.isAllowed(permission: String): Boolean = evaluator.isAllowed(
-        ProjectPrincipal(
-            type = if (type == ActorType.USER) ProjectActorType.USER else ProjectActorType.PROJECT_KEY,
-            actorId = userId,
-            projectId = projectId.orEmpty(),
-            projectRole = if (type == ActorType.USER) ProjectRole.VIEWER.name.lowercase() else null,
-            projectScopes = scopes.map(AccessKeyScope::value).toSet(),
-            systemAdmin = isSystemAdmin,
         ),
         permission,
     )
@@ -197,10 +135,4 @@ internal enum class MemberManagementPermission(val value: String) {
     ADD("members:add"),
     CHANGE_ROLE("members:change_role"),
     REMOVE("members:remove"),
-}
-
-internal enum class AccessKeyManagementPermission(val value: String) {
-    READ("access_keys:read"),
-    CREATE("access_keys:create"),
-    REVOKE("access_keys:revoke"),
 }

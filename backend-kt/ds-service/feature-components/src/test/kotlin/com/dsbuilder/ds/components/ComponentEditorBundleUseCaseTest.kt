@@ -66,9 +66,11 @@ class ComponentEditorBundleUseCaseTest {
     fun `rejects a key without components variations read before touching the repository`() = runBlocking {
         val repository = RecordingBundleRepository(LoadAttempt.Success(bundle("web")))
         val key = ProjectPrincipal(
-            type = ProjectActorType.PROJECT_KEY,
+            type = ProjectActorType.PERSONAL_ACCESS_TOKEN,
             actorId = "key-1",
             projectId = "project-1",
+            personalAccessTokenId = "pat",
+            projectRole = "owner",
             projectScopes = setOf("components:read"),
         )
 
@@ -127,6 +129,11 @@ class ComponentEditorBundleUseCaseTest {
 
 private class RecordingBundleTransactions : TransactionRunner {
     val readContexts = mutableListOf<DsRequestContext>()
+    override suspend fun <T> rollback(
+        context: DsRequestContext,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T> = required(context, block)
+
     override suspend fun <T> required(block: suspend () -> DsResult<T>) = block()
     override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
     override suspend fun <T> readOnly(context: DsRequestContext, block: suspend () -> DsResult<T>): DsResult<T> {

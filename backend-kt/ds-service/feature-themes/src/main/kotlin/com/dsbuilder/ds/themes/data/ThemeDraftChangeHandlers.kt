@@ -4,6 +4,9 @@ import com.dsbuilder.ds.core.application.DraftChangeCandidate
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.DraftSubjectChange
+import com.dsbuilder.ds.core.application.JournalCandidateExclusionPolicy
+import com.dsbuilder.ds.core.application.LiteralValueBatchContext
+import com.dsbuilder.ds.core.application.LiteralValueBatchParticipant
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
 import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenFamilyTypeSync
@@ -32,27 +35,32 @@ fun themeDraftChangeHandlers(
 ): List<DraftChangeHandler> = listOf(tenantDraftChangeHandler(familyTypes)) + paletteDraftChangeHandlers()
 
 /** Скрывает технические создания начальных значений новой темы за одной записью tenant. */
-fun themeDraftChangePolicy(): DraftChangePolicy = object : DraftChangePolicy {
-    override val preservesNonEmpty: Boolean = true
+fun themeDraftChangePolicy(): DraftChangePolicy =
+    object : DraftChangePolicy, LiteralValueBatchParticipant, JournalCandidateExclusionPolicy {
+        override fun permits(exclusion: String): Boolean = exclusion == THEME_CREATION_EXCLUSION
+        override fun validLiteralBatch(context: LiteralValueBatchContext): Boolean =
+            context.values.none { it.creationBaseline }
 
-    override fun visible(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> =
-        visibleThemeChanges(versionId, candidates)
+        override val preservesNonEmpty: Boolean = true
 
-    override fun visibleEntity(
-        versionId: UUID,
-        candidate: DraftChangeCandidate,
-        related: (String, UUID) -> DraftSubjectChange?,
-    ): DraftChangeCandidate? {
-        val tenant = candidate.change.currentValue?.get("tenant_id")?.jsonPrimitive?.content
-            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            ?.takeIf { candidate.change.previousValue == null }
-            ?.let { related(TENANT_ENTITY_TYPE, it) }
-        val context = listOfNotNull(candidate, tenant?.let { DraftChangeCandidate(TENANT_ENTITY_TYPE, it) })
-        return visibleThemeChanges(versionId, context).firstOrNull {
-            it.entityType == candidate.entityType && it.change.entityId == candidate.change.entityId
+        override fun visible(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> =
+            visibleThemeChanges(versionId, candidates)
+
+        override fun visibleEntity(
+            versionId: UUID,
+            candidate: DraftChangeCandidate,
+            related: (String, UUID) -> DraftSubjectChange?,
+        ): DraftChangeCandidate? {
+            val tenant = candidate.change.currentValue?.get("tenant_id")?.jsonPrimitive?.content
+                ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?.takeIf { candidate.change.previousValue == null }
+                ?.let { related(TENANT_ENTITY_TYPE, it) }
+            val context = listOfNotNull(candidate, tenant?.let { DraftChangeCandidate(TENANT_ENTITY_TYPE, it) })
+            return visibleThemeChanges(versionId, context).firstOrNull {
+                it.entityType == candidate.entityType && it.change.entityId == candidate.change.entityId
+            }
         }
     }
-}
 
 private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> {
     val createdTenantIds = candidates.asSequence()

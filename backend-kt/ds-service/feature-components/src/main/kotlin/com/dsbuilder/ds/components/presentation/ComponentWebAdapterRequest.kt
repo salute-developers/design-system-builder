@@ -4,7 +4,4 @@ import kotlinx.serialization.Serializable
 
 /** Тело запроса web-адаптера. */
 @Serializable
-data class ComponentWebAdapterRequest(
-    /** Дизайн-система, данные которой выгружаются. */
-    val designSystemId: String,
-)
+class ComponentWebAdapterRequest

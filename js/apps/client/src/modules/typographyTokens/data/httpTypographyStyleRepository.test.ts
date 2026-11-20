@@ -27,7 +27,7 @@ describe('HTTP-адаптер стилей типографии', () => {
             headers: { 'x-ds-mutation-metadata': '[{"entityType":"token-value","entityId":"v-web","revision":5}]' },
         });
         await repository.load({ ...context, versionId: 'v1' });
-        expect(get).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/typography-styles', {
+        expect(get).toHaveBeenCalledWith('/api/projects/p1/design-systems/ds/tenants/t1/typography-styles', {
             signal: undefined,
             params: { versionId: 'v1' },
         });
@@ -40,7 +40,7 @@ describe('HTTP-адаптер стилей типографии', () => {
             { tokenId: 'tok/2', platform: 'ios' as const },
         ];
         await repository.update(context, 'tok/1', { size: 18, weights: { bold: 700 } }, addresses);
-        expect(patch).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/typography-styles/tok%2F1', {
+        expect(patch).toHaveBeenCalledWith('/api/projects/p1/design-systems/ds/tenants/t1/typography-styles/tok%2F1', {
             size: 18,
             weights: { bold: 700 },
             baseRevisions: [
@@ -102,7 +102,7 @@ describe('HTTP-адаптер стилей типографии', () => {
         await repository.describe(context, 'tok/1', 'Основной текст');
         await repository.describe(context, 'tok/1', '');
         expect(patch.mock.calls[0].slice(0, 2)).toEqual([
-            '/api/projects/p1/ds/tokens/tok%2F1',
+            '/api/projects/p1/design-systems/ds/tokens/tok%2F1',
             { description: 'Основной текст' },
         ]);
         expect(patch.mock.calls[1][1]).toEqual({ description: null });
@@ -117,10 +117,10 @@ describe('HTTP-адаптер стилей типографии', () => {
         expect(await repository.removeGroup(context, 'note')).toEqual(['b']);
 
         expect(patch.mock.calls[0].slice(0, 2)).toEqual([
-            '/api/projects/p1/ds/tenants/t1/typography-groups/caption',
+            '/api/projects/p1/design-systems/ds/tenants/t1/typography-groups/caption',
             { name: 'note' },
         ]);
-        expect(remove.mock.calls[0][0]).toBe('/api/projects/p1/ds/tenants/t1/typography-groups/note');
+        expect(remove.mock.calls[0][0]).toBe('/api/projects/p1/design-systems/ds/tenants/t1/typography-groups/note');
         expect(remove.mock.calls[0][1]?.headers).toHaveProperty('Idempotency-Key');
     });
 });

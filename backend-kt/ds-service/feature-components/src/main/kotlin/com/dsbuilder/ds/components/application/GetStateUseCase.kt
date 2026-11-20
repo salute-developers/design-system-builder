@@ -19,5 +19,5 @@ class GetStateUseCase(
             policy,
             transactions,
             context,
-        ) { repository.find(context.projectId, context.principal.systemAdmin, id) }
+        ) { repository.find(context.projectId, context.principal.globalAdmin, id) }
 }

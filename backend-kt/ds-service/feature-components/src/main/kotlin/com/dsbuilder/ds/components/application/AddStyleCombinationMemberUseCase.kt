@@ -22,8 +22,8 @@ class AddStyleCombinationMemberUseCase(
     ): DsResult<StyleCombinationMember> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "add-style-combination-member",
         command,
-        { repository.findMember(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createMember(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findMember(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createMember(context.projectId, context.principal.globalAdmin, command) },
         StyleCombinationMember::id,
     )
 }

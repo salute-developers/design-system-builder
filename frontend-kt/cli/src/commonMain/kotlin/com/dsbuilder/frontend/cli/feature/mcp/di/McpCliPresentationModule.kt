@@ -24,6 +24,10 @@ public fun mcpCliPresentationModule(): Module = module {
             listProjectsUseCase = get(),
             listDesignSystemsUseCase = get(),
             discoverVersionsUseCase = get(),
+            editTokenUseCase = get(),
+            editThemeUseCase = get(),
+            readTokenEditDataUseCase = get(),
+            editComponentUseCase = get(),
             checkProjectStatusUseCase = get<CheckProjectStatusUseCase>(),
         )
     }

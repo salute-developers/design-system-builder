@@ -16,6 +16,6 @@ class GetAppearanceEditorModelUseCase(
     /** Выполняет сценарий. */
     suspend fun execute(context: DsRequestContext, appearanceId: UUID): DsResult<AppearanceEditorModel> =
         modelFind(policy, transactions, context) {
-            repository.model(context.projectId, context.principal.systemAdmin, appearanceId, context.versionId)
+            repository.model(context.projectId, context.principal.globalAdmin, appearanceId, context.versionId)
         }
 }

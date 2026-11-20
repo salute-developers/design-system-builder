@@ -304,26 +304,40 @@ export const StyledSelect = ({
 
 export const Modal = ({
     title,
+    subtitle,
     onClose,
     children,
     closeDisabled = false,
+    closeIcon = '×',
     returnFocusTo,
     className,
+    role = 'dialog',
+    describedBy,
 }: {
     title: string;
+    /** Строка под заголовком: например, имя объекта, к которому относится окно. */
+    subtitle?: ReactNode;
     onClose: () => void;
     children: ReactNode;
     closeDisabled?: boolean;
+    /** Содержимое кнопки закрытия: по умолчанию символ «×». */
+    closeIcon?: ReactNode;
     returnFocusTo?: HTMLElement | null;
     className?: string;
+    /** `alertdialog` — для подтверждений, которые прерывают действие пользователя. */
+    role?: 'dialog' | 'alertdialog';
+    describedBy?: string;
 }) => {
     const dialogRef = useRef<HTMLElement>(null);
     const openerRef = useRef<HTMLElement | null>(returnFocusTo ?? null);
     useLayoutEffect(() => {
         if (!openerRef.current) openerRef.current = document.activeElement as HTMLElement | null;
-        const focusable = dialogRef.current?.querySelector<HTMLElement>(
-            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        );
+        // Элемент с `data-autofocus` (например, «Отмена» в подтверждении) важнее первого доступного.
+        const focusable =
+            dialogRef.current?.querySelector<HTMLElement>('[data-autofocus]') ??
+            dialogRef.current?.querySelector<HTMLElement>(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            );
         focusable?.focus();
         return () => {
             const opener = openerRef.current;
@@ -339,9 +353,10 @@ export const Modal = ({
             <section
                 ref={dialogRef}
                 className={['modal', className].filter(Boolean).join(' ')}
-                role="dialog"
+                role={role}
                 aria-modal="true"
                 aria-labelledby="modal-title"
+                aria-describedby={describedBy}
                 onKeyDown={(event) => {
                     if (event.key === 'Escape' && !closeDisabled) {
                         event.preventDefault();
@@ -352,9 +367,16 @@ export const Modal = ({
                 }}
             >
                 <header>
-                    <h2 id="modal-title">{title}</h2>
+                    {subtitle ? (
+                        <div>
+                            <h2 id="modal-title">{title}</h2>
+                            <p>{subtitle}</p>
+                        </div>
+                    ) : (
+                        <h2 id="modal-title">{title}</h2>
+                    )}
                     <button type="button" aria-label="Закрыть" disabled={closeDisabled} onClick={onClose}>
-                        ×
+                        {closeIcon}
                     </button>
                 </header>
                 {children}

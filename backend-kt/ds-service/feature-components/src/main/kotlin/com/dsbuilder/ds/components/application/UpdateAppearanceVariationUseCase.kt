@@ -19,6 +19,6 @@ class UpdateAppearanceVariationUseCase(
         id: UUID,
         command: AppearanceRepository.VariationUpdate,
     ): DsResult<AppearanceVariation> = modelMutateAxisRoles(policy, transactions, context) {
-        repository.updateVariation(context.projectId, context.principal.systemAdmin, id, command)
+        repository.updateVariation(context.projectId, context.principal.globalAdmin, id, command)
     }
 }

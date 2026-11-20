@@ -111,6 +111,14 @@ afterEach(() => {
 });
 
 describe('раздел «Палитра»', () => {
+    it('инспектор получает общую область связей одним запросом', async () => {
+        const links = vi.spyOn(paletteRepository, 'links');
+        await renderPalette();
+        await waitFor(() => expect(links).toHaveBeenCalled());
+        expect(links).toHaveBeenCalledTimes(1);
+        expect(links.mock.calls[0][1].groupId).toBeUndefined();
+        links.mockRestore();
+    });
     it('использует палитру оболочки без повторного чтения при монтировании экрана', async () => {
         const load = vi.spyOn(paletteRepository, 'load');
         try {

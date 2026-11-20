@@ -17,6 +17,7 @@ internal fun verifiedHeaders(incoming: Headers, context: Map<String, String>): H
 }
 
 internal val trustedNames = setOf(
+    "x-personal-access-token-id", "x-service-account",
     "x-actor-type", "x-user-id", "x-project-id", "x-project-role", "x-project-key-id",
     "x-project-scopes", "x-system-admin", "x-compose-preview-publisher", "x-internal-api-key",
 )

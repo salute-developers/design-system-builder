@@ -68,10 +68,10 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
         // Сохранение идёт только в контексте темы: legacy-путь через db-service удалён.
         throw new Error('THEME_CONTEXT_REQUIRED');
     }
-    const root = `${PROJECTS_URL}/${parameters.projectId}/ds`;
+    const root = `${PROJECTS_URL}/${parameters.projectId}/design-systems/${parameters.designSystemId}`;
     const definitions = (
         await http.get<Array<{ id: string; name: string; type: keyof typeof themeData.variations }>>(
-            `${root}/design-systems/${parameters.designSystemId}/tokens`,
+            `${root}/tokens`,
         )
     ).data;
     const ids = new Map(definitions.map((token) => [tokenKey(token.type, token.name), token.id]));

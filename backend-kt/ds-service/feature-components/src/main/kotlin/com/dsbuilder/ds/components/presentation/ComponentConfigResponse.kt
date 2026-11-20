@@ -74,6 +74,8 @@ data class ComponentConfigResponse(
         val values: List<VariationValue>,
         @EncodeDefault(EncodeDefault.Mode.NEVER) /** Declared type carried by this contract. */ val declaredType:
         String? = null,
+        @EncodeDefault(EncodeDefault.Mode.NEVER) /** ID вариации оси; только в выгрузке для редактора. */
+        val variationId: String? = null,
     )
 
     /** HTTP variation value. */
@@ -89,6 +91,8 @@ data class ComponentConfigResponse(
         @EncodeDefault(
             EncodeDefault.Mode.NEVER,
         ) /** Authored id carried by this contract. */ val authoredId: String? = null,
+        @EncodeDefault(EncodeDefault.Mode.NEVER) /** ID стиля значения; только в выгрузке для редактора. */
+        val styleId: String? = null,
     )
 
     /** HTTP target group. */
@@ -134,9 +138,11 @@ data class ComponentConfigResponse(
                             },
                             axisValue.properties.mapValues { property(it.value, emitEmptyStates, includeIds) },
                             axisValue.authoredId,
+                            axisValue.styleId,
                         )
                     },
                     variation.declaredType,
+                    variation.variationId,
                 )
             },
         )

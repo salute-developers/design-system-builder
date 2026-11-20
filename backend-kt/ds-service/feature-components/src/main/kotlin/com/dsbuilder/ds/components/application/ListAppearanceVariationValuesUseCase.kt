@@ -15,6 +15,6 @@ class ListAppearanceVariationValuesUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<AppearanceVariationValue>> =
         modelList(policy, transactions, context) {
-            repository.listValues(context.projectId, context.principal.systemAdmin)
+            repository.listValues(context.projectId, context.principal.globalAdmin)
         }
 }

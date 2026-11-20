@@ -11,6 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class RevisionBoundaryProtectionPostgresIntegrationTest {
     @Test
     fun `deleting a design system still cascades through protected boundaries`() {

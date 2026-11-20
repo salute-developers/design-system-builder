@@ -20,7 +20,7 @@ public enum class RuntimeFailureCode {
     /** The selected credential is unavailable. */
     AUTH_REQUIRED,
 
-    PROJECT_KEY_INVALID,
+    PAT_INVALID,
 
     FORBIDDEN,
 
@@ -85,7 +85,7 @@ public class RuntimeRequestResolver(
             is CredentialResult.Failed -> RuntimeResolution.Failed(
                 when (credential.code) {
                     AuthErrorCode.AUTH_REQUIRED -> RuntimeFailureCode.AUTH_REQUIRED
-                    AuthErrorCode.PROJECT_KEY_INVALID -> RuntimeFailureCode.PROJECT_KEY_INVALID
+                    AuthErrorCode.PAT_INVALID -> RuntimeFailureCode.PAT_INVALID
                     AuthErrorCode.FORBIDDEN -> RuntimeFailureCode.FORBIDDEN
                     AuthErrorCode.BACKEND_UNAVAILABLE -> RuntimeFailureCode.BACKEND_UNAVAILABLE
                     AuthErrorCode.INVALID_AUTH_URL -> RuntimeFailureCode.INVALID_AUTH_URL

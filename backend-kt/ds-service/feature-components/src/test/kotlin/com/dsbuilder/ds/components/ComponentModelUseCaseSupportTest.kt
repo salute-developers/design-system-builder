@@ -41,6 +41,12 @@ class ComponentModelUseCaseSupportTest {
     fun `find list returns empty only for system administrators`() = runBlocking {
         val hidden = modelFindList<String>(policy, transactions, viewerContext()) { null }
         val admin = modelFindList<String>(policy, transactions, adminContext()) { null }
+        val scopedAdmin = modelFindList<String>(
+            policy,
+            transactions,
+            adminContext().copy(designSystemId = java.util.UUID.randomUUID()),
+        ) { null }
+        assertEquals(DsFailure.NotFound, assertIs<DsResult.Failure>(scopedAdmin).error)
 
         assertEquals(DsFailure.NotFound, assertIs<DsResult.Failure>(hidden).error)
         assertEquals(emptyList(), assertIs<DsResult.Success<List<String>>>(admin).value)
@@ -93,6 +99,11 @@ class ComponentModelUseCaseSupportTest {
     )
 
     private class ImmediateTransactions : TransactionRunner {
+        override suspend fun <T> rollback(
+            context: DsRequestContext,
+            block: suspend () -> DsResult<T>,
+        ): DsResult<T> = required(context, block)
+
         override suspend fun <T> required(block: suspend () -> DsResult<T>) = block()
 
         override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
@@ -101,6 +112,11 @@ class ComponentModelUseCaseSupportTest {
     private class TrackingTransactions : TransactionRunner {
         var requiredCalls = 0
         var readOnlyCalls = 0
+
+        override suspend fun <T> rollback(
+            context: DsRequestContext,
+            block: suspend () -> DsResult<T>,
+        ): DsResult<T> = required(context, block)
 
         override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> {
             requiredCalls += 1

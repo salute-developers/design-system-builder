@@ -21,11 +21,17 @@ public class HttpDesignSystemsClient(private val clients: AuthenticatedHttpClien
         projectId: String,
     ): DesignSystemsReadResult = when (
         val response = clients.create(apiUrl, credential).get(
-            "/api/projects/${encodeModelSegment(projectId)}/ds/design-systems",
+            "/api/projects/${encodeModelSegment(projectId)}/design-systems",
         )
     ) {
         is AuthenticatedHttpResult.Success -> decode(response.body)
-        is AuthenticatedHttpResult.Failure -> SYSTEM_HTTP_FAILURES[response.statusCode] ?: SYSTEM_BACKEND_FAILURE
+        is AuthenticatedHttpResult.Failure -> if (response.statusCode == 401 &&
+            credential is BackendCredential.PersonalAccessToken
+        ) {
+            DesignSystemsReadResult.Failed(DesignSystemsReadErrorCode.PAT_INVALID, "PAT is invalid or expired.")
+        } else {
+            SYSTEM_HTTP_FAILURES[response.statusCode] ?: SYSTEM_BACKEND_FAILURE
+        }
     }
 
     private fun decode(body: String): DesignSystemsReadResult = runCatching {

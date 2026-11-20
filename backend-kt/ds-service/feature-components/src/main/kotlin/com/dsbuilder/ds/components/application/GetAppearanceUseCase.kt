@@ -16,6 +16,6 @@ class GetAppearanceUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Appearance> =
         modelFind(policy, transactions, context) {
-            repository.find(context.projectId, context.principal.systemAdmin, id)
+            repository.find(context.projectId, context.principal.globalAdmin, id)
         }
 }

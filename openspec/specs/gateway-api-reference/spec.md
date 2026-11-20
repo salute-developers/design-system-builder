@@ -21,8 +21,8 @@
 
 #### Scenario: Преобразование Design systems API
 
-- **WHEN** документ `ds-service` содержит путь с префиксом `/api/ds`
-- **THEN** опубликованный для Scalar путь начинается с `/api/projects/{projectId}/ds` и содержит обязательный параметр `projectId`
+- **WHEN** документ `ds-service` содержит путь с префиксом `/api/design-systems`
+- **THEN** опубликованный для Scalar путь начинается с `/api/projects/{projectId}/design-systems` и содержит обязательный параметр `projectId`
 
 ### Requirement: Выбор target gateway
 

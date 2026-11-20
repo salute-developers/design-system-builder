@@ -31,7 +31,7 @@ class GetComponentEditorBundleUseCase(
         transactions.readOnly(context) {
             val attempt = repository.load(
                 context.projectId,
-                context.principal.systemAdmin,
+                context.principal.globalAdmin,
                 designSystemId,
                 componentId,
                 platform,

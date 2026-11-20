@@ -45,3 +45,32 @@ tasks.processResources {
 }
 
 dependencies { implementation("com.dsbuilder.runtime:runtime-contracts") }
+
+// Отдельная компиляция стенда; обычные тесты не зависят от его классов и CIO.
+val performance by sourceSets.creating
+configurations[performance.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[performance.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
+performance.compileClasspath += sourceSets.test.get().output
+performance.runtimeClasspath += sourceSets.test.get().output
+kotlin.target.compilations.getByName("performance").associateWith(kotlin.target.compilations.getByName("test"))
+dependencies { add(performance.implementationConfigurationName, libs.ktor.client.cio) }
+tasks.register<Test>("queryPerformance") {
+    description = "Сравнивает HTTP-чтения на репрезентативной изолированной PostgreSQL 17."
+    group = "verification"
+    testClassesDirs = performance.output.classesDirs
+    classpath = performance.runtimeClasspath
+    include("**/ThemeQueryPerformanceTest.class")
+    environment("DS_QUERY_PERFORMANCE_STATS", "true")
+    systemProperty("ds.performance.output", providers.gradleProperty("performanceOutput")
+        .getOrElse(layout.buildDirectory.file("query-performance/report.json").get().asFile.absolutePath))
+    systemProperty("ds.performance.fixtureImport", providers.gradleProperty("performanceFixtureImport").getOrElse(""))
+    systemProperty("ds.performance.fixtureExport", providers.gradleProperty("performanceFixtureExport").getOrElse(""))
+    systemProperty("ds.performance.legacy", providers.gradleProperty("performanceLegacy").getOrElse("false"))
+    systemProperty("ds.performance.readMode", providers.gradleProperty("performanceReadMode").getOrElse("addressed"))
+    systemProperty("ds.performance.scenario", providers.gradleProperty("performanceScenario").getOrElse(""))
+    systemProperty("ds.performance.jfr", providers.gradleProperty("performanceJfr").getOrElse(""))
+    systemProperty("ds.performance.editDensity", providers.gradleProperty("performanceEditDensity").getOrElse(""))
+    systemProperty("ds.performance.netty", providers.gradleProperty("performanceNetty").getOrElse("false"))
+    systemProperty("kotlinx.coroutines.debug", "off")
+    outputs.upToDateWhen { false }
+}

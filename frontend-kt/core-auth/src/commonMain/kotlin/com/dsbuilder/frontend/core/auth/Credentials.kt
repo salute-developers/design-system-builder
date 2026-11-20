@@ -7,9 +7,9 @@ public sealed interface BackendCredential {
     /**
      * Project-scoped API key credential.
      *
-     * @property value raw project API key.
+     * @property value raw PAT.
      */
-    public data class ProjectKey(
+    public data class PersonalAccessToken(
         public val value: String,
     ) : BackendCredential
 
@@ -37,7 +37,7 @@ public sealed interface BackendCredential {
  * Public credential category safe for diagnostics.
  */
 public enum class BackendCredentialType {
-    PROJECT_KEY,
+    PERSONAL_ACCESS_TOKEN,
     USER_SESSION,
     SERVICE_ACCOUNT,
 }
@@ -83,7 +83,7 @@ public data class TokenResponse(
  */
 public enum class AuthErrorCode {
     AUTH_REQUIRED,
-    PROJECT_KEY_INVALID,
+    PAT_INVALID,
     FORBIDDEN,
     BACKEND_UNAVAILABLE,
     INVALID_AUTH_URL,

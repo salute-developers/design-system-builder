@@ -13,7 +13,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.coreApplication)
-            implementation(projects.featureComponents)
+            api(projects.featureComponents)
+            api(projects.featureTheme)
             implementation(projects.featureDs)
             implementation(projects.featureProjects)
             implementation(projects.featureDocs)

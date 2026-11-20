@@ -107,6 +107,46 @@ describe('writePackagePart', () => {
         assert.doesNotMatch(stderr, /reading from STDIN/);
     });
 
+    it('корневой индекс пакета с компонентами реэкспортирует компоненты ядра без конфига темы', async () => {
+        await writePackagePart({
+            parts: ['components'],
+            outputDirectory: output,
+            packageName: 'brand',
+            packageVersion: '1.2.3',
+            coreVersion: 'latest',
+            pack: true,
+            fill: (pathToDir) => writeText(join(pathToDir, 'src', 'components', 'Button', 'index.ts'), 'export {};\n'),
+        });
+        assert.match(
+            await readFile(join(output, 'src', 'index.ts'), 'utf8'),
+            /export \{ SSRProvider \} from '@salutejs\/plasma-new-hope\/styled-components';/,
+        );
+
+        await write(true, 'brand');
+        assert.doesNotMatch(await readFile(join(output, 'src', 'index.ts'), 'utf8'), /SSRProvider/);
+    });
+
+    it('сообщает части компонентов, будет ли в результате тема', async () => {
+        const seen: boolean[] = [];
+        const options = (pack: boolean) => ({
+            parts: ['components' as const],
+            outputDirectory: output,
+            packageName: 'brand',
+            packageVersion: '1.2.3',
+            coreVersion: 'latest',
+            pack,
+            fill: async (pathToDir: string, { hasTheme }: { hasTheme: boolean }) => {
+                seen.push(hasTheme);
+                await writeText(join(pathToDir, 'src', 'components', 'Button', 'index.ts'), 'export {};\n');
+            },
+        });
+        await writeText(join(output, 'src', 'theme', 'index.ts'), 'export {};\n');
+        // Без --package тема в output остаётся, с --package src заменяется целиком.
+        await writePackagePart(options(false));
+        await writePackagePart(options(true));
+        assert.deepEqual(seen, [true, false]);
+    });
+
     it('с --package требует --name до генерации', async () => {
         await assert.rejects(write(true), /--name is required with --package/);
 

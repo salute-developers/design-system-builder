@@ -24,9 +24,9 @@ describe('параметры предметных запросов редакт�
         const signal = new AbortController().signal;
         expect(variationReadRequest({ ...context, versionId: 'published' }, signal)).toEqual({
             signal,
-            params: { versionId: 'published', designSystemId: 'ds' },
+            params: { versionId: 'published' },
         });
-        expect(variationReadRequest(context)).toEqual({ signal: undefined, params: { designSystemId: 'ds' } });
+        expect(variationReadRequest(context)).toEqual({ signal: undefined, params: undefined });
     });
 
     it('включает fetch keepalive только при явном запросе', () => {

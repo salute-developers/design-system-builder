@@ -28,16 +28,18 @@ class AcceptDocumentationBundleUseCaseTest {
         assertEquals(result.jobId, fixture.jobs.single().id)
     }
 
-    @Test fun `all allowed user roles and project key are accepted`() = runBlocking {
+    @Test fun `all allowed user roles and PAT are accepted`() = runBlocking {
         listOf(
             actor("owner"),
             actor("maintainer"),
             actor("editor"),
             ActorContext(
-                ActorType.PROJECT_KEY,
+                ActorType.PERSONAL_ACCESS_TOKEN,
                 "key",
                 "project",
                 projectScopes = setOf("documentation:write"),
+                personalAccessTokenId = "pat",
+                projectRole = "editor",
             ),
         ).forEach {
             assertIs<AcceptanceResult.Accepted>(Fixture().useCase().execute(source(), it))

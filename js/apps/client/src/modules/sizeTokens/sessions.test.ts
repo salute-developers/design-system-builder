@@ -9,7 +9,7 @@ import { restorePendingSizeTokenCommands, setSizeTokenRepository, sizeTokenSessi
 import type { SizeTokenValue } from './domain';
 
 const context = { projectId: 'p1', designSystemId: 'ds', tenantId: 't-replay' };
-const base = '/api/projects/p1/ds/tenants/t-replay/size-tokens';
+const base = '/api/projects/p1/design-systems/ds/tenants/t-replay/size-tokens';
 const layer = { offsetX: 0, offsetY: 8, blur: 24, spread: -8, color: '#0000001F' };
 const stored = () =>
     Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index) ?? '')

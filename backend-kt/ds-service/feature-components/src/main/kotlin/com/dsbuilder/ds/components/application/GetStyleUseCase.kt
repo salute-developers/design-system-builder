@@ -16,6 +16,6 @@ class GetStyleUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<ComponentStyleSummary> =
         modelFind(policy, transactions, context) {
-            repository.findAccessible(context.projectId, context.principal.systemAdmin, id)
+            repository.findAccessible(context.projectId, context.principal.globalAdmin, id)
         }
 }

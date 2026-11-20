@@ -22,7 +22,7 @@ class UpdateComponentDependencyUseCase(
         command: ComponentDependencyRepository.Update,
     ): DsResult<ComponentDependency> = policy.read(context, ProjectScope.COMPONENTS_WRITE) {
         transactions.required(context) {
-            repository.updateAccessible(context.projectId, context.principal.systemAdmin, id, command)
+            repository.updateAccessible(context.projectId, context.principal.globalAdmin, id, command)
                 ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
         }
     }

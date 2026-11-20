@@ -31,7 +31,6 @@ internal class HttpComponentConfigRemoteSource(
         val body = json.encodeToString(
             ImportRequest.serializer(),
             ImportRequest(
-                designSystemId = command.designSystemId.value,
                 platform = command.platform,
                 meta = ImportMeta(name = command.packageName, source = command.packageOrigin),
                 dryRun = command.dryRun,
@@ -45,7 +44,8 @@ internal class HttpComponentConfigRemoteSource(
             ),
         )
 
-        val path = "/api/projects/${command.projectId.value}/ds/component-config/import"
+        val path = "/api/projects/${command.projectId.value}/design-systems/" +
+            "${command.designSystemId.value}/component-config/import"
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
@@ -57,10 +57,11 @@ internal class HttpComponentConfigRemoteSource(
     override suspend fun export(command: ExportComponentsCommand): ExportComponentsResult {
         val body = json.encodeToString(
             ExportRequest.serializer(),
-            ExportRequest(designSystemId = command.designSystemId.value, platform = command.platform),
+            ExportRequest(platform = command.platform),
         )
 
-        val path = "/api/projects/${command.projectId.value}/ds/component-config/export"
+        val path = "/api/projects/${command.projectId.value}/design-systems/" +
+            "${command.designSystemId.value}/component-config/export"
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
@@ -100,9 +101,9 @@ internal class HttpComponentConfigRemoteSource(
 }
 
 /**
- * Тело запроса `POST /ds/component-config/import`.
+ * Тело запроса `POST /design-systems/${command.designSystemId.value}/component-config/import`.
  *
- * @property designSystemId дизайн-система, в которую грузится пакет. Идентификатора нет в пути:
+ * Система определяется путём запроса.
  * backend адресует дизайн-систему телом запроса.
  * @property platform платформа компонентов: имя компонента уникально только внутри платформы.
  * @property meta метаданные пакета.
@@ -111,7 +112,6 @@ internal class HttpComponentConfigRemoteSource(
  */
 @Serializable
 private data class ImportRequest(
-    val designSystemId: String,
     val platform: String,
     val meta: ImportMeta,
     val dryRun: Boolean,
@@ -193,14 +193,12 @@ private data class ImportRejectionResponse(
 }
 
 /**
- * Тело запроса `POST /ds/component-config/export`.
+ * Тело запроса `POST /design-systems/${command.designSystemId.value}/component-config/export`.
  *
- * @property designSystemId дизайн-система, конфигурации которой выгружаются.
  * @property platform платформа компонентов.
  */
 @Serializable
 private data class ExportRequest(
-    val designSystemId: String,
     val platform: String,
 )
 

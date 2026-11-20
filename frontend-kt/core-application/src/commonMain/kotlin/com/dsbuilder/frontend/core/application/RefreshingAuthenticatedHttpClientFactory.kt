@@ -12,6 +12,8 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResponse
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.network.HttpMutationRequest
+import com.dsbuilder.frontend.core.network.HttpMutationResult
 import com.dsbuilder.frontend.core.network.MultipartFile
 
 /** Retries a Bearer request once after a typed HTTP 401 with a refreshed user session. */
@@ -22,7 +24,7 @@ internal class RefreshingAuthenticatedHttpClientFactory(
     private val cache: UserAccessTokenCache = UserAccessTokenCache(),
 ) : AuthenticatedHttpClientFactory {
     override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-        create(apiUrl, BackendCredential.ProjectKey(apiKey))
+        create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
 
     override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =
         RefreshingClient(apiUrl, credential)
@@ -38,6 +40,25 @@ internal class RefreshingAuthenticatedHttpClientFactory(
 
         override suspend fun post(path: String, body: String): AuthenticatedHttpResult =
             retryResult(firstClient.post(path, body)) { it.post(path, body) }
+
+        override suspend fun mutate(request: HttpMutationRequest): HttpMutationResult {
+            val first = firstClient.mutate(request)
+            if (
+                first !is HttpMutationResult.Response || first.statusCode != 401 ||
+                credential !is BackendCredential.Bearer
+            ) {
+                return first
+            }
+            return when (val refreshed = refreshedClient()) {
+                is AuthResult.Failed -> HttpMutationResult.Response(errorStatus(refreshed.code), "", emptyMap(), true)
+                is AuthResult.Success -> refreshed.value.mutate(request).also { second ->
+                    if (second is HttpMutationResult.Response && second.statusCode == 401) clearSession()
+                }
+            }
+        }
+
+        override suspend fun postJson(path: String, body: String): AuthenticatedHttpResponse =
+            retryMultipart { it.postJson(path, body) }
 
         override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
             retryMultipart { it.postMultipart(path, file) }
@@ -95,7 +116,7 @@ internal class RefreshingAuthenticatedHttpClientFactory(
     }
 
     private fun errorStatus(code: AuthErrorCode): Int = when (code) {
-        AuthErrorCode.AUTH_REQUIRED, AuthErrorCode.PROJECT_KEY_INVALID -> 401
+        AuthErrorCode.AUTH_REQUIRED, AuthErrorCode.PAT_INVALID -> 401
         AuthErrorCode.FORBIDDEN -> 403
         else -> 503
     }

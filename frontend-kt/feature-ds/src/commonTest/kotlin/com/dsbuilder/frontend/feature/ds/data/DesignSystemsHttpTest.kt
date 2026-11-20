@@ -17,6 +17,31 @@ import kotlin.test.assertIs
 
 class DesignSystemsHttpTest {
     @Test
+    fun patFailuresAreDistinctFromOAuthFailures() = runTest {
+        val cases = listOf(
+            401 to DesignSystemsReadErrorCode.PAT_INVALID,
+            503 to DesignSystemsReadErrorCode.BACKEND_UNAVAILABLE,
+        )
+        for ((status, code) in cases) {
+            val http = HttpClient(
+                MockEngine { request ->
+                    assertEquals("Bearer fixture-pat", request.headers[HttpHeaders.Authorization])
+                    respond("private-body", HttpStatusCode.fromValue(status))
+                },
+            )
+            try {
+                val client = HttpDesignSystemsClient(KtorAuthenticatedHttpClientFactory { http })
+                val result = client.list(
+                    "https://fixture.example",
+                    BackendCredential.PersonalAccessToken("fixture-pat"),
+                    "p1",
+                )
+                assertEquals(code, assertIs<DesignSystemsReadResult.Failed>(result).code)
+            } finally { http.close() }
+        }
+    }
+
+    @Test
     fun realHttpAdapterUsesBearerAndMapsBackendFailuresWithoutBodies() = runTest {
         val cases = listOf(
             200 to null,
@@ -29,7 +54,7 @@ class DesignSystemsHttpTest {
             val http = HttpClient(
                 MockEngine { request ->
                     assertEquals("Bearer fixture-access", request.headers[HttpHeaders.Authorization])
-                    assertEquals("/api/projects/p1/ds/design-systems", request.url.encodedPath)
+                    assertEquals("/api/projects/p1/design-systems", request.url.encodedPath)
                     respond(if (status == 200) "[]" else "fixture-secret", HttpStatusCode.fromValue(status))
                 },
             )

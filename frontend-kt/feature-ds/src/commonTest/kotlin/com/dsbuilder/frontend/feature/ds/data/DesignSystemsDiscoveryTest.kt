@@ -55,7 +55,7 @@ class DesignSystemsDiscoveryTest {
         inspect: (String, BackendCredential, String) -> Unit = { _, _, _ -> },
     ): AuthenticatedHttpClientFactory = object : AuthenticatedHttpClientFactory {
         override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-            create(apiUrl, BackendCredential.ProjectKey(apiKey))
+            create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
 
         override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =
             object : AuthenticatedHttpClient {
@@ -79,7 +79,7 @@ class DesignSystemsDiscoveryTest {
             ): CredentialResult = error("Must use explicit user-session policy")
 
             override suspend fun resolve(request: CredentialRequest): CredentialResult {
-                assertEquals(CredentialPolicy.USER_SESSION, request.policy)
+                assertEquals(CredentialPolicy.AUTO, request.policy)
                 return CredentialResult.Failed(AuthErrorCode.FORBIDDEN, "fixture-secret")
             }
         }
@@ -105,7 +105,7 @@ class DesignSystemsDiscoveryTest {
                 ->
                 assertEquals("https://fixture.example", url)
                 assertEquals(BackendCredential.Bearer("fixture-access"), credential)
-                assertEquals("/api/projects/p%2Fone/ds/design-systems", path)
+                assertEquals("/api/projects/p%2Fone/design-systems", path)
             },
         )
         val useCase = ListDesignSystemsUseCase(ApiUrlResolver { null }, access(), client)
@@ -166,7 +166,7 @@ class DesignSystemsDiscoveryTest {
         val source = HttpDesignSystemVersionsSource(
             clients(response) { _, credential, path ->
                 assertIs<BackendCredential.Bearer>(credential)
-                val expectedPath = "/api/projects/p1/ds/design-system-versions/by-design-system/$id"
+                val expectedPath = "/api/projects/p1/design-systems/$id/versions"
                 assertEquals("$expectedPath?limit=7&cursor=before", path)
                 assertFalse(path.contains("version="))
             },

@@ -86,12 +86,18 @@ import org.koin.dsl.module
 
 /** Dependency bindings owned by the themes feature. */
 val themesModule = module {
+    single<com.dsbuilder.ds.core.application.DraftValueBatchReverter> {
+        com.dsbuilder.ds.themes.data.ExposedLiteralValueBatchReverter()
+    }
     single<DesignSystemTokenPlacementInitializer> { InitialTokenPlacementInitializer() }
     // Обработчик отката темы пересчитывает тип семейств цветовых токенов и получает зависимость лениво; обработчики
     // палитры зависимостей не имеют и регистрируются под своими типами сущностей.
     single<DraftChangeHandler>(named(TENANT_ENTITY_TYPE)) { tenantDraftChangeHandler(get()) }
     paletteDraftChangeHandlers().forEach { handler ->
         single<DraftChangeHandler>(named(handler.entityType)) { handler }
+    }
+    single<com.dsbuilder.ds.core.application.JournalCandidateProjection> {
+        com.dsbuilder.ds.themes.data.ThemeJournalCandidateProjection()
     }
     single<DraftChangePolicy>(named("theme-journal")) { themeDraftChangePolicy() }
     single<DraftChangeDependencyValidator>(named("palette-revert")) { PaletteRevertDependencyValidator() }

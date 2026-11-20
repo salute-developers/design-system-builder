@@ -1,0 +1,988 @@
+/*
+ * Пикер цвета прототипа (colorPickerView) в редакторе компонента. Экраны «Цвета» и «Размеры» держат свои стили пикера
+ * в color-tokens.css и size-tokens.css. Положение окна задаёт тот, кто его открывает.
+ */
+/* Переменные акцента, которые на страницах токенов задаёт корень страницы. */
+:where(.component-workbench) {
+    --accent: #2b8ced;
+    --builder-accent: #2b8ced;
+    --builder-ui-accent: #2b8ced;
+}
+.component-workbench .swatch-button {
+    width:28px;
+    height:28px;
+    min-width:28px;
+    padding:0;
+    border:0;
+    border-radius:0;
+    cursor:pointer;
+}
+.component-workbench .swatch-button:disabled {
+    cursor:not-allowed;
+}
+.component-workbench .swatch-button.is-open,
+.component-workbench .swatch-button:hover:not(:disabled) {
+    outline:2px solid var(--accent);
+    outline-offset:-2px;
+}
+.component-workbench .color-picker-popover {
+    position:absolute;
+    left:calc(280px + 280px + 10px);
+    top:52px;
+    z-index:60;
+    width:240px;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    overflow:hidden;
+    border:.5px solid rgba(242,244,246,.2);
+    border-radius:10px;
+    background:#2f353d;
+    box-shadow:0 60px 112px -8px rgba(0,0,0,.4);
+}
+.component-workbench .color-picker-popover header {
+    height:36px;
+    padding:6px;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    border-bottom:.5px solid rgba(242,244,246,.2);
+}
+.component-workbench .cp-tabs {
+    display:flex;
+    gap:4px;
+}
+.component-workbench .cp-tabs button {
+    height:24px;
+    padding:0 8px;
+    border:0;
+    border-radius:6px;
+    background:transparent;
+    color:#d6dae0;
+    font-size:12px;
+    font-weight:500;
+    line-height:16px;
+    letter-spacing:-.18px;
+}
+.component-workbench .cp-tabs button.is-active {
+    background:rgba(242,244,246,.1);
+    color:#e8eaee;
+}
+.component-workbench .cp-close {
+    width:24px;
+    height:24px;
+    padding:0;
+    border:0;
+    border-radius:6px;
+    background:transparent;
+    color:#9aa3af;
+    font-size:18px;
+    line-height:18px;
+}
+.component-workbench .cp-close:hover {
+    background:rgba(242,244,246,.1);
+    color:#fff;
+}
+.component-workbench .cp-tool-row {
+    height:36px;
+    padding:6px;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    border-bottom:.5px solid rgba(242,244,246,.2);
+}
+.component-workbench .cp-tool-row div {
+    display:flex;
+    gap:4px;
+}
+.component-workbench .cp-tool-row span,
+.component-workbench .cp-tool-row button {
+    width:24px;
+    height:24px;
+    padding:0;
+    display:grid;
+    place-items:center;
+    border:0;
+    border-radius:6px;
+    background:transparent;
+    color:#d6dae0;
+    font-size:12px;
+    line-height:1;
+}
+.component-workbench .cp-tool-row button {
+    cursor:pointer;
+}
+.component-workbench .cp-tool-row button:disabled {
+    cursor:not-allowed;
+    opacity:.45;
+}
+.component-workbench .cp-tool-row button:not(:disabled):hover {
+    background:rgba(242,244,246,.08);
+    color:#fff;
+}
+.component-workbench .cp-tool-row-legacy {
+    display:none!important;
+}
+.component-workbench .cp-sv {
+    position:relative;
+    height:203px;
+    margin:16px 10px 8px;
+    border:1px solid rgba(7,8,11,.12);
+    border-radius:8px;
+    background-image:linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,rgba(255,255,255,0));
+    cursor:crosshair;
+    touch-action:none;
+    overflow:hidden;
+}
+.component-workbench .cp-cursor {
+    position:absolute;
+    width:14px;
+    height:14px;
+    transform:translate(-50%,-50%);
+    border:2px solid #fff;
+    border-radius:50%;
+    box-shadow:0 0 0 1px #0006,0 2px 8px #0008;
+    pointer-events:none;
+}
+.component-workbench .cp-slider {
+    position:relative;
+    height:16px;
+    margin:0 10px 4px;
+    border:1px solid rgba(7,8,11,.12);
+    border-radius:1000px;
+    cursor:pointer;
+    touch-action:none;
+    overflow:visible;
+}
+.component-workbench .cp-slider i {
+    position:absolute;
+    top:50%;
+    width:14px;
+    height:14px;
+    transform:translate(-50%,-50%);
+    border:2px solid #fff;
+    border-radius:50%;
+    background:transparent;
+    box-shadow:0 0 4px #0009;
+    pointer-events:none;
+}
+.component-workbench .cp-sv:focus-visible,
+.component-workbench .cp-slider:focus-visible {
+    outline:2px solid var(--accent);
+    outline-offset:3px;
+}
+.component-workbench .cp-hue {
+    background:linear-gradient(to right,#f00,#ff0 16.6%,#0f0 33.3%,#0ff 50%,#00f 65%,#9e00ff 75%,#ff00a7 89.5%,#f00);
+}
+.component-workbench .cp-alpha {
+    background-image:linear-gradient(to right,transparent,var(--cp-current)),repeating-conic-gradient(#d7dde5 0% 25%,#8a93a0 0% 50%);
+    background-size:auto,12px 12px;
+}
+/* Строка формата: переключатель Hex / RGB / HSL, поля каналов (или Hex с копированием) и прозрачность с `%`. */
+.component-workbench .cp-format-row {
+    height:40px;
+    margin:8px 12px 0;
+    padding:0;
+    display:flex;
+    gap:4px;
+    align-items:center;
+}
+.component-workbench .cp-format-trigger {
+    position:relative;
+    flex:none;
+    display:inline-flex;
+    align-items:center;
+    color:#d6dae0;
+}
+.component-workbench .cp-format-trigger select {
+    width:46px;
+    height:24px;
+    padding:0 16px 0 2px;
+    border:0;
+    background:transparent;
+    color:#d6dae0;
+    font-size:12px;
+    appearance:none;
+    cursor:pointer;
+}
+.component-workbench .cp-format-trigger svg {
+    position:absolute;
+    right:2px;
+    width:12px;
+    height:12px;
+    pointer-events:none;
+}
+.component-workbench .cp-field {
+    box-sizing:border-box;
+    width:100%;
+    height:24px;
+    min-width:0;
+    padding:0 6px;
+    border:1px solid transparent;
+    border-radius:6px;
+    background:rgba(242,244,246,.1);
+    color:#d6dae0;
+    font-size:12px;
+    text-align:center;
+}
+.component-workbench .cp-field:focus {
+    border-color:var(--accent);
+    outline:0;
+}
+.component-workbench .cp-format-row > .cp-field {
+    flex:1;
+    padding:0 2px;
+}
+.component-workbench .cp-hex {
+    position:relative;
+    flex:1;
+    display:flex;
+    align-items:center;
+    min-width:0;
+}
+.component-workbench .cp-hex .cp-hex-field {
+    padding-right:22px;
+    text-align:left;
+    text-transform:uppercase;
+}
+.component-workbench .cp-hex .cp-copy {
+    position:absolute;
+    right:4px;
+    width:16px;
+    height:16px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+}
+.component-workbench .cp-hex .cp-copy svg {
+    width:12px;
+    height:12px;
+}
+.component-workbench .cp-alpha-value {
+    flex:none;
+    display:inline-flex;
+    align-items:center;
+    gap:2px;
+}
+.component-workbench .cp-alpha-value .cp-alpha-field {
+    width:36px;
+    padding:0 2px;
+}
+.component-workbench .cp-alpha-value i {
+    color:#9aa1ab;
+    font-size:12px;
+    font-style:normal;
+}
+.component-workbench .cp-info {
+    display:grid;
+    gap:8px;
+    margin:0;
+    padding:12px;
+}
+.component-workbench .cp-info div {
+    height:16px;
+    display:grid;
+    grid-template-columns:26px 1fr;
+    gap:12px;
+    align-items:center;
+}
+.component-workbench .cp-info dt {
+    color:#9aa1ab;
+    font-size:12px;
+    line-height:16px;
+}
+.component-workbench .cp-info dd {
+    margin:0;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    color:#d6dae0;
+    font-size:12px;
+    line-height:16px;
+}
+.component-workbench .cp-copy {
+    width:12px;
+    height:12px;
+    padding:0;
+    border:0;
+    border-radius:3px;
+    background:transparent;
+    color:#9aa1ab;
+    font-size:10px;
+    line-height:12px;
+}
+.component-workbench .cp-copy:hover {
+    background:rgba(242,244,246,.1);
+    color:#fff;
+}
+.component-workbench .cp-library {
+    display:grid;
+    grid-template-columns:1fr;
+    gap:0;
+}
+.component-workbench .cp-preset {
+    aspect-ratio:1;
+    padding:0;
+    border:1px solid rgba(242,244,246,.2);
+    border-radius:6px;
+    cursor:pointer;
+}
+.component-workbench .cp-preset.is-active,
+.component-workbench .cp-preset:hover {
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+}
+.component-workbench .cp-source-library {
+    display:grid;
+    grid-template-columns:1fr;
+    gap:0;
+    min-width:0;
+    overflow:hidden;
+    padding:0;
+}
+.component-workbench .color-picker-popover.is-library {
+    width:240px;
+    max-height:calc(100vh - 44px);
+}
+.component-workbench .cp-library-search {
+    height:36px;
+    padding:4px 12px;
+    display:flex;
+    align-items:center;
+    gap:2px;
+    border-bottom:.5px solid rgba(242,244,246,.2);
+    color:#8f99a8;
+}
+.component-workbench .cp-library-search span {
+    width:24px;
+    height:24px;
+    display:grid;
+    place-items:center;
+    font-size:12px;
+    line-height:12px;
+}
+.component-workbench .cp-library-search input {
+    min-width:0;
+    flex:1;
+    height:24px;
+    padding:0;
+    border:0;
+    background:transparent;
+    color:#d6dae0;
+    font-size:12px;
+    font-weight:500;
+    line-height:16px;
+    letter-spacing:-.18px;
+}
+.component-workbench .cp-library-search input::placeholder {
+    color:#d6dae0;
+    opacity:1;
+}
+.component-workbench .cp-library-list {
+    max-height:392px;
+    overflow-x:hidden;
+    overflow-y:auto;
+    padding:16px;
+    display:grid;
+    gap:16px;
+    scrollbar-color:#8f9399 #363c44;
+    scrollbar-width:thin;
+}
+.component-workbench .cp-library-list::-webkit-scrollbar {
+    width:8px;
+    height:0;
+}
+.component-workbench .cp-library-list::-webkit-scrollbar-track {
+    background:#363c44;
+}
+.component-workbench .cp-library-list::-webkit-scrollbar-thumb {
+    background:#8f9399;
+    border:2px solid #363c44;
+    border-radius:999px;
+}
+.component-workbench .cp-library-empty {
+    margin:0;
+    padding:16px 4px;
+    color:#8f99a8;
+    font-size:12px;
+    line-height:16px;
+}
+.component-workbench .cp-library-group {
+    display:grid;
+    gap:8px;
+}
+.component-workbench .cp-library-group h3 {
+    margin:0;
+    color:#d6dae0;
+    font-size:12px;
+    font-weight:500;
+    line-height:16px;
+    letter-spacing:-.18px;
+}
+.component-workbench .cp-library-swatches {
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    width:208px;
+}
+.component-workbench .cp-source-library .cp-preset {
+    width:28px;
+    height:28px;
+    min-width:28px;
+    aspect-ratio:auto;
+    border:1px solid rgba(242,244,246,.2);
+    border-radius:6px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+    cursor:pointer;
+}
+.component-workbench .cp-source-library .cp-preset:hover {
+    outline:2px solid #7fa7ff;
+    outline-offset:1px;
+}
+.component-workbench .cp-source-library .cp-preset.is-active {
+    outline:2px solid var(--builder-accent,var(--builder-ui-accent,#2b8ced));
+    outline-offset:2px;
+    box-shadow:0 0 0 2px #182130,inset 0 1px 0 rgba(255,255,255,.12);
+}
+.component-workbench .cp-source-library .cp-preset-empty {
+    display:block;
+    background:#262d35;
+    border-style:dashed;
+    cursor:default;
+    opacity:.72;
+}
+.component-workbench .color-picker-popover.is-gradient {
+    width:240px;
+}
+.component-workbench .cp-gradient-preview {
+    position:relative;
+    height:28px;
+    margin:12px 10px 8px;
+    border:1px solid rgba(242,244,246,.2);
+    border-radius:999px;
+}
+.component-workbench .cp-gradient-stop {
+    position:absolute;
+    top:50%;
+    width:14px;
+    height:14px;
+    padding:0;
+    transform:translate(-50%,-50%);
+    border:2px solid #fff;
+    border-radius:50%;
+    background:var(--stop-color);
+    box-shadow:0 0 0 1px #0008,0 2px 8px #0008;
+}
+.component-workbench .cp-gradient-stop.is-active {
+    outline:2px solid var(--builder-accent,var(--builder-ui-accent,#2b8ced));
+    outline-offset:2px;
+}
+.component-workbench .cp-gradient-stops {
+    margin:0 10px 8px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+}
+.component-workbench .cp-gradient-stops button {
+    height:32px;
+    padding:0 8px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    border:1px solid #474a51;
+    border-radius:6px;
+    background:#383a40;
+    color:#dfe2e7;
+    font-size:12px;
+}
+.component-workbench .cp-gradient-stops button.is-active {
+    border-color:var(--builder-accent,var(--builder-ui-accent,#2b8ced));
+    box-shadow:0 0 0 1px var(--builder-accent,var(--builder-ui-accent,#2b8ced)) inset;
+}
+.component-workbench .cp-gradient-stops i {
+    width:14px;
+    height:14px;
+    border:1px solid rgba(242,244,246,.28);
+    border-radius:4px;
+}
+.component-workbench .cp-gradient-stops span {
+    flex:1;
+    text-align:left;
+}
+.component-workbench .cp-gradient-stops b {
+    font-weight:400;
+    color:#a8afb9;
+}
+.component-workbench .cp-gradient-color-row .cp-field {
+    height:28px;
+    border:1px solid #474a51;
+    border-radius:6px;
+    background:#383a40;
+    color:#dfe2e7;
+}
+.component-workbench .cp-gradient-color-row .cp-hex-field {
+    text-align:left;
+}
+.component-workbench .cp-gradient-info {
+    padding-top:8px;
+}
+.component-workbench .color-picker-popover.is-gradient {
+    width:240px;
+    overflow:visible;
+}
+.component-workbench .color-picker-popover.is-gradient>.cp-sv,
+.component-workbench .color-picker-popover.is-gradient>.cp-gradient-info {
+    display:none;
+}
+.component-workbench .cp-gradient-kind-row {
+    padding:12px 16px 10px;
+}
+.component-workbench .cp-gradient-kind-row select {
+    height:32px;
+    padding:0 36px 0 12px;
+    border:1px solid #3d4651;
+    border-radius:8px;
+    /* Своя стрелка с отступом от края: системная прижата к границе поля. */
+    appearance:none;
+    background:#303741 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239aa3b2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+    color:#dfe4ec;
+    font-size:16px;
+    line-height:24px;
+}
+.component-workbench .cp-gradient-preview {
+    height:36px;
+    margin:0 32px 40px;
+    border:0;
+    border-radius:8px;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
+}
+.component-workbench .cp-gradient-stop {
+    top:50%;
+    width:24px;
+    height:30px;
+    padding:0;
+    transform:translate(-50%,-50%);
+    border:0;
+    border-radius:0;
+    background:transparent;
+    box-shadow:none;
+    outline:0;
+}
+.component-workbench .cp-gradient-preview .cp-gradient-stop {
+    background:transparent!important;
+}
+.component-workbench .cp-gradient-stop:focus {
+    outline:0;
+}
+.component-workbench .cp-gradient-stop:focus-visible {
+    outline:0;
+}
+.component-workbench .cp-gradient-stop.is-active {
+    outline:0;
+    outline-offset:0;
+}
+.component-workbench .cp-gradient-stop::before {
+    content:'';
+    position:absolute;
+    left:0;
+    top:0;
+    z-index:1;
+    box-sizing:border-box;
+    width:24px;
+    height:24px;
+    border-radius:6px;
+    background:#2b313a;
+    box-shadow:0 2px 10px rgba(0,0,0,.45);
+}
+.component-workbench .cp-gradient-stop::after {
+    content:'';
+    position:absolute;
+    left:50%;
+    bottom:0;
+    z-index:1;
+    width:10px;
+    height:6px;
+    transform:translateX(-50%);
+    border-radius:0;
+    background:#2b313a;
+    clip-path:polygon(0 0,100% 0,50% 100%);
+}
+.component-workbench .cp-gradient-stop i {
+    position:absolute;
+    left:4px;
+    top:4px;
+    z-index:2;
+    box-sizing:border-box;
+    width:16px;
+    height:16px;
+    border:1px solid rgba(15,17,20,.1);
+    border-radius:3px;
+    background:var(--stop-color);
+    box-shadow:none;
+}
+.component-workbench .cp-gradient-stop.is-active::before {
+    background:var(--builder-accent,var(--builder-ui-accent,#2b8ced));
+    box-shadow:none;
+}
+.component-workbench .cp-gradient-stop.is-active::after {
+    background:var(--builder-accent,var(--builder-ui-accent,#2b8ced));
+}
+.component-workbench .cp-gradient-stop.is-active i {
+    border-color:rgba(15,17,20,.1);
+    box-shadow:none;
+}
+.component-workbench .cp-gradient-stops-head {
+    height:32px;
+    margin:0 16px 8px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    color:#d8dee7;
+    font-size:16px;
+    line-height:24px;
+}
+.component-workbench .cp-gradient-stops-head button {
+    width:32px;
+    height:32px;
+    padding:0;
+    border:0;
+    border-radius:8px;
+    background:transparent;
+    color:#d8dee7;
+    font-size:28px;
+    line-height:28px;
+}
+.component-workbench .cp-gradient-stops-head button:hover {
+    background:rgba(242,244,246,.08);
+    color:#fff;
+}
+.component-workbench .cp-gradient-stops {
+    margin:0 12px 14px;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:8px;
+}
+.component-workbench .cp-gradient-stop-row {
+    height:32px;
+    display:grid;
+    grid-template-columns:46px 1fr 50px 24px;
+    align-items:center;
+    border-radius:10px;
+    color:#d6dae0;
+}
+.component-workbench .cp-gradient-stop-row.is-token-value {
+    grid-template-columns:46px 1fr 24px;
+}
+.component-workbench .cp-gradient-stop-row.is-active {
+    background:rgba(66,132,255,.18);
+}
+.component-workbench .cp-stop-position-field,
+.component-workbench .cp-stop-opacity-field {
+    width:100%;
+    height:28px;
+    padding:0 8px;
+    border:1px solid rgba(242,244,246,.12);
+    background:rgba(242,244,246,.08);
+    color:#d6dae0;
+    font-size:14px;
+    text-align:center;
+}
+.component-workbench .cp-stop-position-field {
+    border-radius:8px 0 0 8px;
+}
+.component-workbench .cp-stop-opacity-field {
+    border-radius:0;
+}
+.component-workbench .cp-gradient-stops .cp-stop-color-field {
+    height:28px;
+    min-width:0;
+    padding:0 8px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    border:1px solid rgba(242,244,246,.12);
+    border-left:0;
+    border-right:0;
+    border-radius:0;
+    background:rgba(242,244,246,.08);
+    color:#d6dae0;
+    font-size:14px;
+    text-align:left;
+}
+.component-workbench .cp-gradient-stop-row.is-token-value .cp-stop-color-field {
+    border-right:0;
+}
+.component-workbench .cp-stop-color-field i {
+    width:18px;
+    height:18px;
+    flex:0 0 auto;
+    border:1px solid rgba(242,244,246,.28);
+    border-radius:5px;
+}
+.component-workbench .cp-stop-color-field span {
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.component-workbench .cp-stop-color-field:hover {
+    background:rgba(242,244,246,.12);
+}
+.component-workbench .cp-gradient-stops .cp-stop-remove {
+    width:24px;
+    height:28px;
+    padding:0;
+    display:grid;
+    place-items:center;
+    border:0;
+    border-radius:0 8px 8px 0;
+    background:rgba(242,244,246,.08);
+    color:#8f99a8;
+    font-size:18px;
+}
+.component-workbench .cp-stop-remove:hover {
+    background:rgba(242,244,246,.12);
+    color:#fff;
+}
+.component-workbench .cp-stop-popover {
+    position:absolute;
+    left:-240px;
+    top:176px;
+    z-index:85;
+    width:240px;
+    padding:0;
+    overflow:hidden;
+    border:.5px solid rgba(242,244,246,.2);
+    border-radius:10px;
+    background:#2f353d;
+    box-shadow:0 44px 92px -16px rgba(0,0,0,.62);
+}
+.component-workbench .cp-stop-popover-head {
+    height:36px;
+    padding:6px;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    border-bottom:.5px solid rgba(242,244,246,.2);
+    color:#d6dae0;
+    font-size:12px;
+    font-weight:600;
+}
+.component-workbench .cp-stop-popover-head button {
+    width:24px;
+    height:24px;
+    padding:0;
+    border:0;
+    border-radius:6px;
+    background:transparent;
+    color:#9aa3af;
+    font-size:18px;
+}
+.component-workbench .cp-stop-popover-head button:hover {
+    background:rgba(242,244,246,.1);
+    color:#fff;
+}
+.component-workbench .cp-stop-popover-head .cp-tabs {
+    gap:4px;
+}
+.component-workbench .cp-stop-popover-head .cp-tabs button {
+    width:auto;
+    min-width:0;
+    height:24px;
+    padding:0 8px;
+    border-radius:6px;
+    color:#d6dae0;
+    font-size:12px;
+    font-weight:500;
+    line-height:16px;
+    letter-spacing:-.18px;
+}
+.component-workbench .cp-stop-popover-head .cp-tabs button.is-active {
+    background:rgba(242,244,246,.1);
+    color:#e8eaee;
+}
+.component-workbench .cp-stop-popover-head .cp-tabs button:hover {
+    background:rgba(242,244,246,.08);
+    color:#fff;
+}
+.component-workbench .cp-stop-popover .cp-sv {
+    height:160px;
+    margin:12px 10px 8px;
+}
+.component-workbench .cp-stop-popover .cp-format-row {
+    margin-bottom:12px;
+}
+.component-workbench .color-picker-popover {
+    left:auto;
+    right:var(--panel-right,320px);
+}
+.component-workbench .swatch-button {
+    height:28px;
+}
+.component-workbench .swatch-button {
+    width:22px;
+    min-width:22px;
+    height:22px;
+    margin-left:4px;
+    border:1px solid #4d5158;
+    border-radius:4px;
+}
+.component-workbench .alpha-swatch {
+    position: relative;
+    overflow: hidden;
+    background: var(--swatch-solid, var(--swatch-color, transparent));
+    background-origin: border-box;
+    background-repeat: no-repeat;
+}
+.component-workbench .alpha-swatch::before,
+.component-workbench .alpha-swatch::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 0 50%;
+    z-index: 0;
+    opacity: var(--swatch-alpha-preview, 0);
+    pointer-events: none;
+}
+.component-workbench .alpha-swatch::before {
+    background-color: #f3f5f7;
+    background-image: conic-gradient(#f3f5f7 25%, #aeb5bf 0 50%, #f3f5f7 0 75%, #aeb5bf 0);
+    background-position: 0 0;
+    background-size: 8px 8px;
+}
+.component-workbench .alpha-swatch::after {
+    background: var(--swatch-color, transparent);
+}
+.component-workbench .token-swatch-card .alpha-swatch::after {
+    content: '';
+}
+.component-workbench .alpha-swatch > * {
+    position: relative;
+    z-index: 1;
+}
+.component-workbench .cp-library-search .cp-library-search-field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.component-workbench .cp-library-search .cp-library-search-field > span {
+    width: auto;
+    height: auto;
+    display: block;
+    font-size: 15px;
+    line-height: 1;
+}
+.component-workbench .cp-library-search .cp-library-search-field input {
+    height: 26px;
+    outline: 0;
+    color: #e3e7ed;
+    font-size: 11px;
+    font-weight: 600;
+}
+.component-workbench .cp-library-search .cp-library-search-field input::placeholder {
+    color: #77808d;
+}
+.component-workbench .cp-platform-notes {
+    margin: 8px 10px 0;
+    display: grid;
+    gap: 4px;
+}
+.component-workbench .cp-platform-note {
+    margin: 0;
+    padding: 6px 8px;
+    border: 1px solid #3a414c;
+    border-radius: 8px;
+    background: #252a31;
+    color: #dfe3ea;
+    font-size: 12px;
+    line-height: 16px;
+}
+.component-workbench .cp-gradient-geometry {
+    margin: 0 10px 12px;
+    display: grid;
+    gap: 8px;
+}
+.component-workbench .cp-geometry-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #9aa3b2;
+    font-size: 12px;
+}
+.component-workbench .cp-number-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+.component-workbench .cp-number-field input {
+    width: 52px;
+    height: 24px;
+    padding: 0 6px;
+    border: 1px solid #3a414c;
+    border-radius: 6px;
+    background: #1f2329;
+    color: #fff;
+    font: inherit;
+}
+.component-workbench .cp-number-field i {
+    font-style: normal;
+}
+.component-workbench .cp-angle-dial {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    flex: none;
+    border: 1px solid #4a5260;
+    border-radius: 50%;
+    cursor: grab;
+}
+.component-workbench .cp-angle-dial:focus-visible {
+    outline: 2px solid #4284ff;
+}
+.component-workbench .cp-angle-dial i {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2px;
+    height: 13px;
+    margin-left: -1px;
+    background: #fff;
+    transform-origin: 50% 0;
+}
+.component-workbench .cp-radius-slider {
+    min-width: 0;
+    flex: 1;
+    accent-color: #4284ff;
+}
+.component-workbench .cp-gradient-plane {
+    position: relative;
+    height: 132px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    cursor: crosshair;
+    touch-action: none;
+}
+.component-workbench .cp-gradient-center {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+.component-workbench .cp-gradient-radius {
+    position: absolute;
+    border: 1px dashed rgba(255, 255, 255, 0.67);
+    border-radius: 50%;
+    pointer-events: none;
+}
+.component-workbench .cp-gradient-preview {
+    touch-action: none;
+}
+.component-workbench .cp-stop-title {
+    padding: 6px 10px 0;
+    color: #9aa3b2;
+    font-size: 11px;
+}

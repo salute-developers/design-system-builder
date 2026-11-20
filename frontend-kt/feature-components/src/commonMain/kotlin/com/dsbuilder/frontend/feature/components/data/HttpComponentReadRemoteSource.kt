@@ -2,6 +2,7 @@
 
 package com.dsbuilder.frontend.feature.components.data
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.feature.components.application.ComponentReadErrorCode
@@ -23,9 +24,9 @@ public class HttpComponentReadRemoteSource(
         limit: Int,
         cursor: String?,
     ): ComponentReadResult = runtime.get(
-        "/api/projects/${encodePart(runtime.context.projectId.value)}/ds/appearances?" +
-            "designSystemId=${encodePart(runtime.context.designSystemId.value)}" +
-            "&componentId=${encodePart(componentId)}&version=${encodePart(version)}&limit=$limit" +
+        "/api/projects/${encodePart(runtime.context.projectId.value)}/design-systems/" +
+            "${encodePart(runtime.context.designSystemId.value)}/appearances?" +
+            "componentId=${encodePart(componentId)}&version=${encodePart(version)}&limit=$limit" +
             (cursor?.let { "&cursor=${encodePart(it)}" } ?: ""),
         version,
     )
@@ -53,7 +54,7 @@ public class HttpComponentReadRemoteSource(
     private suspend fun ComponentReadRuntime.get(path: String, version: String): ComponentReadResult =
         when (val response = httpClientFactory.create(apiUrl.value, credential).get(path)) {
             is AuthenticatedHttpResult.Success -> parseSuccess(response, context.designSystemId.value, version)
-            is AuthenticatedHttpResult.Failure -> response.toReadError()
+            is AuthenticatedHttpResult.Failure -> response.toReadError(credential)
         }
 
     @Suppress("ReturnCount")
@@ -100,7 +101,8 @@ private fun ComponentReadRuntime.selectionPath(
     operation: String,
     selectedValueIds: List<String>,
     version: String,
-): String = "/api/projects/${encodePart(context.projectId.value)}/ds/appearances/" +
+): String = "/api/projects/${encodePart(context.projectId.value)}/design-systems/" +
+    "${encodePart(context.designSystemId.value)}/appearances/" +
     "${encodePart(appearanceId)}/$operation?version=${encodePart(version)}" +
     selectedValueIds.joinToString("") { "&selectedValueId=${encodePart(it)}" }
 
@@ -116,9 +118,13 @@ private fun encodePart(value: String): String = buildString {
     }
 }
 
-private fun AuthenticatedHttpResult.Failure.toReadError(): ComponentReadResult.Failed {
+private fun AuthenticatedHttpResult.Failure.toReadError(credential: BackendCredential): ComponentReadResult.Failed {
     val code = when (statusCode) {
-        401 -> ComponentReadErrorCode.AUTH_REQUIRED
+        401 -> if (credential is BackendCredential.PersonalAccessToken) {
+            ComponentReadErrorCode.PAT_INVALID
+        } else {
+            ComponentReadErrorCode.AUTH_REQUIRED
+        }
         403 -> ComponentReadErrorCode.FORBIDDEN
         404 -> ComponentReadErrorCode.NOT_FOUND
         400 -> ComponentReadErrorCode.INVALID_QUERY

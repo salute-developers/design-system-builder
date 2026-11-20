@@ -31,7 +31,7 @@ class PublishPluginBuildUseCase(
         context: DsRequestContext,
         command: PublishPluginBuild,
     ): DsResult<PublishResult> {
-        if (!context.principal.systemAdmin && !context.principal.composePreviewPublisher) {
+        if (!context.principal.globalAdmin && !context.principal.composePreviewPublisher) {
             return DsResult.Failure(DsFailure.Forbidden)
         }
         val target = storages.configured(platform)

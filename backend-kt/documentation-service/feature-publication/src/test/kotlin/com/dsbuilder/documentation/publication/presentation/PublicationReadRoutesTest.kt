@@ -54,14 +54,18 @@ class PublicationReadRoutesTest {
         }
 
         val forbidden = client.get("/documentation/ingestion-jobs/job-1") {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "key")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "pat")
+            header("X-User-Id", "user")
+            header("X-Project-Role", "editor")
+            header("X-Project-Scopes", "projects:read")
             header("X-Project-Id", "project-1")
         }
         val allowedKey = client.get("/documentation/ingestion-jobs/job-1") {
-            header("X-Actor-Type", "project_key")
-            header("X-User-Id", "key")
-            header("X-Project-Key-Id", "key")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-User-Id", "owner")
+            header("X-Personal-Access-Token-Id", "pat")
+            header("X-Project-Role", "viewer")
             header("X-Project-Id", "project-1")
             header("X-Project-Scopes", "documentation:read")
             header("X-System-Admin", "false")
@@ -71,9 +75,9 @@ class PublicationReadRoutesTest {
             header("X-Project-Id", "project-1")
         }
         val contradictory = client.get("/documentation/ingestion-jobs/job-1") {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "key")
-            header("X-User-Id", "forged-user")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-User-Id", "user")
+            header("X-Project-Role", "editor")
             header("X-Project-Id", "project-1")
             header("X-Project-Scopes", "documentation:read")
         }

@@ -25,10 +25,10 @@ class AddAppearanceAxisUseCase(
         policy, transactions, repeatedRequests, context, idempotencyKey, "add-appearance-axis",
         listOf(appearanceId, command),
         { id ->
-            repository.model(context.projectId, context.principal.systemAdmin, appearanceId, null)
+            repository.model(context.projectId, context.principal.globalAdmin, appearanceId, null)
                 ?.axes?.firstOrNull { it.id == id }
         },
-        { repository.addAxis(context.projectId, context.principal.systemAdmin, appearanceId, command) },
+        { repository.addAxis(context.projectId, context.principal.globalAdmin, appearanceId, command) },
         EditorAxis::id,
     )
 }

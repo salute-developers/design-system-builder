@@ -24,8 +24,9 @@ class IdempotentCreateExecutor(private val requests: IdempotentRequestRepository
         if (key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
             return DsResult.Failure(DsFailure.InvalidRequest("idempotency_key_too_long"))
         }
+        val scopedOperation = context.scopedOperation(operation)
         val hash = RequestHash.canonical(requestBody)
-        return when (val lookup = requests.lookup(context.projectId, key, operation, hash)) {
+        return when (val lookup = requests.lookup(context.projectId, key, scopedOperation, hash)) {
             IdempotentRequestLookup.PayloadMismatch ->
                 DsResult.Failure(DsFailure.Conflict("IDEMPOTENCY_KEY_REUSED"))
             is IdempotentRequestLookup.Replayed -> throw IdempotentReplayException(lookup.response)
@@ -36,7 +37,7 @@ class IdempotentCreateExecutor(private val requests: IdempotentRequestRepository
                     context.projectId,
                     key,
                     context.principal.actorId,
-                    operation,
+                    scopedOperation,
                     hash,
                     IdempotentResponse(
                         201,

@@ -101,6 +101,73 @@ describe('generator', () => {
         assert.ok((await readdir(join(components, 'Body'))).includes('BodySizes.tsx'));
         assert.match(await readFile(join(components, 'Body', 'index.ts'), 'utf8'), /export \* from '\.\/BodySizes'/);
     });
+
+    it('Grid: вид по точкам перелома из значений стиля и число колонок типа integer', async () => {
+        const api = (name: string, type: string) => ({
+            id: name,
+            name,
+            type,
+            variations: null,
+            platformMappings: { xml: null, compose: null, ios: null, web: [{ name, adjustment: null }] },
+        });
+        const grid = {
+            name: 'Grid',
+            description: '',
+            sources: {
+                api: [api('smallMMinWidth', 'dimension'), api('largeMMinWidth', 'dimension'), api('smallMColsCount', 'integer')],
+                variations: [{ id: 'view', name: 'view' }],
+                configs: [
+                    {
+                        id: 'default',
+                        name: 'default',
+                        config: {
+                            defaultVariations: [{ variationID: 'view', styleID: 'view:default' }],
+                            invariantProps: [],
+                            variations: [
+                                {
+                                    id: 'view',
+                                    styles: [
+                                        {
+                                            name: 'default',
+                                            id: 'view:default',
+                                            intersections: null,
+                                            props: [
+                                                { id: 'smallMMinWidth', value: '1', states: [] },
+                                                { id: 'largeMMinWidth', value: '1200', states: [] },
+                                                { id: 'smallMColsCount', value: '6', states: [] },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                ],
+            },
+        } as unknown as Meta;
+        await generateBaseFileStructure(base());
+        await generateComponentsFiles({ pathToDir, componentsMeta: [grid] });
+
+        const config = await readFile(join(pathToDir, 'src', 'components', 'Grid', 'Grid.config.ts'), 'utf8');
+        assert.match(config, /import \{ css, getBaseGridView, gridTokens \}/);
+        assert.match(
+            config,
+            /\$\{getBaseGridView\(\{ \[gridTokens\.largeMMinWidth\]: '75rem', \[gridTokens\.smallMMinWidth\]: '0\.0625rem' \}, 'default'\)\};/,
+        );
+        assert.match(config, /\$\{gridTokens\.smallMColsCount\}: 6;/);
+    });
+
+    it('компонент, которому нужна тема, пишет только в пакет с темой', async () => {
+        await generateBaseFileStructure(base());
+        await generateComponentsFiles({ pathToDir, componentsMeta: [emptyComponent('ViewContainer'), emptyComponent('Image')], hasTheme: false });
+
+        const components = join(pathToDir, 'src', 'components');
+        assert.deepEqual(await readdir(components), ['Image']);
+
+        await generateComponentsFiles({ pathToDir, componentsMeta: [emptyComponent('ViewContainer')] });
+        // Обёртку даёт шаблон: вид onDark/onLight — из `viewContainer` темы пакета.
+        assert.match(await readFile(join(components, 'ViewContainer', 'ViewContainer.ts'), 'utf8'), /from '\.\.\/\.\.\/theme'/);
+    });
 });
 
 describe('resolveNpmPackageScope', () => {

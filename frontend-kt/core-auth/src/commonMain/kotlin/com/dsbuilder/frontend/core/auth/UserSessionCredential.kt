@@ -32,7 +32,7 @@ public interface RefreshTokenStore {
 /**
  * Держит активную пользовательскую OAuth-сессию: access token — только в памяти процесса,
  * refresh token — через [RefreshTokenStore]. Второй, параллельный источник credential
- * рядом с [ApiKeyResolver] — для клиентов с интерактивной авторизацией пользователя
+ * рядом с [PatResolver] — для клиентов с интерактивной авторизацией пользователя
  * (например IDE-плагина), а не project-key сценариев CLI/CI.
  */
 public class UserSessionCredentialResolver(

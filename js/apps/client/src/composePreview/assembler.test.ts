@@ -54,6 +54,22 @@ describe('assembleComposePreviewPayload', () => {
         expect(Object.keys(result.payload.theme).some((id) => id.endsWith('-hover'))).toBe(false);
     });
 
+    it('passes an integer property as a numeric literal, also when the value is stored as a string', () => {
+        const integer = draft();
+        integer.invariantProperties.push({
+            id: 'cols',
+            name: 'smallMColsCount',
+            type: 'integer',
+            composeParameters: ['smallMColsCount'],
+            value: '6',
+            states: [],
+        } as PreviewPropertyDraft);
+        const result = assembleComposePreviewPayload(integer);
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.payload.component.properties.smallMColsCount.base).toEqual({ type: 'literal', value: 6 });
+    });
+
     it('rejects missing mappings, conflicts, cycles and unavailable platform values', () => {
         const missingMapping = draft();
         missingMapping.invariantProperties[0].composeParameters = [];
@@ -349,6 +365,15 @@ describe('assembleComposePreviewPayload', () => {
                 { id: 'b', componentId: 'x', properties: [prop({ name: 'next', styleRef: 'a' })] },
             ];
             expect(assembleComposePreviewPayload(cycle)).toMatchObject({ ok: false, diagnostics: [{ code: 'cycle' }] });
+        });
+
+        it('passes icon SVG assets to the payload without references', () => {
+            const d = draft();
+            d.assets = [...d.assets, { id: 'icon:plus.16', type: 'SVG', url: 'https://example.test/Plus.svg' }];
+            d.invariantProperties.push(prop({ name: 'icon', type: 'icon', value: 'plus.16' }));
+            const payload = assembled(d);
+            expect(payload.component.properties.icon.base).toEqual({ type: 'literal', value: 'plus.16' });
+            expect(payload.assets).toContainEqual({ id: 'icon:plus.16', type: 'SVG', url: 'https://example.test/Plus.svg' });
         });
 
         it('includes referenced assets and rejects a missing one', () => {

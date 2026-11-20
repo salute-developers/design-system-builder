@@ -99,7 +99,7 @@ private class NodeStdioServerTransport : AbstractTransport() {
 
     override suspend fun send(message: JSONRPCMessage, options: TransportSendOptions?) {
         if (closed) return
-        nodeProcess.stdout.write(serializeMessage(message))
+        nodeProcess.stdout.write(closeEditorToolSchemas(serializeMessage(message)))
     }
 
     override suspend fun close() {

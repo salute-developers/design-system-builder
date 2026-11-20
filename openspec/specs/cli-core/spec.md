@@ -2,7 +2,9 @@
 
 ## Purpose
 Определяет общий CLI core для project-scoped команд `dsbuilder`: discovery локального project context, credential resolution, API URL resolution и authenticated HTTP foundation.
+
 ## Requirements
+
 ### Requirement: Local project config discovery
 
 CLI core SHALL resolve project context by searching for the nearest `.sdds/config.json` from the current working directory upward.
@@ -97,35 +99,6 @@ CLI core SHALL treat `tenants[].alias` as local non-secret tenant metadata store
 - **THEN** CLI MUST parse the config successfully
 - **THEN** parsed tenants MUST have no local alias value
 
-### Requirement: API key credential resolution
-
-CLI core SHALL разрешать project API key из runtime sources в детерминированном порядке только тогда, когда выбранная credential policy допускает project key; forced `user-session` SHALL обходить key sources. Для имени из `credential.name` и fallback имени `DSBUILDER_API_KEY` CLI core SHALL сначала проверять env процесса, затем `.env` найденного локального проекта. Приоритет имени из `credential.name` над fallback именем сохраняется.
-
-#### Scenario: CLI argument имеет высший приоритет
-
-- **WHEN** выбран key mode и команда получает `--api-key <value>`
-- **THEN** CLI MUST использовать это значение как API key
-- **THEN** CLI MUST NOT читать env-переменные для API key
-
-#### Scenario: Project-specific env variable используется из config
-
-- **WHEN** `--api-key` отсутствует
-- **WHEN** `.sdds/config.json` содержит `credential.name = "DSBUILDER_PROJECT_A_API_KEY"` и policy допускает key
-- **WHEN** env процесса или проектный `.env` содержит `DSBUILDER_PROJECT_A_API_KEY`
-- **THEN** CLI MUST использовать значение этого имени как API key с приоритетом env процесса
-
-#### Scenario: Fallback env используется последним
-
-- **WHEN** `--api-key` и project-specific env отсутствуют в допускающем key mode
-- **WHEN** env процесса или проектный `.env` содержит `DSBUILDER_API_KEY`
-- **THEN** CLI MUST использовать `DSBUILDER_API_KEY` как API key с приоритетом env процесса
-
-#### Scenario: API key отсутствует
-
-- **WHEN** выбран forced key mode и ни один поддерживаемый runtime source не содержит API key
-- **THEN** CLI MUST вернуть детерминированную credential error с именем configured env, если оно известно
-- **THEN** CLI MUST NOT выполнять backend request или переключаться на user session
-
 ### Requirement: API URL resolution
 
 CLI core SHALL resolve backend API URL from runtime sources and code defaults without reading it from `.sdds/config.json`, and SHALL report which source produced the value so that writing commands can reject the code default. Для локального проекта `.env` SHALL предоставлять fallback для `DSBUILDER_API_URL` после env процесса.
@@ -166,39 +139,6 @@ CLI core SHALL resolve backend API URL from runtime sources and code defaults wi
 - **THEN** the result MUST expose which runtime source produced the value
 - **THEN** the result MUST distinguish the code default from an explicitly provided value
 
-### Requirement: Authenticated HTTP request foundation
-
-CLI core SHALL provide a reusable Ktor client based HTTP layer for project-scoped commands, supporting both reading and writing requests.
-
-#### Scenario: Project request получает Authorization header
-
-- **WHEN** a project-scoped command sends a backend request through CLI core HTTP layer
-- **THEN** the request MUST use the resolved API URL as the base URL
-- **THEN** the request MUST include `Authorization: ProjectKey <api_key>`
-
-#### Scenario: Backend auth errors are mapped
-
-- **WHEN** backend response status is `401`
-- **THEN** CLI MUST map it to a user-facing invalid or missing API key error
-- **WHEN** backend response status is `403`
-- **THEN** CLI MUST map it to a user-facing project access or scope error
-- **WHEN** backend response status is `404`
-- **THEN** CLI MUST map it to a user-facing project or resource not found error
-
-#### Scenario: CLI не валидирует API key локально
-
-- **WHEN** CLI resolves an API key
-- **THEN** CLI MUST NOT verify revoked status, expiration, scopes, or project binding locally
-- **THEN** backend gateway/auth-helper/projects-service MUST remain the source of truth for API key authorization
-
-#### Scenario: HTTP layer поддерживает запись
-
-- **WHEN** a project-scoped command needs to send data to the backend
-- **THEN** CLI core HTTP layer MUST provide a request with a JSON body
-- **THEN** that request MUST use the resolved API URL as the base URL
-- **THEN** that request MUST include `Authorization: ProjectKey <api_key>`
-- **THEN** that request MUST map backend errors through the same error handling as reading requests
-
 ### Requirement: Writing commands reject the default API URL
 
 CLI core SHALL provide a way for writing commands to require an explicitly provided backend API URL, because the code default points at a shared backend installation.
@@ -223,44 +163,6 @@ CLI core SHALL provide a way for writing commands to require an explicitly provi
 - **WHEN** a writing command is about to send data to the backend
 - **THEN** CLI MUST print the resolved backend API URL and its source
 - **THEN** CLI MUST NOT print the raw API key
-
-### Requirement: Credential policy в локальном project config
-
-CLI core SHALL поддерживать `credential.type = "auto"`, `"user-session"` и `"project-key-env"` в `.sdds/config.json` без raw secrets и SHALL читать существующий `"env"` как совместимый `auto` с указанным именем env-переменной.
-
-#### Scenario: Существующий env config
-
-- **WHEN** config содержит `credential.type = "env"` и `credential.name = "PROJECT_KEY"`
-- **THEN** CLI MUST продолжить читать этот config без миграции файла
-- **THEN** CLI MUST использовать доступный key из разрешённых runtime sources, а при его отсутствии — user session
-
-#### Scenario: Принудительная user session
-
-- **WHEN** config содержит `credential.type = "user-session"`
-- **THEN** CLI MUST использовать только session для resolved API URL
-- **THEN** CLI MUST NOT читать project key из env или `--api-key`
-
-#### Scenario: Принудительный project key
-
-- **WHEN** config содержит `credential.type = "project-key-env"` и имя env-переменной
-- **THEN** CLI MUST использовать только project key из выбранных key sources
-- **THEN** отсутствие key MUST вернуть credential error без fallback на user session
-
-### Requirement: Headless credential selection
-
-CLI core SHALL отделять явный `--design-system` от локальной credential policy. Без локального контекста пользовательская session SHALL быть интерактивным умолчанием; project key SHALL выбираться явным указанием имени env-переменной для конкретного вызова.
-
-#### Scenario: Явная ссылка из чужой рабочей директории
-
-- **WHEN** `--design-system` выбирает дизайн-систему A, а текущая `.sdds` относится к B
-- **THEN** CLI MUST NOT применять credential policy B к A
-- **THEN** CLI MUST использовать явную headless policy или user session
-
-#### Scenario: CI выбирает project key
-
-- **WHEN** headless-команда явно указывает env-переменную с project key
-- **THEN** CLI MUST прочитать значение из env, не из URI
-- **THEN** CLI MUST NOT сохранять key в `.sdds` или выводить его в diagnostics
 
 ### Requirement: Backend denial reason in CLI errors
 
@@ -307,3 +209,96 @@ CLI core SHALL принимать в `.sdds/config.json` необязатель�
 - **WHEN** CLI создаёт или перезаписывает config без `breakpoints`
 - **THEN** записанный config MUST NOT содержать ключ `breakpoints`
 
+### Requirement: Параметры API key принимают PAT
+
+CLI SHALL сохранять `--api-key`, `DSBUILDER_API_KEY` и `init --api-key-env` для передачи PAT. Новые параметры PAT SHALL NOT вводиться. Прежний `--project-key-env` SHALL отклоняться до сетевых запросов.
+
+#### Scenario: Передача PAT
+- **WHEN** пользователь задаёт PAT через --api-key либо DSBUILDER_API_KEY
+- **THEN** общий выбор учётных данных MUST выбрать PAT согласно приоритету и отправить Bearer
+
+#### Scenario: Ссылка без проектного параметра
+- **WHEN** передан --design-system и доступен DSBUILDER_API_KEY
+- **THEN** клиент MUST использовать PAT без --project-key-env
+
+#### Scenario: Создание конфигурации
+- **WHEN** пользователь задаёт init --api-key-env CI_TOKEN
+- **THEN** конфигурация MUST сохранить только имя CI_TOKEN, без секрета
+
+### Requirement: Разрешение PAT из окружения и параметров
+CLI core SHALL выбирать PAT в порядке `--api-key`, настроенное `credential.name`, `DSBUILDER_API_KEY`, OAuth-сессия в режиме `auto`. Для каждого имени окружение процесса SHALL иметь приоритет над `.env` выбранного локального проекта. Пустые значения SHALL пропускаться; режим `user-session` SHALL обходить источники PAT.
+
+#### Scenario: Явный PAT
+- **WHEN** передан непустой `--api-key`
+- **THEN** CLI MUST использовать его без чтения других источников PAT в режиме `auto`
+
+#### Scenario: Настроенное окружение
+- **WHEN** явного PAT нет и конфигурация задаёт имя переменной
+- **THEN** CLI MUST проверить это имя в процессе, затем в `.env` выбранного проекта, до `DSBUILDER_API_KEY`
+
+#### Scenario: Стандартная переменная
+- **WHEN** явный PAT и значение настроенного имени отсутствуют
+- **THEN** CLI MUST проверить `DSBUILDER_API_KEY` процесса, затем выбранного проектного `.env`
+
+#### Scenario: PAT отсутствует
+- **WHEN** ни один источник не содержит PAT
+- **THEN** режим `auto` MUST использовать OAuth-сессию
+- **AND** режим `pat-env` MUST вернуть ошибку без backend-запроса
+
+### Requirement: Политика PAT в локальной конфигурации
+CLI core SHALL поддерживать `credential.type=auto|user-session|pat-env` и имя окружения с умолчанием `DSBUILDER_API_KEY` без хранения секрета. Прежний `env` SHALL читаться как `auto`; `project-key-env` SHALL отклоняться с инструкцией перехода.
+
+#### Scenario: Совместимый env
+- **WHEN** прочитана ссылка `env` с именем переменной
+- **THEN** клиент MUST трактовать её как `auto` с тем же именем
+
+#### Scenario: Принудительная сессия
+- **WHEN** выбран `user-session`
+- **THEN** клиент MUST использовать только OAuth-сессию
+
+#### Scenario: Принудительный PAT
+- **WHEN** выбран `pat-env`
+- **THEN** клиент MUST использовать PAT или вернуть ошибку без перехода на OAuth
+
+#### Scenario: Прежняя проектная политика
+- **WHEN** конфигурация содержит `project-key-env`
+- **THEN** клиент MUST сообщить о замене на `pat-env` без отправки запроса
+
+### Requirement: Независимый выбор контекста и авторизации
+CLI core SHALL получать контекст из `--design-system` либо локальной конфигурации независимо от авторизации. Для явной ссылки SHALL применяться `auto` с источниками `--api-key`, `DSBUILDER_API_KEY` процесса и OAuth-сессией без чтения авторизации из постороннего локального проекта.
+
+#### Scenario: Явная ссылка из чужой директории
+- **WHEN** ссылка выбирает A, а `.sdds` и `.env` текущей директории относятся к B
+- **THEN** контекст MUST соответствовать A
+- **AND** клиент MUST NOT использовать настройки авторизации или `.env` B
+
+#### Scenario: PAT со ссылкой
+- **WHEN** задана ссылка и PAT доступен в `DSBUILDER_API_KEY` процесса
+- **THEN** клиент MUST использовать PAT без дополнительных флагов выбора авторизации
+
+#### Scenario: Ссылка без PAT
+- **WHEN** PAT не задан, а OAuth-сессия доступна
+- **THEN** клиент MUST использовать сессию для контекста ссылки
+
+### Requirement: Общий HTTP-слой PAT и OAuth
+Общий HTTP-слой SHALL поддерживать чтение, JSON-запись и multipart через типизированные PAT и OAuth-учётные данные с заголовком Bearer. Авторизация PAT SHALL проверяться сервером; клиент MUST NOT проверять локально scopes, членство, отзыв или срок.
+
+#### Scenario: Чтение и запись с PAT
+- **WHEN** команда выполняет GET, JSON POST или multipart POST с выбранным PAT
+- **THEN** запрос MUST использовать выбранный API URL и `Authorization: Bearer <PAT>`
+
+#### Scenario: Отказы backend
+- **WHEN** PAT получает `401`, `403` или `404`
+- **THEN** клиент MUST вернуть соответственно `PAT_INVALID`, ошибку доступа или ошибку отсутствующего ресурса без смены учётных данных
+
+### Requirement: Init сохраняет независимый выбор авторизации
+
+Интерактивный и явный init SHALL создавать credential.type=auto с credential.name=DSBUILDER_API_KEY либо явно заданным --api-key-env. Существующие конфигурации user-session MUST NOT автоматически переписываться.
+
+#### Scenario: Одинаковые умолчания init
+- **WHEN** пользователь завершает интерактивный либо явный init
+- **THEN** созданная конфигурация MUST использовать auto с тем же правилом имени окружения
+
+#### Scenario: Явный выбор сохранён
+- **WHEN** существующая конфигурация содержит user-session либо pat-env
+- **THEN** команды MUST соблюдать принудительный выбор, не заменяя его auto

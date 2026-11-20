@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { IconsPage } from './modules/icons';
+import { UserSettingsPage } from './pages/userSettings/UserSettingsPage';
 
 import { useEffect, useState } from 'react';
 import {
@@ -26,6 +28,8 @@ import {
 } from './pages';
 
 import { authService, designSystemsApi } from './api';
+import { AnalyticsConsent } from './analytics/AnalyticsConsent';
+import { AnalyticsNavigation } from './analytics/AnalyticsNavigation';
 import { getBaseName } from './utils/baseName';
 import {
     CreateDesignSystemDialog,
@@ -87,6 +91,8 @@ const LegacyThemeRedirect = () => {
 function App() {
     return (
         <Router basename={getBaseName()}>
+            <AnalyticsConsent />
+            <AnalyticsNavigation />
             <Routes>
                 <Route
                     path="/login"
@@ -97,6 +103,7 @@ function App() {
                     }
                 />
                 <Route path="/" element={<ProtectedRoute />}>
+                    <Route path="settings" element={<UserSettingsPage />} />
                     <Route path="projects" element={<ProjectsPage />}>
                         <Route path="new" element={<CreateProjectDialog />} />
                     </Route>
@@ -104,6 +111,7 @@ function App() {
                         <Route path="design-systems/new" element={<CreateDesignSystemDialog />} />
                     </Route>
                     <Route path="projects/:projectId/settings" element={<ProjectSettingsPage />} />
+                    <Route path="projects/:projectId/icons" element={<IconsPage />} />
                     <Route path="projects/:projectId/design-systems/:designSystemId" element={<DesignSystemPage />} />
                     <Route
                         path="projects/:projectId/design-systems/:designSystemId/settings"
@@ -124,6 +132,7 @@ function App() {
                         <Route path="shapes" element={<Shapes />} />
                         <Route path="typography" element={<Typography />} />
                         <Route path="components/:componentName?" element={<ComponentsRoute />} />
+                        <Route path="icons" element={<IconsPage embedded />} />
                         <Route path="changes" element={<DesignSystemChangesPage />} />
                         <Route path="versions" element={<DesignSystemVersionsPage />} />
                         <Route path="settings" element={<ThemeSettingsPage embedded />} />

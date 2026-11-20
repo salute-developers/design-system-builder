@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.core.application
 
+import java.util.UUID
+
 /** Фильтры существующих списков; отсутствие ограничения сохраняет полную выдачу.
  * @property limit Максимальный размер страницы.
  * @property cursor Продолжение предыдущей страницы.
@@ -25,4 +27,6 @@ data class ModelReadQuery(
     val version: String? = null,
     /** Привязка страницы формируется сервером после разрешения фактической границы. */
     val scope: String = "",
+    /** Ограничение определений выбранными токенами; пустой набор не ограничивает выдачу. */
+    val tokenIds: Set<UUID> = emptySet(),
 )

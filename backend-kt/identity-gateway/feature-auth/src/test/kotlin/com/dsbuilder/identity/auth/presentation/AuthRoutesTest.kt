@@ -2,8 +2,6 @@ package com.dsbuilder.identity.auth.presentation
 
 import com.dsbuilder.identity.auth.application.port.JwtVerificationResult
 import com.dsbuilder.identity.auth.application.port.JwtVerifier
-import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerificationResult
-import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerifier
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolution
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolver
 import com.dsbuilder.identity.auth.application.usecase.AuthorizeProjectRequestUseCase
@@ -32,7 +30,6 @@ class AuthRoutesTest {
             AuthorizeProjectRequestUseCase(
                 jwtVerifier = RouteJwtVerifier,
                 projectContextResolver = RouteProjectContextResolver,
-                projectAccessKeyVerifier = RouteProjectAccessKeyVerifier,
             )
         }
         single {
@@ -105,15 +102,6 @@ class AuthRoutesTest {
         assertEquals("false", response.headers["X-System-Admin"])
         assertEquals("false", response.headers["X-Compose-Preview-Publisher"])
     }
-}
-
-private object RouteProjectAccessKeyVerifier : ProjectAccessKeyVerifier {
-    override suspend fun verify(token: String): ProjectAccessKeyVerificationResult =
-        ProjectAccessKeyVerificationResult.Valid(
-            keyId = "key-1",
-            projectId = "project-1",
-            scopes = setOf("projects:read"),
-        )
 }
 
 private object RouteJwtVerifier : JwtVerifier {

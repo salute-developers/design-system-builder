@@ -7,8 +7,8 @@ import { subjectBaseRevision } from '../../../api/subjectRevisions';
 import { PaletteOperationError, type PaletteErrorCode, type PaletteRampRef } from '../domain';
 import type { PaletteContext, PaletteRepository } from '../application/paletteRepository';
 
-const palettePath = ({ projectId, tenantId }: PaletteContext, suffix = '') =>
-    `/api/projects/${projectId}/ds/tenants/${tenantId}/palette${suffix}`;
+const palettePath = ({ projectId, designSystemId, tenantId }: PaletteContext, suffix = '') =>
+    `/api/projects/${projectId}/design-systems/${designSystemId}/tenants/${tenantId}/palette${suffix}`;
 
 /** Только `{ type, shade }`: сервер не принимает лишних полей, а из UI сюда приходят растяжки шаблона со ступенями. */
 const rampRef = ({ type, shade }: PaletteRampRef): PaletteRampRef => ({ type, shade });

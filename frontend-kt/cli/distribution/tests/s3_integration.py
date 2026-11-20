@@ -44,47 +44,36 @@ def main():
         directory = Path(temporary)
         for target in release.TARGETS:
             make_archive(directory, target)
-        release.prepare(directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
-        stable_file = directory / 'stable.json'
-        stable_file.write_bytes(release.json_bytes({'schemaVersion': 1, 'version': '1.2.3'}))
-        store.put('stable.json', release.json_bytes({'schemaVersion': 1, 'version': '1.0.0'}))
+        release.prepare(directory, '1.2.3', DIST / 'bootstrap')
         original_put = store.put
+        writes = []
 
         def interrupted(key, data):
-            if key.endswith('windows-x64.zip'):
+            writes.append(key)
+            if key == 'install.ps1':
                 raise RuntimeError('Test interruption')
             original_put(key, data)
 
         store.put = interrupted
         try:
-            release.upload(store, directory, '1.2.3')
+            release.upload_installers(store, directory)
         except RuntimeError:
             pass
         else:
             raise AssertionError('Interruption was not exercised')
-        assert json.loads(store.get('stable.json'))['version'] == '1.0.0'
+        assert store.get('install.sh') == (directory / 'install.sh').read_bytes()
+        assert store.get('install.ps1') is None
         store.put = original_put
-        make_archive(directory, 'jvm', binary=b'#!/bin/sh\necho rebuilt\n')
-        release.prepare(directory, '1.2.3', 'https://example.invalid/cli', DIST / 'bootstrap')
-        release.upload(store, directory, '1.2.3')
-        assert (directory / 'dsbuilder-cli-jvm.zip').read_bytes() == store.get(
-            'releases/1.2.3/dsbuilder-cli-jvm.zip')
-        release.upload(store, directory, '1.2.3')
-        release.promote(store, directory, '1.2.3', stable_file)
-        assert json.loads(store.get('stable.json'))['version'] == '1.2.3'
-        key = 'releases/1.2.3/dsbuilder-cli-jvm.zip'
-        store.put(key, b'outdated')
-        release.upload(store, directory, '1.2.3')
-        assert store.get(key) == (directory / 'dsbuilder-cli-jvm.zip').read_bytes()
-        stable_file.write_bytes(release.json_bytes({'schemaVersion': 1, 'version': '1.0.0'}))
-        try:
-            release.sync_stable(store, stable_file)
-        except RuntimeError as error:
-            assert 'manifest is missing' in str(error)
-        else:
-            raise AssertionError('Missing release was selected as stable')
-        assert json.loads(store.get('stable.json'))['version'] == '1.2.3'
-        print('S3 integration passed: v2 signature, interrupted upload, full retry, replacement, verification, guarded stable sync')
+        # Повтор старого тега намеренно перезаписывает оба постоянных ключа.
+        (directory / 'install.sh').write_text('old tag installer')
+        release.upload_installers(store, directory)
+        release.upload_installers(store, directory)
+        for name in ('install.sh', 'install.ps1'):
+            assert store.get(name) == (directory / name).read_bytes()
+        assert set(writes) == {'install.sh', 'install.ps1'}
+        for name in ('stable.json', 'release.json', 'SHA256SUMS', 'releases/1.2.3/dsbuilder-cli-jvm.zip'):
+            assert store.get(name) is None
+        print('S3 integration passed: fixed installer keys, overwrite, interruption, retry and byte verification')
 
 
 if __name__ == '__main__':

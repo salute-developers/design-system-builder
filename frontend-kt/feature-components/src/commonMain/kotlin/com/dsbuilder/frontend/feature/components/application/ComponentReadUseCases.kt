@@ -20,7 +20,7 @@ public data class ComponentReadRuntime(
 public enum class ComponentReadErrorCode {
     AUTH_REQUIRED, FORBIDDEN, NOT_FOUND, BACKEND_UNAVAILABLE, CONTEXT_NOT_FOUND,
     CONTEXT_REQUIRED, INVALID_CONTEXT, INVALID_QUERY, INVALID_SELECTION,
-    PROJECT_KEY_INVALID, INVALID_AUTH_URL,
+    PAT_INVALID, INVALID_AUTH_URL,
 }
 
 public sealed interface ComponentReadResult {
@@ -117,7 +117,7 @@ public class ComponentReadUseCases(
                 RuntimeFailureCode.INVALID_CONTEXT -> ComponentReadErrorCode.INVALID_CONTEXT
                 RuntimeFailureCode.CONTEXT_NOT_FOUND -> ComponentReadErrorCode.CONTEXT_NOT_FOUND
                 RuntimeFailureCode.AUTH_REQUIRED -> ComponentReadErrorCode.AUTH_REQUIRED
-                RuntimeFailureCode.PROJECT_KEY_INVALID -> ComponentReadErrorCode.PROJECT_KEY_INVALID
+                RuntimeFailureCode.PAT_INVALID -> ComponentReadErrorCode.PAT_INVALID
                 RuntimeFailureCode.FORBIDDEN -> ComponentReadErrorCode.FORBIDDEN
                 RuntimeFailureCode.BACKEND_UNAVAILABLE -> ComponentReadErrorCode.BACKEND_UNAVAILABLE
                 RuntimeFailureCode.INVALID_AUTH_URL -> ComponentReadErrorCode.INVALID_AUTH_URL

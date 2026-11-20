@@ -2,6 +2,7 @@
 
 package com.dsbuilder.frontend.feature.docs.data
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.feature.docs.application.CodeBindingGetCommand
@@ -188,7 +189,7 @@ public class HttpDocsReadRemoteSource(
     ): DocsReadResult =
         when (val response = httpClientFactory.create(apiUrl.value, credential).get(path)) {
             is AuthenticatedHttpResult.Success -> parseSuccess(response, "documentation")
-            is AuthenticatedHttpResult.Failure -> response.toReadError(notFoundCode)
+            is AuthenticatedHttpResult.Failure -> response.toReadError(notFoundCode, credential)
         }
 
     @Suppress("ReturnCount")
@@ -294,9 +295,16 @@ private sealed interface PublicationSelection {
     data class Failed(val error: DocsReadResult.Failed) : PublicationSelection
 }
 
-private fun AuthenticatedHttpResult.Failure.toReadError(notFoundCode: DocsReadErrorCode): DocsReadResult.Failed {
+private fun AuthenticatedHttpResult.Failure.toReadError(
+    notFoundCode: DocsReadErrorCode,
+    credential: BackendCredential,
+): DocsReadResult.Failed {
     val code = when (statusCode) {
-        401 -> DocsReadErrorCode.AUTH_REQUIRED
+        401 -> if (credential is BackendCredential.PersonalAccessToken) {
+            DocsReadErrorCode.PAT_INVALID
+        } else {
+            DocsReadErrorCode.AUTH_REQUIRED
+        }
         403 -> DocsReadErrorCode.FORBIDDEN
         404 -> notFoundCode
         400 -> DocsReadErrorCode.INVALID_QUERY

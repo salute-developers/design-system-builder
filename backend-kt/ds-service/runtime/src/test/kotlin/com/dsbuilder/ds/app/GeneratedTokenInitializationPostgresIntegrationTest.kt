@@ -21,6 +21,7 @@ import kotlin.test.assertFails
 import kotlin.test.assertTrue
 
 /** Пакеты сохраняют канонические определения и полностью откатываются при ошибке позднего пакета. */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class GeneratedTokenInitializationPostgresIntegrationTest {
     @Test
     fun `initialization batches statements preserves defaults and is repeatable`() = withBaseline { database, id ->

@@ -4,6 +4,8 @@ import com.dsbuilder.ds.components.application.PluginBuildStorage
 import com.dsbuilder.ds.components.application.StoredPluginBuild
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
+import software.amazon.awssdk.core.exception.SdkException
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.Delete
@@ -31,16 +33,23 @@ class S3PluginBuildStorage(
         contentType: String,
         cacheControl: String,
     ) {
+        val key = "$root$buildId/$path"
         withContext(Dispatchers.IO) {
-            client.putObject(
-                PutObjectRequest.builder()
-                    .bucket(bucket)
-                    .key("$root$buildId/$path")
-                    .contentType(contentType)
-                    .cacheControl(cacheControl)
-                    .build(),
-                RequestBody.fromBytes(bytes),
-            )
+            try {
+                client.putObject(
+                    PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(key)
+                        .contentType(contentType)
+                        .cacheControl(cacheControl)
+                        .build(),
+                    RequestBody.fromBytes(bytes),
+                )
+            } catch (failure: SdkException) {
+                // Публикация отвечает только 503: без лога причину отказа хранилища не узнать.
+                logger.warn("Plugin file upload to s3://{}/{} failed: {}", bucket, key, failure.message, failure)
+                throw failure
+            }
         }
     }
 
@@ -83,3 +92,5 @@ class S3PluginBuildStorage(
         const val DELETE_BATCH = 1_000
     }
 }
+
+private val logger = LoggerFactory.getLogger(S3PluginBuildStorage::class.java)

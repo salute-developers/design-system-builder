@@ -196,7 +196,7 @@ dsbuilder-mcp serve
 
 CLI launcher собирается для JVM/macOS и запускает общий server core внутри процесса. Отдельный `:mcp-node` собирается
 как Kotlin/JS executable для Node.js. Оба варианта имеют одинаковые `--api-url`, правила контекста, авторизации,
-набор инструментов и MCP-контракт. HTTP/SSE transport и удаленный MCP server в MVP не входят.
+набор инструментов и MCP-контракт. HTTP/SSE transport и удаленный MCP server в MVP не входят. Встроенный ИИ-чат билдера MCP-ядро не использует: он вызывает прикладные операции backend внутри процесса (ADR-0008).
 
 Процесс работает до EOF stdin или сигнала завершения. Stdout зарезервирован только для MCP protocol messages; логи и
 диагностика процесса направляются в stderr. Закрытие stdin, `SIGINT` и `SIGTERM` должны корректно закрывать MCP session,

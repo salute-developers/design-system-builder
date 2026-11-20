@@ -21,7 +21,7 @@ class GetComponentWebAdapterUseCase(
         designSystemId: UUID,
     ): DsResult<List<ComponentWebAdapterEntry>> = policy.read(context, ProjectScope.COMPONENTS_READ) {
         transactions.readOnly(context) {
-            repository.load(context.projectId, context.principal.systemAdmin, designSystemId)
+            repository.load(context.projectId, context.principal.globalAdmin, designSystemId)
                 ?.let { DsResult.Success(it) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }

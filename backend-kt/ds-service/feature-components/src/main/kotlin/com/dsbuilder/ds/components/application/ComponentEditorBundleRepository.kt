@@ -28,7 +28,7 @@ interface ComponentEditorBundleRepository {
         /** Дизайн-система или компонент недоступны, компонент не привязан к ней или другой платформы. */
         data object NotFound : LoadAttempt
 
-        /** Выгрузка конфигураций отказала так же, как `POST /api/ds/component-config/export`. */
+        /** Выгрузка конфигураций отказала так же, как `POST /api/design-systems/{designSystemId}/component-config/export`. */
         data class Failed(/** Причина отказа выгрузки. */ val reason: String) : LoadAttempt
     }
 }

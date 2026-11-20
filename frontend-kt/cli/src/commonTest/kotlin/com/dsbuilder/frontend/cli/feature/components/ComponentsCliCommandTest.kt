@@ -151,7 +151,7 @@ class ComponentsCliCommandTest {
     ) = DsBuilderCli(
         ClientRuntime(
             fileSystem = fileSystem,
-            environmentReader = EnvironmentReader { null },
+            environmentReader = EnvironmentReader { name -> if (name == "DSBUILDER_ANALYTICS_DISABLED") "1" else null },
             httpClientFactory = object : AuthenticatedHttpClientFactory {
                 override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
                     object : AuthenticatedHttpClient {

@@ -16,6 +16,6 @@ class GetStateImpactUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<StateImpact> =
         modelFind(policy, transactions, context) {
-            repository.impact(context.projectId, context.principal.systemAdmin, id)
+            repository.impact(context.projectId, context.principal.globalAdmin, id)
         }
 }

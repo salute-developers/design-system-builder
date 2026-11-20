@@ -27,6 +27,31 @@ npm. Без Node.js, без сети
 можно поставить позже той же командой. Пропустить этот шаг — флаг `--without-web`
 (`-WithoutWeb` в PowerShell).
 
+## Установка последнего стабильного CLI
+
+Скачайте установщик из GitHub Releases:
+
+```sh
+curl -fsSL https://github.com/salute-developers/design-system-builder/releases/latest/download/install.sh -o install-dsbuilder.sh && sh install-dsbuilder.sh
+```
+
+```powershell
+Invoke-WebRequest https://github.com/salute-developers/design-system-builder/releases/latest/download/install.ps1 -OutFile install-dsbuilder.ps1
+./install-dsbuilder.ps1
+```
+
+Для скачивания скрипта конкретного тега используйте `/releases/download/cli-vX.Y.Z/`
+вместо `/releases/latest/download/`.
+Он выбирает GitHub Latest, закрепляет версию и скачивает архив с проверкой SHA-256.
+macOS автоматически получает arm64/x64, Windows — x64, Linux — JVM (нужна Java 17+).
+На macOS под Rosetta выбирается arm64. Windows arm64 и 32-bit не поддерживаются.
+
+Конкретная версия CLI: `sh install-dsbuilder.sh --version 1.2.3` или
+`./install-dsbuilder.ps1 -Version 1.2.3`.
+Флаги `--without-ios`, `--without-web` и `-WithoutWeb` сохраняются; явная JVM-установка
+на macOS/Linux доступна через `--target jvm`. Архивы и контрольные суммы находятся
+в GitHub Releases, отдельного `stable.json` нет. gh, jq и Python установщику не нужны.
+
 ## Установка на macOS из release-архива
 
 Распакуйте архив и запустите установочный скрипт:
@@ -99,7 +124,7 @@ dsbuilder --version
 
 ## User auth
 
-Для сценариев без project API key можно сохранить локальную user session:
+Для сценариев без PAT можно сохранить локальную user session:
 
 ```bash
 dsbuilder auth login
@@ -123,7 +148,8 @@ Node MCP, если используете его, и перезапустите 
 Команда `init` создает локальный конфиг проекта в текущей директории. Запускайте
 ее из корня проекта, в котором будет использоваться дизайн-система.
 
-Для интерактивного выбора сначала выполните `dsbuilder auth login`, затем:
+Для интерактивного выбора задайте PAT в `DSBUILDER_API_KEY` либо выполните
+`dsbuilder auth login`, затем:
 
 ```bash
 dsbuilder init
@@ -131,13 +157,13 @@ dsbuilder init
 
 В терминале выберите доступный проект стрелками и нажмите Enter; на следующем
 экране так же выберите дизайн-систему этого проекта. Для отмены нажмите Ctrl+C.
-В этом режиме конфиг использует сохранённую пользовательскую сессию. Можно заранее
+По умолчанию конфиг использует `auto`: PAT из окружения, а при его отсутствии — сохранённую OAuth-сессию. Можно заранее
 указать один из ID: тогда соответствующий шаг выбора пропускается. Если терминал
 не поддерживает интерактивное меню, укажите оба ID явно.
 
-Чтобы записать вместо пользовательской сессии имя переменной с project API key,
+Чтобы записать вместо пользовательской сессии имя переменной с PAT,
 добавьте `--api-key-env DSB_DEV_API_KEY` и задайте эту переменную перед рабочими
-командами. Меню всё равно использует пользовательскую сессию для получения списков.
+командами. Задайте эту переменную перед `init`: меню использует PAT для получения списков.
 
 ```bash
 dsbuilder init --api-key-env DSB_DEV_API_KEY
@@ -191,7 +217,7 @@ export DSB_DEV_API_KEY="dev-token"
 
 ```dotenv
 # .env.example — замените значение в локальном .env
-DSB_DEV_API_KEY=example-project-key
+DSB_DEV_API_KEY=example-pat
 DSBUILDER_API_URL=https://api.example.test
 ```
 
@@ -214,8 +240,8 @@ dsbuilder status
 dsbuilder status --api-key dev-token
 ```
 
-Если project API key отсутствует, `status` использует сохранённую user session. После `401` для user session
-CLI делает один refresh/retry; для rejected project key fallback на user session не выполняется.
+Если PAT отсутствует, `status` использует сохранённую user session. После `401` для user session
+CLI делает один refresh/retry; для rejected PAT fallback на user session не выполняется.
 
 ## MCP server
 
@@ -240,7 +266,7 @@ Read-only tools:
 - `component_properties_get`, `component_dependencies_get`, `component_configurations_list`, `component_config_get`, `component_tokens_get`
 
 `documentation_*` and `code_binding_*` read published documentation artifacts. Token and component tools read the
-authoritative DS Builder model API through `/api/projects/{projectId}/ds/...`; they do not reconstruct model state from
+authoritative DS Builder model API through `/api/projects/{projectId}/design-systems/{designSystemId}/...`; they do not reconstruct model state from
 published documentation.
 
 Оба launcher предоставляют 27 read-only tools. `component_config_get` теперь принимает `appearanceId` и
@@ -598,6 +624,72 @@ CLI получает короткоживущий токен (`client_credential
 Релиз `cli-vX.Y.Z` репозитория содержит `dsbuilder-cli-jvm.zip`: распакуйте архив и запустите
 `cli-jvm/bin/dsbuilder` с Java 17. Закрепите версию релиза в workflow.
 
+## Загрузка каталога иконок
+
+Команда отправляет каталог иконок на бэкенд. Источник — пакет `@salutejs/sdds-icons` (в репозитории `plasma` это
+`packages/sdds-icons`) с каталогами `svg/16`, `svg/24`, `svg/36`. Бэкенд за один шаг кладёт SVG в хранилище, заменяет
+каталог и делает его активным; редактор и страница иконок берут каталог и изображения у бэкенда. Значения иконок в
+конфигурациях компонентов не меняются.
+
+```bash
+# Пробная отправка: бэкенд считает различия с активным каталогом и ничего не записывает.
+dsbuilder icons publish --from-dir packages/sdds-icons --api-url https://api.example.com
+
+# Запись каталога.
+dsbuilder icons publish --from-dir packages/sdds-icons --api-url https://api.example.com --apply
+```
+
+Параметры:
+
+- `--from-dir <каталог>` — корень пакета; имя файла `*.svg` без расширения — каноническое имя иконки, подкаталог —
+  размер. Категория и синонимы читаются из элемента `<metadata>` каждого SVG (размер `24`, иначе первый найденный).
+  Иконки без части размеров или без метаданных попадают в каталог с предупреждением. Файл больше 64 КиБ или каталог
+  без SVG — ошибка до обращения к сети.
+- `--from <icons-manifest.json>` — готовый манифест вместо каталога (ровно один из `--from-dir` и `--from`).
+- `--api-url` — адрес бэкенда, обязателен: команда пишет на бэкенд.
+- `--package-version <версия>` — версия пакета; без неё берётся `version` из `package.json` каталога, иначе `unknown`.
+- `--write-manifest <файл>` — дополнительно записать собранный манифест (только с `--from-dir`).
+- `--allow-removing-used` — разрешить удаление иконок, на которые ссылаются конфигурации компонентов.
+- `--apply` — записать каталог; без него выполняется пробная отправка.
+
+Формат манифеста (`schemaVersion` 1; в `sizes` лежит содержимое SVG):
+
+```json
+{
+  "schemaVersion": 1,
+  "source": { "package": "@salutejs/sdds-icons", "version": "0.14.0" },
+  "icons": [
+    {
+      "name": "AddOutline",
+      "category": "Actions & Feedback",
+      "aliases": ["add", "добавить"],
+      "sizes": { "16": "<svg …>", "24": "<svg …>", "36": "<svg …>" }
+    }
+  ]
+}
+```
+
+Итог: `published` (новый каталог записан и активен), `activated` (ранее загруженный каталог снова активен: откат
+повторной загрузкой прежнего содержимого) или `unchanged` (такой каталог уже активен). Отчёт содержит число
+добавленных, удалённых, изменённых и неизменных иконок, первые имена, используемые иконки, которые удаляет
+загрузка, и сверку значений `icon` из конфигураций с каталогом. Если загрузка удаляет иконку, на которую есть
+ссылки, бэкенд отвечает `409 icons_in_use`: команда завершается ошибкой, перечисляет иконки и число ссылок, а
+запись возможна только с `--allow-removing-used`.
+
+Авторизация та же, что у `preview-plugin publish`: служебная учётка из `DSBUILDER_CLIENT_ID` и
+`DSBUILDER_CLIENT_SECRET` (нужны обе, секрет только через окружение), иначе сохранённая сессия системного
+администратора. Загрузка доступна системному администратору и служебной учётке с ролью публикации; личный токен
+(PAT) не принимается.
+
+Пример шага CI после релиза `@salutejs/sdds-icons` (CLI закрепляется релизом `cli-vX.Y.Z`, как в публикации плагина):
+
+```bash
+export DSBUILDER_CLIENT_ID=dsbuilder-preview-publisher
+export DSBUILDER_CLIENT_SECRET=...   # секрет окружения CI
+dsbuilder icons publish --from-dir packages/sdds-icons \
+  --package-version "$VERSION" --api-url "$DSB_API_URL" --apply
+```
+
 ## Выгрузка конфигов компонентов
 
 ```bash
@@ -610,7 +702,7 @@ Legacy-снимок `component-configs.json` команда больше не з
 без локальной `.sdds` все backend-запросы используют выбранный контекст и credential.
 
 Для платформы React команда дополнительно загружает web-адаптер для локальной web-генерации —
-ответ `POST /ds/component-config/web-adapter` как есть: имена и описания компонентов, дочерние
+ответ `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/web-adapter` как есть: имена и описания компонентов, дочерние
 компоненты `compose` и шаблоны web-параметров по стилям — и пишет его в `.sdds/web/web-adapter.json`
 рядом с найденным `config.json` (без локальной `.sdds` — в `<directory>/web` из `--to`).
 Платформа выбирается как у `components generate`: `--platform`, иначе единственная

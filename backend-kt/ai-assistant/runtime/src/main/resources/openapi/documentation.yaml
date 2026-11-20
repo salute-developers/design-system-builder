@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: DS Builder AI Assistant API
+  version: 1.0.0
+  description: >-
+    Встроенный ИИ-чат билдера. POST запускает ход агента в фоне и отвечает turnId; события хода читаются
+    возобновляемым потоком SSE с курсором after. Инструменты агента вызывают прикладные операции DS внутри процесса от имени участника проекта.
+servers:
+  - url: /
+paths:
+  /ai/status:
+    get:
+      tags: [AI]
+      summary: Состояние ИИ-чата
+      responses:
+        '200':
+          description: Включён ли чат и его ограничения; ключи и адреса провайдера не возвращаются.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Status' }
+  /ai/chat:
+    post:
+      tags: [AI]
+      summary: Запустить ход агента
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Ключ одного действия пользователя. Повтор с тем же ключом и телом возвращает тот же ход.
+          schema: { type: string, maxLength: 255 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+      responses:
+        '202':
+          description: Ход принят или найден уже принятый.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [turnId]
+                properties: { turnId: { type: string } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '410': { $ref: '#/components/responses/Error' }
+        '413': { description: Тело больше 2 МиБ }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /ai/turns/{turnId}/events:
+    get:
+      tags: [AI]
+      summary: Поток событий хода
+      parameters:
+        - { name: turnId, in: path, required: true, schema: { type: string } }
+        - name: after
+          in: query
+          required: false
+          description: Номер последнего полученного события; отдаются события с большими номерами.
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: >-
+            text/event-stream. Каждое событие — строки id, event (tool_started, tool_result, confirmation_required,
+            message, state, error, done) и data с JSON. Между событиями — комментарии ": heartbeat".
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /ai/turns/{turnId}:
+    delete:
+      tags: [AI]
+      summary: Остановить ход
+      parameters:
+        - { name: turnId, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Ход остановлен или уже завершён }
+        '404': { $ref: '#/components/responses/Error' }
+components:
+  responses:
+    Error:
+      description: >-
+        Ошибка с машиночитаемым кодом: invalid_request, message_too_long, confirmation_invalid,
+        design_system_not_found, design_system_forbidden, dependency_unavailable, turn_unknown,
+        IDEMPOTENCY_KEY_REUSED, confirmation_expired, ai_busy (с activeTurnId, projectId, designSystemId),
+        too_many_streams, ai_overloaded, ai_unavailable.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code]
+            properties:
+              code: { type: string }
+              activeTurnId: { type: string }
+              projectId: { type: string }
+              designSystemId: { type: string }
+  schemas:
+    Status:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+        provider: { type: string, enum: [openai-compatible, gigachat] }
+        model: { type: string }
+        messageMaxChars: { type: integer }
+    ChatRequest:
+      type: object
+      required: [designSystemId, messages]
+      properties:
+        designSystemId: { type: string }
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/ChatMessage' }
+        confirmations:
+          type: array
+          maxItems: 1
+          items:
+            type: object
+            required: [confirmationToken, approved]
+            properties:
+              confirmationToken: { type: string }
+              approved: { type: boolean }
+        context: { $ref: '#/components/schemas/ScreenContext' }
+    ScreenContext:
+      type: object
+      description: >-
+        Что открыто в редакторе. Подсказка для модели, а не право; не сохраняется в истории и входит в отпечаток тела.
+        Неверные section, UUID или длина selectedValues дают 400 invalid_request; недопустимое имя (больше 200 символов или символы кроме букв, цифр, пробела и ._-/) отбрасывается.
+      required: [section]
+      properties:
+        section: { type: string, enum: [colors, typography, shapes, palette, components, other] }
+        tenantId: { type: string, format: uuid }
+        token:
+          type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid, description: Идентификатор определения токена. }
+            name: { type: string, description: Имя длиннее 200 символов или с недопустимыми символами отбрасывается. }
+        component:
+          type: object
+          properties:
+            name: { type: string, description: Имя длиннее 200 символов или с недопустимыми символами отбрасывается. }
+            id: { type: string, format: uuid }
+            appearanceId: { type: string, format: uuid }
+            selectedValues:
+              type: array
+              maxItems: 20
+              description: Значения вариаций, выбранные в превью; по умолчанию не задают область записи.
+              items:
+                type: object
+                required: [styleId]
+                properties:
+                  variation: { type: string, description: Имя длиннее 64 символов отбрасывается. }
+                  value: { type: string, description: Имя длиннее 64 символов отбрасывается. }
+                  styleId: { type: string, format: uuid }
+    ChatMessage:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [user, assistant, tool, interrupted] }
+        text: { type: string }
+        toolCalls:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: string }
+              name: { type: string }
+              arguments: { type: object }
+        toolResult:
+          type: object
+          required: [callId, name]
+          properties:
+            callId: { type: string }
+            name: { type: string }
+            content: { type: string }
+            isError: { type: boolean }
+            code: { type: string }
+            backendCode: { type: string }

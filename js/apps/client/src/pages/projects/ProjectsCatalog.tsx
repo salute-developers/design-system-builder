@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useOutlet } from 'react-router-dom';
 import { projectsApi, type ProjectDto } from '../../api';
 import { CardMenu, CatalogPage, EmptyState, sortCatalogByName, State } from '../../components/Catalog/Catalog';
@@ -10,6 +10,17 @@ export const ProjectsPage = () => {
     const state = useLoad(projectsApi.list, [], 'projects');
     const [sort, setSort] = useState('modified');
     const dialog = useOutlet();
+    const createLinkRef = useRef<HTMLAnchorElement>(null);
+    const restoreFocus = useRef(false);
+    const dialogOpen = Boolean(dialog);
+    useEffect(() => {
+        if (dialogOpen) {
+            restoreFocus.current = true;
+        } else if (restoreFocus.current && createLinkRef.current) {
+            createLinkRef.current.focus();
+            restoreFocus.current = false;
+        }
+    }, [dialogOpen, state.data, state.error]);
     if (state.error) return <State text="Не удалось загрузить проекты" retry={state.reload} />;
     if (!state.data) return <State text="Загружаем проекты…" />;
     const activeProjects = sortCatalogByName(
@@ -27,7 +38,7 @@ export const ProjectsPage = () => {
             showSort={state.data.length > 0}
             title="Проекты"
             action={
-                <Link className="primary" to="/projects/new">
+                <Link ref={createLinkRef} className="primary" to="/projects/new">
                     Создать проект
                 </Link>
             }

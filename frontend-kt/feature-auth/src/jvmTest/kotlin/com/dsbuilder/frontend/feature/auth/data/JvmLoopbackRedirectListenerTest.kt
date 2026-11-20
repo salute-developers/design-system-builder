@@ -18,6 +18,7 @@ private fun get(url: String): HttpResponse<String> {
     return httpClient.send(request, HttpResponse.BodyHandlers.ofString())
 }
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class JvmLoopbackRedirectListenerTest {
     @Test
     fun successfulRedirectIsParsedAndServerRespondsWithHtml() {

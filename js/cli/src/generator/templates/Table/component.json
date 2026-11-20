@@ -1,0 +1,9 @@
+{
+    "reexports": {
+        "types": [
+            "TableProps",
+            "TableRowData",
+            "TableColumnData"
+        ]
+    }
+}

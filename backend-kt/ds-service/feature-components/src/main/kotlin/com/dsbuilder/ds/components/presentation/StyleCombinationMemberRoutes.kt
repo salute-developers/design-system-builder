@@ -36,7 +36,7 @@ fun Route.styleCombinationMemberRoutes(
     delete: DeleteStyleCombinationMemberUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/style-combination-members")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/style-combination-members")) {
         get {
             val context = TrustedDsRequestContextMapper.map(
                 call.dsTrustedHeaders(),

@@ -22,8 +22,8 @@ class CreateAppearanceVariationValueUseCase(
     ): DsResult<AppearanceVariationValue> = modelCreate(
         policy, transactions, repeatedRequests, context, idempotencyKey, "create-appearance-variation-value",
         command,
-        { repository.findValue(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createValue(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findValue(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createValue(context.projectId, context.principal.globalAdmin, command) },
         AppearanceVariationValue::id,
     )
 }

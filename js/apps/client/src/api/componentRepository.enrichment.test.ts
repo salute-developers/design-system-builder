@@ -12,7 +12,8 @@ vi.mock('../utils/featureFlags', () => ({ isComponentEditorEnabled: () => true }
 import { componentRepository } from './componentRepository';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
-const root = '/api/projects/project-1/ds';
+const root = '/api/projects/project-1/design-systems/ds-1';
+const rootCatalog = '/api/projects/project-1/design-systems/catalog';
 
 /** Ответы ds-service: Button со свойствами height (web, шаблон) и focusColor (только compose), AvatarGroup → Avatar. */
 const getResponses: Record<string, unknown> = {
@@ -21,12 +22,12 @@ const getResponses: Record<string, unknown> = {
         { id: 'l-2', designSystemId: 'ds-1', componentId: 'c-avatar-group' },
         { id: 'l-3', designSystemId: 'ds-1', componentId: 'c-avatar' },
     ],
-    [`${root}/components`]: [
+    [`${rootCatalog}/components`]: [
         { id: 'c-button', name: 'Button', description: null, platform: 'web' },
         { id: 'c-avatar-group', name: 'AvatarGroup', description: null, platform: 'web' },
         { id: 'c-avatar', name: 'Avatar', description: null, platform: 'web' },
     ],
-    [`${root}/design-systems/ds-1/appearances`]: [],
+    [`${root}/appearances`]: [],
     [`${root}/components/c-button/properties`]: [
         { id: 'p-height', name: 'height', type: 'dimension', description: null },
         { id: 'p-focus', name: 'focusColor', type: 'color', description: null },
@@ -37,12 +38,12 @@ const getResponses: Record<string, unknown> = {
     [`${root}/components/c-avatar-group/variations`]: [],
     [`${root}/components/c-avatar/properties`]: [],
     [`${root}/components/c-avatar/variations`]: [],
-    [`${root}/property-platform-params`]: [
+    [`${rootCatalog}/property-platform-params`]: [
         { id: '1', propertyId: 'p-height', platform: 'web', name: 'buttonHeight' },
         { id: '2', propertyId: 'p-focus', platform: 'compose', name: 'focusColor' },
     ],
     [`${root}/property-variations`]: [{ propertyId: 'p-height', variationId: 'v-size' }],
-    [`${root}/component-deps`]: [
+    [`${rootCatalog}/component-deps`]: [
         { id: 'd-1', parentId: 'c-avatar-group', childId: 'c-avatar', type: 'reuse', order: 1 },
     ],
 };
@@ -87,7 +88,7 @@ describe('componentRepository.loadComponentData', () => {
                 (url.endsWith('/appearances') ? [] : undefined);
             if (data === undefined) throw new Error(`Unexpected GET ${url}`);
             if (request?.params?.include === 'platformParams') {
-                const params = getResponses[`${root}/property-platform-params`] as Array<{ propertyId: string }>;
+                const params = getResponses[`${rootCatalog}/property-platform-params`] as Array<{ propertyId: string }>;
                 return Promise.resolve({
                     data: (data as Array<{ id: string }>).map((property) => ({
                         ...property,
@@ -102,7 +103,7 @@ describe('componentRepository.loadComponentData', () => {
             { name: 'buttonHeight' },
         ]);
         expect(get.mock.calls.some(([url]) => url.endsWith('/property-platform-params'))).toBe(false);
-        expect(get.mock.calls.some(([url]) => url === `${root}/appearances`)).toBe(false);
+        expect(get.mock.calls.some(([url]) => url === `${rootCatalog}/appearances`)).toBe(false);
     });
 
     it('fills web params and declared variations of the web preview', async () => {

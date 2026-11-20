@@ -19,6 +19,6 @@ class UpdateInvariantPropertyValueUseCase(
         id: UUID,
         command: PropertyValueRepository.ValueUpdate,
     ): DsResult<InvariantPropertyValue> = modelMutate(policy, transactions, context) {
-        repository.updateInvariant(context.projectId, context.principal.systemAdmin, id, command)
+        repository.updateInvariant(context.projectId, context.principal.globalAdmin, id, command)
     }
 }

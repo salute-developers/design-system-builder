@@ -1,6 +1,6 @@
 package com.dsbuilder.ds.app
 
-import com.dsbuilder.ds.core.presentation.dsLegacyPath
+import com.dsbuilder.ds.core.presentation.dsCanonicalPath
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveText
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -140,7 +140,7 @@ class LegacyValidationErrorFactory(
     }
 
     private fun requestSchema(call: ApplicationCall): JsonObject? {
-        val operation = paths[call.dsLegacyPath(call.routeTemplate())]?.jsonObject
+        val operation = paths[call.dsCanonicalPath(call.routeTemplate())]?.jsonObject
             ?.get(call.request.local.method.value.lowercase())?.jsonObject ?: return null
         val schema = operation["requestBody"]?.jsonObject
             ?.get("content")?.jsonObject

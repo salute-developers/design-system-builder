@@ -14,15 +14,19 @@ internal class TokenValueNormalizer {
         token: Token,
         tokenValue: TokenValue,
     ): TokenValueNormalizationResult =
-        when (token.type) {
-            COLOR_TYPE -> normalizeSingleString(token, tokenValue)
-            TYPOGRAPHY_TYPE, FONT_FAMILY_TYPE -> normalizeSingleObject(token, tokenValue)
-            SHAPE_TYPE, SPACING_TYPE -> normalizePlatformScalarOrObject(token, tokenValue)
-            GRADIENT_TYPE, SHADOW_TYPE -> normalizeArray(token, tokenValue)
-            else -> TokenValueNormalizationResult.Failed(
-                "Error: Unsupported token type `${token.type}` for token `${token.name}`.",
-            )
-        }
+        normalizers[token.type]?.invoke(token, tokenValue) ?: TokenValueNormalizationResult.Failed(
+            "Error: Unsupported token type `${token.type}` for token `${token.name}`.",
+        )
+
+    private val normalizers = mapOf(
+        COLOR_TYPE to ::normalizeSingleString,
+        TYPOGRAPHY_TYPE to ::normalizeSingleObject,
+        FONT_FAMILY_TYPE to ::normalizeSingleObject,
+        SHAPE_TYPE to ::normalizePlatformScalarOrObject,
+        SPACING_TYPE to ::normalizePlatformScalarOrObject,
+        GRADIENT_TYPE to ::normalizeArray,
+        SHADOW_TYPE to ::normalizeArray,
+    )
 
     private fun normalizeSingleString(
         token: Token,

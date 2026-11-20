@@ -8,7 +8,7 @@ const SectionProbe = () => {
     return <div data-testid="colors-section" data-pending={String(sectionPending)} />;
 };
 
-const { hookState, reload, mainUtils, retryAutosave } = vi.hoisted(() => ({
+const { hookState, reload, loadComponent, mainUtils, retryAutosave } = vi.hoisted(() => ({
     hookState: {
         loading: false,
         components: [] as unknown[],
@@ -18,6 +18,7 @@ const { hookState, reload, mainUtils, retryAutosave } = vi.hoisted(() => ({
         componentLoading: false,
     },
     reload: vi.fn(),
+    loadComponent: vi.fn(),
     retryAutosave: vi.fn(),
     mainUtils: { designSystemSave: vi.fn() },
 }));
@@ -52,6 +53,7 @@ vi.mock('../hooks', () => ({
         retryAutosave,
         lastSavedAt: 1_000,
         reload,
+        loadComponent,
         sectionLoading: hookState.sectionLoading,
         componentLoading: hookState.componentLoading,
     }),
@@ -319,19 +321,19 @@ describe('Theme editor shell', () => {
     });
 
     describe('component editor section', () => {
-        const renderShell = () =>
-            render(
-                <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
-                    <Routes>
-                        <Route
-                            path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
-                            element={<Main />}
-                        >
-                            <Route path="colors" element={<div>Цветовые токены</div>} />
-                        </Route>
-                    </Routes>
-                </MemoryRouter>,
-            );
+        const shell = () => (
+            <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
+                <Routes>
+                    <Route
+                        path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                        element={<Main />}
+                    >
+                        <Route path="colors" element={<div>Цветовые токены</div>} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>
+        );
+        const renderShell = () => render(shell());
 
         it('offers the section when it is enabled and the design system has components', () => {
             vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'true');
@@ -343,6 +345,20 @@ describe('Theme editor shell', () => {
             expect(screen.getByTestId('editor-nav-components')).toBeInTheDocument();
         });
 
+        it('offers the section while the theme is loading and hides it when the design system has no components', () => {
+            vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'true');
+            hookState.loading = true;
+
+            const { rerender } = renderShell();
+
+            expect(screen.getByTestId('editor-nav-components')).toBeInTheDocument();
+
+            hookState.loading = false;
+            rerender(shell());
+
+            expect(screen.queryByTestId('editor-nav-components')).not.toBeInTheDocument();
+        });
+
         it('hides the section when it is disabled, even if the design system has components', () => {
             vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'false');
             hookState.components = [{}];
@@ -351,6 +367,29 @@ describe('Theme editor shell', () => {
 
             expect(screen.queryByTestId('editor-nav-components')).not.toBeInTheDocument();
         });
+    });
+
+    it('передаёт разделу компонентов перечитывание компонента', () => {
+        hookState.hasComponents = true;
+        let received: unknown;
+        const ComponentsPage = () => {
+            received = useOutletContext<{ loadComponent?: unknown }>().loadComponent;
+            return null;
+        };
+        render(
+            <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/components/Button']}>
+                <Routes>
+                    <Route
+                        path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                        element={<Main />}
+                    >
+                        <Route path="components/:componentName" element={<ComponentsPage />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        expect(received).toBe(loadComponent);
     });
 
     it('при смене компонента не размонтирует страницу раздела и передаёт ей загрузку компонента', () => {
@@ -367,7 +406,10 @@ describe('Theme editor shell', () => {
         const tree = () => (
             <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/components/Button']}>
                 <Routes>
-                    <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
+                    <Route
+                        path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                        element={<Main />}
+                    >
                         <Route path="components/:componentName" element={<ComponentsPage />} />
                     </Route>
                 </Routes>
@@ -385,12 +427,15 @@ describe('Theme editor shell', () => {
         expect(mounts).toBe(1);
     });
 
-    it('при загрузке раздела по-прежнему показывает общую загрузку вместо страницы', () => {
+    it('при загрузке раздела компонентов показывает скелетон раздела вместо страницы и спиннера', () => {
         hookState.sectionLoading = true;
         render(
             <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/components/Button']}>
                 <Routes>
-                    <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
+                    <Route
+                        path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                        element={<Main />}
+                    >
                         <Route path="components/:componentName" element={<div data-testid="components-page" />} />
                     </Route>
                 </Routes>
@@ -398,6 +443,8 @@ describe('Theme editor shell', () => {
         );
 
         expect(screen.queryByTestId('components-page')).not.toBeInTheDocument();
-        expect(screen.getByRole('status', { name: 'Открываем раздел' })).toBeInTheDocument();
+        expect(screen.queryByRole('status', { name: 'Открываем раздел' })).not.toBeInTheDocument();
+        expect(screen.getByRole('status', { name: 'Загружаем компонент…' })).toBeInTheDocument();
+        expect(document.querySelector('.component-editor-screen .tw-skeleton[data-skeleton="tree"]')).not.toBeNull();
     });
 });

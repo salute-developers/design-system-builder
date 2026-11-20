@@ -36,6 +36,7 @@ import kotlin.test.assertTrue
  * публикация, импорт web-меты, выдача адреса web и независимость от билдов Compose. Билды обеих платформ лежат
  * в одном бакете под разными префиксами, как на стендах.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class WebPluginBuildPublishHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -179,8 +180,8 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
     // ── helpers ───────────────────────────────────────────────────────────────────────────
 
     private enum class PluginKind(val publish: String, val active: String) {
-        COMPOSE("/api/ds/admin/compose-preview/plugin-builds", "/api/ds/compose-preview/plugin"),
-        WEB("/api/ds/admin/web-preview/plugin-builds", "/api/ds/web-preview/plugin"),
+        COMPOSE("/api/admin/compose-preview/plugin-builds", "/api/design-systems/catalog/compose-preview/plugin"),
+        WEB("/api/admin/web-preview/plugin-builds", "/api/design-systems/catalog/web-preview/plugin"),
     }
 
     private enum class Actor { PUBLISHER, ADMIN, USER }

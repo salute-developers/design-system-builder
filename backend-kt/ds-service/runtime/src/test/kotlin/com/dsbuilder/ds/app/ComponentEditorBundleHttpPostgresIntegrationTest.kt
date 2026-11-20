@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import io.ktor.client.request.HttpRequestBuilder
@@ -26,9 +28,10 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
- * `GET /api/ds/design-systems/{id}/components/{componentId}/editor-bundle`: каждое поле совпадает
+ * `GET /api/design-systems/{id}/components/{componentId}/editor-bundle`: каждое поле совпадает
  * с ответом существующего маршрута, ограниченным компонентом, его свойствами и дизайн-системой.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ComponentEditorBundleHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -50,13 +53,13 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `a compose bundle exports compose and has no property variations and web adapter`() = withService {
+    fun `a compose bundle exports compose with property variations and no web adapter`() = withService {
         val fixture = fixture()
         val bundle = bundle(fixture.alpha, fixture.composeButton, "compose")
 
         assertBundleMatchesRoutes(bundle, fixture.alpha, fixture.composeButton, "compose")
         assertEquals(JsonNull, bundle.getValue("webAdapter"))
-        assertTrue(bundle.list("propertyVariations").isEmpty())
+        assertEquals(1, bundle.list("propertyVariations").size)
         assertEquals(1, bundle.list("platformParams").size)
         val exported = bundle.getValue("export").jsonObject.getValue("components").jsonArray
         assertEquals(listOf("button"), exported.map { it.jsonObject.string("componentName") })
@@ -66,7 +69,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     @Test
     fun `unlinked components foreign platforms invalid platforms and missing scopes are rejected`() = withService {
         val fixture = fixture()
-        val path = "/api/ds/design-systems/${fixture.alpha}/components"
+        val path = "/api/design-systems/${fixture.alpha}/components"
 
         assertEquals(HttpStatusCode.NotFound, get("$path/${fixture.webOther}/editor-bundle?platform=web").status)
         assertEquals(HttpStatusCode.NotFound, get("$path/${fixture.composeButton}/editor-bundle?platform=web").status)
@@ -80,8 +83,10 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.BadRequest, get("$path/not-a-uuid/editor-bundle?platform=web").status)
 
         val withoutScope = service.builder.client.get("$path/${fixture.webButton}/editor-bundle?platform=web") {
-            header("X-Actor-Type", "project_key")
-            header("X-Project-Key-Id", "key-1")
+            header("X-Actor-Type", "personal_access_token")
+            header("X-Personal-Access-Token-Id", "key-1")
+            header("X-User-Id", "integration-owner")
+            header("X-Project-Role", "owner")
             header("X-Project-Id", "project-a")
             header("X-Project-Scopes", "components:read")
         }
@@ -96,7 +101,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
             "SELECT id::text FROM design_system_versions " +
                 "WHERE design_system_id = '${fixture.alpha}' AND status = 'published'",
         )
-        imported(importBody(fixture.alpha, "web", "button", "secondary", config("shape", listOf("x"))))
+        imported(fixture.alpha, importBody(fixture.alpha, "web", "button", "secondary", config("shape", listOf("x"))))
 
         val current = bundle(fixture.alpha, fixture.webButton, "web")
         val published = bundle(fixture.alpha, fixture.webButton, "web", version)
@@ -108,6 +113,28 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         assertNotEquals(published.list("variations").size, current.list("variations").size)
         assertNotEquals(published.getValue("export"), current.getValue("export"))
     }
+
+    @Test
+    fun `combination members cost the same number of database calls whatever the number of combinations`() =
+        withService {
+            val ds = designSystem("combinations")
+            val few = component("Few", "compose")
+            val many = component("Many", "compose")
+            property(few, "gap", "value")
+            property(many, "gap", "value")
+            imported(ds, importBody(ds, "compose", "few", "default", crossedConfig(combinations = 1)))
+            imported(ds, importBody(ds, "compose", "many", "default", crossedConfig(combinations = SIZES)))
+            bundle(ds, few, "compose")
+
+            val (fewBundle, fewCalls) = countedBundle(ds, few)
+            val (manyBundle, manyCalls) = countedBundle(ds, many)
+
+            assertEquals(1, crossedValues(fewBundle))
+            assertEquals(SIZES, crossedValues(manyBundle))
+            // Участники сочетаний читаются фиксированным числом запросов на оформление: раньше каждый ключ
+            // сочетания стоил отдельного чтения всех участников дизайн-системы.
+            assertEquals(fewCalls, manyCalls, "1 combination: $fewCalls calls, $SIZES combinations: $manyCalls calls")
+        }
 
     // ── сравнение с существующими маршрутами ───────────────────────────────────────────────────────
 
@@ -122,43 +149,49 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         val v = version?.let { "versionId=$it" }
         fun withVersion(path: String) = v?.let { if ('?' in path) "$path&$it" else "$path?$it" } ?: path
 
-        val componentRow = read(withVersion("/api/ds/components/$component")).jsonObject
+        val componentRow = read(withVersion("/api/design-systems/catalog/components/$component")).jsonObject
         assertEquals(componentRow, bundle.getValue("component"))
 
-        val appearances = read(withVersion("/api/ds/appearances")).objects()
+        val appearances = read(withVersion("/api/design-systems/$ds/appearances")).objects()
             .filter { it.string("designSystemId") == ds && it.string("componentId") == component }
         assertEquals(appearances.byId(), bundle.list("appearances").byId())
 
         val names = """["${componentRow.string("name").lowercase()}"]"""
         val export = readPost(
-            withVersion("/api/ds/component-config/export"),
-            """{"designSystemId":"$ds","platform":"$platform","components":$names}""",
+            withVersion("/api/design-systems/$ds/component-config/export"),
+            """{"platform":"$platform","components":$names,"editorIds":true}""",
         )
         assertEquals(export, bundle.getValue("export"))
+        // Выгрузка в бандле несёт ID вариаций и стилей: редактор сопоставляет оси и значения по ним.
+        val axes = bundle.getValue("export").jsonObject.getValue("components").jsonArray
+            .flatMap { it.jsonObject.getValue("config").jsonObject.getValue("variations").jsonArray }
+        assertTrue(axes.isNotEmpty())
+        assertTrue(axes.all { it.jsonObject.string("variationId").isNotEmpty() })
+        assertTrue(
+            axes.flatMap { it.jsonObject.getValue("values").jsonArray }
+                .all { it.jsonObject.string("styleId").isNotEmpty() },
+        )
 
-        val properties = read(withVersion("/api/ds/components/$component/properties")).objects()
+        val properties = read(withVersion("/api/design-systems/catalog/components/$component/properties")).objects()
         assertEquals(properties.byId(), bundle.list("properties").byId())
         val propertyIds = properties.map { it.string("id") }.toSet()
 
-        val params = read(withVersion("/api/ds/property-platform-params")).objects()
+        val params = read(withVersion("/api/design-systems/catalog/property-platform-params")).objects()
             .filter { it.string("propertyId") in propertyIds }
         assertEquals(params.byId(), bundle.list("platformParams").byId())
 
-        val propertyVariations = if (platform == "web") {
-            read(withVersion("/api/ds/property-variations")).objects().filter { it.string("propertyId") in propertyIds }
-        } else {
-            emptyList()
-        }
+        val propertyVariations = read(withVersion("/api/design-systems/$ds/property-variations")).objects()
+            .filter { it.string("propertyId") in propertyIds }
         assertEquals(propertyVariations.byId(), bundle.list("propertyVariations").byId())
 
-        val variations = read(withVersion("/api/ds/components/$component/variations?designSystemId=$ds")).objects()
+        val variations = read(withVersion("/api/design-systems/$ds/components/$component/variations")).objects()
         assertEquals(variations.byId(), bundle.list("variations").byId())
 
-        val styles = read(withVersion("/api/ds/design-systems/$ds/components/$component/styles")).objects()
+        val styles = read(withVersion("/api/design-systems/$ds/components/$component/styles")).objects()
         assertEquals(styles.byId(), bundle.list("styles").byId())
 
         val adapter: JsonElement = if (platform == "web") {
-            readPost(withVersion("/api/ds/component-config/web-adapter"), """{"designSystemId":"$ds"}""")
+            readPost(withVersion("/api/design-systems/$ds/component-config/web-adapter"), """{}""")
                 .jsonArray.map { it.jsonObject }.firstOrNull { it.string("name") == componentRow.string("name") }
                 ?: JsonNull
         } else {
@@ -166,16 +199,16 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         }
         assertEquals(adapter, bundle.getValue("webAdapter"))
 
-        val dependencies = read(withVersion("/api/ds/component-deps")).objects()
+        val dependencies = read(withVersion("/api/design-systems/catalog/component-deps")).objects()
             .filter { it.string("parentId") == component || it.string("childId") == component }
         assertEquals(dependencies.byId(), bundle.list("dependencies").byId())
 
-        val linked = read(withVersion("/api/ds/design-system-components")).objects()
+        val linked = read(withVersion("/api/design-systems/$ds/design-system-components")).objects()
             .filter { it.string("designSystemId") == ds }
             .map { it.string("componentId") }.toSet()
         val otherIds = dependencies.flatMap { listOf(it.string("parentId"), it.string("childId")) }
             .filter { it != component }.toSet()
-        val dependencyComponents = read(withVersion("/api/ds/components")).objects().filter {
+        val dependencyComponents = read(withVersion("/api/design-systems/catalog/components")).objects().filter {
             it.string("id") in otherIds && it.string("id") in linked && it.string("platform") == platform
         }
         assertEquals(dependencyComponents.byId(), bundle.list("dependencyComponents").byId())
@@ -202,49 +235,101 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         val composeButton = component("Button", "compose")
         val composeBadge = component("Badge", "compose")
 
-        imported(importBody(alpha, "web", "button", "default", config("size", listOf("s", "m"))))
-        imported(importBody(alpha, "web", "icon", "default", config("size", listOf("s"))))
-        imported(importBody(beta, "web", "button", "default", config("tone", listOf("a"))))
+        imported(alpha, importBody(alpha, "web", "button", "default", config("size", listOf("s", "m"))))
+        imported(alpha, importBody(alpha, "web", "icon", "default", config("size", listOf("s"))))
+        imported(beta, importBody(beta, "web", "button", "default", config("tone", listOf("a"))))
         // Other читается проектом, но привязан только к beta.
-        imported(importBody(beta, "web", "other", "default", config("tone", listOf("a"))))
-        imported(importBody(alpha, "compose", "button", "default", config("size", listOf("s", "m"))))
-        imported(importBody(alpha, "compose", "badge", "default", config("size", listOf("s"))))
+        imported(beta, importBody(beta, "web", "other", "default", config("tone", listOf("a"))))
+        imported(alpha, importBody(alpha, "compose", "button", "default", config("size", listOf("s", "m"))))
+        imported(alpha, importBody(alpha, "compose", "badge", "default", config("size", listOf("s"))))
 
         val padding = property(webButton, "padding", "dimension")
         val fill = property(webButton, "fill", "color")
         property(webIcon, "glyph", "value")
         val composePadding = property(composeButton, "padding", "dimension")
-        created("/api/ds/property-platform-params", """{"propertyId":"$padding","platform":"web","name":"padding"}""")
-        created("/api/ds/property-platform-params", """{"propertyId":"$fill","platform":"web","name":"background"}""")
         created(
-            "/api/ds/property-platform-params",
+            "/api/design-systems/catalog/property-platform-params",
+            """{"propertyId":"$padding","platform":"web","name":"padding"}""",
+        )
+        created(
+            "/api/design-systems/catalog/property-platform-params",
+            """{"propertyId":"$fill","platform":"web","name":"background"}""",
+        )
+        created(
+            "/api/design-systems/catalog/property-platform-params",
             """{"propertyId":"$composePadding","platform":"compose","name":"paddingValues"}""",
         )
-        val size = read("/api/ds/components/$webButton/variations?designSystemId=$alpha").objects()
+        val size = read("/api/design-systems/$alpha/components/$webButton/variations").objects()
             .single { it.string("name") == "size" }.string("id")
-        created("/api/ds/property-variations", """{"propertyId":"$padding","variationId":"$size"}""")
-
-        created("/api/ds/component-deps", """{"parentId":"$webButton","childId":"$webIcon","type":"compose"}""")
-        created("/api/ds/component-deps", """{"parentId":"$webOther","childId":"$webButton","type":"reuse"}""")
-        created("/api/ds/component-deps", """{"parentId":"$webButton","childId":"$composeBadge","type":"reuse"}""")
+        created("/api/design-systems/$alpha/property-variations", """{"propertyId":"$padding","variationId":"$size"}""")
+        val composeSize = read("/api/design-systems/$alpha/components/$composeButton/variations").objects()
+            .single { it.string("name") == "size" }.string("id")
         created(
-            "/api/ds/component-deps",
+            "/api/design-systems/$alpha/property-variations",
+            """{"propertyId":"$composePadding","variationId":"$composeSize"}""",
+        )
+
+        created(
+            "/api/design-systems/catalog/component-deps",
+            """{"parentId":"$webButton","childId":"$webIcon","type":"compose"}""",
+        )
+        created(
+            "/api/design-systems/catalog/component-deps",
+            """{"parentId":"$webOther","childId":"$webButton","type":"reuse"}""",
+        )
+        created(
+            "/api/design-systems/catalog/component-deps",
+            """{"parentId":"$webButton","childId":"$composeBadge","type":"reuse"}""",
+        )
+        created(
+            "/api/design-systems/catalog/component-deps",
             """{"parentId":"$composeButton","childId":"$composeBadge","type":"compose","order":0}""",
         )
         return Fixture(alpha, webButton, webIcon, webOther, composeButton, composeBadge)
     }
 
+    /** Вариации size (одинаковые у всех) и view, у значения default которой [combinations] пересечений с size. */
+    private fun crossedConfig(combinations: Int): String {
+        val sizes = (0 until SIZES).joinToString(",") { """{"name":"s$it","properties":{}}""" }
+        val crossed = (0 until combinations).joinToString("") {
+            """,{"name":"default","targets":[{"properties":[{"id":"size","value":"s$it"}]}],""" +
+                """"properties":{"gap":{"type":"value","value":$it}}}"""
+        }
+        return """{"invariants":{},"variations":[{"id":"size","name":"size","values":[$sizes]},""" +
+            """{"id":"view","name":"view","values":[{"name":"default","properties":{}}$crossed]}]}"""
+    }
+
+    private suspend fun countedBundle(ds: String, component: String): Pair<JsonObject, Long> {
+        val before = QueryCounter.snapshot()
+        val bundle = bundle(ds, component, "compose")
+        return bundle to (QueryCounter.snapshot() - before).executions
+    }
+
+    /** Число значений вариаций с пересечениями в выгрузке бандла. */
+    private fun crossedValues(bundle: JsonObject): Int = bundle.getValue("export").jsonObject
+        .getValue("components").jsonArray.sumOf { component ->
+            component.jsonObject.getValue("config").jsonObject.getValue("variations").jsonArray.sumOf { variation ->
+                variation.jsonObject.getValue("values").jsonArray.count { "targets" in it.jsonObject }
+            }
+        }
+
     private suspend fun designSystem(name: String): String = id(
-        created("/api/ds/design-systems", """{"name":"$name","projectName":"$name"}""", admin = false),
+        created("/api/design-systems", """{"name":"$name","projectName":"$name"}""", admin = false),
     )
 
     private suspend fun component(name: String, platform: String): String =
-        id(created("/api/ds/components", """{"name":"$name","platform":"$platform"}""", admin = true))
+        id(
+            created(
+                "/api/design-systems/catalog/components",
+                """{"name":"$name","platform":"$platform"}""",
+                admin = true,
+            ),
+        )
 
     private suspend fun property(component: String, name: String, type: String): String =
         id(
             created(
-                "/api/ds/properties",
+                "/api/design-systems/catalog/properties",
                 """{"componentId":"$component","name":"$name","type":"$type"}""",
                 admin = true,
             ),
@@ -258,11 +343,11 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     private fun importBody(ds: String, platform: String, component: String, style: String, config: String) =
-        """{"designSystemId":"$ds","platform":"$platform","meta":{"name":"fixture","source":"kotlin-test"},
+        """{"platform":"$platform","meta":{"name":"fixture","source":"kotlin-test"},
            "dryRun":false,"components":[{"componentName":"$component","styleName":"$style","config":$config}]}"""
 
-    private suspend fun imported(body: String) {
-        val response = post("/api/ds/component-config/import", body, admin = true)
+    private suspend fun imported(ds: String, body: String) {
+        val response = post("/api/design-systems/$ds/component-config/import", body, admin = true)
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         val rejected = json.parseToJsonElement(response.bodyAsText()).jsonObject["rejected"]?.jsonArray.orEmpty()
         assertTrue(rejected.isEmpty(), response.bodyAsText())
@@ -271,8 +356,8 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     private suspend fun publish(ds: String) {
         val draft = "SELECT %s FROM design_system_versions WHERE design_system_id = '$ds' AND status = 'draft'"
         val response = post(
-            "/api/ds/design-system-versions",
-            """{"designSystemId":"$ds","draftId":"${query(draft.format("id::text"))}",""" +
+            "/api/design-systems/$ds/versions",
+            """{"draftId":"${query(draft.format("id::text"))}",""" +
                 """"draftRevision":${query(draft.format("resolved_draft_revision(id)::text"))},""" +
                 """"version":"2.0.0","changelog":"fixture"}""",
             role = "owner",
@@ -285,7 +370,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
 
     private suspend fun bundle(ds: String, component: String, platform: String, version: String? = null): JsonObject {
         val suffix = version?.let { "&versionId=$it" }.orEmpty()
-        val response = get("/api/ds/design-systems/$ds/components/$component/editor-bundle?platform=$platform$suffix")
+        val response = get("/api/design-systems/$ds/components/$component/editor-bundle?platform=$platform$suffix")
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         val body = json.parseToJsonElement(response.bodyAsText()).jsonObject
         assertEquals(EXPECTED_FIELDS, body.keys)
@@ -394,6 +479,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     private companion object {
+        const val SIZES = 8
         val EXPECTED_FIELDS = setOf(
             "component",
             "appearances",

@@ -1,13 +1,13 @@
 package com.dsbuilder.frontend.core.application
 
 import com.dsbuilder.frontend.core.auth.AccessTokenResponse
-import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.AuthResult
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.PatResolver
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
 import com.dsbuilder.frontend.core.auth.UserSession
@@ -53,7 +53,7 @@ class ServiceAccountCredentialProviderTest {
     }
 
     private fun provider(env: Map<String, String>) = RuntimeCredentialProvider(
-        apiKeyResolver = ApiKeyResolver(EnvironmentReader { null }),
+        apiKeyResolver = PatResolver(EnvironmentReader { null }),
         credentialStore = store,
         tokenClient = tokenClient,
         environment = EnvironmentReader { env[it] },

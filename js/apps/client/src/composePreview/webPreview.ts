@@ -7,6 +7,7 @@ import { createComponentPreviewDraft } from './draft';
 import { loadComposePreviewManifest } from './manifest';
 import { collectRelatedConfigs } from './relatedConfigs';
 import type { JsonValue } from './types';
+import type { PreviewView } from './viewContainer';
 import { resolveWebPreviewPluginUrl, type WebPluginDescriptorFetcher } from './webPluginLocation';
 
 /** Story web-плагина до ответа `describe`: плагин описывает story `Default`. */
@@ -24,6 +25,8 @@ export interface WebPreviewPayloadOptions {
     storyProps: Record<string, JsonValue>;
     /** Токен темы фона области превью (`dark.background.default.primary`): попадает в `theme` и `surface.background`. */
     backgroundToken: string;
+    /** Вид контейнера превью: `default`, `onDark`, `onLight`. */
+    view?: PreviewView;
     /** Дизайн-система компонента: из неё берутся связанные компоненты. Без неё в `styles` только сам компонент. */
     designSystem?: DesignSystem;
     /** Экземпляры `Config` связанных компонентов между пересборками payload. */
@@ -42,6 +45,7 @@ export const assembleWebPreviewPayload = ({
     storyId,
     storyProps,
     backgroundToken,
+    view,
     designSystem,
     relatedConfigs,
 }: WebPreviewPayloadOptions): AssemblyResult => {
@@ -56,6 +60,7 @@ export const assembleWebPreviewPayload = ({
         exampleProps: storyProps,
         themeMode,
         themeValuePlatform: 'web',
+        view,
         surface: { width: 360, height: 160, background: backgroundToken },
     });
     return draft.ok ? assembleComposePreviewPayload(draft.draft) : draft;

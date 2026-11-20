@@ -101,7 +101,7 @@
       ]
     }
   },
-  "projectKeyScopes": [
+  "personalAccessTokenScopes": [
     "projects:read",
     "members:read",
     "design-systems:read",

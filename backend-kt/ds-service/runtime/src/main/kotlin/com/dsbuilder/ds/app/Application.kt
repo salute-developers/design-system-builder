@@ -54,6 +54,7 @@ import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCas
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
+import com.dsbuilder.ds.components.application.GetIconCatalogUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPropertyValueUseCase
 import com.dsbuilder.ds.components.application.GetPropertyPlatformParamUseCase
@@ -69,6 +70,7 @@ import com.dsbuilder.ds.components.application.GetStyleUseCase
 import com.dsbuilder.ds.components.application.GetVariationPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.GetVariationPropertyValueUseCase
 import com.dsbuilder.ds.components.application.GetVariationUseCase
+import com.dsbuilder.ds.components.application.IconAssetStorage
 import com.dsbuilder.ds.components.application.ImportApiMetaUseCase
 import com.dsbuilder.ds.components.application.ImportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.ListAppearanceVariationAxesUseCase
@@ -80,6 +82,7 @@ import com.dsbuilder.ds.components.application.ListComponentDependenciesUseCase
 import com.dsbuilder.ds.components.application.ListComponentPropertiesUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsByDependencyUseCase
 import com.dsbuilder.ds.components.application.ListComponentReuseConfigsUseCase
+import com.dsbuilder.ds.components.application.ListComponentTemplatesUseCase
 import com.dsbuilder.ds.components.application.ListComponentVariationsUseCase
 import com.dsbuilder.ds.components.application.ListComponentsUseCase
 import com.dsbuilder.ds.components.application.ListDependenciesByComponentUseCase
@@ -105,6 +108,7 @@ import com.dsbuilder.ds.components.application.ListVariationStylesUseCase
 import com.dsbuilder.ds.components.application.ListVariationsUseCase
 import com.dsbuilder.ds.components.application.PluginBuildStorage
 import com.dsbuilder.ds.components.application.PluginBuildStorages
+import com.dsbuilder.ds.components.application.PublishIconCatalogUseCase
 import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisUseCase
 import com.dsbuilder.ds.components.application.RemoveAppearanceAxisValueUseCase
@@ -144,7 +148,10 @@ import com.dsbuilder.ds.components.presentation.componentDependencyRoutes
 import com.dsbuilder.ds.components.presentation.componentEditorBundleRoutes
 import com.dsbuilder.ds.components.presentation.componentReuseConfigRoutes
 import com.dsbuilder.ds.components.presentation.componentRoutes
+import com.dsbuilder.ds.components.presentation.componentTemplateRoutes
 import com.dsbuilder.ds.components.presentation.designSystemComponentRoutes
+import com.dsbuilder.ds.components.presentation.iconCatalogPublishRoutes
+import com.dsbuilder.ds.components.presentation.iconCatalogReadRoutes
 import com.dsbuilder.ds.components.presentation.invariantPlatformParamAdjustmentRoutes
 import com.dsbuilder.ds.components.presentation.invariantPropertyValueRoutes
 import com.dsbuilder.ds.components.presentation.pluginBuildPublishRoutes
@@ -188,12 +195,9 @@ import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemDraftCursorUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemVersionUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemAppearancesUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemComponentStylesUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemComponentsUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemTenantsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemTokensUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemVersionsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.ListVersionsByDesignSystemUseCase
@@ -237,7 +241,6 @@ import com.dsbuilder.ds.tokens.application.GetTokenValuesUseCase
 import com.dsbuilder.ds.tokens.application.ListPaletteByTypeUseCase
 import com.dsbuilder.ds.tokens.application.ListPaletteUseCase
 import com.dsbuilder.ds.tokens.application.ListTokenValuesUseCase
-import com.dsbuilder.ds.tokens.application.ListTokensUseCase
 import com.dsbuilder.ds.tokens.application.UpdatePaletteEntryUseCase
 import com.dsbuilder.ds.tokens.application.UpdateTokenUseCase
 import com.dsbuilder.ds.tokens.application.UpdateTokenValueUseCase
@@ -254,6 +257,7 @@ import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.NotFoundException
 import io.ktor.server.plugins.callid.CallId
 import io.ktor.server.plugins.callid.callId
 import io.ktor.server.plugins.callid.callIdMdc
@@ -287,8 +291,9 @@ import com.dsbuilder.ds.components.application.ListDesignSystemComponentsUseCase
 fun Application.module(
     configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment(),
     pluginStorages: Map<PreviewPluginPlatform, PluginBuildStorage> = emptyMap(),
+    iconStorage: IconAssetStorage? = null,
 ) {
-    com.dsbuilder.ds.core.presentation.configureDsLegacyEntry(this)
+    com.dsbuilder.ds.core.presentation.configureDsServiceEntry(this)
     val runtime = createDsRuntime(configuration)
     monitor.subscribe(ApplicationStopped) {
         runtime.close()
@@ -297,7 +302,7 @@ fun Application.module(
         ignoreUnknownKeys = false
         explicitNulls = true
     }
-    installDependencyGraph(configuration, runtime, pluginStorages)
+    installDependencyGraph(configuration, runtime, pluginStorages, iconStorage)
     installDsHttpPlugins(json, runtime.metrics)
     installDsRoutes(runtime, json)
 }
@@ -308,10 +313,13 @@ fun dsDependencyModules(
     runtime: DsRuntime,
     pluginStorages: Map<PreviewPluginPlatform, PluginBuildStorage> = emptyMap(),
     registerSharedPolicy: Boolean = true,
+    iconStorage: IconAssetStorage? = null,
 ): List<org.koin.core.module.Module> = listOf(
     module {
         single { configuration }
         single<PluginBuildStorages> { configuration.composePreviewPlugin.createStorages(pluginStorages) }
+        single<IconAssetStorage> { iconStorage ?: configuration.composePreviewPlugin.createIconStorage() }
+        single { configuration.composePreviewPlugin.iconSettings() }
         single { runtime.database }
         if (registerSharedPolicy) single { runtime.evaluator }
         single { runtime.accessPolicy }
@@ -320,6 +328,7 @@ fun dsDependencyModules(
             ExposedTransactionRunner(
                 runtime.database,
                 PostgresTransactionFailureMapper(),
+                runtime.databasePool::diagnosticState,
             )
         }
         single<PublicationTransactionRunner> {
@@ -343,10 +352,11 @@ private fun Application.installDependencyGraph(
     configuration: DsServiceConfiguration,
     runtime: DsRuntime,
     pluginStorages: Map<PreviewPluginPlatform, PluginBuildStorage>,
+    iconStorage: IconAssetStorage?,
 ) {
     install(Koin) {
         slf4jLogger()
-        modules(dsDependencyModules(configuration, runtime, pluginStorages))
+        modules(dsDependencyModules(configuration, runtime, pluginStorages, iconStorage = iconStorage))
     }
 }
 
@@ -400,6 +410,13 @@ private fun Application.installDsErrorPages(json: Json, validationErrors: Legacy
         exception<IdempotentReplayException> { call, cause ->
             call.respondIdempotentReplay(cause.response)
         }
+        exception<NotFoundException> { call, _ ->
+            call.respondText(
+                json.encodeToString(ErrorResponse.serializer(), ErrorResponse("Not found")),
+                ContentType.Application.Json,
+                HttpStatusCode.NotFound,
+            )
+        }
         exception<BadRequestException> { call, cause ->
             call.markDsFailureOutcome("invalid_request")
             val error = validationErrors.fromBadRequest(call, cause)
@@ -452,6 +469,8 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<DsServiceConfiguration>().composePreviewPlugin.limits.maxCompressedBytes,
     )
     activePluginBuildRoutes(runtime.evaluator, koin.get<GetActivePluginBuildUseCase>())
+    iconCatalogPublishRoutes(runtime.evaluator, koin.get<PublishIconCatalogUseCase>())
+    iconCatalogReadRoutes(runtime.evaluator, koin.get<GetIconCatalogUseCase>())
     componentConfigRoutes(
         runtime.evaluator,
         koin.get<GetComponentConfigUseCase>(),
@@ -480,6 +499,10 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<CreateDesignSystemComponentUseCase>(),
         koin.get<DeleteDesignSystemComponentUseCase>(),
         json,
+    )
+    componentTemplateRoutes(
+        runtime.evaluator,
+        koin.get<ListComponentTemplatesUseCase>(),
     )
     componentDependencyRoutes(
         runtime.evaluator,
@@ -696,13 +719,10 @@ private fun Route.registerDesignSystemFeature(runtime: DsRuntime, json: Json, ko
         koin.get<ListDesignSystemComponentsUseCase>(),
         koin.get<ListDesignSystemTokensUseCase>(),
         koin.get<ListDesignSystemComponentStylesUseCase>(),
-        koin.get<ListDesignSystemTenantsUseCase>(),
-        koin.get<ListDesignSystemAppearancesUseCase>(),
         json,
     )
     designSystemVersionRoutes(
         runtime.evaluator,
-        koin.get<ListDesignSystemVersionsUseCase>(),
         koin.get<GetDesignSystemVersionUseCase>(),
         koin.get<ListVersionsByDesignSystemUseCase>(),
         koin.get<CreateDesignSystemVersionUseCase>(),
@@ -745,7 +765,6 @@ private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Ko
 private fun Route.registerTokensFeature(runtime: DsRuntime, json: Json, koin: Koin) {
     tokenRoutes(
         runtime.evaluator,
-        koin.get<ListTokensUseCase>(),
         koin.get<GetTokenUseCase>(),
         koin.get<CreateTokenUseCase>(),
         koin.get<UpdateTokenUseCase>(),

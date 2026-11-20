@@ -59,6 +59,8 @@ data class ComponentConfig(
         val values: List<VariationValue>,
         /** Declared type carried by this contract. */
         val declaredType: String? = null,
+        /** ID вариации оси; только в выгрузке для редактора. */
+        val variationId: String? = null,
     )
 
     /** One axis value and properties applied at its coordinates. */
@@ -71,6 +73,8 @@ data class ComponentConfig(
         val properties: Map<String, Property>,
         /** Authored id carried by this contract. */
         val authoredId: String? = null,
+        /** ID стиля значения; только в выгрузке для редактора. */
+        val styleId: String? = null,
     )
 
     /** One group of cross-axis coordinates. */

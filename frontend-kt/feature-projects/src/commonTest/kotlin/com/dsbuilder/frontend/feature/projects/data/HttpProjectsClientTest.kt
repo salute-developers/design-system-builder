@@ -29,6 +29,21 @@ class HttpProjectsClientTest {
     }
 
     @Test
+    fun patUnauthorizedIsPatInvalidAndDoesNotFallBack() = runTest {
+        var attempts = 0
+        val client = HttpProjectsClient(
+            factory {
+                attempts += 1
+                assertEquals("Bearer pat", it.headers[HttpHeaders.Authorization])
+                HttpStatusCode.Unauthorized to "private-body"
+            },
+        )
+        val result = client.listProjects("https://gateway.example.com", BackendCredential.PersonalAccessToken("pat"))
+        assertEquals(ProjectsReadErrorCode.PAT_INVALID, assertIs<ProjectsReadResult.Failed>(result).code)
+        assertEquals(1, attempts)
+    }
+
+    @Test
     fun parsesProjectListAndSendsBearerAuthorization() = runTest {
         var request: HttpRequestData? = null
         val client = HttpProjectsClient(
@@ -105,7 +120,7 @@ class HttpProjectsClientTest {
         val factory = object : AuthenticatedHttpClientFactory {
             override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient = create(
                 apiUrl,
-                BackendCredential.ProjectKey(apiKey),
+                BackendCredential.PersonalAccessToken(apiKey),
             )
 
             override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient =

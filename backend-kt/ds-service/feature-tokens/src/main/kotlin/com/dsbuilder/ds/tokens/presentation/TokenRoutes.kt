@@ -17,7 +17,6 @@ import com.dsbuilder.ds.tokens.application.CreateTokenUseCase
 import com.dsbuilder.ds.tokens.application.DeleteTokenUseCase
 import com.dsbuilder.ds.tokens.application.GetTokenUseCase
 import com.dsbuilder.ds.tokens.application.GetTokenValuesUseCase
-import com.dsbuilder.ds.tokens.application.ListTokensUseCase
 import com.dsbuilder.ds.tokens.application.TokenValueFilter
 import com.dsbuilder.ds.tokens.application.UpdateToken
 import com.dsbuilder.ds.tokens.application.UpdateTokenUseCase
@@ -41,7 +40,6 @@ import java.util.UUID
 @Suppress("CyclomaticComplexMethod", "LongMethod", "LongParameterList")
 fun Route.tokenRoutes(
     evaluator: PolicyEvaluator,
-    list: ListTokensUseCase,
     get: GetTokenUseCase,
     create: CreateTokenUseCase,
     update: UpdateTokenUseCase,
@@ -49,16 +47,7 @@ fun Route.tokenRoutes(
     getValues: GetTokenValuesUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/tokens")) {
-        get {
-            val context = TrustedDsRequestContextMapper.map(
-                call.dsTrustedHeaders(), evaluator, call.request.queryParameters["versionId"],
-            ) ?: return@get call.respondFailure(DsFailure.Forbidden)
-            when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respondSuccess(result, result.value.map(TokenResponse::from))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
+    route(dsRoutePath("/api/design-systems/{designSystemId}/tokens")) {
         get("/{id}") {
             val context = call.modelReadContext(evaluator) ?: return@get
             val id = call.parameters["id"]?.tokenUuid()
@@ -99,11 +88,11 @@ fun Route.tokenRoutes(
             )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateTokenRequest>()
-            val designSystemId = request.designSystemId?.tokenUuid()
+            val designSystemId = context.designSystemId
             val type = request.type?.let(TokenType::fromWire)
             val invalidBody = listOf(
                 !request.valid(),
-                request.designSystemId != null && designSystemId == null,
+                designSystemId == null,
                 request.type != null && type == null,
             ).any { it }
             if (invalidBody) {

@@ -38,8 +38,8 @@ class RuntimePortSelectionTest {
                 projectKeyOverride: String?,
                 credentialEnvName: CredentialEnvName,
             ): CredentialResult = CredentialResult.Selected(
-                BackendCredential.ProjectKey("key"),
-                BackendCredentialType.PROJECT_KEY,
+                BackendCredential.PersonalAccessToken("key"),
+                BackendCredentialType.PERSONAL_ACCESS_TOKEN,
             )
         }
 

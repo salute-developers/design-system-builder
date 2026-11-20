@@ -27,8 +27,8 @@ class CreateAppearanceVariationUseCase(
         idempotencyKey,
         "create-appearance-variation",
         command,
-        { repository.findVariation(context.projectId, context.principal.systemAdmin, it) },
-        { repository.createVariation(context.projectId, context.principal.systemAdmin, command) },
+        { repository.findVariation(context.projectId, context.principal.globalAdmin, it) },
+        { repository.createVariation(context.projectId, context.principal.globalAdmin, command) },
         AppearanceVariation::id,
     )
 }

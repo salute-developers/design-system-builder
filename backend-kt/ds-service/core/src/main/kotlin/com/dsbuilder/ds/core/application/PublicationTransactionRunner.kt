@@ -10,4 +10,12 @@ interface PublicationTransactionRunner {
         designSystemId: UUID,
         block: suspend () -> DsResult<T>,
     ): DsResult<T>
+
+    /** Завершает короткую проверку [beforeLock] до ожидания барьера, затем открывает новый снимок для [block]. */
+    suspend fun <T> required(
+        context: DsRequestContext,
+        designSystemId: UUID,
+        beforeLock: suspend () -> DsResult<Unit>,
+        block: suspend () -> DsResult<T>,
+    ): DsResult<T>
 }

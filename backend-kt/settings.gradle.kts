@@ -11,8 +11,12 @@ includeBuild("project-publisher")
 includeBuild("identity-gateway")
 includeBuild("projects-service")
 includeBuild("documentation-service")
+includeBuild("ai-assistant")
 includeBuild("ds-service")
 include(":architecture-tests")
 
 includeBuild("runtime-contracts")
 includeBuild("app")
+
+includeBuild("feature-user-settings")
+includeBuild("consent-history")

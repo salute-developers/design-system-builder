@@ -16,6 +16,6 @@ class GetVariationUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<ComponentVariationSummary> =
         modelFind(policy, transactions, context) {
-            repository.findVariation(context.projectId, context.principal.systemAdmin, id)
+            repository.findVariation(context.projectId, context.principal.globalAdmin, id)
         }
 }

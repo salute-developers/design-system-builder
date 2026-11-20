@@ -181,21 +181,21 @@ CLI `components push` SHALL convert every native component configuration into th
 
 ### Requirement: Components push backend contract
 
-CLI `components push` SHALL upload the whole package in a single request to the component-config import endpoint, addressing the design system by `designSystemId` and the component platform by `platform` in the request body.
+CLI `components push` SHALL отправлять пакет целиком одним запросом импорта конфигураций: `designSystemId` задаётся в пути, `platform` — в теле запроса.
 
 #### Scenario: Push отправляет один запрос
 
 - **WHEN** CLI has converted the package
-- **THEN** CLI MUST send `POST /api/projects/{projectId}/ds/component-config/import`
-- **THEN** the request body MUST contain `designSystemId` taken from the project config
+- **THEN** CLI MUST send `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/import`
+- **THEN** путь MUST содержать `designSystemId` из конфигурации проекта; тело MUST NOT дублировать это поле
 - **THEN** the request body MUST contain `platform` resolved from the project config
 - **THEN** the request body MUST contain the package metadata and all converted component configurations
 - **THEN** CLI MUST NOT send one request per component
 
-#### Scenario: Путь запроса не содержит идентификатор дизайн-системы
+#### Scenario: Путь запроса содержит идентификатор дизайн-системы
 
 - **WHEN** CLI builds the import request path
-- **THEN** the path MUST NOT contain `designSystemId` as a path segment
+- **THEN** путь MUST содержать `designSystemId` отдельным сегментом после `design-systems`
 - **THEN** the path MUST NOT contain a custom method separated by a colon
 
 #### Scenario: Dry run передаётся в запросе
@@ -251,21 +251,20 @@ CLI `dsbuilder` SHALL предоставлять project-scoped команду `
 
 ### Requirement: Components fetch backend contract
 
-CLI `components fetch` SHALL download the whole package in a single request to the component-config
-export endpoint, addressing the design system by `designSystemId` and the component platform by `platform` in the request body.
+CLI `components fetch` SHALL получать пакет целиком одним запросом экспорта конфигураций: `designSystemId` задаётся в пути, `platform` — в теле запроса.
 
 #### Scenario: Fetch отправляет один запрос
 
 - **WHEN** CLI performs a fetch
-- **THEN** CLI MUST send `POST /api/projects/{projectId}/ds/component-config/export`
-- **THEN** the request body MUST contain `designSystemId` taken from the project config
+- **THEN** CLI MUST send `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/export`
+- **THEN** путь MUST содержать `designSystemId` из конфигурации проекта; тело MUST NOT дублировать это поле
 - **THEN** the request body MUST contain `platform` resolved from the project config
 - **THEN** CLI MUST NOT send one request per component
 
-#### Scenario: Путь запроса не содержит идентификатор дизайн-системы
+#### Scenario: Путь запроса содержит идентификатор дизайн-системы
 
 - **WHEN** CLI builds the export request path
-- **THEN** the path MUST NOT contain `designSystemId` as a path segment
+- **THEN** путь MUST содержать `designSystemId` отдельным сегментом после `design-systems`
 - **THEN** the path MUST NOT contain a custom method separated by a colon
 
 #### Scenario: Backend возвращает ошибку
@@ -406,7 +405,7 @@ discovers them.
 
 ### Requirement: Export restores offsets from platform parameter adjustments
 
-`POST /ds/component-config/export` SHALL return `adjustment` from platform parameter adjustments when the
+`POST /api/design-systems/{designSystemId}/component-config/export` SHALL return `adjustment` from platform parameter adjustments when the
 value row has none.
 
 #### Scenario: Смещение из поправок платформенных параметров
@@ -424,7 +423,7 @@ files.
 #### Scenario: Web-адаптер сохраняется в .sdds/web
 
 - **WHEN** the platform resolves to `react` (explicit `--platform`, otherwise the single platform of project config) and package export succeeds
-- **THEN** CLI MUST request `POST /api/projects/{projectId}/ds/component-config/web-adapter` with `designSystemId` in the body before writing any file
+- **THEN** CLI MUST request `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/web-adapter` с `designSystemId` в пути без дублирования в теле до записи любого файла
 - **THEN** CLI MUST write the response to `web/web-adapter.json` beside the discovered project config, or to `<to>/web/web-adapter.json` without local project config
 - **THEN** a repeated fetch MUST replace the file
 
@@ -445,7 +444,7 @@ files.
 
 ### Requirement: Web adapter endpoint
 
-`POST /ds/component-config/web-adapter` SHALL return a JSON array with one entry per component that has a
+`POST /api/design-systems/{designSystemId}/component-config/web-adapter` SHALL return a JSON array with one entry per component that has a
 configuration in the design system, ordered by `componentName` (the component name in the `meta.json` spelling).
 
 #### Scenario: Имя и описание из базы

@@ -15,6 +15,6 @@ class ListPropertyPlatformParamsUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<PropertyPlatformParam>> =
         modelList(policy, transactions, context) {
-            repository.listPlatformParams(context.projectId, context.principal.systemAdmin)
+            repository.listPlatformParams(context.projectId, context.principal.globalAdmin)
         }
 }

@@ -23,8 +23,8 @@ class ListComponentVariationsUseCase(
     ): DsResult<List<ComponentVariationSummary>> =
         policy.read(context, ProjectScope.COMPONENT_VARIATIONS_READ) {
             transactions.readOnly(context) {
-                repository.variations(context.projectId, context.principal.systemAdmin, id, designSystemId)
-                    ?.let { DsResult.Success(it) } ?: if (context.principal.systemAdmin) {
+                repository.variations(context.projectId, context.principal.globalAdmin, id, designSystemId)
+                    ?.let { DsResult.Success(it) } ?: if (context.principal.globalAdmin) {
                     DsResult.Success(emptyList())
                 } else {
                     DsResult.Failure(DsFailure.NotFound)

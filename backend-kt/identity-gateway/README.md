@@ -1,5 +1,19 @@
 # Identity Gateway
 
+## Production bootstrap
+
+`keycloak-bootstrap` использует отдельный образ Python стандартной библиотеки и Admin REST API.
+Shell entrypoint и переменные `docker-compose.prod.yml` сохранены. JVM и `kcadm.sh` не запускаются.
+Первый и повторный запуск сохраняют конфигурацию realm, профиля, клиентов, PKCE, audience и ролей.
+Preview publisher создаётся только при заданном `PREVIEW_PUBLISHER_CLIENT_SECRET`.
+Ошибка обязательной настройки завершает bootstrap ненулевым кодом, без вывода секретов и ответов API.
+
+Узкая проверка из корня репозитория:
+
+```bash
+python3 -m unittest discover -s backend-kt/identity-gateway/keycloak -p 'test_bootstrap.py' -v
+```
+
 Identity Gateway - локальная и production-ready основа аутентификации DS Builder:
 
 - Keycloak отвечает за identity пользователей, login, self-registration, refresh tokens и global roles.

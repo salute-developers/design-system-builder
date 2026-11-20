@@ -19,6 +19,6 @@ class UpdateStyleCombinationUseCase(
         id: UUID,
         command: StyleCombinationRepository.Update,
     ): DsResult<StyleCombination> = modelMutate(policy, transactions, context) {
-        repository.update(context.projectId, context.principal.systemAdmin, id, command)
+        repository.update(context.projectId, context.principal.globalAdmin, id, command)
     }
 }

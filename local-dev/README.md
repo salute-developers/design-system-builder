@@ -9,15 +9,17 @@ Compose- и web-плагины с API-метаданными. Пакеты те�
 | `web-preview/preview-web-plugin.zip` | Собранный web preview plugin (`js/apps/preview-web-plugin`) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform react` |
 | `design-system/components/` | Пакет конфигураций компонентов: `meta.json` и `*_config.json` | `./seed-local-design-system.sh` |
 | `design-system/theme/android/` | Значения токенов темы для Android (`android_color.json` и др.) | `./seed-local-design-system.sh` |
+| `icons/icons-manifest.json` | Стартовый набор иконок `@salutejs/sdds-icons` (185 иконок трёх размеров с SVG, категориями и синонимами) | `./publish-local-icons.sh` |
+| `icons/starter-icons.txt` | Канонические имена иконок стартового набора, по одному в строке | `./refresh-local-dev-icons.sh` |
 | `apply_theme_values.py` | Помощник, который переносит значения токенов темы в тему контура | `./seed-local-design-system.sh` |
 
 Происхождение текущих файлов:
 
 <!-- provenance:start -->
-- Plugin archive: build `e66280f5dcd9` (commit `e66280f5dcd97f5a2dfd834dd343155fd5c87b07`), uikit-compose `0.55.0`, protocol 1, sha256 `b9f40b1522fa45e3c64aabbd2ae60360234dbcae190e2a4527a19c199abccf96`.
+- Plugin archive: build `0dc782c1cfa3` (commit `0dc782c1cfa35302d71fb53ded20eb9282d388f9`), uikit-compose `0.57.0`, protocol 1, sha256 `c23a741b5c434ffcd690087dbc1fa211a7d31c8b1031a4c2af712e4b18762ef6`.
 - Theme (Android values): `sdds_serv` `0.9.0` from theme-converter.
 - Component package: `sdds_serv` `0.18.0`, 144 configurations, from theme-converter.
-- plasma-android commit of the refresh: `e66280f5dcd97f5a2dfd834dd343155fd5c87b07`.
+- plasma-android commit of the refresh: `0dc782c1cfa35302d71fb53ded20eb9282d388f9`.
 <!-- provenance:end -->
 
 <!-- web-provenance:start -->
@@ -33,13 +35,40 @@ Compose- и web-плагины с API-метаданными. Пакеты те�
    локального MinIO своей платформы (`compose-preview`, `web-preview`), импортирует API-мету платформы из архива
    (компоненты и свойства глобального слоя) и делает билд активным. Клиент получает адреса активных билдов у бэкенда
    и загружает плагины прямо из MinIO.
-2. Только при явном `--components-package DIR` (PowerShell: `-ComponentsPackage DIR`) либо
+2. Затем `setup-local.sh` загружает каталог иконок командой CLI (`dsbuilder icons publish --apply`, как это делает CI):
+   бэкенд кладёт SVG в бакет `compose-preview` локального MinIO и заменяет каталог одной транзакцией. По умолчанию
+   используется стартовый набор `local-dev/icons/icons-manifest.json`, и только если каталог пуст: повторный запуск не
+   заменяет каталог, загруженный вручную. Весь набор грузится так: `./setup-local.sh --icons path/to/plasma/packages/sdds-icons`
+   (или `./publish-local-icons.sh --from …`); `--skip-icons` пропускает шаг. Стартовый набор пересобирается командой
+   `./refresh-local-dev-icons.sh --sdds-icons path/to/plasma/packages/sdds-icons` по списку `icons/starter-icons.txt`
+   (PowerShell: `-Icons`, `-SkipIcons`).
+3. Только при явном `--components-package DIR` (PowerShell: `-ComponentsPackage DIR`) либо
    `COMPOSE_COMPONENTS_PACKAGE` вызывается `seed-local-design-system.sh`: он создаёт дизайн-систему `sdds_serv_local` с одноимённой темой через API (другие дизайн-системы проекта, например `base`, не
    затрагиваются). Бэкенд создаёт
    стандартный набор токенов для стартовой палитры (`malachite`). Затем помощник `apply_theme_values.py` заменяет
    значения Android (их читает Compose-превью) значениями из пакета темы `sdds_serv`, сопоставляя токены по имени.
-   После этого конфигурации загружаются командой `dsbuilder components push`. Конфигурации компонентов, которых нет
+   После этого конфигурации загружаются командой `dsbuilder components push` с временным PAT
+   (`components:write`, срок один час), переданным через `DSBUILDER_API_KEY`. Скрипт отзывает PAT
+   при завершении, включая ошибку импорта. Конфигурации компонентов, которых нет
    в глобальном слое, отклоняются (в текущем пакете это `bottom-sheet`).
+
+После импорта seed публикует версию `0.1.0` и оставляет активный черновик для редактирования.
+Повторный запуск обновляет черновик, но не меняет уже опубликованную версию. Чтобы опубликовать
+новую версию после повторного импорта:
+
+```bash
+./seed-local-design-system.sh --package ./local-dev/design-system/components --publish-version 0.1.1
+```
+
+Параметр `--publish-version` также поддерживается в `setup-local.sh` вместе с `--components-package`.
+Версия должна иметь вид `MAJOR.MINOR.PATCH` без ведущих нулей. Ошибка публикации завершает seed
+с ошибкой; импортированные данные остаются в черновике, временный PAT отзывается.
+
+Проверка скрипта без живого контура:
+
+```bash
+python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
+```
 
 Ограничения темы: токены форм, типографики, градиентов, теней, отступов и шрифтов совпадают с `sdds_serv`. 343 цвета в
 пакете заданы ссылками на палитру (например, `[general.red.300]`), и сервер раскрывает их палитрой стартового

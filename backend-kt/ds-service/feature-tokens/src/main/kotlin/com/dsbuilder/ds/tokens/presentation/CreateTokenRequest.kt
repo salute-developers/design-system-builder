@@ -5,8 +5,6 @@ import kotlinx.serialization.Serializable
 /** Legacy-compatible create-token payload. */
 @Serializable
 data class CreateTokenRequest(
-    /** Designsystemid carried by this contract. */
-    val designSystemId: String? = null,
     /** Name carried by this contract. */
     val name: String,
     /** Type carried by this contract. */

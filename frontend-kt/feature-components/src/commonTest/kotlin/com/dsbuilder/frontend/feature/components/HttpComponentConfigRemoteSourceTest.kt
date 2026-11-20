@@ -42,10 +42,10 @@ class HttpComponentConfigRemoteSourceTest {
 
         assertTrue(result is ImportComponentsResult.Imported, "импорт отказал: $result")
         assertEquals(1, paths.size, "выполнены лишние запросы: $paths")
-        assertEquals("/api/projects/project-a/ds/component-config/import", requests.single().first)
+        assertEquals("/api/projects/project-a/design-systems/ds-a/component-config/import", requests.single().first)
 
         val parsed = Json.parseToJsonElement(requests.single().second).jsonObject
-        assertEquals("ds-a", parsed.getValue("designSystemId").jsonPrimitive.content)
+        assertTrue("designSystemId" !in parsed)
         assertEquals("compose", parsed.getValue("platform").jsonPrimitive.content)
         val meta = parsed.getValue("meta").jsonObject
         assertEquals("sdds_sbcom", meta.getValue("name").jsonPrimitive.content)
@@ -177,13 +177,13 @@ class HttpComponentConfigRemoteSourceTest {
 
         assertTrue(result is ExportComponentsResult.Exported, "выгрузка отказала: $result")
         assertEquals(1, requests.size, "выполнены лишние запросы: $requests")
-        assertEquals("/api/projects/project-a/ds/component-config/export", requests.single().first)
+        assertEquals("/api/projects/project-a/design-systems/ds-a/component-config/export", requests.single().first)
 
-        // Дизайн-система адресуется идентификатором тела, а не именем в пути.
+        // Дизайн-система адресуется путём; тело содержит только параметры выгрузки.
         val parsed = Json.parseToJsonElement(requests.single().second).jsonObject
-        assertEquals("ds-a", parsed.getValue("designSystemId").jsonPrimitive.content)
+        assertTrue("designSystemId" !in parsed)
         assertEquals("compose", parsed.getValue("platform").jsonPrimitive.content)
-        assertEquals(2, parsed.size, "тело несёт лишние поля: $parsed")
+        assertEquals(1, parsed.size, "тело несёт лишние поля: $parsed")
     }
 
     @Test
@@ -222,7 +222,7 @@ class HttpComponentConfigRemoteSourceTest {
         HttpComponentConfigRemoteSource(FakeHttpClientFactory({ _, _ -> }, {}, onPost)).export(
             ExportComponentsCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                credential = BackendCredential.ProjectKey("secret-key"),
+                credential = BackendCredential.PersonalAccessToken("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
                 platform = "compose",
@@ -239,7 +239,7 @@ class HttpComponentConfigRemoteSourceTest {
         HttpComponentConfigRemoteSource(FakeHttpClientFactory(onCreate, onGet, onPost)).import(
             ImportComponentsCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                credential = BackendCredential.ProjectKey("secret-key"),
+                credential = BackendCredential.PersonalAccessToken("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
                 platform = "compose",

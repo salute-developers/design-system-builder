@@ -70,7 +70,7 @@ fun Route.appearanceEditorRoutes(
     duplicateConfiguration: DuplicateAppearanceConfigurationUseCase,
     json: Json,
 ) {
-    route(dsRoutePath("/api/ds/appearances")) {
+    route(dsRoutePath("/api/design-systems/{designSystemId}/appearances")) {
         get("/{id}/editor-model") {
             val context = requestContext(evaluator) ?: return@get
             val id = pathUuid("id") ?: return@get
@@ -264,7 +264,7 @@ fun Route.appearanceEditorRoutes(
         post("/new") {
             val context = requestContext(evaluator) ?: return@post
             val request = requestBody<CreateAppearanceConfigurationRequest>(json) ?: return@post
-            val designSystemId = request.designSystemId.toUuidOrNull()
+            val designSystemId = context.designSystemId
             val componentId = request.componentId.toUuidOrNull()
             val name = request.name?.trim()?.takeIf { it.isNotEmpty() }
             if (designSystemId == null || componentId == null || (name?.length ?: 0) > MAX_NAME_LENGTH) {

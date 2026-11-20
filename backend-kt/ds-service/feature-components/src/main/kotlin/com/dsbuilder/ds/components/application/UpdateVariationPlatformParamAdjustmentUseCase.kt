@@ -19,6 +19,6 @@ class UpdateVariationPlatformParamAdjustmentUseCase(
         id: UUID,
         command: ComponentModelRepository.AdjustmentUpdate,
     ): DsResult<VariationPlatformParamAdjustment> = modelMutate(policy, transactions, context) {
-        repository.updateVariationAdjustment(context.projectId, context.principal.systemAdmin, id, command)
+        repository.updateVariationAdjustment(context.projectId, context.principal.globalAdmin, id, command)
     }
 }

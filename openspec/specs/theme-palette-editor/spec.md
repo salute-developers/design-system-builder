@@ -37,7 +37,7 @@ SHALL возвращать DTO контракта палитры темы и в�
 #### Scenario: Адаптер api
 
 - **WHEN** `VITE_PALETTE_SOURCE` не задана или равна `api`
-- **THEN** клиент MUST читать палитру запросом `GET /api/projects/{projectId}/ds/tenants/{tenantId}/palette` и выполнять операции запросами контракта палитры темы
+- **THEN** клиент MUST читать палитру запросом `GET /api/projects/{projectId}/design-systems/{designSystemId}/tenants/{tenantId}/palette` и выполнять операции запросами контракта палитры темы
 - **THEN** растяжки в телах запросов MUST передаваться только полями `type` и `shade`
 
 #### Scenario: Адаптер local

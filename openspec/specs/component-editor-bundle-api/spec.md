@@ -5,26 +5,26 @@ TBD - created by archiving change speed-up-component-preview-loading. Update Pur
 ## Requirements
 ### Requirement: ds-service отдаёт данные одного компонента для редактора одним запросом
 
-ds-service SHALL обслуживать `GET /api/ds/design-systems/{designSystemId}/components/{componentId}/editor-bundle`
+ds-service SHALL обслуживать `GET /api/design-systems/{designSystemId}/components/{componentId}/editor-bundle`
 с обязательным параметром `platform` (`web` или `compose`) и необязательным `versionId`. Ответ
 `ComponentEditorBundleResponse` SHALL содержать данные только этого компонента в этой дизайн-системе
 в тех же DTO, что отдают существующие маршруты:
 
 - `component` (`ComponentResponse`);
 - `appearances` (`AppearanceResponse`) — оформления компонента в дизайн-системе;
-- `export` (`ExportComponentConfigResponse`) — то же, что `POST /api/ds/component-config/export` с этой дизайн-системой, платформой и одним компонентом;
-- `properties` (`ComponentPropertySummaryResponse`) — то же, что `GET /api/ds/components/{componentId}/properties`;
+- `export` (`ExportComponentConfigResponse`) — то же, что `POST /api/design-systems/{designSystemId}/component-config/export` с этой дизайн-системой, платформой и одним компонентом;
+- `properties` (`ComponentPropertySummaryResponse`) — то же, что `GET /api/design-systems/{designSystemId}/components/{componentId}/properties`;
 - `platformParams` (`PropertyPlatformParamResponse`) — параметры только этих свойств;
 - `propertyVariations` (`PropertyVariationResponse`) — связи только этих свойств; пустой список для `compose`;
-- `variations` (`ComponentVariationSummaryResponse`) — то же, что `GET /api/ds/components/{componentId}/variations?designSystemId=…`;
-- `styles` — то же, что `GET /api/ds/design-systems/{designSystemId}/components/{componentId}/styles`;
-- `webAdapter` (`ComponentWebAdapterEntryResponse` или `null`) — запись компонента из `POST /api/ds/component-config/web-adapter`; `null` для `compose`;
+- `variations` (`ComponentVariationSummaryResponse`) — то же, что `GET /api/design-systems/{designSystemId}/components/{componentId}/variations`;
+- `styles` — то же, что `GET /api/design-systems/{designSystemId}/components/{componentId}/styles`;
+- `webAdapter` (`ComponentWebAdapterEntryResponse` или `null`) — запись компонента из `POST /api/design-systems/{designSystemId}/component-config/web-adapter`; `null` для `compose`;
 - `dependencies` (`ComponentDependencyResponse`) — связи, где компонент родитель или дочерний;
 - `dependencyComponents` (`ComponentResponse`) — компоненты по другую сторону этих связей, привязанные к той же дизайн-системе и той же платформе.
 
 Маршрут SHALL требовать право `components:variations:read` и SHALL быть описан в
 `app/src/main/resources/openapi/documentation.yaml` и `contracts/route-manifest.json`.
-Существующие маршруты SHALL NOT меняться.
+Формы ответов существующих маршрутов SHALL сохраняться; их системные пути SHALL соответствовать `design-system-request-scope`.
 
 #### Scenario: Web-компонент привязан к дизайн-системе
 

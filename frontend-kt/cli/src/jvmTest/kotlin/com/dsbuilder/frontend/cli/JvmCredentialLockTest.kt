@@ -15,6 +15,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class JvmCredentialLockTest {
     @Test
     fun concurrentAcquisitionNeverOverlapsOrDeletesAReplacementOwner() = runBlocking {

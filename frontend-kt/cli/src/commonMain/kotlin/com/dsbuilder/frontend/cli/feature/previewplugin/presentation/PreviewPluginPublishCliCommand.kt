@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.cli.feature.previewplugin.presentation
 
 import com.dsbuilder.frontend.cli.feature.components.presentation.render
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_ID_ENV
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_SECRET_ENV
@@ -9,7 +10,6 @@ import com.dsbuilder.frontend.feature.components.application.PublishPreviewPlugi
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginResult
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginTarget
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.flag
@@ -25,7 +25,7 @@ import kotlinx.coroutines.runBlocking
  */
 internal class PreviewPluginPublishCliCommand(
     private val publishUseCase: PublishPreviewPluginUseCase,
-) : CliktCommand(name = "publish") {
+) : AnalyticsCliCommand(name = "publish", operation = "preview-plugin publish") {
     private val platform: TargetPlatform by option("--platform").targetPlatform().required()
         .help("Platform of the plugin: compose or react (the web plugin).")
 
@@ -41,7 +41,7 @@ internal class PreviewPluginPublishCliCommand(
     private val apply: Boolean by option("--apply").flag()
         .help("Write the build. Without it the command performs a dry run.")
 
-    override fun run() {
+    override fun runOperation() {
         val result = runBlocking {
             publishUseCase.execute(
                 PublishPreviewPluginCommand(

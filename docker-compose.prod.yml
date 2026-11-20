@@ -32,7 +32,7 @@ services:
         localhost\r\n\r\n'' >&3; grep -q ''200'' <&3'
       interval: 15s
       timeout: 5s
-      start_period: 40s
+      start_period: 120s
       retries: 10
   keycloak-bootstrap:
     image: "${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/keycloak-bootstrap:${IMAGE_TAG:?Set
@@ -61,6 +61,8 @@ services:
         condition: service_healthy
   backend:
     mem_limit: "${BACKEND_MEMORY_LIMIT:-2g}"
+    # Остановка ждёт начатые вызовы инструментов чата (AI_TOOL_CALL_TIMEOUT_SECONDS) и запросы (BACKEND_SHUTDOWN_TIMEOUT_MS).
+    stop_grace_period: 70s
     environment:
       JAVA_TOOL_OPTIONS: "${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=60.0}"
       KEYCLOAK_ISSUER: "${KEYCLOAK_ISSUER:?Set KEYCLOAK_ISSUER}"
@@ -87,6 +89,7 @@ services:
       DS_DATABASE_PASSWORD: "${DS_DATABASE_PASSWORD:?Set DS_DATABASE_PASSWORD}"
       DS_DATABASE_POOL_SIZE: "${DS_DATABASE_POOL_SIZE:-10}"
       DS_DATABASE_CONNECTION_TIMEOUT_MS: "${DS_DATABASE_CONNECTION_TIMEOUT_MS:-5000}"
+      DS_QUERY_DIAGNOSTICS: "${DS_QUERY_DIAGNOSTICS:-false}"
       DS_FLYWAY_ENABLED: 'true'
       DS_FLYWAY_ADOPT_EXISTING: "${DS_FLYWAY_ADOPT_EXISTING:-false}"
       DS_EXPECTED_SCHEMA_SHA256: "${DS_EXPECTED_SCHEMA_SHA256:-}"
@@ -98,6 +101,8 @@ services:
       DS_PLUGIN_S3_PATH_STYLE: "${DS_PLUGIN_S3_PATH_STYLE:-false}"
       DS_PLUGIN_S3_PREFIX: "${DS_PLUGIN_S3_PREFIX:-}"
       DS_PLUGIN_PUBLIC_BASE_URL: "${DS_PLUGIN_PUBLIC_BASE_URL:-}"
+      DS_ICON_S3_PREFIX: "${DS_ICON_S3_PREFIX:-}"
+      DS_ICON_PUBLIC_BASE_URL: "${DS_ICON_PUBLIC_BASE_URL:-}"
       DS_WEB_PLUGIN_S3_BUCKET: "${DS_WEB_PLUGIN_S3_BUCKET:-}"
       DS_WEB_PLUGIN_S3_PREFIX: "${DS_WEB_PLUGIN_S3_PREFIX:-}"
       DS_WEB_PLUGIN_PUBLIC_BASE_URL: "${DS_WEB_PLUGIN_PUBLIC_BASE_URL:-}"
@@ -160,6 +165,31 @@ services:
       BACKEND_PORT: '8080'
       KEYCLOAK_INTERNAL_URL: http://keycloak:8080
       BACKEND_SHUTDOWN_TIMEOUT_MS: "${BACKEND_SHUTDOWN_TIMEOUT_MS:-30000}"
+      # ИИ-чат: выключен, пока AI_ENABLED не равно true; при включении ошибка в AI_* не даст открыть готовность.
+      AI_ENABLED: "${AI_ENABLED:-false}"
+      AI_PROVIDER: "${AI_PROVIDER:-openai-compatible}"
+      AI_BASE_URL: "${AI_BASE_URL:-}"
+      AI_API_KEY: "${AI_API_KEY:-}"
+      AI_MODEL: "${AI_MODEL:-}"
+      AI_EXTRA_BODY: "${AI_EXTRA_BODY:-}"
+      AI_RETRY_ERROR_CODES: "${AI_RETRY_ERROR_CODES:-}"
+      AI_GIGACHAT_AUTH_KEY: "${AI_GIGACHAT_AUTH_KEY:-}"
+      AI_GIGACHAT_SCOPE: "${AI_GIGACHAT_SCOPE:-}"
+      AI_GIGACHAT_OAUTH_URL: "${AI_GIGACHAT_OAUTH_URL:-}"
+      AI_GIGACHAT_BASE_URL: "${AI_GIGACHAT_BASE_URL:-}"
+      # Корень НУЦ Минцифры для GigaChat: смонтировать файл томом только для чтения и указать путь внутри контейнера.
+      AI_CA_PATH: "${AI_CA_PATH:-/app/certs/russian_trusted_root_ca.pem}"
+      AI_MAX_STEPS: "${AI_MAX_STEPS:-12}"
+      AI_MAX_WRITES: "${AI_MAX_WRITES:-10}"
+      AI_TURN_TIMEOUT_SECONDS: "${AI_TURN_TIMEOUT_SECONDS:-120}"
+      AI_TOOL_CALL_TIMEOUT_SECONDS: "${AI_TOOL_CALL_TIMEOUT_SECONDS:-30}"
+      AI_HISTORY_MAX_CHARS: "${AI_HISTORY_MAX_CHARS:-200000}"
+      AI_MESSAGE_MAX_CHARS: "${AI_MESSAGE_MAX_CHARS:-8000}"
+      AI_TOOL_RESULT_MAX_CHARS: "${AI_TOOL_RESULT_MAX_CHARS:-20000}"
+      # Хранилище ходов в памяти процесса; учитывается в BACKEND_MEMORY_LIMIT.
+      AI_TURN_STORE_MAX_MB: "${AI_TURN_STORE_MAX_MB:-64}"
+      AI_MAX_TURNS_PER_HOUR: "${AI_MAX_TURNS_PER_HOUR:-30}"
+      AI_MAX_CONCURRENT_TURNS: "${AI_MAX_CONCURRENT_TURNS:-20}"
       DOCUMENTATION_WORKER_PARALLELISM: "${DOCUMENTATION_WORKER_PARALLELISM:-1}"
       PROJECTS_DATABASE_POOL_SIZE: "${PROJECTS_DATABASE_POOL_SIZE:-10}"
       DOCUMENTATION_DATABASE_POOL_SIZE: "${DOCUMENTATION_DATABASE_POOL_SIZE:-10}"

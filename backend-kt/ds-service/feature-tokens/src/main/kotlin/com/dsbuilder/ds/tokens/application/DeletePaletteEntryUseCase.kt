@@ -16,7 +16,7 @@ class DeletePaletteEntryUseCase(
 ) {
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> {
-        if (!context.principal.systemAdmin) return DsResult.Failure(DsFailure.Forbidden)
+        if (!context.principal.globalAdmin) return DsResult.Failure(DsFailure.Forbidden)
         return when (val allowed = policy.require(context, ProjectScope.TOKENS_DELETE)) {
             is DsResult.Failure -> allowed
             is DsResult.Success -> transactions.required(context) {

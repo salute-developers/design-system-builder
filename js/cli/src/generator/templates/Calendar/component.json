@@ -1,0 +1,17 @@
+{
+    "coreTokensExport": "calendarBaseTokens",
+    "coreConfigExport": "calendarBaseConfig",
+    "reexports": {
+        "types": [
+            "CalendarBaseProps",
+            "CalendarDoubleProps",
+            "CalendarProps",
+            "CalendarStateType"
+        ],
+        "local": [
+            "CalendarBase",
+            "CalendarBaseRange",
+            "CalendarDoubleRange"
+        ]
+    }
+}

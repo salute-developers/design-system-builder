@@ -14,5 +14,5 @@ class ListAppearancesUseCase(
 ) {
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<Appearance>> =
-        modelList(policy, transactions, context) { repository.list(context.projectId, context.principal.systemAdmin) }
+        modelList(policy, transactions, context) { repository.list(context.projectId, context.principal.globalAdmin) }
 }

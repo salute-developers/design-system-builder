@@ -1,7 +1,6 @@
 package com.dsbuilder.frontend.core.auth
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 private const val SESSION_SCHEMA_VERSION = 2
@@ -165,8 +164,6 @@ public class FileCredentialStore(
         val path = sessionPath(apiUrl)
         val session = try {
             json.decodeFromString(SessionFile.serializer(), fileSystem.readText(path)).toDomain()
-        } catch (exception: SerializationException) {
-            null
         } catch (exception: IllegalArgumentException) {
             null
         }

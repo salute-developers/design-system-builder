@@ -168,7 +168,7 @@ class HttpDocsReadRemoteSourceTest {
             "/work/.sdds/config.json",
         ),
         ProjectApiUrl("https://api.example.com"),
-        BackendCredential.ProjectKey("test-key"),
+        BackendCredential.PersonalAccessToken("test-key"),
     )
 
     private companion object {

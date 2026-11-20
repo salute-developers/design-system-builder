@@ -8,11 +8,11 @@ import com.dsbuilder.frontend.core.application.CredentialRequest
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectEnvironmentLoader
 import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
-import com.dsbuilder.frontend.core.auth.ApiKeyResolver
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.PatResolver
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.DesignSystemId
@@ -44,6 +44,10 @@ import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCas
 import com.dsbuilder.frontend.feature.ds.dsApplicationModule
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusErrorCode
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -60,6 +64,43 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DsBuilderMcpServerCoreTest {
+    @Test fun toolCancellationIsObservedAndPreserved() = runTest {
+        val entered = CompletableDeferred<Unit>()
+        val outcomes = mutableListOf<String>()
+        val core = server(
+            projectStatusReader = McpProjectStatusReader { _, _, _ ->
+                entered.complete(Unit)
+                awaitCancellation()
+            },
+            toolObserver = { _, outcome -> outcomes += outcome },
+        )
+        val call = async { core.callTool("project_get_status") }
+        entered.await()
+        call.cancelAndJoin()
+        assertTrue(call.isCancelled)
+        assertEquals(listOf("cancelled"), outcomes)
+    }
+
+    @Test fun observerCoversActualRegistryErrorsAndIgnoresUnknownNames() = runTest {
+        val events = mutableListOf<Pair<String, String>>()
+        val core = server(
+            toolObserver = { name, outcome ->
+                events += name to outcome
+            },
+        )
+        val names = core.tools().map { it.name }
+        assertTrue(events.isEmpty())
+        for (name in names) {
+            val result = core.callTool(name)
+            assertEquals(name to if (result.isError) "failure" else "success", events.last())
+        }
+        assertEquals(names, events.map { it.first })
+        core.callTool("unknown-sensitive-name")
+        assertEquals(names.size, events.size)
+        val broken = server(toolObserver = { _, _ -> error("observer down") })
+        assertEquals(core.callTool("project_get_status"), broken.callTool("project_get_status"))
+    }
+
     @Test
     fun appearanceReadUsesExplicitIdAndVersionArgumentOverridesTheUri() = runTest {
         val paths = mutableListOf<String>()
@@ -83,7 +124,11 @@ class DsBuilderMcpServerCoreTest {
             ),
         )
         assertFalse(result.isError, result.body)
-        assertEquals("/api/projects/project-a/ds/appearances/$id/variations?version=draft", paths.single())
+        assertEquals(
+            "/api/projects/project-a/design-systems/" +
+                "550e8400-e29b-41d4-a716-446655440000/appearances/$id/variations?version=draft",
+            paths.single(),
+        )
         assertErrorCode(
             "INVALID_QUERY",
             core.callTool(
@@ -106,7 +151,7 @@ class DsBuilderMcpServerCoreTest {
             ProjectEnvironmentLoader(fileSystem),
         )
         var processKey: String? = null
-        val keys = ApiKeyResolver(EnvironmentReader { name -> if (name == "DSBUILDER_API_KEY") processKey else null })
+        val keys = PatResolver(EnvironmentReader { name -> if (name == "DSBUILDER_API_KEY") processKey else null })
         val credentials = object : CredentialProvider {
             override suspend fun resolve(
                 apiUrl: ProjectApiUrl,
@@ -114,14 +159,14 @@ class DsBuilderMcpServerCoreTest {
                 credentialEnvName: CredentialEnvName,
             ): CredentialResult = error("request expected")
             override suspend fun resolve(request: CredentialRequest): CredentialResult = CredentialResult.Selected(
-                BackendCredential.ProjectKey(
+                BackendCredential.PersonalAccessToken(
                     keys.resolve(
                         request.projectKeyOverride,
                         request.credentialEnvName.value,
                         request.projectEnvironment,
                     ).value,
                 ),
-                BackendCredentialType.PROJECT_KEY,
+                BackendCredentialType.PERSONAL_ACCESS_TOKEN,
             )
         }
         val used = mutableListOf<BackendCredential>()
@@ -142,8 +187,8 @@ class DsBuilderMcpServerCoreTest {
         assertFalse(core.callTool("tokens_list").isError)
         assertEquals(
             listOf<BackendCredential>(
-                BackendCredential.ProjectKey("file-secret"),
-                BackendCredential.ProjectKey("process-secret"),
+                BackendCredential.PersonalAccessToken("file-secret"),
+                BackendCredential.PersonalAccessToken("process-secret"),
             ),
             used,
         )
@@ -275,6 +320,19 @@ class DsBuilderMcpServerCoreTest {
         assertErrorCode("BACKEND_UNAVAILABLE", server(modelReadUseCase = reader).callTool("tokens_list"))
     }
 
+    @Test
+    fun patHttpErrorsKeepTheirCategoryThroughTheSharedMcpGraph() = runTest {
+        for ((status, code) in listOf(401 to "PAT_INVALID", 503 to "BACKEND_UNAVAILABLE")) {
+            val reader = modelReader { _, credential, _ ->
+                assertTrue(credential is BackendCredential.PersonalAccessToken)
+                AuthenticatedHttpResult.Failure("private-backend-body", status)
+            }
+            val result = server(modelReadUseCase = reader).callTool("tokens_list")
+            assertErrorCode(code, result)
+            assertFalse(result.body.contains("private-backend-body"))
+        }
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
     private val context = ProjectContext(
         projectId = ProjectId("project-1"),
@@ -290,7 +348,7 @@ class DsBuilderMcpServerCoreTest {
 
         val tools = server.tools()
 
-        assertEquals(29, tools.size)
+        assertEquals(61, tools.size)
         assertEquals(
             setOf(
                 "design_system_get_context",
@@ -322,13 +380,47 @@ class DsBuilderMcpServerCoreTest {
                 "documentation_get_page",
                 "code_binding_search",
                 "code_binding_get",
-            ),
+            ) + expectedEditorNames,
             tools.map { it.name }.toSet(),
         )
-        assertFalse(
-            tools.any { it.name.contains("create") || it.name.contains("update") || it.name.contains("delete") },
-        )
+        assertEquals(30, tools.count { !it.readOnly })
+        assertFalse(tools.any { it.name.startsWith("catalog_") || it.name.startsWith("state_create") })
     }
+
+    private val expectedEditorNames = setOf(
+        "token_create",
+        "token_update",
+        "token_delete",
+        "token_value_create",
+        "token_value_update",
+        "token_value_delete",
+        "color_token_create",
+        "color_token_values_update",
+        "color_token_move",
+        "color_token_delete",
+        "token_group_create",
+        "token_group_update",
+        "token_group_delete",
+        "size_token_value_update",
+        "typography_style_update",
+        "component_configuration_create",
+        "component_configuration_duplicate",
+        "component_configuration_update",
+        "component_configuration_delete",
+        "component_axis_create",
+        "component_axis_update",
+        "component_axis_delete",
+        "component_axes_reorder",
+        "component_axis_value_create",
+        "component_axis_value_update",
+        "component_axis_value_delete",
+        "component_axis_values_reorder",
+        "component_property_set",
+        "component_property_reset",
+        "component_states_reorder",
+        "token_edit_data_get",
+        "component_editor_get",
+    )
 
     @Test
     fun readToolSchemasExposeRequiredInputsAndVersionFallback() {
@@ -503,7 +595,7 @@ class DsBuilderMcpServerCoreTest {
         assertEquals("550e8400-e29b-41d4-a716-446655440000", body.getValue("designSystemId").jsonPrimitive.content)
         assertEquals("/workspace/.sdds/config.json", body.getValue("configPath").jsonPrimitive.content)
         assertEquals("https://api.example.com", body.getValue("apiUrl").jsonPrimitive.content)
-        assertEquals("PROJECT_KEY", body.getValue("credentialType").jsonPrimitive.content)
+        assertEquals("PERSONAL_ACCESS_TOKEN", body.getValue("credentialType").jsonPrimitive.content)
         assertFalse(result.body.contains("secret-value"))
     }
 
@@ -534,7 +626,7 @@ class DsBuilderMcpServerCoreTest {
                 CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Authentication required")
         }
         val core = server(modelReadUseCase = modelReader(provider = provider) { _, _, _ -> error("No backend call") })
-        assertEquals(29, core.tools().size)
+        assertEquals(61, core.tools().size)
         assertErrorCode("AUTH_REQUIRED", core.callTool("design_system_get_context"))
     }
 
@@ -751,12 +843,14 @@ class DsBuilderMcpServerCoreTest {
         docsReadUseCases: DocsReadUseCases? = null,
         componentReadUseCases: ComponentReadUseCases? = null,
         modelReadUseCase: ReadDesignSystemModelUseCase = modelReader(contextResolver),
+        toolObserver: (String, String) -> Unit = { _, _ -> },
     ): DsBuilderMcpServerCore = DsBuilderMcpServerCore(
         config = config,
         projectStatusReader = projectStatusReader,
         docsReadUseCases = docsReadUseCases,
         componentReadUseCases = componentReadUseCases,
         modelReadUseCase = modelReadUseCase,
+        toolObserver = toolObserver,
     )
 
     private fun modelReader(
@@ -766,7 +860,7 @@ class DsBuilderMcpServerCoreTest {
             String,
             BackendCredential,
             String,
-        ) -> AuthenticatedHttpResult.Success = { _, _, path -> modelResponse(path) },
+        ) -> AuthenticatedHttpResult = { _, _, path -> modelResponse(path) },
     ): ReadDesignSystemModelUseCase = koinApplication {
         modules(
             dsApplicationModule(),
@@ -779,7 +873,7 @@ class DsBuilderMcpServerCoreTest {
                         override fun create(
                             apiUrl: String,
                             apiKey: String,
-                        ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.ProjectKey(apiKey))
+                        ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.PersonalAccessToken(apiKey))
                         override fun create(
                             apiUrl: String,
                             credential: BackendCredential,
@@ -860,8 +954,8 @@ class DsBuilderMcpServerCoreTest {
                 credentialEnvName: CredentialEnvName,
             ): CredentialResult =
                 CredentialResult.Selected(
-                    credential = BackendCredential.ProjectKey("secret-value"),
-                    type = com.dsbuilder.frontend.core.auth.BackendCredentialType.PROJECT_KEY,
+                    credential = BackendCredential.PersonalAccessToken("secret-value"),
+                    type = com.dsbuilder.frontend.core.auth.BackendCredentialType.PERSONAL_ACCESS_TOKEN,
                 )
 
             override suspend fun resolve(

@@ -23,6 +23,7 @@ import kotlin.test.assertTrue
  * Адаптер хранилища против встроенного HTTP-сервера, который отвечает по REST-протоколу S3 для
  * `PutObject`, `ListObjectsV2` и `DeleteObjects`: проверяются ключи, заголовки и постраничное чтение.
  */
+@org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class S3PluginBuildStorageTest {
     private class Stored(val contentType: String?, val cacheControl: String?, val modified: Instant)
 

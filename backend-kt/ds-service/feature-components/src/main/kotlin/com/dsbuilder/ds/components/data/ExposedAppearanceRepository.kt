@@ -7,10 +7,12 @@ import com.dsbuilder.ds.components.domain.Appearance
 import com.dsbuilder.ds.components.domain.AppearanceVariation
 import com.dsbuilder.ds.components.domain.AppearanceVariationAxis
 import com.dsbuilder.ds.components.domain.AppearanceVariationValue
+import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -19,18 +21,20 @@ import java.util.UUID
 /** Exposed repository for appearances, variation axes, and declared axis values. */
 @Suppress("TooManyFunctions")
 class ExposedAppearanceRepository : AppearanceRepository {
-    override suspend fun list(projectId: ProjectId, systemAdmin: Boolean): List<Appearance> =
-        ComponentAppearancesTable.selectAll().where {
+    /**
+     * Оформления читаемых дизайн-систем, в том числе скрытых компонентов: связи у скрытого нет, а оформление остаётся,
+     * и по нему клиент находит компонент для возврата (как [ComponentOwnership.catalogComponentIds]).
+     */
+    override suspend fun list(projectId: ProjectId, systemAdmin: Boolean): List<Appearance> {
+        val components = ComponentOwnership.catalogComponentIds(projectId, systemAdmin)
+        return ComponentAppearancesTable.selectAll().where {
             ComponentOwnership.readableDesignSystem(
                 ComponentAppearancesTable.designSystemId,
                 projectId,
                 systemAdmin,
-            ) and ComponentOwnership.readableComponent(
-                ComponentAppearancesTable.componentId,
-                projectId,
-                systemAdmin,
-            )
+            ) and (ComponentAppearancesTable.componentId inList components)
         }.map(::appearance)
+    }
 
     override suspend fun listByComponent(
         projectId: ProjectId,
@@ -87,7 +91,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
             )
     }.any { row ->
         row[ComponentAppearancesTable.id] != excludingId &&
-            row[ComponentAppearancesTable.name]?.trim()?.lowercase() == normalizedName
+            row[ComponentAppearancesTable.name]?.let(ConfigurationName::key) == normalizedName
     }
 
     override suspend fun create(

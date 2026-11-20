@@ -10,7 +10,7 @@
 #### Scenario: Публичный и внутренний маршруты импорта
 
 - **WHEN** Gateway получает административный запрос импорта API-меты
-- **THEN** Gateway MUST переписывать этот путь в `ds-service` как `POST /api/ds/admin/component-config/import-api-meta`. Проектный маршрут `POST /api/projects/{projectId}/ds/component-config/import-api-meta` MUST NOT существовать.
+- **THEN** Gateway MUST переписывать этот путь в `ds-service` как `POST /api/admin/component-config/import-api-meta`. Проектный маршрут `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/import-api-meta` MUST NOT существовать.
 
 #### Scenario: Манифест принимается одним запросом
 
@@ -26,7 +26,7 @@
 
 #### Scenario: Проектный маршрут удалён
 
-- **WHEN** клиент обращается к `POST /api/projects/{projectId}/ds/component-config/import-api-meta`
+- **WHEN** клиент обращается к `POST /api/projects/{projectId}/design-systems/{designSystemId}/component-config/import-api-meta`
 - **THEN** backend MUST ответить `404`
 
 #### Scenario: Невалидное тело

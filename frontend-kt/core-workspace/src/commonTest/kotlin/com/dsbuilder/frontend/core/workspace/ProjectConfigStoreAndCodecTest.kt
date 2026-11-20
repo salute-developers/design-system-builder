@@ -20,7 +20,7 @@ class ProjectConfigStoreAndCodecTest {
         listOf(
             CredentialReference(CredentialReferenceType.AUTO, "PROJECT_KEY"),
             CredentialReference(CredentialReferenceType.USER_SESSION),
-            CredentialReference(CredentialReferenceType.PROJECT_KEY_ENV, "PROJECT_KEY"),
+            CredentialReference(CredentialReferenceType.PAT_ENV, "PROJECT_KEY"),
         ).forEach { reference ->
             val encoded = codec.encode(projectConfig().copy(credential = reference))
             assertEquals(reference, codec.decode(encoded).credential)

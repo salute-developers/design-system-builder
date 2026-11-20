@@ -1,9 +1,9 @@
 package com.dsbuilder.frontend.cli.feature.docs.presentation
 
+import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.feature.docs.application.DocsGenerateCommand
 import com.dsbuilder.frontend.feature.docs.application.DocsGenerateResult
 import com.dsbuilder.frontend.feature.docs.application.DocsGenerateUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.default
@@ -20,7 +20,7 @@ import com.github.ajalt.clikt.parameters.options.option
  */
 internal class DocsGenerateCliCommand(
     private val generateUseCase: DocsGenerateUseCase,
-) : CliktCommand(name = "generate") {
+) : AnalyticsCliCommand(name = "generate", operation = "docs generate") {
 
     private val docsDir: String? by option("--docs-dir")
         .help("Ready documentation tree; the platform aggregation step is skipped when given.")
@@ -38,7 +38,7 @@ internal class DocsGenerateCliCommand(
     private val tool: String? by option("--tool")
         .help("Path to the platform tool used by the aggregation step.")
 
-    override fun run() {
+    override fun runOperation() {
         val result = generateUseCase.execute(
             DocsGenerateCommand(
                 docsDir = docsDir,
