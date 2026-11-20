@@ -211,14 +211,101 @@ class DesignSystemBaselineSeedPostgresIntegrationTest {
             val database = Database.connect(postgres.jdbcUrl, user = postgres.username, password = postgres.password)
             val before = transaction(database) { revisionTriggers() }
             flyway(postgres, "latest").migrate()
-            val after = transaction(database) { revisionTriggers() }
+            val all = transaction(database) { revisionTriggers() }
+            val (guards, after) = all.partition { it.first.contains("_seed_guard_") }
             assertEquals(before.map { it.first }, after.map { it.first }, "names and firing order stay the same")
+            val guardedTables = guards.map { it.first.substringBefore('.') }
+            val expectedTables = transaction(database) { revisionTables() } - "design_system_revisions"
+            assertEquals(expectedTables.flatMap { listOf(it, it) }, guardedTables, "insert and change guard per table")
             val withoutCondition = after.filter { (name, condition) ->
                 !name.startsWith("design_system_revisions.") && condition == null
             }
             assertEquals(emptyList(), withoutCondition)
             assertTrue(after.filter { it.first.startsWith("design_system_revisions.") }.all { it.second == null })
         }
+    }
+
+    @Test
+    fun `window rejects revisions of another design system or boundary`() = withDatabase { database ->
+        val other = UUID.randomUUID()
+        transaction(database) {
+            maxAttempts = 1
+            insertBaseline(other, "other")
+            insertDraft(other)
+        }
+        listOf(other to 0, other to 1).forEach { (target, sequence) ->
+            val id = UUID.randomUUID()
+            val failure = assertFails {
+                transaction(database) {
+                    maxAttempts = 1
+                    insertBaseline(id, "guarded")
+                    runBlocking { seed.begin(id) }
+                    insertToken(target, "foreign.$sequence", sequence = sequence)
+                }
+            }
+            assertGuardRejected(failure)
+            assertEquals(0, transaction(database) { designSystemCount(id) })
+        }
+    }
+
+    @Test
+    fun `window rejects revisions of the target outside boundary zero`() = withDatabase { database ->
+        val id = UUID.randomUUID()
+        val token = UUID.randomUUID()
+        val failure = assertFails {
+            transaction(database) {
+                maxAttempts = 1
+                insertBaseline(id, "boundary")
+                runBlocking { seed.begin(id) }
+                exec(
+                    """
+                    INSERT INTO tokens(id, design_system_id) VALUES ('$token', '$id');
+                    INSERT INTO token_revisions(token_id, design_system_id, design_system_version_id,
+                        version_sequence_number, name, type, enabled)
+                        SELECT '$token', '$id', id, 1, 'wrong.boundary', 'color', true FROM design_system_versions
+                        WHERE design_system_id = '$id' AND sequence_number = 0;
+                    """.trimIndent(),
+                )
+            }
+        }
+        assertGuardRejected(failure)
+    }
+
+    @Test
+    fun `window rejects updating revisions`() = withDatabase { database ->
+        val id = UUID.randomUUID()
+        val failure = assertFails {
+            transaction(database) {
+                maxAttempts = 1
+                insertBaseline(id, "update")
+                runBlocking { seed.begin(id) }
+                insertToken(id, "own.token")
+                exec("UPDATE token_revisions SET enabled = false WHERE design_system_id = '$id'")
+            }
+        }
+        assertGuardRejected(failure)
+        assertEquals(0, transaction(database) { designSystemCount(id) })
+    }
+
+    @Test
+    fun `window rejects deleting revisions`() = withDatabase { database ->
+        val id = UUID.randomUUID()
+        val failure = assertFails {
+            transaction(database) {
+                maxAttempts = 1
+                insertBaseline(id, "delete")
+                runBlocking { seed.begin(id) }
+                insertToken(id, "own.token")
+                exec("DELETE FROM token_revisions WHERE design_system_id = '$id'")
+            }
+        }
+        assertGuardRejected(failure)
+        assertEquals(0, transaction(database) { designSystemCount(id) })
+    }
+
+    private fun assertGuardRejected(failure: Throwable) {
+        assertEquals("P0001", failure.sqlState(), failure.messages())
+        assertTrue(failure.messages().contains("baseline_seed_foreign_write"), failure.messages())
     }
 
     private fun withDatabase(block: (Database) -> Unit) {
@@ -307,12 +394,17 @@ class DesignSystemBaselineSeedPostgresIntegrationTest {
 
     private fun JdbcTransaction.revisionTriggers(): List<Pair<String, String?>> = exec(
         """
-        SELECT c.relname || '.' || t.tgname, pg_get_expr(t.tgqual, t.tgrelid)
+        SELECT c.relname || '.' || t.tgname, CASE WHEN t.tgqual IS NULL THEN NULL ELSE 'when' END
         FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
         WHERE NOT t.tgisinternal AND c.relname LIKE '%\_revisions' AND c.relnamespace = current_schema()::regnamespace
         ORDER BY c.relname, t.tgname
         """.trimIndent(),
     ) { rows -> buildList { while (rows.next()) add(rows.getString(1) to rows.getString(2)) } }.orEmpty()
+
+    private fun JdbcTransaction.revisionTables(): List<String> = exec(
+        "SELECT relname FROM pg_class WHERE relkind = 'r' AND relname LIKE '%\\_revisions' " +
+            "AND relnamespace = current_schema()::regnamespace ORDER BY relname",
+    ) { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }.orEmpty()
 
     private fun JdbcTransaction.scalarInt(sql: String): Int =
         exec(sql) { rows ->
@@ -342,6 +434,7 @@ class DesignSystemBaselineSeedPostgresIntegrationTest {
             "enforce_resolved_revision_unique",
             "enforce_resolved_state_set_coherence",
             "enforce_palette_revision_integrity",
+            "reject_baseline_seed_foreign_write",
         )
     }
 }

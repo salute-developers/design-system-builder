@@ -5,7 +5,7 @@
 SET LOCAL lock_timeout = '5s';
 
 -- Правило занятого имени в одном месте: последняя по sequence редакция другой системы не удалена
--- и её имя совпадает с точностью до регистра. Проверка глобальная, по всем проектам.
+-- и её имя совпадает точно, с учётом регистра (как в V10). Проверка глобальная, по всем проектам.
 CREATE FUNCTION design_system_name_taken(candidate text, except_id uuid) RETURNS boolean
 LANGUAGE sql STABLE AS $$
     SELECT EXISTS (
@@ -248,6 +248,9 @@ END;
 $$;
 
 -- Открывает окно для системы, вставленной в текущей транзакции и имеющей только базовую границу 0.
+-- Проверка xmin верна, пока строка design_systems вставлена на верхнем уровне транзакции: внутри
+-- SAVEPOINT или вложенной транзакции у строки xid подтранзакции, и окно не откроется
+-- (baseline_seed_requires_new_design_system) — отказ явный, без тихого пропуска проверок.
 CREATE FUNCTION begin_design_system_baseline_seed(target uuid) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
     IF COALESCE(current_setting('ds.baseline_seed', true), '') <> '' THEN
@@ -447,6 +450,52 @@ BEGIN
         ELSE
             EXECUTE regexp_replace(definition, '^CREATE TRIGGER ', 'CREATE OR REPLACE TRIGGER ');
         END IF;
+    END LOOP;
+END;
+$$;
+
+-- Сторож окна: пока окно открыто, в *_revisions допускается только вставка редакций целевой системы
+-- на границе 0. Вставка в другую систему или границу, а также удаление и изменение редакций отклоняются.
+-- Для правильных строк раскладки условие WHEN ложно и функция не вызывается. Сторожа создаются после
+-- DO-блока выше, поэтому не получают общее условие окна, и не начинаются на enforce_, поэтому не входят
+-- в итоговую проверку verify_design_system_baseline_seed. Самое длинное имя таблицы — 45 символов,
+-- с суффиксом имя триггера укладывается в 63. Будущая миграция, повторяющая DO-блок выше, должна
+-- исключать сторожей (суффикс _seed_guard_), а новая таблица *_revisions — получать и условие окна, и сторожей.
+CREATE FUNCTION reject_baseline_seed_foreign_write() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'baseline_seed_foreign_write',
+        DETAIL = TG_OP || ' ' || TG_TABLE_NAME;
+END;
+$$;
+
+DO $$
+DECLARE
+    table_row record;
+BEGIN
+    FOR table_row IN
+        SELECT c.relname
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r'
+          AND n.nspname = current_schema()
+          AND c.relname LIKE '%\_revisions'
+          AND c.relname <> 'design_system_revisions'
+        ORDER BY c.relname
+    LOOP
+        EXECUTE format(
+            'CREATE TRIGGER %I BEFORE INSERT ON %I FOR EACH ROW '
+            || 'WHEN (COALESCE(current_setting(''ds.baseline_seed'', true), '''') <> '''' AND ('
+            || 'NEW.design_system_id::text IS DISTINCT FROM current_setting(''ds.baseline_seed'', true) '
+            || 'OR NEW.version_sequence_number <> 0)) '
+            || 'EXECUTE FUNCTION reject_baseline_seed_foreign_write()',
+            table_row.relname || '_seed_guard_insert', table_row.relname
+        );
+        EXECUTE format(
+            'CREATE TRIGGER %I BEFORE UPDATE OR DELETE ON %I FOR EACH ROW '
+            || 'WHEN (COALESCE(current_setting(''ds.baseline_seed'', true), '''') <> '''') '
+            || 'EXECUTE FUNCTION reject_baseline_seed_foreign_write()',
+            table_row.relname || '_seed_guard_change', table_row.relname
+        );
     END LOOP;
 END;
 $$;
