@@ -78,6 +78,7 @@ fun lockDesignSystemMutation(designSystemId: UUID) {
         "SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(? AS text), 684313))",
         listOf(UUIDColumnType() to designSystemId),
     )
+    requireExpectedDraft(designSystemId)
 }
 
 /** Получает исключительную блокировку границы публикации этой дизайн-системы. */

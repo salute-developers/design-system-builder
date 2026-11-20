@@ -10,6 +10,7 @@ includeBuild("../identity-gateway")
 includeBuild("../projects-service")
 includeBuild("../ds-service")
 includeBuild("../documentation-service")
+includeBuild("../ai-assistant")
 includeBuild("../authorization-core")
 includeBuild("../runtime-contracts")
 

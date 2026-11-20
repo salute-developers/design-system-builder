@@ -29,6 +29,8 @@ data class DsRequestContext(
     val readQuery: ModelReadQuery = ModelReadQuery(),
     /** Ожидаемая система из пути; отсутствует у глобальной операции. */
     val designSystemId: UUID? = null,
+    /** Черновик, в который должна попасть запись; при смене активного черновика запись отклоняется. */
+    val expectedDraftId: UUID? = null,
 ) {
     /** Project boundary derived exclusively from [principal]. */
     val projectId: ProjectId = ProjectId(principal.projectId)

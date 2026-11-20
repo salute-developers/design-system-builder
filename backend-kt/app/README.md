@@ -74,6 +74,16 @@ Kubernetes указывайте доступные из процесса адр�
 | `DOCUMENTATION_WORKER_*`, `DOCUMENTATION_CLEANUP_*` | Прежние параметры аренды, повторов, опроса и очистки |
 | `DOCUMENTATION_S3_*`, `DS_PLUGIN_S3_*` | Прежние подключения и настройки MinIO/S3 |
 | `PROJECTS_IDENTITY_KEYCLOAK_*`, `PROJECTS_ACCESS_KEYS_*` | Прежние настройки поиска пользователей и ключей проектов |
+| `AI_ENABLED` | Включает ИИ-чат, `false`. При `false` остальные `AI_*` не читаются; при `true` ошибка в любой из них не даёт открыть готовность |
+| `AI_PROVIDER` | `openai-compatible` (по умолчанию) или `gigachat` |
+| `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | API формата OpenAI; все три обязательны при `AI_ENABLED=true`, значений по умолчанию нет — провайдер выбирается явно (например, ZAI `https://api.z.ai/api/paas/v4` и `glm-4.5-flash`) |
+| `AI_EXTRA_BODY`, `AI_RETRY_ERROR_CODES` | JSON, подмешиваемый в тело запроса (по умолчанию `{}`), и коды повтора кроме 429/5xx (по умолчанию нет); для ZAI задайте `{"thinking":{"type":"disabled"}}` и `1234,1305` |
+| `AI_GIGACHAT_AUTH_KEY`, `AI_GIGACHAT_SCOPE`, `AI_GIGACHAT_OAUTH_URL`, `AI_GIGACHAT_BASE_URL` | GigaChat; по умолчанию `GIGACHAT_API_PERS`, `https://ngw.devices.sberbank.ru:9443/api/v2/oauth`, `https://api.giga.chat/v1`, ключ обязателен |
+| `AI_CA_PATH` | Файл дополнительных корней TLS для любого провайдера; по умолчанию `/app/certs/russian_trusted_root_ca.pem` — корень НУЦ Минцифры лежит в образе (`backend-kt/app/certs`), им подписаны GigaChat и OpenAI-совместимый API на его инфраструктуре; добавляется к системным корням |
+| `AI_MAX_STEPS`, `AI_MAX_WRITES`, `AI_TURN_TIMEOUT_SECONDS`, `AI_TOOL_CALL_TIMEOUT_SECONDS` | Лимиты хода: 12 шагов, 10 записей без подтверждения, 120 с, 30 с на вызов инструмента |
+| `AI_HISTORY_MAX_CHARS`, `AI_MESSAGE_MAX_CHARS`, `AI_TOOL_RESULT_MAX_CHARS` | 200000, 8000, 20000; лимит истории должен вмещать промпт со схемами, сообщение и один обмен с инструментом |
+| `AI_TURN_STORE_MAX_MB` | Объём событий ходов в памяти, 64 МиБ; учитывается в `BACKEND_MEMORY_LIMIT` |
+| `AI_MAX_TURNS_PER_HOUR`, `AI_MAX_CONCURRENT_TURNS` | Новых ходов одного пользователя за скользящий час (30, сверх — `429 ai_turn_limit` с `retryAfterSeconds`) и одновременно идущих ходов всех пользователей (20, сверх — `503 ai_overloaded`). Чат доступен только с JWT: запрос по PAT получает `403 ai_pat_forbidden` |
 
 Лимиты остальных маршрутов сохраняются: 2 MiB по умолчанию, 16 MiB для DS/импорта
 API-меты, 64 MiB для публикации плагина. Проверяется фактически прочитанное тело,

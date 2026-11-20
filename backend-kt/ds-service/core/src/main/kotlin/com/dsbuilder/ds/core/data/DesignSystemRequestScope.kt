@@ -77,3 +77,22 @@ internal fun verifyRequestMutationScope(expected: UUID?) {
 
 /** Прерывает и откатывает транзакцию при нарушении ожидаемой границы. */
 class InaccessibleDesignSystemException : RuntimeException()
+
+/** Черновик, ожидаемый запросом, хранится только в текущей транзакции. */
+internal val expectedDraftKey = Key<UUID>()
+
+/** Прерывает и откатывает запись, если активный черновик уже не тот, что ожидал запрос. */
+internal class DraftChangedException : RuntimeException()
+
+/**
+ * Сверяет ожидаемый черновик с активным. Вызывается под разделяемой блокировкой записи:
+ * публикация держит исключительную, поэтому смена черновика между проверкой и записью невозможна.
+ */
+fun requireExpectedDraft(designSystemId: UUID) {
+    val expected = TransactionManager.current().getUserData(expectedDraftKey) ?: return
+    val active = TransactionManager.current().exec(
+        "SELECT id FROM design_system_versions WHERE design_system_id = ? AND status = 'draft'",
+        listOf(UUIDColumnType() to designSystemId),
+    ) { rows -> if (rows.next()) rows.getObject(1) as? UUID else null }
+    if (active != expected) throw DraftChangedException()
+}

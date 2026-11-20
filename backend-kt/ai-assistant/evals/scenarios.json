@@ -1,0 +1,31 @@
+{
+  "description": "Эталонные сценарии ИИ-чата. Прогон: ./gradlew :runtime:evalChat в backend-kt/ai-assistant против поднятого локального контура.",
+  "scenarios": [
+    {
+      "id": "button-background-red",
+      "prompt": "Перекрась фон кнопки Button в красный цвет в конфигурации по умолчанию.",
+      "expect": { "writeTools": ["component_property_set"], "journalGrows": true, "confirmation": false }
+    },
+    {
+      "id": "corner-radius-size-token",
+      "prompt": "Сделай скругление 8px: измени значение токена размера скругления, которое используют кнопки.",
+      "expect": { "writeTools": ["size_token_value_update"], "journalGrows": true, "confirmation": false }
+    },
+    {
+      "id": "typography-font-size",
+      "prompt": "Увеличь размер шрифта стиля типографики body на 2px.",
+      "expect": { "writeTools": ["typography_style_update"], "journalGrows": true, "confirmation": false }
+    },
+    {
+      "id": "question-without-changes",
+      "prompt": "Какие компоненты есть в этой дизайн-системе? Ничего не меняй.",
+      "expect": { "writeTools": [], "journalGrows": false, "confirmation": false }
+    },
+    {
+      "id": "reset-property-needs-confirmation",
+      "prompt": "Сбрось фон кнопки Button к значению по умолчанию.",
+      "role": "maintainer",
+      "expect": { "writeTools": [], "journalGrows": false, "confirmation": true, "confirmationTool": "component_property_reset" }
+    }
+  ]
+}
